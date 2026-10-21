@@ -6930,7 +6930,6 @@ fn hide_console_window(_command: &mut Command) {}
 
 #[cfg(test)]
 mod tests {
-    #[cfg(target_os = "macos")]
     use std::env;
     use std::fs;
     use std::path::{Path, PathBuf};
