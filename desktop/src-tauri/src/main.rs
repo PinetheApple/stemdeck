@@ -1,5 +1,7 @@
 mod backendjob;
 mod certs;
+#[cfg(any(target_os = "linux", test))]
+mod dmabuf;
 mod dragout;
 mod dropin;
 mod mediaperm;
@@ -378,6 +380,11 @@ fn main() {
         return;
     }
 
+    // Before Tauri, GTK and WebKit start, and before any other thread
+    // exists: the WebKit renderer switch is read once at WebKit init (#780).
+    #[cfg(target_os = "linux")]
+    dmabuf::apply_at_startup();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -425,8 +432,11 @@ fn main() {
                 .cloned()
                 .ok_or("tauri.conf.json describes no main window")?;
             main_window.drag_drop_enabled = dropin::NATIVE_FILE_DROP;
-            let window =
-                tauri::WebviewWindowBuilder::from_config(app.handle(), &main_window)?.build()?;
+            let builder = tauri::WebviewWindowBuilder::from_config(app.handle(), &main_window)?;
+            // Arms the launch crash guard and clears it once the page loads.
+            #[cfg(target_os = "linux")]
+            let builder = dmabuf::watch_first_load(builder);
+            let window = builder.build()?;
 
             // Before anything else: a minimum the screen cannot satisfy leaves
             // a window the user cannot resize down to fit, and that is not
@@ -577,6 +587,8 @@ fn main() {
             {
                 let state = app_handle.state::<BackendState>();
                 stop_backend(&state);
+                #[cfg(target_os = "linux")]
+                dmabuf::clear_on_exit();
                 app_handle.exit(0);
             }
         });
