@@ -8197,19 +8197,21 @@ mod tests {
         use super::{MacBinaryArch, MACHO_CPU_TYPE_ARM64 as ARM, MACHO_CPU_TYPE_X86_64 as X86};
         let dir = make_tmp();
         let ffmpeg = dir.path().join("ffmpeg");
+        // ffprobe_beside names ffprobe.exe when the test runs on Windows.
+        let ffprobe = super::ffprobe_beside(&ffmpeg);
         fs::write(&ffmpeg, thin_macho(ARM)).unwrap();
-        fs::write(dir.path().join("ffprobe"), thin_macho(ARM)).unwrap();
+        fs::write(&ffprobe, thin_macho(ARM)).unwrap();
         assert_eq!(
             super::macos_pair_arch("arm64", &ffmpeg),
             MacBinaryArch::Native
         );
         // An Intel ffprobe beside a native ffmpeg makes the pair Intel-only (#637).
-        fs::write(dir.path().join("ffprobe"), thin_macho(X86)).unwrap();
+        fs::write(&ffprobe, thin_macho(X86)).unwrap();
         assert_eq!(
             super::macos_pair_arch("arm64", &ffmpeg),
             MacBinaryArch::IntelOnly
         );
-        fs::remove_file(dir.path().join("ffprobe")).unwrap();
+        fs::remove_file(&ffprobe).unwrap();
         assert_eq!(
             super::macos_pair_arch("arm64", &ffmpeg),
             MacBinaryArch::Unknown
