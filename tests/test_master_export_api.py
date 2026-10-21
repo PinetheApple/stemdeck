@@ -32,7 +32,7 @@ from app.core.models import Job
 from app.core.registry import _jobs
 from app.pipeline import mastering
 from app.pipeline.mastering import Loudness, MasterSettings, encode_master_param
-from tests.ffmpeg_probe import skip_without_ffmpeg
+from tests.ffmpeg_probe import skip_without_ffmpeg, skip_without_vorbis
 
 JOB = "abcdef0f0f02"
 SR = 44100
@@ -266,23 +266,22 @@ async def test_a_region_gets_the_whole_songs_gain(jobs_dir, client):
     assert np.max(np.abs(xr[SR // 2 : -SR // 2] - xf[SR + SR // 2 : 3 * SR - SR // 2])) < 2e-4
 
 
-async def test_a_mastered_lossy_export_is_decoded_and_under_its_ceiling(jobs_dir, client):
+@pytest.mark.parametrize("path", ["mixdown.mp3", "mixdown.ogg", "video.mp4"])
+async def test_a_mastered_lossy_export_is_decoded_and_under_its_ceiling(jobs_dir, client, path):
     skip_without_ffmpeg()
+    if path.endswith(".ogg"):
+        skip_without_vorbis()
     _job(jobs_dir, video=True)
     loud = encode_master_param(MasterSettings(-9.0, -1.0, 0.5))
     async with client as c:
-        for url in (
-            f"/api/jobs/{JOB}/mixdown.mp3?{Q}&master={loud}",
-            f"/api/jobs/{JOB}/mixdown.ogg?{Q}&master={loud}",
-            f"/api/jobs/{JOB}/video.mp4?{Q}&master={loud}",
-        ):
-            r = await c.get(url)
-            assert r.status_code == 200, r.text
-            post = r.headers["x-stemdeck-loudness-post"]
-            tp = float(post.split("tp=")[1])
-            assert tp <= -1.0, (url, post)
-            i = float(post.split(";")[0].split("=")[1])
-            assert i == pytest.approx(-9.0, abs=0.6)
+        url = f"/api/jobs/{JOB}/{path}?{Q}&master={loud}"
+        r = await c.get(url)
+        assert r.status_code == 200, r.text
+        post = r.headers["x-stemdeck-loudness-post"]
+        tp = float(post.split("tp=")[1])
+        assert tp <= -1.0, (url, post)
+        i = float(post.split(";")[0].split("=")[1])
+        assert i == pytest.approx(-9.0, abs=0.6)
 
 
 def test_lossy_retry_trims_or_switches_the_aac_coder(monkeypatch, tmp_path):

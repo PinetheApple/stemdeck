@@ -443,6 +443,10 @@ VIDEO_ENCODER_OVERRIDE = _env_choice("STEMDECK_VIDEO_ENCODER", VIDEO_ENCODER_CHO
 # A probe is a real 2 s encode of a test picture at the render's size and rate.
 VIDEO_ENCODER_PROBE_SEC = 2
 TIMEOUT_VIDEO_ENCODER_PROBE = _env_int("STEMDECK_TIMEOUT_VIDEO_ENCODER_PROBE", 20)
+# `ffmpeg -encoders` for the audio export capabilities (app/pipeline/
+# audio_encoders.py). Runs once per ffmpeg binary and returns in well under a
+# second; the bound only matters for an ffmpeg that hangs.
+TIMEOUT_AUDIO_ENCODER_LIST = _env_int("STEMDECK_TIMEOUT_AUDIO_ENCODER_LIST", 15)
 # How long a probe result is trusted. A pass for a week, a failure for a day (a
 # driver installed today is tried tomorrow, or at once with Test encoders), a
 # timeout or a busy device for ten minutes (never as a lasting answer).

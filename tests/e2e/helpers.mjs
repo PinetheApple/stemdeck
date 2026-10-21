@@ -354,6 +354,20 @@ export async function openClickOptions(page) {
   await page.locator("#t-metro-panel.open").waitFor({ timeout: 5000 });
 }
 
+/**
+ * Answer /api/health with the real body but a chosen `export_formats`, the
+ * capability the export menu reads to disable OGG on an ffmpeg without
+ * libvorbis (#824). The real answer depends on the ffmpeg of whichever machine
+ * runs the suite, so a spec that cares must fix it. Call before page.goto.
+ */
+export async function stubExportFormats(page, formats) {
+  await page.route("**/api/health", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({ response, json: { ...body, export_formats: formats } });
+  });
+}
+
 export const exportUi = (page) => ({
   button: page.locator("#t-export-btn"),
   panel: page.locator("#t-export-panel"),

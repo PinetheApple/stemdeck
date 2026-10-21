@@ -576,6 +576,12 @@ function wireFooterControls() {
   const videoAvailable = () => !!exportWrap?.classList.contains("has-video");
 
   let format = "wav";
+  // OGG needs an FFmpeg with libvorbis, which is optional (#824). The
+  // backend's /api/health says which formats its FFmpeg can encode. Without
+  // libvorbis the OGG button stays visible but disabled, with the reason
+  // under it. An unknown answer (an older backend, a failed probe) leaves OGG
+  // offered as before, and the backend still refuses it with a clear message.
+  let oggUnavailable = false;
   let busy = false;
   // True from the click until the transfer starts or the dialog is cancelled.
   let picking = false;
@@ -604,7 +610,11 @@ function wireFooterControls() {
   fmtWav?.addEventListener("click", (e) => { e.stopPropagation(); setFormat("wav"); });
   fmtMp3?.addEventListener("click", (e) => { e.stopPropagation(); setFormat("mp3"); });
   fmtFlac?.addEventListener("click", (e) => { e.stopPropagation(); setFormat("flac"); });
-  fmtOgg?.addEventListener("click", (e) => { e.stopPropagation(); setFormat("ogg"); });
+  fmtOgg?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (oggUnavailable) return;
+    setFormat("ogg");
+  });
   fmtMp4?.addEventListener("click", (e) => { e.stopPropagation(); setFormat("mp4"); });
 
   // MP4 exports the mix muxed with the source video. Stems and region have no
@@ -623,6 +633,23 @@ function wireFooterControls() {
   // generic data-i18n pass (which would otherwise reset it to the non-video
   // wording even while MP4 is selected).
   onLanguageChange(applyFormatState);
+
+  function applyOggAvailability() {
+    if (!fmtOgg) return;
+    fmtOgg.setAttribute("aria-disabled", String(oggUnavailable));
+    if (oggUnavailable) fmtOgg.title = t("export.oggUnavailable");
+    else fmtOgg.removeAttribute("title");
+    exportPanel?.classList.toggle("ogg-unavailable", oggUnavailable);
+    if (oggUnavailable && format === "ogg") setFormat("wav");
+  }
+  onLanguageChange(applyOggAvailability);
+  fetch("/api/health", { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((health) => {
+      oggUnavailable = health?.export_formats?.ogg === false;
+      applyOggAvailability();
+    })
+    .catch((e) => console.warn("[export] format check failed:", e));
 
   function resetBusy() {
     busy = false;

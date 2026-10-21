@@ -304,6 +304,9 @@ function ffmpegFailureHint(message) {
   // an Intel-only build (#771). The message already says what to do, and a
   // network hint under it would be wrong.
   if (/built for Intel Macs/.test(message)) return null;
+  // The macOS setup error now ends with its own next steps (#824): a network
+  // hint under it would point at the wrong thing when the server was reached.
+  if (/Do one of these, then click Retry/.test(message)) return null;
   const wrongArchitecture = /bad cpu type|os error 86|EBADARCH/i.test(message);
   if (wrongArchitecture) {
     return (
