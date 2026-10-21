@@ -59,6 +59,11 @@
       "specs": ["about-license", "artist-languages", "brand-link", "library-rows", "lyrics-cjk", "stem-chip-overflow", "track-header", "help-mode", "queue-progress", "modes", "donate"]
     },
     {
+      "why": "Which audio formats the backend's ffmpeg can encode, read through /api/health by the export menu's OGG button (#824)",
+      "paths": ["app/pipeline/audio_encoders.py"],
+      "specs": ["export-ogg", "export-menu"]
+    },
+    {
       "why": "The main stylesheet. Specs that measure layout (boundingBox, getComputedStyle, scroll and client sizes).",
       "paths": ["static/css/daw.css"],
       "specs": [

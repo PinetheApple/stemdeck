@@ -3637,6 +3637,16 @@ input, textarea { font-family: inherit; }
 }
 .export-fmt:hover { color: var(--fg-2); }
 .export-fmt.active { background: var(--panel-3); color: var(--accent); }
+/* OGG without libvorbis in the FFmpeg StemDeck uses (#824): still shown, so
+   the format is not a mystery, but disabled with its reason below. */
+.export-fmt[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; }
+.export-fmt[aria-disabled="true"]:hover { color: var(--muted); }
+.export-ogg-unavailable { display: none; }
+#t-export-panel.ogg-unavailable .export-ogg-unavailable {
+  display: block;
+  margin: 2px 4px 4px; padding: 5px 6px;
+  font-size: 11px; line-height: 1.4; color: var(--muted);
+}
 
 /* Action rows — two-line: icon + (title/desc) + trailing check/count */
 .export-item {
