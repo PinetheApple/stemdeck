@@ -21,7 +21,7 @@ import { storeGet, storeSetDebounced, storeFlushPending } from "./utils.js";
 import { getMode } from "./mode.js";
 import { t } from "./i18n.js";
 import { stemFileExt } from "./playbackStems.js";
-import { PITCH_MAX, PITCH_MIN, clampPitch, pitchBlockedKey } from "./pitchBus.js";
+import { PITCH_MAX, PITCH_MIN, clampPitch, pitchBlockedKey, savedGlobalPitch } from "./pitchBus.js";
 
 function defaultMixerEntry() {
   // `pitch` is the key this lane is actually in, in semitones from the
@@ -98,6 +98,11 @@ export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES) {
     const mode = _activeMode;
     stored = null;
     try {
+      // A change made a moment ago may still be waiting in the debounce:
+      // reading past it would open the song as it was before that change,
+      // and the late write would then put the change back in the store
+      // behind a screen and an engine that never had it (#781).
+      await storeFlushPending(mixKey(jobId, mode));
       stored = await storeGet(mixKey(jobId, mode), null);
       if (!stored && LEGACY_MODES.has(mode)) stored = await storeGet(legacyMixKey(jobId), null);
     } catch (e) { console.warn("[mixer] failed to load mix state:", e); }
@@ -110,7 +115,10 @@ export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES) {
     if (!Array.isArray(mixerState[name].fx)) mixerState[name].fx = [];
   }
   mixerState[MASTER_SLOT] = masterEntry(stored[MASTER_SLOT]);
-  Object.assign(mixGlobals, cleanGlobals(stored.__global));
+  // The global key comes from the same record as the lanes it moved, so the
+  // counter can never disagree with what they play (a record without one is
+  // read from its lanes: savedGlobalPitch).
+  Object.assign(mixGlobals, cleanGlobals({ ...stored.__global, pitch: savedGlobalPitch(stored, loadedStemNames) }));
   // If all loaded stems are muted the session is unplayable -- unmute as recovery.
   const loadedStems = loadedStemNames.filter((n) => mixerState[n]);
   if (loadedStems.length > 0 && loadedStems.every((n) => mixerState[n].muted)) {

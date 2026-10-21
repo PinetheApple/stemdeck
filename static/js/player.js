@@ -1843,16 +1843,23 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
           // "playback failed" notification if one was sitting there (#401).
           resolvePlaybackSuccess(jobId);
           eng.setLoop(loopEnabled, loopStart, loopEnd);
-          updatePitchAvailability(eng.supportsPitchShift?.() === true);
-          applyMix(); // push per-stem gains (incl. >1.0 boost) into the engine
-          // Lane keys ride on the same engine, so they are restored from the
-          // per-track store in the same breath as the gains.
-          setLaneKeysAvailable(eng.supportsPitchShift?.() === true);
-          applyAllLanePitches();
-          // Saved EQs ride on the same engine and are restored with the keys.
-          applyAllLaneEq();
-          // And the speed and global key the song was left at, in this mode.
-          restoreGlobals();
+          // The song's saved record is the one source of what the engine and
+          // the screen show: gains, lane keys, EQs, and the speed and global
+          // key it was left at. The engine can come up before the record has
+          // been read (desktop reads it over IPC), and pushing what was in
+          // memory then left the engine and the counter on the defaults, or
+          // on the previous song, under the record's lanes (#781). So all of
+          // it waits for the record, and the key controls stay off until it
+          // is in, so a step cannot land on a key about to be replaced.
+          mixReady.then(() => {
+            if (token !== visualRenderToken || multitrack !== mt || audioEngine !== eng) return;
+            updatePitchAvailability(eng.supportsPitchShift?.() === true);
+            applyMix(); // push per-stem gains (incl. >1.0 boost) into the engine
+            setLaneKeysAvailable(eng.supportsPitchShift?.() === true);
+            applyAllLanePitches();
+            applyAllLaneEq();
+            restoreGlobals();
+          });
 
           // Click track. Bound to this engine instance, so it is rebuilt on
           // every engine bring-up (including the chunked -> fulldecode
