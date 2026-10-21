@@ -94,3 +94,4 @@ These are for development and testing. Release builds only recognize the variabl
 | `STEMDECK_PYTHON` | all | **debug builds only** | Override the Python executable path |
 | `STEMDECK_FFMPEG_URL` | Windows, macOS | release | Override the FFmpeg download URL |
 | `STEMDECK_FFPROBE_URL` | macOS | release | Override the ffprobe download URL |
+| `STEMDECK_WEBKIT_DMABUF` | Linux | release | WebKitGTK's DMA-BUF renderer: `auto` (default), `on` or `off`. See [Troubleshooting](troubleshooting.md#linux-desktop-app) |
