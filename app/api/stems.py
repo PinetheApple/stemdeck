@@ -37,6 +37,7 @@ from app.core.registry import get as registry_get
 from app.core.settings import get_export_sample_rate
 from app.core.stem_files import stem_ext, stem_media_type, stem_path
 from app.core.takes import take_dir
+from app.pipeline.audio_encoders import unavailable_detail
 from app.pipeline.audio_stats import vocal_envelope
 from app.pipeline.click_render import cache_key as click_cache_key
 from app.pipeline.click_render import count_in_beats, render_click_wav, render_count_in_wav
@@ -1784,6 +1785,13 @@ async def get_mixdown(
     render_lanes, unpitched = _expand_render_lanes(
         job_id, names, parsed_gains, parsed_pitches, lanes=lane_set
     )
+    # Like the transpose check, for an encoder this ffmpeg lacks: libvorbis is
+    # optional (#824) and the UI disables OGG without it. A stale page or a
+    # direct call gets this instead of an empty streamed file. After the job
+    # checks, so an unknown job still answers 404.
+    unavailable = await asyncio.to_thread(unavailable_detail, ext)
+    if unavailable:
+        raise HTTPException(status_code=422, detail=unavailable)
     paths = [lane.path for lane in render_lanes]
     # Each lane's EQ as biquad filters with the live engine's coefficients;
     # "" for a lane without EQ, so its graph is unchanged.
@@ -2276,6 +2284,11 @@ async def get_all_stems_zip(
     job = registry_get(job_id)
     if job is None or job.status != "done":
         raise HTTPException(status_code=404, detail="job not ready")
+    # An encoder this ffmpeg lacks (libvorbis is optional, #824): refused
+    # here rather than as a 500 after the first stem fails to encode.
+    unavailable = await asyncio.to_thread(unavailable_detail, fmt)
+    if unavailable:
+        raise HTTPException(status_code=422, detail=unavailable)
 
     # Resolve the requested subset (whitelisted) or fall back to all stems.
     # Takes go in only when asked for by id: "all stems" means the separation.

@@ -47,7 +47,7 @@ from app.pipeline.take_render import (
     build_video_render_cmd,
     export_limiter,
 )
-from tests.ffmpeg_probe import skip_without_ffmpeg
+from tests.ffmpeg_probe import skip_without_ffmpeg, skip_without_vorbis, vorbis_available
 
 JOB = "abcdef0c11b0"
 SR = 44100
@@ -232,6 +232,8 @@ async def test_a_loud_lossy_export_decodes_under_the_true_peak_ceiling(
     """The quarter-rate tone puts the true peak 3 dB over the samples: a
     sample-peak limit at -1 dBFS decodes well over -1 dBTP here."""
     skip_without_ffmpeg()
+    if ext == "ogg":
+        skip_without_vorbis()
     _job(jobs_dir, _loud_lanes())
     async with client as c:
         out = await _export(c, tmp_path, ext, ["vocals", "drums", "bass"], [1, 1, 1])
@@ -255,7 +257,7 @@ async def test_a_quiet_lossy_export_keeps_its_loudness(jobs_dir, client, tmp_pat
 async def test_the_lossy_limiter_keeps_length_and_timing(jobs_dir, client, tmp_path):
     """latency=1 and the resample round trip must not shift or pad the
     mix: a click at a known sample stays on it, the length is exact."""
-    skip_without_ffmpeg()
+    skip_without_vorbis()
     x = np.zeros(SR)
     x[12345] = 0.9
     _job(jobs_dir, {"vocals": x, "drums": np.full(SR, 0.3)})
@@ -334,7 +336,8 @@ async def test_a_real_song_boosted_never_clips_in_any_format(jobs_dir, client, t
     _real_job(jobs_dir)
     gains = [1.995, 1.995, 1.995, 1, 1, 1]
     async with client as c:
-        for ext in ("wav", "flac", "mp3", "ogg"):
+        # OGG only where this ffmpeg has libvorbis (#824).
+        for ext in ("wav", "flac", "mp3", *(("ogg",) if vorbis_available() else ())):
             m = _measure(await _export(c, tmp_path, ext, SIX, gains))
             assert m["full_scale"] == 0, ext
             if ext in ("wav", "flac"):

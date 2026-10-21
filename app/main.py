@@ -105,6 +105,7 @@ from app.core.stems_location import (
     move_library,
     validate_target,
 )
+from app.pipeline.audio_encoders import export_formats
 from app.pipeline.collect import sweep_failed_jobs, sweep_old_jobs
 from app.pipeline.sections import sweep_orphaned_workspaces as sweep_orphaned_section_workspaces
 
@@ -335,6 +336,11 @@ def health() -> dict[str, object]:
         "status": "ok",
         "version": app_version(),
         "ffmpeg_configured": FFMPEG_BIN.is_file(),
+        # {"wav", "mp3", "flac", "ogg": whether this ffmpeg can encode it}, or
+        # null when that is unknown. OGG is false on an ffmpeg without
+        # libvorbis, which the export menu then shows as unavailable (#824).
+        # Probed once per ffmpeg binary, so this stays a cheap poll.
+        "export_formats": export_formats(),
         "demucs_model": DEMUCS_MODEL,
         "demucs_device": get_demucs_device(),
         # Who is answering. The desktop shell spawns this backend and then polls
