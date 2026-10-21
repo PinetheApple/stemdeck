@@ -545,6 +545,7 @@ fn main() {
             apply_app_update,
             ensure_external_assets,
             ensure_torch_device,
+            repair_torchvision,
             warmup_models,
             start_backend,
             local_ip,
@@ -2544,19 +2545,93 @@ fn torch_version_for_tag(tag: &str) -> &'static str {
 /// nothing updates it on our behalf. The lockfile pins 0.21.0 against torch
 /// 2.6.0, which is why only the cu128 line, the one that moves torch to 2.8.0,
 /// ever broke.
-// Not `any(not(macos), test)` like torch_version_for_tag above. That one is
-// reached by a test which itself runs everywhere, and returns literals. This
-// one returns CPU_TORCHVISION_VERSION, a `not(macos)` constant, and both tests
-// that call it are `not(macos)` too -- so compiling it into a macOS test build
-// asked for a constant that is not there, and `cargo test` could not build on
-// macOS at all. The workflow that would have caught it had been cancelled on
-// every recent run rather than failing, so it went unseen (#643).
-#[cfg(not(target_os = "macos"))]
+// `any(not(macos), test)`, and so are the constants it reads. A macOS test
+// build once compiled this while CPU_TORCHVISION_VERSION was `not(macos)` only,
+// and `cargo test` could not build on macOS at all (#643). Gating both the same
+// way lets the tests that pin them to packaging/torch-versions.json run on
+// every host (#778).
+#[cfg(any(not(target_os = "macos"), test))]
 fn torchvision_version_for_tag(tag: &str) -> &'static str {
-    match tag {
-        "cu128" => "0.23.0",
-        _ => CPU_TORCHVISION_VERSION,
+    torchvision_for_torch(torch_version_for_tag(tag)).unwrap_or(CPU_TORCHVISION_VERSION)
+}
+
+/// The torchvision built for each torch line the desktop shell installs. The
+/// same pairs as `torchvisionForTorch` in packaging/torch-versions.json, which
+/// the packaging scripts read; a test fails when the two differ.
+#[cfg(any(not(target_os = "macos"), test))]
+const TORCHVISION_FOR_TORCH: [(&str, &str); 2] = [("2.6.0", "0.21.0"), ("2.8.0", "0.23.0")];
+
+/// The torchvision for a torch public version ("2.6.0", no `+tag`), if known.
+#[cfg(any(not(target_os = "macos"), test))]
+fn torchvision_for_torch(torch: &str) -> Option<&'static str> {
+    TORCHVISION_FOR_TORCH
+        .iter()
+        .find(|(t, _)| *t == torch)
+        .map(|(_, vision)| *vision)
+}
+
+/// The torch, torchaudio and torchvision specs for one CUDA wheel tag. One
+/// place, so the pair a CUDA install asks for is the pair the tests check.
+#[cfg(any(not(target_os = "macos"), test))]
+fn cuda_torch_specs(tag: &str) -> [String; 3] {
+    let torch = torch_version_for_tag(tag);
+    let vision = torchvision_version_for_tag(tag);
+    [
+        format!("torch=={torch}+{tag}"),
+        format!("torchaudio=={torch}+{tag}"),
+        format!("torchvision=={vision}+{tag}"),
+    ]
+}
+
+/// The string out of a `__version__ = '0.21.0+cu124'` line in a package's
+/// version.py. torch and torchvision both write one. Reading it costs a file
+/// read, where asking Python means importing torchvision, the very thing that
+/// fails on a broken install (#778).
+#[cfg(any(not(target_os = "macos"), test))]
+fn version_from_version_py(src: &str) -> Option<&str> {
+    src.lines().find_map(|line| {
+        let rest = line.trim().strip_prefix("__version__")?;
+        // `__version__ = ...` or `__version__: str = ...`, not `__version_info__`.
+        if !rest.starts_with([' ', '\t', ':', '=']) {
+            return None;
+        }
+        let value = rest.split_once('=')?.1.trim();
+        let quote = value.chars().next().filter(|c| *c == '\'' || *c == '"')?;
+        let inner = &value[1..];
+        let version = &inner[..inner.find(quote)?];
+        (!version.is_empty()).then_some(version)
+    })
+}
+
+/// The installed version of `package` in `site`, from its version.py.
+#[cfg(any(not(target_os = "macos"), test))]
+fn installed_version(site: &Path, package: &str) -> Option<String> {
+    let src = fs::read_to_string(site.join(package).join("version.py")).ok()?;
+    version_from_version_py(&src).map(str::to_string)
+}
+
+/// The pip spec that repairs a CUDA torchvision sitting beside CPU torch, or
+/// None when there is nothing to repair.
+///
+/// That pairing is what the 0.20.0 Linux packages shipped: CPU torch, and the
+/// cu124 torchvision PyPI serves by default, whose compiled ops need CUDA
+/// libraries that are not there (#778). The in-app updater never replaces
+/// python/, so those installs keep it until something puts the CPU wheel in.
+///
+/// Decided from the torch beside it, not from the package variant. A CUDA
+/// torch with a CUDA torchvision is a working NVIDIA install and is left
+/// alone; an NVIDIA package that ended up on CPU torch (no GPU, or CUDA did
+/// not verify and the bundled torch went back) has the same broken pair as
+/// the CPU package. A torch line with no known torchvision is left alone
+/// rather than guessed at.
+#[cfg(any(not(target_os = "macos"), test))]
+fn torchvision_repair_spec(torch: &str, torchvision: &str) -> Option<String> {
+    let (torch_public, torch_tag) = torch.split_once('+')?;
+    let (_, vision_tag) = torchvision.split_once('+')?;
+    if torch_tag != "cpu" || !vision_tag.starts_with("cu") {
+        return None;
     }
+    torchvision_for_torch(torch_public).map(|vision| format!("torchvision=={vision}+cpu"))
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -2763,13 +2838,14 @@ fn classify_cuda_install_error(stderr: &str) -> String {
     "CUDA install failed — see logs/setup.log for details.".to_string()
 }
 
-/// Version of the CPU-only torch wheels baked into every package. Kept in sync
-/// with scripts/windows/make-portable.ps1 and scripts/linux/make-portable.sh.
-#[cfg(not(target_os = "macos"))]
+/// Version of the CPU-only torch wheels baked into every package: `cpuTorch`
+/// in packaging/torch-versions.json, which the packaging scripts read. A test
+/// fails when the two differ.
+#[cfg(any(not(target_os = "macos"), test))]
 const CPU_TORCH_VERSION: &str = "2.6.0";
 /// Matches CPU_TORCH_VERSION and the version uv.lock resolves. Move the two
 /// together or the ops registration breaks; see torchvision_version_for_tag.
-#[cfg(not(target_os = "macos"))]
+#[cfg(any(not(target_os = "macos"), test))]
 const CPU_TORCHVISION_VERSION: &str = "0.21.0";
 
 /// What a line of pip's output means, for the setup screen.
@@ -3112,13 +3188,24 @@ fn torch_site_packages(python: &Path) -> Option<PathBuf> {
 /// a failed restore, whatever pip said (#731).
 #[cfg(not(target_os = "macos"))]
 fn verify_torch_imports(python: &Path) -> Result<(), String> {
+    verify_imports(python, "torch")
+}
+
+/// Whether `import <module>` works, with the last lines of the error if not.
+#[cfg(not(target_os = "macos"))]
+fn verify_imports(python: &Path, module: &str) -> Result<(), String> {
+    let code = format!("import {module}");
     let mut command = Command::new(python);
     command
-        .args(["-c", "import torch"])
+        .args(["-c", code.as_str()])
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
     hide_console_window(&mut command);
-    let out = command_output_with_timeout(command, GPU_VERIFY_TIMEOUT, "torch import check")?;
+    let out = command_output_with_timeout(
+        command,
+        GPU_VERIFY_TIMEOUT,
+        &format!("{module} import check"),
+    )?;
     if out.status.success() {
         return Ok(());
     }
@@ -3180,6 +3267,120 @@ fn put_cpu_torch_back(
     Ok(())
 }
 
+/// What the torchvision check on launch found (#778).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TorchvisionRepair {
+    /// "ok" (nothing to do), "repaired", or "failed". The setup screen owns
+    /// the wording; the reason for a failure is in setup.log.
+    outcome: &'static str,
+}
+
+/// Puts the CPU torchvision back on an install that has a CUDA torchvision
+/// beside CPU torch, which is what the 0.20.0 Linux packages shipped (#778).
+///
+/// Runs on every launch, because the in-app updater never replaces python/:
+/// an install that updated from 0.20.0 keeps the broken wheel until something
+/// here replaces it. On a healthy install it asks the interpreter where
+/// site-packages is (no imports), reads two version.py files and returns,
+/// with no network. A failed repair (offline, say) is logged and
+/// reported, never raised: the rest of the app works without torchvision, and
+/// the next launch tries again.
+#[tauri::command]
+fn repair_torchvision(
+    state: tauri::State<BackendState>,
+    app: tauri::AppHandle,
+) -> TorchvisionRepair {
+    #[cfg(target_os = "macos")]
+    {
+        // macOS ships one torch build and never pairs it with a CUDA wheel.
+        let _ = (&state, &app);
+        TorchvisionRepair { outcome: "ok" }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        TorchvisionRepair {
+            outcome: repair_torchvision_if_needed(&state, &app),
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn repair_torchvision_if_needed(state: &BackendState, app: &tauri::AppHandle) -> &'static str {
+    let (Ok(root), Ok(data_dir)) = (app_root(), local_data_dir()) else {
+        return "ok";
+    };
+    let Some(python) = python_path(&root).filter(|p| p.is_file()) else {
+        return "ok";
+    };
+    patch_pyvenv_cfg(&python);
+    let Some(site) = torch_site_packages(&python) else {
+        return "ok";
+    };
+    // An interrupted CUDA swap is put back by ensure_torch_device first; until
+    // then what is installed is not the bundle's to judge.
+    if torchswap::has_backup(&site) {
+        return "ok";
+    }
+    let (Some(torch), Some(vision)) = (
+        installed_version(&site, "torch"),
+        installed_version(&site, "torchvision"),
+    ) else {
+        return "ok";
+    };
+    let Some(spec) = torchvision_repair_spec(&torch, &vision) else {
+        return "ok";
+    };
+
+    log_setup_step("torchvision-repair");
+    append_to_setup_log(
+        &data_dir,
+        &format!("torchvision {vision} is a CUDA build beside torch {torch}; installing {spec}"),
+    );
+    let label = "torchvision repair";
+    // Puts a line on the setup screen before pip has said anything.
+    let _ = app.emit(
+        "setup-progress",
+        SetupProgress {
+            label: label.to_string(),
+            detail: "Repairing the karaoke split".to_string(),
+            received: None,
+            total: None,
+        },
+    );
+    // --force-reinstall, not --ignore-installed: pip uninstalls the CUDA wheel
+    // through its RECORD, which is what removes torchvision.libs/libcudart and
+    // libnvjpeg. pip downloads before it uninstalls, so offline this fails
+    // with the old wheel still in place.
+    let result = run_pip_install(
+        &python,
+        &[
+            &spec,
+            "--index-url",
+            "https://download.pytorch.org/whl/cpu",
+            "--force-reinstall",
+            "--no-deps",
+        ],
+        state,
+        app,
+        label,
+    )
+    .and_then(|()| verify_imports(&python, "torchvision"));
+    match result {
+        Ok(()) => {
+            append_to_setup_log(&data_dir, &format!("torchvision repaired: {spec}"));
+            "repaired"
+        }
+        Err(e) => {
+            append_to_setup_log(
+                &data_dir,
+                &format!("torchvision repair failed, will retry next launch: {e}"),
+            );
+            "failed"
+        }
+    }
+}
+
 #[cfg(not(target_os = "macos"))]
 fn install_cuda_torch(
     python: &Path,
@@ -3205,10 +3406,7 @@ fn install_cuda_torch(
     // cu128 uses 2.8.0: 2.7.1 shipped incomplete sm_120 kernels for Blackwell
     // (RTX 5000 series), causing verify_cuda_torch to fail (#239).
     let tag = cuda_tag_from_url(index_url);
-    let torch_version = torch_version_for_tag(tag);
-    let torch_spec = format!("torch=={torch_version}+{tag}");
-    let torchaudio_spec = format!("torchaudio=={torch_version}+{tag}");
-    let torchvision_spec = format!("torchvision=={}+{tag}", torchvision_version_for_tag(tag));
+    let [torch_spec, torchaudio_spec, torchvision_spec] = cuda_torch_specs(tag);
     for (label, args) in cuda_install_passes(
         &torch_spec,
         &torchaudio_spec,
@@ -8119,6 +8317,148 @@ b6052160df96b31c9b1e33854a4dcda3d4b57641b880270f31736fb9f445d384  ffmpeg-n7.1-la
                 );
             }
         }
+    }
+
+    // --- one source of truth for the torch pair, and the #778 repair ---
+    //
+    // No cfg on these: the functions they reach are `any(not(macos), test)`,
+    // so they run on every host, macOS included.
+
+    fn torch_versions_file() -> serde_json::Value {
+        serde_json::from_str(include_str!("../../../packaging/torch-versions.json"))
+            .expect("packaging/torch-versions.json is valid JSON")
+    }
+
+    #[test]
+    fn torch_constants_match_the_versions_file_the_packaging_scripts_read() {
+        // make-portable.sh and make-portable.ps1 read this file; the shell
+        // reads these constants. Drift between them is #778 all over again.
+        let file = torch_versions_file();
+        assert_eq!(file["cpuTorch"], super::CPU_TORCH_VERSION);
+        let pairs = file["torchvisionForTorch"]
+            .as_object()
+            .expect("torchvisionForTorch");
+        assert_eq!(
+            pairs[super::CPU_TORCH_VERSION],
+            super::CPU_TORCHVISION_VERSION
+        );
+        assert_eq!(pairs.len(), super::TORCHVISION_FOR_TORCH.len());
+        for (torch, vision) in super::TORCHVISION_FOR_TORCH {
+            assert_eq!(pairs[torch], vision, "torch {torch}");
+        }
+    }
+
+    #[test]
+    fn uv_lock_resolves_the_cpu_torch_pair() {
+        // The CPU swap replaces what the project install resolved. If uv.lock
+        // moves torch and the versions file does not, the swap downgrades it.
+        let lock = include_str!("../../../uv.lock");
+        for (name, version) in [
+            ("torch", super::CPU_TORCH_VERSION),
+            ("torchvision", super::CPU_TORCHVISION_VERSION),
+        ] {
+            let entry = format!("name = \"{name}\"\nversion = \"{version}\"\n");
+            assert!(
+                lock.replace('\r', "").contains(&entry),
+                "uv.lock does not resolve {name} {version}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_cuda_install_asks_for_a_matching_torchvision() {
+        // The pair install_cuda_torch asks for, for every tag setup can pick
+        // on any driver and GPU, must be a pair in the versions file (#615).
+        let file = torch_versions_file();
+        let pairs = &file["torchvisionForTorch"];
+        let mut tags = std::collections::BTreeSet::new();
+        for cap in [None, Some("5.2"), Some("6.1"), Some("8.6"), Some("12.0")] {
+            for driver in ["11.8", "12.0", "12.4", "12.8", "13.0"] {
+                tags.extend(super::wheel_candidates(cap, driver));
+            }
+        }
+        assert!(tags.contains("cu128") && tags.contains("cu124"));
+        for tag in tags {
+            let [torch, audio, vision] = super::cuda_torch_specs(tag);
+            let torch_version = super::torch_version_for_tag(tag);
+            let expected = pairs[torch_version]
+                .as_str()
+                .unwrap_or_else(|| panic!("{tag}: torch {torch_version} has no torchvision"));
+            assert_eq!(torch, format!("torch=={torch_version}+{tag}"));
+            assert_eq!(audio, format!("torchaudio=={torch_version}+{tag}"));
+            assert_eq!(vision, format!("torchvision=={expected}+{tag}"), "{tag}");
+        }
+        // Blackwell's line, spelled out.
+        assert_eq!(
+            super::cuda_torch_specs("cu128")[2],
+            "torchvision==0.23.0+cu128"
+        );
+    }
+
+    #[test]
+    fn version_py_is_read_without_python() {
+        let torch = "from typing import Optional\n\n\
+                     __all__ = ['__version__', 'debug', 'cuda', 'git_version', 'hip']\n\
+                     __version__ = '2.6.0+cpu'\ndebug = False\ncuda: Optional[str] = None\n";
+        assert_eq!(super::version_from_version_py(torch), Some("2.6.0+cpu"));
+        let vision = "__version__ = '0.21.0+cu124'\ngit_version = 'abc'\n";
+        assert_eq!(super::version_from_version_py(vision), Some("0.21.0+cu124"));
+        assert_eq!(
+            super::version_from_version_py("__version__: str = \"0.23.0+cu128\"\n"),
+            Some("0.23.0+cu128")
+        );
+        assert_eq!(
+            super::version_from_version_py("__version_info__ = '1'\n"),
+            None
+        );
+        assert_eq!(super::version_from_version_py("__version__ = ''\n"), None);
+        assert_eq!(super::version_from_version_py(""), None);
+    }
+
+    #[test]
+    fn only_a_cuda_torchvision_beside_cpu_torch_is_repaired() {
+        use super::torchvision_repair_spec as spec;
+        // The 0.20.0 Linux packages, CPU and NVIDIA alike (#778).
+        assert_eq!(
+            spec("2.6.0+cpu", "0.21.0+cu124").as_deref(),
+            Some("torchvision==0.21.0+cpu")
+        );
+        // Healthy: a fixed package, or the reporter's hand repair.
+        assert_eq!(spec("2.6.0+cpu", "0.21.0+cpu"), None);
+        // An NVIDIA install after the CUDA install: a working pair.
+        assert_eq!(spec("2.6.0+cu124", "0.21.0+cu124"), None);
+        assert_eq!(spec("2.8.0+cu128", "0.23.0+cu128"), None);
+        // No local tag at all, as some PyPI builds report: nothing to judge.
+        assert_eq!(spec("2.6.0", "0.21.0"), None);
+        assert_eq!(spec("2.6.0+cpu", "0.21.0"), None);
+        // A torch line with no known torchvision is not guessed at.
+        assert_eq!(spec("2.7.1+cpu", "0.22.1+cu126"), None);
+    }
+
+    #[test]
+    fn the_repair_decision_reads_the_installed_tree() {
+        let site = tempfile::tempdir().unwrap();
+        let write = |pkg: &str, version: &str| {
+            fs::create_dir_all(site.path().join(pkg)).unwrap();
+            fs::write(
+                site.path().join(pkg).join("version.py"),
+                format!("__version__ = '{version}'\n"),
+            )
+            .unwrap();
+        };
+        assert_eq!(super::installed_version(site.path(), "torch"), None);
+        write("torch", "2.6.0+cpu");
+        write("torchvision", "0.21.0+cu124");
+        let torch = super::installed_version(site.path(), "torch").unwrap();
+        let vision = super::installed_version(site.path(), "torchvision").unwrap();
+        assert_eq!(
+            super::torchvision_repair_spec(&torch, &vision).as_deref(),
+            Some("torchvision==0.21.0+cpu")
+        );
+        // After the repair, the next launch has nothing to do.
+        write("torchvision", "0.21.0+cpu");
+        let vision = super::installed_version(site.path(), "torchvision").unwrap();
+        assert_eq!(super::torchvision_repair_spec(&torch, &vision), None);
     }
 
     #[test]
