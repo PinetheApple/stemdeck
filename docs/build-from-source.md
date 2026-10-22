@@ -60,7 +60,9 @@ git clone https://github.com/stemdeckapp/stemdeck stemdeck && cd stemdeck
 
 Open <http://localhost:8000>.
 
-`setup` uses Homebrew on macOS and `apt-get` on Debian/Ubuntu. For other Linux distros, install `ffmpeg` and [uv](https://github.com/astral-sh/uv) manually, then run `uv sync` followed by `./run.sh start`.
+`setup` uses Homebrew on macOS and `apt-get` on Debian/Ubuntu. For other Linux distros, install `ffmpeg` and [uv](https://github.com/astral-sh/uv) manually, then run `uv sync`, `./run.sh gpu` and `./run.sh start`.
+
+On Linux with an NVIDIA Blackwell card (RTX 50 series, compute capability 10.x or higher), `setup` and `./run.sh gpu` replace the locked torch 2.6 wheels with the CUDA 12.8 torch 2.8.0 build, because torch 2.6 has no kernels for those cards and separation would otherwise run on the CPU. `uv sync` restores the locked wheels, so run `./run.sh gpu` again after it.
 
 #### Windows (PowerShell)
 
@@ -134,6 +136,7 @@ The library is persistent by default (`STEMDECK_PERSIST_LIBRARY=1`), so tracks a
 
 ```sh
 ./run.sh setup      # one-shot: install ffmpeg + uv, then uv sync
+./run.sh gpu        # Linux + Blackwell GPU: install the CUDA 12.8 torch build
 ./run.sh start      # boots uvicorn in the background
 ./run.sh stop       # graceful shutdown
 ./run.sh restart    # stop + start
