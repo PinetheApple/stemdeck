@@ -189,6 +189,18 @@ def _isolate_network_settings(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_vocal_split_status(tmp_path, monkeypatch):
+    """Every split a test runs records its outcome (#832): never in the real
+    data folder, and never carried from one test into the next."""
+    from app.pipeline import vocal_split_status as _vss
+
+    monkeypatch.setattr(_vss, "_status_path", tmp_path / "vocal-split-status.json")
+    _vss.reset_state()
+    yield
+    _vss.reset_state()
+
+
+@pytest.fixture(autouse=True)
 def _isolate_video_encoder(tmp_path, monkeypatch):
     """No test touches the machine's GPU encoders or the real probe cache.
     The suite defaults to the CPU kill switch, so every existing render runs

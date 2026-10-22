@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from app.core.config import AUDIO_TAG_LYRICS_MAX_CHARS, AUDIO_TAG_MAX_CHARS
+from app.core.vocal_split_outcome import INTERRUPTED, message_for
 
 
 class JobCancelled(Exception):
@@ -351,6 +352,11 @@ class Job:
     # app/pipeline/vocal_split.py) and is recorded in stems/vocal_split_error.txt,
     # not job.error_detail, since the job itself did not fail.
     vocal_split: Literal["none", "running", "done", "error"] = "none"
+    # Why the last split did not make its two stems, while vocal_split is
+    # "error": one of app.core.vocal_split_outcome.CODES, so the client can say
+    # what happened and what to do instead of showing one Vocals lane with no
+    # word about it (#832). None otherwise.
+    vocal_split_reason: str | None = None
     # When the user put this job in the Trash, or None if they have not.
     #
     # Server-side on purpose. The Trash used to live only in the browser's
@@ -441,6 +447,9 @@ class Job:
             "stem_format": self.stem_format,
             "stem_mp3_kbps": self.stem_mp3_kbps,
             "vocal_split": self.vocal_split,
+            "vocal_split_reason": self.vocal_split_reason,
+            # A fixed sentence per code, never the worker's own words.
+            "vocal_split_message": message_for(self.vocal_split_reason),
             "trashed_at": self.trashed_at,
             "favorite": self.favorite,
             "created_at": self.created_at,
@@ -479,6 +488,11 @@ class Job:
         job.audio_tags = clean_audio_tags(job.audio_tags)
         job.cancel_requested = False
         job.stop_requested = False
+        # Saved while a split ran, so the process ended before it did. Left
+        # "running", every later attempt was refused as already running.
+        if job.vocal_split == "running":
+            job.vocal_split = "error"
+            job.vocal_split_reason = INTERRUPTED
         return job
 
 

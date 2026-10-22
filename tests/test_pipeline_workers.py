@@ -275,7 +275,13 @@ def test_vocal_split_worker_reports_a_failed_separation(tmp_path):
     )
 
     assert r.returncode == 1
-    assert r.stderr.strip().splitlines()[-1] == '@@ERROR@@"inference failed"'
+    last = r.stderr.strip().splitlines()[-1]
+    assert last.startswith("@@ERROR@@")
+    # The worker names the step that failed as a code (#832).
+    assert json.loads(last[len("@@ERROR@@") :]) == {
+        "message": "inference failed",
+        "code": "worker_failed",
+    }
     assert "@@DONE@@" not in r.stderr
 
 

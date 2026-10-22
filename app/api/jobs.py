@@ -65,7 +65,10 @@ from app.core.settings import (
 )
 from app.core.stem_files import stem_path, stem_url
 from app.core.stems_location import is_relocating
-from app.pipeline import discogs, jobqueue
+from app.core.vocal_split_outcome import CANCELLED as SPLIT_CANCELLED
+from app.core.vocal_split_outcome import WORKER_FAILED as SPLIT_WORKER_FAILED
+from app.core.vocal_split_outcome import message_for as split_message_for
+from app.pipeline import discogs, jobqueue, vocal_split_status
 from app.pipeline.analyze import dynamic_range_db, measure_loudness
 from app.pipeline.artist_lookup import tagged_artist_name
 from app.pipeline.audio_tags import probe_tags
@@ -105,7 +108,7 @@ from app.pipeline.lyrics_retime import (
 from app.pipeline.lyrics_retime import saved_view as saved_retime_view
 from app.pipeline.runner import _pipeline_lock
 from app.pipeline.stem_storage import store_split_stems
-from app.pipeline.vocal_split import split_vocals
+from app.pipeline.vocal_split import VocalSplitError, split_vocals
 from app.pipeline.work_lookup import find_work, might_have_work
 
 router = APIRouter(tags=["jobs"])
@@ -802,10 +805,19 @@ async def start_vocal_split(job_id: str) -> Response:
     if not stems_dir.is_relative_to(JOBS_DIR.resolve()):
         raise HTTPException(status_code=404, detail="job not found")
 
+    # A cancel is for the run it was sent to. One left over from an earlier
+    # run would otherwise read as this one being cancelled.
+    job.cancel_requested = False
     job.vocal_split = "running"
+    job.vocal_split_reason = None
     _set(job, stage="Splitting lead/backing vocals...")
     try:
         async with _pipeline_lock:
+            # Cancelled while it waited behind an import: never start.
+            if job.cancel_requested:
+                raise VocalSplitError(
+                    "vocal split cancelled before it started", code=SPLIT_CANCELLED
+                )
             new_names = await asyncio.to_thread(split_vocals, job, stems_dir)
             # The peaks are read from the new WAVs first; then the two are kept
             # the way the song keeps its stems (#783). Neither raises.
@@ -817,11 +829,28 @@ async def start_vocal_split(job_id: str) -> Response:
         cause = classify_failure("\n".join([*(getattr(e, "tail", None) or []), str(e)]))
         logger.warning("[%s] vocal split failed: %s", job_id, e, exc_info=True)
         _write_vocal_split_error(stems_dir, cause, getattr(e, "tail", None) or [str(e)])
+        # The song stays done with its Vocals stem, and now says why the pair
+        # is missing (#832). Only the code leaves the server: the exception's
+        # words stay in the log and vocal_split_error.txt.
+        code = getattr(e, "code", None) or (
+            SPLIT_CANCELLED if job.cancel_requested else SPLIT_WORKER_FAILED
+        )
+        vocal_split_status.record(False, code, source="split")
+        job.cancel_requested = False
         job.vocal_split = "error"
+        job.vocal_split_reason = code
         _set(job, stage="Done")
         registry_persist(JOBS_DIR)
-        raise HTTPException(status_code=500, detail="vocal split failed") from e
+        return JSONResponse(
+            {
+                "detail": "vocal split failed",
+                "vocal_split_reason": code,
+                "vocal_split_message": split_message_for(code),
+            },
+            status_code=500,
+        )
 
+    vocal_split_status.record(True, source="split")
     existing = {s["name"] for s in job.stems}
     for name in new_names:
         if name not in existing:

@@ -108,6 +108,7 @@ from app.core.stems_location import (
 from app.pipeline.audio_encoders import export_formats
 from app.pipeline.collect import sweep_failed_jobs, sweep_old_jobs
 from app.pipeline.sections import sweep_orphaned_workspaces as sweep_orphaned_section_workspaces
+from app.pipeline.vocal_split_status import capability as vocal_split_capability
 
 # Set the stemdeck logger level (Python's default root level of WARNING would
 # silently drop every logger.info(...) call) and attach the rotating file log
@@ -341,6 +342,12 @@ def health() -> dict[str, object]:
         # libvorbis, which the export menu then shows as unavailable (#824).
         # Probed once per ffmpeg binary, so this stays a cheap poll.
         "export_formats": export_formats(),
+        # {"available": bool, "reason": code or None}: whether Lead + Backing
+        # can be made on this install. False only after setup or a real split
+        # found a dependency missing on these exact packages, which the
+        # Vocals choice then shows as unavailable before anyone picks it
+        # (#832). Read from a small file, so this stays a cheap poll.
+        "vocal_split": vocal_split_capability(),
         "demucs_model": DEMUCS_MODEL,
         "demucs_device": get_demucs_device(),
         # Who is answering. The desktop shell spawns this backend and then polls
