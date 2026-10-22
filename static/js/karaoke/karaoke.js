@@ -28,6 +28,7 @@ import { getCurrentTrackInfo, openTrackInStudio } from "../catalog.js";
 import { loadQueue, getQueue, shiftQueue, removeFromQueue, onQueueChange, mountQueue } from "./karaokeQueue.js";
 import { isRecording } from "../capture/recordUi.js";
 import { layoutState, changeLayout, requestSplit, onLayoutChange } from "../modeStems.js";
+import { splitFailedText, vocalSplitUnavailable, onVocalSplitAvailability } from "../vocalSplitState.js";
 import { takeOpen as streamerTakeOpen } from "../streamer/streamerRecord.js";
 import {
   transposedKey, semitoneLabel, clockShort, clockLong,
@@ -920,7 +921,8 @@ async function chooseVoice(form) {
   voiceBusy = false;
   repaintVoice();
   if (why === "recording") flashNote(t("karaoke.stopRecordingFirst"));
-  else if (why === "failed") flashNote(t("stems.splitFailed"));
+  // Why, from the server (#832), not only that it did not work.
+  else if (why === "failed") flashNote(splitFailedText(layoutState().splitReason));
 }
 
 function repaintVoice() {
@@ -936,7 +938,11 @@ function paintVoice() {
   const hasVoice = present.has("vocals") || (present.has("lead_vocals") && present.has("backing_vocals"));
   const running = state.splitState === "running" || voiceBusy;
   const form = state.voice || (state.shown.split ? "split" : "combined");
-  const sig = `${state.jobId}|${hasVoice}|${running}|${form}|${t("karaoke.voiceForm")}`;
+  // Separate needs the split; when this install cannot make it, and the song
+  // has no pair yet, it is shown off with the reason (#832).
+  const splitDone = present.has("lead_vocals") && present.has("backing_vocals");
+  const blocked = !splitDone && Boolean(vocalSplitUnavailable());
+  const sig = `${state.jobId}|${hasVoice}|${running}|${form}|${blocked}|${t("karaoke.voiceForm")}`;
   if (painted.voice === sig) return;
   painted.voice = sig;
   v.root.hidden = !state.jobId || !hasVoice;
@@ -948,7 +954,9 @@ function paintVoice() {
     b.setAttribute("aria-checked", String(on));
     b.classList.toggle("on", on);
     b.tabIndex = on ? 0 : -1;
-    b.disabled = running;
+    b.disabled = running || (f === "split" && blocked);
+    if (f === "split" && blocked) b.title = t("split.unavailable");
+    else b.removeAttribute("title");
   }
 }
 
@@ -1154,6 +1162,7 @@ export function initKaraoke() {
   // The voice form is painted on change, never per frame.
   onLayoutChange(repaintVoice);
   onLanguageChange(repaintVoice);
+  onVocalSplitAvailability(repaintVoice);
   // A song ended while Karaoke is open: the next one in the queue plays.
   document.addEventListener("stemdeck:track-ended", () => {
     if (open && !bringing) playQueued();

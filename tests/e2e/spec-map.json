@@ -89,6 +89,14 @@
       "specs": ["modes", "help-mode", "mode-stems", "partial-stems", "extract-row", "stem-chip-overflow", "karaoke", "streamer", "streamer-media", "panel-toggles", "transpose-switch-song"]
     },
     {
+      "why": "Lead + Backing: whether this install can make it (/api/health vocal_split), and what a split that did not work says and offers (#832). The e2e fixture never runs a real split, so the worker files only reach these specs through the state they report.",
+      "paths": [
+        "static/js/vocalSplitState.js", "app/pipeline/vocal_split.py", "app/pipeline/vocal_split_worker.py",
+        "app/pipeline/vocal_split_status.py", "app/pipeline/warmup.py"
+      ],
+      "specs": ["vocal-split-failure", "mode-stems", "karaoke", "extract-row", "help-mode"]
+    },
+    {
       "why": "The import form: URL box, search, file drop, playlist import, and the stem choice submitted with it",
       "paths": ["static/js/search.js", "static/js/playlist.js", "static/js/stemChoice.js", "app/api/search.py", "app/api/playlist.py", "app/pipeline/search.py", "app/pipeline/preview.py", "app/_vendor/**"],
       "specs": ["search", "file-drop", "native-file-drop", "error-box-narrow", "import-background", "job-form-submit", "composer-arming", "boot-failure", "work-info", "artist-from-server", "about-reach"]

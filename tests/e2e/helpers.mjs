@@ -368,6 +368,20 @@ export async function stubExportFormats(page, formats) {
   });
 }
 
+/**
+ * Answer /api/health's vocal_split field ({ available, reason }) for this
+ * page: whether Lead + Backing can be made on this install (#832). The real
+ * answer depends on what setup and earlier splits recorded on the machine
+ * running the suite. Call before page.goto.
+ */
+export async function stubVocalSplitHealth(page, capability) {
+  await page.route("**/api/health", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({ response, json: { ...body, vocal_split: capability } });
+  });
+}
+
 export const exportUi = (page) => ({
   button: page.locator("#t-export-btn"),
   panel: page.locator("#t-export-panel"),

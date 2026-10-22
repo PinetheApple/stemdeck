@@ -19,6 +19,7 @@ import {
 import { BASE_STEMS, sameNames, stemsReasonKey } from "./partChoice.js";
 import { isRecording } from "./capture/recordUi.js";
 import { isStreamerTakeOpen } from "./streamer/streamer.js";
+import { splitFailedText, vocalSplitUnavailable, onVocalSplitAvailability } from "./vocalSplitState.js";
 
 let btn = null;
 let pop = null;
@@ -174,11 +175,21 @@ function paint() {
     b.tabIndex = on ? 0 : -1;
     b.disabled = busy;
   }
+  // Lead + Backing cannot be made on this install (#832): the button says
+  // so before it is pressed, rather than after a split that cannot work.
+  const unavailable = vocalSplitUnavailable();
   ui.splitBtn.hidden = splitDone;
-  ui.splitBtn.disabled = running || busy;
+  ui.splitBtn.disabled = running || busy || Boolean(unavailable);
   ui.splitBtn.textContent = running ? t("stems.splitRunning") : t("stems.splitRun");
   ui.splitNote.hidden = splitDone;
-  ui.splitNote.textContent = t("stems.splitNote");
+  // The last split of this song failed: why, in place of the usual note,
+  // unless the status line below is already saying it.
+  const failedBefore = state.splitState === "error" && state.splitReason && !ui.status.textContent;
+  ui.splitNote.textContent = unavailable
+    ? t("split.unavailable")
+    : failedBefore
+      ? splitFailedText(state.splitReason)
+      : t("stems.splitNote");
   const holds = BASE_STEMS.filter((n) => !draft.lanes.has(n) && present.has(n));
   ui.holds.textContent = holds.length
     ? t("stems.originalHolds", { names: holds.map(laneLabel).join(", ") })
@@ -232,7 +243,8 @@ async function runSplit() {
   if (draft) draft.voice = "split";
   paint();
   const why = await requestSplit();
-  if (why) setStatus(blockedText(why));
+  if (why === "failed") setStatus(splitFailedText(layoutState().splitReason));
+  else if (why) setStatus(blockedText(why));
   draft = null;
   paint();
 }
@@ -297,6 +309,7 @@ export function initStemsControl() {
   onLayoutChange(() => paint());
   onModeChange(() => paint());
   onLanguageChange(() => paint());
+  onVocalSplitAvailability(() => paint());
   document.addEventListener("stemdeck:karaoke-changed", () => paint());
   document.addEventListener("stemdeck:streamer-changed", () => paint());
   // The layout is read before the song's job id is current: paint again once

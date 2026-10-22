@@ -23,14 +23,17 @@ import { currentJobId } from "./state.js";
 import { setLaneLayout, shownLaneLayout } from "./player.js";
 import { mixModeInForce, onMixModeSettled } from "./mixMode.js";
 import { reloadKeepingPlace } from "./reloadPlace.js";
+import { noteSplitOutcome, splitReason } from "./vocalSplitState.js";
+import { dismissFailuresByJobId } from "./notifications.js";
 import {
   BASE_STEMS, choiceKey, parseChoice, serializeChoice, mergeChoice, modeLayout, layoutLanes,
   layoutSignature, songDefaultLanes, splitFreezePatches, STEM_MODES, LANE_MODES, VOICE_MODES,
 } from "./partChoice.js";
 
 // The open song as the last prepareLayout saw it: { jobId, songSelected,
-// present (stem names with a file), splitState }.
-let song = { jobId: null, songSelected: [], present: [], splitState: "none" };
+// present (stem names with a file), splitState, splitReason (why the last
+// split failed, a code from vocalSplitState.js, or null) }.
+let song = { jobId: null, songSelected: [], present: [], splitState: "none", splitReason: null };
 // Every mode's record for the open song, as read or last written.
 let records = { jobId: null, byMode: {} };
 const listeners = new Set();
@@ -73,14 +76,21 @@ async function writeRecord(jobId, mode, record) {
  * Read the layout of the mode in force for `jobId` and hand it to the player
  * for the load that follows. `songSelected`: the song's selection at import;
  * `present`: the names of the stems it has a file for; `splitState`: its
- * vocal_split ("none", "running", "done", "error"). Resolves the layout.
+ * vocal_split ("none", "running", "done", "error"); `splitReason`: its
+ * vocal_split_reason when that is "error" (#832). Resolves the layout.
  */
-export async function prepareLayout(jobId, songSelected, present, splitState = "none") {
+export async function prepareLayout(jobId, songSelected, present, splitState = "none", splitReason = null) {
   const mode = mixModeInForce();
   if (records.jobId !== jobId) records = { jobId, byMode: {} };
   const stored = await readRecord(jobId, mode);
   records.byMode[mode] = stored;
-  song = { jobId, songSelected: [...(songSelected || [])], present: [...(present || [])], splitState: splitState || "none" };
+  song = {
+    jobId,
+    songSelected: [...(songSelected || [])],
+    present: [...(present || [])],
+    splitState: splitState || "none",
+    splitReason: splitState === "error" ? splitReason || null : null,
+  };
   const layout = modeLayout(mode, stored, song.songSelected);
   setLaneLayout(jobId, { ...layout, songSelected: song.songSelected });
   notify();
@@ -89,7 +99,7 @@ export async function prepareLayout(jobId, songSelected, present, splitState = "
 
 /** What the Stems control shows for the open song in the mode in force:
  * { jobId, mode, lanes, voice, chosen (a record exists), canChooseLanes,
- * canChooseVoice, present, splitState, songDefault }. */
+ * canChooseVoice, present, splitState, splitReason, songDefault }. */
 export function layoutState() {
   const mode = mixModeInForce();
   const jobId = song.jobId === currentJobId ? song.jobId : null;
@@ -106,6 +116,7 @@ export function layoutState() {
     canChooseVoice: VOICE_MODES.includes(mode),
     present: [...song.present],
     splitState: song.splitState,
+    splitReason: song.splitReason,
     songDefault: songDefaultLanes(song.songSelected),
     shown: layoutLanes(layout, new Set(song.present)),
   };
@@ -181,17 +192,24 @@ export async function requestSplit() {
     notify();
     return "";
   }
-  song = { ...song, splitState: "running" };
+  song = { ...song, splitState: "running", splitReason: null };
   notify();
   let ok = false;
+  // Why it failed, from the server (#832): the popover and Karaoke say it.
+  let reason = "worker_failed";
   try {
     const res = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/vocal-split`, { method: "POST" });
     ok = res.ok || res.status === 202;
-    if (res.status === 409) ok = await waitForSplit(jobId);
+    if (res.status === 409) [ok, reason] = await waitForSplit(jobId);
+    else if (!ok) reason = splitReason((await res.json().catch(() => ({})))?.vocal_split_reason);
   } catch (err) {
     console.warn("[modeStems] the vocal split failed:", err);
   }
-  if (song.jobId === jobId) song = { ...song, splitState: ok ? "done" : "error" };
+  noteSplitOutcome(ok ? null : reason);
+  if (ok) dismissFailuresByJobId(jobId, "split");
+  if (song.jobId === jobId) {
+    song = { ...song, splitState: ok ? "done" : "error", splitReason: ok ? null : reason };
+  }
   notify();
   if (!ok) return "failed";
   // The new stems are on disk: the song reloads from fresh state and shows
@@ -200,7 +218,8 @@ export async function requestSplit() {
   return "";
 }
 
-/** A split another window started: wait for it (at most 15 minutes). */
+/** A split another window started: wait for it (at most 15 minutes).
+ * Resolves [done, the reason when it was not]. */
 async function waitForSplit(jobId) {
   const until = Date.now() + 15 * 60 * 1000;
   while (Date.now() < until) {
@@ -208,13 +227,13 @@ async function waitForSplit(jobId) {
     try {
       const res = await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, { cache: "no-store" });
       const state = res.ok ? await res.json() : null;
-      if (state?.vocal_split === "done") return true;
-      if (state?.vocal_split !== "running") return false;
+      if (state?.vocal_split === "done") return [true, null];
+      if (state?.vocal_split !== "running") return [false, splitReason(state?.vocal_split_reason)];
     } catch (err) {
       console.warn("[modeStems] reading the split state failed:", err);
     }
   }
-  return false;
+  return [false, "timeout"];
 }
 
 /**

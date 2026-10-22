@@ -763,6 +763,22 @@ export function updateTrackStatus(trackId, status) {
   }
 }
 
+/** How the song's Lead + Backing split went (#832): "done", "none", or
+ *  "error" with its reason code. Kept on the row, so the Stems popover can
+ *  say why when the song is opened again. */
+export function setTrackVocalSplit(trackId, vocalSplit, reason = null) {
+  const track = tracks[trackId];
+  if (!track) return;
+  track.vocalSplit = vocalSplit;
+  track.vocalSplitReason = vocalSplit === "error" ? reason : null;
+  saveState();
+}
+
+/** The row's own source, "" for a song the library does not have. */
+export function trackSourceUrl(trackId) {
+  return tracks[trackId]?.sourceUrl || "";
+}
+
 function hasTrackAnalysis(track) {
   return Boolean(
     track?.bpm
@@ -804,6 +820,8 @@ function stateMetadataToTrack(state, fallbackTrack) {
     audioTags: state.audio_tags ? libraryAudioTags(state.audio_tags) : fallbackTrack.audioTags ?? null,
     mixUrl: state.mix_url ?? fallbackTrack.mixUrl ?? null,
     vocalSplit: state.vocal_split ?? fallbackTrack.vocalSplit ?? null,
+    // Not `??`: a null from the server means the reason was cleared.
+    vocalSplitReason: "vocal_split_reason" in state ? state.vocal_split_reason : fallbackTrack.vocalSplitReason ?? null,
     hasVideo: state.has_video ?? fallbackTrack.hasVideo ?? false,
     videoStatus: state.video_status ?? fallbackTrack.videoStatus ?? null,
     createdAt: fallbackTrack.createdAt ?? state.created_at,
@@ -1197,6 +1215,7 @@ async function loadTrackIntoStudio(trackId) {
     track.selectedStems || track.stems || [],
     track.audioStems.filter((s) => s?.url).map((s) => s.name),
     track.vocalSplit || (track.audioStems.some((s) => s?.name === "lead_vocals") ? "done" : "none"),
+    track.vocalSplitReason || null,
   );
   if (token !== _loadTrackToken) return;
   wireUpAudio(trackId, [...track.audioStems, ...takeStemsFromJob(track.takes, track.tracks)], track.duration || 0, track.thumb, track.mixUrl ?? null, track.title || "", peaksPromise, track.hasVideo ?? false, track.videoStatus ?? null);

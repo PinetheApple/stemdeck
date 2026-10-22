@@ -3,7 +3,7 @@ import "./mode.js";
 import {
   playBtn, loopBtn, totalDuration, loopEnabled, loopStart, loopEnd,
   setLoopStart, setLoopEnd, selectedStems, saveSelectedStems, stemSelectionReady,
-  currentJobId, vocalSplitMode, vocalSplitModeReady, setVocalSplitMode,
+  currentJobId, vocalSplitModeReady, setVocalSplitMode,
   setAutoSectionsResetFn, onLoopChange,
 } from "./state.js";
 import { STEM_NAMES, syncStemNamesFromAPI } from "./constants.js";
@@ -32,6 +32,7 @@ import { initStreamer } from "./streamer/streamer.js";
 import { initMixMode } from "./mixMode.js";
 import { initModeStems } from "./modeStems.js";
 import { initStemsControl } from "./stemsControl.js";
+import { applyVocalSplitHealth, onVocalSplitAvailability, vocalSplitUnavailable, effectiveVocalSplitMode } from "./vocalSplitState.js";
 
 // ─── Stem choice toggles on the import page ───
 //
@@ -84,7 +85,15 @@ function wireVocalModeToggle() {
   for (const btn of wrap.querySelectorAll(".vocal-mode-btn")) {
     btn.addEventListener("click", () => {
       const mode = btn.dataset.mode;
-      if (selectedStems.has("vocals") && vocalSplitMode === mode) {
+      // Lead + Backing cannot be made on this install (#832): say why,
+      // which a tooltip alone does not on a touch screen, and change nothing.
+      if (mode === "split" && vocalSplitUnavailable()) {
+        showError(t("split.unavailable"), null, { retry: false });
+        return;
+      }
+      // The mode as lit (Combined while Lead + Backing is unavailable), so
+      // pressing the lit button always switches vocals off.
+      if (selectedStems.has("vocals") && effectiveVocalSplitMode() === mode) {
         // Pressing the mode that is already in force is how vocals are turned
         // off, the same way pressing any other lit chip switches that stem off.
         selectedStems.delete("vocals");
@@ -97,6 +106,10 @@ function wireVocalModeToggle() {
       buildStripStems();
     });
   }
+  // The answer comes from /api/health (wireFooterControls reads it), or from
+  // a split that just found a dependency missing.
+  onVocalSplitAvailability(() => refreshStemChoiceVisuals());
+  onLanguageChange(() => refreshStemChoiceVisuals());
 }
 
 // ─── Experimental song-structure extraction ───
@@ -648,6 +661,8 @@ function wireFooterControls() {
     .then((health) => {
       oggUnavailable = health?.export_formats?.ogg === false;
       applyOggAvailability();
+      // The same answer says whether Lead + Backing can be made (#832).
+      applyVocalSplitHealth(health);
     })
     .catch((e) => console.warn("[export] format check failed:", e));
 

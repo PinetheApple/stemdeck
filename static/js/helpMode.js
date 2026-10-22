@@ -45,6 +45,8 @@ const HELP = [
   ['.daw-panel-toggle[data-panel="sections"]', "help.sectionsToggle"],
   ["#submit", "help.extract"],
   ["#job-cancel", "help.jobCancel"],
+  // Try again on the notice a failed Lead + Backing split shows (#832).
+  [".split-retry-btn", "help.splitRetry"],
   ["#fav-btn", "help.favorite"],
   ["#np-details-btn", "help.songDetails"],
   ["#sidebarCollapseBtn", "help.toggleLibrary"],
