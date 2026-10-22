@@ -102,6 +102,7 @@ from app.core.takes import (
     write_tracks,
 )
 from app.pipeline import video_encoder
+from app.pipeline.click_sounds import DEFAULT_CLICK_SOUND
 from app.pipeline.collect import merge_stem_peaks
 from app.pipeline.runner import _pipeline_lock
 from app.pipeline.take_render import (
@@ -1374,6 +1375,9 @@ class RenderBody(BaseModel):
     # The click as one more lane (the export's default click: the song's grid,
     # every beat, accents by the detected bars).
     click: StrictBool = False
+    # Its sound (#805): a preset id from static/js/clickSounds.js, checked
+    # against that whitelist in the handler (422 for any other).
+    click_sound: str = Field(default=DEFAULT_CLICK_SOUND, max_length=32)
     # Streamer Mode's "I play": the stem the musician played, left out of the
     # backing exactly as it was left out of what they heard. None: the whole song.
     remove_stem: Literal["vocals", "drums", "bass", "guitar", "piano", "other"] | None = None
@@ -1435,6 +1439,7 @@ def removed_stems(remove: str | None) -> frozenset[str]:
 
 def _backing_lanes(job_id: str, take_id: str, body: RenderBody) -> list[tuple[AudioLane, str]]:
     """The backing lanes with their mixer lane names."""
+    stems_api.check_click_sound(body.click_sound)
     if len(body.gains) != len(body.stems):
         raise HTTPException(status_code=422, detail="stems and gains must be equal length")
     if any(not (0 <= g <= stems_api._MIXDOWN_MAX_GAIN) for g in body.gains):
@@ -1709,7 +1714,13 @@ async def _prepare_render(
     lanes = audio.lanes
     if body.click:
         click = await asyncio.to_thread(
-            stems_api._click_lane, job_id, True, 1.0, -1, RENDER_CLICK_GAIN
+            stems_api._click_lane,
+            job_id,
+            True,
+            1.0,
+            -1,
+            RENDER_CLICK_GAIN,
+            sound=body.click_sound,
         )
         if click is None:
             # No beat grid: the render goes ahead without it, as the export does.

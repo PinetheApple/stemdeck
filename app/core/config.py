@@ -86,6 +86,12 @@ def detect_torch_device() -> str:
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 STATIC_DIR = ROOT / "static"
+# The click-sound presets (#805), defined once for the browser and the export
+# renderer: app/pipeline/click_sounds.py parses the JSON block in this file.
+CLICK_SOUNDS_TABLE = STATIC_DIR / "js" / "clickSounds.js"
+# The isolated click track's name in the stems zip (#805). Never a stem name:
+# asserted in app/api/stems.py, so the click cannot overwrite a stem's entry.
+CLICK_STEM_NAME = "click"
 STEM_NAMES: tuple[str, ...] = ("vocals", "drums", "bass", "guitar", "piano", "other")
 # Produced only when a job opts into the lead/backing vocal split (best-effort,
 # additive -- see app/pipeline/vocal_split.py). Kept out of STEM_NAMES itself:

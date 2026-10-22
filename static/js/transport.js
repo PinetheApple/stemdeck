@@ -17,7 +17,8 @@ import {
   footerTimeElapsed, footerTimeTotal, footerWaveTicks, npScrubFill, footerWaveDrawFn,
   loopStartInput, loopEndInput,
   metroBtn, metroPanel, metroMoreBtn, metroVolEl, metroVolBtn, metroVolPanel, metroVolLabel, metroBarEl, metroBarCustomEl, metroGroupEl, metroNoteEl,
-  metroHalfBtn, metroOneBtn, metroDoubleBtn, metroCountInEl,
+  metroHalfBtn, metroOneBtn, metroDoubleBtn, metroCountInEl, metroSoundEl,
+  metronomeSound, setMetronomeSound,
   metronome, metronomeEnabled, metronomeVolume, metronomeBeatsPerBar, metronomeHasBars,
   metronomeCountInBars, setMetronomeCountInBars,
   metronomeGrouping, setMetronomeGrouping,
@@ -29,6 +30,7 @@ import {
 import { applyMix, nudgeAllLanePitches, resetAllLanePitches, mixGlobals, setMixGlobals } from "./mixer.js";
 import { isDownbeatIndex, barPositionIndex, getBeats as getGridBeats, getBars as getGridBars } from "./beatgrid.js";
 import { computeCountIn, defaultGrouping, normaliseGrouping } from "./metronome.js";
+import { CLICK_SOUNDS } from "./clickSounds.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { pitchBlockedKey } from "./pitchBus.js";
 import { refitFooter } from "./footerFit.js";
@@ -1393,7 +1395,26 @@ function _saveMetroPrefs() {
     beatsPerBar: metronomeBeatsPerBar,
     grouping: metronomeGrouping,
     countInBars: metronomeCountInBars,
+    sound: metronomeSound,
   }).catch((e) => console.warn("[transport] failed to save metronome prefs:", e));
+}
+
+// The sound selector's options are the presets in clickSounds.js, in its
+// order, so a preset added there needs no markup here. data-i18n carries each
+// name through a language switch like the static options beside it.
+function _renderMetroSound() {
+  if (!metroSoundEl) return;
+  const ids = CLICK_SOUNDS.presets.map((p) => p.id);
+  if ([...metroSoundEl.options].map((o) => o.value).join() !== ids.join()) {
+    metroSoundEl.replaceChildren(...CLICK_SOUNDS.presets.map((p) => {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.dataset.i18n = p.label;
+      opt.textContent = t(p.label);
+      return opt;
+    }));
+  }
+  metroSoundEl.value = metronomeSound;
 }
 
 /**
@@ -1837,7 +1858,12 @@ function wireMetronomeControl() {
       // rather than silently turning it off.
       if (typeof prefs.countInBars === "number") setMetronomeCountInBars(prefs.countInBars);
       else if (typeof prefs.countIn === "boolean") setMetronomeCountInBars(prefs.countIn ? 1 : 0);
+      // Absent before #805, and an id a later version removed: both read as
+      // Classic (setMetronomeSound normalises).
+      if (typeof prefs.sound === "string") setMetronomeSound(prefs.sound);
+      metronome?.setSound?.(metronomeSound);
     }
+    _renderMetroSound();
     _renderMetroVolume();
     _renderMetroBar();
     _renderCountIn();
@@ -1867,6 +1893,15 @@ function wireMetronomeControl() {
       _renderMetroNote(_lastGrid);
     });
   }
+
+  _renderMetroSound();
+  metroSoundEl?.addEventListener("change", () => {
+    setMetronomeSound(metroSoundEl.value);
+    // The running click switches on its next beat, without a pop (see
+    // metronome.setSound); exports read metronomeSound when they are built.
+    metronome?.setSound?.(metronomeSound);
+    _saveMetroPrefs();
+  });
 
   metroCountInEl?.addEventListener("change", () => {
     setMetronomeCountInBars(parseInt(metroCountInEl.value, 10));

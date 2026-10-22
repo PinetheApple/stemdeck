@@ -132,8 +132,8 @@
     },
     {
       "why": "Beat grid, metronome and count-in",
-      "paths": ["static/js/beatgrid.js", "static/js/beatgridUi.js", "static/js/metronome.js", "app/pipeline/click_render.py"],
-      "specs": ["click-track", "count-in-replay", "lane-alignment", "footer-fit", "zoom", "live-wave"]
+      "paths": ["static/js/beatgrid.js", "static/js/beatgridUi.js", "static/js/metronome.js", "static/js/clickSounds.js", "app/pipeline/click_render.py", "app/pipeline/click_sounds.py"],
+      "specs": ["click-track", "click-sound", "count-in-replay", "lane-alignment", "footer-fit", "zoom", "live-wave"]
     },
     {
       "why": "Speed, pitch and transpose: the stretch stages and the pitch bus",
