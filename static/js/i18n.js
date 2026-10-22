@@ -644,6 +644,8 @@ const en = {
   "export.mixing": "Exporting…",
   "export.allStems": "Export All Stems",
   "export.allStemsDesc": "All stems as a .zip",
+  "export.bundle": "Export for Another Player",
+  "export.bundleDesc": "Stems, beats, lyrics and mix in one file",
   "export.currentRegion": "Export Current Region",
   "export.currentRegionDesc": "Export selected region",
 
@@ -1538,6 +1540,8 @@ const pl = {
   "export.mixing": "Eksportowanie…",
   "export.allStems": "Eksportuj wszystkie ścieżki",
   "export.allStemsDesc": "Wszystkie ścieżki jako .zip",
+  "export.bundle": "Eksportuj do innego odtwarzacza",
+  "export.bundleDesc": "Ścieżki, rytm, tekst i miks w jednym pliku",
   "export.currentRegion": "Eksportuj bieżący fragment",
   "export.currentRegionDesc": "Eksportuj zaznaczony fragment",
 
@@ -2423,6 +2427,8 @@ const ja = {
   "export.mixing": "エクスポート中…",
   "export.allStems": "全パートをエクスポート",
   "export.allStemsDesc": "全パートを.zipとして",
+  "export.bundle": "他のプレーヤー用にエクスポート",
+  "export.bundleDesc": "パート・ビート・歌詞・ミックスを1つのファイルに",
   "export.currentRegion": "現在の範囲をエクスポート",
   "export.currentRegionDesc": "選択した範囲をエクスポート",
 
@@ -3284,6 +3290,8 @@ const zhHans = {
   "export.mixing": "正在导出…",
   "export.allStems": "导出全部音轨",
   "export.allStemsDesc": "所有音轨打包为 .zip",
+  "export.bundle": "导出到其他播放器",
+  "export.bundleDesc": "音轨、节拍、歌词和混音打包成一个文件",
   "export.currentRegion": "导出当前区域",
   "export.currentRegionDesc": "导出所选区域",
 
@@ -4146,6 +4154,8 @@ const de = {
   "export.mixing": "Wird exportiert…",
   "export.allStems": "Alle Stems exportieren",
   "export.allStemsDesc": "Alle Stems als .zip",
+  "export.bundle": "Für anderen Player exportieren",
+  "export.bundleDesc": "Stems, Beats, Songtext und Mix in einer Datei",
   "export.currentRegion": "Aktuellen Bereich exportieren",
   "export.currentRegionDesc": "Ausgewählten Bereich exportieren",
 
@@ -5018,6 +5028,8 @@ const pt = {
   "export.mixing": "Exportando…",
   "export.allStems": "Exportar todos os stems",
   "export.allStemsDesc": "Todos os stems como .zip",
+  "export.bundle": "Exportar para outro player",
+  "export.bundleDesc": "Stems, batidas, letra e mixagem em um arquivo",
   "export.currentRegion": "Exportar região atual",
   "export.currentRegionDesc": "Exportar região selecionada",
 
@@ -5891,6 +5903,8 @@ const id = {
   "export.mixing": "Mengekspor…",
   "export.allStems": "Ekspor Semua Stem",
   "export.allStemsDesc": "Semua stem sebagai .zip",
+  "export.bundle": "Ekspor untuk pemutar lain",
+  "export.bundleDesc": "Stem, ketukan, lirik, dan mix dalam satu file",
   "export.currentRegion": "Ekspor Wilayah Saat Ini",
   "export.currentRegionDesc": "Ekspor wilayah yang dipilih",
 
@@ -6753,6 +6767,8 @@ const fr = {
   "export.mixing": "Export en cours…",
   "export.allStems": "Exporter toutes les pistes",
   "export.allStemsDesc": "Toutes les pistes dans un .zip",
+  "export.bundle": "Exporter pour un autre lecteur",
+  "export.bundleDesc": "Pistes, temps, paroles et mixage dans un fichier",
   "export.currentRegion": "Exporter la région actuelle",
   "export.currentRegionDesc": "Exporter la région sélectionnée",
 
@@ -7799,6 +7815,8 @@ const es = {
   "export.mixing": "Exportando…",
   "export.allStems": "Exportar todos los stems",
   "export.allStemsDesc": "Todos los stems en un .zip",
+  "export.bundle": "Exportar para otro reproductor",
+  "export.bundleDesc": "Stems, pulsos, letra y mezcla en un archivo",
   "export.currentRegion": "Exportar la región actual",
   "export.currentRegionDesc": "Exporta la región seleccionada",
 
@@ -8693,6 +8711,8 @@ const ko = {
   "export.mixing": "내보내는 중…",
   "export.allStems": "모든 스템 내보내기",
   "export.allStemsDesc": "모든 스템을 .zip 하나로",
+  "export.bundle": "다른 플레이어용으로 내보내기",
+  "export.bundleDesc": "스템·비트·가사·믹스를 파일 하나로",
   "export.currentRegion": "선택 구간 내보내기",
   "export.currentRegionDesc": "선택한 구간을 내보내요",
 

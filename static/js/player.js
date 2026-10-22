@@ -1996,6 +1996,30 @@ export function downloadAllStemsZip(format = "wav", onTransferStart) {
   return _triggerDownload(`/api/jobs/${currentJobId}/stems/all.zip?${q}`, name, onTransferStart);
 }
 
+// Song bundle for another player (docs/song-bundle.md): the stems the studio
+// has loaded, with each lane's volume, mute, solo and key as last set. The
+// "original" complement lane is not a stem, so it stays out.
+export function downloadSongBundle(onTransferStart) {
+  if (!currentJobId) return false;
+  const lanes = _currentStems.map((s) => s.name).filter((n) => n !== "original" && n !== "mix");
+  if (!lanes.length) return false;
+  const lane = (name) => mixerState[name] ?? {};
+  const q = new URLSearchParams({
+    stems: lanes.join(","),
+    volumes: lanes.map((n) => (lane(n).volume ?? 1).toFixed(3)).join(","),
+    muted: lanes.map((n) => (lane(n).muted ? "1" : "0")).join(","),
+    soloed: lanes.map((n) => (lane(n).soloed ? "1" : "0")).join(","),
+    pitches: lanes.map((n) => effectivePitch(n, lane(n).pitch ?? 0, undefined)).join(","),
+  });
+  const safe = _currentTitle
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/_{2,}/g, "_")
+    .slice(0, 80)
+    .replace(/^_+|_+$/g, "");
+  const name = `${safe || currentJobId}.stemdeck.zip`;
+  return _triggerDownload(`/api/jobs/${currentJobId}/bundle.zip?${q}`, name, onTransferStart);
+}
+
 function _regionFilename(ext) {
   const safe = _currentTitle
     .replace(/[^a-zA-Z0-9]+/g, "_")
