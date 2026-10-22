@@ -1052,6 +1052,14 @@
                   <button class="metro-mult-btn active" id="t-metro-one" type="button" role="radio" aria-checked="true" title="Detected tempo" data-i18n-title="click.detected">1x</button>
                   <button class="metro-mult-btn" id="t-metro-double" type="button" role="radio" aria-checked="false" title="Double time" data-i18n-title="click.double">x2</button>
                 </div>
+                <!-- The click's sound (#805). Its options are the presets in
+                     js/clickSounds.js, filled in by transport.js; Classic is
+                     here so the select is never empty before that runs. -->
+                <span class="metro-select-wrap">
+                  <select id="t-metro-sound" class="metro-select" title="The sound of the click, for playback, the count-in and exports" data-i18n-title="click.soundTitle" aria-label="Click sound" data-i18n-aria-label="click.soundAria">
+                    <option value="classic" selected data-i18n="click.soundClassic">Classic</option>
+                  </select>
+                </span>
               </div>
               <!-- Only ever visible once footerFit has decided the options do
                    not fit inline; see .collapse-click in daw.css. -->

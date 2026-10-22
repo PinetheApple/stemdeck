@@ -33,7 +33,7 @@ import {
   footerTitle, footerMeta, footerThumb,
   setFooterWaveDrawFn, setOverviewRerenderFn, autoSectionsResetFn,
   metronome, setMetronome, metronomeEnabled, metronomeVolume, metronomeBeatsPerBar,
-  metronomeCountInBars, metronomeGrouping,
+  metronomeCountInBars, metronomeGrouping, metronomeSound,
   exportClickEl, exportClickWrap, exportCountInEl, exportCountInWrap,
   setMetronomeHasBars,
 } from "./state.js";
@@ -47,6 +47,7 @@ import { applyAllLaneEq, exportFxParam } from "./eqEngine.js";
 import { exportMasterParam, setMixSource, resetForSong as resetMasterForSong } from "./masterEngine.js";
 import { vuLevel } from "./vuScale.js";
 import { createMetronome } from "./metronome.js";
+import { DEFAULT_CLICK_SOUND } from "./clickSounds.js";
 import { initBeatGrid, destroyBeatGrid } from "./beatgrid.js";
 import { setBeatGridAvailable, syncBeatGridButtons } from "./beatgridUi.js";
 import {
@@ -1869,6 +1870,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
             const m = createMetronome(eng, beats, {
               volume: metronomeVolume,
               beatsPerBar: metronomeBeatsPerBar,
+              sound: metronomeSound,
             });
             setMetronome(m);
             updateMetronomeAvailability(m ? grid : null,
@@ -2270,6 +2272,17 @@ export function excerptUrl(ext, start, end, withMaster) {
   return `/api/jobs/${src.jobId}/mixdown.${ext}?${q}`;
 }
 
+// The click as the user monitors it: rate, accents, grouping, level and sound.
+// The sound is sent only when it is not the default, so a Classic export keeps
+// exactly the URL (and server cache entry) it had before sounds existed (#805).
+function _clickVoiceParams(q) {
+  q.set("click_mult", String(metronome?.getMultiplier?.() ?? 1));
+  q.set("click_accent", String(metronomeBeatsPerBar));
+  q.set("click_gain", metronomeVolume.toFixed(3));
+  if (metronomeGrouping) q.set("click_groups", metronomeGrouping.join("+"));
+  if (metronomeSound !== DEFAULT_CLICK_SOUND) q.set("click_sound", metronomeSound);
+}
+
 // Click-track export params. The click is synthesised in the browser during
 // playback, so the server can only reproduce it if it is told the rate and
 // accent mode the user was monitoring with. Opt-in: baking a permanent click
@@ -2277,10 +2290,7 @@ export function excerptUrl(ext, start, end, withMaster) {
 function _clickParams(q) {
   if (!exportClickEl?.checked || exportClickEl.disabled) return;
   q.set("click", "1");
-  q.set("click_mult", String(metronome?.getMultiplier?.() ?? 1));
-  q.set("click_accent", String(metronomeBeatsPerBar));
-  q.set("click_gain", metronomeVolume.toFixed(3));
-  if (metronomeGrouping) q.set("click_groups", metronomeGrouping.join("+"));
+  _clickVoiceParams(q);
 }
 
 // Count-in export param (issue #269). Independent of the running click track:
@@ -2297,10 +2307,7 @@ function _countInParam(q) {
   q.set("count_in", String(metronomeCountInBars > 0 ? metronomeCountInBars : 1));
   // The count-in's tempo/meter follow the same rate and accent the click uses,
   // so pass them even when the click itself is not being baked in.
-  q.set("click_mult", String(metronome?.getMultiplier?.() ?? 1));
-  q.set("click_accent", String(metronomeBeatsPerBar));
-  q.set("click_gain", metronomeVolume.toFixed(3));
-  if (metronomeGrouping) q.set("click_groups", metronomeGrouping.join("+"));
+  _clickVoiceParams(q);
 }
 
 /** Whether this track can export a click / count-in at all (needs a beat grid). */
@@ -2418,6 +2425,11 @@ export function downloadAllStemsZip(format = "wav", onTransferStart) {
     .replace(/^_+|_+$/g, "");
   const name = safe ? `${safe}_stems.zip` : "stems.zip";
   const q = new URLSearchParams({ format, stems: names.join(",") });
+  // Include click track: the zip gets the click as its own file too, lined up
+  // with the stems (#805). The count-in is a mix-export option only: the
+  // stems in a zip start at the song's first sample, so there is nowhere
+  // before them for a count-in to go.
+  _clickParams(q);
   return _triggerDownload(`/api/jobs/${currentJobId}/stems/all.zip?${q}`, name, onTransferStart);
 }
 

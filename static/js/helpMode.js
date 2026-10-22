@@ -220,6 +220,7 @@ const HELP = [
   ["#t-metro-group", "help.clickGroup"],
   ["#t-metro-edit", "help.clickGrid", null, "click.editTitle"],
   [".metro-mult", "help.clickRate", null, "click.rateAria"],
+  ["#t-metro-sound", "help.clickSound", null, "click.soundAria"],
   ["#t-master-btn", "help.masterChip", null, "master.title"],
   ["#t-export-btn", "help.export"],
   // The Export menu's parts.
