@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# stemdeck dev server control: setup | start | stop | restart | status
+# stemdeck dev server control: setup | gpu | start | stop | restart | status
 
 set -euo pipefail
 
@@ -110,6 +110,24 @@ needs_fpcalc() {
     ! ffmpeg -hide_banner -muxers 2>/dev/null | grep -w chromaprint >/dev/null
 }
 
+# Blackwell cards (compute capability 10.x and up) have no kernels in the torch
+# 2.6 wheels uv.lock pins, so demucs drops to CPU. Swap in the cu128 2.8.0 line
+# the desktop app installs for them (wheel_candidates in desktop/src-tauri).
+# `uv sync` puts the locked wheels back, so rerun this after every sync.
+gpu_torch() {
+    command -v nvidia-smi >/dev/null 2>&1 || return 0
+    local cap major
+    cap=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -n1)
+    major="${cap%%.*}"
+    if [[ ! "$major" =~ ^[0-9]+$ ]] || (( major < 10 )); then
+        return 0
+    fi
+    echo "==> Blackwell GPU (compute $cap): installing torch 2.8.0 cu128"
+    uv pip install --python .venv/bin/python \
+        torch==2.8.0 torchaudio==2.8.0 torchvision==0.23.0 \
+        --index-url https://download.pytorch.org/whl/cu128
+}
+
 setup() {
     local os
     case "$(uname -s)" in
@@ -175,6 +193,9 @@ setup() {
 
     echo "==> uv sync"
     uv sync --python 3.12
+    if [[ "$os" == "linux" ]]; then
+        gpu_torch
+    fi
 
     echo
     echo "setup complete. start the server with: ./run.sh start"
@@ -182,12 +203,13 @@ setup() {
 
 case "${1:-}" in
     setup)   setup ;;
+    gpu)     gpu_torch ;;
     start)   start ;;
     stop)    stop ;;
     restart) stop; start ;;
     status)  status ;;
     *)
-        echo "usage: $0 {setup|start|stop|restart|status}" >&2
+        echo "usage: $0 {setup|gpu|start|stop|restart|status}" >&2
         exit 2
         ;;
 esac
