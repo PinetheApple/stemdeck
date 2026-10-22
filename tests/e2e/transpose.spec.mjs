@@ -176,16 +176,21 @@ test.describe("transpose", () => {
     await expect(page.locator("#t-speed-1")).not.toHaveClass(/active/);
   });
 
-  test("reopening a track resets its displayed and applied key", async ({ page }) => {
+  test("reopening a track keeps its displayed and applied key", async ({ page }) => {
+    // The key is saved with the song (#781). This used to read 0 here only
+    // because the reopen beat the debounced save, while the lanes and the
+    // store went on to hold +2.
     await recordRouting(page);
     await openStudio(page);
     await up(page).click();
     await up(page).click();
     await expect(value(page)).toHaveText("+2");
 
+    await clearRoutes(page);
     await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
-    await expect(value(page)).toHaveText("0");
-    await expect(value(page)).not.toHaveClass(/active/);
+    await expect(value(page)).toHaveText("+2");
+    await expect(value(page)).toHaveClass(/active/);
+    await expect.poll(() => recentInputs(page)).toContain(ZERO_INPUT + 2);
   });
 
   test("disables transpose when AudioWorklet setup is unavailable", async ({ page }) => {

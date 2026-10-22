@@ -86,7 +86,7 @@
         "static/js/modeUi.js", "static/js/mixMode.js", "static/js/modeStems.js", "static/js/partChoice.js",
         "static/js/stemChoice.js", "static/js/stemsControl.js", "static/js/playbackStems.js", "static/css/appbar.css"
       ],
-      "specs": ["modes", "help-mode", "mode-stems", "partial-stems", "extract-row", "stem-chip-overflow", "karaoke", "streamer", "streamer-media", "panel-toggles"]
+      "specs": ["modes", "help-mode", "mode-stems", "partial-stems", "extract-row", "stem-chip-overflow", "karaoke", "streamer", "streamer-media", "panel-toggles", "transpose-switch-song"]
     },
     {
       "why": "The import form: URL box, search, file drop, playlist import, and the stem choice submitted with it",
@@ -141,7 +141,7 @@
         "static/js/pitchBus.js", "static/js/tempoStage.js", "static/js/tickLoop.js", "static/js/keyLabel.js",
         "static/vendor/signalsmith-stretch.js", "static/vendor/soundtouch-processor.js"
       ],
-      "specs": ["tempo-stage", "slow-speed", "transpose", "mobile-transpose", "network-transpose-warning", "click-track", "count-in-replay", "key-card", "help-mode"]
+      "specs": ["tempo-stage", "slow-speed", "transpose", "transpose-switch-song", "mobile-transpose", "network-transpose-warning", "click-track", "count-in-replay", "key-card", "help-mode"]
     },
     {
       "why": "Footer and transport layout",
@@ -180,7 +180,7 @@
     {
       "why": "Karaoke mode",
       "paths": ["static/js/karaoke/**", "static/css/karaoke.css", "app/api/backing.py", "app/pipeline/backing.py"],
-      "specs": ["karaoke", "streamer", "modes", "help-mode", "mode-stems", "lyrics", "playback-memory", "track-header", "video-sync", "zoom"]
+      "specs": ["karaoke", "streamer", "modes", "help-mode", "mode-stems", "lyrics", "playback-memory", "track-header", "video-sync", "zoom", "transpose-switch-song"]
     },
     {
       "why": "Performance (streamer) mode",
