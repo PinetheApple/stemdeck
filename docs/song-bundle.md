@@ -48,7 +48,6 @@ A reader ignores members it does not know. A missing optional member means StemD
 - `format` is always `stemdeck-song-bundle`. Anything else is not a bundle.
 - `version` is an integer. It goes up only when a version 1 reader would misread the new file; adding an optional member or field does not bump it.
 - `stems` is in StemDeck's lane order. `name` is a StemDeck stem name (`vocals`, `drums`, `bass`, `guitar`, `piano`, `other`, `lead_vocals`, `backing_vocals`); a reader should still show an unknown name rather than drop it. `frames` is the stem's length in sample frames at `sample_rate`.
-- `mix` is a stem like the others: the full mix as separated, useful as a reference lane. It is included when the job has one.
 - `vocals` never appears together with `lead_vocals` or `backing_vocals`; they are the same signal split two ways, and playing both doubles the voice.
 - `files` lists the optional JSON members that are present.
 
@@ -109,7 +108,7 @@ When `synced` is present, use it, shifted by `offset_sec`. StemDeck's other cand
 
 ## mix.json
 
-The mix as you left it in the studio, sent by the app that asked for the export. Absent when the export did not send one.
+The mix as you left it in the studio, for the lanes in the bundle. Absent when the export did not send one.
 
 ```json
 {
@@ -119,8 +118,15 @@ The mix as you left it in the studio, sent by the app that asked for the export.
 }
 ```
 
-`volume` is linear gain from 0 to 2; 1 is unchanged. `pitch` is semitones from the recording's own key, for that lane alone.
+`volume` is linear gain from 0 to 2; 1 is unchanged. Drums are never transposed, so their `pitch` is always 0. `pitch` is semitones from the recording's own key, for that lane alone.
 
 ## Making one
 
-**Bundle for another player** in a song's export menu, or `POST /api/jobs/{id}/bundle` with an optional `mix.json` body as above. The song must be finished extracting.
+`GET /api/jobs/{id}/bundle.zip` on a song that has finished extracting. Every parameter is optional:
+
+| Parameter | Meaning |
+|---|---|
+| `stems` | Comma-separated lanes, in any order; they are written in lane order. Default: the six separated stems. |
+| `volumes` | Linear volume per lane, parallel to `stems`. Sending it is what adds `mix.json`. |
+| `muted`, `soloed` | `0` or `1` per lane, parallel to `stems` |
+| `pitches` | Semitones per lane, −6 to 6, parallel to `stems` |
