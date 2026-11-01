@@ -108,7 +108,9 @@ def validate_target(target: Path, current: Path) -> Path:
         # the jobs folder too (see desktop/src-tauri/src/main.rs's
         # documents_store_path), so re-selecting a folder StemDeck already
         # used must recognize it as "ours", same as registry.json.
-        ours = {"registry.json", "failed", "user-data.json"}
+        from app.core.config import SETLISTS_FILE
+
+        ours = {"registry.json", "failed", "user-data.json", SETLISTS_FILE}
         if entries and not all(e.name in ours or _looks_like_job_dir(e) for e in entries):
             raise StemsLocationError("Pick an empty folder, or one StemDeck already uses.")
     else:

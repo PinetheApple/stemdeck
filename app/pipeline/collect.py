@@ -20,6 +20,7 @@ from app.core.registry import all_jobs as registry_all
 from app.core.registry import persist as registry_persist
 from app.core.registry import remove as registry_remove
 from app.core.registry import set_proc
+from app.core.setlists import remove_songs as setlists_remove_songs
 from app.pipeline.audio_stats import scan_stem
 
 logger = logging.getLogger("stemdeck.collect")
@@ -340,7 +341,7 @@ def sweep_old_jobs(jobs_dir: Path, ttl_seconds: int | None = None) -> None:
     if not jobs_dir.is_dir():
         return
     jobs = registry_all()
-    removed = False
+    removed: list[str] = []
     for d in jobs_dir.iterdir():
         if not d.is_dir():
             continue
@@ -356,9 +357,10 @@ def sweep_old_jobs(jobs_dir: Path, ttl_seconds: int | None = None) -> None:
             continue
         _rmtree(d)
         registry_remove(d.name)
-        removed = True
+        removed.append(d.name)
     if removed:
         registry_persist(jobs_dir)
+        setlists_remove_songs(jobs_dir, removed)
 
 
 def sweep_failed_jobs(jobs_dir: Path) -> None:

@@ -955,7 +955,7 @@ def _stem_download_name(job_id: str, name: str, ext: str, suffix: str = "") -> s
     requests, so the server has to carry the name for the browser to honour it.
     """
     job = registry_get(job_id)
-    slug = _title_slug(job.title if job else None)
+    slug = _title_slug(job.display_title if job else None)
     stem = f"{name}{suffix}"
     return f"{slug}_{stem}.{ext}" if slug else f"{stem}.{ext}"
 
@@ -1086,7 +1086,7 @@ def _mixdown_download_name(job_id: str, ext: str, is_region: bool) -> str:
     (#336). Mirrors the names the frontend builds, because Content-Disposition
     overrides an <a download> attribute and the two must not disagree."""
     job = registry_get(job_id)
-    slug = _title_slug(job.title if job else None)
+    slug = _title_slug(job.display_title if job else None)
     kind = "region" if is_region else "exported_mix"
     return f"{slug}_{kind}.{ext}" if slug else f"{kind}.{ext}"
 
@@ -1389,7 +1389,7 @@ async def get_video_mixdown(
         "pipe:1",
     ]
 
-    filename = f"{_safe_title(job.title)}_video.mp4"
+    filename = f"{_safe_title(job.display_title)}_video.mp4"
     return StreamingResponse(
         _stream_ffmpeg(cmd, context=f"video-mux job={job_id} stems={stems}"),
         media_type="video/mp4",
@@ -1494,13 +1494,15 @@ async def get_all_stems_zip(
     os.close(fd)
     tmp_path = Path(tmp)
     try:
-        await asyncio.to_thread(_build_stems_zip, sources, fmt, tmp_path, _title_slug(job.title))
+        await asyncio.to_thread(
+            _build_stems_zip, sources, fmt, tmp_path, _title_slug(job.display_title)
+        )
     except Exception:
         tmp_path.unlink(missing_ok=True)
         logger.exception("failed to build stems zip for job %s", job_id)
         raise HTTPException(status_code=500, detail="failed to build archive") from None
 
-    filename = f"{_safe_title(job.title)}_stems.zip"
+    filename = f"{_safe_title(job.display_title)}_stems.zip"
     return FileResponse(
         tmp_path,
         media_type="application/zip",

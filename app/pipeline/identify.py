@@ -973,6 +973,20 @@ def can_identify(
     )
 
 
+def fingerprint_key(job: Job) -> str | None:
+    """The AcoustID key to identify ``job`` by its audio, or None to go by its
+    names alone. A song the user named is what they named it: a fingerprint
+    match would overrule them."""
+    return None if job.named_by_user else get_acoustid_api_key()
+
+
+def band_identity(job: Job, identity: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The identity to find ``job``'s band through: None once the user named
+    the artist, so the band is found by that name, not by whoever the
+    recording found by name search credits."""
+    return None if job.user_artist else identity
+
+
 def identify_and_find_band(
     job: Job,
     audio: list[Path],
@@ -984,21 +998,26 @@ def identify_and_find_band(
     """(identity, band) for a job, blocking: the job's identity when it has
     one, else a fresh one; the band only when ``want_band``. Reads the job,
     never writes it. For the tag backfill. Never raises."""
+    tags = job.lookup_tags(tags)
+    api_key = fingerprint_key(job)
     identity = job.identity
-    if identity is None and can_identify(tags, get_acoustid_api_key(), audio, job.title):
+    if identity is None and can_identify(tags, api_key, audio, job.display_title):
         identity = identify(
             tags=tags,
-            title=job.title,
+            title=job.display_title,
             duration=job.duration_sec,
             audio=audio,
-            api_key=get_acoustid_api_key(),
+            api_key=api_key,
             job_id=job.id,
             cancelled=cancelled,
         )
     band = None
     if want_band and not cancelled():
         band = find_band_for(
-            identity, (tags or {}).get("artist"), title=job.title, cancelled=cancelled
+            band_identity(job, identity),
+            (tags or {}).get("artist"),
+            title=job.display_title,
+            cancelled=cancelled,
         )
     return identity, band
 
@@ -1025,6 +1044,7 @@ class IdentifyLookup:
         want_band: bool,
         want_work: bool = False,
     ) -> None:
+        self._names = job.user_names
         self._identity: dict[str, Any] | None = None
         self._band: dict[str, str] | None = None
         self._work: dict[str, str] | None = None
@@ -1041,12 +1061,12 @@ class IdentifyLookup:
     def _run(
         self, job: Job, audio: list[Path], api_key: str | None, want_band: bool, want_work: bool
     ) -> None:
-        tags = dict(job.audio_tags or {})
+        tags = dict(job.lookup_tags(job.audio_tags) or {})
         cancelled = lambda: job.cancel_requested  # noqa: E731
         try:
             identity = job.identity or identify(
                 tags=tags,
-                title=job.title,
+                title=job.display_title,
                 duration=job.duration_sec,
                 audio=audio,
                 api_key=api_key,
@@ -1061,11 +1081,14 @@ class IdentifyLookup:
         self._identity_ready.set()
         if want_band and not cancelled():
             self._band = find_band_for(
-                identity, tags.get("artist"), title=job.title, cancelled=cancelled
+                band_identity(job, identity),
+                tags.get("artist"),
+                title=job.display_title,
+                cancelled=cancelled,
             )
         self._band_done.set()
         if want_work and not cancelled():
-            self._work = find_work(identity, tags, title=job.title, cancelled=cancelled)
+            self._work = find_work(identity, tags, title=job.display_title, cancelled=cancelled)
         self._work_done.set()
 
     @classmethod
@@ -1074,9 +1097,11 @@ class IdentifyLookup:
         band already known (a re-split inherits both), or nothing to go on
         (no key to fingerprint with, no artist tag and no title naming more
         than a song)."""
-        api_key = get_acoustid_api_key()
-        tags = job.audio_tags or {}
-        want_identity = job.identity is None and can_identify(tags, api_key, audio, job.title)
+        api_key = fingerprint_key(job)
+        tags = job.lookup_tags(job.audio_tags) or {}
+        want_identity = job.identity is None and can_identify(
+            tags, api_key, audio, job.display_title
+        )
         has_name = bool(
             tagged_artist_name(tags.get("artist")) or (job.identity or {}).get("artist")
         )
@@ -1085,7 +1110,7 @@ class IdentifyLookup:
         # asked for whenever an identity is being found, or one already known
         # (or the album tag) says the recording is a soundtrack.
         want_work = job.work is None and (
-            want_identity or might_have_work(job.identity, tags, job.title)
+            want_identity or might_have_work(job.identity, tags, job.display_title)
         )
         if not want_identity and not want_band and not want_work:
             return None
@@ -1109,6 +1134,9 @@ class IdentifyLookup:
         if alive:
             logger.info("[%s] identification still out after %ss; finishing", job.id, timeout)
         if job.cancel_requested:
+            return
+        if job.user_names != self._names:
+            logger.info("[%s] renamed during identification; dropping its answer", job.id)
             return
         fields: dict[str, object] = {}
         if self._identity_ready.is_set() and self._identity and job.identity is None:

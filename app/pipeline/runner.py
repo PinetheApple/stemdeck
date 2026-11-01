@@ -333,6 +333,8 @@ def _run_local_blocking(job: Job, source_path: Path, job_dir: Path) -> None:
 def _write_metadata(job: Job, job_dir: Path) -> None:
     meta = {
         "title": job.title,
+        "user_title": job.user_title,
+        "user_artist": job.user_artist,
         "thumbnail": job.thumbnail,
         "audio_tags": job.audio_tags,
         "identity": job.identity,

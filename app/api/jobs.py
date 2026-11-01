@@ -16,7 +16,7 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field, StrictBool, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 from app.core.config import (
     DISCOGS_LOOKUP_BUDGET_SEC,
@@ -28,6 +28,7 @@ from app.core.config import (
     MAX_PENDING_UPLOAD_JOBS,
     MAX_PENDING_URL_JOBS,
     RETIME_DELETE_WAIT_SEC,
+    SONG_NAME_MAX_CHARS,
     STEM_NAMES,
     TIMEOUT_FETCH_TAGS,
     TIMEOUT_IDENTIFY_BACKFILL,
@@ -35,7 +36,14 @@ from app.core.config import (
     TIMEOUT_WORK_BACKFILL,
     ffprobe_executable,
 )
-from app.core.models import FINISHED_STATUSES, Job, JobCancelled, _set, settle_cancelled
+from app.core.models import (
+    FINISHED_STATUSES,
+    Job,
+    JobCancelled,
+    _set,
+    checked_name,
+    settle_cancelled,
+)
 from app.core.registry import all_jobs as registry_all_jobs
 from app.core.registry import get as registry_get
 from app.core.registry import get_proc as registry_get_proc
@@ -48,12 +56,8 @@ from app.core.registry import remove as registry_remove
 from app.core.registry import requeue_if_capacity as registry_requeue_if_capacity
 from app.core.registry import set_favorite as registry_set_favorite
 from app.core.registry import set_trashed as registry_set_trashed
-from app.core.settings import (
-    get_acoustid_api_key,
-    get_auto_sections,
-    get_discogs_token,
-    get_max_duration_sec,
-)
+from app.core.setlists import remove_songs as setlists_remove_songs
+from app.core.settings import get_auto_sections, get_discogs_token, get_max_duration_sec
 from app.core.stems_location import is_relocating
 from app.pipeline import discogs, jobqueue
 from app.pipeline.artist_lookup import tagged_artist_name
@@ -61,7 +65,12 @@ from app.pipeline.audio_tags import probe_tags
 from app.pipeline.collect import merge_stem_peaks, presence_for_split, remove_job_dir
 from app.pipeline.download import InvalidYouTubeURL, fetch_audio_tags, validate_youtube_url
 from app.pipeline.errors import classify_failure
-from app.pipeline.identify import can_identify_title, identify_and_find_band, release_source
+from app.pipeline.identify import (
+    can_identify_title,
+    fingerprint_key,
+    identify_and_find_band,
+    release_source,
+)
 from app.pipeline.lyrics_align import detect_offset
 from app.pipeline.lyrics_lookup import (
     _TEXT_MAX_CHARS,
@@ -69,7 +78,9 @@ from app.pipeline.lyrics_lookup import (
     build_query,
     candidates_path,
     copy_lyrics,
+    drop_if_another_song,
     find_lyrics,
+    forget_names,
     keep_answer,
     lookup_lyrics,
     lyrics_path,
@@ -473,6 +484,59 @@ def set_favorite(job_id: str, body: FavoriteBody) -> dict:
     return {"job_id": job.id, "favorite": job.favorite}
 
 
+class RenameBody(BaseModel):
+    """A string sets the user's value; null goes back to the detected one."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = None
+    artist: str | None = None
+
+    @field_validator("title", "artist")
+    @classmethod
+    def _check_name(cls, value: str | None) -> str | None:
+        return None if value is None else checked_name(value, SONG_NAME_MAX_CHARS)
+
+
+@router.patch("/{job_id}")
+def rename_job(job_id: str, body: RenameBody) -> dict:
+    """Set the title and artist the library and exports show for a song.
+
+    Stored as user_title/user_artist beside the detected values, in the
+    registry and metadata.json, so the pipeline and the tag backfill can keep
+    rewriting what they detect without undoing the rename.
+
+    Lookups search by these names (Job.lookup_tags), so what was found by the
+    old ones is forgotten when a name changes: the identity and the work, the
+    band too when the artist changed, LRCLIB's last answer, and kept LRCLIB
+    lyrics the new names disown. The next tag backfill (POST .../audio-tags)
+    or Lyrics tab lookup finds them again by the new names."""
+    if not JOB_ID_RE.match(job_id):
+        raise HTTPException(status_code=404, detail="job not found")
+    job = registry_get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    sent = body.model_fields_set
+    if not sent:
+        raise HTTPException(status_code=422, detail="send title, artist or both")
+    fields: dict[str, object] = {
+        f"user_{name}": getattr(body, name)
+        for name in ("title", "artist")
+        if name in sent and getattr(body, name) != getattr(job, f"user_{name}")
+    }
+    if not fields:
+        return _job_state(job)
+    fields.update(identity=None, work=None)
+    if "user_artist" in fields:
+        fields["artist"] = None
+    _set(job, **fields)
+    if forget_names(job, _job_dir(job_id)):
+        _set(job, has_lyrics=False)
+    _write_metadata_fields(job_id, fields)
+    registry_persist(JOBS_DIR)
+    return _job_state(job)
+
+
 @router.get("/{job_id}")
 def get_job(job_id: str) -> dict:
     """Get the current state of a job by ID."""
@@ -662,6 +726,8 @@ async def resplit_job(job_id: str, body: ResplitBody) -> dict:
         id=new_id,
         selected_stems=selected,
         title=job.title,
+        user_title=job.user_title,
+        user_artist=job.user_artist,
         duration_sec=job.duration_sec,
         # Still a local: source, so this job keeps its own copy and can be
         # re-split in turn -- but distinct, so the library shows it beside the
@@ -933,7 +999,7 @@ async def refresh_audio_tags(job_id: str) -> dict:
     job_dir = _job_dir(job_id)
     if (
         job.audio_tags
-        and (job.artist or not tagged_artist_name(job.audio_tags.get("artist")))
+        and (job.artist or not tagged_artist_name(job.lookup_tags(job.audio_tags).get("artist")))
         and lyrics_settled(job_dir)
         and not _wants_identity(job, job.audio_tags)
         and not _wants_work(job, job.identity, job.audio_tags)
@@ -949,6 +1015,7 @@ async def refresh_audio_tags(job_id: str) -> dict:
         raise HTTPException(status_code=409, detail="already looking up this track")
 
     _TAG_LOOKUPS.add(job_id)
+    names = job.user_names
     try:
         tags = job.audio_tags
         if not tags:
@@ -974,7 +1041,7 @@ async def refresh_audio_tags(job_id: str) -> dict:
         # job here for its lyrics alone may have tags naming no artist.
         want_identity = _wants_identity(job, tags)
         want_band = not job.artist and bool(
-            tagged_artist_name((tags or {}).get("artist"))
+            tagged_artist_name((job.lookup_tags(tags) or {}).get("artist"))
             or (identity or {}).get("artist")
             or want_identity
         )
@@ -1005,8 +1072,8 @@ async def refresh_audio_tags(job_id: str) -> dict:
                     asyncio.to_thread(
                         find_work,
                         identity,
-                        tags,
-                        title=job.title,
+                        job.lookup_tags(tags),
+                        title=job.display_title,
                         cancelled=lambda: registry_get(job_id) is not job,
                     ),
                     timeout=TIMEOUT_WORK_BACKFILL,
@@ -1024,7 +1091,7 @@ async def refresh_audio_tags(job_id: str) -> dict:
                         find_lyrics,
                         query,
                         cancelled=lambda: registry_get(job_id) is not job,
-                        fallback_title=job.title or "",
+                        fallback_title=job.display_title or "",
                     ),
                     timeout=LYRICS_LOOKUP_BUDGET_SEC + TIMEOUT_LYRICS_LOOKUP + 1,
                 )
@@ -1042,6 +1109,9 @@ async def refresh_audio_tags(job_id: str) -> dict:
             "identity": None,
             "work": None,
         }
+    if job.user_names != names:
+        logger.info("[%s] renamed during the tag backfill; keeping only the tags", job_id)
+        lyrics = identity = artist = work = None
     if (
         lyrics
         and not lyrics_path(job_dir).is_file()
@@ -1076,17 +1146,18 @@ def _wants_identity(job: Job, tags: dict[str, str] | None) -> bool:
     title naming more than a song (a YouTube upload with no music metadata)."""
     if job.identity is not None:
         return False
+    tags = job.lookup_tags(tags)
     return (
-        bool(get_acoustid_api_key())
+        bool(fingerprint_key(job))
         or bool(tagged_artist_name((tags or {}).get("artist")))
-        or can_identify_title(tags, job.title)
+        or can_identify_title(tags, job.display_title)
     )
 
 
 def _wants_work(job: Job, identity: dict[str, object] | None, tags: dict[str, str] | None) -> bool:
     """Whether the backfill should look for the work ``job``'s song is from:
     it has none yet, and its identity, album tag or title says it is from one."""
-    return job.work is None and might_have_work(identity, tags, job.title)
+    return job.work is None and might_have_work(identity, job.lookup_tags(tags), job.display_title)
 
 
 def _fingerprint_audio(job: Job) -> list[Path]:
@@ -1154,7 +1225,7 @@ async def get_artist_extra(job_id: str) -> dict:
             asyncio.to_thread(
                 discogs.artist_for_track,
                 job.identity,
-                job.audio_tags,
+                job.lookup_tags(job.audio_tags),
                 job.artist,
                 token,
                 cancelled=cancelled,
@@ -1210,14 +1281,8 @@ def get_lyrics(job_id: str) -> Response:
     job = registry_get(job_id)
     query = build_query(job) if job is not None else None
     others = [o for o in others if saved_lyrics_belong(o, query)]
-    # Never lyrics timed by the user, moved by them, or found line by line
-    # in the vocals: each says they are the track's, whatever the names say.
-    worked_on = entry is not None and any(
-        k in entry for k in ("user_synced", "aligned", "offset_sec")
-    )
-    if entry is not None and not worked_on and not saved_lyrics_belong(entry, query):
+    if entry is not None and drop_if_another_song(job_dir, entry, query):
         logger.info("[%s] dropping kept lyrics of another song", job_id)
-        path.unlink(missing_ok=True)
         if job is not None:
             _set(job, has_lyrics=False)
             registry_persist(JOBS_DIR)
@@ -1282,13 +1347,14 @@ async def lookup_lyrics_route(job_id: str, body: LyricsLookupBody | None = None)
             {"detail": "nothing to look up", "others": [], "nothing_known": True}, status_code=404
         )
     _LYRICS_LOOKUPS.add(job_id)
+    names = job.user_names
     try:
         answer = await asyncio.wait_for(
             asyncio.to_thread(
                 lookup_lyrics,
                 query,
                 cancelled=lambda: registry_get(job_id) is not job,
-                fallback_title=job.title or "",
+                fallback_title=job.display_title or "",
             ),
             timeout=LYRICS_LOOKUP_BUDGET_SEC + TIMEOUT_LYRICS_LOOKUP + 1,
         )
@@ -1304,6 +1370,7 @@ async def lookup_lyrics_route(job_id: str, body: LyricsLookupBody | None = None)
         raise HTTPException(status_code=404, detail="job not found")
     if (
         answer is not None
+        and job.user_names == names
         and not lyrics_path(job_dir).is_file()
         and await asyncio.to_thread(keep_answer, job, job_dir, answer)
     ):
@@ -1864,6 +1931,7 @@ def delete_job(job_id: str) -> dict[str, str]:
     registry_mark_deleted(job_id)
     registry_remove(job_id)
     registry_persist(JOBS_DIR)
+    setlists_remove_songs(JOBS_DIR, [job_id])
     if not removed:
         raise HTTPException(
             status_code=500,

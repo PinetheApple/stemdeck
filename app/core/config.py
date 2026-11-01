@@ -366,6 +366,16 @@ TIMEOUT_FETCH_TAGS = _env_int("STEMDECK_TIMEOUT_FETCH_TAGS", 45)
 # longer than this is not lyrics.
 AUDIO_TAG_MAX_CHARS = 300
 AUDIO_TAG_LYRICS_MAX_CHARS = 20000
+# The same bound as a tag's: the name is kept in the record rewritten on every save.
+SONG_NAME_MAX_CHARS = 300
+
+# Setlists (app/core/setlists.py), in this file beside registry.json. The song
+# cap also bounds the request body.
+SETLISTS_FILE = "setlists.json"
+SETLISTS_FILE_VERSION = 1
+SETLIST_ID_HEX_CHARS = 12
+SETLIST_NAME_MAX_CHARS = 100
+SETLIST_MAX_SONGS = 1000
 # An upload's tags written in a Windows codepage but read as Latin-1 (an MP3's
 # ID3v1 tag, or an ID3v2 frame marked ISO-8859-1): "zapomnia³em" for
 # "zapomniałem", "Êèíî" for "Кино". The codepages tried when re-reading

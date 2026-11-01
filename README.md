@@ -41,7 +41,6 @@
   <a href="#download"><b>Download</b></a> &nbsp;·&nbsp;
   <a href="#what-you-can-do">What you can do</a> &nbsp;·&nbsp;
   <a href="#honest-comparison">Honest comparison</a> &nbsp;·&nbsp;
-  <a href="#we-recommend">We Recommend</a> &nbsp;·&nbsp;
   <a href="#for-developers">For developers</a>
 </p>
 
@@ -77,7 +76,6 @@ Each link downloads the latest release. [Release notes](https://github.com/stemd
 - **The Trash.** A count on its icon, hold a song for a second to bring it back, and pick several at once with Ctrl or Shift.
 - **Deleting a song while it extracts stops it,** and keeps its files until you empty the Trash.
 - **Imports stay in the background:** the song you have open stays open.
-- **We Recommend** welcomes Adrianna Claro, and cards can now link to Spotify and Apple Music.
 - **Portable Windows installs** in a folder they cannot write to now say so clearly.
 
 All of it, with credits to the people who reported each problem, is in the [release notes](https://github.com/stemdeckapp/stemdeck/releases/latest).
@@ -178,34 +176,6 @@ StemDeck is not trying to beat the commercial stem-separation services. It cover
 | **Source code** | Open source, forkable, self-hostable | Closed |
 
 If you need the best quality, speed on any machine, or a store-bought phone app, the commercial products are worth the money. If you want stems for practice and study, keep your audio private, and like software with no strings attached, StemDeck is enough.
-
-
-<a name="we-recommend"></a>
-
-## <img src="imgs/readme/person.svg" width="26" align="top" alt=""> We Recommend
-
-StemDeck is free and **does not accept any money, sponsorship, or funding**  from anyone listed below. I share these makers and artists and communities purely for the joy of pointing you toward wonderful people doing beautiful work. Go meet them ❤️
-
-| Category | Name | What they do | Link |
-|---|---|---|---|
-| Artists & Creators | Adrianna Claro | Soul and Contemporary R&B Singer, Songwriter and Composer | [Spotify](https://open.spotify.com/album/10fZ48iJhIe3lWcXSMUlFG) · [Apple Music](https://music.apple.com/us/album/happy/1592026727?i=1592026728) |
-| Artists & Creators | Analog4Lyfe | Analog gear specialist | [@analog4lyfe](https://www.instagram.com/analog4lyfe) |
-| Artists & Creators | Dead röses | Cork-based punk rock band | [@dead_rosesband](https://www.instagram.com/dead_rosesband) |
-| Artists & Creators | Joao Gaspar | Producer, film scorer, touring/session musician | [@jay_glaspar](https://www.instagram.com/jay_glaspar) |
-| Artists & Creators | Killah Trakz | Industry Secret Villain and Media Influencer | [@killahtrakz](https://www.instagram.com/killahtrakz/) · [Spotify](https://open.spotify.com/artist/6nePYOqT4E7D4C48twPtKk) · [Apple Music](https://music.apple.com/us/artist/killah-trakz/371296633) |
-| Artists & Creators | More Notes Less Talk | Gear-focused creative project with a raw, tape-recorded identity | [@morenoteslesstalk](https://www.youtube.com/@morenoteslesstalk) |
-| Artists & Creators | NIHIL | Modern alternative metal from Argentina. Fueled by emotionally charged vocals, anger and emptiness | [@somosnihil](https://www.instagram.com/somosnihil/) · [Spotify](https://open.spotify.com/artist/1OeKplJxFNM6JHrWeo2SaV) |
-| Instrument Builders & Repair | Dlima Guitars | Custom guitars and basses | [@dlimaguitars](https://www.instagram.com/dlimaguitars) |
-| Instrument Builders & Repair | Kris Luthier | Instrument repair and restoration | [@krisluthier](https://www.instagram.com/krisluthier) |
-| Instrument Builders & Repair | Lisbon Guitar Works | Handmade guitars in Lisbon | [dlimaguitars.com](https://dlimaguitars.com) |
-| Media & Community | Not Another Audio Podcast | Audio, music and tech industry podcast by working professionals | [Libsyn](https://directory.libsyn.com/shows/view/id/20f5a1e3-6fea-4d41-8cdf-451ce6fc6cda) |
-| Media & Community | r/bass | Bass-player community | [r/Bass](https://www.reddit.com/r/Bass) |
-| Media & Community | slashCAM | Camera, video, and post-production media | [@slashcam.de](https://www.instagram.com/slashcam.de) |
-| Music & Karaoke Technology | Beltr | Local, subscription-free karaoke software | [beltr.app](https://beltr.app/) |
-| Music & Karaoke Technology | Seratone | TV-based karaoke system | [seratone.audio](https://seratone.audio/) |
-| Music Gear | Empress Effects | Boutique effects pedals | [empresseffects.com](https://empresseffects.com) |
-| Music Gear | Thomann | Large music-equipment retailer | [@thomann.music](https://www.instagram.com/thomann.music) |
-| Writers & Storytellers | Alexandre Borges | Portuguese writer, screenwriter, and cultural commentator | [Books & author profile](https://www.instagram.com/alexgram_b/) |
 
 
 ## <img src="imgs/readme/zap.svg" width="26" align="top" alt=""> Star history
