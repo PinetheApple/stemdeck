@@ -88,6 +88,9 @@ const strip = {
   get clientWidth() { return Math.round(width); },
   get scrollWidth() { return Math.max(Math.round(width), Math.round(layout().total)); },
   getBoundingClientRect: () => ({ left: 0, right: width, width }),
+  // The options panel sits in the strip here, as it did in the footer; in the
+  // app it has moved to the inspector, where footerFit leaves it alone.
+  contains: (el) => el === panel,
 };
 
 // The options panel, for the wrap width. Its two outermost controls span

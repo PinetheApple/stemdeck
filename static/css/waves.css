@@ -74,10 +74,10 @@
   position: relative;
   display: grid;
   grid-template-rows: repeat(6, 33px);
-  border: 1px solid rgba(148, 163, 184, 0.12);
+  border: 1px solid color-mix(in srgb, var(--text-2) 12%, transparent);
   background:
-    repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.07) 0 1px, transparent 1px 6.25%),
-    rgba(2, 9, 14, 0.45);
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--text-2) 7%, transparent) 0 1px, transparent 1px 6.25%),
+    color-mix(in srgb, var(--bg) 45%, transparent);
 }
 
 /* DAW-style playhead overlay -- thin vertical line that rides the
@@ -105,8 +105,8 @@
   position: relative;
   display: block;
   overflow: hidden;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.09);
-  background: rgba(4, 13, 19, 0.34);
+  border-bottom: 1px solid color-mix(in srgb, var(--text-2) 9%, transparent);
+  background: color-mix(in srgb, var(--bg) 34%, transparent);
   color: var(--stem-color);
   --cell-hi: color-mix(in srgb, currentColor 78%, transparent);
   --cell-md: color-mix(in srgb, currentColor 52%, transparent);
@@ -396,7 +396,7 @@
 
 .stem-list .stem-solo.active {
   background: var(--gold);
-  color: #17130c;
+  color: var(--accent-ink);
 }
 
 /* Mute the row visually when its stem is muted (matches lane-header). */
@@ -438,13 +438,13 @@
   width: 20px;
   height: 34px;
   border-radius: 4px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  border: 1px solid color-mix(in srgb, var(--text-2) 18%, transparent);
   background:
     linear-gradient(to top,
-      rgba(48, 197, 87, 0.14) 0 55%,
-      rgba(225, 178, 46, 0.14) 55% 80%,
-      rgba(214, 64, 64, 0.14) 80% 100%),
-    rgba(8, 14, 20, 0.85);
+      color-mix(in srgb, var(--success) 14%, transparent) 0 55%,
+      color-mix(in srgb, var(--accent) 14%, transparent) 55% 80%,
+      color-mix(in srgb, var(--danger) 14%, transparent) 80% 100%),
+    color-mix(in srgb, var(--bg) 85%, transparent);
   overflow: hidden;
   box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.45);
 }
@@ -454,10 +454,10 @@
   position: absolute;
   inset: 1px;
   background: linear-gradient(to top,
-    #30c557 0%,
-    #30c557 50%,
-    #e1b22e 60%,
-    #e1b22e 78%,
+    var(--success) 0%,
+    var(--success) 50%,
+    var(--warn) 60%,
+    var(--warn) 78%,
     #d64040 88%,
     #d64040 100%);
   transform: scaleY(var(--vu-scale, 0));
@@ -504,10 +504,10 @@
 .wave-scroll {
   overflow-x: auto;
   overflow-y: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.1);
-  background: rgba(3, 10, 15, 0.52);
+  border: 1px solid color-mix(in srgb, var(--text-2) 10%, transparent);
+  background: color-mix(in srgb, var(--bg) 52%, transparent);
   scrollbar-width: thin;
-  scrollbar-color: rgba(216, 168, 74, 0.65) rgba(148, 163, 184, 0.12);
+  scrollbar-color: color-mix(in srgb, var(--accent) 65%, transparent) color-mix(in srgb, var(--text-2) 12%, transparent);
   scroll-behavior: smooth;
 }
 
@@ -516,13 +516,13 @@
 }
 
 .wave-scroll::-webkit-scrollbar-track {
-  background: rgba(148, 163, 184, 0.1);
+  background: color-mix(in srgb, var(--text-2) 10%, transparent);
   border-radius: 999px;
 }
 
 .wave-scroll::-webkit-scrollbar-thumb {
-  background: linear-gradient(90deg, rgba(216, 168, 74, 0.55), rgba(245, 203, 110, 0.9));
-  border: 2px solid rgba(3, 10, 15, 0.72);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 55%, transparent), color-mix(in srgb, var(--accent) 90%, transparent));
+  border: 2px solid color-mix(in srgb, var(--bg) 72%, transparent);
   border-radius: 999px;
 }
 
@@ -548,7 +548,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  border-left: 1px solid rgba(148, 163, 184, 0.2);
+  border-left: 1px solid color-mix(in srgb, var(--text-2) 20%, transparent);
   padding-left: 4px;
   display: flex;
   align-items: flex-start;
@@ -578,8 +578,8 @@
   width: 1.5px;
   height: calc(var(--wave-playhead-h, 480px) + 26px);
   transform: translateX(-50%);
-  background: #e54e4e;
-  box-shadow: 0 0 7px rgba(229, 78, 78, 0.34);
+  background: var(--danger);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--danger) 34%, transparent);
   pointer-events: none;
 }
 
@@ -602,7 +602,7 @@
 .zoom-slider::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--gold) calc(var(--zoom-frac, 0) * 100%), rgba(148, 163, 184, 0.2) calc(var(--zoom-frac, 0) * 100%));
+  background: linear-gradient(90deg, var(--gold) calc(var(--zoom-frac, 0) * 100%), color-mix(in srgb, var(--text-2) 20%, transparent) calc(var(--zoom-frac, 0) * 100%));
 }
 
 .zoom-slider::-webkit-slider-thumb {
@@ -611,24 +611,24 @@
   height: 14px;
   margin-top: -5px;
   border-radius: 50%;
-  background: #f3d37c;
+  background: var(--warn);
   border: 2px solid rgba(255, 255, 255, 0.78);
-  box-shadow: 0 0 10px rgba(216, 168, 74, 0.28);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 .zoom-slider::-moz-range-track {
   height: 4px;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--gold) calc(var(--zoom-frac, 0) * 100%), rgba(148, 163, 184, 0.2) calc(var(--zoom-frac, 0) * 100%));
+  background: linear-gradient(90deg, var(--gold) calc(var(--zoom-frac, 0) * 100%), color-mix(in srgb, var(--text-2) 20%, transparent) calc(var(--zoom-frac, 0) * 100%));
 }
 
 .zoom-slider::-moz-range-thumb {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #f3d37c;
+  background: var(--warn);
   border: 2px solid rgba(255, 255, 255, 0.78);
-  box-shadow: 0 0 10px rgba(216, 168, 74, 0.28);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 .zoom-tools button {
@@ -686,7 +686,7 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background: rgba(148, 163, 184, 0.14);
+  background: color-mix(in srgb, var(--text-2) 14%, transparent);
 }
 
 #multitrack-container {
@@ -715,7 +715,7 @@
   flex: 0 0 48px;
   height: 48px;
   position: relative;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+  border-bottom: 1px solid color-mix(in srgb, var(--text-2) 8%, transparent);
 }
 
 .stem-waveform-row:last-child {
@@ -738,7 +738,7 @@
 }
 
 #multitrack-container > div {
-  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+  border-bottom: 1px solid color-mix(in srgb, var(--text-2) 8%, transparent);
   background: transparent !important;
 }
 
@@ -759,7 +759,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(216, 168, 74, 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
   border-left: 2px solid var(--gold);
   border-right: 2px solid var(--gold);
   box-shadow:
@@ -797,7 +797,7 @@
   width: 44px;
   height: 13px;
   border-radius: 0 0 4px 4px;
-  background-color: rgba(8, 13, 18, 0.88);
+  background-color: color-mix(in srgb, var(--bg) 88%, transparent);
   /* Gold, where a lane grip takes its own stem's colour: this one is the mix
      and belongs to no single track. */
   background-image: repeating-linear-gradient(
@@ -808,7 +808,7 @@
   background-size: 20px 7px;
   background-repeat: no-repeat;
   background-position: center;
-  border: 1px solid rgba(216, 168, 74, 0.55);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
   border-top: 0;
   opacity: 0;
   cursor: grab;
@@ -879,7 +879,7 @@
      in every DAW already uses, so it needs no explaining. Drawn with a
      gradient rather than child elements, since the nugget is rebuilt on every
      redraw. */
-  background-color: rgba(8, 13, 18, 0.88);
+  background-color: color-mix(in srgb, var(--bg) 88%, transparent);
   /* Its own lane's colour, the one its waveform is drawn in. The row carries
      it as --stem-color (renderOverviewWaveformPath in player.js), so which
      track a grip belongs to is the same signal as the waveform above it. Gold
@@ -892,10 +892,10 @@
   background-size: 11px 7px;
   background-repeat: no-repeat;
   background-position: center;
-  border: 1px solid rgba(216, 168, 74, 0.55);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
   /* Declared after the fallback, so a renderer without color-mix keeps the
      line above rather than losing the border entirely. */
-  border-color: color-mix(in srgb, var(--stem-color, #d8a84a) 60%, transparent);
+  border-color: color-mix(in srgb, var(--stem-color, var(--accent)) 60%, transparent);
   border-right: 0;
   opacity: 0;
   cursor: grab;
@@ -1153,7 +1153,7 @@
   flex: 1 1 0;
   height: auto;
   min-height: 0;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.11);
+  border-bottom: 1px solid color-mix(in srgb, var(--text-2) 11%, transparent);
 }
 
 .app:not(.is-import) .stem-waveform-svg {
@@ -1180,8 +1180,8 @@
   border: 1px solid var(--glass-line);
   border-radius: 10px;
   background:
-    radial-gradient(circle at 50% 0, rgba(216, 168, 74, 0.05), transparent 28rem),
-    rgba(11, 22, 30, 0.68);
+    radial-gradient(circle at 50% 0, color-mix(in srgb, var(--accent) 5%, transparent), transparent 28rem),
+    color-mix(in srgb, var(--surface-2) 68%, transparent);
 }
 
 .app:not(.is-import) .footer-btn {

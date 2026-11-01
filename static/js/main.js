@@ -22,6 +22,9 @@ import { initFooterFit, refitFooter } from "./footerFit.js";
 import { initArtistInfo } from "./artistInfo.js";
 import { initLyrics } from "./lyrics.js";
 import { initHelpMode } from "./helpMode.js";
+import { initInspector } from "./inspector.js";
+import { initUpNext, renderUpNext } from "./upNext.js";
+import { initStageMode } from "./stageMode.js";
 
 // ─── Stem choice toggles on the import page ───
 //
@@ -458,6 +461,9 @@ initFooterFit();
 initArtistInfo();
 initLyrics();
 initHelpMode();
+initInspector();
+initUpNext();
+initStageMode();
 // Re-measure after a language switch. Measured across en/fr/de/pl the strip
 // came out the same width in all four, because the group labels are 10px
 // uppercase and narrower than the controls under them, so this is not the
@@ -488,6 +494,7 @@ onLanguageChange(fitStemChips);
   // which would make the two modules import each other.
   await initNotifications({ diagnostics: collectDiagnostics });
   await initCatalog();
+  renderUpNext();
 })().catch(console.error);
 
 // ─── Footer: speed dropdown, export dropdown, scrub seek ───

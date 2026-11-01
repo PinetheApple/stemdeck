@@ -8,7 +8,7 @@
 import { test, expect } from "@playwright/test";
 import {
   JOB_ID, SIBLING_JOB_ID, TRACK_TITLE, SIBLING_TITLE,
-  fixtureTrack, seedCatalogState, stubExportEndpoints, stubUpdateCheck,
+  fixtureTrack, openInspectorTab, seedCatalogState, stubExportEndpoints, stubUpdateCheck,
 } from "./helpers.mjs";
 
 async function openWithKey(page, { language }) {
@@ -54,6 +54,8 @@ for (const [language, label] of Object.entries(EXPECTED)) {
     test(`${language} at ${width}px: the key is one label and it fits`, async ({ page }) => {
       await page.setViewportSize({ width, height: 800 });
       await openWithKey(page, { language });
+      // Measured where it is shown: a hidden card has no width to overflow.
+      await openInspectorTab(page, "details");
       const key = page.locator("#summary-key");
       await expect(key).toHaveText(label);
       await expect(page.locator('[data-meta="scale"]')).toHaveCount(0);

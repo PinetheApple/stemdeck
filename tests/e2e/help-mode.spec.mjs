@@ -5,7 +5,7 @@
 
 import { test, expect } from "@playwright/test";
 
-import { openStudio, seedLibrary, stubUpdateCheck } from "./helpers.mjs";
+import { openInspectorTab, openStudio, seedLibrary, stubUpdateCheck } from "./helpers.mjs";
 
 const tip = (page) => page.locator("#helpTip");
 
@@ -72,6 +72,7 @@ test.describe("help mode", () => {
 
   test("each song fact and presence card explains itself", async ({ page }) => {
     await openStudio(page);
+    await openInspectorTab(page, "details");
     await helpOn(page);
     await page.locator('.daw-meta-card[data-meta="lufs"]').hover();
     await expect(tip(page)).toContainText("streaming services");
@@ -86,6 +87,7 @@ test.describe("help mode", () => {
     await stubUpdateCheck(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.locator(".cat-item").first().waitFor();
+    await openInspectorTab(page, "details");
     await helpOn(page);
     for (const sel of ["#t-export-btn", "#np-details-btn", '.daw-meta-card[data-meta="key"]', '.stem-presence-panel .stem-card[data-stem="vocals"]']) {
       const box = await page.locator(sel).first().boundingBox();

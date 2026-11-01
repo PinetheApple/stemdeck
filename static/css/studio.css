@@ -1,0 +1,278 @@
+/* Studio frame, look "Stage": library · lanes · inspector, and Stage mode.
+   Loaded after daw.css; overrides only what the three-pane layout changes. */
+
+/* ── Base type ── */
+.daw {
+  font-size: var(--fs-base);
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+}
+.daw .uplabel,
+.inspector-label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--text-3);
+}
+.ic {
+  width: var(--icon);
+  height: var(--icon);
+  flex: none;
+  stroke-width: var(--icon-stroke);
+}
+/* Solid glyphs keep their stroke: Lucide's skip icons have a bar drawn as a line. */
+.ic-fill { fill: currentColor; }
+:where(.daw) :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* ── Topbar: brand and the import composer, one row ── */
+.daw-topbar {
+  min-height: var(--topbar-h);
+  background: var(--bg);
+  gap: var(--s-4);
+}
+.daw-topbar > .daw-composer-stack { padding: var(--s-2) 0; }
+.daw-composer {
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 6px;
+  padding: 6px var(--s-2);
+  background: var(--surface-1);
+  border-color: var(--line);
+  border-radius: var(--r-3);
+  box-shadow: none;
+}
+.daw-composer > .daw-composer-sep { display: none; }
+.daw-composer > .daw-url-zone { background: var(--bg); border-radius: var(--r-2); }
+.daw-composer > .daw-url-zone:focus-within { border-color: var(--accent); }
+
+/* ── Body: the three panes in a row, the transport under all of them ── */
+.daw-body { flex-direction: column; }
+.daw-panes { flex: 1; display: flex; min-height: 0; }
+.daw-footer { background: var(--surface-1); border-top-color: var(--line); }
+
+/* ── Library ── */
+.sidebar {
+  width: calc(var(--rail-w) + var(--library-w));
+  background: var(--surface-1);
+  border-right-color: var(--line);
+}
+.sidebar-rail { padding: var(--s-3) 0; gap: var(--s-1); }
+.rail-btn {
+  width: 48px;
+  height: 46px;
+  border-radius: var(--r-2);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+}
+.rail-btn:hover { background: var(--surface-2); color: var(--text); }
+.rail-btn.active { background: var(--accent-soft); color: var(--accent); }
+.rail-badge { color: var(--accent-ink); }
+.rail-btn .ic { width: var(--icon-lg); height: var(--icon-lg); }
+.sidebar-body { padding: var(--s-3); gap: var(--s-3); }
+.daw-search {
+  height: var(--ctl-h);
+  border-radius: var(--r-2);
+  border-color: var(--line-strong);
+  background: var(--bg);
+  font-size: var(--fs-base);
+}
+.daw-search:focus-within { border-color: var(--accent); }
+
+.cat-item .cat-title { font-weight: var(--fw-semibold); }
+.cat-upnext {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--t-fast), background var(--t-fast), color var(--t-fast);
+}
+.cat-item:hover .cat-upnext,
+.cat-item:focus-within .cat-upnext,
+.cat-upnext:focus-visible { opacity: 1; }
+.cat-upnext:hover { background: var(--surface-3); color: var(--text); }
+
+.lib-setlists {
+  flex-shrink: 0;
+  border-top: 1px solid var(--line);
+  padding: var(--s-3) var(--s-1) 0;
+}
+.lib-setlists-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  color: var(--text-2);
+}
+.lib-setlists-empty { margin: 0; font-size: var(--fs-sm); color: var(--text-3); }
+.sidebar.lyrics-view .lib-setlists,
+.sidebar.trash-view .lib-setlists { display: none; }
+
+/* #songHead-scoped: the card's composer-era rules in daw.css are ID-specific. */
+.song-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  flex-shrink: 0;
+}
+#songHead #nowPlayingPanel {
+  position: static;
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  width: auto;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  overflow: hidden;
+  clip-path: none;
+  container-type: normal;
+}
+#songHead #nowPlayingPanel .np-legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+#songHead #nowPlayingPanel .track-panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  padding: 0;
+}
+#songHead #nowPlayingPanel .track-panel-cover {
+  position: relative;
+  inset: auto;
+  order: -1;
+  width: 52px !important;
+  height: 52px !important;
+  border: 0;
+  border-radius: var(--r-2);
+}
+#songHead #nowPlayingPanel .track-panel-info {
+  flex: 0 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 0;
+}
+#songHead #nowPlayingPanel .track-panel-title {
+  max-width: 100%;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+}
+#songHead #nowPlayingPanel .np-artist {
+  max-width: 100%;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+}
+#songHead #nowPlayingPanel .np-artist::before { content: none; }
+#songHead #nowPlayingPanel .track-panel-head .daw-fav-btn,
+#songHead #nowPlayingPanel .track-panel-head .daw-details-btn {
+  position: static;
+  width: var(--ctl-h);
+  height: var(--ctl-h);
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+#songHead #nowPlayingPanel .track-panel-head .daw-fav-btn:hover,
+#songHead #nowPlayingPanel .track-panel-head .daw-details-btn:hover { background: var(--surface-2); color: var(--text); }
+#songHead #nowPlayingPanel .daw-fav-btn.active { color: var(--fav); }
+#songHead #nowPlayingPanel .daw-fav-btn.active svg { fill: var(--fav); stroke: var(--fav); }
+
+#songHead .daw-panel-toggles {
+  width: auto;
+  margin: 0;
+  flex: none;
+  gap: var(--s-2);
+  padding: 0;
+  border: 0;
+  background: none;
+}
+#songHead .daw-panel-toggles-label,
+#songHead .daw-panel-toggle {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0;
+  text-transform: none;
+}
+#songHead .daw-panel-toggles-label { border: 0; padding: 0; margin: 0; color: var(--text-3); }
+#songHead .daw-panel-toggle {
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  color: var(--text-2);
+}
+#songHead .daw-panel-toggle:hover { background: var(--surface-2); color: var(--text); }
+
+/* ── Playhead: the text colour, so coral stays the one accent ── */
+.playhead-marker { color: var(--text); }
+.app:not(.is-import) .playhead-marker::after {
+  background: var(--text);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--text) 30%, transparent);
+}
+
+.mx-name { font-size: var(--fs-base); font-weight: var(--fw-semibold); }
+.lane-icon-toggle.mx-btn,
+.ms-btn.mx-btn,
+.lane-dl.mx-btn {
+  width: 24px;
+  height: 22px;
+  border-radius: var(--r-1);
+  font-size: var(--fs-2xs);
+}
+.daw-wave-label .daw-label-title,
+.daw-sections-header .daw-label-title { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
+
+#t-next:disabled { opacity: 0.35; cursor: default; }
+.footer-group-transport .daw-play-btn.playing,
+.footer-group-transport .daw-play-btn.playing:hover {
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: none;
+}
+.btn-transport .ic { width: var(--icon); height: var(--icon); }
+.footer-group-transport .daw-play-btn .ic { width: var(--icon-lg); height: var(--icon-lg); }
+
+.stage-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--ctl-h);
+  padding: 0 var(--s-3);
+  flex: none;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  color: var(--text);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+.stage-mode-btn:hover { background: var(--surface-3); border-color: var(--accent-line); }
+.app.no-track .stage-mode-btn { opacity: 0.4; pointer-events: none; }
