@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from app.core.config import AUDIO_TAG_LYRICS_MAX_CHARS, AUDIO_TAG_MAX_CHARS
+from app.core.config import AUDIO_TAG_LYRICS_MAX_CHARS, AUDIO_TAG_MAX_CHARS, SONG_NAME_MAX_CHARS
 
 
 class JobCancelled(Exception):
@@ -82,11 +82,32 @@ def clean_audio_tags(value: Any) -> dict[str, str] | None:
     return tags or None
 
 
+def checked_name(value: str, max_chars: int) -> str:
+    """A name typed into the app, trimmed. Raises ValueError, for a pydantic
+    validator, when nothing is left or it is longer than ``max_chars``."""
+    name = value.strip()
+    if not name:
+        raise ValueError("must not be empty")
+    if len(name) > max_chars:
+        raise ValueError(f"must be at most {max_chars} characters")
+    return name
+
+
+def clean_user_name(value: Any) -> str | None:
+    """A title or artist the user typed, as kept on a job, or None for "use the
+    detected one". For anything read back from disk, like clean_artist."""
+    if not isinstance(value, str):
+        return None
+    return value.strip()[:SONG_NAME_MAX_CHARS] or None
+
+
 # A MusicBrainz id (recording, artist, release group): a lower-case UUID.
 MBID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 # "lrclib": named by LRCLIB's artist and album for a title MusicBrainz could
 # not place (title_parse.py, lyrics_lookup.identify_on_lrclib).
 IDENTITY_SOURCES = ("acoustid", "musicbrainz", "lrclib", "tags")
+# The identity sources whose artist the library shows (static/js/catalog.js).
+CONFIDENT_IDENTITY_SOURCES = ("acoustid", "musicbrainz", "lrclib")
 # More artists than this on one recording is not a credit worth keeping.
 _IDENTITY_MAX_ARTISTS = 20
 _IDENTITY_MAX_TYPES = 12
@@ -270,6 +291,9 @@ class Job:
     # Lyrics tab and the artist box fill themselves from it. None when the
     # source had none, and for anything imported before it was read.
     audio_tags: dict[str, str] | None = None
+    # Kept apart from title/tags so pipeline rewrites don't undo a rename.
+    user_title: str | None = None
+    user_artist: str | None = None
     # Which recording this is, found while the job ran (app/pipeline/identify.py):
     # by audio fingerprint on AcoustID when the user set a key, else a
     # confident MusicBrainz search by the tags, else the tags alone. The shape
@@ -367,13 +391,60 @@ class Job:
     # than directory mtime, which can be touched by unrelated FS events.
     created_at: float = field(default_factory=time.time)
 
+    @property
+    def display_title(self) -> str | None:
+        """The title the library and every export show: the user's, else detected."""
+        return self.user_title or self.title
+
+    @property
+    def display_artist(self) -> str | None:
+        """The artist the library and exports show: the user's, else the band
+        found for the tag, the tag itself, or the credit of an identity from a
+        confident source, in that order."""
+        identity = self.identity or {}
+        confident = identity.get("source") in CONFIDENT_IDENTITY_SOURCES
+        detected = (
+            (self.artist or {}).get("name")
+            or (self.audio_tags or {}).get("artist")
+            or (identity.get("artist") if confident else None)
+        )
+        return self.user_artist or detected or None
+
+    @property
+    def named_by_user(self) -> bool:
+        """Whether the user typed a title or artist over the detected ones."""
+        return bool(self.user_title or self.user_artist)
+
+    @property
+    def user_names(self) -> tuple[str | None, str | None]:
+        """The user's title and artist. A lookup notes them when it starts and
+        drops its answer if they changed meanwhile: it searched by the old ones."""
+        return self.user_title, self.user_artist
+
+    def lookup_tags(self, tags: dict[str, str] | None) -> dict[str, str] | None:
+        """``tags`` as identity, band, work and lyrics lookups search by them:
+        the display title and artist over the detected ones once the user has
+        named the song, else unchanged. Pass job.audio_tags for the job's own;
+        None is "no tags", never "the job's"."""
+        if not self.named_by_user:
+            return tags
+        named = dict(tags or {})
+        title = self.user_title or named.get("title")
+        artist = self.user_artist or named.get("artist") or self.display_artist
+        named.update({k: v for k, v in (("title", title), ("artist", artist)) if v})
+        return named
+
     def to_state(self) -> dict[str, Any]:
         return {
             "job_id": self.id,
             "status": self.status,
             "progress": self.progress,
             "stage": self.stage_message,
-            "title": self.title,
+            "title": self.display_title,
+            "detected_title": self.title,
+            "user_title": self.user_title,
+            "user_artist": self.user_artist,
+            "display_artist": self.display_artist,
             "duration": self.duration_sec,
             "thumbnail": self.thumbnail,
             "bpm": self.bpm,
@@ -420,7 +491,7 @@ class Job:
             "status": self.status,
             "progress": self.progress,
             "stage": self.stage_message,
-            "title": self.title,
+            "title": self.display_title,
             "thumbnail": self.thumbnail,
             "source_url": self.source_url,
             "error": self.error,
@@ -442,6 +513,8 @@ class Job:
         job.identity = clean_identity(job.identity)
         job.work = clean_work(job.work)
         job.audio_tags = clean_audio_tags(job.audio_tags)
+        job.user_title = clean_user_name(job.user_title)
+        job.user_artist = clean_user_name(job.user_artist)
         job.cancel_requested = False
         job.stop_requested = False
         return job

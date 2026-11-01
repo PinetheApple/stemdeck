@@ -197,6 +197,35 @@ def test_bundle_needs_a_finished_job_with_stems(client, tmp_path):
     assert client.get("/api/jobs/abcdef000809/bundle.zip").status_code == 404
 
 
+def test_bundle_carries_the_users_title_and_artist(client, tmp_path):
+    skip_without_ffmpeg()
+    job_id = "abcdef000809"
+    job = _done_job(job_id, title="detected")
+    job.audio_tags = {"artist": "Tagged"}
+    job.user_title = "Renamed Song"
+    job.user_artist = "Renamed Artist"
+    _write_stem(tmp_path, job_id, "vocals")
+    _write_json(tmp_path / job_id / "metadata.json", {"title": "detected"})
+
+    r = client.get(f"/api/jobs/{job_id}/bundle.zip")
+    assert "Renamed_Song.stemdeck.zip" in r.headers["content-disposition"]
+    zf = zipfile.ZipFile(io.BytesIO(r.content))
+    manifest = json.loads(zf.read("manifest.json"))
+    assert (manifest["title"], manifest["artist"]) == ("Renamed Song", "Renamed Artist")
+    assert json.loads(zf.read("metadata.json"))["title"] == "Renamed Song"
+
+
+def test_bundle_artist_falls_back_to_the_detected_one(client, tmp_path):
+    skip_without_ffmpeg()
+    job_id = "abcdef000810"
+    job = _done_job(job_id)
+    job.audio_tags = {"artist": "Tagged"}
+    _write_stem(tmp_path, job_id, "vocals")
+
+    manifest = json.loads(_bundle(client, job_id).read("manifest.json"))
+    assert (manifest["title"], manifest["artist"]) == ("My Song", "Tagged")
+
+
 def test_bundle_beat_grid_carries_the_tempo_and_the_grid_it_implies(client, tmp_path):
     """A player that only reads `beats` must still hear the constant tempo."""
     skip_without_ffmpeg()

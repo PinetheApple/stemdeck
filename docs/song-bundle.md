@@ -35,6 +35,7 @@ A reader ignores members it does not know. A missing optional member means StemD
   "stemdeck_version": "0.20.0",
   "job_id": "0297074f4836",
   "title": "Song title",
+  "artist": "Artist name",
   "duration_sec": 377.4,
   "sample_rate": 44100,
   "channels": 2,
@@ -50,6 +51,7 @@ A reader ignores members it does not know. A missing optional member means StemD
 - `stems` is in StemDeck's lane order. `name` is a StemDeck stem name (`vocals`, `drums`, `bass`, `guitar`, `piano`, `other`, `lead_vocals`, `backing_vocals`); a reader should still show an unknown name rather than drop it. `frames` is the stem's length in sample frames at `sample_rate`.
 - `vocals` never appears together with `lead_vocals` or `backing_vocals`; they are the same signal split two ways, and playing both doubles the voice.
 - `files` lists the optional JSON members that are present.
+- `title` and `artist` are what StemDeck shows for the song: the names the user gave it, else the detected ones. Either can be `null`. `artist` is absent from bundles made before it was added.
 
 ## stems/*.flac
 
@@ -61,7 +63,7 @@ StemDeck's `metadata.json` for the job, as written. The fields a player is most 
 
 | Field | Type | Meaning |
 |---|---|---|
-| `title` | string | Song title |
+| `title` | string | Song title, the user's when they renamed the song |
 | `duration_sec` | number | Length in seconds |
 | `bpm` | number | Tempo |
 | `key`, `scale` | string | Key, for example `A` and `minor` |

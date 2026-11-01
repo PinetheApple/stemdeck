@@ -10,7 +10,14 @@ import uuid
 from pathlib import Path
 
 from app.core.config import DEMUCS_MODEL, EXTRA_STEM_NAMES, JOB_ID_RE, LYRICS_FILE, STEM_NAMES
-from app.core.models import Job, clean_artist, clean_audio_tags, clean_identity, clean_work
+from app.core.models import (
+    Job,
+    clean_artist,
+    clean_audio_tags,
+    clean_identity,
+    clean_user_name,
+    clean_work,
+)
 
 logger = logging.getLogger("stemdeck.registry")
 
@@ -412,6 +419,8 @@ def _recover_done_job(job_dir: Path) -> Job | None:
         mix_url=mix_url,
         created_at=job_dir.stat().st_mtime,
         title=meta.get("title"),
+        user_title=clean_user_name(meta.get("user_title")),
+        user_artist=clean_user_name(meta.get("user_artist")),
         thumbnail=meta.get("thumbnail"),
         duration_sec=meta.get("duration_sec"),
         bpm=meta.get("bpm"),
