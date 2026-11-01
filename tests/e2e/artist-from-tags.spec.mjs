@@ -157,6 +157,12 @@ test.describe("band from the file's tags", () => {
   test("an answer with a different name is not saved", async ({ page }) => {
     const asked = await stubWikimedia(page);
     // Wikidata's search forgives the spelling and answers Dream Theater.
+    // The server read the same tag, so it names that artist to show.
+    await page.route(`**/api/jobs/${JOB_ID}`, async (route) => {
+      if (route.request().method() !== "GET") return route.fallback();
+      const response = await route.fetch();
+      return route.fulfill({ response, json: { ...(await response.json()), display_artist: "Dream Theatre" } });
+    });
     await openStudio(page, { artist: "Dream Theatre" });
     await openTrack(page);
     await expect.poll(() => asked.some((url) => url.includes("action=wbgetentities")), { timeout: 15000 }).toBe(true);

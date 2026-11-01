@@ -1,7 +1,7 @@
 // Up Next: library track ids to play after the open song, kept in the store.
 // catalog.js queues songs via "upnext:add"; player.js reports "trackended" and "playbackready".
 
-import { getCurrentTrackInfo, getLibraryTrack, loadTrackIntoStudio, displayTitle } from "./catalog.js";
+import { getCurrentTrackInfo, getLibraryTrack, loadTrackIntoStudio, displayTitle, libraryTitle } from "./catalog.js";
 import { togglePlayPause, stopTransport, transport } from "./transport.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $, fmtTime, storeGet, storeSet } from "./utils.js";
@@ -55,6 +55,26 @@ async function playFromUpNext(trackId) {
   await loadTrackIntoStudio(trackId);
 }
 
+/** The open song, when it can be played, then what is queued after it. */
+export function getNowAndUpNextIds() {
+  const current = getCurrentTrackInfo()?.id;
+  const now = getLibraryTrack(current)?.status === "done" ? [current] : [];
+  return [...new Set([...now, ...playableQueue()])];
+}
+
+/** Open the first playable song and start it, with the rest as Up Next. */
+export async function playSongs(trackIds) {
+  const [first, ...rest] = trackIds.filter((id) => getLibraryTrack(id)?.status === "done");
+  if (!first) return false;
+  queue = rest;
+  persist();
+  renderUpNext();
+  if (transport()?.isPlaying()) stopTransport();
+  pendingAutoplay = first;
+  await loadTrackIntoStudio(first);
+  return true;
+}
+
 export function playNextInUpNext() {
   const [next] = playableQueue();
   if (!next) return;
@@ -88,7 +108,7 @@ function thumbEl(track) {
     img.loading = "lazy";
     box.append(img);
   } else {
-    box.textContent = displayTitle(track.title).trim().charAt(0).toUpperCase();
+    box.textContent = displayTitle(libraryTitle(track)).trim().charAt(0).toUpperCase();
   }
   return box;
 }
@@ -98,7 +118,7 @@ function songText(track) {
   text.className = "upnext-text";
   const title = document.createElement("span");
   title.className = "upnext-title";
-  title.textContent = displayTitle(track.title);
+  title.textContent = displayTitle(libraryTitle(track));
   const sub = document.createElement("span");
   sub.className = "upnext-sub num";
   sub.textContent = track.duration ? fmtTime(track.duration) : "";
@@ -128,7 +148,7 @@ function queueRow(trackId, position) {
   remove.type = "button";
   remove.className = "upnext-remove";
   remove.title = t("upNext.remove");
-  remove.setAttribute("aria-label", t("upNext.removeTitle", { title: displayTitle(track.title) }));
+  remove.setAttribute("aria-label", t("upNext.removeTitle", { title: displayTitle(libraryTitle(track)) }));
   remove.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
   remove.addEventListener("click", function onRemoveQueuedSong() {
     removeFromUpNext(trackId);
@@ -189,6 +209,7 @@ export function initUpNext() {
   document.addEventListener("trackended", onTrackEnded);
   document.addEventListener("playbackready", onPlaybackReady);
   document.addEventListener("trackopen", renderUpNext);
+  document.addEventListener("tracknames", renderUpNext);
   onLanguageChange(renderUpNext);
   renderUpNext();
   restoreQueue().catch(console.error);

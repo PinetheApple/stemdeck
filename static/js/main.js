@@ -26,6 +26,9 @@ import { initInspector } from "./inspector.js";
 import { initUpNext, renderUpNext } from "./upNext.js";
 import { initStageMode } from "./stageMode.js";
 import { initTempoTools } from "./tempoTools.js";
+import { initSetlists } from "./setlists.js";
+import { initSongRename } from "./songRename.js";
+import { initTrackMenu } from "./trackMenu.js";
 
 // ─── Stem choice toggles on the import page ───
 //
@@ -464,6 +467,9 @@ initLyrics();
 initHelpMode();
 initInspector();
 initUpNext();
+initSetlists();
+initSongRename();
+initTrackMenu();
 initStageMode();
 initTempoTools();
 // Re-measure after a language switch. Measured across en/fr/de/pl the strip

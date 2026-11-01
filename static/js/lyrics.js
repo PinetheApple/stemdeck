@@ -1399,10 +1399,12 @@ async function embeddedLyrics(trackId) {
 function knownSong(info) {
   const tags = info.audioTags || {};
   const band = getCurrentTrackArtist();
-  const artist = tags.artist || band?.englishName || band?.name || "";
+  const artist = info.userArtist || tags.artist || band?.englishName || band?.name || "";
   // The band's names, its own and its English one: the same artist, which
   // LRCLIB may file the song under.
   const names = [band?.name, band?.englishName].filter(Boolean);
+  // A name the user gave is the song's name exactly, with nothing to strip.
+  if (info.userTitle) return { artist, names, song: info.userTitle };
   if (tags.title) return { artist, names, song: songFromTitle(tags.title, artist) || tags.title };
   if (!artist) return { artist, names, song: "" };
   return { artist, names, song: songFromTitle(info.title, artist) };
@@ -1587,6 +1589,13 @@ function setVisible(on) {
   }
 }
 
+// A renamed song was looked up again (catalog.js), so what this session found is stale.
+function onTrackLookup(e) {
+  const id = e.detail?.id;
+  answered.delete(id);
+  if (visible && id === getCurrentTrackInfo()?.id) loadForCurrentTrack();
+}
+
 export function initLyrics() {
   const panel = document.getElementById("lyricsPanel");
   statusEl = document.getElementById("lyricsStatus");
@@ -1604,4 +1613,5 @@ export function initLyrics() {
   document.addEventListener("tracktags", (e) => {
     if (visible && nothingKnownFor && e.detail?.id === nothingKnownFor) loadForCurrentTrack();
   });
+  document.addEventListener("tracklookup", onTrackLookup);
 }

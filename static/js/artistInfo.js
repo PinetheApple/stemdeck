@@ -963,7 +963,7 @@ async function runFindBandFromTags(trackId) {
   // The box open means the user is choosing; what they pick is the answer.
   // Unless it is open waiting for exactly this.
   if (info?.id !== trackId || autoTried.has(trackId) || getCurrentTrackArtist() || (isOpen() && !waiting)) return;
-  const name = taggedArtistName(info.audioTags?.artist);
+  const name = taggedArtistName(info.userArtist || info.audioTags?.artist);
   if (!name) return;
   autoTried.add(trackId);
   const controller = new AbortController();
