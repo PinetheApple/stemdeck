@@ -861,6 +861,32 @@ BEATGRID_REFINE_PERCENTILE = 70
 # double-time grid error fails the check.
 BEATGRID_ONSET_TOL_FRAC = 0.15
 BEATGRID_ONSET_TOL_MAX = 0.07  # absolute ceiling on the above, seconds
+# Constant tempo (app/pipeline/tempo.py). A beat is counted only within this
+# fraction of a period of a whole number of periods, so double-time beats drop out.
+TEMPO_NUMBER_TOL = 0.25
+# Theil-Sen is O(n^2) in pairs; past this many beats an evenly spaced subset is
+# fitted. A 500 s song at 136 BPM numbers ~640, so real songs fit in full.
+TEMPO_FIT_MAX_POINTS = 1200
+# Downbeats further than this fraction of a beat from every counted beat are
+# detector noise and play no part in choosing beat 1.
+TEMPO_DOWNBEAT_TOL = 0.25
+TEMPO_DEFAULT_BEATS_PER_BAR = 4
+# Outside this window a tempo is a detection failure (silence, a pathological
+# onset envelope), not an exotic song. Also the range a user may set.
+TEMPO_MIN_BPM = 30.0
+TEMPO_MAX_BPM = 300.0
+TEMPO_MAX_BEATS_PER_BAR = 32
+# Plausible bar lengths when reading the meter off downbeat spacing: 1 is two
+# adjacent frames firing, and past 16 it is a missed downbeat.
+TEMPO_MIN_BAR = 2
+TEMPO_MAX_BAR = 16
+# Absorbs float error when deciding whether a beat lands exactly on 0 or duration.
+TEMPO_EDGE_EPS = 1e-9
+TEMPO_BPM_DECIMALS = 3
+BEAT_TIME_DECIMALS = 6
+# Follow mode fills gaps longer than this many fitted periods: halfway between
+# a plain beat and a skipped one, so a hole is filled and a slow beat is not split.
+TEMPO_FOLLOW_FILL_GAP = 1.5
 # Max height for the MP4 video stream pulled from YouTube (issue #219).
 # Capped to keep downloads reasonable; 1080p of a full song is large.
 VIDEO_MAX_HEIGHT = max(144, _env_int("STEMDECK_VIDEO_MAX_HEIGHT", 720))

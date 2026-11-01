@@ -24,6 +24,7 @@ from app.core.config import (
     JOB_ID_RE,
     JOBS_DIR,
     STEM_NAMES,
+    TEMPO_MAX_BEATS_PER_BAR,
     TIMEOUT_FFMPEG,
     ffmpeg_executable,
 )
@@ -32,6 +33,7 @@ from app.core.settings import get_export_sample_rate
 from app.pipeline.audio_stats import vocal_envelope
 from app.pipeline.click_render import cache_key as click_cache_key
 from app.pipeline.click_render import count_in_beats, render_click_wav, render_count_in_wav
+from app.pipeline.tempo_grid import effective_grid, read_beat_edits, read_detected_grid
 
 logger = logging.getLogger("stemdeck.api")
 
@@ -373,31 +375,15 @@ def _validate_trim_range(job_id: str, start: float | None, end: float | None) ->
 
 
 def _read_beat_grid(job_id: str) -> dict | None:
-    """The grid an export should click to: the user's edits when present, the
-    detected grid otherwise. Mirrors GET /api/jobs/{id}/beats."""
+    """The grid an export should click to: the detected grid with the user's
+    edits and tempo mode applied. Mirrors GET /api/jobs/{id}/beats."""
     stems = (JOBS_DIR / job_id / "stems").resolve()
     if not stems.is_relative_to(JOBS_DIR.resolve()):
         return None
-    computed = stems / "beats.json"
-    if not computed.is_file():
+    grid = read_detected_grid(stems / "beats.json")
+    if grid is None:
         return None
-    try:
-        grid = json.loads(computed.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    user = stems / "beats.user.json"
-    if user.is_file():
-        try:
-            edits = json.loads(user.read_text(encoding="utf-8"))
-            if isinstance(edits.get("beats"), list) and edits["beats"]:
-                grid["beats"] = edits["beats"]
-                grid["bars"] = edits.get("bars") or []
-        except (OSError, json.JSONDecodeError):
-            # Fall back to the detected grid rather than failing the export,
-            # but say so: silently ignoring this is how a user ends up asking
-            # why their grid edits disappeared.
-            logger.warning("ignoring unreadable beat edits for %s", job_id)
-    return grid
+    return effective_grid(grid, read_beat_edits(stems / "beats.user.json"))
 
 
 # Transpose on export (#592). The studio shifts pitch in the browser with a
@@ -968,7 +954,9 @@ async def get_stem(
     end: float | None = Query(default=None, gt=0, description="Trim end in seconds"),
     click: bool = Query(default=False, description="Mix the click track into the export"),
     click_mult: float = Query(default=1.0, description="Click rate: 0.5, 1 or 2"),
-    click_accent: int = Query(default=-1, ge=-1, le=32, description="-1 auto, 0 off, N per bar"),
+    click_accent: int = Query(
+        default=-1, ge=-1, le=TEMPO_MAX_BEATS_PER_BAR, description="-1 auto, 0 off, N per bar"
+    ),
     click_gain: float = Query(default=0.6, ge=0, le=4, description="Click level"),
 ) -> FileResponse | StreamingResponse:
     """Download a WAV stem. Optional ?start=&end= trims to a time region."""
@@ -1109,7 +1097,9 @@ async def get_mixdown(
     end: float | None = Query(default=None, gt=0, description="Trim end in seconds"),
     click: bool = Query(default=False, description="Mix the click track into the export"),
     click_mult: float = Query(default=1.0, description="Click rate: 0.5, 1 or 2"),
-    click_accent: int = Query(default=-1, ge=-1, le=32, description="-1 auto, 0 off, N per bar"),
+    click_accent: int = Query(
+        default=-1, ge=-1, le=TEMPO_MAX_BEATS_PER_BAR, description="-1 auto, 0 off, N per bar"
+    ),
     click_gain: float = Query(default=0.6, ge=0, le=4, description="Click level"),
     click_groups: str = Query(
         default="",
@@ -1305,7 +1295,9 @@ async def get_video_mixdown(
     ),
     click: bool = Query(default=False, description="Mix the click track into the export"),
     click_mult: float = Query(default=1.0, description="Click rate: 0.5, 1 or 2"),
-    click_accent: int = Query(default=-1, ge=-1, le=32, description="-1 auto, 0 off, N per bar"),
+    click_accent: int = Query(
+        default=-1, ge=-1, le=TEMPO_MAX_BEATS_PER_BAR, description="-1 auto, 0 off, N per bar"
+    ),
     click_gain: float = Query(default=0.6, ge=0, le=4, description="Click level"),
 ) -> StreamingResponse:
     """Mux a fresh audio mixdown of the current mixer state with the job's preserved
