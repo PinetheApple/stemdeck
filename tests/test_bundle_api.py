@@ -195,3 +195,24 @@ def test_bundle_needs_a_finished_job_with_stems(client, tmp_path):
     _done_job("abcdef000809")
     (tmp_path / "abcdef000809" / "stems").mkdir(parents=True)
     assert client.get("/api/jobs/abcdef000809/bundle.zip").status_code == 404
+
+
+def test_bundle_beat_grid_carries_the_tempo_and_the_grid_it_implies(client, tmp_path):
+    """A player that only reads `beats` must still hear the constant tempo."""
+    skip_without_ffmpeg()
+    job_id = "abcdef000802"
+    _done_job(job_id)
+    _write_stem(tmp_path, job_id, "drums")
+    job_dir = tmp_path / job_id
+    _write_json(job_dir / "metadata.json", {"title": "My Song"})
+    tempo = {"mode": "constant", "bpm": 120.0, "anchor": 0.25, "beats_per_bar": 4}
+    grid = {"beats": [0.24, 0.77], "bars": [], "bpm": 113.2, "duration": 1.0, "tempo": tempo}
+    _write_json(job_dir / "stems" / "beats.json", grid)
+    _write_json(job_dir / "stems" / "beats.user.json", {"tempo": {"bpm": 60.0}})
+
+    shipped = json.loads(_bundle(client, job_id).read("beats.json"))
+    assert shipped["tempo"]["mode"] == "constant"
+    assert shipped["tempo"]["bpm"] == 60.0
+    assert shipped["tempo"]["source"] == "user"
+    assert shipped["beats"] == [0.25]
+    assert shipped["bpm"] == 60.0

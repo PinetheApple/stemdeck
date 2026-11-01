@@ -10,6 +10,11 @@ isolated drums stem over the entire track and persist the actual beat times.
 The frontend clicks at those times, so whatever tempo drift the tracker
 followed is reproduced exactly rather than approximated.
 
+That is the "follow the band" grid. Alongside it the stage fits one constant
+tempo to the detected beats (app/pipeline/tempo.py) and stores it as `tempo`;
+constant mode, the default, clicks that formula instead, and follow mode uses
+the same fit to cover whatever the detector left silent.
+
 Output is `stems/beats.json`; failure is non-fatal and simply leaves the click
 track unavailable for that job (the endpoint 404s and the UI hides the
 control).
@@ -44,10 +49,13 @@ from app.core.config import (
     BEATGRID_REFINE_WINDOW_MAX,
     BEATGRID_REFINE_WINDOW_OF_BEAT,
     BEATGRID_SR,
+    TEMPO_MAX_BPM,
+    TEMPO_MIN_BPM,
     TIMEOUT_BEATGRID,
 )
 from app.pipeline.analyze import _load_audio_ffmpeg
 from app.pipeline.beat_detect import detect as detect_beats
+from app.pipeline.tempo import cover_full_duration, fit_constant_tempo
 
 logger = logging.getLogger("stemdeck.beatgrid")
 
@@ -59,11 +67,6 @@ _SOURCE_PREFERENCE = ("drums", "original", "mix")
 # A grid with fewer than this many beats is not a grid -- it's noise. Clicking
 # along to it would be worse than offering no click at all.
 _MIN_BEATS = 8
-
-# Sanity window on the derived tempo. Anything outside is a detection failure
-# (usually silence or a pathological onset envelope), not an exotic song.
-_MIN_BPM = 30.0
-_MAX_BPM = 300.0
 
 # How far a beat may sit from the position its neighbours predict before it is
 # treated as tracker error and pulled back, as a fraction of a beat. Swept
@@ -659,6 +662,7 @@ def compute_beat_grid(stems_dir: Path) -> dict | None:
         beats, phase_shifted = _correct_grid_phase(beats, fine_env, sr, duration)
         beats, refined_count = _refine_beats(y, sr, beats, coarse_interval, env=fine_env)
         detected_count = len(beats)
+        tempo = fit_constant_tempo(beats, downbeat_times)
 
         # Gap filling and the consistency pass both assume the pulse is locally
         # regular, so they only run when it measurably is. On material that is
@@ -686,7 +690,7 @@ def compute_beat_grid(stems_dir: Path) -> dict | None:
         if median_interval <= 0:
             return None
         bpm = 60.0 / median_interval
-        if not (_MIN_BPM <= bpm <= _MAX_BPM):
+        if not (TEMPO_MIN_BPM <= bpm <= TEMPO_MAX_BPM):
             logger.warning("beatgrid: implausible tempo %.1f BPM -- discarding", bpm)
             return None
 
@@ -707,6 +711,13 @@ def compute_beat_grid(stems_dir: Path) -> dict | None:
         cv = float(intervals.std() / median_interval)
 
         beats, head_added, tail_added = _extend_to_track_edges(beats, duration, irregularity)
+        if tempo is not None:
+            beats, fit_head, fit_tail, fit_filled = cover_full_duration(
+                beats, 60.0 / tempo["bpm"], duration
+            )
+            head_added += fit_head
+            tail_added += fit_tail
+            gap_filled += fit_filled
         beats = _sanitize(beats, duration)
         if len(beats) < _MIN_BEATS:
             return None
@@ -756,6 +767,9 @@ def compute_beat_grid(stems_dir: Path) -> dict | None:
             # True when the whole grid was half a beat out and got shifted.
             "phase_shifted": phase_shifted,
             "beats": [round(float(b), 6) for b in beats],
+            # The constant-tempo fit, null when none was plausible. `beats` is the
+            # follow-mode grid; app/pipeline/tempo_grid.py materialises the mode.
+            "tempo": tempo,
         }
 
         tmp = stems_dir / "beats.json.tmp"
