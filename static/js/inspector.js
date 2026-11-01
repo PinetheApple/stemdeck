@@ -1,7 +1,5 @@
-// Inspector tab switching and the Tempo tab's readout; the modules that own each tab fill it.
+// Inspector tab switching; the modules that own each tab fill it.
 
-import { getCurrentTrackInfo } from "./catalog.js";
-import { EMPTY_VALUE } from "./constants.js";
 import { $, storeGet, storeSet } from "./utils.js";
 
 const TAB_STORE_KEY = "stemdeck.inspector.tab";
@@ -46,13 +44,6 @@ function onTabKeydown(e) {
   next.focus();
 }
 
-function paintTempoReadout() {
-  const readout = $("tempoReadout");
-  if (!readout) return;
-  const bpm = getCurrentTrackInfo()?.bpm;
-  readout.textContent = bpm ? String(bpm) : EMPTY_VALUE;
-}
-
 async function restoreInspectorTab() {
   showInspectorTab(await storeGet(TAB_STORE_KEY, DEFAULT_TAB));
 }
@@ -64,5 +55,4 @@ export function initInspector() {
   tablist.addEventListener("keydown", onTabKeydown);
   showInspectorTab(DEFAULT_TAB);
   restoreInspectorTab().catch(console.error);
-  document.addEventListener("trackopen", paintTempoReadout);
 }

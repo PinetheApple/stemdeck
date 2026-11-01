@@ -15,8 +15,6 @@ const metro = (page) => ({
   countIn: page.locator("#t-metro-countin"),
   accent: page.locator("#t-metro-bar"),
   grid: page.locator("#t-metro-edit"),
-  half: page.locator("#t-metro-half"),
-  double: page.locator("#t-metro-double"),
   note: page.locator("#t-metro-note"),
 });
 
@@ -167,20 +165,6 @@ test.describe("click track", () => {
     await ui.accent.selectOption("4");
     await expect(group).toBeHidden();
     await expect(ui.note).toContainText("accenting every 4 beats");
-  });
-
-  test("the rate control reports the tempo it is actually clicking", async ({ page }) => {
-    await openStudio(page, { tauri: true });
-    await waitForClickTrack(page);
-    const ui = metro(page);
-
-    await ui.double.click();
-    await expect(ui.double).toHaveClass(/active/);
-    await expect(ui.note).toContainText("240.0 BPM");
-
-    await ui.half.click();
-    await expect(ui.half).toHaveClass(/active/);
-    await expect(ui.note).toContainText("60.0 BPM");
   });
 
   test("the accent choice is reflected in the note", async ({ page }) => {

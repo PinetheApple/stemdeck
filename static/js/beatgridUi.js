@@ -11,7 +11,7 @@ import {
   setBeatGridEditing, isBeatGridEditing, setBeatGridTool, getBeatGridTool,
   setBeatGridRipple, getBeatGridRipple, setBeatGridSnap, getBeatGridSnap,
   undoBeatGrid, redoBeatGrid, resetBeatGrid, canUndo, canRedo,
-  barLengthAt, setBarLengthAt, getBeats,
+  barLengthAt, setBarLengthAt, getBeats, setBeatGridShown,
 } from "./beatgrid.js";
 import { applyMetronomeAccent, toggleMetronome, onMetronomeToggle } from "./transport.js";
 
@@ -108,6 +108,7 @@ export function wireBeatGridUi() {
 
   metroEditBtn?.addEventListener("click", () => toggleBeatGridEditor());
   onMetronomeToggle((on) => {
+    setBeatGridShown(on);
     if (!on && isBeatGridEditing()) toggleBeatGridEditor(false);
   });
 

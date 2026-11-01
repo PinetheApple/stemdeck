@@ -3005,11 +3005,6 @@ input, textarea { font-family: inherit; }
 }
 .pitch-reset:disabled { opacity: 0.35; cursor: default; }
 
-.metro-mult-btn.active,
-.metro-mult-btn.active:hover {
-  background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent);
-}
-
 /* Click track on/off toggle. Lit gold while the click is running, so its
    state is visible without any other affordance. */
 .click-toggle-btn {

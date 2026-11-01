@@ -25,6 +25,7 @@ import { initHelpMode } from "./helpMode.js";
 import { initInspector } from "./inspector.js";
 import { initUpNext, renderUpNext } from "./upNext.js";
 import { initStageMode } from "./stageMode.js";
+import { initTempoTools } from "./tempoTools.js";
 
 // ─── Stem choice toggles on the import page ───
 //
@@ -464,6 +465,7 @@ initHelpMode();
 initInspector();
 initUpNext();
 initStageMode();
+initTempoTools();
 // Re-measure after a language switch. Measured across en/fr/de/pl the strip
 // came out the same width in all four, because the group labels are 10px
 // uppercase and narrower than the controls under them, so this is not the

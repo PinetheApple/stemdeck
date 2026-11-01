@@ -354,3 +354,24 @@ def test_delete_clears_beat_edits_and_keeps_user_tempo(client, tmp_path, done_jo
     body = client.get(f"/api/jobs/{JOB}/beats").json()
     assert body["tempo"]["bpm"] == 60.0
     assert 0.2 not in body["beats"]
+
+
+def test_tempo_reports_the_detected_fit_and_no_user_keys(client, tmp_path, done_job):
+    _write_computed(tmp_path, tempo=_DETECTED)
+    tempo = client.get(f"/api/jobs/{JOB}/beats").json()["tempo"]
+    assert tempo["detected"] == {"bpm": 120.0, "anchor": 1.0, "beats_per_bar": 4}
+    assert tempo["user_keys"] == []
+
+
+def test_tempo_detected_is_null_without_a_fit(client, tmp_path, done_job):
+    _write_computed(tmp_path, tempo=None)
+    assert client.get(f"/api/jobs/{JOB}/beats").json()["tempo"]["detected"] is None
+
+
+def test_partial_user_edit_lists_only_the_keys_set(client, tmp_path, done_job):
+    _write_computed(tmp_path, tempo=_DETECTED)
+    r = client.patch(f"/api/jobs/{JOB}/beats", json={"tempo": {"bpm": 90.0, "anchor": 0.5}})
+    assert r.json()["tempo"]["user_keys"] == ["anchor", "bpm"]
+    tempo = client.get(f"/api/jobs/{JOB}/beats").json()["tempo"]
+    assert tempo["user_keys"] == ["anchor", "bpm"]
+    assert tempo["detected"] == {"bpm": 120.0, "anchor": 1.0, "beats_per_bar": 4}

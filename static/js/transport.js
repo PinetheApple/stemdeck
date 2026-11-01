@@ -17,7 +17,7 @@ import {
   footerTimeElapsed, footerTimeTotal, footerWaveTicks, npScrubFill, footerWaveDrawFn,
   loopStartInput, loopEndInput,
   metroBtn, metroPanel, metroMoreBtn, metroVolEl, metroVolBtn, metroVolPanel, metroVolLabel, metroBarEl, metroBarCustomEl, metroGroupEl, metroNoteEl,
-  metroHalfBtn, metroOneBtn, metroDoubleBtn, metroCountInEl,
+  metroCountInEl,
   metronome, metronomeEnabled, metronomeVolume, metronomeBeatsPerBar, metronomeHasBars,
   metronomeCountInBars, setMetronomeCountInBars,
   metronomeGrouping, setMetronomeGrouping,
@@ -1157,6 +1157,7 @@ function wireSpeedControl() {
 // ─── Click track ────────────────────────────────────────────
 
 const _METRO_PREFS_KEY = "stemdeck:metronome";
+const AUTO_BEATS_PER_BAR = -1;
 
 function _saveMetroPrefs() {
   storeSet(_METRO_PREFS_KEY, {
@@ -1238,6 +1239,16 @@ function _applyCustomBeatsPerBar() {
   setMetronomeBeatsPerBar(n);
   setMetronomeGrouping(null);
   _renderMetroGrouping();
+  applyMetronomeAccent();
+  _renderMetroNote(_lastGrid);
+  _saveMetroPrefs();
+}
+
+/** Accent the click on the grid's own bar lines, as the tempo tools just moved them. */
+export function setMetronomeAccentAuto() {
+  setMetronomeBeatsPerBar(AUTO_BEATS_PER_BAR);
+  setMetronomeGrouping(null);
+  _renderMetroBar();
   applyMetronomeAccent();
   _renderMetroNote(_lastGrid);
   _saveMetroPrefs();
@@ -1356,16 +1367,6 @@ export function toggleMetronome(force) {
  */
 let _lastGrid = null;
 
-function _renderMetroMultiplier() {
-  const mult = metronome?.getMultiplier?.() ?? 1;
-  for (const [btn, v] of [[metroHalfBtn, 0.5], [metroOneBtn, 1], [metroDoubleBtn, 2]]) {
-    if (!btn) continue;
-    const on = mult === v;
-    btn.classList.toggle("active", on);
-    btn.setAttribute("aria-checked", on ? "true" : "false");
-  }
-}
-
 function _renderMetroNote(grid) {
   if (!metroNoteEl) return;
   if (!grid) { metroNoteEl.textContent = ""; metroNoteEl.className = "metro-note"; return; }
@@ -1478,7 +1479,6 @@ export function updateMetronomeAvailability(grid, reason = "") {
     autoOpt.textContent = metronomeHasBars ? t("click.auto") : t("click.autoNone");
   }
   _renderMetroBar();
-  _renderMetroMultiplier();
   _renderMetroNote(grid);
 }
 
@@ -1619,9 +1619,7 @@ function wireMetronomeControl() {
     }
   }).catch((e) => console.warn("[transport] failed to load metronome prefs:", e));
 
-  // Toggles the click on/off; also bound to the K key elsewhere. Volume,
-  // accent, rate and count-in sit inline next to it, always visible once a
-  // track has a beat grid -- no click needed to reveal them (#269 follow-up).
+  // Click options sit inline, always visible once a grid exists.
   metroBtn.addEventListener("click", () => toggleMetronome());
 
   metroVolEl?.addEventListener("input", () => {
@@ -1631,14 +1629,6 @@ function wireMetronomeControl() {
     metronome?.setVolume(v);
     _saveMetroPrefs();
   });
-
-  for (const [btn, mult] of [[metroHalfBtn, 0.5], [metroOneBtn, 1], [metroDoubleBtn, 2]]) {
-    btn?.addEventListener("click", () => {
-      metronome?.setMultiplier(mult);
-      _renderMetroMultiplier();
-      _renderMetroNote(_lastGrid);
-    });
-  }
 
   metroCountInEl?.addEventListener("change", () => {
     setMetronomeCountInBars(parseInt(metroCountInEl.value, 10));
