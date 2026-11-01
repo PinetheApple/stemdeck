@@ -35,6 +35,8 @@ from app.pipeline.tempo import (
 logger = logging.getLogger("stemdeck.tempo")
 
 USER_SETTABLE_KEYS = ("mode", "bpm", "anchor", "beats_per_bar")
+DETECTED_KEYS = ("bpm", "anchor", "beats_per_bar")
+EDITOR_ONLY_TEMPO_KEYS = ("detected", "user_keys")
 
 
 def _read_json(path: Path) -> dict | None:
@@ -124,6 +126,8 @@ def _merged_tempo(detected: dict, user: dict, follow_by_default: bool) -> dict:
         tempo["fit"] = detected["fit"]
     if tempo["mode"] == MODE_CONSTANT and not ("bpm" in tempo and "anchor" in tempo):
         tempo["mode"] = MODE_FOLLOW
+    tempo["detected"] = {k: detected.get(k) for k in DETECTED_KEYS} if detected else None
+    tempo["user_keys"] = sorted(user)
     return tempo
 
 

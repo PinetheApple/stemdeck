@@ -35,7 +35,8 @@ import { effectivePitch } from "./pitchBus.js";
 import { addVisualOnlyStems, buildPlaybackStems } from "./playbackStems.js";
 import { vuLevel } from "./vuScale.js";
 import { createMetronome } from "./metronome.js";
-import { initBeatGrid, destroyBeatGrid } from "./beatgrid.js";
+import { initBeatGrid, destroyBeatGrid, setBeatGridShown } from "./beatgrid.js";
+import { setTempoGrid } from "./tempoTools.js";
 import { setBeatGridAvailable, syncBeatGridButtons } from "./beatgridUi.js";
 import {
   loadMixIntoState, resetMixerState, refreshMixerVisuals,
@@ -818,6 +819,7 @@ function teardownMetronome() {
   // mid-edit never loses the last correction.
   destroyBeatGrid();
   setBeatGridAvailable(false);
+  setTempoGrid(null, null);
 }
 
 // The artist catalog.js puts beside the title (#699) goes with the title, or
@@ -1570,6 +1572,8 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
               },
             });
             setBeatGridAvailable(!!editable && !!m);
+            setBeatGridShown(metronomeEnabled);
+            if (m) setTempoGrid(jobId, grid);
             setExportClickAvailable(!!beats?.length);
             // One place decides how accents are driven; the panel's Accent
             // setting can override the detected bar marks.

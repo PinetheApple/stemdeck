@@ -6,6 +6,7 @@ import { togglePlayPause, stopTransport, transport } from "./transport.js";
 import { getSections, sectionDisplayName } from "./sections.js";
 import { getCurrentTrackInfo } from "./catalog.js";
 import { playNextInUpNext } from "./upNext.js";
+import { shownBpm } from "./tempoTools.js";
 import { isBeatGridEditing } from "./beatgrid.js";
 import { refitFooter } from "./footerFit.js";
 import { EMPTY_VALUE } from "./constants.js";
@@ -94,8 +95,13 @@ function paintSong() {
   const info = getCurrentTrackInfo();
   $("stageTitle").textContent = info?.displayTitle || EMPTY_VALUE;
   $("stageArtist").textContent = info?.artist ?? "";
-  $("stageTempo").textContent = info?.bpm ? t("job.bpmValue", { bpm: info.bpm }) : EMPTY_VALUE;
+  paintTempo();
   readSections();
+}
+
+function paintTempo() {
+  const bpm = shownBpm();
+  $("stageTempo").textContent = bpm ? t("job.bpmValue", { bpm: bpm.toFixed(1) }) : EMPTY_VALUE;
 }
 
 function forgetPainted() {
@@ -179,5 +185,6 @@ export function initStageMode() {
   document.addEventListener("trackopen", onSongChangeInStage);
   document.addEventListener("tracktags", onSongChangeInStage);
   document.addEventListener("upnext:change", onUpNextChange);
+  document.addEventListener("tempochange", paintTempo);
   onLanguageChange(onSongChangeInStage);
 }

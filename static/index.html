@@ -709,8 +709,52 @@
 
           <section class="inspector-pane" id="inspectorPaneTempo" role="tabpanel" aria-labelledby="inspectorTabTempo" data-pane="tempo">
             <div class="inspector-card tempo-card">
-              <span class="inspector-label" data-i18n="inspector.detectedTempo">Detected tempo</span>
+              <div class="tempo-card-head">
+                <span class="inspector-label" data-i18n="tempo.readout">Tempo</span>
+                <span class="tempo-source" id="tempoSource" data-source="detected" hidden>Detected</span>
+              </div>
               <span class="tempo-card-value"><span class="num" id="tempoReadout">—</span> <span class="tempo-card-unit" data-i18n="meta.bpm">BPM</span></span>
+            </div>
+            <div class="tempo-tools" id="tempoTools" role="group" aria-label="Tempo tools" data-i18n-aria-label="tempo.toolsAria">
+              <div class="tempo-mode" id="tempoModeSwitch" role="radiogroup" aria-label="Tempo mode" data-i18n-aria-label="tempo.modeAria">
+                <button class="tempo-mode-btn" id="tempoModeConstant" type="button" role="radio" aria-checked="false" data-tempo-mode="constant" data-i18n="tempo.constant" disabled>Constant tempo</button>
+                <button class="tempo-mode-btn" id="tempoModeFollow" type="button" role="radio" aria-checked="false" data-tempo-mode="follow" data-i18n="tempo.follow" disabled>Follow the band</button>
+              </div>
+              <p class="inspector-hint" id="tempoModeHint"></p>
+              <div class="tempo-row">
+                <label class="tempo-row-label" for="tempoBpm" data-i18n="meta.bpm">BPM</label>
+                <div class="tempo-bpm-edit">
+                  <button class="tempo-btn tempo-step" id="tempoBpmDown" type="button" data-step="-1" disabled>−</button>
+                  <input class="tempo-field num" id="tempoBpm" type="number" inputmode="decimal" disabled>
+                  <button class="tempo-btn tempo-step" id="tempoBpmUp" type="button" data-step="1" disabled>+</button>
+                </div>
+                <button class="tempo-detected" id="tempoBpmDetected" type="button" data-tempo-field="bpm" title="Back to the detected value" data-i18n-title="tempo.resetFieldTitle" hidden><span></span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+              </div>
+              <div class="tempo-tool-grid">
+                <button class="tempo-btn" id="tempoTap" type="button" title="Tap along to set the tempo" data-i18n-title="tempo.tapTitle" disabled>
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
+                  <span data-i18n="tempo.tap">Tap</span>
+                </button>
+                <button class="tempo-btn num" id="tempoHalf" type="button" data-scale="0.5" aria-pressed="false" title="Half time" aria-label="Half time" data-i18n-title="click.half" data-i18n-aria-label="click.half" disabled>÷2</button>
+                <button class="tempo-btn num" id="tempoDouble" type="button" data-scale="2" aria-pressed="false" title="Double time" aria-label="Double time" data-i18n-title="click.double" data-i18n-aria-label="click.double" disabled>×2</button>
+                <button class="tempo-btn num" id="tempoNudgeEarlier" type="button" data-nudge="-1" disabled></button>
+                <button class="tempo-btn" id="tempoBeatOne" type="button" title="Make the playhead beat 1 of a bar" data-i18n-title="tempo.beatOneTitle" data-i18n="tempo.beatOne" disabled>Beat 1 here</button>
+                <button class="tempo-btn num" id="tempoNudgeLater" type="button" data-nudge="1" disabled></button>
+              </div>
+              <div class="tempo-row">
+                <span class="tempo-row-label" data-i18n="tempo.beatOneLabel">Beat 1</span>
+                <span class="tempo-value num" id="tempoAnchor">—</span>
+                <button class="tempo-detected" id="tempoAnchorDetected" type="button" data-tempo-field="anchor" title="Back to the detected value" data-i18n-title="tempo.resetFieldTitle" hidden><span></span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+              </div>
+              <div class="tempo-row">
+                <label class="tempo-row-label" for="tempoBeatsPerBar" data-i18n="tempo.beatsPerBar">Beats per bar</label>
+                <input class="tempo-field num" id="tempoBeatsPerBar" type="number" step="1" inputmode="numeric" disabled>
+                <button class="tempo-detected" id="tempoBeatsPerBarDetected" type="button" data-tempo-field="beats_per_bar" title="Back to the detected value" data-i18n-title="tempo.resetFieldTitle" hidden><span></span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+              </div>
+              <div class="tempo-row">
+                <p class="tempo-status" id="tempoStatus" role="status" hidden></p>
+                <button class="inspector-quiet-btn tempo-reset" id="tempoReset" type="button" title="Go back to the detected tempo, beat 1 and meter" aria-label="Reset to detected tempo" data-i18n-title="tempo.resetTitle" data-i18n-aria-label="tempo.resetAria" data-i18n="tempo.reset" disabled>Reset to detected</button>
+              </div>
             </div>
           <div class="footer-group footer-group-click" id="t-metro-wrap">
             <span class="footer-group-label" data-i18n="click.group">Click track</span>
@@ -780,11 +824,6 @@
                   </svg>
                   <span data-i18n="click.grid">Grid</span>
                 </button>
-                <div class="footer-seg metro-mult" role="radiogroup" aria-label="Click rate" data-i18n-aria-label="click.rateAria" title="Halve or double the click rate" data-i18n-title="click.rateTitle">
-                  <button class="metro-mult-btn" id="t-metro-half" type="button" role="radio" aria-checked="false" title="Half time" data-i18n-title="click.half">/2</button>
-                  <button class="metro-mult-btn active" id="t-metro-one" type="button" role="radio" aria-checked="true" title="Detected tempo" data-i18n-title="click.detected">1x</button>
-                  <button class="metro-mult-btn" id="t-metro-double" type="button" role="radio" aria-checked="false" title="Double time" data-i18n-title="click.double">x2</button>
-                </div>
               </div>
               <!-- The footer popover's disclosure. The options always fit in
                    this tab, so studio.css keeps it hidden here. -->

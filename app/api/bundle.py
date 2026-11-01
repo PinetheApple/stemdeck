@@ -38,6 +38,7 @@ from app.core.config import (
 )
 from app.core.registry import get as registry_get
 from app.pipeline.lyrics_lookup import lyrics_path
+from app.pipeline.tempo_grid import EDITOR_ONLY_TEMPO_KEYS
 
 logger = logging.getLogger("stemdeck.api")
 
@@ -87,6 +88,14 @@ def _lyrics(job_dir: Path) -> dict | None:
     # The other candidates are for picking lyrics in the studio, not for playing.
     entry.pop("others", None)
     return entry
+
+
+def _shipped_grid(grid: dict | None) -> dict | None:
+    """The beat grid without the tempo fields only the studio's tempo editor reads."""
+    if grid is None:
+        return None
+    tempo = {k: v for k, v in grid["tempo"].items() if k not in EDITOR_ONLY_TEMPO_KEYS}
+    return {**grid, "tempo": tempo}
 
 
 def _parse_flags(raw: str, names: list[str], label: str) -> list[bool]:
@@ -219,7 +228,7 @@ async def export_bundle(
     metadata = _read_json(job_dir / "metadata.json") or {}
     members: dict[str, dict] = {"metadata.json": metadata}
     optional = {
-        "beats.json": _read_beat_grid(job_id),
+        "beats.json": _shipped_grid(_read_beat_grid(job_id)),
         "lyrics.json": _lyrics(job_dir),
         "mix.json": _shipped_mix(mix, sources),
         **{name: _read_json(stems_dir / name) for name in _STEMS_DIR_EXTRAS},

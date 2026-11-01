@@ -55,7 +55,7 @@ test.describe("footer fit", () => {
 
     expect(await stripFits(page)).toBe(true);
     await expect(page.locator("#t-metro-more")).toBeHidden();
-    for (const id of ["#t-metro", "#t-metro-vol-btn", "#t-metro-countin", "#t-metro-bar", "#t-metro-edit", "#t-metro-half"]) {
+    for (const id of ["#t-metro", "#t-metro-vol-btn", "#t-metro-countin", "#t-metro-bar", "#t-metro-edit", "#tempoHalf"]) {
       await expect(page.locator(id)).toBeVisible();
     }
   });

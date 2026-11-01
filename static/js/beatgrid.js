@@ -20,6 +20,7 @@
 // scroll and resize.
 
 import { storeGet, storeSet } from "./utils.js";
+import { clickLines, thinLines } from "./beatgridShown.js";
 
 const MIN_GAP = 0.01;          // seconds; keeps the grid strictly increasing
 const HIT_PX = 6;              // pointer distance that counts as grabbing a beat
@@ -39,6 +40,7 @@ const SAVE_DEBOUNCE_MS = 700;
 const COLORS = {
   beat: "rgba(184,180,176,0.30)",
   bar: "rgba(255,111,89,0.85)",
+  barShown: "rgba(255,111,89,0.4)",
   anchor: "#f5f3f1",
   hover: "#ffffff",
   onset: "rgba(0,200,160,0.35)",
@@ -58,6 +60,9 @@ let _onsets = [];
 let _anchors = new Set();  // beat indices the user has explicitly positioned
 
 let _editing = false;
+let _shown = false;
+let _rate = 1;
+let _drawn = [];
 let _tool = "move";        // move | insert | delete | bar
 let _ripple = true;
 let _snap = true;
@@ -261,39 +266,71 @@ function _commit() {
   _saveTimer = setTimeout(_save, SAVE_DEBOUNCE_MS);
 }
 
+const _beatsUrl = (jobId) => `/api/jobs/${jobId}/beats`;
+
+async function _patchBeats(jobId, body) {
+  const r = await fetch(_beatsUrl(jobId), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(`PATCH ${r.status}`);
+  return r.json();
+}
+
+/** Save tempo fields for a song; a `null` field goes back to the detected value. */
+export const saveBeatGridTempo = (jobId, tempo) => _patchBeats(jobId, { tempo });
+
+/** The song's beat grid as the server builds it now. */
+export async function loadBeatGrid(jobId) {
+  const r = await fetch(_beatsUrl(jobId));
+  if (!r.ok) throw new Error(`GET ${r.status}`);
+  return r.json();
+}
+
 async function _save() {
   _saveTimer = null;
   if (!_jobId || !_dirty) return;
   const payload = { beats: _beats.map((t) => +t.toFixed(6)), bars: _bars };
   try {
-    const r = await fetch(`/api/jobs/${_jobId}/beats`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!r.ok) throw new Error(`PATCH ${r.status}`);
+    const saved = await _patchBeats(_jobId, payload);
     _dirty = false;
+    _announceTempo(saved.tempo);
   } catch (e) {
     console.warn("[beatgrid] failed to save edits:", e);
   }
 }
 
+function _announceTempo(tempo) {
+  document.dispatchEvent(new CustomEvent("beatgridsave", { detail: { jobId: _jobId, tempo } }));
+}
+
 /** Flush a pending save. Called before teardown so edits are never dropped. */
 export function flushBeatGrid() {
-  if (_saveTimer !== null) {
-    clearTimeout(_saveTimer);
-    _saveTimer = null;
-    _save();
-  }
+  if (_saveTimer === null) return Promise.resolve();
+  clearTimeout(_saveTimer);
+  _saveTimer = null;
+  return _save();
+}
+
+/** Take a grid the server rebuilt (a tempo change) as the new starting point, with no undo across it. */
+export function replaceBeatGrid(grid) {
+  flushBeatGrid();
+  _beats = Array.isArray(grid?.beats) ? grid.beats.slice() : [];
+  _bars = Array.isArray(grid?.bars) ? grid.bars.slice() : [];
+  _anchors = new Set();
+  _undo = [];
+  _redo = [];
+  _dirty = false;
+  _onChange?.(_beats.slice(), _bars.map((b) => ({ ...b })));
+  _render();
 }
 
 export async function resetBeatGrid() {
   if (!_jobId) return null;
   try {
-    await fetch(`/api/jobs/${_jobId}/beats`, { method: "DELETE" });
-    const r = await fetch(`/api/jobs/${_jobId}/beats`);
-    if (!r.ok) return null;
-    const grid = await r.json();
+    await fetch(_beatsUrl(_jobId), { method: "DELETE" });
+    const grid = await loadBeatGrid(_jobId);
     _pushUndo();
     _beats = (grid.beats || []).slice();
     _bars = (grid.bars || []).slice();
@@ -301,6 +338,7 @@ export async function resetBeatGrid() {
     _dirty = false;
     _onChange?.(_beats.slice(), _bars.slice());
     _render();
+    _announceTempo(grid.tempo);
     return grid;
   } catch (e) {
     console.warn("[beatgrid] reset failed:", e);
@@ -347,10 +385,14 @@ function _render() {
   const h = _canvas.height / (window.devicePixelRatio || 1);
   _ctx.clearRect(0, 0, w, h);
   if (!_beats.length || _duration <= 0) return;
+  if (!_editing) {
+    _drawShown(w, h);
+    return;
+  }
 
   // Onset ticks along the bottom: the snap targets, so the user can see where
   // a dragged beat will land before letting go.
-  if (_editing && _snap) {
+  if (_snap) {
     _ctx.fillStyle = COLORS.onset;
     for (const t of _onsets) {
       const x = Math.round(_timeToFrac(t) * w) + 0.5;
@@ -373,8 +415,7 @@ function _render() {
   let lastX = -Infinity;
   for (let i = 0; i < _beats.length; i++) {
     const x = Math.round(_timeToFrac(_beats[i]) * w) + 0.5;
-    const isBar = _bars.some((b) => b.beat === i)
-      || (_bars.length > 0 && _isDownbeat(i));
+    const isBar = _isBarLine(i);
     const isAnchor = _anchors.has(i);
     if (!isBar && !isAnchor && !beatsVisible) continue;
     if (!isBar && !isAnchor && x - lastX < minPx) continue;
@@ -383,7 +424,7 @@ function _render() {
     _ctx.beginPath();
     _ctx.moveTo(x, 0);
     _ctx.lineTo(x, h);
-    if (i === _hoverIdx && _editing) {
+    if (i === _hoverIdx) {
       _ctx.strokeStyle = COLORS.hover;
       _ctx.lineWidth = 2;
     } else if (isBar) {
@@ -395,11 +436,28 @@ function _render() {
     }
     _ctx.stroke();
 
-    if (isAnchor && _editing) {
+    if (isAnchor) {
       _ctx.fillStyle = COLORS.anchor;
       _ctx.fillRect(x - 3, 0, 6, 5);
     }
   }
+}
+
+function _drawShown(w, h) {
+  const toX = (t) => Math.round(_timeToFrac(t) * w) + 0.5;
+  _drawn = thinLines(clickLines(_beats, _isBarLine, _rate), toX);
+  for (const line of _drawn) {
+    _ctx.beginPath();
+    _ctx.moveTo(line.x, 0);
+    _ctx.lineTo(line.x, h);
+    _ctx.strokeStyle = line.bar ? COLORS.barShown : COLORS.beat;
+    _ctx.lineWidth = line.bar ? 1.5 : 1;
+    _ctx.stroke();
+  }
+}
+
+function _isBarLine(i) {
+  return _bars.some((b) => b.beat === i) || (_bars.length > 0 && _isDownbeat(i));
 }
 
 function _isDownbeat(i) {
@@ -527,6 +585,7 @@ export function initBeatGrid({ jobId, grid, duration, onChange }) {
   _host = document.querySelector(".waves-column");
   _canvas = document.getElementById("beatgrid-canvas");
   if (!_host || !_canvas) return false;
+  _syncCanvas();
 
   _canvas.addEventListener("pointermove", _onPointerMove);
   _canvas.addEventListener("pointerdown", _onPointerDown);
@@ -570,6 +629,8 @@ export function destroyBeatGrid() {
   _undo = [];
   _redo = [];
   _editing = false;
+  _rate = 1;
+  _drawn = [];
   _hoverIdx = -1;
   _dragIdx = -1;
   _canvas = null;
@@ -577,14 +638,35 @@ export function destroyBeatGrid() {
   _onChange = null;
 }
 
+function _syncCanvas() {
+  if (!_canvas) return;
+  _canvas.classList.toggle("hidden", !(_shown || _editing));
+  _canvas.style.pointerEvents = _editing ? "auto" : "none";
+}
+
 export function setBeatGridEditing(on) {
   _editing = !!on;
   if (!_canvas) return;
-  _canvas.classList.toggle("hidden", !_editing);
-  _canvas.style.pointerEvents = _editing ? "auto" : "none";
+  _syncCanvas();
   if (!_editing) { _hoverIdx = -1; _dragIdx = -1; flushBeatGrid(); }
   _render();
 }
+
+/** Draw the grid over the lanes without editing it. */
+export function setBeatGridShown(on) {
+  _shown = !!on;
+  _syncCanvas();
+  _render();
+}
+
+/** The click's rate (0.5, 1 or 2), so the shown grid draws the beats it plays. */
+export function setBeatGridRate(rate) {
+  _rate = rate;
+  _render();
+}
+
+/** The lines the shown grid last drew, as `{ t, bar }`. */
+export const getShownGridLines = () => _drawn.map(({ t, bar }) => ({ t, bar }));
 
 export const isBeatGridEditing = () => _editing;
 
