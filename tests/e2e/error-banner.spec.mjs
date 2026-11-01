@@ -26,7 +26,8 @@ test.describe("the error box", () => {
     expect(look.position).toBe("fixed");
     // Opaque, so the page behind never shows through the words.
     expect(look.background).toMatch(/^rgb\(/);
-    expect(look.color).toBe("rgb(232, 236, 240)");
+    // The body text token (--text), not a tint of the error colour.
+    expect(look.color).toBe("rgb(245, 243, 241)");
     await box.getByRole("button", { name: "Dismiss" }).click();
     await expect(box).toBeHidden();
   });

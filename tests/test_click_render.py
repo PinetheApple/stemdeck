@@ -751,3 +751,40 @@ def test_a_nonsense_grouping_does_not_fail_the_export(client, tmp_path):
         "&click_accent=7&click_groups=99%2B99"
     )
     assert r.status_code != 422
+
+
+def test_export_clicks_the_constant_grid_from_the_top_of_the_song(client, tmp_path):
+    """Detection only heard beats from 2 s; constant mode clicks the fitted
+    formula over the whole track, accented from the anchor."""
+    from app.api import stems as stems_mod
+
+    stems = _setup_job(tmp_path, with_grid=False)
+    tempo = {"mode": "constant", "bpm": 120.0, "anchor": 2.25, "beats_per_bar": 4}
+    grid = {"beats": [2.0, 2.5, 3.0], "bars": [], "duration": 4.0, "tempo": tempo}
+    (stems / "beats.json").write_text(json.dumps(grid), encoding="utf-8")
+
+    lane = stems_mod._click_lane(JOB, True, 1.0, ACCENT_AUTO, 1.0)
+    y, sr = _read(lane.path)
+    starts = _click_starts(y, sr)
+    expected = 0.25 + 0.5 * np.arange(8)
+    assert len(starts) == len(expected)
+    assert np.max(np.abs(starts - expected)) < 0.002
+    assert _dominant_freq(y, sr, 2.25) == pytest.approx(ACCENT_FREQ, rel=0.05)
+    assert _dominant_freq(y, sr, 1.75) == pytest.approx(CLICK_FREQ, rel=0.05)
+
+
+def test_export_follows_the_detected_beats_over_the_whole_song(client, tmp_path):
+    from app.api import stems as stems_mod
+
+    stems = _setup_job(tmp_path, with_grid=False)
+    tempo = {"mode": "constant", "bpm": 120.0, "anchor": 2.25, "beats_per_bar": 4}
+    grid = {"beats": [2.02, 2.5, 3.0], "bars": [], "duration": 4.0, "tempo": tempo}
+    (stems / "beats.json").write_text(json.dumps(grid), encoding="utf-8")
+    (stems / "beats.user.json").write_text(json.dumps({"tempo": {"mode": "follow"}}))
+
+    lane = stems_mod._click_lane(JOB, True, 1.0, ACCENT_AUTO, 1.0)
+    y, sr = _read(lane.path)
+    starts = _click_starts(y, sr)
+    expected = np.array([0.02, 0.52, 1.02, 1.52, 2.02, 2.5, 3.0, 3.5])
+    assert len(starts) == len(expected)
+    assert np.max(np.abs(starts - expected)) < 0.002

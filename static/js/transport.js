@@ -132,7 +132,7 @@ export function buildRuler(durationSec) {
   marker.className = "playhead-marker";
   marker.setAttribute("aria-hidden", "true");
   marker.innerHTML =
-    '<svg viewBox="0 0 10 10" width="10" height="10"><polygon points="0,0 10,0 5,8" fill="#e54e4e"></polygon></svg>';
+    '<svg viewBox="0 0 10 10" width="10" height="10"><polygon points="0,0 10,0 5,8" fill="currentColor"></polygon></svg>';
   rulerTime.appendChild(marker);
 
   if (!durationSec || durationSec <= 0) return;

@@ -588,3 +588,30 @@ def test_beats_route_does_not_shadow_stem_wav(client, tmp_path):
     (d / "drums.wav").write_bytes(b"RIFF1234")
     r = client.get(f"/api/jobs/{job.id}/stems/drums.wav")
     assert r.status_code == 200
+
+
+def test_irregular_grid_still_covers_the_whole_song_in_both_modes(stems_dir, monkeypatch):
+    """A live take the clean-up passes refuse (half-time stretch, a drum-free
+    hole, late entry, early stop) must still click from the top to the end."""
+    from app.pipeline import beatgrid as beatgrid_mod
+    from app.pipeline.tempo_grid import effective_grid
+
+    interval = 0.5
+    full = [10.0 + i * interval for i in range(20)]
+    half = [20.0 + i * 2 * interval for i in range(20)]
+    after = [46.0 + i * interval for i in range(10)]
+    hits = _write_hits_wav(stems_dir / "drums.wav", full + half + after, seconds=54.0)
+    monkeypatch.setattr(
+        beatgrid_mod, "detect_beats", lambda y, sr, env: (hits, full[::4] + after[::4], "stub")
+    )
+
+    grid = compute_beat_grid(stems_dir)
+    assert grid is not None
+    assert grid["irregularity"] > 0.2, "fixture must take the irregular path"
+    assert grid["tempo"]["bpm"] == pytest.approx(120.0, abs=0.5)
+    follow = grid["beats"]
+    assert follow[0] < interval and follow[-1] > 54.0 - interval
+    assert max(b - a for a, b in zip(follow, follow[1:], strict=False)) < 1.5 * interval
+
+    constant = effective_grid(grid, {})["beats"]
+    assert constant[0] < interval and constant[-1] > 54.0 - interval

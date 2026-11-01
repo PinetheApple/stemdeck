@@ -16,9 +16,10 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
 
 from app.core.config import (
+    BEAT_TIME_DECIMALS,
     DISCOGS_LOOKUP_BUDGET_SEC,
     JOB_ID_RE,
     JOBS_DIR,
@@ -30,6 +31,10 @@ from app.core.config import (
     RETIME_DELETE_WAIT_SEC,
     SONG_NAME_MAX_CHARS,
     STEM_NAMES,
+    TEMPO_BPM_DECIMALS,
+    TEMPO_MAX_BEATS_PER_BAR,
+    TEMPO_MAX_BPM,
+    TEMPO_MIN_BPM,
     TIMEOUT_FETCH_TAGS,
     TIMEOUT_IDENTIFY_BACKFILL,
     TIMEOUT_LYRICS_LOOKUP,
@@ -104,6 +109,13 @@ from app.pipeline.lyrics_retime import (
 )
 from app.pipeline.lyrics_retime import saved_view as saved_retime_view
 from app.pipeline.runner import _pipeline_lock
+from app.pipeline.tempo import MODE_CONSTANT, MODE_FOLLOW
+from app.pipeline.tempo_grid import (
+    effective_grid,
+    read_beat_edits,
+    read_detected_grid,
+    write_json_atomic,
+)
 from app.pipeline.vocal_split import split_vocals
 from app.pipeline.work_lookup import find_work, might_have_work
 
@@ -1680,16 +1692,45 @@ class BarMark(BaseModel):
     """A downbeat and the bar length that runs from it until the next mark."""
 
     beat: int = Field(ge=0, lt=_MAX_EDITED_BEATS)
-    beats_per_bar: int = Field(ge=1, le=32)
+    beats_per_bar: int = Field(ge=1, le=TEMPO_MAX_BEATS_PER_BAR)
+
+
+class TempoBody(BaseModel):
+    """The user's tempo settings. Partial: an omitted field is left as it was,
+    and a field sent as null goes back to the detected value."""
+
+    mode: Literal[MODE_CONSTANT, MODE_FOLLOW] | None = None
+    bpm: float | None = Field(default=None, ge=TEMPO_MIN_BPM, le=TEMPO_MAX_BPM)
+    anchor: float | None = Field(default=None, ge=0)
+    beats_per_bar: int | None = Field(default=None, ge=1, le=TEMPO_MAX_BEATS_PER_BAR)
+
+    @field_validator("bpm")
+    @classmethod
+    def _round_bpm(cls, v: float | None) -> float | None:
+        return None if v is None else round(v, TEMPO_BPM_DECIMALS)
+
+    @field_validator("anchor")
+    @classmethod
+    def _round_anchor(cls, v: float | None) -> float | None:
+        return None if v is None else round(v, BEAT_TIME_DECIMALS)
 
 
 class BeatsBody(BaseModel):
-    beats: list[float] = Field(max_length=_MAX_EDITED_BEATS)
+    beats: list[float] | None = Field(default=None, max_length=_MAX_EDITED_BEATS)
     bars: list[BarMark] = Field(default_factory=list, max_length=_MAX_BARS)
+    tempo: TempoBody | None = None
+
+    @model_validator(mode="after")
+    def _has_an_edit(self) -> BeatsBody:
+        if self.beats is None and self.tempo is None:
+            raise ValueError("nothing to save")
+        return self
 
     @field_validator("beats")
     @classmethod
-    def _check_beats(cls, v: list[float]) -> list[float]:
+    def _check_beats(cls, v: list[float] | None) -> list[float] | None:
+        if v is None:
+            return v
         # The client scheduler binary-searches this array and assumes it is
         # sorted and strictly increasing; enforce that at the boundary rather
         # than trusting the editor to have maintained it.
@@ -1796,29 +1837,13 @@ def get_beats(job_id: str) -> Response:
         raise HTTPException(status_code=404, detail="job not ready")
 
     computed_path, user_path = _beats_paths(job_id)
-    if not computed_path.is_file():
+    grid = read_detected_grid(computed_path)
+    if grid is None:
         raise HTTPException(status_code=404, detail="beat grid not found")
-    try:
-        grid = json.loads(computed_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.exception("unreadable beat grid for %s", job_id)
-        raise HTTPException(status_code=404, detail="beat grid not found") from exc
-
-    # User edits override the detected beats but keep the computed onsets,
-    # which the editor still needs for snapping and which editing never changes.
-    if user_path.is_file():
-        try:
-            edits = json.loads(user_path.read_text(encoding="utf-8"))
-            if isinstance(edits.get("beats"), list) and edits["beats"]:
-                grid["beats"] = edits["beats"]
-                grid["bars"] = edits.get("bars") or []
-                grid["edited"] = True
-        except (OSError, json.JSONDecodeError):
-            logger.warning("ignoring unreadable beat edits for %s", job_id)
-
-    grid.setdefault("bars", [])
-    grid.setdefault("edited", False)
-    return JSONResponse(grid, headers={"Cache-Control": "no-store"})
+    return JSONResponse(
+        effective_grid(grid, read_beat_edits(user_path)),
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 def _reject_non_finite(_token: str) -> float:
@@ -1852,10 +1877,13 @@ async def _parse_beats_body(request: Request) -> BeatsBody:
 
 @router.patch("/{job_id}/beats")
 async def update_beats(job_id: str, request: Request) -> dict:
-    """Persist an edited beat grid.
+    """Persist an edited beat grid and/or the user's tempo settings.
 
     Written to a separate file from the detected grid so re-running analysis
-    can never silently discard a user's corrections.
+    can never silently discard a user's corrections. `beats` replaces the
+    edited beats and bars and, unless the body also sets `tempo.mode`, switches
+    the song to follow mode -- edited beats are only heard when followed.
+    `tempo` is merged field by field into what was saved before.
     """
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
@@ -1865,28 +1893,52 @@ async def update_beats(job_id: str, request: Request) -> dict:
         raise HTTPException(status_code=404, detail="job not ready")
 
     computed_path, user_path = _beats_paths(job_id)
-    if not computed_path.is_file():
+    grid = read_detected_grid(computed_path)
+    if grid is None:
         raise HTTPException(status_code=404, detail="beat grid not found")
 
+    saved = read_beat_edits(user_path)
     payload = {
         "version": 1,
-        "beats": body.beats,
-        "bars": [b.model_dump() for b in body.bars],
+        "beats": saved.get("beats") or [],
+        "bars": saved.get("bars") or [],
     }
+    tempo = dict(saved["tempo"]) if isinstance(saved.get("tempo"), dict) else {}
+    if body.beats is not None:
+        payload["beats"] = body.beats
+        payload["bars"] = [b.model_dump() for b in body.bars]
+        tempo.pop("mode", None)
+    if body.tempo is not None:
+        for key, value in body.tempo.model_dump(exclude_unset=True).items():
+            if value is None:
+                tempo.pop(key, None)
+            else:
+                tempo[key] = value
+    if tempo.get("anchor", 0.0) > float(grid.get("duration") or 0.0):
+        raise HTTPException(status_code=422, detail="anchor is beyond the end of the track")
+    if tempo:
+        payload["tempo"] = tempo
     try:
-        tmp = user_path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(payload), encoding="utf-8")
-        tmp.replace(user_path)
+        write_json_atomic(user_path, payload)
     except OSError as exc:
         logger.exception("failed to write beat edits for %s", job_id)
         raise HTTPException(status_code=500, detail="failed to save beat grid") from exc
 
-    return {"job_id": job_id, "beats": len(payload["beats"]), "edited": True}
+    effective = effective_grid(grid, payload)
+    return {
+        "job_id": job_id,
+        "beats": len(effective["beats"]),
+        "edited": True,
+        "tempo": effective["tempo"],
+    }
 
 
 @router.delete("/{job_id}/beats")
 def reset_beats(job_id: str) -> dict:
-    """Discard user edits and fall back to the detected grid."""
+    """Discard the user's beat and bar edits and fall back to the detected beats.
+
+    Tempo settings are kept; the user clears those field by field with PATCH.
+    """
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
     job = registry_get(job_id)
@@ -1894,12 +1946,17 @@ def reset_beats(job_id: str) -> dict:
         raise HTTPException(status_code=404, detail="job not ready")
 
     _, user_path = _beats_paths(job_id)
+    tempo = read_beat_edits(user_path).get("tempo")
+    keep = tempo if isinstance(tempo, dict) and tempo else None
     try:
-        user_path.unlink(missing_ok=True)
+        if keep:
+            write_json_atomic(user_path, {"version": 1, "beats": [], "bars": [], "tempo": keep})
+        else:
+            user_path.unlink(missing_ok=True)
     except OSError as exc:
         logger.exception("failed to reset beat edits for %s", job_id)
         raise HTTPException(status_code=500, detail="failed to reset beat grid") from exc
-    return {"job_id": job_id, "edited": False}
+    return {"job_id": job_id, "edited": keep is not None}
 
 
 @router.delete("/{job_id}")

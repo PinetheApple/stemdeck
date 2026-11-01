@@ -1,79 +1,131 @@
-/* ── Design tokens ── */
+/* ── Design tokens: look "Stage", palette "Ink & coral" (dark only) ── */
 :root {
   color-scheme: dark;
 
-  /* Surfaces */
-  --bg:            #0b0f12;
-  --bg-2:          #0f1418;
-  --panel:         #131a1f;
-  --panel-2:       #182026;
-  --panel-3:       #1d262d;
-  --border:        #232c34;
-  --border-strong: #2e3942;
+  /* Palette */
+  --bg:            #0f1011;
+  --surface-1:     #161719;
+  --surface-2:     #1e1f22;
+  --surface-3:     #292a2e;
+  --surface-4:     #34353a;
+  --line:          #222326;
+  --line-strong:   #313237;
 
-  /* Text */
-  --fg:      #e8ecf0;
-  --fg-2:    #c2c9d1;
-  --muted:   #8a939c;
-  --muted-2: #5d666e;
+  --text:   #f5f3f1;
+  --text-2: #b8b4b0;
+  --text-3: #85817d;
+  --text-4: #5f5c59;
+
+  --accent:      #ff6f59;
+  --accent-2:    #e85a45;
+  --accent-hi:   #ff8a77;
+  --accent-ink:  #2a0700;
+  --accent-soft: color-mix(in srgb, var(--accent) 13%, transparent);
+  --accent-line: color-mix(in srgb, var(--accent) 45%, transparent);
+
+  --success: #7ddc9a;
+  --warn:    #f2c46b;
+  --danger:  #ff5d5d;
+  --fav:     var(--accent);
+  --scrim:   rgba(0, 0, 0, 0.55);
 
   /* Stem colours */
-  --vocals: #ef4444;
-  --drums:  #f97316;
-  --bass:   #eab308;
-  --guitar: #22c55e;
-  --piano:  #a855f7;
-  --other:  #9ca3af;
+  --vocals: #ff8fab;
+  --drums:  #ffb45e;
+  --bass:   #f2dc6b;
+  --guitar: #7ddc9a;
+  --piano:  #a9a2ff;
+  --other:  #b3b8c0;
 
-  /* Width shared by the composer's two end segments (Song structure and
-     Extract stems) so they match. See .daw-process-btn / .structure-toggle. */
-  --composer-action-w: 140px;
+  /* Typography. Named CJK fallbacks keep weight and x-height close to the Latin
+     beside them; browsers only use them for glyphs the first family lacks. */
+  --font-sans: 'Manrope', -apple-system, system-ui, 'Hiragino Sans', 'Noto Sans JP', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'Hiragino Sans', 'Noto Sans JP', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', monospace;
 
-  /* Accent */
-  --accent:   #f4b740;
-  --accent-2: #d99a2b;
+  --fs-2xs:   10.5px;
+  --fs-xs:    11.5px;
+  --fs-sm:    12.5px;
+  --fs-base:  14px;
+  --fs-md:    15.5px;
+  --fs-lg:    19px;
+  --fs-xl:    24px;
+  --fs-2xl:   30px;
+  --fs-3xl:   44px;
+  --fs-stage: clamp(64px, 9vw, 132px);
 
-  /* Legacy compat aliases used by waves.css / player.js */
-  --gold:        var(--accent);
-  --gold-bright: #f8c054;
-  --gold-soft:   rgba(244,183,64,0.16);
-  --gold-line:   rgba(244,183,64,0.28);
-  --ink:         var(--fg);
-  --ink-dim:     var(--fg-2);
-  --ink-faint:   var(--muted);
-  --line:        var(--border);
-  --line-strong: var(--border-strong);
-  --glass-line:  var(--border);
-  --danger:      #d65a4a;
-  --focus-ring:  rgba(236,236,236,0.55);
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+  --fw-heavy:    800;
 
-  /* Typography */
-  /* Explicit CJK fallbacks for Japanese/Simplified Chinese (i18n, EN/PL/JA/ZH):
-     neither Inter nor JetBrains Mono carries CJK glyphs, so without these the
-     browser still substitutes automatically, just to whichever CJK font it
-     picks on its own -- naming one keeps weight/x-height consistent with the
-     Latin text sitting next to it across platforms, rather than leaving it to
-     chance. Never affects EN/PL text: browsers only reach past the first name
-     a glyph is missing from. */
-  --font-sans: 'Inter', -apple-system, system-ui, 'Hiragino Sans', 'Noto Sans JP', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'Hiragino Sans', 'Noto Sans JP', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', monospace;
+  /* Spacing */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+
+  /* Radii */
+  --r-1: 6px;
+  --r-2: 10px;
+  --r-3: 16px;
+  --r-pill: 999px;
+
+  /* Controls and icons */
+  --ctl-h:       36px;
+  --ctl-h-sm:    28px;
+  --icon-sm:     14px;
+  --icon:        16px;
+  --icon-lg:     20px;
+  --icon-stroke: 2;
 
   /* Layout */
-  --header-w: 300px;
-  /* Width of the studio's left column: the stems/mixer panel, the label cell
-     above it, and the footer's blank gutter. One value, so the footer's
-     waveform strip stays aligned with the lane waveforms above it. */
-  --daw-col-w: 300px;
-  --lane-h:   86px;
-  --radius:   10px;
-  --radius-sm: 8px;
-  --radius-xs: 6px;
+  --topbar-h:     60px;
+  --library-w:    clamp(232px, 15vw, 300px);
+  /* Narrow enough that the lanes clear transport.js's 720px floor (WAVE_MIN_WIDTH)
+     from a 1600px window up, so a song opens fitted rather than scrolled. */
+  --inspector-w:  clamp(264px, 17vw, 340px);
+  --header-w:     300px;
+  /* The studio's left column, the label cell above it and the footer gutter share
+     one width so the footer waveform aligns with the lane waveforms. */
+  --daw-col-w:    288px;
+  --lane-h:       86px;
+  /* Shared by the composer's Detect structure and Extract stems segments. */
+  --composer-action-w: 140px;
 
   /* Motion */
-  --t-fast: 80ms;
-  --t-base: 120ms;
-  --easing: cubic-bezier(0.2,0.8,0.2,1);
-  --shadow-panel: 0 4px 24px rgba(0,0,0,0.4);
+  --t-fast: 120ms;
+  --t-base: 200ms;
+  --easing: cubic-bezier(0, 0, 0.2, 1);
+  --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.5);
+
+  /* Legacy names used across daw.css, waves.css and player.js. Kept as aliases
+     so component rules follow the palette above without being rewritten. */
+  --bg-2:          var(--surface-1);
+  --panel:         var(--surface-1);
+  --panel-2:       var(--surface-2);
+  --panel-3:       var(--surface-3);
+  --border:        var(--line);
+  --border-strong: var(--line-strong);
+  --fg:            var(--text);
+  --fg-2:          var(--text-2);
+  --muted:         var(--text-3);
+  --muted-2:       var(--text-4);
+  --gold:          var(--accent);
+  --gold-bright:   var(--accent-hi);
+  --gold-soft:     color-mix(in srgb, var(--accent) 16%, transparent);
+  --gold-line:     color-mix(in srgb, var(--accent) 28%, transparent);
+  --ink:           var(--text);
+  --ink-dim:       var(--text-2);
+  --ink-faint:     var(--text-3);
+  --glass-line:    var(--line);
+  --focus-ring:    color-mix(in srgb, var(--accent) 70%, transparent);
+  --radius:        var(--r-2);
+  --radius-sm:     8px;
+  --radius-xs:     var(--r-1);
 }
 
 @media (prefers-reduced-motion: reduce) {

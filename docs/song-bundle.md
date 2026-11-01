@@ -79,12 +79,27 @@ Fields not listed here may appear and may change between StemDeck releases. Do n
 
 ## beats.json
 
-The grid an export clicks to: the detected grid, with the beats and bar lines replaced by your edits when you made any.
+The grid an export clicks to, in the tempo mode the song is set to, with your edits applied.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `beats` | number[] | Beat times in seconds, strictly increasing |
+| `beats` | number[] | Beat times in seconds, strictly increasing. Play these and you hear what StemDeck clicks. |
 | `bars` | object[] | Bar lines: `{ "beat": index into beats, "beats_per_bar": n }`. Each bar length runs until the next mark. May be empty. |
+| `bpm` | number | The tempo of `beats` |
+| `tempo` | object | How `beats` was made; see below. Absent in bundles from StemDeck versions before it existed. |
+
+`tempo`:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `mode` | string | `constant`: one tempo for the whole song. `follow`: the beats StemDeck heard, which follow the band as it speeds up and slows down, continued at `bpm` wherever it heard none so they span the whole song. |
+| `bpm` | number | The constant tempo |
+| `anchor` | number | Seconds. A downbeat of the constant grid. |
+| `beats_per_bar` | integer | Bar length of the constant grid |
+| `source` | string | `detected`, or `user` when you set any of the above yourself |
+| `fit` | object | Optional, diagnostics only: how well one tempo fits the detected beats. `{ "method": "theil-sen", "beats_used": n, "downbeats_used": n, "max_drift_ms": n, "median_drift_ms": n }`. Absent when no tempo was detected. Do not drive playback from it. |
+
+In `constant` mode, beat *n* falls at `anchor + n * 60 / bpm` for every *n* whose time lies between 0 and the end of the song, and `beats` holds exactly those times, rounded to the microsecond. A reader that only reads `beats` and `bars` plays the same thing either way.
 
 The other fields describe how the grid was found and are for diagnostics only.
 

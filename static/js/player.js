@@ -266,6 +266,7 @@ let visualRenderToken = 0;
 let visualAudioContext = null;
 let stemVuRafId = null;
 let _footerWavePeaks = null;
+let _footerAccent = "";
 let _lastFooterProgress = 0;
 let _footerPlaceholderResizeObs = null;
 const _FOOTER_BARS = 300;
@@ -875,7 +876,7 @@ export function destroyPlayer() {
   // Otherwise the empty studio keeps the last track's format in the square.
   paintNowPlayingArt("");
 
-  rulerTime.innerHTML = '<div class="playhead-marker" aria-hidden="true"><svg viewBox="0 0 10 10" width="10" height="10"><polygon points="0,0 10,0 5,8" fill="#e54e4e"></polygon></svg></div>';
+  rulerTime.innerHTML = '<div class="playhead-marker" aria-hidden="true"><svg viewBox="0 0 10 10" width="10" height="10"><polygon points="0,0 10,0 5,8" fill="currentColor"></polygon></svg></div>';
   wavesGrid.innerHTML = "";
 
   titleEl.textContent = "";
@@ -1297,9 +1298,9 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
       minPxPerSec: 0,
       rightButtonDrag: false,
       cursorWidth: 0,
-      cursorColor: "#e54e4e",
+      cursorColor: "#f5f3f1",
       trackBackground: "transparent",
-      trackBorderColor: "rgba(148, 163, 184, 0.08)",
+      trackBorderColor: "rgba(184, 180, 176, 0.08)",
     },
   );
   setMultitrack(mt);
@@ -1467,7 +1468,11 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
       };
       teardownMetronome();
       if (audioEngine) { audioEngine.destroy(); setAudioEngine(null); }
-      const onEnded = () => { playBtn.classList.remove("playing"); updateStopVisual(); };
+      const onEnded = () => {
+        playBtn.classList.remove("playing");
+        updateStopVisual();
+        document.dispatchEvent(new CustomEvent("trackended", { detail: { id: jobId } }));
+      };
       // Engine bring-up, callable twice: the chunked path falls back to
       // "fulldecode" when peaks.json is missing (legacy jobs), because the
       // backend's documented degradation for missing peaks is client-side
@@ -1527,6 +1532,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
           // per-track store in the same breath as the gains.
           setLaneKeysAvailable(eng.supportsPitchShift?.() === true);
           applyAllLanePitches();
+          document.dispatchEvent(new CustomEvent("playbackready", { detail: { id: jobId } }));
 
           // Click track. Bound to this engine instance, so it is rebuilt on
           // every engine bring-up (including the chunked -> fulldecode swap
@@ -1714,6 +1720,7 @@ function _drawFooterWave(progress) {
   const barW = canvas.width / n;
   const gap = 1;
   const playedIdx = Math.floor(progress * n);
+  const accent = (_footerAccent ||= getComputedStyle(canvas).getPropertyValue("--accent").trim());
   for (let i = 0; i < n; i++) {
     const [mn, mx] = _footerWavePeaks[i];
     const top = cy - mx * norm * cy * 0.78;
@@ -1722,14 +1729,14 @@ function _drawFooterWave(progress) {
     const x = Math.round(i * barW);
     const nextX = i === n - 1 ? canvas.width : Math.round((i + 1) * barW);
     const bw = Math.max(1, nextX - x - gap);
-    ctx.fillStyle = i < playedIdx ? "#f4b740" : "rgba(255,255,255,0.13)";
+    ctx.fillStyle = i < playedIdx ? accent : "rgba(255,255,255,0.13)";
     ctx.fillRect(x, top, bw, barH);
   }
   if (progress > 0.001 && progress < 0.999) {
     const px = progress * canvas.width;
     ctx.beginPath();
     ctx.arc(px, cy, 4 * dpr, 0, Math.PI * 2);
-    ctx.fillStyle = "#f4b740";
+    ctx.fillStyle = accent;
     ctx.fill();
   }
 }
