@@ -217,6 +217,8 @@ async def export_bundle(
         raise HTTPException(status_code=404, detail="no stems found")
 
     metadata = _read_json(job_dir / "metadata.json") or {}
+    if job.user_title:
+        metadata["title"] = job.user_title
     members: dict[str, dict] = {"metadata.json": metadata}
     optional = {
         "beats.json": _read_beat_grid(job_id),
@@ -234,7 +236,8 @@ async def export_bundle(
         "exported_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "stemdeck_version": app_version(),
         "job_id": job_id,
-        "title": job.title or metadata.get("title"),
+        "title": job.display_title or metadata.get("title"),
+        "artist": job.display_artist,
         "duration_sec": metadata.get("duration_sec"),
     }
 
@@ -248,7 +251,7 @@ async def export_bundle(
         logger.exception("failed to build song bundle for job %s", job_id)
         raise HTTPException(status_code=500, detail="failed to build bundle") from None
 
-    filename = f"{_title_slug(job.title) or job_id}.stemdeck.zip"
+    filename = f"{_title_slug(job.display_title) or job_id}.stemdeck.zip"
     return FileResponse(
         tmp_path,
         media_type="application/zip",

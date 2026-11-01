@@ -647,7 +647,7 @@ def build_query(
     ``audio_tags``, ``band`` and ``identity`` stand in for the job's own when
     given (they can be known before they are on the job). None when nothing
     is known well enough to look up and the file carried no lyrics."""
-    tags = audio_tags if audio_tags is not None else (job.audio_tags or {})
+    tags = job.lookup_tags(audio_tags if audio_tags is not None else job.audio_tags) or {}
     band = band or job.artist or {}
     identity = identity or getattr(job, "identity", None)
     identity = identity if isinstance(identity, dict) else {}
@@ -658,16 +658,25 @@ def build_query(
     artist_ids: tuple[str, ...] = ()
     track_aliases: tuple[str, ...] = ()
     if _name(identity.get("title")):
-        artist = _name(identity.get("artist")) or _name(tags.get("artist")) or band_name
-        if _name(identity.get("artist")):
+        # The user's names outrank the identity's: a name search can credit
+        # another artist, and a renamed song is what the user called it.
+        artist = (
+            _name(job.user_artist)
+            or _name(identity.get("artist"))
+            or _name(tags.get("artist"))
+            or band_name
+        )
+        artist_named_by_user = bool(job.user_artist)
+        if _name(identity.get("artist")) and not artist_named_by_user:
             mbids = identity.get("artist_mbids")
             artist_ids = (
                 tuple(m for m in mbids if isinstance(m, str)) if isinstance(mbids, list) else ()
             )
-        track = _name(identity["title"])
-        album = _name(identity.get("album")) or _name(tags.get("album"))
+        track = _name(job.user_title) or _name(identity["title"])
+        identity_album = "" if artist_named_by_user else _name(identity.get("album"))
+        album = identity_album or _name(tags.get("album"))
         aliases = identity.get("title_aliases")
-        if isinstance(aliases, list):
+        if isinstance(aliases, list) and not job.user_title:
             track_aliases = tuple(n for n in map(_name, aliases) if n)
     elif _name(tags.get("title")):
         artist = _name(tags.get("artist")) or band_name
@@ -675,15 +684,15 @@ def build_query(
         album = _name(tags.get("album"))
     else:
         artist = band_name
-        track = song_from_title(job.title, artist) if artist else ""
+        track = song_from_title(job.display_title, artist) if artist else ""
         album = ""
 
     if not track and not embedded:
         return None
-    hint = work_hint(job.title, track) if track else None
+    hint = work_hint(job.display_title, track) if track else None
     return LyricsQuery(
         artist=artist,
-        track=track or _name(job.title),
+        track=track or _name(job.display_title),
         album=album,
         duration=duration,
         embedded=embedded,
@@ -1223,6 +1232,32 @@ def read_candidates(job_dir: Path) -> dict[str, Any] | None:
     }
 
 
+def lyrics_worked_on(entry: dict[str, Any]) -> bool:
+    """Lyrics timed by the user, moved by them, or found line by line in the
+    vocals: each says they are the track's, whatever the names say."""
+    return any(k in entry for k in ("user_synced", "aligned", "offset_sec"))
+
+
+def drop_if_another_song(job_dir: Path, entry: dict[str, Any], query: LyricsQuery | None) -> bool:
+    """Delete the job's lyrics.json when ``entry`` (what it holds) is LRCLIB's
+    version of a song ``query`` does not name, unless the user worked on it.
+    True when it was deleted."""
+    if lyrics_worked_on(entry) or saved_lyrics_belong(entry, query):
+        return False
+    lyrics_path(job_dir).unlink(missing_ok=True)
+    return True
+
+
+def forget_names(job: Job, job_dir: Path) -> bool:
+    """After the user renamed the song: forget LRCLIB's last "nothing" and the
+    versions it offered, which were asked for by the old names, so the next
+    lookup asks by the new ones; and drop kept lyrics the new names disown.
+    True when lyrics.json was deleted."""
+    candidates_path(job_dir).unlink(missing_ok=True)
+    entry = read_lyrics(job_dir)
+    return entry is not None and drop_if_another_song(job_dir, entry, build_query(job))
+
+
 def lyrics_settled(job_dir: Path, now: float | None = None) -> bool:
     """Whether there is nothing to ask LRCLIB for this job: it has lyrics, or
     LRCLIB was asked less than LYRICS_NOT_FOUND_RETRY_SEC ago and had none."""
@@ -1327,6 +1362,7 @@ class LyricsLookup:
     """
 
     def __init__(self, job: Job, identity: IdentitySource | None) -> None:
+        self._names = job.user_names
         self._result: LookupAnswer | None = None
         self._thread = threading.Thread(
             target=self._run, args=(job, identity), name=f"lyrics-{job.id}", daemon=True
@@ -1343,7 +1379,7 @@ class LyricsLookup:
             return
         # find_lyrics never raises.
         self._result = find_lyrics(
-            query, cancelled=lambda: job.cancel_requested, fallback_title=job.title or ""
+            query, cancelled=lambda: job.cancel_requested, fallback_title=job.display_title or ""
         )
 
     @classmethod
@@ -1372,5 +1408,8 @@ class LyricsLookup:
             )
             return
         if job.cancel_requested or self._result is None:
+            return
+        if job.user_names != self._names:
+            logger.info("[%s] renamed during the lyrics lookup; dropping its answer", job.id)
             return
         keep_answer(job, job_dir, self._result)

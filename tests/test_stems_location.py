@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.config import SETLISTS_FILE
 from app.core.models import Job
 from app.core.registry import _jobs
 from app.core.stems_location import (
@@ -103,6 +104,15 @@ def test_accepts_a_folder_with_the_desktop_shells_user_data_store(tmp_path):
     target = tmp_path / "new"
     _job_dir(target, "abcdefabcdef")
     (target / "user-data.json").write_text("{}", encoding="utf-8")
+    assert validate_target(target, current) == target.resolve()
+
+
+def test_accepts_a_folder_with_setlists(tmp_path):
+    current = tmp_path / "old"
+    current.mkdir()
+    target = tmp_path / "new"
+    _job_dir(target, "abcdefabcdef")
+    (target / SETLISTS_FILE).write_text("{}", encoding="utf-8")
     assert validate_target(target, current) == target.resolve()
 
 
