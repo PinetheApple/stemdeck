@@ -80,41 +80,32 @@
 .daw-search:focus-within { border-color: var(--accent); }
 
 .cat-item .cat-title { font-weight: var(--fw-semibold); }
-.cat-upnext {
+/* Two by two, so a done song's four actions keep to the row's end and leave the title its middle. */
+.cat-actions:has(.cat-upnext) {
+  display: grid;
+  grid-template-columns: repeat(2, var(--icon-lg));
+  padding-left: var(--s-2);
+  background: linear-gradient(to right, transparent, var(--surface-2) var(--s-2));
+}
+.cat-actions :is(.cat-upnext, .cat-more, .cat-fav, .cat-del) { width: var(--icon-lg); height: var(--icon-lg); }
+.cat-upnext,
+.cat-more {
   display: inline-grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  padding: 0;
   border: 0;
   border-radius: var(--r-1);
   background: none;
   color: var(--text-3);
   cursor: pointer;
-  opacity: 0;
-  transition: opacity var(--t-fast), background var(--t-fast), color var(--t-fast);
+  transition: background var(--t-fast), color var(--t-fast);
 }
-.cat-item:hover .cat-upnext,
-.cat-item:focus-within .cat-upnext,
-.cat-upnext:focus-visible { opacity: 1; }
-.cat-upnext:hover { background: var(--surface-3); color: var(--text); }
+.cat-upnext .ic,
+.cat-more .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.cat-upnext:hover,
+.cat-more:hover,
+.cat-more[aria-expanded="true"] { background: var(--surface-3); color: var(--text); }
 
-.lib-setlists {
-  flex-shrink: 0;
-  border-top: 1px solid var(--line);
-  padding: var(--s-3) var(--s-1) 0;
-}
-.lib-setlists-title {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  margin: 0 0 var(--s-1);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-bold);
-  color: var(--text-2);
-}
-.lib-setlists-empty { margin: 0; font-size: var(--fs-sm); color: var(--text-3); }
-.sidebar.lyrics-view .lib-setlists,
-.sidebar.trash-view .lib-setlists { display: none; }
 
 /* #songHead-scoped: the card's composer-era rules in daw.css are ID-specific. */
 .song-head {

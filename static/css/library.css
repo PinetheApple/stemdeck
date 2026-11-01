@@ -1,0 +1,325 @@
+/* Library pane: Songs / Setlists tabs, setlists, a row's … menu, and renaming a song. */
+
+/* ── Tabs ── */
+.lib-tabs {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--bg);
+}
+.lib-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  height: var(--ctl-h-sm);
+  border: 0;
+  border-radius: calc(var(--r-2) - 2px);
+  background: none;
+  color: var(--text-3);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.lib-tab:hover { color: var(--text); }
+.lib-tab[aria-selected="true"] { background: var(--surface-3); color: var(--text); }
+.lib-tab-count { color: var(--text-3); font-size: var(--fs-xs); font-weight: var(--fw-medium); }
+.lib-tab.flash .lib-tab-count { animation: lib-tab-flash var(--t-flash) var(--easing); }
+@keyframes lib-tab-flash {
+  0%, 40% { color: var(--accent); }
+  100% { color: var(--text-3); }
+}
+.sidebar:is(.lyrics-view, .trash-view, .favorites-view, .queue-view) .lib-tabs { display: none; }
+
+/* ── Which tab is shown ── */
+.lib-setlists { display: none; }
+.sidebar.setlists-view:not(.lyrics-view, .trash-view, .favorites-view, .queue-view) .lib-setlists {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.sidebar.setlists-view:not(.lyrics-view, .trash-view, .favorites-view, .queue-view) .daw-lib-list { display: none; }
+
+/* ── Setlists ── */
+.setlists-list { display: flex; flex-direction: column; gap: var(--s-4); }
+.setlist { display: flex; flex-direction: column; gap: 2px; }
+.setlist-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px var(--s-2);
+  padding: 0 var(--s-1) var(--s-1);
+}
+.setlist-head:has(.setlist-name-input) { display: flex; }
+.setlist-tools { display: flex; gap: 2px; justify-self: end; }
+.setlist-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-bold);
+  color: var(--text);
+}
+.setlist-count { color: var(--text-3); font-size: var(--fs-xs); }
+.setlist-play {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-2);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
+  cursor: pointer;
+}
+.setlist-play .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.setlist-play:hover { background: var(--accent); color: var(--accent-ink); }
+.setlist-play:disabled { opacity: 0.4; cursor: default; pointer-events: none; }
+.setlist-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-1);
+  min-width: var(--ctl-h-sm);
+  height: var(--ctl-h-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-3);
+  font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-sans);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast), opacity var(--t-fast);
+}
+.setlist-icon-btn .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.setlist-icon-btn:hover { background: var(--surface-3); color: var(--text); }
+.setlist-icon-btn:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+.setlist-tools .setlist-icon-btn { color: var(--text-2); }
+.setlist-tools .setlist-icon-btn:hover { background: var(--surface-3); color: var(--text); }
+.setlist-tools .setlist-delete:hover { color: var(--danger); }
+.setlist-delete.armed {
+  padding: 0 var(--s-2);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+.setlist-name-input,
+.rename-input {
+  min-width: 0;
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-1);
+  background: var(--surface-1);
+  color: var(--text);
+  font: var(--fw-semibold) var(--fs-base) / 1 var(--font-sans);
+  outline: none;
+}
+.setlist-name-input { flex: 1; }
+.lib-setlists > .setlists-list > .setlist-name-input { height: var(--ctl-h); }
+.setlist-songs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.setlist-song {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-2);
+  transition: background var(--t-fast);
+}
+.setlist-song:hover { background: var(--surface-2); }
+.setlist-song-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1) var(--s-2);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.setlist-song-index { width: 1.5em; flex: none; text-align: right; color: var(--text-3); font-size: var(--fs-xs); }
+.setlist-song-thumb {
+  width: var(--ctl-h-sm);
+  height: var(--ctl-h-sm);
+  flex: none;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--r-1);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-weight: var(--fw-bold);
+}
+.setlist-song-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.setlist-song-text { display: flex; flex-direction: column; min-width: 0; }
+.setlist-song-title,
+.setlist-song-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setlist-song-title { font-size: var(--fs-sm); font-weight: var(--fw-semibold); }
+.setlist-song-sub { font-size: var(--fs-xs); color: var(--text-3); }
+.setlist-song-sub:empty { display: none; }
+/* Over the row's right edge, as a library row's actions are, so titles keep their width at rest. */
+.setlist-song-actions {
+  position: absolute;
+  top: 50%;
+  right: var(--s-1);
+  transform: translateY(-50%);
+  display: flex;
+  gap: 2px;
+  padding-left: var(--s-4);
+  background: linear-gradient(to right, transparent, var(--surface-2) var(--s-4));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-fast);
+}
+.setlist-song:hover .setlist-song-actions,
+.setlist-song:focus-within .setlist-song-actions { opacity: 1; pointer-events: auto; }
+.setlist-empty { margin: 0; padding: var(--s-1) var(--s-2); font-size: var(--fs-sm); color: var(--text-3); }
+
+.lib-setlists-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-5) var(--s-3);
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+.lib-setlists-empty .ic { width: var(--ctl-h-sm); height: var(--ctl-h-sm); }
+.lib-setlists-empty strong { color: var(--text-2); font-size: var(--fs-base); }
+.lib-setlists-empty[hidden],
+.setlist-new-btn[hidden] { display: none; }
+.setlists-error { margin: 0; font-size: var(--fs-sm); color: var(--danger); }
+.setlist-new-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  flex-shrink: 0;
+  height: var(--ctl-h);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text-2);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+.setlist-new-btn:hover { background: var(--surface-2); color: var(--text); border-color: var(--accent-line); }
+
+.upnext-actions { display: inline-flex; gap: 2px; }
+
+/* ── A library row's … menu ── */
+.lib-menu {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  max-width: var(--library-w);
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: var(--s-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-panel);
+}
+.lib-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--ctl-h-sm);
+  padding: 0 var(--s-2);
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text);
+  font: var(--fw-medium) var(--fs-sm) / 1.2 var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+.lib-menu-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-menu-item .ic { width: var(--icon-sm); height: var(--icon-sm); color: var(--text-3); }
+.lib-menu-item:hover,
+.lib-menu-item:focus-visible { background: var(--surface-3); outline: none; }
+.lib-menu-item:disabled { color: var(--text-3); cursor: default; background: none; }
+.lib-menu-item:disabled .ic { color: var(--success); }
+.lib-menu-label {
+  padding: var(--s-2) var(--s-2) var(--s-1);
+  margin-top: var(--s-1);
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+}
+
+/* ── Renaming a song ── */
+.rename-form { display: flex; flex-direction: column; gap: var(--s-1); width: 100%; min-width: 0; }
+.rename-form.busy { opacity: 0.6; pointer-events: none; }
+.rename-input { width: 100%; }
+.rename-artist { font-weight: var(--fw-medium); font-size: var(--fs-sm); }
+.rename-foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-1) var(--s-2); }
+.rename-hint { font-size: var(--fs-2xs); color: var(--text-3); }
+.rename-restore {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-2);
+  font: var(--fw-semibold) var(--fs-2xs) / 1 var(--font-sans);
+  cursor: pointer;
+}
+.rename-restore .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.rename-restore:hover { background: var(--surface-3); color: var(--text); }
+.rename-error { margin: 0; font-size: var(--fs-xs); color: var(--danger); }
+.rename-error[hidden] { display: none; }
+.is-renaming > :not(.rename-form) { display: none !important; }
+.cat-item.renaming-row { cursor: default; background: var(--surface-2); border-color: var(--line-strong); }
+.cat-item.renaming-row .cat-actions { display: none; }
+
+#songHead #nowPlayingPanel .track-panel-info.is-renaming { flex: 1 1 auto; max-width: calc(var(--header-w) * 2); }
+#songHead .rename-title { height: auto; padding: 0 var(--s-2); font-size: var(--fs-xl); font-weight: var(--fw-bold); }
+#songHead .rename-artist { height: var(--ctl-h-sm); font-size: var(--fs-base); }
+#songHead #title,
+#songHead #np-artist { cursor: pointer; }
+#songHead #title:hover,
+#songHead #np-artist:hover { text-decoration: underline; text-decoration-color: var(--text-4); text-underline-offset: var(--s-1); }
+.np-rename-btn {
+  width: var(--ctl-h-sm);
+  height: var(--ctl-h-sm);
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--t-fast), background var(--t-fast), color var(--t-fast);
+}
+.np-rename-btn .ic { width: var(--icon-sm); height: var(--icon-sm); }
+#songHead .track-panel-head:hover .np-rename-btn,
+.np-rename-btn:focus-visible { opacity: 1; }
+.np-rename-btn:hover { background: var(--surface-2); color: var(--text); }
+.track-panel-head:has(.is-renaming) .np-rename-btn,
+.app.no-track .np-rename-btn { display: none; }
+.app.no-track #songHead #title,
+.app.no-track #songHead #np-artist { cursor: default; text-decoration: none; }

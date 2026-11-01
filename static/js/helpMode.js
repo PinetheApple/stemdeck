@@ -43,6 +43,7 @@ const HELP = [
   ["#catalogSearch", "help.searchLibrary"],
   ["#newFolderBtn", "help.newFolder"],
   ["#catalogList .cat-upnext", "help.addToUpNext"],
+  ["#catalogList .cat-more", "help.songMenu"],
   ["#catalogList .cat-item.in-trash", "help.trashedSong"],
   ["#catalogList .cat-item", "help.song"],
   ["#sectionsAddBtn", "help.addSection"],

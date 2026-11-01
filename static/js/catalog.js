@@ -16,6 +16,7 @@ import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
+import { icon } from "./libraryIcons.js";
 import { t as i18nT, plural as i18nPlural, LANGUAGES, getLanguage, setLanguage, onLanguageChange, applyTranslations } from "./i18n.js";
 
 // Escape user-supplied strings before inserting into innerHTML.
@@ -58,7 +59,6 @@ const TRASH_ID = "trash";
 const UNSORTED_ID = "f-unsorted";
 const PROCESSING_STATUSES = new Set(["queued", "downloading", "analyzing", "separating", "processing"]);
 
-const UP_NEXT_ICON_SVG = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M16 19H3"/><path d="M18 9v6"/><path d="M21 12h-6"/></svg>`;
 
 // One trash can for every "throw this away" button: the library rows and the
 // queue rows (#748), so the queue's cancel reads as the same action.
@@ -371,6 +371,24 @@ export function getLibraryTrack(trackId) {
   return tracks[trackId] ?? null;
 }
 
+/** A song's name in lists: the user's title when set, else the job's title. */
+export function libraryTitle(track) {
+  return trimmed(track?.userTitle) || track?.title || "";
+}
+
+/** The names a library song is shown with, and which of them the user gave. */
+export function getTrackNames(trackId) {
+  const track = tracks[trackId];
+  if (!track) return null;
+  return {
+    title: libraryTitle(track),
+    artist: nowPlayingArtist(track),
+    detectedTitle: track.detectedTitle || "",
+    userTitle: track.userTitle || null,
+    userArtist: track.userArtist || null,
+  };
+}
+
 export function getCurrentTrackInfo() {
   const track = tracks[_currentTrackId];
   if (!track) return null;
@@ -379,6 +397,8 @@ export function getCurrentTrackInfo() {
     title: track.title || "",
     displayTitle: nowPlayingTitle(track),
     artist: nowPlayingArtist(track),
+    userTitle: track.userTitle || null,
+    userArtist: track.userArtist || null,
     duration: Number(track.duration) || 0,
     bpm: Number(track.bpm) || null,
     // What the file itself was tagged with at import, when it was: artist,
@@ -430,12 +450,12 @@ export function getCurrentTrackSong() {
   if (!track) return null;
   const identity = confidentIdentity(track);
   const tags = track.audioTags || {};
-  const title = trimmed(identity?.title) || trimmed(tags.title);
+  const title = trimmed(track.userTitle) || trimmed(identity?.title) || trimmed(tags.title);
   if (!title) return null;
   const identityAlbum = trimmed(identity?.album);
   return {
     title,
-    credit: trimmed(identity?.artist) || trimmed(tags.artist),
+    credit: trimmed(track.userArtist) || trimmed(identity?.artist) || trimmed(tags.artist),
     album: identityAlbum || trimmed(tags.album),
     year: identityAlbum && Number.isInteger(identity.year) ? identity.year : 0,
     soundtrack: Boolean(libraryWork(track.work)) || Boolean(identity?.secondaryTypes?.includes("Soundtrack")),
@@ -452,18 +472,13 @@ export function setCurrentTrackArtist(artist) {
   return true;
 }
 
-// Beside the title on the now-playing card (#699): the musical or film a
-// soundtrack is from ("Dancing Through Life · Wicked"), since one cast
-// member's name says less about the song than the show does. Otherwise the
-// band saved on the track, else the artist its file was tagged with, else the
-// credit of the recording the server identified. None known, and the card is
-// exactly what it was before there was an artist to show. A title song
-// ("The Phantom of the Opera") would name the show twice, so it names the
-// performer instead.
+// The user's artist, else a soundtrack's show unless it repeats the title, else a
+// band saved here by hand (the server never hears of it), else display_artist.
 function nowPlayingArtist(track) {
+  if (trimmed(track?.userArtist)) return trimmed(track.userArtist);
   let work = trimmed(libraryWork(track?.work)?.name);
   if (work.toLowerCase() === nowPlayingTitle(track).toLowerCase()) work = "";
-  return trimmed(work || track?.artist?.name || track?.audioTags?.artist || confidentIdentity(track)?.artist);
+  return trimmed(work || track?.artist?.name || track?.displayArtist);
 }
 
 function paintNowPlayingArtist(track) {
@@ -490,7 +505,18 @@ function paintNowPlayingArtist(track) {
 // waits on this. "tracktags" then tells artistInfo.js and lyrics.js, which
 // import this module and so cannot be imported back.
 const _tagsAsked = new Set(); // once per track per page load
-const _tagsPending = new Set();
+// Counted: a rename's lookup and a backfill can run for the same track at once.
+const _tagsPending = new Map();
+
+function markTagsPending(trackId) {
+  _tagsPending.set(trackId, (_tagsPending.get(trackId) || 0) + 1);
+}
+
+function settleTagsPending(trackId) {
+  const left = (_tagsPending.get(trackId) || 1) - 1;
+  if (left > 0) _tagsPending.set(trackId, left);
+  else _tagsPending.delete(trackId);
+}
 
 /** Whether the open track's tags are still being asked for. */
 export function isCurrentTrackTagsPending() {
@@ -507,7 +533,7 @@ async function backfillAudioTags(trackId) {
   if (!track || (tagsKnown && track.workChecked) || track.status !== "done") return;
   if (_tagsAsked.has(trackId)) return;
   _tagsAsked.add(trackId);
-  _tagsPending.add(trackId);
+  markTagsPending(trackId);
   try {
     const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/audio-tags`, { method: "POST" });
     if (res.status === 409) _tagsAsked.delete(trackId);
@@ -526,13 +552,80 @@ async function backfillAudioTags(trackId) {
     if (!target.identity) target.identity = libraryIdentity(data?.identity);
     if (!target.work) target.work = libraryWork(data?.work);
     target.workChecked = true;
+    const namesChanged = await refreshServerNames(trackId);
     saveState();
+    if (namesChanged) render();
     if (_currentTrackId === trackId) paintNowPlayingNames(target);
   } catch (err) {
     console.warn("[catalog] reading an older track's tags failed:", err);
   } finally {
-    _tagsPending.delete(trackId);
+    settleTagsPending(trackId);
     document.dispatchEvent(new CustomEvent("tracktags", { detail: { id: trackId } }));
+  }
+}
+
+/** Take the names the server shows now that it knows more; true when any changed. */
+async function refreshServerNames(trackId) {
+  try {
+    const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return Boolean(tracks[trackId] && applyServerNames(tracks[trackId], await res.json()));
+  } catch (err) {
+    console.warn("[catalog] reading a song's names from the server failed:", err);
+    return false;
+  }
+}
+
+function afterNamesChanged(trackId) {
+  const track = tracks[trackId];
+  if (!track) return;
+  saveState();
+  render();
+  if (trackId === _currentTrackId) paintNowPlayingNames(track);
+  document.dispatchEvent(new CustomEvent("tracknames", { detail: { id: trackId } }));
+}
+
+/**
+ * Take the job state a rename (PATCH /api/jobs/{id}) answered with. A changed
+ * name clears what the old names found on the server, so it is cleared here too.
+ */
+export function applyRenamedState(trackId, state) {
+  const track = tracks[trackId];
+  if (!track || !state) return;
+  const artistChanged = (state.user_artist ?? null) !== (track.userArtist ?? null);
+  applyServerNames(track, state);
+  track.identity = libraryIdentity(state.identity);
+  track.work = libraryWork(state.work);
+  if (artistChanged) track.artist = libraryArtist(state.artist);
+  afterNamesChanged(trackId);
+}
+
+/**
+ * After a rename, ask the server to look the song up again by its new names
+ * (identity, band, work, lyrics), then take the names it now shows. Announced
+ * as "tracktags" and "tracklookup", which lyrics.js reloads on.
+ */
+export async function relookupTrack(trackId) {
+  markTagsPending(trackId);
+  try {
+    const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/audio-tags`, { method: "POST" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const target = tracks[trackId];
+    if (target) {
+      if (!target.audioTags) target.audioTags = libraryAudioTags(data?.audio_tags);
+      target.identity = libraryIdentity(data?.identity);
+      target.work = libraryWork(data?.work);
+      if (!target.artist) target.artist = libraryArtist(data?.artist);
+    }
+    await refreshServerNames(trackId);
+    afterNamesChanged(trackId);
+  } catch (err) {
+    console.warn("[catalog] looking a renamed song up again failed:", err);
+  } finally {
+    settleTagsPending(trackId);
+    document.dispatchEvent(new CustomEvent("tracktags", { detail: { id: trackId } }));
+    document.dispatchEvent(new CustomEvent("tracklookup", { detail: { id: trackId } }));
   }
 }
 
@@ -564,9 +657,35 @@ function hasTrackAnalysis(track) {
   );
 }
 
+/**
+ * The names a job's state gives a song: `title` is the user's title, else the
+ * detected one, and `displayArtist` is the server's pick of which artist to show.
+ */
+function trackNames(state) {
+  return {
+    title: state.title,
+    detectedTitle: state.detected_title ?? null,
+    userTitle: state.user_title ?? null,
+    userArtist: state.user_artist ?? null,
+    displayArtist: state.display_artist ?? null,
+  };
+}
+
+const NAME_FIELDS = ["title", "detectedTitle", "userTitle", "userArtist", "displayArtist"];
+
+/** Take a job state's names onto a library track; true when any changed. */
+function applyServerNames(track, state) {
+  const names = trackNames(state);
+  if (!names.title) delete names.title;
+  const changed = NAME_FIELDS.some((field) => field in names && track[field] !== names[field]);
+  Object.assign(track, names);
+  return changed;
+}
+
 function stateMetadataToTrack(state, fallbackTrack) {
   return {
     ...fallbackTrack,
+    ...trackNames(state),
     title: state.title || fallbackTrack.title,
     thumb: state.thumbnail || fallbackTrack.thumb,
     stems: state.selected_stems || fallbackTrack.stems,
@@ -678,13 +797,14 @@ export function applyStemPresenceCards(stemPresence) {
   });
 }
 
-// The song the server identified, else the file's own title tag: the job
-// title is the filename or the video's name, which often carries the band,
-// "Official Video", "(From ... Cast Recording/2003)" and the like, and the
-// artist now has a place of its own beside it. Only the card: the library row
-// keeps the name the track was imported with.
+// For the card only (lists use libraryTitle): the job title is often a filename or
+// video name ("... Official Video"), so the identified song or the title tag comes first.
 function nowPlayingTitle(track) {
-  return trimmed(confidentIdentity(track)?.title) || trimmed(track?.audioTags?.title) || track?.title || "";
+  return trimmed(track?.userTitle)
+    || trimmed(confidentIdentity(track)?.title)
+    || trimmed(track?.audioTags?.title)
+    || track?.title
+    || "";
 }
 
 function paintNowPlayingNames(track) {
@@ -870,6 +990,11 @@ function setCatalogView(view) {
   // The lyrics panel (lyrics.js) draws itself; this is how it learns it is on
   // screen, without catalog.js importing it.
   document.dispatchEvent(new CustomEvent("catalogviewchange", { detail: { view: catalogView } }));
+}
+
+/** Show the library list in the sidebar, as the rail's Library button does. */
+export function showLibraryView() {
+  if (catalogView !== "library") setCatalogView("library");
 }
 
 function applyStoredStemSelection(track) {
@@ -1344,7 +1469,7 @@ export function toggleFavorite(trackId) {
 function favButtonHtml(track) {
   const on = Boolean(track.favorite);
   const label = i18nT(on ? "track.unfavoriteTitle" : "track.favoriteTitle", {
-    title: track.title ?? i18nT("track.unknown"),
+    title: displayTitle(libraryTitle(track)),
   });
   return `<button class="cat-fav${on ? " active" : ""}" type="button" aria-pressed="${on}"
       title="${esc(i18nT(on ? "track.unfavorite" : "track.favorite"))}" aria-label="${esc(label)}">
@@ -1362,17 +1487,31 @@ function wireFavButton(el, trackId) {
   });
 }
 
-// Queued by event rather than by import: upNext.js imports this module.
 function upNextButtonHtml(track) {
   if (track.status !== "done") return "";
-  const label = i18nT("upNext.addTitle", { title: displayTitle(track.title) });
-  return `<button class="cat-upnext" type="button" title="${esc(i18nT("upNext.add"))}" aria-label="${esc(label)}">${UP_NEXT_ICON_SVG}</button>`;
+  const label = i18nT("upNext.addTitle", { title: displayTitle(libraryTitle(track)) });
+  return `<button class="cat-upnext" type="button" title="${esc(i18nT("upNext.add"))}" aria-label="${esc(label)}">${icon("listPlus")}</button>`;
 }
 
+// Queued by event rather than by import: upNext.js imports this module.
 function wireUpNextButton(el, trackId) {
   el.querySelector(".cat-upnext")?.addEventListener("click", function onAddToUpNext(e) {
     e.stopPropagation();
     document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id: trackId } }));
+  });
+}
+
+function moreButtonHtml(track) {
+  if (track.status !== "done") return "";
+  const label = i18nT("trackMenu.openTitle", { title: displayTitle(libraryTitle(track)) });
+  return `<button class="cat-more" type="button" title="${esc(i18nT("trackMenu.open"))}" aria-label="${esc(label)}" aria-haspopup="menu">${icon("more")}</button>`;
+}
+
+// trackMenu.js draws the menu; an event, since it imports this module.
+function wireMoreButton(el, trackId) {
+  el.querySelector(".cat-more")?.addEventListener("click", function onOpenTrackMenu(e) {
+    e.stopPropagation();
+    document.dispatchEvent(new CustomEvent("trackmenu", { detail: { id: trackId, anchor: e.currentTarget } }));
   });
 }
 
@@ -1383,7 +1522,7 @@ function wireTrackDragAndLoad(el, trackId) {
   });
   el.addEventListener("dragend", () => endDrag(el));
   el.addEventListener("click", (e) => {
-    if (e.target.closest(".cat-del, .cat-fav, .cat-upnext")) return;
+    if (e.target.closest(".cat-del, .cat-fav, .cat-upnext, .cat-more, .rename-form")) return;
     loadTrackIntoStudio(trackId);
   });
 }
@@ -1691,11 +1830,8 @@ function trackSublineHtml(track, { inTrash = false } = {}) {
   } else if (track.status === "stopped") {
     parts = [i18nT("track.stopped")];
   } else {
-    // Just the length. The stem count was here too, but every row carrying
-    // "6 stems" says the same thing forty times over, and the now-playing card
-    // shows it for the track that is open (#699). A done track that does not
-    // know its length says nothing rather than a placeholder.
-    parts = [track.duration ? fmtTime(track.duration) : ""];
+    // No stem count: forty rows saying "6 stems" says nothing (#699).
+    parts = [nowPlayingArtist(track), track.duration ? fmtTime(track.duration) : ""];
   }
   if (inTrash) parts.push(i18nT("track.removed"));
   // Spaced as text as well as by the row's flex gap, so what a screen reader
@@ -1716,14 +1852,15 @@ function renderRecentItem(trackId) {
   el.innerHTML = `
     <div class="cat-thumb">${thumbHtml(track)}</div>
     <div class="cat-meta">
-      <div class="cat-title">${esc(displayTitle(track.title))}</div>
+      <div class="cat-title">${esc(displayTitle(libraryTitle(track)))}</div>
       <div class="cat-sub">${trackSublineHtml(track)}</div>
     </div>
     <div class="cat-status${PROCESSING_STATUSES.has(track.status) ? " processing" : isUnavailable ? " unavailable" : ""}"></div>
-    <div class="cat-actions">${upNextButtonHtml(track)}${favButtonHtml(track)}</div>
+    <div class="cat-actions">${upNextButtonHtml(track)}${moreButtonHtml(track)}${favButtonHtml(track)}</div>
   `;
   wireFavButton(el, trackId);
   wireUpNextButton(el, trackId);
+  wireMoreButton(el, trackId);
   wireTrackDragAndLoad(el, trackId);
   return el;
 }
@@ -1817,15 +1954,15 @@ function renderTrackItem(trackId, { inTrash = false } = {}) {
   el.innerHTML = `
     <div class="cat-thumb">${thumbHtml(track)}</div>
     <div class="cat-meta">
-      <div class="cat-title">${esc(displayTitle(track.title))}</div>
+      <div class="cat-title">${esc(displayTitle(libraryTitle(track)))}</div>
       <div class="cat-sub">${trackSublineHtml(track, { inTrash })}</div>${inTrash ? `<div class="cat-sub trash-hint">${esc(i18nT("trash.holdToRestore"))}</div>` : ""}
     </div>
     <div class="cat-status${PROCESSING_STATUSES.has(track.status) ? " processing" : isUnavailable ? " unavailable" : ""}"></div>
-    ${inTrash ? `<div class="trash-hold" aria-hidden="true"></div>` : `<div class="cat-actions">${track.status === "stopped" ? extractButtonHtml(track) : ""}${upNextButtonHtml(track)}${favButtonHtml(track)}<button class="cat-del" type="button" title="${esc(i18nT("track.moveToTrash"))}">
+    ${inTrash ? `<div class="trash-hold" aria-hidden="true"></div>` : `<div class="cat-actions">${track.status === "stopped" ? extractButtonHtml(track) : ""}${upNextButtonHtml(track)}${moreButtonHtml(track)}${favButtonHtml(track)}<button class="cat-del" type="button" title="${esc(i18nT("track.moveToTrash"))}">
       ${TRASH_ICON_SVG}
     </button></div>`}
   `;
-  el.querySelector(".cat-del")?.setAttribute("aria-label", i18nT("track.moveTitleToTrash", { title: track.title ?? i18nT("track.unknown") }));
+  el.querySelector(".cat-del")?.setAttribute("aria-label", i18nT("track.moveTitleToTrash", { title: displayTitle(libraryTitle(track)) }));
 
   el.querySelector(".cat-del")?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -1838,6 +1975,7 @@ function renderTrackItem(trackId, { inTrash = false } = {}) {
   });
   wireFavButton(el, trackId);
   wireUpNextButton(el, trackId);
+  wireMoreButton(el, trackId);
 
   if (inTrash) {
     el.title = i18nT("trash.holdToRestore");
@@ -2073,6 +2211,8 @@ function render() {
   const trashIds = new Set(trash?.items || []);
   for (const id of _trashSelection) if (!trashIds.has(id)) _trashSelection.delete(id);
   updateTrashBadge(trashIds.size);
+  const songsCount = document.getElementById("libSongsCount");
+  if (songsCount) songsCount.textContent = String(Object.keys(tracks).filter((id) => !trashIds.has(id)).length);
   const isTrashView = catalogView === "trash";
   const isFavoritesView = catalogView === "favorites";
   const isQueueView = catalogView === "queue";
@@ -3444,6 +3584,7 @@ async function syncWithServer() {
           known.work = libraryWork(state.work);
           backfilled = true;
         }
+        if (applyServerNames(known, state)) backfilled = true;
         continue;
       }
       if (trashIds.has(state.job_id)) continue;   // soft-deleted, skip
@@ -3459,6 +3600,8 @@ async function syncWithServer() {
       const favBtn = document.getElementById("fav-btn");
       const current = tracks[_currentTrackId];
       if (favBtn && current) paintFavButton(favBtn, Boolean(current.favorite));
+      if (current) paintNowPlayingNames(current);
+      document.dispatchEvent(new CustomEvent("tracknames", { detail: { id: null } }));
     }
     reconcileAvailability(jobs);
     settleStaleProcessingTracks();

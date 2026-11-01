@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="/css/daw.css" />
     <link rel="stylesheet" href="/css/studio.css" />
     <link rel="stylesheet" href="/css/inspector.css" />
+    <link rel="stylesheet" href="/css/library.css" />
     <link rel="stylesheet" href="/css/stage-mode.css" />
   </head>
   <body>
@@ -284,6 +285,17 @@
               <span class="search-kbd" aria-hidden="true">⌘K</span>
             </div>
 
+            <div class="lib-tabs" role="tablist" aria-label="Library" data-i18n-aria-label="nav.library">
+              <button class="lib-tab" id="libTabSongs" type="button" role="tab" aria-selected="true" aria-controls="catalogList">
+                <span data-i18n="library.songsTab">Songs</span>
+                <span class="lib-tab-count num" id="libSongsCount">0</span>
+              </button>
+              <button class="lib-tab" id="libTabSetlists" type="button" role="tab" aria-selected="false" aria-controls="setlistsPanel" tabindex="-1">
+                <span data-i18n="setlists.title">Setlists</span>
+                <span class="lib-tab-count num" id="setlistsCount">0</span>
+              </button>
+            </div>
+
 
             <!-- Clear bin (visible only in trash-view) -->
             <div id="clearBinBar" class="clear-bin-bar">
@@ -314,13 +326,18 @@
               <div class="lyrics-body" id="lyricsBody"></div>
             </section>
 
-            <!-- Empty until the server has a setlists endpoint. -->
-            <section class="lib-setlists" id="setlistsPanel" aria-labelledby="setlistsTitle">
-              <h2 class="lib-setlists-title" id="setlistsTitle">
-                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/></svg>
-                <span data-i18n="setlists.title">Setlists</span>
-              </h2>
-              <p class="lib-setlists-empty" data-i18n="setlists.empty">No setlists yet.</p>
+            <section class="lib-setlists" id="setlistsPanel" role="tabpanel" aria-labelledby="libTabSetlists">
+              <div class="setlists-list" id="setlistsList"></div>
+              <div class="lib-setlists-empty" id="setlistsEmpty">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/></svg>
+                <strong data-i18n="setlists.empty">No setlists yet.</strong>
+                <span data-i18n="setlists.emptyHint">Make one here, or add a song to one from its … menu in Songs.</span>
+              </div>
+              <p class="setlists-error" id="setlistsError" role="alert" hidden></p>
+              <button class="setlist-new-btn" id="setlistNewBtn" type="button">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                <span data-i18n="setlists.new">New setlist</span>
+              </button>
             </section>
           </div>
         </aside>
@@ -352,6 +369,7 @@
                    height; hidden when neither is known. -->
               <span class="np-artist" id="np-artist" hidden></span>
             </div>
+            <button class="np-rename-btn" type="button" id="np-rename-btn" title="Rename this song" aria-label="Rename this song" data-i18n-title="rename.open" data-i18n-aria-label="rename.open"></button>
             <button class="daw-fav-btn" type="button" id="fav-btn" aria-label="Toggle favorite" data-i18n-aria-label="fav.toggleAria" aria-pressed="false">
               <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" /></svg>
             </button>
@@ -845,13 +863,16 @@
             <div class="upnext-block">
               <div class="upnext-head">
                 <span class="inspector-label" data-i18n="upNext.heading">Up next</span>
-                <button class="inspector-quiet-btn" id="upNextClear" type="button" data-i18n="upNext.clear" hidden>Clear</button>
+                <span class="upnext-actions">
+                  <button class="inspector-quiet-btn" id="upNextSave" type="button" data-i18n="setlists.saveUpNext" hidden>Save as setlist</button>
+                  <button class="inspector-quiet-btn" id="upNextClear" type="button" data-i18n="upNext.clear" hidden>Clear</button>
+                </span>
               </div>
               <ol class="upnext-list" id="upNextList"></ol>
               <div class="inspector-empty" id="upNextEmpty">
                 <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/></svg>
                 <strong data-i18n="upNext.empty">Up Next is empty</strong>
-                <span data-i18n="upNext.emptyHint">Press + on a song in the library to play it after this one.</span>
+                <span data-i18n="upNext.emptyHint">Choose Add to Up Next from a song's … menu in the library.</span>
               </div>
             </div>
             <p class="inspector-hint" data-i18n="upNext.autoplayHint">When a song ends, the next one starts.</p>

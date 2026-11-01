@@ -85,6 +85,17 @@ async function stubWikimedia(page) {
   return asked;
 }
 
+/** Have the server report a job under the title the test imported it with. */
+async function serveJobTitle(page, id, title) {
+  const retitle = (state) => (state.job_id === id ? { ...state, title, detected_title: title } : state);
+  await page.route(/\/api\/jobs(\?.*|\/[^/?]+)?$/, async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    const response = await route.fetch();
+    const body = await response.json();
+    return route.fulfill({ response, json: Array.isArray(body) ? body.map(retitle) : retitle(body) });
+  });
+}
+
 // Both fixture jobs are always in the library: they share a source, and a
 // job the server lists that the library lacks replaces its twin (#542).
 async function openPage(page, tracks, { audioTags = null } = {}) {
@@ -235,6 +246,7 @@ test.describe("the work a soundtrack is from", () => {
       year: 2003,
       secondaryTypes: ["Soundtrack"],
     };
+    await serveJobTitle(page, JOB_ID, raw);
     await openPage(page, {
       [JOB_ID]: { ...fixtureTrack(JOB_ID, raw), audioTagsChecked: true, workChecked: true, work: WICKED, identity },
     });
