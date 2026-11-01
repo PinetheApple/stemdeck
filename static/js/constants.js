@@ -53,18 +53,20 @@ export const STEM_DISPLAY = new Proxy({}, {
   },
 });
 
-// FL Studio-style channel palette: saturated but slightly dusty, designed
-// to read well on a dark background.
+export const EMPTY_VALUE = "—";
+
+// Mirrors the --vocals..--other tokens in variables.css: canvases cannot read
+// CSS custom properties, so the lane drawings take their colours from here.
 export const STEM_COLORS = {
-  vocals: "#e85f6f",
-  drums: "#e89048",
-  bass: "#e8b848",
-  guitar: "#88d878",
-  piano: "#b88fe8",
-  other: "#88a8c8",
-  original: "#a8b0bd",
-  lead_vocals: "#e8748a",
-  backing_vocals: "#c98fe0",
+  vocals: "#ff8fab",
+  drums: "#ffb45e",
+  bass: "#f2dc6b",
+  guitar: "#7ddc9a",
+  piano: "#a9a2ff",
+  other: "#b3b8c0",
+  original: "#c9c5c0",
+  lead_vocals: "#ff9fb6",
+  backing_vocals: "#e3a6e6",
 };
 
 export const PROGRESS_COLOR = "#3a3a3a";

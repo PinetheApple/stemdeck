@@ -4,12 +4,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>StemDeck — split any track into stems</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Icons: Lucide (ISC, static/vendor/LICENSE-lucide.txt). Fonts: Manrope and IBM Plex Mono (OFL, static/fonts/). -->
+    <link rel="stylesheet" href="/css/fonts.css" />
     <link rel="stylesheet" href="/css/variables.css" />
     <link rel="stylesheet" href="/css/waves.css" />
     <link rel="stylesheet" href="/css/daw.css" />
+    <link rel="stylesheet" href="/css/studio.css" />
+    <link rel="stylesheet" href="/css/inspector.css" />
+    <link rel="stylesheet" href="/css/stage-mode.css" />
   </head>
   <body>
 
@@ -82,9 +84,7 @@
               <span class="file-name" id="trackPillName"></span>
             </div>
             <button class="daw-upload-btn" type="button" title="Upload audio file" id="uploadFileBtn" aria-label="Upload audio file" data-i18n-title="topbar.uploadFile" data-i18n-aria-label="topbar.uploadFile">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                <path d="M12 3v12 M7 8l5-5 5 5 M5 21h14"/>
-              </svg>
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /> <path d="m17 8-5-5-5 5" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /></svg>
             </button>
             <input id="fileInput" type="file" multiple accept=".mp3,.wav,.flac,.mp4,.m4a,.ogg,.opus,audio/mpeg,audio/wav,audio/flac,video/mp4,audio/mp4,audio/ogg,audio/opus" style="display:none" aria-hidden="true" />
           </div>
@@ -166,105 +166,6 @@
             <span class="structure-toggle-note" data-i18n="structure.experimental">Experimental</span>
           </button>
 
-          <!-- The loaded track, named where the two rows leave room for it.
-               It used to fill the gutter beside the footer timeline. That
-               timeline is gone, and this row had empty space in the middle. -->
-          <div class="footer-track-slot" id="nowPlayingPanel">
-          <!-- Says what this card is, so it is not read as the input to Split
-               beside it (#699). Set into the top border by daw.css. -->
-          <span class="np-legend" data-i18n="track.nowPlaying">Now playing</span>
-          <div class="track-panel-head">
-            <div class="daw-cover track-panel-cover" id="np-art">
-              <div class="np-art-placeholder" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-                </svg>
-              </div>
-              <img id="np-thumb" class="np-art-img" alt="" referrerpolicy="no-referrer" />
-            </div>
-            <div class="track-panel-info">
-              <div class="daw-track-title track-panel-title" id="title">—</div>
-              <!-- The artist, from the file's tags or the band saved on the
-                   track (#699). On the title's line, so the card keeps its
-                   height; hidden when neither is known. -->
-              <span class="np-artist" id="np-artist" hidden></span>
-            </div>
-            <!-- type="button" is load-bearing. This sits inside <form id="job-form">
-                 since the now-playing block moved up into the composer, and a
-                 button with no type inside a form is a submit button: pressing the
-                 heart started an extraction. -->
-            <button class="daw-fav-btn" type="button" id="fav-btn" aria-label="Toggle favorite" data-i18n-aria-label="fav.toggleAria" aria-pressed="false">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-              </svg>
-            </button>
-            <!-- The song and artist box (#699): the song, the show a soundtrack
-                 is from, the band, and where a band is saved on the track. type="button" for the
-                 same reason as the heart: this is inside <form id="job-form">. -->
-            <button class="daw-details-btn" type="button" id="np-details-btn" title="About this song" aria-label="About this song" data-i18n-title="artist.openTitle" data-i18n-aria-label="artist.openTitle">
-              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><path d="M12 7.6v.01" stroke-width="2.4"/>
-              </svg>
-            </button>
-          </div>
-
-          <div class="daw-track-meta-line">
-            <span class="num" id="t-meta-duration">—</span>
-            <span class="daw-track-sep" aria-hidden="true">·</span>
-            <span id="t-stems-chip">— stems</span>
-            <span class="daw-track-sep" aria-hidden="true">·</span>
-            <span id="track-source">—</span>
-            <span class="daw-track-sep" aria-hidden="true">·</span>
-            <span id="track-quality">—</span>
-            <span class="daw-track-sep" aria-hidden="true">·</span>
-            <span><span data-i18n="footer.extractedLabel">Extracted</span> <span id="track-extracted">—</span></span>
-          </div>
-
-          <!-- Hidden spans for JS compat: not shown, but still written to
-               (t-time is superseded here by the Position group in the
-               controls row -- keeping it live would just duplicate that
-               readout next to the title). -->
-          <div style="display:none" aria-hidden="true">
-            <span id="t-time"></span><span id="t-bpm"></span><span id="t-key"></span><span id="track-artist"></span>
-          </div>
-          </div>
-
-        <!-- Panel toggles (#480). Every panel around the mixer is useful and
-             none of them is useful all the time, so the fix is a way to put one
-             away rather than a smaller default. They sit under the composer's
-             right-hand end, beneath the two controls that decide what an import
-             produces, because these decide what the studio shows: both are
-             choices about the layout rather than about a track. Collapsing to
-             zero is only possible because the way back is always here; a
-             control on each panel would need that panel to keep a stub, and the
-             stub costs most of what collapsing the smaller ones returns. -->
-        <div class="daw-panel-toggles">
-          <!-- "Collapse" labels the row and is not a control, so the rule sits
-               after it: everything to its right is a button. The label is one
-               word because the row has no width for a sentence.
-
-               There was an "All" here, one press to put every panel away. It
-               governed two panels by the end, so it saved a single press, and
-               it was another control in this bar wearing a word that already
-               means something else two rows up. The panels it governed each
-               have their own button, which is the only way back from a
-               collapsed one.
-
-               The library was never among them, and not by omission: it used to
-               be, and nothing in this row could put it back (#588). Its control
-               lives in the rail. -->
-          <span class="daw-panel-toggles-label" data-i18n="panels.collapse">Collapse</span>
-          <button class="daw-panel-toggle" type="button" data-panel="analysis" aria-pressed="true"
-                  title="Show or hide the track analysis" data-i18n-title="panels.analysisTitle" data-i18n-aria-label="panels.analysisTitle">
-            <span data-i18n="panels.analysis">Analysis</span>
-          </button>
-          <span class="daw-panel-toggles-sep" aria-hidden="true">-</span>
-          <button class="daw-panel-toggle" type="button" data-panel="sections" aria-pressed="true"
-                  title="Show or hide the sections bar" data-i18n-title="panels.sectionsTitle" data-i18n-aria-label="panels.sectionsTitle">
-            <span data-i18n="sections.title">Sections</span>
-          </button>
-        </div>
-
           <!-- Process button -->
           <button id="submit" class="daw-process-btn" type="submit">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -284,49 +185,36 @@
 
       <!-- ══ BODY ══ -->
       <div class="daw-body">
+      <div class="daw-panes">
 
         <!-- ── Sidebar / Catalog ── -->
         <aside class="sidebar" id="catalogPanel">
           <!-- Rail -->
           <nav class="sidebar-rail" aria-label="Library navigation" data-i18n-aria-label="nav.libraryNav">
             <button class="rail-btn rail-collapse" id="sidebarCollapseBtn" type="button" title="Toggle library" aria-label="Toggle library" aria-expanded="true" data-i18n-title="nav.toggleLibrary" data-i18n-aria-label="nav.toggleLibrary">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-                <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
-              </svg>
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /> <path d="M9 3v18" /></svg>
             </button>
             <button class="rail-btn rail-favorites" type="button" title="Favorites" aria-label="Favorites" aria-pressed="false" data-i18n-title="nav.favorites" data-i18n-aria-label="nav.favorites">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-              </svg>
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" /></svg>
               <span data-i18n="nav.favorites">Favorites</span>
             </button>
             <button class="rail-btn rail-library active" id="appMenuBtn" type="button" title="Library" aria-label="Library" aria-pressed="true" data-i18n-title="nav.library" data-i18n-aria-label="nav.library">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-                <path d="M4 4h16v16H4z M4 9h16"/>
-              </svg>
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6 4 14" /> <path d="M12 6v14" /> <path d="M8 8v12" /> <path d="M4 4v16" /></svg>
               <span data-i18n="nav.library">Library</span>
             </button>
             <!-- Lyrics for the open track (#699): a view of the sidebar, like
                  Favorites and Trash, drawn by lyrics.js. -->
             <button class="rail-btn rail-lyrics" type="button" title="Lyrics" aria-label="Lyrics" aria-pressed="false" data-i18n-title="nav.lyrics" data-i18n-aria-label="nav.lyrics">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M4 6h11 M4 11h11 M4 16h6"/>
-                <path d="M18 5v10.5"/><circle cx="15.8" cy="16" r="2.2"/><path d="M18 5l3 1.2"/>
-              </svg>
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 7.601-5.994 8.19a1 1 0 0 0 .1 1.298l.817.818a1 1 0 0 0 1.314.087L15.09 12" /> <path d="M16.5 21.174C15.5 20.5 14.372 20 13 20c-2.058 0-3.928 2.356-6 2-2.072-.356-2.775-3.369-1.5-4.5" /> <circle cx="16" cy="7" r="5" /></svg>
               <span data-i18n="nav.lyrics">Lyrics</span>
             </button>
             <button class="rail-btn rail-queue hidden" type="button" title="Import queue" aria-label="Import queue" aria-pressed="false" data-i18n-title="nav.importQueue" data-i18n-aria-label="nav.importQueue">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-                <path d="M4 6h10 M4 12h10 M4 18h6"/>
-                <path d="M16 15l3 3 3-3 M19 18V9"/>
-              </svg>
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5h10" /> <path d="M11 12h10" /> <path d="M11 19h10" /> <path d="M4 4h1v5" /> <path d="M4 9h2" /> <path d="M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02" /></svg>
               <span data-i18n="nav.queue">Queue</span>
               <span class="rail-badge hidden" id="queueBadge" aria-hidden="true"></span>
             </button>
             <button class="rail-btn rail-trash" type="button" title="Trash" aria-label="Trash" aria-pressed="false">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-                <path d="M3 6h18 M8 6V4h8v2 M19 6l-1 14H6L5 6"/>
-              </svg>
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6" /> <path d="M14 11v6" /> <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /> <path d="M3 6h18" /> <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
               <span data-i18n="nav.trash">Trash</span>
               <span class="rail-badge hidden" id="trashBadge" aria-hidden="true"></span>
             </button>
@@ -334,9 +222,7 @@
             <button class="rail-btn rail-guide" type="button" id="helpModeBtn" aria-pressed="false"
                     title="Explain the screen" aria-label="Explain the screen"
                     data-i18n-title="help.button" data-i18n-aria-label="help.button">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M2 5.5c3-1.3 6-1.3 10 1v13c-4-2.3-7-2.3-10-1z M22 5.5c-3-1.3-6-1.3-10 1v13c4-2.3 7-2.3 10-1z"/>
-              </svg>
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14" /> <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></svg>
               <span data-i18n="help.railLabel">Guide</span>
             </button>
             <div style="flex:1"></div>
@@ -347,9 +233,7 @@
                  notification is. -->
             <div class="daw-notif-wrap">
               <button class="rail-btn" id="notifBtn" title="Notifications" type="button" aria-label="Notifications" aria-expanded="false" data-i18n-title="notif.bell" data-i18n-aria-label="notif.bell">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.7 21a2 2 0 0 1-3.4 0"/>
-                </svg>
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0" /> <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" /></svg>
                 <span data-i18n="notif.title">Notifications</span>
                 <span class="daw-notif-badge hidden" id="notifBadge" aria-hidden="true"></span>
               </button>
@@ -378,24 +262,12 @@
                 </div>
               </div>
             </div>
-            <button class="rail-btn rail-recommend" id="friendsBtn" type="button" title="We Recommend" aria-label="We Recommend" aria-haspopup="dialog" data-i18n-title="nav.weRecommend" data-i18n-aria-label="nav.weRecommend">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
-              </svg>
-              <span><span data-i18n="nav.weRecommendLine1">We</span><br><span data-i18n="nav.weRecommendLine2">Recommend</span></span>
-            </button>
             <button class="rail-btn" id="settingsBtn" type="button" aria-label="Settings" aria-haspopup="dialog" data-i18n-aria-label="nav.settings">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M12 2v2 M12 20v2 M4 12H2 M22 12h-2 M5 5l1.5 1.5 M17.5 17.5 19 19 M5 19l1.5-1.5 M17.5 6.5 19 5"/>
-              </svg>
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /> <circle cx="12" cy="12" r="3" /></svg>
               <span data-i18n="nav.settings">Settings</span>
             </button>
             <button class="rail-btn" id="aboutBtn" type="button" title="Help" aria-label="Help" data-i18n-title="nav.help" data-i18n-aria-label="nav.help">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-                <circle cx="12" cy="12" r="9"/>
-                <path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .8-1 1.7 M12 17h.01"/>
-              </svg>
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /> <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /> <path d="M12 17h.01" /></svg>
               <span data-i18n="nav.help">Help</span>
             </button>
           </nav>
@@ -441,6 +313,15 @@
               <div class="lyrics-versions" id="lyricsVersions"></div>
               <div class="lyrics-body" id="lyricsBody"></div>
             </section>
+
+            <!-- Empty until the server has a setlists endpoint. -->
+            <section class="lib-setlists" id="setlistsPanel" aria-labelledby="setlistsTitle">
+              <h2 class="lib-setlists-title" id="setlistsTitle">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/></svg>
+                <span data-i18n="setlists.title">Setlists</span>
+              </h2>
+              <p class="lib-setlists-empty" data-i18n="setlists.empty">No setlists yet.</p>
+            </section>
           </div>
         </aside>
 
@@ -451,102 +332,55 @@
           <!-- Job progress -->
           <div id="error" class="error hidden" role="alert"></div>
 
-          <!-- Track header / info panel -->
-          <div id="transport" class="daw-track-header">
-
-            <!-- Row 1: track card + metadata cards -->
-            <div class="daw-info-row">
-
-              <div class="daw-meta-card" data-meta="key">
-                <span class="meta-card-label" data-i18n="meta.key">KEY</span>
-                <div class="meta-card-main">
-                  <span class="meta-card-value" id="summary-key">—</span>
-                  <div class="daw-camelot-ring hidden" id="summary-confidence"></div>
-                </div>
+          <header class="song-head" id="songHead">
+          <div class="footer-track-slot" id="nowPlayingPanel">
+          <!-- Kept for screen readers; the song head's position says it. -->
+          <span class="np-legend" data-i18n="track.nowPlaying">Now playing</span>
+          <div class="track-panel-head">
+            <div class="daw-cover track-panel-cover" id="np-art">
+              <div class="np-art-placeholder" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+                </svg>
               </div>
-
-              <div class="daw-meta-card" data-meta="bpm">
-                <span class="meta-card-label" data-i18n="meta.bpm">BPM</span>
-                <div class="meta-card-main">
-                  <span class="meta-card-value accent" id="summary-bpm">—</span>
-                </div>
-              </div>
-
-              <div class="daw-meta-card" data-meta="lufs">
-                <span class="meta-card-label" data-i18n="meta.lufs">LUFS</span>
-                <div class="meta-card-main">
-                  <span class="meta-card-value" id="summary-lufs">—</span>
-                  <span class="meta-card-sub" id="summary-peak"></span>
-                </div>
-              </div>
-
-              <div class="daw-meta-card" data-meta="duration">
-                <span class="meta-card-label" data-i18n="meta.duration">DURATION</span>
-                <div class="meta-card-main">
-                  <span class="meta-card-value num" id="summary-duration">—</span>
-                </div>
-              </div>
-
-              <div class="daw-meta-card" data-meta="dr">
-                <span class="meta-card-label" data-i18n="meta.dynamicRange">DYNAMIC RANGE</span>
-                <div class="meta-card-main">
-                  <span class="meta-card-value" id="summary-dr">—</span>
-                  <span class="meta-card-sub" id="summary-dr-label"></span>
-                </div>
-              </div>
-
-              <div class="daw-meta-card" data-meta="stability">
-                <span class="meta-card-label" data-i18n="meta.tempoStability">TEMPO STABILITY</span>
-                <div class="meta-card-main">
-                  <span class="meta-card-value" id="summary-stability">—</span>
-                  <span class="meta-card-sub" id="summary-stability-label"></span>
-                </div>
-              </div>
+              <img id="np-thumb" class="np-art-img" alt="" referrerpolicy="no-referrer" />
             </div>
-
-            <!-- Row 2: stem presence cards -->
-            <div class="stem-presence-panel">
-              <div class="stem-card inactive" data-stem="vocals">
-                <span class="stem-card-label" data-i18n="presence.vocalGlobal">GLOBAL VOCALS</span>
-                <span class="stem-card-pct">—</span>
-              </div>
-              <!-- The lead/backing pair replaces the single Vocals card once
-                   the on-demand split (#275) has run, so this row keeps the
-                   same seven columns as the metadata row above it. Hidden
-                   until then, by applyStemSelectionFilter. -->
-              <div class="stem-card inactive hidden" data-stem="lead_vocals">
-                <span class="stem-card-label" data-i18n="stem.lead_vocals">LEAD VOCALS</span>
-                <span class="stem-card-pct">—</span>
-              </div>
-              <div class="stem-card inactive hidden" data-stem="backing_vocals">
-                <span class="stem-card-label" data-i18n="stem.backing_vocals">BACKING VOCALS</span>
-                <span class="stem-card-pct">—</span>
-              </div>
-              <div class="stem-card inactive" data-stem="drums">
-                <span class="stem-card-label" data-i18n="presence.drum">DRUM INTENSITY</span>
-                <span class="stem-card-pct">—</span>
-              </div>
-              <div class="stem-card inactive" data-stem="bass">
-                <span class="stem-card-label" data-i18n="presence.bass">BASS DEPTH</span>
-                <span class="stem-card-pct">—</span>
-              </div>
-              <div class="stem-card inactive" data-stem="guitar">
-                <span class="stem-card-label" data-i18n="presence.guitar">GUITAR PRESENCE</span>
-                <span class="stem-card-pct">—</span>
-              </div>
-              <div class="stem-card inactive" data-stem="piano">
-                <span class="stem-card-label" data-i18n="presence.piano">PIANO PRESENCE</span>
-                <span class="stem-card-pct">—</span>
-              </div>
-              <div class="stem-card inactive" data-stem="other">
-                <span class="stem-card-label" data-i18n="presence.other">OTHER</span>
-                <span class="stem-card-pct">—</span>
-              </div>
+            <div class="track-panel-info">
+              <div class="daw-track-title track-panel-title" id="title">—</div>
+              <!-- The artist, from the file's tags or the band saved on the
+                   track (#699). On the title's line, so the card keeps its
+                   height; hidden when neither is known. -->
+              <span class="np-artist" id="np-artist" hidden></span>
             </div>
-
-            <!-- Hidden compat -->
-            <div style="display:none" aria-hidden="true"><div id="loudness-card"></div></div>
+            <button class="daw-fav-btn" type="button" id="fav-btn" aria-label="Toggle favorite" data-i18n-aria-label="fav.toggleAria" aria-pressed="false">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" /></svg>
+            </button>
+            <!-- The song and artist box (#699): the song, the show a soundtrack
+                 is from, the band, and where a band is saved on the track. -->
+            <button class="daw-details-btn" type="button" id="np-details-btn" title="About this song" aria-label="About this song" data-i18n-title="artist.openTitle" data-i18n-aria-label="artist.openTitle">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /> <path d="M12 16v-4" /> <path d="M12 8h.01" /></svg>
+            </button>
           </div>
+
+          <!-- Hidden spans for JS compat: written to, never shown. -->
+          <div style="display:none" aria-hidden="true">
+            <span id="t-time"></span><span id="t-bpm"></span><span id="t-key"></span><span id="track-artist"></span>
+          </div>
+          </div>
+        <!-- Panel toggles (#480): a way to put a panel away, kept outside the
+             panel so the way back is always on screen. -->
+        <div class="daw-panel-toggles">
+          <span class="daw-panel-toggles-label" data-i18n="panels.collapse">Collapse</span>
+          <button class="daw-panel-toggle" type="button" data-panel="sections" aria-pressed="true"
+                  title="Show or hide the sections bar" data-i18n-title="panels.sectionsTitle" data-i18n-aria-label="panels.sectionsTitle">
+            <span data-i18n="sections.title">Sections</span>
+          </button>
+        </div>
+          <button class="stage-mode-btn" id="stageModeBtn" type="button" aria-pressed="false" title="Full-screen view to play along from (F)" data-i18n-title="stage.enterTitle">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/></svg>
+            <span data-i18n="stage.enter">Stage mode</span>
+          </button>
+          </header>
 
           <!-- Sections bar -->
           <div class="daw-section-ribbon">
@@ -608,7 +442,7 @@
                 <div class="lanes-ruler-time" id="ruler-time">
                   <div class="playhead-marker" aria-hidden="true">
                     <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true">
-                      <polygon points="0,0 10,0 5,8" fill="var(--accent)"/>
+                      <polygon points="0,0 10,0 5,8" fill="currentColor"/>
                     </svg>
                   </div>
                 </div>
@@ -808,102 +642,76 @@
 
           </div><!-- /.daw-content -->
 
+
+          <!-- Stage mode: drawn over the lanes, so the studio keeps its size underneath. -->
+          <section class="stage-view" id="stageView" hidden aria-label="Stage mode" data-i18n-aria-label="stage.aria">
+            <header class="stage-top">
+              <div class="stage-song">
+                <div class="stage-title" id="stageTitle">—</div>
+                <div class="stage-artist" id="stageArtist"></div>
+              </div>
+              <button class="stage-exit" id="stageExitBtn" type="button" title="Exit stage (Esc)" data-i18n-title="stage.exitTitle">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/></svg>
+                <span data-i18n="stage.exit">Exit stage</span>
+              </button>
+            </header>
+            <div class="stage-center">
+              <div class="stage-section" id="stageSection"></div>
+              <div class="stage-time num" aria-live="off">
+                <span id="stageElapsed">0:00</span><span class="stage-total" id="stageTotal">0:00</span>
+              </div>
+              <dl class="stage-facts">
+                <div class="stage-fact">
+                  <dt data-i18n="stage.tempo">Tempo</dt>
+                  <dd class="num" id="stageTempo">—</dd>
+                </div>
+                <div class="stage-fact">
+                  <dt data-i18n="stage.next">Next</dt>
+                  <dd id="stageNext">—</dd>
+                </div>
+              </dl>
+            </div>
+            <div class="stage-transport">
+              <button class="stage-btn" id="stageStopBtn" type="button" title="Stop" aria-label="Stop" data-i18n-title="transport.stop" data-i18n-aria-label="transport.stop">
+                <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+              </button>
+              <button class="stage-play" id="stagePlayBtn" type="button" aria-label="Play / Pause" data-i18n-aria-label="transport.playPause" aria-pressed="false">
+                <svg class="ic ic-fill stage-play-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>
+                <svg class="ic ic-fill stage-pause-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></svg>
+              </button>
+              <button class="stage-btn" id="stageNextBtn" type="button" title="Play the next song in Up Next" aria-label="Play the next song in Up Next" data-i18n-title="upNext.nextTitle" data-i18n-aria-label="upNext.nextTitle" disabled>
+                <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4v16"/><path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z"/></svg>
+              </button>
+            </div>
+          </section>
+
         </div><!-- /#lanes -->
 
-      <!-- ══ FOOTER — sibling of #lanes inside .daw-main-col, not clipped ══ -->
-      <footer class="daw-footer">
 
-        <!-- Everything time-related, aligned with the lanes. The track identity
-             that used to sit to the left of this now lives at the bottom of the
-             library sidebar; the footer keeps that column's width as padding so
-             a position still reads at the same x here as in the lanes above. -->
-        <div class="footer-main">
+        </div><!-- /.daw-main-col -->
 
-        <!-- Every playback and click control, in labelled clusters -->
-        <div class="footer-row-controls">
-          <div class="footer-clusters">
-          <div class="footer-group footer-group-transport">
-            <span class="footer-group-label" data-i18n="transport.group">Transport</span>
-            <div class="footer-group-body">
-              <button class="daw-iconbtn btn-transport" id="t-stop" type="button" title="Stop" aria-label="Stop" data-i18n-title="transport.stop" data-i18n-aria-label="transport.stop">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <rect x="6" y="6" width="12" height="12"/>
-                </svg>
-              </button>
-              <button class="daw-play-btn btn-transport" id="t-play" type="button" aria-label="Play / Pause" data-i18n-aria-label="transport.playPause">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true" style="margin-left:2px">
-                  <path d="M6 4l14 8L6 20z"/>
-                </svg>
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" class="pause-icon" aria-hidden="true" style="display:none">
-                  <rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/>
-                </svg>
-              </button>
-            </div>
+        <aside class="inspector" id="inspector" aria-label="Song tools" data-i18n-aria-label="inspector.aria">
+          <div class="inspector-tabs" role="tablist" aria-label="Song tools" data-i18n-aria-label="inspector.aria">
+            <button class="inspector-tab" type="button" role="tab" id="inspectorTabTempo" data-tab="tempo" aria-controls="inspectorPaneTempo" aria-selected="true">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 11.4V9.1"/><path d="m12 17 6.59-6.59"/><path d="m15.05 5.7-.218-.691a3 3 0 0 0-5.663 0L4.418 19.695A1 1 0 0 0 5.37 21h13.253a1 1 0 0 0 .951-1.31L18.45 16.2"/><circle cx="20" cy="9" r="2"/></svg>
+              <span data-i18n="inspector.tempo">Tempo</span>
+            </button>
+            <button class="inspector-tab" type="button" role="tab" id="inspectorTabUpNext" data-tab="upnext" aria-controls="inspectorPaneUpNext" aria-selected="false" tabindex="-1">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/></svg>
+              <span data-i18n="inspector.upNext">Up Next</span>
+              <span class="inspector-count num" id="upNextCount" hidden>0</span>
+            </button>
+            <button class="inspector-tab" type="button" role="tab" id="inspectorTabDetails" data-tab="details" aria-controls="inspectorPaneDetails" aria-selected="false" tabindex="-1">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              <span data-i18n="inspector.details">Details</span>
+            </button>
           </div>
 
-          <span class="footer-divider" aria-hidden="true"></span>
-
-          <!-- Loop lives with the readout it acts on: the loop is a position,
-               not a transport mode (design 1b). -->
-          <div class="footer-group footer-group-position">
-            <span class="footer-group-label" data-i18n="position.group">Position</span>
-            <div class="footer-group-body">
-              <span class="num footer-elapsed" id="footer-time-elapsed">0:00</span>
-              <span class="footer-time-sep">/</span>
-              <span class="num footer-total" id="footer-time-total">0:00</span>
-              <!-- Loop stands beside the two bounds rather than over them. As a
-                   row of its own it stretched the footer bar to three lines for
-                   one button; as a column it fills the height the fields and
-                   their hint already take. -->
-              <button class="daw-iconbtn btn-transport loop" id="t-loop" type="button" title="Loop the selected position (L)" aria-label="Loop" data-i18n-title="position.loopTitle">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                  <path d="M17 2l4 4-4 4 M3 12V8a2 2 0 0 1 2-2h16 M7 22l-4-4 4-4 M21 12v4a2 2 0 0 1-2 2H3"/>
-                </svg>
-                <span class="loop-btn-label" data-i18n="position.loopLabel">Loop</span>
-              </button>
-              <div class="footer-loop-times-wrap">
-                <!-- The hint sits with the fields it describes: wheel
-                     adjustment is invisible until you try it. It is a label,
-                     not a control, so nothing here looks pressable. -->
-                <span class="footer-loop-hint" data-i18n="position.loopScrollHint">Scroll up/down to adjust</span>
-                <div class="footer-loop-times" title="Exact loop start / end (mm:ss.mmm or seconds)" data-i18n-title="position.loopExactTitle">
-                  <input type="text" id="t-loop-start" class="loop-time-input num" inputmode="decimal" spellcheck="false" autocomplete="off" aria-label="Loop start" data-i18n-aria-label="position.loopStartAria" value="00.000">
-                  <span class="loop-times-sep" aria-hidden="true">-</span>
-                  <input type="text" id="t-loop-end" class="loop-time-input num" inputmode="decimal" spellcheck="false" autocomplete="off" aria-label="Loop end" data-i18n-aria-label="position.loopEndAria" value="00.000">
-                </div>
-              </div>
+          <section class="inspector-pane" id="inspectorPaneTempo" role="tabpanel" aria-labelledby="inspectorTabTempo" data-pane="tempo">
+            <div class="inspector-card tempo-card">
+              <span class="inspector-label" data-i18n="inspector.detectedTempo">Detected tempo</span>
+              <span class="tempo-card-value"><span class="num" id="tempoReadout">—</span> <span class="tempo-card-unit" data-i18n="meta.bpm">BPM</span></span>
             </div>
-          </div>
-
-          <span class="footer-divider" aria-hidden="true"></span>
-
-          <div class="footer-group footer-group-speed">
-            <span class="footer-group-label" data-i18n="speed.group">Speed</span>
-            <div class="footer-group-body">
-              <div class="footer-seg speed-group" id="t-speed-wrap" role="radiogroup" aria-label="Playback speed" data-i18n-aria-label="speed.ariaLabel">
-                <button class="speed-btn" id="t-speed-05" type="button" role="radio" aria-checked="false" data-speed="0.5">0.5x</button>
-                <button class="speed-btn" id="t-speed-075" type="button" role="radio" aria-checked="false" data-speed="0.75">0.75x</button>
-                <button class="speed-btn active" id="t-speed-1" type="button" role="radio" aria-checked="true" data-speed="1">1x</button>
-              </div>
-            </div>
-          </div>
-
-          <span class="footer-divider" aria-hidden="true"></span>
-
-          <div class="footer-group footer-group-key">
-            <span class="footer-group-label" id="t-pitch-label" data-i18n="pitch.group">Global key</span>
-            <div class="footer-group-body">
-              <div class="footer-seg pitch-group" id="t-pitch-wrap" role="group" aria-labelledby="t-pitch-label">
-                <button class="pitch-btn" id="t-pitch-down" type="button" title="Transpose down a semitone" aria-label="Transpose down a semitone" data-i18n-title="pitch.downTitle" data-i18n-aria-label="pitch.downTitle" disabled>&minus;</button>
-                <output class="pitch-value" id="t-pitch-value" for="t-pitch-down t-pitch-up" aria-labelledby="t-pitch-label" aria-live="polite">0</output>
-                <button class="pitch-btn" id="t-pitch-up" type="button" title="Transpose up a semitone" aria-label="Transpose up a semitone" data-i18n-title="pitch.upTitle" data-i18n-aria-label="pitch.upTitle" disabled>+</button>
-              </div>
-              <button class="pitch-reset" id="t-pitch-reset" type="button" title="Put every lane back in the original key" aria-label="Put every lane back in the original key" data-i18n-title="pitch.resetTitle" data-i18n-aria-label="pitch.resetTitle" disabled>&#8634;</button>
-            </div>
-          </div>
-
-          <span class="footer-divider" aria-hidden="true"></span>
-
           <div class="footer-group footer-group-click" id="t-metro-wrap">
             <span class="footer-group-label" data-i18n="click.group">Click track</span>
             <div class="footer-group-body">
@@ -978,8 +786,8 @@
                   <button class="metro-mult-btn" id="t-metro-double" type="button" role="radio" aria-checked="false" title="Double time" data-i18n-title="click.double">x2</button>
                 </div>
               </div>
-              <!-- Only ever visible once footerFit has decided the options do
-                   not fit inline; see .collapse-click in daw.css. -->
+              <!-- The footer popover's disclosure. The options always fit in
+                   this tab, so studio.css keeps it hidden here. -->
               <button class="click-more-btn" id="t-metro-more" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="t-metro-panel" title="Click track options" data-i18n-title="click.optionsAria" aria-label="Click track options" data-i18n-aria-label="click.optionsAria">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
                   <polyline points="6 15 12 9 18 15"/>
@@ -987,6 +795,231 @@
               </button>
             </div>
           </div>
+          <div class="metro-note" id="t-metro-note"></div>
+          </section>
+
+          <section class="inspector-pane" id="inspectorPaneUpNext" role="tabpanel" aria-labelledby="inspectorTabUpNext" data-pane="upnext" hidden>
+            <div class="upnext-block">
+              <span class="inspector-label" data-i18n="upNext.nowPlaying">Now playing</span>
+              <div class="upnext-now" id="upNextNow"></div>
+            </div>
+            <div class="upnext-block">
+              <div class="upnext-head">
+                <span class="inspector-label" data-i18n="upNext.heading">Up next</span>
+                <button class="inspector-quiet-btn" id="upNextClear" type="button" data-i18n="upNext.clear" hidden>Clear</button>
+              </div>
+              <ol class="upnext-list" id="upNextList"></ol>
+              <div class="inspector-empty" id="upNextEmpty">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/></svg>
+                <strong data-i18n="upNext.empty">Up Next is empty</strong>
+                <span data-i18n="upNext.emptyHint">Press + on a song in the library to play it after this one.</span>
+              </div>
+            </div>
+            <p class="inspector-hint" data-i18n="upNext.autoplayHint">When a song ends, the next one starts.</p>
+          </section>
+
+          <section class="inspector-pane" id="inspectorPaneDetails" role="tabpanel" aria-labelledby="inspectorTabDetails" data-pane="details" hidden>
+          <!-- Analysis: key, tempo, loudness and stem presence -->
+          <div id="transport" class="daw-track-header">
+
+            <!-- Row 1: track card + metadata cards -->
+            <div class="daw-info-row">
+
+              <div class="daw-meta-card" data-meta="key">
+                <span class="meta-card-label" data-i18n="meta.key">KEY</span>
+                <div class="meta-card-main">
+                  <span class="meta-card-value" id="summary-key">—</span>
+                  <div class="daw-camelot-ring hidden" id="summary-confidence"></div>
+                </div>
+              </div>
+
+              <div class="daw-meta-card" data-meta="bpm">
+                <span class="meta-card-label" data-i18n="meta.bpm">BPM</span>
+                <div class="meta-card-main">
+                  <span class="meta-card-value accent" id="summary-bpm">—</span>
+                </div>
+              </div>
+
+              <div class="daw-meta-card" data-meta="lufs">
+                <span class="meta-card-label" data-i18n="meta.lufs">LUFS</span>
+                <div class="meta-card-main">
+                  <span class="meta-card-value" id="summary-lufs">—</span>
+                  <span class="meta-card-sub" id="summary-peak"></span>
+                </div>
+              </div>
+
+              <div class="daw-meta-card" data-meta="duration">
+                <span class="meta-card-label" data-i18n="meta.duration">DURATION</span>
+                <div class="meta-card-main">
+                  <span class="meta-card-value num" id="summary-duration">—</span>
+                </div>
+              </div>
+
+              <div class="daw-meta-card" data-meta="dr">
+                <span class="meta-card-label" data-i18n="meta.dynamicRange">DYNAMIC RANGE</span>
+                <div class="meta-card-main">
+                  <span class="meta-card-value" id="summary-dr">—</span>
+                  <span class="meta-card-sub" id="summary-dr-label"></span>
+                </div>
+              </div>
+
+              <div class="daw-meta-card" data-meta="stability">
+                <span class="meta-card-label" data-i18n="meta.tempoStability">TEMPO STABILITY</span>
+                <div class="meta-card-main">
+                  <span class="meta-card-value" id="summary-stability">—</span>
+                  <span class="meta-card-sub" id="summary-stability-label"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 2: stem presence cards -->
+            <div class="stem-presence-panel">
+              <div class="stem-card inactive" data-stem="vocals">
+                <span class="stem-card-label" data-i18n="presence.vocalGlobal">GLOBAL VOCALS</span>
+                <span class="stem-card-pct">—</span>
+              </div>
+              <!-- The lead/backing pair replaces the single Vocals card once
+                   the on-demand split (#275) has run, so this row keeps the
+                   same seven columns as the metadata row above it. Hidden
+                   until then, by applyStemSelectionFilter. -->
+              <div class="stem-card inactive hidden" data-stem="lead_vocals">
+                <span class="stem-card-label" data-i18n="stem.lead_vocals">LEAD VOCALS</span>
+                <span class="stem-card-pct">—</span>
+              </div>
+              <div class="stem-card inactive hidden" data-stem="backing_vocals">
+                <span class="stem-card-label" data-i18n="stem.backing_vocals">BACKING VOCALS</span>
+                <span class="stem-card-pct">—</span>
+              </div>
+              <div class="stem-card inactive" data-stem="drums">
+                <span class="stem-card-label" data-i18n="presence.drum">DRUM INTENSITY</span>
+                <span class="stem-card-pct">—</span>
+              </div>
+              <div class="stem-card inactive" data-stem="bass">
+                <span class="stem-card-label" data-i18n="presence.bass">BASS DEPTH</span>
+                <span class="stem-card-pct">—</span>
+              </div>
+              <div class="stem-card inactive" data-stem="guitar">
+                <span class="stem-card-label" data-i18n="presence.guitar">GUITAR PRESENCE</span>
+                <span class="stem-card-pct">—</span>
+              </div>
+              <div class="stem-card inactive" data-stem="piano">
+                <span class="stem-card-label" data-i18n="presence.piano">PIANO PRESENCE</span>
+                <span class="stem-card-pct">—</span>
+              </div>
+              <div class="stem-card inactive" data-stem="other">
+                <span class="stem-card-label" data-i18n="presence.other">OTHER</span>
+                <span class="stem-card-pct">—</span>
+              </div>
+            </div>
+
+            <!-- Hidden compat -->
+            <div style="display:none" aria-hidden="true"><div id="loudness-card"></div></div>
+          </div>
+            <div class="inspector-card details-song">
+              <span class="inspector-label" data-i18n="inspector.songFile">File</span>
+          <div class="daw-track-meta-line">
+            <span class="num" id="t-meta-duration">—</span>
+            <span class="daw-track-sep" aria-hidden="true">·</span>
+            <span id="t-stems-chip">— stems</span>
+            <span class="daw-track-sep" aria-hidden="true">·</span>
+            <span id="track-source">—</span>
+            <span class="daw-track-sep" aria-hidden="true">·</span>
+            <span id="track-quality">—</span>
+            <span class="daw-track-sep" aria-hidden="true">·</span>
+            <span><span data-i18n="footer.extractedLabel">Extracted</span> <span id="track-extracted">—</span></span>
+          </div>
+            </div>
+          </section>
+        </aside>
+      </div><!-- /.daw-panes -->
+
+      <!-- ══ FOOTER: the transport, full width under all three panes ══ -->
+      <footer class="daw-footer">
+
+        <!-- Everything time-related, aligned with the lanes. The track identity
+             that used to sit to the left of this now lives at the bottom of the
+             library sidebar; the footer keeps that column's width as padding so
+             a position still reads at the same x here as in the lanes above. -->
+        <div class="footer-main">
+
+        <!-- Every playback and click control, in labelled clusters -->
+        <div class="footer-row-controls">
+          <div class="footer-clusters">
+          <div class="footer-group footer-group-transport">
+            <span class="footer-group-label" data-i18n="transport.group">Transport</span>
+            <div class="footer-group-body">
+              <button class="daw-iconbtn btn-transport" id="t-stop" type="button" title="Stop" aria-label="Stop" data-i18n-title="transport.stop" data-i18n-aria-label="transport.stop">
+                <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /></svg>
+              </button>
+              <button class="daw-play-btn btn-transport" id="t-play" type="button" aria-label="Play / Pause" data-i18n-aria-label="transport.playPause">
+                <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" /></svg>
+                <svg class="ic ic-fill pause-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none"><rect x="14" y="3" width="5" height="18" rx="1" /> <rect x="5" y="3" width="5" height="18" rx="1" /></svg>
+              </button>
+              <button class="daw-iconbtn btn-transport" id="t-next" type="button" title="Play the next song in Up Next" aria-label="Play the next song in Up Next" data-i18n-title="upNext.nextTitle" data-i18n-aria-label="upNext.nextTitle" disabled>
+                <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4v16"/><path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <span class="footer-divider" aria-hidden="true"></span>
+
+          <!-- Loop lives with the readout it acts on: the loop is a position,
+               not a transport mode (design 1b). -->
+          <div class="footer-group footer-group-position">
+            <span class="footer-group-label" data-i18n="position.group">Position</span>
+            <div class="footer-group-body">
+              <span class="num footer-elapsed" id="footer-time-elapsed">0:00</span>
+              <span class="footer-time-sep">/</span>
+              <span class="num footer-total" id="footer-time-total">0:00</span>
+              <!-- Loop stands beside the two bounds rather than over them. As a
+                   row of its own it stretched the footer bar to three lines for
+                   one button; as a column it fills the height the fields and
+                   their hint already take. -->
+              <button class="daw-iconbtn btn-transport loop" id="t-loop" type="button" title="Loop the selected position (L)" aria-label="Loop" data-i18n-title="position.loopTitle">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4" /> <path d="M3 11v-1a4 4 0 0 1 4-4h14" /> <path d="m7 22-4-4 4-4" /> <path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg>
+                <span class="loop-btn-label" data-i18n="position.loopLabel">Loop</span>
+              </button>
+              <div class="footer-loop-times-wrap">
+                <!-- The hint sits with the fields it describes: wheel
+                     adjustment is invisible until you try it. It is a label,
+                     not a control, so nothing here looks pressable. -->
+                <span class="footer-loop-hint" data-i18n="position.loopScrollHint">Scroll up/down to adjust</span>
+                <div class="footer-loop-times" title="Exact loop start / end (mm:ss.mmm or seconds)" data-i18n-title="position.loopExactTitle">
+                  <input type="text" id="t-loop-start" class="loop-time-input num" inputmode="decimal" spellcheck="false" autocomplete="off" aria-label="Loop start" data-i18n-aria-label="position.loopStartAria" value="00.000">
+                  <span class="loop-times-sep" aria-hidden="true">-</span>
+                  <input type="text" id="t-loop-end" class="loop-time-input num" inputmode="decimal" spellcheck="false" autocomplete="off" aria-label="Loop end" data-i18n-aria-label="position.loopEndAria" value="00.000">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <span class="footer-divider" aria-hidden="true"></span>
+
+          <div class="footer-group footer-group-speed">
+            <span class="footer-group-label" data-i18n="speed.group">Speed</span>
+            <div class="footer-group-body">
+              <div class="footer-seg speed-group" id="t-speed-wrap" role="radiogroup" aria-label="Playback speed" data-i18n-aria-label="speed.ariaLabel">
+                <button class="speed-btn" id="t-speed-05" type="button" role="radio" aria-checked="false" data-speed="0.5">0.5x</button>
+                <button class="speed-btn" id="t-speed-075" type="button" role="radio" aria-checked="false" data-speed="0.75">0.75x</button>
+                <button class="speed-btn active" id="t-speed-1" type="button" role="radio" aria-checked="true" data-speed="1">1x</button>
+              </div>
+            </div>
+          </div>
+
+          <span class="footer-divider" aria-hidden="true"></span>
+
+          <div class="footer-group footer-group-key">
+            <span class="footer-group-label" id="t-pitch-label" data-i18n="pitch.group">Global key</span>
+            <div class="footer-group-body">
+              <div class="footer-seg pitch-group" id="t-pitch-wrap" role="group" aria-labelledby="t-pitch-label">
+                <button class="pitch-btn" id="t-pitch-down" type="button" title="Transpose down a semitone" aria-label="Transpose down a semitone" data-i18n-title="pitch.downTitle" data-i18n-aria-label="pitch.downTitle" disabled>&minus;</button>
+                <output class="pitch-value" id="t-pitch-value" for="t-pitch-down t-pitch-up" aria-labelledby="t-pitch-label" aria-live="polite">0</output>
+                <button class="pitch-btn" id="t-pitch-up" type="button" title="Transpose up a semitone" aria-label="Transpose up a semitone" data-i18n-title="pitch.upTitle" data-i18n-aria-label="pitch.upTitle" disabled>+</button>
+              </div>
+              <button class="pitch-reset" id="t-pitch-reset" type="button" title="Put every lane back in the original key" aria-label="Put every lane back in the original key" data-i18n-title="pitch.resetTitle" data-i18n-aria-label="pitch.resetTitle" disabled>&#8634;</button>
+            </div>
+          </div>
+
           </div><!-- /.footer-clusters -->
 
           <!-- Pinned to the right, outside the scrolling cluster strip: these
@@ -1084,7 +1117,6 @@
               </div>
             </div>
           </div>
-          <div class="metro-note" id="t-metro-note"></div>
           </div><!-- /.footer-wave-col -->
         </div>
 
@@ -1092,7 +1124,6 @@
 
       </footer>
 
-        </div><!-- /.daw-main-col -->
       </div><!-- /.daw-body -->
 
     </div><!-- /.daw -->
@@ -1146,23 +1177,6 @@
           </a>
         </div>
         <p class="about-credits" data-i18n="about.credits">Song details from AcoustID, MusicBrainz (CC0), Wikipedia (CC BY-SA) and Wikidata (CC0). Band profiles from Discogs, with a Discogs token set. Lyrics from LRCLIB. Transcription by OpenAI Whisper (MIT).</p>
-      </div>
-    </div>
-
-    <!-- Our Friends dialog -->
-    <div class="about-backdrop hidden" id="friendsDialog" role="dialog" aria-modal="true" aria-labelledby="friendsTitle">
-      <div class="about-card friends-card">
-        <button class="about-close" id="friendsClose" type="button" aria-label="Close friends dialog" data-i18n-aria-label="friends.closeAria">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
-        </button>
-        <div class="about-logo" aria-hidden="true">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-            <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
-          </svg>
-        </div>
-        <h2 id="friendsTitle" data-i18n="friends.title">We Recommend</h2>
-        <p class="about-tagline" data-i18n="friends.tagline">StemDeck is free and does not accept any money, sponsorship, or funding from anyone listed below. I share these makers and artists and communities purely for the joy of pointing you toward wonderful people doing beautiful work. Go meet them ❤️</p>
-        <div class="lib-friends-grid" id="friendsDialogGrid"></div>
       </div>
     </div>
 

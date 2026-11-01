@@ -317,25 +317,22 @@ export async function waitForClickTrack(page, { revealOptions = true } = {}) {
   if (revealOptions) await openClickOptions(page);
 }
 
+/** Show one of the inspector's tabs: "tempo", "upnext" or "details". */
+export async function openInspectorTab(page, name) {
+  const tab = page.locator(`.inspector-tab[data-tab="${name}"]`);
+  if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
+  await page.locator(`.inspector-pane[data-pane="${name}"]`).waitFor({ state: "visible", timeout: 5000 });
+}
+
 /**
- * Put the click-track options where a test can click them.
+ * Put the click-track options where a test can click them: the inspector's
+ * Tempo tab. A spec that goes straight for #t-metro-bar while another tab is
+ * showing finds a control that exists, is enabled, and cannot be clicked.
  *
- * Below a width footerFit measures for itself, the options move into a popover
- * behind a disclosure beside the on/off pill, instead of sitting inline. A spec that goes straight for
- * #t-metro-bar then finds a control that exists, is enabled, and cannot be
- * clicked -- and times out saying nothing about why. Opening it here keeps
- * those specs about the click track rather than about the footer's width, and
- * it is a no-op at any width that still has room for the options.
- *
- * Pass revealOptions: false to waitForClickTrack when the popover itself is
- * what is under test.
+ * Pass revealOptions: false to waitForClickTrack to leave the tabs alone.
  */
 export async function openClickOptions(page) {
-  const more = page.locator("#t-metro-more");
-  if (!(await more.isVisible())) return;
-  if ((await more.getAttribute("aria-expanded")) === "true") return;
-  await more.click();
-  await page.locator("#t-metro-panel.open").waitFor({ timeout: 5000 });
+  await openInspectorTab(page, "tempo");
 }
 
 export const exportUi = (page) => ({

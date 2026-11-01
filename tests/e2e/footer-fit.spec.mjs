@@ -10,7 +10,7 @@
 //
 // These run at the config's 1280x720 unless a test sets its own viewport.
 import { test, expect } from "@playwright/test";
-import { openStudio, seedLibrary, stubUpdateCheck, waitForClickTrack } from "./helpers.mjs";
+import { openStudio, waitForClickTrack } from "./helpers.mjs";
 
 const stripFits = (page) =>
   page.evaluate(() => {
@@ -33,22 +33,11 @@ test.describe("footer fit", () => {
     await waitForClickTrack(page, { revealOptions: false });
 
     expect(await collapseLevels(page)).toEqual([]);
-    // display: contents, so the options are peers of the on/off pill: the #269
-    // layout, untouched for anyone who has room for it.
-    const display = await page.evaluate(
-      () => getComputedStyle(document.querySelector("#t-metro-panel")).display,
-    );
-    expect(display).toBe("contents");
     expect(await stripFits(page)).toBe(true);
   });
 
   test("the reporter's geometry no longer overflows", async ({ page }) => {
     // 4K at 250% Windows scaling. This is the window from the bug report.
-    //
-    // Asserts that it fits rather than that it collapsed: whether a given width
-    // needs to collapse depends on the content, and the seeded fixture's strip
-    // is narrower than a real six-stem track's. Pinning the class here would be
-    // pinning the fixture, not the behaviour.
     await page.setViewportSize({ width: 1536, height: 864 });
     await openStudio(page, { tauri: true });
     await waitForClickTrack(page, { revealOptions: false });
@@ -56,98 +45,28 @@ test.describe("footer fit", () => {
     expect(await stripFits(page)).toBe(true);
   });
 
-  test("a row that is only a little short keeps the options inline", async ({ page }) => {
-    // The first thing a short row does is wrap the options to a measured
-    // width, not take them away: #269 decided they stay on screen, and being
-    // 100px short of the space for one long line is not a reason to walk that
-    // back.
-    //
-    // Asserts the property rather than the collapse class. Whether this width
-    // needs to wrap at all depends on the content, and the seeded fixture's
-    // strip is narrower than a real six-stem track's.
-    await page.setViewportSize({ width: 1728, height: 900 });
-    await openStudio(page, { tauri: true });
-    await waitForClickTrack(page, { revealOptions: false });
-
-    await expect(page.locator("#t-metro-bar")).toBeVisible();
-    await expect(page.locator("#t-metro-more")).toBeHidden();
-    expect(await stripFits(page)).toBe(true);
-  });
-
-  test("collapsing puts every click control one click away, not out of reach", async ({ page }) => {
-    // Past the width two rows can absorb, the options move into a popover,
-    // opened from a disclosure beside the on/off pill. Nothing is removed and
-    // nothing stops working --
-    // that is the whole difference between this and hiding them.
+  test("at 1280 every click control is on screen, with no disclosure", async ({ page }) => {
+    // The click track moved out of the strip into the inspector's Tempo tab,
+    // which has the room the footer never did: the options are always laid out
+    // in full there, so the popover the strip once needed never opens.
     await page.setViewportSize({ width: 1280, height: 800 });
     await openStudio(page, { tauri: true });
-    await waitForClickTrack(page, { revealOptions: false });
+    await waitForClickTrack(page);
 
-    expect(await collapseLevels(page)).toContain("collapse-click");
-
-    const more = page.locator("#t-metro-more");
-    await expect(more).toBeVisible();
-    await expect(page.locator("#t-metro-bar")).toBeHidden();
-
-    await more.click();
-    for (const id of ["#t-metro-countin", "#t-metro-bar", "#t-metro-edit", "#t-metro-half"]) {
+    expect(await stripFits(page)).toBe(true);
+    await expect(page.locator("#t-metro-more")).toBeHidden();
+    for (const id of ["#t-metro", "#t-metro-vol-btn", "#t-metro-countin", "#t-metro-bar", "#t-metro-edit", "#t-metro-half"]) {
       await expect(page.locator(id)).toBeVisible();
     }
-    const half = page.locator("#t-metro-half");
-    await half.click();
-    await expect(half).toHaveAttribute("aria-checked", "true");
-    // Still open: a rate button is not a reason to close the panel you picked
-    // it from.
-    await expect(page.locator("#t-metro-bar")).toBeVisible();
-
-    await page.keyboard.press("Escape");
-    await expect(page.locator("#t-metro-bar")).toBeHidden();
-    await expect(more).toHaveAttribute("aria-expanded", "false");
-  });
-
-  test("the options popover is a solid panel above its button with no track loaded", async ({ page }) => {
-    // #697. With nothing loaded the options are .unavailable, which faded the
-    // whole panel to 40% and made it click-through. Inline that is right. As
-    // the popover it faded the box too, leaving a see-through ghost over the
-    // lanes that read as misplaced, and a click inside it hit the lane below.
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await seedLibrary(page);
-    await stubUpdateCheck(page);
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toContain("collapse-click");
-
-    const more = page.locator("#t-metro-more");
-    await more.click();
-    const panel = page.locator("#t-metro-panel");
-    await expect(panel).toHaveClass(/\bunavailable\b/);
-    await expect(panel).toBeVisible();
-
-    const geo = await page.evaluate(() => {
-      const p = document.querySelector("#t-metro-panel");
-      const pr = p.getBoundingClientRect();
-      const br = document.querySelector("#t-metro-more").getBoundingClientRect();
-      const hit = document.elementFromPoint(pr.left + 4, pr.top + 4);
-      return {
-        opacity: getComputedStyle(p).opacity,
-        above: pr.bottom <= br.top,
-        overlapsX: pr.left < br.right && pr.right > br.left,
-        hitsPanel: p.contains(hit),
-      };
-    });
-    expect(geo).toEqual({ opacity: "1", above: true, overlapsX: true, hitsPanel: true });
-
-    // A click on the panel itself is not a click away from it.
-    await panel.click({ position: { x: 4, y: 4 } });
-    await expect(more).toHaveAttribute("aria-expanded", "true");
   });
 
   test("the strip opens back up when the room comes back", async ({ page }) => {
     // The fit re-measures from the uncollapsed state every time, so this is the
     // direction that catches a one-way ratchet.
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.setViewportSize({ width: 820, height: 800 });
     await openStudio(page, { tauri: true });
     await waitForClickTrack(page, { revealOptions: false });
-    expect(await collapseLevels(page)).toContain("collapse-click");
+    await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toContain("collapse-tight");
 
     await page.setViewportSize({ width: 2200, height: 900 });
     await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toEqual([]);

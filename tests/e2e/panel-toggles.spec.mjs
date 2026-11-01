@@ -15,7 +15,7 @@
 import { test, expect } from "@playwright/test";
 import { openStudio } from "./helpers.mjs";
 
-const PANELS = ["analysis", "sections"];
+const PANELS = ["sections"];
 
 const state = (page) =>
   page.evaluate((panels) => {
@@ -35,7 +35,7 @@ test.describe("collapse row", () => {
     await openStudio(page, { tauri: true });
 
     const s = await state(page);
-    expect(s.buttons).toEqual(["Analysis", "Sections"]);
+    expect(s.buttons).toEqual(["Sections"]);
     // No "All": one press saved is not worth a third control called All in a
     // bar that already has one.
     expect(s.buttons).not.toContain("All");
@@ -69,12 +69,12 @@ test.describe("collapse row", () => {
     // this is the check that the two are genuinely independent rather than
     // accidentally not colliding.
     await openStudio(page, { tauri: true });
-    await clickPanel(page, "analysis");
+    await clickPanel(page, "sections");
 
     await page.locator("#sidebarCollapseBtn").click();
     await expect.poll(async () => (await state(page)).libraryCollapsed).toBe(true);
 
-    expect((await state(page)).hidden).toEqual(["analysis"]);
+    expect((await state(page)).hidden).toEqual(["sections"]);
   });
 
   test("a collapsed panel survives a reload", async ({ page }) => {

@@ -127,13 +127,13 @@ test.describe("band from the file's tags", () => {
     expect(asked.join(" ")).not.toContain("Metropolis");
     expect(asked.join(" ")).not.toContain("E2E");
 
-    // On the title's line, which is what keeps the card at its height.
+    // Under the title in the song head, on the same left edge.
     const [titleBox, artistBox] = await Promise.all([
       page.locator("#title").boundingBox(),
       artist.boundingBox(),
     ]);
-    expect(Math.abs(titleBox.y - artistBox.y)).toBeLessThan(3);
-    expect(artistBox.x).toBeGreaterThan(titleBox.x);
+    expect(artistBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height - 3);
+    expect(Math.abs(artistBox.x - titleBox.x)).toBeLessThan(3);
 
     // The box opens straight on the saved band, from the answer already had.
     const before = asked.length;

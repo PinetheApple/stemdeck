@@ -484,7 +484,7 @@ export function laneDragIcon(stemName) {
 
     // An opaque plate: a drag image that is transparent except for the letters
     // is close to unreadable over a DAW timeline.
-    ctx.fillStyle = "rgba(10, 16, 22, 0.94)";
+    ctx.fillStyle = "rgba(15, 16, 17, 0.94)";
     if (ctx.roundRect) {
       ctx.beginPath();
       ctx.roundRect(0, 0, canvas.width, PREVIEW_H, 14);
@@ -493,7 +493,7 @@ export function laneDragIcon(stemName) {
       ctx.fillRect(0, 0, canvas.width, PREVIEW_H);
     }
 
-    ctx.fillStyle = STEM_COLORS[stemName] || "#d8a84a";
+    ctx.fillStyle = STEM_COLORS[stemName] || STEM_COLORS.original;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(label, canvas.width / 2, PREVIEW_H / 2 + 1);

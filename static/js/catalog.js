@@ -31,196 +31,6 @@ const STORAGE_KEY = "stemdeck.folders";
 const STORAGE_VERSION = 2; // bump to wipe stale seeded data
 const DELETED_JOBS_KEY = "stemdeck.deleted_jobs";
 
-// Curated "We Recommend" partners shown in the library's supporters dialog,
-// grouped into categories that render in this order. Add an entry to a group's
-// `members` to feature another store/band/etc.
-//
-// Logos are bundled under static/img/friends/ so they render offline. An entry
-// with `avatar: true` has a square profile photo, cropped to a circle; without
-// it the image is treated as a transparent wordmark and letterboxed into the
-// same slot. An entry with no `logo` at all falls back to an initial badge.
-//
-// `labelKey` and `roleKey` are i18n keys rather than literals: the rendered
-// nodes carry them as data-i18n, so setLanguage()'s applyTranslations(document)
-// pass re-resolves the text without the dialog having to be rebuilt.
-//
-// Links open externally via the document-level a[target="_blank"] handler in
-// main.js (Tauri open_url on desktop).
-const FRIEND_GROUPS = [
-  {
-    labelKey: "friends.cat.artists",
-    members: [
-      {
-        name: "Joao Gaspar",
-        roleKey: "friends.role.joaoGaspar",
-        url: "https://www.instagram.com/jay_glaspar",
-        logo: "/img/friends/joao-gaspar.jpg",
-        avatar: true,
-      },
-      {
-        name: "More Notes Less Talk",
-        roleKey: "friends.role.moreNotesLessTalk",
-        url: "https://www.youtube.com/@morenoteslesstalk",
-      },
-      {
-        name: "Analog4Lyfe",
-        roleKey: "friends.role.analog4lyfe",
-        url: "https://www.instagram.com/analog4lyfe",
-        logo: "/img/friends/analog4lyfe.jpg",
-        avatar: true,
-      },
-      {
-        name: "Dead röses",
-        roleKey: "friends.role.deadRoses",
-        url: "https://www.instagram.com/dead_rosesband",
-        logo: "/img/friends/dead-roses.jpg",
-        avatar: true,
-      },
-      {
-        name: "Killah Trakz",
-        roleKey: "friends.role.killahTrakz",
-        links: [
-          { label: "Instagram", url: "https://www.instagram.com/killahtrakz/" },
-          { label: "Spotify", url: "https://open.spotify.com/artist/6nePYOqT4E7D4C48twPtKk" },
-          { label: "Apple Music", url: "https://music.apple.com/us/artist/killah-trakz/371296633" },
-        ],
-        logo: "/img/friends/killah-trakz.jpg",
-        avatar: true,
-      },
-      {
-        name: "NIHIL",
-        roleKey: "friends.role.nihil",
-        links: [
-          { label: "Instagram", url: "https://www.instagram.com/somosnihil/" },
-          { label: "Spotify", url: "https://open.spotify.com/artist/1OeKplJxFNM6JHrWeo2SaV" },
-        ],
-        logo: "/img/friends/nihil.jpg",
-        avatar: true,
-      },
-      {
-        name: "Adrianna Claro",
-        roleKey: "friends.role.adriannaClaro",
-        logo: "/img/friends/adrianna-claro.webp",
-        avatar: true,
-        links: [
-          { label: "Spotify", url: "https://open.spotify.com/album/10fZ48iJhIe3lWcXSMUlFG" },
-          { label: "Apple Music", url: "https://music.apple.com/us/album/happy/1592026727?i=1592026728" },
-        ],
-      },
-    ],
-  },
-  {
-    labelKey: "friends.cat.builders",
-    members: [
-      {
-        name: "Dlima Guitars",
-        roleKey: "friends.role.dlimaGuitars",
-        url: "https://www.instagram.com/dlimaguitars",
-        logo: "/img/friends/dlima-guitars-ig.jpg",
-        avatar: true,
-      },
-      {
-        name: "Lisbon Guitar Works",
-        roleKey: "friends.role.lisbonGuitarWorks",
-        url: "https://dlimaguitars.com",
-        logo: "/img/friends/lisbon-guitar-works.webp",
-      },
-      {
-        name: "Kris Luthier",
-        roleKey: "friends.role.krisLuthier",
-        url: "https://www.instagram.com/krisluthier",
-        logo: "/img/friends/kris-luthier.jpg",
-        avatar: true,
-      },
-    ],
-  },
-  {
-    labelKey: "friends.cat.gear",
-    members: [
-      {
-        name: "Empress Effects",
-        roleKey: "friends.role.empressEffects",
-        url: "https://empresseffects.com",
-        logo: "/img/friends/empress-effects.png",
-      },
-      {
-        name: "Thomann",
-        roleKey: "friends.role.thomann",
-        url: "https://www.instagram.com/thomann.music",
-        logo: "/img/friends/thomann.jpg",
-        avatar: true,
-      },
-    ],
-  },
-  {
-    labelKey: "friends.cat.karaoke",
-    members: [
-      {
-        name: "Beltr",
-        roleKey: "friends.role.beltr",
-        url: "https://beltr.app/",
-        logo: "/img/friends/beltr.jpg",
-        avatar: true,
-      },
-      {
-        name: "Seratone",
-        roleKey: "friends.role.seratone",
-        url: "https://seratone.audio/",
-        logo: "/img/friends/seratone.jpg",
-        avatar: true,
-      },
-    ],
-  },
-  {
-    labelKey: "friends.cat.media",
-    members: [
-      {
-        name: "slashCAM",
-        roleKey: "friends.role.slashcam",
-        url: "https://www.instagram.com/slashcam.de",
-        logo: "/img/friends/slashcam.webp",
-      },
-      {
-        name: "r/bass",
-        roleKey: "friends.role.rbass",
-        url: "https://www.reddit.com/r/Bass/",
-      },
-      {
-        name: "Not Another Audio Podcast",
-        roleKey: "friends.role.notAnotherAudioPodcast",
-        url: "https://directory.libsyn.com/shows/view/id/20f5a1e3-6fea-4d41-8cdf-451ce6fc6cda",
-        logo: "/img/friends/not-another-audio-podcast.jpg",
-        avatar: true,
-      },
-    ],
-  },
-  {
-    labelKey: "friends.cat.writers",
-    members: [
-      {
-        name: "Alexandre Borges",
-        roleKey: "friends.role.alexandreBorges",
-        url: "https://www.instagram.com/alexgram_b/",
-        logo: "/img/friends/alexandre-borges.jpg",
-        avatar: true,
-      },
-    ],
-  },
-];
-
-// Instagram glyph (Simple Icons), shown under tiles that link to Instagram.
-const IG_ICON_PATH =
-  "M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z";
-
-// Generic link glyph (Feather "link"), shown on cards that do not link to
-// Instagram. Stroked rather than filled, so it needs its own CSS class.
-const LINK_ICON_PATHS = [
-  "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71",
-  "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71",
-];
-
-const SVGNS = "http://www.w3.org/2000/svg";
-
 let folders = [];
 let tracks = {};
 let _deletedJobIds = new Set();
@@ -248,13 +58,15 @@ const TRASH_ID = "trash";
 const UNSORTED_ID = "f-unsorted";
 const PROCESSING_STATUSES = new Set(["queued", "downloading", "analyzing", "separating", "processing"]);
 
+const UP_NEXT_ICON_SVG = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M16 19H3"/><path d="M18 9v6"/><path d="M21 12h-6"/></svg>`;
+
 // One trash can for every "throw this away" button: the library rows and the
 // queue rows (#748), so the queue's cancel reads as the same action.
 const TRASH_ICON_SVG = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <polyline points="3 6 5 6 21 6"></polyline>
         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
       </svg>`;
-const FOLDER_COLORS = ["#d8a84a", "#e85f6f", "#64c86f", "#4f9de8", "#a985f4"];
+const FOLDER_COLORS = ["#ff6f59", "#e85f6f", "#64c86f", "#4f9de8", "#a985f4"];
 const DEFAULT_FOLDER_COLOR = FOLDER_COLORS[0];
 const TRACK_DRAG_TYPE = "application/x-stemdeck-track";
 const FOLDER_DRAG_TYPE = "application/x-stemdeck-folder";
@@ -554,13 +366,21 @@ export function addTrackToLibrary(track) {
  * The open track, for the lyrics panel: its id, title and length in seconds,
  * or null when none is open.
  */
+/** A library track by id, or null. Read-only: the store is this module's. */
+export function getLibraryTrack(trackId) {
+  return tracks[trackId] ?? null;
+}
+
 export function getCurrentTrackInfo() {
   const track = tracks[_currentTrackId];
   if (!track) return null;
   return {
     id: _currentTrackId,
     title: track.title || "",
+    displayTitle: nowPlayingTitle(track),
+    artist: nowPlayingArtist(track),
     duration: Number(track.duration) || 0,
+    bpm: Number(track.bpm) || null,
     // What the file itself was tagged with at import, when it was: artist,
     // title, album, and lyrics if it carried them. Null for tracks imported
     // before tags were read, and for sources that had none.
@@ -640,12 +460,16 @@ export function setCurrentTrackArtist(artist) {
 // exactly what it was before there was an artist to show. A title song
 // ("The Phantom of the Opera") would name the show twice, so it names the
 // performer instead.
+function nowPlayingArtist(track) {
+  let work = trimmed(libraryWork(track?.work)?.name);
+  if (work.toLowerCase() === nowPlayingTitle(track).toLowerCase()) work = "";
+  return trimmed(work || track?.artist?.name || track?.audioTags?.artist || confidentIdentity(track)?.artist);
+}
+
 function paintNowPlayingArtist(track) {
   const el = document.getElementById("np-artist");
   if (!el) return;
-  let work = trimmed(libraryWork(track?.work)?.name);
-  if (work.toLowerCase() === nowPlayingTitle(track).toLowerCase()) work = "";
-  const name = trimmed(work || track?.artist?.name || track?.audioTags?.artist || confidentIdentity(track)?.artist);
+  const name = nowPlayingArtist(track);
   el.textContent = name;
   // The whole name on hover, since a long title can leave it clipped.
   el.title = name;
@@ -1077,7 +901,7 @@ function reimportUnavailableTrack(trackId, track) {
   showError(i18nT("track.audioUnavailableError"));
 }
 
-async function loadTrackIntoStudio(trackId) {
+export async function loadTrackIntoStudio(trackId) {
   let track = tracks[trackId];
   if (!track) return;
   if (track.status === "unavailable") {
@@ -1538,6 +1362,20 @@ function wireFavButton(el, trackId) {
   });
 }
 
+// Queued by event rather than by import: upNext.js imports this module.
+function upNextButtonHtml(track) {
+  if (track.status !== "done") return "";
+  const label = i18nT("upNext.addTitle", { title: displayTitle(track.title) });
+  return `<button class="cat-upnext" type="button" title="${esc(i18nT("upNext.add"))}" aria-label="${esc(label)}">${UP_NEXT_ICON_SVG}</button>`;
+}
+
+function wireUpNextButton(el, trackId) {
+  el.querySelector(".cat-upnext")?.addEventListener("click", function onAddToUpNext(e) {
+    e.stopPropagation();
+    document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id: trackId } }));
+  });
+}
+
 function wireTrackDragAndLoad(el, trackId) {
   el.draggable = true;
   el.addEventListener("dragstart", (e) => {
@@ -1545,7 +1383,7 @@ function wireTrackDragAndLoad(el, trackId) {
   });
   el.addEventListener("dragend", () => endDrag(el));
   el.addEventListener("click", (e) => {
-    if (e.target.closest(".cat-del, .cat-fav")) return;
+    if (e.target.closest(".cat-del, .cat-fav, .cat-upnext")) return;
     loadTrackIntoStudio(trackId);
   });
 }
@@ -1882,9 +1720,10 @@ function renderRecentItem(trackId) {
       <div class="cat-sub">${trackSublineHtml(track)}</div>
     </div>
     <div class="cat-status${PROCESSING_STATUSES.has(track.status) ? " processing" : isUnavailable ? " unavailable" : ""}"></div>
-    <div class="cat-actions">${favButtonHtml(track)}</div>
+    <div class="cat-actions">${upNextButtonHtml(track)}${favButtonHtml(track)}</div>
   `;
   wireFavButton(el, trackId);
+  wireUpNextButton(el, trackId);
   wireTrackDragAndLoad(el, trackId);
   return el;
 }
@@ -1982,7 +1821,7 @@ function renderTrackItem(trackId, { inTrash = false } = {}) {
       <div class="cat-sub">${trackSublineHtml(track, { inTrash })}</div>${inTrash ? `<div class="cat-sub trash-hint">${esc(i18nT("trash.holdToRestore"))}</div>` : ""}
     </div>
     <div class="cat-status${PROCESSING_STATUSES.has(track.status) ? " processing" : isUnavailable ? " unavailable" : ""}"></div>
-    ${inTrash ? `<div class="trash-hold" aria-hidden="true"></div>` : `<div class="cat-actions">${track.status === "stopped" ? extractButtonHtml(track) : ""}${favButtonHtml(track)}<button class="cat-del" type="button" title="${esc(i18nT("track.moveToTrash"))}">
+    ${inTrash ? `<div class="trash-hold" aria-hidden="true"></div>` : `<div class="cat-actions">${track.status === "stopped" ? extractButtonHtml(track) : ""}${upNextButtonHtml(track)}${favButtonHtml(track)}<button class="cat-del" type="button" title="${esc(i18nT("track.moveToTrash"))}">
       ${TRASH_ICON_SVG}
     </button></div>`}
   `;
@@ -1998,6 +1837,7 @@ function renderTrackItem(trackId, { inTrash = false } = {}) {
     extractStoppedTrack(trackId);
   });
   wireFavButton(el, trackId);
+  wireUpNextButton(el, trackId);
 
   if (inTrash) {
     el.title = i18nT("trash.holdToRestore");
@@ -3522,181 +3362,6 @@ function wireAboutDialog() {
   dialog.addEventListener("keydown", (e) => {
     if (e.code === "Escape") hide();
   });
-}
-
-// The small glyph at the foot of a partner card: the Instagram mark for an
-// Instagram profile, a generic link glyph for anything else.
-function friendGlyph(url) {
-  const instagram = /instagram\.com/i.test(url || "");
-  const svg = document.createElementNS(SVGNS, "svg");
-  svg.setAttribute("class", instagram ? "lib-friend-ig" : "lib-friend-link");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("aria-hidden", "true");
-  for (const d of instagram ? [IG_ICON_PATH] : LINK_ICON_PATHS) {
-    const p = document.createElementNS(SVGNS, "path");
-    p.setAttribute("d", d);
-    svg.appendChild(p);
-  }
-  return svg;
-}
-
-/** A link that opens outside the app, as every partner link does. */
-function friendLink(url) {
-  const a = document.createElement("a");
-  a.href = url;
-  a.target = "_blank";
-  a.rel = "noopener noreferrer";
-  return a;
-}
-
-// One partner card: image (or initial badge), name, role, link glyph. A card
-// with one `url` is a link as a whole. A card with several `links` cannot be:
-// a link inside a link is invalid HTML, and which one a click follows is up to
-// the browser. So it is a plain card with one labelled link per destination.
-function friendCard(f) {
-  const multi = Array.isArray(f.links) && f.links.length > 0;
-  const a = multi ? document.createElement("div") : friendLink(f.url);
-  a.className = multi ? "lib-friend lib-friend-multi" : "lib-friend";
-  a.title = f.name;
-
-  // A monogram badge (first initial) keeps the card on-brand when an entry has
-  // no image, or when its image fails to load (e.g. before the asset is added).
-  const makeMonogram = () => {
-    const m = document.createElement("span");
-    m.className = "lib-friend-monogram";
-    m.textContent = (f.name || "?").trim().charAt(0).toUpperCase();
-    m.setAttribute("aria-hidden", "true");
-    return m;
-  };
-
-  // Fixed-height slot so names line up across a row whichever of the three
-  // shapes (round avatar, wordmark, monogram) an entry ends up with.
-  const media = document.createElement("span");
-  media.className = "lib-friend-media";
-  if (f.logo) {
-    const img = document.createElement("img");
-    img.className = f.avatar ? "lib-friend-avatar" : "lib-friend-logo";
-    img.src = f.logo;
-    img.alt = f.name;
-    img.loading = "lazy";
-    img.addEventListener("error", () => img.replaceWith(makeMonogram()));
-    media.appendChild(img);
-  } else {
-    media.appendChild(makeMonogram());
-  }
-  a.appendChild(media);
-
-  // Partner names are proper nouns and stay as-is; only the role is translated.
-  const name = document.createElement("span");
-  name.className = "lib-friend-name";
-  name.textContent = f.name;
-  a.appendChild(name);
-
-  if (f.roleKey) {
-    const role = document.createElement("span");
-    role.className = "lib-friend-role";
-    // data-i18n lets applyTranslations() re-resolve this on a language switch;
-    // the textContent below is what shows until then.
-    role.setAttribute("data-i18n", f.roleKey);
-    role.textContent = i18nT(f.roleKey);
-    a.appendChild(role);
-  }
-
-  if (!multi) {
-    a.appendChild(friendGlyph(f.url));
-    return a;
-  }
-  const row = document.createElement("span");
-  row.className = "lib-friend-links";
-  for (const link of f.links) {
-    const l = friendLink(link.url);
-    l.className = "lib-friend-pill";
-    l.title = `${f.name}: ${link.label}`;
-    l.append(friendGlyph(link.url), link.label);
-    row.appendChild(l);
-  }
-  a.appendChild(row);
-  return a;
-}
-
-// Supporters dialog: a TV rail button opens a centered modal (like About) with
-// the partner cards, grouped by category. Links open externally via the
-// document-level a[target="_blank"] handler in main.js (Tauri open_url on
-// desktop).
-function wireSupportersDialog() {
-  const btn = document.getElementById("friendsBtn");
-  const dialog = document.getElementById("friendsDialog");
-  const close = document.getElementById("friendsClose");
-  const grid = document.getElementById("friendsDialogGrid");
-  if (!btn || !dialog) return;
-
-  if (grid && grid.dataset.ready !== "1") {
-    grid.dataset.ready = "1";
-    // Two columns with a rule between them, rather than one long list. Six
-    // sections stacked is taller than the dialog on any normal window, so the
-    // whole thing scrolled and half the people on it were never seen.
-    const columns = [document.createElement("div"), document.createElement("div")];
-    const split = document.createElement("div");
-    split.className = "lib-friends-split";
-    split.setAttribute("aria-hidden", "true");
-    for (const col of columns) col.className = "lib-friends-col";
-    grid.append(columns[0], split, columns[1]);
-
-    // Alphabetical, and sorted here rather than in FRIEND_GROUPS so that
-    // adding someone never means finding the right line to put them on.
-    //
-    // Categories sort on the *translated* label, which is the only order that
-    // reads as alphabetical to the person looking at it -- a fixed order taken
-    // from the English names is arbitrary in the other ten languages. Members
-    // sort on `name`, which is a proper noun and identical everywhere.
-    // localeCompare so accents and case land where a reader expects them
-    // (Dead roses next to Dlima, not after Z).
-    const collator = new Intl.Collator(getLanguage(), { sensitivity: "base", numeric: true });
-    const groups = FRIEND_GROUPS.map((group) => ({
-      ...group,
-      label: i18nT(group.labelKey),
-      members: [...group.members].sort((a, b) => collator.compare(a.name, b.name)),
-    })).sort((a, b) => collator.compare(a.label, b.label));
-
-    // Where to break between the two columns. Counting sections was a fixed
-    // split at three, which only balanced while every category had the same
-    // number of people in it; the moment one grew to two rows of cards, one
-    // side ran past the bottom of the dialog and the other stopped halfway.
-    //
-    // So measure in rows instead: a heading plus however many rows of cards
-    // the category needs, and break wherever the two sides come out closest.
-    const PER_ROW = 4;
-    const HEADING = 0.35; // a heading is roughly a third of a card row
-    const weights = groups.map((g) => HEADING + Math.ceil(g.members.length / PER_ROW));
-    const total = weights.reduce((a, b) => a + b, 0);
-    let best = { at: 1, gap: Infinity };
-    let run = 0;
-    for (let k = 1; k < groups.length; k++) {
-      run += weights[k - 1];
-      const gap = Math.abs(run - (total - run));
-      if (gap < best.gap) best = { at: k, gap };
-    }
-
-    groups.forEach((group, i) => {
-      const col = columns[i < best.at ? 0 : 1];
-      const label = document.createElement("h3");
-      label.className = "lib-friends-cat";
-      label.setAttribute("data-i18n", group.labelKey);
-      label.textContent = group.label;
-      col.appendChild(label);
-      const row = document.createElement("div");
-      row.className = "lib-friends-row";
-      for (const f of group.members) row.appendChild(friendCard(f));
-      col.appendChild(row);
-    });
-  }
-
-  const open = () => dialog.classList.remove("hidden");
-  const hide = () => dialog.classList.add("hidden");
-  btn.addEventListener("click", open);
-  close?.addEventListener("click", hide);
-  dialog.addEventListener("mousedown", (e) => { if (e.target === dialog) hide(); });
-  dialog.addEventListener("keydown", (e) => { if (e.code === "Escape") hide(); });
 }
 
 // Ground truth for "done" <-> "unavailable" is the server (it checks the
@@ -5256,7 +4921,6 @@ export async function initCatalog() {
   wireRailLibraryDrop();
   wireLibraryDeleteKeys();
   wireAboutDialog();
-  wireSupportersDialog();
   wireReleaseDialog();
   wireSettingsMenu();
   setDisplayedVersion(currentVersion);

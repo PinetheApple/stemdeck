@@ -1,14 +1,14 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">StemDeck Waveform Symbol</title>
-  <desc id="desc">Golden segmented waveform symbol for StemDeck.</desc>
+  <desc id="desc">Coral segmented waveform symbol for StemDeck.</desc>
   <defs>
-    <linearGradient id="gold" x1="110" y1="112" x2="402" y2="400" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FFE38A"/>
-      <stop offset="0.48" stop-color="#F2B53D"/>
-      <stop offset="1" stop-color="#C98512"/>
+    <linearGradient id="coral" x1="110" y1="112" x2="402" y2="400" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB3A6"/>
+      <stop offset="0.48" stop-color="#FF6F59"/>
+      <stop offset="1" stop-color="#D9452F"/>
     </linearGradient>
   </defs>
-  <g fill="url(#gold)">
+  <g fill="url(#coral)">
     <rect x="110" y="248" width="18" height="16" rx="8"/>
     <rect x="144" y="204" width="24" height="104" rx="12"/>
     <rect x="184" y="154" width="26" height="204" rx="13"/>

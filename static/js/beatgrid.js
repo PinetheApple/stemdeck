@@ -37,9 +37,9 @@ const UNDO_DEPTH = 100;
 const SAVE_DEBOUNCE_MS = 700;
 
 const COLORS = {
-  beat: "rgba(148,163,184,0.30)",
-  bar: "rgba(74,140,255,0.85)",
-  anchor: "#e8c840",
+  beat: "rgba(184,180,176,0.30)",
+  bar: "rgba(255,111,89,0.85)",
+  anchor: "#f5f3f1",
   hover: "#ffffff",
   onset: "rgba(0,200,160,0.35)",
 };

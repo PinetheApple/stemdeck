@@ -78,7 +78,8 @@ let observedWidth = -1; // strip content width the observer last reported
  */
 function wrapWidthFor(deficit) {
   const panel = document.getElementById("t-metro-panel");
-  if (!panel || panel.classList.contains("hidden")) return 0;
+  // Panels moved out of the strip free no width.
+  if (!panel || !strip.contains(panel) || panel.classList.contains("hidden")) return 0;
 
   // First child's left edge to the last one's right edge, rather than the
   // cluster's width less the controls that are not the panel's. Those controls
