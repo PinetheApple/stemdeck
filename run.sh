@@ -32,6 +32,7 @@ start() {
         echo "uvicorn not found at $UVICORN — run: uv sync" >&2
         exit 1
     fi
+    gpu_torch || echo "gpu: torch swap failed, separation will run on CPU" >&2
     echo "starting on http://$HOST:$PORT"
     # A long-lived SSE stream (the import queue view) keeps a connection open
     # for as long as a browser tab is open, and uvicorn waits for open
@@ -113,16 +114,22 @@ needs_fpcalc() {
 # Blackwell cards (compute capability 10.x and up) have no kernels in the torch
 # 2.6 wheels uv.lock pins, so demucs drops to CPU. Swap in the cu128 2.8.0 line
 # the desktop app installs for them (wheel_candidates in desktop/src-tauri).
-# `uv sync` puts the locked wheels back, so rerun this after every sync.
+# `uv sync` puts the locked wheels back, so start() reruns this; it is a no-op
+# once the cu128 build is installed.
+GPU_TORCH_VERSION="2.8.0+cu128"
 gpu_torch() {
     command -v nvidia-smi >/dev/null 2>&1 || return 0
-    local cap major
+    local cap major installed
     cap=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -n1)
     major="${cap%%.*}"
     if [[ ! "$major" =~ ^[0-9]+$ ]] || (( major < 10 )); then
         return 0
     fi
-    echo "==> Blackwell GPU (compute $cap): installing torch 2.8.0 cu128"
+    installed=$(.venv/bin/python -c "import torch; print(torch.__version__)" 2>/dev/null || true)
+    if [[ "$installed" == "$GPU_TORCH_VERSION" ]]; then
+        return 0
+    fi
+    echo "==> Blackwell GPU (compute $cap): torch ${installed:-missing} -> $GPU_TORCH_VERSION"
     uv pip install --python .venv/bin/python \
         torch==2.8.0 torchaudio==2.8.0 torchvision==0.23.0 \
         --index-url https://download.pytorch.org/whl/cu128
