@@ -1,5 +1,5 @@
 // A setting the server did not keep, and a library the device could not save,
-// both say so (#39, handled in catalog.js under #38).
+// both say so.
 
 import { test, expect } from "@playwright/test";
 

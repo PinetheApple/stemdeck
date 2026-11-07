@@ -1,5 +1,5 @@
-// Trashing an import that is still in the queue (#748), what the Trash says
-// about files on disk (#749), and the queue's own cancel (#38).
+// Trashing an import that is still in the queue, what the Trash says about
+// files on disk, and the queue's own cancel.
 //
 // The queue is stubbed rather than driven: the e2e backend never runs a real
 // separation, so a job that stays "running" long enough to click on cannot be
@@ -86,8 +86,8 @@ test("a queue row cancels with an X, apart from the library's trash can", async 
   await page.locator(".rail-queue").click();
   const cancel = page.locator(`.queue-row[data-id="${RUNNING_ID}"] .queue-cancel`);
   await expect(cancel).toBeVisible();
-  // Cancelling deletes the import's files and binning keeps them (#38): the
-  // same icon means the same action, so the two controls look different.
+  // Cancelling deletes the import's files and binning keeps them: the same
+  // icon means the same action, so the two controls look different.
   await expect(cancel.locator('polyline[points="3 6 5 6 21 6"]')).toHaveCount(0);
   await expect(cancel.locator('path[d="M18 6 6 18"]')).toHaveCount(1);
   // A link import can be fetched again, so it cancels on the first click.

@@ -324,8 +324,7 @@
 .app.no-track #songHead #title,
 .app.no-track #songHead #np-artist { cursor: default; text-decoration: none; }
 
-/* Click again to confirm (#38): the setlist-delete armed look, on the queue's
-   cancel, a folder's delete, Empty trash and the auto-delete switch. */
+/* Click again to confirm, in the setlist-delete armed look. */
 .arm-text:empty { display: none; }
 .queue-cancel[data-armed="1"],
 .folder-head .f-del[data-armed="1"] {

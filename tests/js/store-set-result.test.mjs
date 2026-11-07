@@ -1,4 +1,4 @@
-// storeSet reports whether the write landed, without ever throwing (#38/#39).
+// storeSet reports whether the write landed, without ever throwing.
 //
 // It used to swallow every failure, so a library that could not be saved said
 // nothing: the callers' .catch could never run. It still must not reject,

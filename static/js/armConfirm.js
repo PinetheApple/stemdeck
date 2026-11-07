@@ -1,8 +1,8 @@
-// Click-again-to-confirm for controls that destroy something. The first click
-// arms the control and says what the next one does; a second click within the
-// window goes ahead. The same idiom as setlist delete and Clear sections.
+// Click again to confirm: the first click says what the next one destroys.
 
 export const ARM_MS = 4000;
+/** The span inside a control that shows its armed text. */
+export const ARM_TEXT_CLASS = "arm-text";
 const ARMED = "1";
 const armedControls = new WeakMap();
 
@@ -22,7 +22,7 @@ export function disarm(control) {
 }
 
 /** `label` is the element whose text says what the next click does. */
-export function arm(control, { label = control, armedText, armMs = ARM_MS }) {
+export function arm(control, { label, armedText, armMs = ARM_MS }) {
   disarm(control);
   const state = {
     label,

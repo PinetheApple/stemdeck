@@ -15,9 +15,9 @@ import {
   textInput,
 } from "./libraryControls.js";
 import { $ } from "./utils.js";
+import { ARM_MS } from "./armConfirm.js";
 
 const SETLISTS_URL = "/api/setlists";
-const DELETE_ARM_MS = 4000;
 
 let setlists = [];
 let tab = "songs";
@@ -320,7 +320,7 @@ function deleteButton(setlist) {
     armTimer = setTimeout(function onDeleteArmExpired() {
       disarmDelete();
       render();
-    }, DELETE_ARM_MS);
+    }, ARM_MS);
     render();
     $("setlistsList")?.querySelector(`.setlist[data-id="${CSS.escape(setlist.id)}"] .setlist-delete`)?.focus();
   });
