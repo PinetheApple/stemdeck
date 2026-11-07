@@ -163,4 +163,5 @@ for (const sr of [44100, 48000]) {
 }
 
 console.log(`\n${passed}/${passed + failed} checks passed`);
-process.exit(failed === 0 ? 0 : 1);
+// process.exit() can deadlock with a background Maglev job (#28); let the loop end.
+process.exitCode = failed === 0 ? 0 : 1;
