@@ -34,7 +34,7 @@ const found = (extra = {}) => ({
 
 const answer = (route, status, body) => route.fulfill({ status, contentType: JSON_TYPE, body: JSON.stringify(body) });
 
-async function setUp(page, { server = found(), viewport = WIDE } = {}) {
+async function setUp(page, { server = found(), viewport = WIDE, expectLine = true } = {}) {
   const kept = { lyrics: server };
   const deletes = [];
   await page.route(LYRICS_LOOKUP, (route) => answer(route, 502, { detail: "lyrics service unreachable" }));
@@ -63,13 +63,14 @@ async function setUp(page, { server = found(), viewport = WIDE } = {}) {
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
   await page.locator(".rail-lyrics").click();
-  await expect(page.locator(".lyrics-line").first()).toHaveText("Server one");
+  if (expectLine) await expect(page.locator(".lyrics-line").first()).toHaveText("Server one");
   return { deletes };
 }
 
 const toolbar = (page) => page.locator(".lyrics-tools");
 const tool = (page, name) => toolbar(page).locator(".lyrics-tool", { hasText: name });
 const visibleTools = (page) => toolbar(page).locator(".lyrics-tool:visible");
+const primaries = (page) => toolbar(page).locator(".lyrics-tool-primary");
 
 test.describe("the lyrics toolbar", () => {
   test("holds every action as a button with an icon, the main one filled and Remove quiet and last", async ({ page }) => {
@@ -83,11 +84,20 @@ test.describe("the lyrics toolbar", () => {
       await expect(tool(page, name)).toHaveCSS("cursor", "pointer");
     }
     await expect(page.locator(".lyrics-link:visible")).toHaveCount(0);
+    await expect(primaries(page)).toHaveCount(1);
     await expect(tool(page, "Sync lines")).toHaveClass(/lyrics-tool-primary/);
     await expect(tool(page, "Remove lyrics")).toHaveClass(/lyrics-tool-quiet/);
     const boxes = await Promise.all(ACTIONS.map((name) => tool(page, name).boundingBox()));
     const last = boxes.at(-1);
     expect(boxes.every((box) => box.y < last.y || (box.y === last.y && box.x <= last.x))).toBe(true);
+  });
+
+  test("with lyrics that have no timing, Edit lines is the one main action", async ({ page }) => {
+    await setUp(page, { server: found({ synced: "" }), expectLine: false });
+    await expect(page.locator(".lyrics-text").first()).toHaveText("Server one");
+    await expect(tool(page, "Sync lines")).toHaveAttribute("aria-disabled", "true");
+    await expect(primaries(page)).toHaveCount(1);
+    await expect(tool(page, "Edit lines")).toHaveClass(/lyrics-tool-primary/);
   });
 
   test("each button still does its job", async ({ page }) => {

@@ -3980,8 +3980,8 @@ input, textarea { font-family: inherit; }
 .lyrics-match { display: flex; flex-direction: column; min-width: 0; }
 .lyrics-match-title { font-size: 13px; font-weight: 600; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lyrics-match-meta { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* The tab's actions (#31): one toolbar of buttons that wraps. The main one is
-   filled; rare and destructive ones are quiet and go last. */
+/* The tab's actions (#31): one toolbar of buttons that wraps. The one main
+   action is filled; rare and destructive ones are quiet and go last. */
 .lyrics-tools {
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1);
   padding-top: var(--s-1);
@@ -4000,14 +4000,12 @@ input, textarea { font-family: inherit; }
 .lyrics-tool .ic { width: var(--icon-sm); height: var(--icon-sm); flex: none; }
 .lyrics-tool-label { overflow: hidden; text-overflow: ellipsis; }
 .lyrics-tool:hover { background: var(--surface-3); color: var(--text); }
-/* Paste or load lyrics is the main action while nothing else is offered. */
-.lyrics-tool-primary,
-.lyrics-tools:not(:has(.lyrics-tool-primary:not([hidden]), .lyrics-edit-open:not([hidden]))) .lyrics-supply-open {
+/* The one main action (lyricsToolbar.js keepOnePrimary). */
+.lyrics-tool-primary {
   border-color: var(--accent); background: var(--accent); color: var(--accent-ink);
   font-weight: var(--fw-semibold);
 }
-.lyrics-tool-primary:hover,
-.lyrics-tools:not(:has(.lyrics-tool-primary:not([hidden]), .lyrics-edit-open:not([hidden]))) .lyrics-supply-open:hover {
+.lyrics-tool-primary:hover {
   background: var(--accent); color: var(--accent-ink); filter: brightness(var(--hover-brightness));
 }
 .lyrics-tool[aria-expanded="true"],

@@ -23,3 +23,21 @@ export function toolButton(className, iconName, label, onClick) {
 export function setToolLabel(node, label) {
   node.querySelector(".lyrics-tool-label").textContent = label;
 }
+
+const isShown = (node) => !node.closest("[hidden]");
+
+/** Keep exactly one main action in `toolbar`: the first shown match of
+ * `order`, or none while `paused()`. Follows the buttons as they change. */
+export function keepOnePrimary(toolbar, order, paused) {
+  const pick = () => {
+    const main = paused() ? null : order.map((selector) => [...toolbar.querySelectorAll(selector)].find(isShown)).find(Boolean);
+    for (const node of toolbar.querySelectorAll(".lyrics-tool")) node.classList.toggle(TOOL_PRIMARY, node === main);
+  };
+  new MutationObserver(pick).observe(toolbar, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ["hidden", "aria-disabled"],
+  });
+  pick();
+}

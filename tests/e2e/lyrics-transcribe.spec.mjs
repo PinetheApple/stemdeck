@@ -97,6 +97,8 @@ const progress = (page) => page.locator(".lyrics-transcribe-progress");
 const percent = (page) => page.locator(".lyrics-transcribe-percent");
 const cancelButton = (page) => page.locator(".lyrics-transcribe-cancel");
 const pasteButton = (page) => page.locator(".lyrics-supply-open");
+const primaries = (page) => page.locator(".lyrics-tools .lyrics-tool-primary");
+const PRIMARY = /lyrics-tool-primary/;
 const notFound = (page) => expect(page.locator("#lyricsStatus")).toHaveText(/No lyrics found/);
 const timedLines = (page) => page.evaluate(async () => (await import("/js/lyrics.js")).getTimedLyricLines().length);
 
@@ -108,6 +110,8 @@ test.describe("transcribing lyrics on demand", () => {
     await expect(startButton(page)).toHaveText("Transcribe lyrics");
     await expect(pasteButton(page)).toBeVisible();
     await expect(message(page)).toBeHidden();
+    await expect(primaries(page)).toHaveCount(1);
+    await expect(startButton(page)).toHaveClass(PRIMARY);
   });
 
   test("warns up front that a CPU run can take a few minutes", async ({ page }) => {
@@ -122,8 +126,8 @@ test.describe("transcribing lyrics on demand", () => {
     await notFound(page);
     await expect(startButton(page)).toBeHidden();
     await expect(message(page)).toBeHidden();
-    await expect(pasteButton(page)).toBeVisible();
-    await expect(pasteButton(page)).toHaveCSS("color", "rgb(42, 7, 0)");
+    await expect(primaries(page)).toHaveCount(1);
+    await expect(pasteButton(page)).toHaveClass(PRIMARY);
   });
 
   test("shows each phase's progress, then the lyrics without a reload", async ({ page }) => {
@@ -133,6 +137,8 @@ test.describe("transcribing lyrics on demand", () => {
     await expect(message(page)).toHaveText("Waiting for an import to finish…");
     await expect(startButton(page)).toBeHidden();
     await expect(pasteButton(page)).toBeVisible();
+    await expect(pasteButton(page)).not.toHaveClass(PRIMARY);
+    await expect(primaries(page)).toHaveCount(0);
 
     server.transcribe[JOB_ID] = running("download", 0.4);
     await expect(message(page)).toHaveText("Downloading the lyrics model…");

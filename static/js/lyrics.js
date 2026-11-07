@@ -77,7 +77,7 @@ import {
 } from "./lyricsLane.js";
 import { initLyricsEdit, refreshEditBar, editorTrackChanged, restoreOriginal } from "./lyricsEdit.js";
 import { editableRows, plainTexts, plainTimedLines, untimedRows } from "./lyricsUserText.js";
-import { toolButton, setToolLabel, TOOL_PRIMARY, TOOL_QUIET } from "./lyricsToolbar.js";
+import { toolButton, setToolLabel, keepOnePrimary, TOOL_QUIET } from "./lyricsToolbar.js";
 import { initLyricsTranscribe, checkTranscribe, resetTranscribe } from "./lyricsTranscribe.js";
 
 // One store entry per track rather than a field in the library store: a song's
@@ -94,6 +94,15 @@ let bodyEl = null;
 // redrawn with what is shown; the editor's and the transcription's keep theirs.
 let toolbarEl = null;
 let ownToolsEl = null;
+// The main action is the first of these shown; a transcription under way has none,
+// so Paste does not invite throwing the run away.
+const PRIMARY_ORDER = [
+  ".lyrics-sync-toggle:not([aria-disabled='true'])",
+  ".lyrics-edit-open",
+  ".lyrics-transcribe-open",
+  ".lyrics-supply-open",
+];
+const transcriptionRunning = () => Boolean(toolbarEl.querySelector(".lyrics-transcribe-progress:not([hidden])"));
 
 let visible = false;
 let shownTrackId = null; // the track whose lyrics are on screen
@@ -798,8 +807,8 @@ function canSync() {
   return lines.length > 0 || (shownEntry?.source === USER_SOURCE && plainTexts(shownEntry.plain).length > 0);
 }
 
-/** The Sync lines button in the toolbar, the main action. Disabled, and
- * saying why, for lyrics with no timing at all. */
+/** The Sync lines button in the toolbar. Disabled, and saying why, for
+ * lyrics with no timing at all. */
 function syncToggle() {
   const toggle = toolButton("lyrics-sync-toggle", "timer", t("lyrics.sync.button"));
   syncToggleEl = toggle;
@@ -808,7 +817,6 @@ function syncToggle() {
     toggle.title = t("lyrics.sync.syncedOnly");
     return toggle;
   }
-  toggle.classList.add(TOOL_PRIMARY);
   toggle.title = t("lyrics.sync.openTitle");
   toggle.setAttribute("aria-controls", "lyricsSync");
   toggle.setAttribute("aria-expanded", String(Boolean(sync)));
@@ -1818,6 +1826,7 @@ export function initLyrics() {
     onSaved: onUserTextSaved,
     onRestored: onUserTextRestored,
   });
+  keepOnePrimary(toolbarEl, PRIMARY_ORDER, transcriptionRunning);
   // An offset or a timing still waiting to be saved goes before the page does.
   window.addEventListener("pagehide", () => {
     flushSave();

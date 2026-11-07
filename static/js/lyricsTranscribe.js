@@ -4,7 +4,7 @@
 // draws the lyrics it writes.
 
 import { t, getLanguage } from "./i18n.js";
-import { toolButton, setToolLabel, TOOL_PRIMARY, TOOL_QUIET } from "./lyricsToolbar.js";
+import { toolButton, setToolLabel, TOOL_QUIET } from "./lyricsToolbar.js";
 
 const POLL_MS = 1000;
 const HTTP_CONFLICT = 409;
@@ -199,7 +199,7 @@ function buildPanel() {
  */
 export function initLyricsTranscribe(toolbar, dependencies) {
   deps = dependencies;
-  const start = toolButton(`${TOOL_PRIMARY} lyrics-transcribe-open`, "mic", t("lyrics.transcribe.open"), onStartClick);
+  const start = toolButton("lyrics-transcribe-open", "mic", t("lyrics.transcribe.open"), onStartClick);
   ui = { start, ...buildPanel() };
   toolbar.append(start, ui.panel);
   paint(null);
