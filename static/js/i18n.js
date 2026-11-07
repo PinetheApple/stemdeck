@@ -753,7 +753,6 @@ const en = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "Wikipedia (CC BY-SA), MusicBrainz and Wikidata (CC0), Whisper (MIT).",
-  "about.dataLink": "Where your data goes",
 
   "release.title": "New release available",
   "release.closeAria": "Close release dialog",
@@ -771,7 +770,7 @@ const en = {
 
   "failure.title": "Something failed",
   "failure.closeAria": "Close failure dialog",
-  "failure.hint": "Add the track title and source link if they help.",
+  "failure.hint": "Add the track title and source link if they help. Reporting copies these details to your clipboard.",
   "failure.includeLogs": "Include recent logs",
   "failure.collecting": "Collecting details…",
   "failure.fetchingLogs": "Fetching logs…",
@@ -1754,7 +1753,6 @@ const pl = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "Wikipedia (CC BY-SA), MusicBrainz i Wikidane (CC0), Whisper (MIT).",
-  "about.dataLink": "Dokąd trafiają Twoje dane",
 
   "release.title": "Dostępna nowa wersja",
   "release.closeAria": "Zamknij okno wydania",
@@ -1772,7 +1770,7 @@ const pl = {
 
   "failure.title": "Coś poszło nie tak",
   "failure.closeAria": "Zamknij okno błędu",
-  "failure.hint": "Dodaj tytuł utworu i link źródłowy, jeśli mogą pomóc.",
+  "failure.hint": "Dodaj tytuł utworu i link źródłowy, jeśli mogą pomóc. Zgłoszenie kopiuje te szczegóły do schowka.",
   "failure.includeLogs": "Dołącz ostatnie logi",
   "failure.collecting": "Zbieranie szczegółów…",
   "failure.fetchingLogs": "Pobieranie logów…",
@@ -2747,7 +2745,6 @@ const ja = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "Wikipedia (CC BY-SA)、MusicBrainz・Wikidata (CC0)、Whisper (MIT)。",
-  "about.dataLink": "データの送信先",
 
   "release.title": "新しいリリースがあります",
   "release.closeAria": "リリースダイアログを閉じる",
@@ -2765,7 +2762,7 @@ const ja = {
 
   "failure.title": "エラーが発生しました",
   "failure.closeAria": "エラーダイアログを閉じる",
-  "failure.hint": "役立つ場合は、トラック名とソースリンクを追加してください。",
+  "failure.hint": "役立つ場合は、トラック名とソースリンクを追加してください。報告するとこの詳細がクリップボードにコピーされます。",
   "failure.includeLogs": "最近のログを含める",
   "failure.collecting": "詳細を収集中…",
   "failure.fetchingLogs": "ログを取得中…",
@@ -3714,7 +3711,6 @@ const zhHans = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "维基百科 (CC BY-SA)、MusicBrainz 和维基数据 (CC0)、Whisper (MIT)。",
-  "about.dataLink": "你的数据会发送到哪里",
 
   "release.title": "有新版本可用",
   "release.closeAria": "关闭版本对话框",
@@ -3732,7 +3728,7 @@ const zhHans = {
 
   "failure.title": "出现故障",
   "failure.closeAria": "关闭故障对话框",
-  "failure.hint": "如有帮助，请添加曲目标题和来源链接。",
+  "failure.hint": "如有帮助，请添加曲目标题和来源链接。报告时会将这些详情复制到剪贴板。",
   "failure.includeLogs": "包含近期日志",
   "failure.collecting": "正在收集详情…",
   "failure.fetchingLogs": "正在获取日志…",
@@ -4682,7 +4678,6 @@ const de = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "Wikipedia (CC BY-SA), MusicBrainz und Wikidata (CC0), Whisper (MIT).",
-  "about.dataLink": "Wohin deine Daten gehen",
 
   "release.title": "Neue Version verfügbar",
   "release.closeAria": "Versionsdialog schließen",
@@ -4700,7 +4695,7 @@ const de = {
 
   "failure.title": "Etwas ist fehlgeschlagen",
   "failure.closeAria": "Fehlerdialog schließen",
-  "failure.hint": "Füge Trackname und Quelllink hinzu, falls hilfreich.",
+  "failure.hint": "Füge Trackname und Quelllink hinzu, falls hilfreich. Beim Melden werden diese Details in die Zwischenablage kopiert.",
   "failure.includeLogs": "Aktuelle Logs einbeziehen",
   "failure.collecting": "Details werden gesammelt…",
   "failure.fetchingLogs": "Logs werden abgerufen…",
@@ -5661,7 +5656,6 @@ const pt = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "Wikipédia (CC BY-SA), MusicBrainz e Wikidata (CC0), Whisper (MIT).",
-  "about.dataLink": "Para onde vão seus dados",
 
   "release.title": "Nova versão disponível",
   "release.closeAria": "Fechar diálogo de versão",
@@ -5679,7 +5673,7 @@ const pt = {
 
   "failure.title": "Algo falhou",
   "failure.closeAria": "Fechar diálogo de falha",
-  "failure.hint": "Adicione o título da faixa e o link de origem se ajudar.",
+  "failure.hint": "Adicione o título da faixa e o link de origem se ajudar. Ao enviar o relatório, esses detalhes são copiados para a área de transferência.",
   "failure.includeLogs": "Incluir logs recentes",
   "failure.collecting": "Coletando detalhes…",
   "failure.fetchingLogs": "Buscando logs…",
@@ -6641,7 +6635,6 @@ const id = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "Wikipedia (CC BY-SA), MusicBrainz dan Wikidata (CC0), Whisper (MIT).",
-  "about.dataLink": "Ke mana data Anda dikirim",
 
   "release.title": "Versi baru tersedia",
   "release.closeAria": "Tutup dialog versi",
@@ -6659,7 +6652,7 @@ const id = {
 
   "failure.title": "Terjadi kesalahan",
   "failure.closeAria": "Tutup dialog kesalahan",
-  "failure.hint": "Tambahkan judul trek dan tautan sumber jika membantu.",
+  "failure.hint": "Tambahkan judul trek dan tautan sumber jika membantu. Melaporkan akan menyalin detail ini ke clipboard.",
   "failure.includeLogs": "Sertakan log terbaru",
   "failure.collecting": "Mengumpulkan detail…",
   "failure.fetchingLogs": "Mengambil log…",
@@ -7609,7 +7602,6 @@ const fr = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "Wikipédia (CC BY-SA), MusicBrainz et Wikidata (CC0), Whisper (MIT).",
-  "about.dataLink": "Où vont vos données",
 
   "release.title": "Nouvelle version disponible",
   "release.closeAria": "Fermer la fenêtre de version",
@@ -7628,7 +7620,7 @@ const fr = {
 
   "failure.title": "Un problème est survenu",
   "failure.closeAria": "Fermer la fenêtre d'erreur",
-  "failure.hint": "Ajoutez le titre du morceau et le lien source s'ils sont utiles.",
+  "failure.hint": "Ajoutez le titre du morceau et le lien source s'ils sont utiles. Signaler le problème copie ces détails dans votre presse-papiers.",
   "failure.includeLogs": "Inclure les journaux récents",
   "failure.collecting": "Collecte des détails…",
   "failure.fetchingLogs": "Récupération des journaux…",
@@ -8204,7 +8196,7 @@ const ptPT = {
   "aria.download": "Transferir {name}",
   "release.download": "Transferir",
   "release.fullDownload": "Clique em Transferir, descomprima e execute.",
-  "about.dataLink": "Para onde vão os seus dados",
+  "failure.hint": "Adicione o título da faixa e o link de origem se ajudar. Ao enviar o relatório, estes detalhes são copiados para a área de transferência.",
   "release.downloading": "A transferir atualização…",
   "release.pullImage": "Transfira a nova imagem e reinicie o contentor:",
   "settings.exportLogs.desc": "Todos os logs num único zip, para anexar a um relatório de erro.",
@@ -8782,7 +8774,6 @@ const es = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "Wikipedia (CC BY-SA), MusicBrainz y Wikidata (CC0), Whisper (MIT).",
-  "about.dataLink": "Adónde van tus datos",
 
   "release.title": "Nueva versión disponible",
   "release.closeAria": "Cerrar el diálogo de la versión",
@@ -8800,7 +8791,7 @@ const es = {
 
   "failure.title": "Algo falló",
   "failure.closeAria": "Cerrar el diálogo de error",
-  "failure.hint": "Añade el título de la pista y el enlace de origen si ayudan.",
+  "failure.hint": "Añade el título de la pista y el enlace de origen si ayudan. Al informar, estos detalles se copian al portapapeles.",
   "failure.includeLogs": "Incluir los registros recientes",
   "failure.collecting": "Recopilando datos…",
   "failure.fetchingLogs": "Obteniendo los registros…",
@@ -9783,7 +9774,6 @@ const ko = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "위키백과 (CC BY-SA), MusicBrainz와 위키데이터 (CC0), Whisper (MIT).",
-  "about.dataLink": "데이터가 어디로 가는지",
 
   "release.title": "새 버전이 나왔어요",
   "release.closeAria": "릴리스 창 닫기",
@@ -9801,7 +9791,7 @@ const ko = {
 
   "failure.title": "무언가 실패했어요",
   "failure.closeAria": "오류 창 닫기",
-  "failure.hint": "도움이 될 것 같으면 트랙 제목과 원본 링크를 적어 주세요.",
+  "failure.hint": "도움이 될 것 같으면 트랙 제목과 원본 링크를 적어 주세요. 리포트하면 이 내용이 클립보드에 복사돼요.",
   "failure.includeLogs": "최근 로그 포함",
   "failure.collecting": "정보 모으는 중…",
   "failure.fetchingLogs": "로그 가져오는 중…",

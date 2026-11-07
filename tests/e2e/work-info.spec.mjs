@@ -355,7 +355,7 @@ test.describe("the work a soundtrack is from", () => {
   });
 });
 
-test("the About box credits the licensed sources and links to where data goes", async ({ page }) => {
+test("the About box credits the licensed sources", async ({ page }) => {
   await openPage(page, { [JOB_ID]: fixtureTrack(JOB_ID, "E2E Fixture Track") });
   await page.evaluate(() => document.getElementById("aboutBtn")?.click());
   const credits = page.locator("#aboutDialog .about-credits");
@@ -363,7 +363,4 @@ test("the About box credits the licensed sources and links to where data goes", 
   for (const name of ["Wikipedia (CC BY-SA)", "MusicBrainz and Wikidata (CC0)", "Whisper (MIT)"]) {
     await expect(credits).toContainText(name);
   }
-  const dataLink = page.locator("#aboutDialog .about-data-link");
-  await expect(dataLink).toHaveText("Where your data goes");
-  await expect(dataLink).toHaveAttribute("href", /docs\/how-it-works\.md#where-your-data-goes$/);
 });

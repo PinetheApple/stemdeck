@@ -3671,10 +3671,6 @@ input, textarea { font-family: inherit; }
 .about-social-btn:hover { background: var(--accent); border-color: var(--accent); color: #000; }
 /* Licences of the data and models used: small print under the socials. */
 .about-credits { margin: 16px 0 0; font-size: 10.5px; line-height: 1.5; color: var(--muted); }
-.about-data-link {
-  display: inline-block; margin-top: var(--s-1);
-  font-size: var(--fs-2xs); color: var(--accent); cursor: pointer;
-}
 
 /* ── Release notes dialog ── */
 .release-card {
