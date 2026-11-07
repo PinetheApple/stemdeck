@@ -80,7 +80,7 @@ function paint(state) {
   const running = state?.state === RUN_STATE.RUNNING;
   const offered = running || Boolean(state?.available);
   ui.start.hidden = !state?.available || running;
-  ui.start.disabled = false;
+  ui.start.removeAttribute("aria-busy");
   ui.progress.hidden = !running;
   if (!running) ui.cancel.removeAttribute("aria-busy");
   ui.message.textContent = offered ? messageFor(state) : "";
@@ -142,9 +142,10 @@ export async function checkTranscribe(trackId) {
 
 async function onStartClick() {
   const trackId = shownFor;
-  if (!trackId || ui.start.disabled) return;
+  if (!trackId || ui.start.getAttribute("aria-busy") === "true") return;
   const mine = token;
-  ui.start.disabled = true;
+  // Busy rather than disabled: a disabled button drops focus to the page.
+  ui.start.setAttribute("aria-busy", "true");
   let res = null;
   try {
     res = await fetch(transcribeUrl(trackId), { method: "POST" });
