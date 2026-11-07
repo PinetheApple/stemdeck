@@ -7,7 +7,12 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from app.core.config import AUDIO_TAG_LYRICS_MAX_CHARS, AUDIO_TAG_MAX_CHARS, SONG_NAME_MAX_CHARS
+from app.core.config import (
+    AUDIO_TAG_LYRICS_MAX_CHARS,
+    AUDIO_TAG_MAX_CHARS,
+    JOB_ID_RE,
+    SONG_NAME_MAX_CHARS,
+)
 
 
 class JobCancelled(Exception):
@@ -372,6 +377,11 @@ class Job:
     # "taken back out", so it can hand up favourites it set before this field
     # existed without undoing one removed on the phone.
     favorite: bool | None = None
+    # The job this one re-imports (#38), or None. When this job finishes "done"
+    # the server settles the old copy itself (see _apply_replacement in
+    # app/api/jobs.py), so the desktop and the phone list the same one song.
+    # Kept afterwards, so a client can carry its own state for the old id over.
+    replaces: str | None = None
     # Set by POST /api/jobs/{id}/cancel; consumed by pipeline stages.
     # Not surfaced via to_state() -- it's internal control state.
     cancel_requested: bool = False
@@ -492,6 +502,7 @@ class Job:
             "vocal_split": self.vocal_split,
             "trashed_at": self.trashed_at,
             "favorite": self.favorite,
+            "replaces": self.replaces,
             "created_at": self.created_at,
         }
 
@@ -529,6 +540,8 @@ class Job:
         job.audio_tags = clean_audio_tags(job.audio_tags)
         job.user_title = clean_user_name(job.user_title)
         job.user_artist = clean_user_name(job.user_artist)
+        if not isinstance(job.replaces, str) or not JOB_ID_RE.match(job.replaces):
+            job.replaces = None
         job.cancel_requested = False
         job.stop_requested = False
         return job
