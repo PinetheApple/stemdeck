@@ -2756,7 +2756,7 @@ function queueRowHtml({ job, running }, place, { paused = false } = {}) {
           <path d="M12 19V5 M5 12l7-7 7 7"></path>
         </svg>
       </button>`}
-      <button class="queue-cancel" type="button" title="${esc(i18nT("queue.cancelImport"))}"
+      <button class="queue-cancel" type="button" data-upload="${isUploadJob(job)}" title="${esc(i18nT("queue.cancelImport"))}"
               aria-label="${esc(i18nT("queue.cancelImportOf", { title: displayTitle(job.title || job.source_url) }))}">
         ${CANCEL_ICON_SVG}${ARM_TEXT_HTML}
       </button>
@@ -2786,19 +2786,31 @@ function dropAnchorId(listEl, draggedId, clientY) {
   return anchor;
 }
 
-// Cancelling deletes what the import has so far, an uploaded file included,
-// and nothing goes to the Trash, so it asks first (#38).
+const UPLOAD_SOURCE_PREFIX = "local:";
+
+function isUploadJob(job) {
+  return String(job.source_url || "").startsWith(UPLOAD_SOURCE_PREFIX);
+}
+
+async function cancelImport(btn) {
+  btn.disabled = true;
+  const cancelled = await cancelQueuedJob(btn.closest(".queue-row").dataset.id);
+  if (!cancelled) btn.disabled = false;
+}
+
+// Cancelling deletes what the import has so far. A link can be fetched again,
+// but an uploaded file is gone for good, so only an upload asks first (#38).
 function onQueueCancelClick(e) {
   e.stopPropagation();
   const btn = e.currentTarget;
-  const jobId = btn.closest(".queue-row").dataset.id;
+  if (btn.dataset.upload !== "true") {
+    cancelImport(btn);
+    return;
+  }
   confirmOnSecondClick(btn, {
     label: btn.querySelector(".arm-text"),
     armedText: i18nT("queue.cancelConfirm"),
-    onConfirm: function cancelImport() {
-      btn.disabled = true;
-      cancelQueuedJob(jobId);
-    },
+    onConfirm: () => cancelImport(btn),
   });
 }
 

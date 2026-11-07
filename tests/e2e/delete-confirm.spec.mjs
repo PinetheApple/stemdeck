@@ -63,17 +63,25 @@ async function trashItems(page) {
 }
 
 
-test.describe("the queue's cancel", () => {
-  test("has its own icon, and cancels only on a second click", async ({ page }) => {
-    await seedFolders(page, [unsorted([JOB_ID, SIBLING_JOB_ID]), trashFolder([])]);
-    const calls = await stubLibraryWrites(page);
-    const queue = await stubImportQueue(page, QUEUED_ID, "Uploaded file");
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-    await queue.run();
-    await page.locator(".rail-queue").click();
+const UPLOAD_SOURCE = "local:Uploaded file.wav";
+const LINK_SOURCE = "https://www.youtube.com/watch?v=e2e0feedbee";
 
-    const cancel = page.locator(`.queue-row[data-id="${QUEUED_ID}"] .queue-cancel`);
-    await expect(cancel).toBeVisible();
+/** The queue view with one running import from `sourceUrl`; its cancel button. */
+async function queueWithImport(page, sourceUrl) {
+  await seedFolders(page, [unsorted([JOB_ID, SIBLING_JOB_ID]), trashFolder([])]);
+  const calls = await stubLibraryWrites(page);
+  const queue = await stubImportQueue(page, QUEUED_ID, "Importing", { sourceUrl });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await queue.run();
+  await page.locator(".rail-queue").click();
+  const cancel = page.locator(`.queue-row[data-id="${QUEUED_ID}"] .queue-cancel`);
+  await expect(cancel).toBeVisible();
+  return { calls, cancel };
+}
+
+test.describe("the queue's cancel", () => {
+  test("asks first for an upload, which is lost for good", async ({ page }) => {
+    const { calls, cancel } = await queueWithImport(page, UPLOAD_SOURCE);
     await expect(cancel.locator(TRASH_POLYLINE)).toHaveCount(0);
 
     await cancel.click();
@@ -83,6 +91,22 @@ test.describe("the queue's cancel", () => {
 
     await cancel.click();
     await expect.poll(() => calls.cancelled).toEqual([QUEUED_ID]);
+  });
+
+  test("cancels a link import at once", async ({ page }) => {
+    const { calls, cancel } = await queueWithImport(page, LINK_SOURCE);
+    await cancel.click();
+    await expect.poll(() => calls.cancelled).toEqual([QUEUED_ID]);
+    await expect(cancel).not.toHaveAttribute("data-armed", "1");
+  });
+
+  test("a cancel the server refused says so and can be tried again", async ({ page }) => {
+    const { cancel } = await queueWithImport(page, LINK_SOURCE);
+    await page.route(/\/api\/jobs\/[a-f0-9]{12}\/cancel$/, (route) => route.fulfill({ status: 500, json: {} }));
+
+    await cancel.click();
+    await expect.poll(() => failureMessages(page)).toEqual([await uiText(page, "notif.cancelFailed")]);
+    await expect(cancel).toBeEnabled();
   });
 });
 
