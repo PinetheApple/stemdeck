@@ -276,10 +276,11 @@ function paintStepLabels() {
     $(id).title = t(key, { step });
     $(id).setAttribute("aria-label", t(key, { step }));
   }
-  const nudges = [["tempoNudgeEarlier", "tempo.nudgeEarlier"], ["tempoNudgeLater", "tempo.nudgeLater"]];
+  const nudges = [["tempoNudgeEarlier", "tempo.nudgeEarlierTitle"], ["tempoNudgeLater", "tempo.nudgeLaterTitle"]];
   for (const [id, key] of nudges) {
-    $(id).textContent = t(key, { ms: NUDGE_MS });
-    $(id).title = t(`${key}Title`, { ms: NUDGE_MS });
+    $(id).querySelector("span").textContent = t("tempo.nudgeAmount", { ms: NUDGE_MS });
+    $(id).title = t(key, { ms: NUDGE_MS });
+    $(id).setAttribute("aria-label", t(key, { ms: NUDGE_MS }));
   }
 }
 
