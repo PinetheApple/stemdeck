@@ -32,7 +32,7 @@ async function setRetention(page, patch) {
 // and what a user actually does.
 const switchFor = (page) => page.locator("label.settings-switch:has(.auto-delete-input)");
 
-/** Switching it on takes a second click, once the row has said what it deletes (#38). */
+/** Switching it on takes a second click, once the row has said what it deletes. */
 async function turnOn(page) {
   await switchFor(page).click();
   await expect(page.locator(".auto-delete-input")).toHaveAttribute("data-armed", "1");
@@ -92,7 +92,8 @@ test.describe("automatic deletion", () => {
     await expect(page.locator(".auto-delete-input")).not.toBeChecked();
     // The sweep spares them, and the user decides knowing that.
     await expect(page.locator(".auto-delete-desc")).toHaveText(await uiText(page, "settings.autoDelete.confirm"));
-    await expect(page.locator(".auto-delete-desc")).toContainText("Favorites and songs in setlists are kept");
+    await expect(page.locator(".auto-delete-desc")).toContainText("Deletes for good");
+    await expect(page.locator(".auto-delete-desc")).toContainText("favorites and setlist songs are kept");
     await expect(page.locator(".set-auto-delete-days")).toBeDisabled();
     expect(await serverSaysOn(page)).toBe(false);
   });

@@ -1,5 +1,5 @@
 // Destructive library actions ask first, and keyboard delete stays in the
-// library (#38).
+// library.
 //
 // Every call that would change the shared backend is stubbed: the fixture job
 // is used by the whole run, so a real trash or delete here would break every
@@ -23,6 +23,7 @@ import {
 } from "./helpers.mjs";
 
 const QUEUED_ID = "e2e0feedbeef";
+const DELETED_JOBS_KEY = "stemdeck.deleted_jobs";
 const TRASH_POLYLINE = 'polyline[points="3 6 5 6 21 6"]';
 
 /** Answer trash, restore, cancel and DELETE here, and record what was asked. */
@@ -86,7 +87,7 @@ test.describe("the queue's cancel", () => {
 
     await cancel.click();
     await expect(cancel).toHaveAttribute("data-armed", "1");
-    await expect(cancel).toContainText("Cancel?");
+    await expect(cancel).toContainText(await uiText(page, "queue.cancelConfirm"));
     expect(calls.cancelled).toEqual([]);
 
     await cancel.click();
@@ -136,6 +137,26 @@ test.describe("Empty trash", () => {
   });
 });
 
+test("Empty trash says so when the device cannot record what it deleted", async ({ page }) => {
+  await page.addInitScript((key) => {
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function refuseDeletedJobs(k, v) {
+      if (k === key) throw new DOMException("full", "QuotaExceededError");
+      return setItem.call(this, k, v);
+    };
+  }, DELETED_JOBS_KEY);
+  await seedFolders(page, [unsorted([]), trashFolder([SIBLING_JOB_ID])]);
+  await stubLibraryWrites(page);
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.locator(".rail-trash").click();
+
+  const empty = page.locator("#clearBinBtn");
+  await empty.click();
+  await empty.click();
+
+  await expect.poll(() => failureMessages(page)).toEqual([await uiText(page, "notif.storageFull")]);
+});
+
 test.describe("deleting a folder", () => {
   test("asks first, then bins its songs and its subfolder's, and tells the server", async ({ page }) => {
     await seedFolders(page, [
@@ -177,6 +198,24 @@ test.describe("keyboard delete", () => {
     await page.keyboard.press("Backspace");
 
     await expect.poll(() => trashItems(page)).toEqual([SIBLING_JOB_ID]);
+  });
+
+  test("bins nothing while a dialog is open, even with a row still focused", async ({ page }) => {
+    await seedFolders(page, [unsorted([JOB_ID, SIBLING_JOB_ID]), trashFolder([])]);
+    const calls = await stubLibraryWrites(page);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+
+    const fav = page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"] .cat-fav`);
+    await fav.focus();
+    // Shown the way the app shows it, without taking focus from the row.
+    await page.evaluate(() => document.getElementById("aboutDialog").classList.remove("hidden"));
+    await expect(page.locator("#aboutDialog")).toBeVisible();
+    await expect(fav).toBeFocused();
+    await page.keyboard.press("Delete");
+
+    await page.waitForTimeout(300);
+    expect(calls.trashed).toEqual([]);
+    expect(await trashItems(page)).toEqual([]);
   });
 
   test("leaves the open song alone in Stage mode and in a dialog", async ({ page }) => {

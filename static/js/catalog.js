@@ -14,7 +14,7 @@ import {
 } from "./queue.js";
 import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
-import { arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
+import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
@@ -73,7 +73,7 @@ const PROCESSING_STATUSES = new Set(["queued", "downloading", "analyzing", "sepa
 
 
 // The trash can only ever moves a song to the Trash. The queue's cancel deletes
-// the import's files, so it has an X of its own (#38).
+// the import's files, so it has an X of its own.
 const TRASH_ICON_SVG = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <polyline points="3 6 5 6 21 6"></polyline>
         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
@@ -82,7 +82,7 @@ const CANCEL_ICON_SVG = `<svg viewBox="0 0 24 24" width="12" height="12" fill="n
         <path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>
       </svg>`;
 // Empty while idle; an armed control shows what its next click does here.
-const ARM_TEXT_HTML = '<span class="arm-text"></span>';
+const ARM_TEXT_HTML = `<span class="${ARM_TEXT_CLASS}"></span>`;
 // Long enough to read what turning automatic deletion on would delete.
 const AUTO_DELETE_ARM_MS = 10000;
 const FOLDER_COLORS = ["#ff6f59", "#e85f6f", "#64c86f", "#4f9de8", "#a985f4"];
@@ -102,13 +102,9 @@ async function markJobsDeleted(ids) {
   // (#521). The backend keeps its own deletion record now, so this is a second
   // line of defence rather than the only one, but it still has to be written
   // before the tracks are dropped from the local index.
-  try {
-    await storeSet(DELETED_JOBS_KEY, [..._deletedJobIds]);
-    return true;
-  } catch (e) {
-    console.warn("[catalog] failed to persist deleted jobs", e);
-    return false;
-  }
+  const saved = await storeSet(DELETED_JOBS_KEY, [..._deletedJobIds]);
+  if (!saved) notifyFailure({ kind: "storage", message: i18nT("notif.storageFull") });
+  return saved;
 }
 
 function normalizeFolderColor(color) {
@@ -1943,11 +1939,18 @@ function focusedLibraryTrackId(target) {
   return row && tracks[row.dataset.id] ? row.dataset.id : null;
 }
 
+const MODAL_SELECTOR = '[role="dialog"][aria-modal="true"]';
+
+/** The app's dialogs are hidden by a class or removed, not native <dialog>s. */
+function isModalOpen() {
+  return [...document.querySelectorAll(MODAL_SELECTOR)].some((el) => el.getClientRects().length > 0);
+}
+
 // Only a song whose row has focus: the open song is not a target, or Delete
-// in Stage mode or a dialog would bin whatever happens to be playing (#38).
+// in Stage mode or a dialog would bin whatever happens to be playing.
 function onLibraryDeleteKey(e) {
   if (e.key !== "Delete" && e.key !== "Backspace") return;
-  if (isTextEditingTarget(e.target)) return;
+  if (isTextEditingTarget(e.target) || isModalOpen()) return;
   const trackId = focusedLibraryTrackId(e.target);
   if (!trackId) return;
   e.preventDefault();
@@ -2294,7 +2297,7 @@ function renderFolder(folder) {
     e.stopPropagation();
     const btn = e.currentTarget;
     confirmOnSecondClick(btn, {
-      label: btn.querySelector(".arm-text"),
+      label: btn.querySelector(`.${ARM_TEXT_CLASS}`),
       armedText: i18nT("folder.deleteConfirm"),
       onConfirm: () => deleteFolder(folder.id),
     });
@@ -2756,7 +2759,7 @@ function queueRowHtml({ job, running }, place, { paused = false } = {}) {
           <path d="M12 19V5 M5 12l7-7 7 7"></path>
         </svg>
       </button>`}
-      <button class="queue-cancel" type="button" data-upload="${isUploadJob(job)}" title="${esc(i18nT("queue.cancelImport"))}"
+      <button class="queue-cancel" type="button" ${isReimportableSource(job.source_url) ? "" : "data-upload "}title="${esc(i18nT("queue.cancelImport"))}"
               aria-label="${esc(i18nT("queue.cancelImportOf", { title: displayTitle(job.title || job.source_url) }))}">
         ${CANCEL_ICON_SVG}${ARM_TEXT_HTML}
       </button>
@@ -2786,12 +2789,6 @@ function dropAnchorId(listEl, draggedId, clientY) {
   return anchor;
 }
 
-const UPLOAD_SOURCE_PREFIX = "local:";
-
-function isUploadJob(job) {
-  return String(job.source_url || "").startsWith(UPLOAD_SOURCE_PREFIX);
-}
-
 async function cancelImport(btn) {
   btn.disabled = true;
   const cancelled = await cancelQueuedJob(btn.closest(".queue-row").dataset.id);
@@ -2799,16 +2796,16 @@ async function cancelImport(btn) {
 }
 
 // Cancelling deletes what the import has so far. A link can be fetched again,
-// but an uploaded file is gone for good, so only an upload asks first (#38).
+// but an uploaded file is gone for good, so only an upload asks first.
 function onQueueCancelClick(e) {
   e.stopPropagation();
   const btn = e.currentTarget;
-  if (btn.dataset.upload !== "true") {
+  if (!btn.hasAttribute("data-upload")) {
     cancelImport(btn);
     return;
   }
   confirmOnSecondClick(btn, {
-    label: btn.querySelector(".arm-text"),
+    label: btn.querySelector(`.${ARM_TEXT_CLASS}`),
     armedText: i18nT("queue.cancelConfirm"),
     onConfirm: () => cancelImport(btn),
   });
@@ -3085,7 +3082,7 @@ async function emptyTrash(btn) {
     const failed = await deleteJobsOnServer(toDelete);
     const deleted = toDelete.filter((id) => !failed.includes(id));
     // Awaited: the tombstone has to be on disk before the tracks leave the
-    // local index, or a reload re-imports them (#521).
+    // local index, or a reload re-imports them.
     await markJobsDeleted(deleted);
     purgeTrash(deleted);
     saveState();
@@ -4473,10 +4470,8 @@ async function wireGeneralSettings(overlay) {
     const items = Math.max(1, Math.min(200, parseInt(playlistInput.value, 10) || 50));
     post({ playlist_max_items: items });
   });
-  // Not routed through post(): that helper drops a non-ok response silently,
-  // which is exactly the wrong behaviour for a path the user typed. A bad path
-  // has to say so, or the user retypes it and never learns why nothing
-  // happened.
+  // Not routed through post(): a bad path gets its own message by the field,
+  // or the user retypes it and never learns why nothing happened.
   cookiesInput?.addEventListener("change", async () => {
     if (cookiesMsg) cookiesMsg.textContent = "";
     try {
@@ -4511,7 +4506,7 @@ async function wireGeneralSettings(overlay) {
     post({ transcribe_lyrics: transcribeSel.value });
   });
   // Switching it on deletes songs for good, so the first click only says what
-  // it deletes (#38). Switching it off needs no second click.
+  // it deletes. Switching it off needs no second click.
   autoDeleteInput?.addEventListener("change", function onAutoDeleteChange() {
     if (autoDeleteInput.checked && !isArmed(autoDeleteInput)) {
       autoDeleteInput.checked = false;
