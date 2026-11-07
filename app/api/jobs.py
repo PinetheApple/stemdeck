@@ -253,12 +253,11 @@ class JobRequest(BaseModel):
     # rejected, so a future model with extra stems doesn't break older
     # clients pinning the old set.
     stems: list[str] | None = None
-    # The job this import re-imports (#38). Checked by _checked_replaces.
     replaces: str | None = None
 
 
 def _checked_replaces(old_id: object) -> str | None:
-    """The job a new import replaces, or None when it replaces nothing (#38).
+    """The job a new import replaces, or None when it replaces nothing.
 
     An id the server does not know is ignored rather than refused: the client
     may hold a song this server has already forgotten, and the import is still
@@ -2216,7 +2215,7 @@ def _retry_deleted_job_files(job_id: str) -> dict[str, str]:
 
 
 def _apply_replacement(job: Job) -> None:
-    """Settle the old copy a job re-imported, now that the job is done (#38).
+    """Settle the old copy a job re-imported, now that the job is done.
 
     An old copy whose files are gone ("Sync again" on an unavailable song) is
     deleted outright. One that still plays goes to the Trash instead: it may

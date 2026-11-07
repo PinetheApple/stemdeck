@@ -1,4 +1,4 @@
-"""A re-import replaces the old copy on the server (#38).
+"""A re-import replaces the old copy on the server.
 
 Re-importing a song, or "Sync again" on one whose files are gone, made a new
 job and left the old one in the registry, so GET /api/jobs listed both and the
@@ -21,6 +21,7 @@ import app.core.config as cfg
 from app.core import registry, setlists
 from app.core.models import Job, JobCancelled
 from app.core.registry import _jobs
+from app.pipeline import runner
 from app.pipeline.runner import run_pipeline
 
 OLD_ID = "0123456789ab"
@@ -165,6 +166,17 @@ async def test_a_new_job_that_fails_leaves_the_setlists(client):
     gig = setlists.create(cfg.JOBS_DIR, "Gig", [OLD_ID])
     await _finish(_new_job(), _fail)
     assert setlists.list_all(cfg.JOBS_DIR)[0]["song_ids"] == gig["song_ids"]
+
+
+async def test_a_failing_done_hook_is_logged_and_the_job_stays_done(monkeypatch, caplog):
+    def broken(job):
+        raise RuntimeError("hook blew up")
+
+    monkeypatch.setattr(runner, "_on_done", broken)
+    new = _new_job()
+    await _finish(new)
+    assert new.status == "done"
+    assert "hook blew up" in caplog.text
 
 
 def _fail(*args, **kwargs):

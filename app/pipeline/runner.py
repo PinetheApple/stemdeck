@@ -51,7 +51,7 @@ _on_done: Callable[[Job], None] | None = None
 
 
 def set_on_done(callback: Callable[[Job], None]) -> None:
-    """Install what runs once a job has finished "done" (#38)."""
+    """Install what runs once a job has finished "done"."""
     global _on_done
     _on_done = callback
 
@@ -514,9 +514,18 @@ async def _run_async(
         " ".join(f"{k}={v}s" for k, v in t.items()),
         sum(t.values()),
     )
-    if _on_done is not None:
+    await _after_done(job)
+
+
+async def _after_done(job: Job) -> None:
+    """Run the done hook. A failure there is logged; the job stays done."""
+    if _on_done is None:
+        return
+    try:
         # Off the loop: deleting a job can wait seconds for a lyrics run to stop.
         await asyncio.to_thread(_on_done, job)
+    except Exception:
+        logger.exception("[%s] after-done step failed", job.id)
 
 
 async def run_pipeline(job: Job, url: str, jobs_dir: Path) -> None:

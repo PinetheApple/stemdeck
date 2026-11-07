@@ -377,10 +377,7 @@ class Job:
     # "taken back out", so it can hand up favourites it set before this field
     # existed without undoing one removed on the phone.
     favorite: bool | None = None
-    # The job this one re-imports (#38), or None. When this job finishes "done"
-    # the server settles the old copy itself (see _apply_replacement in
-    # app/api/jobs.py), so the desktop and the phone list the same one song.
-    # Kept afterwards, so a client can carry its own state for the old id over.
+    # Kept after the replacement, so a client can carry its state for the old id over.
     replaces: str | None = None
     # Set by POST /api/jobs/{id}/cancel; consumed by pipeline stages.
     # Not surfaced via to_state() -- it's internal control state.
