@@ -1,7 +1,6 @@
-// Server reachability (#39): with the server gone, every action used to fail
-// silently while the app looked normal. The monitor counts network-level
-// failures of the app's own /api requests and flips to offline after a few in
-// a row; any HTTP answer, even an error status, means the server is there.
+// The monitor counts network-level failures of the app's own /api requests
+// and flips to offline after a few in a row; any HTTP answer, even an error
+// status, means the server is there.
 //
 // Run:  node tests/js/connection.test.mjs
 
@@ -62,6 +61,21 @@ check("a Request-like object counts", isApiRequest({ url: `${ORIGIN}/api/x` }, O
 check("a static asset does not count", !isApiRequest("/static/js/main.js", ORIGIN));
 check("another origin's /api does not count", !isApiRequest("https://api.github.com/api/x", ORIGIN));
 check("a path merely starting with api does not count", !isApiRequest("/apiary", ORIGIN));
+check("an unparseable URL does not count", !isApiRequest("http://[bad", ORIGIN));
+
+{
+  const h = harness();
+  const error = networkError();
+  h.outcomes.push(error);
+  let pending = null;
+  let threw = null;
+  try { pending = h.monitor.fetch("http://[bad"); } catch (e) { threw = e; }
+  check("an unparseable URL does not throw synchronously", threw === null, String(threw));
+  const caught = await pending.catch((e) => e);
+  await settle();
+  check("an unparseable URL goes straight to fetch", caught === error && h.calls.at(-1) === "http://[bad");
+  check("an unparseable URL is not monitored", h.timers.length === 0);
+}
 
 // --------------------------------------------------------------------------
 // Threshold and recovery

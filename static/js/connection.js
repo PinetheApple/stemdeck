@@ -1,12 +1,5 @@
-// ─── Server reachability ───
-//
-// With the server gone every action fails inside its own fetch, and most of
-// those failures are quiet, so the app looked normal while nothing worked
-// (#39). This watches the app's own /api requests: a request that never got an
-// answer counts, any answer resets, and a few in a row mark the server lost.
-//
 // The wrapper hands back fetch's own promise untouched, so callers see the
-// same response or the same error they always did.
+// same response or error as they would without it.
 
 export const FAILURES_BEFORE_OFFLINE = 3;
 export const PROBE_INTERVAL_MS = 3000;
@@ -17,7 +10,12 @@ const INDICATOR_ID = "connStatus";
 /** Whether a fetch input is one of this app's own API requests. */
 export function isApiRequest(input, origin) {
   const raw = typeof input === "string" ? input : input?.url ?? String(input);
-  const url = new URL(raw, origin);
+  let url;
+  try {
+    url = new URL(raw, origin);
+  } catch {
+    return false;
+  }
   return url.origin === origin && url.pathname.startsWith(API_PREFIX);
 }
 
