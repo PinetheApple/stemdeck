@@ -1,0 +1,35 @@
+/* ── Details pane: Lead and backing vocals card ── */
+.vocal-split-card { gap: var(--s-2); }
+.vocal-split-card[hidden],
+.vocal-split-progress[hidden],
+.vocal-split-start[hidden] { display: none; }
+
+.vocal-split-message { margin: 0; font-size: var(--fs-xs); color: var(--text-2); }
+.vocal-split-message:empty { display: none; }
+
+.vocal-split-progress { display: flex; align-items: center; gap: var(--s-2); }
+.vocal-split-progress progress {
+  flex: 1 1 0; min-width: 0; height: var(--s-1);
+  appearance: none; border: 0; border-radius: var(--r-pill);
+  background: var(--surface-3); overflow: hidden;
+}
+.vocal-split-progress progress::-webkit-progress-bar { background: var(--surface-3); }
+.vocal-split-progress progress::-webkit-progress-value { background: var(--accent); }
+.vocal-split-progress progress::-moz-progress-bar { background: var(--accent); }
+.vocal-split-percent {
+  font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.vocal-split-percent:empty { display: none; }
+
+.vocal-split-start {
+  align-self: flex-start;
+  height: var(--ctl-h-sm); padding: 0 var(--s-3);
+  border: 1px solid var(--line-strong); border-radius: var(--r-2);
+  background: var(--surface-3); color: var(--text);
+  font: var(--fw-medium) var(--fs-xs) / 1 var(--font-sans);
+  white-space: nowrap; cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+.vocal-split-start:hover { border-color: var(--accent-line); background: var(--accent-soft); }
+.vocal-split-start[aria-busy="true"] { cursor: progress; opacity: 0.6; }
