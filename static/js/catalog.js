@@ -14,10 +14,12 @@ import {
 } from "./queue.js";
 import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
+import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
+import { isModalOpen } from "./stageMode.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
-import { fetchJson, isNotFound } from "./libraryControls.js";
+import { HTTP_NOT_FOUND, fetchJson, isNotFound } from "./libraryControls.js";
 import { lookupArtist } from "./artistLookup.js";
 import { HELD_DROP, HELD_SEND, HTTP_UNPROCESSABLE, heldBandAction, libraryArtist, mergedBand, sendHeldBand, uploadBands } from "./trackBand.js";
 import { t as i18nT, plural as i18nPlural, LANGUAGES, getLanguage, setLanguage, onLanguageChange, applyTranslations } from "./i18n.js";
@@ -71,12 +73,19 @@ const UNSORTED_ID = "f-unsorted";
 const PROCESSING_STATUSES = new Set(["queued", "downloading", "analyzing", "separating", "processing"]);
 
 
-// One trash can for every "throw this away" button: the library rows and the
-// queue rows (#748), so the queue's cancel reads as the same action.
+// The trash can only ever moves a song to the Trash. The queue's cancel deletes
+// the import's files, so it has an X of its own.
 const TRASH_ICON_SVG = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <polyline points="3 6 5 6 21 6"></polyline>
         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
       </svg>`;
+const CANCEL_ICON_SVG = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>
+      </svg>`;
+// Empty while idle; an armed control shows what its next click does here.
+const ARM_TEXT_HTML = `<span class="${ARM_TEXT_CLASS}"></span>`;
+// Long enough to read what turning automatic deletion on would delete.
+const AUTO_DELETE_ARM_MS = 10000;
 const FOLDER_COLORS = ["#ff6f59", "#e85f6f", "#64c86f", "#4f9de8", "#a985f4"];
 const DEFAULT_FOLDER_COLOR = FOLDER_COLORS[0];
 const TRACK_DRAG_TYPE = "application/x-stemdeck-track";
@@ -88,19 +97,9 @@ function getDeletedJobIds() {
 
 async function markJobsDeleted(ids) {
   for (const id of ids) _deletedJobIds.add(id);
-  // Awaited by callers before they purge. Fire-and-forget meant that quitting
-  // soon after clearing the bin -- or one failed store write -- left no
-  // tombstone, and syncWithServer re-imported everything on the next launch
-  // (#521). The backend keeps its own deletion record now, so this is a second
-  // line of defence rather than the only one, but it still has to be written
-  // before the tracks are dropped from the local index.
-  try {
-    await storeSet(DELETED_JOBS_KEY, [..._deletedJobIds]);
-    return true;
-  } catch (e) {
-    console.warn("[catalog] failed to persist deleted jobs", e);
-    return false;
-  }
+  // A second line of defence: the server keeps its own deletion record, so a
+  // failed write is reported, and the purge still goes ahead.
+  onStoreSaved(await storeSet(DELETED_JOBS_KEY, [..._deletedJobIds]));
 }
 
 function normalizeFolderColor(color) {
@@ -182,10 +181,10 @@ function replaceTrackId(oldId, newId) {
   if (_currentTrackId === oldId) _currentTrackId = newId;
 }
 
-function purgeTrash() {
+function purgeTrash(deletedIds) {
   const trash = folders.find((f) => f.id === TRASH_ID);
   if (!trash?.items.length) return false;
-  const trashIds = new Set(trash.items);
+  const trashIds = new Set(trash.items.filter((id) => deletedIds.includes(id)));
   for (const id of trashIds) {
     delete tracks[id];
     dropHeldBand(id);
@@ -193,7 +192,6 @@ function purgeTrash() {
   for (const folder of folders) {
     folder.items = folder.items.filter((id) => !trashIds.has(id));
   }
-  trash.items = [];
   // Catches a job that errored after its track was trashed but before this
   // permanent delete — moveTrackToTrash's own dismiss already fired earlier
   // and can't have caught a failure that didn't exist yet (#401).
@@ -260,11 +258,22 @@ async function loadState() {
   if (changed) saveState();
 }
 
+// Said once per run of failed saves, not on every write while saving keeps failing.
+let _saveFailureShown = false;
+
 function saveState() {
   ensureTrash();
-  storeSet(STORAGE_KEY, { v: STORAGE_VERSION, folders, tracks }).catch((e) =>
-    console.warn("[catalog] failed to save state:", e)
-  );
+  storeSet(STORAGE_KEY, { v: STORAGE_VERSION, folders, tracks }).then(onStoreSaved);
+}
+
+function onStoreSaved(saved) {
+  if (saved) {
+    _saveFailureShown = false;
+    return;
+  }
+  if (_saveFailureShown) return;
+  _saveFailureShown = true;
+  notifyFailure({ kind: "storage", message: i18nT("notif.storageFull") });
 }
 
 // ─── Track management ───
@@ -1123,6 +1132,13 @@ function applyServerFavorite(track, state) {
 
 function moveTrackToTrash(trackId) {
   if (!tracks[trackId]) return;
+  binTrack(trackId);
+  saveState();
+  render();
+}
+
+/** moveTrackToTrash without the save and repaint, for binning several at once. */
+function binTrack(trackId) {
   removeTrackFromFolders(trackId);
   const trash = getTrashFolder();
   if (trash && !trash.items.includes(trackId)) trash.items.unshift(trackId);
@@ -1138,8 +1154,6 @@ function moveTrackToTrash(trackId) {
   syncTrashToServer(trackId, true).then(() => {
     if (wasInQueue) refreshQueue();
   });
-  saveState();
-  render();
 }
 
 function setCatalogView(view) {
@@ -1385,18 +1399,24 @@ export function addPlaylistToLibrary(playlistTitle, jobs) {
   return folder.id;
 }
 
+/** The folder and every folder nested under it, at any depth. */
+function folderWithDescendants(folderId) {
+  const ids = new Set([folderId]);
+  for (const id of ids) {
+    for (const f of folders) if (f.parentId === id) ids.add(f.id);
+  }
+  return ids;
+}
+
+/** Remove a folder and its subfolders; their songs go to the Trash. */
 function deleteFolder(folderId) {
   if (folderId === TRASH_ID || folderId === UNSORTED_ID) return;
-  // Cascade: delete children first.
-  for (const child of folders.filter((f) => f.parentId === folderId)) deleteFolder(child.id);
-  const idx = folders.findIndex((f) => f.id === folderId);
-  if (idx === -1) return;
-  const [folder] = folders.splice(idx, 1);
-  const trash = getTrashFolder();
-  for (const trackId of folder.items) {
-    if (tracks[trackId] && trash && !trash.items.includes(trackId)) {
-      trash.items.unshift(trackId);
-    }
+  if (!folders.some((f) => f.id === folderId)) return;
+  const doomed = folderWithDescendants(folderId);
+  const trackIds = folders.filter((f) => doomed.has(f.id)).flatMap((f) => f.items);
+  folders = folders.filter((f) => !doomed.has(f.id));
+  for (const trackId of trackIds) {
+    if (tracks[trackId]) binTrack(trackId);
   }
   saveState();
   render();
@@ -1906,17 +1926,29 @@ function isTextEditingTarget(target) {
   return Boolean(target?.closest?.("input, textarea, select, [contenteditable='true'], .folder-editor"));
 }
 
+const LIBRARY_ROW_SELECTOR = "#catalogList .cat-item:not(.in-trash):not(.queue-row)";
+
+/** The library song whose row holds keyboard focus, or null. */
+function focusedLibraryTrackId(target) {
+  const row = target?.closest?.(LIBRARY_ROW_SELECTOR);
+  return row && tracks[row.dataset.id] ? row.dataset.id : null;
+}
+
+// Only a song whose row has focus: the open song is not a target, or Delete
+// in Stage mode or a dialog would bin whatever happens to be playing.
+function onLibraryDeleteKey(e) {
+  if (e.key !== "Delete" && e.key !== "Backspace") return;
+  if (isTextEditingTarget(e.target) || isModalOpen()) return;
+  const trackId = focusedLibraryTrackId(e.target);
+  if (!trackId) return;
+  e.preventDefault();
+  moveTrackToTrash(trackId);
+}
+
 function wireLibraryDeleteKeys() {
   if (document.body.dataset.libraryDeleteReady === "1") return;
   document.body.dataset.libraryDeleteReady = "1";
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Delete" && e.key !== "Backspace") return;
-    if (isTextEditingTarget(e.target)) return;
-    if (!_currentTrackId || !tracks[_currentTrackId]) return;
-    e.preventDefault();
-    moveTrackToTrash(_currentTrackId);
-  });
+  document.addEventListener("keydown", onLibraryDeleteKey);
 }
 
 // ─── Rendering helpers ───
@@ -2196,6 +2228,7 @@ function renderFolder(folder) {
       </button>
       <button class="f-del" type="button" aria-label="${esc(i18nT("folder.deleteFolder"))}" title="${esc(i18nT("folder.deleteFolder"))}">
         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
+        ${ARM_TEXT_HTML}
       </button>
     `}
   `;
@@ -2248,9 +2281,14 @@ function renderFolder(folder) {
     });
   }
 
-  head.querySelector(".f-del")?.addEventListener("click", (e) => {
+  head.querySelector(".f-del")?.addEventListener("click", function onDeleteFolderClick(e) {
     e.stopPropagation();
-    deleteFolder(folder.id);
+    const btn = e.currentTarget;
+    confirmOnSecondClick(btn, {
+      label: btn.querySelector(`.${ARM_TEXT_CLASS}`),
+      armedText: i18nT("folder.deleteConfirm"),
+      onConfirm: () => deleteFolder(folder.id),
+    });
   });
 
   head.querySelector(".f-subfolder")?.addEventListener("click", (e) => {
@@ -2709,9 +2747,9 @@ function queueRowHtml({ job, running }, place, { paused = false } = {}) {
           <path d="M12 19V5 M5 12l7-7 7 7"></path>
         </svg>
       </button>`}
-      <button class="queue-cancel" type="button" title="${esc(i18nT("queue.cancelImport"))}"
+      <button class="queue-cancel" type="button" ${isReimportableSource(job.source_url) ? "" : "data-upload "}title="${esc(i18nT("queue.cancelImport"))}"
               aria-label="${esc(i18nT("queue.cancelImportOf", { title: displayTitle(job.title || job.source_url) }))}">
-        ${TRASH_ICON_SVG}
+        ${CANCEL_ICON_SVG}${ARM_TEXT_HTML}
       </button>
     </div>`;
 }
@@ -2739,13 +2777,30 @@ function dropAnchorId(listEl, draggedId, clientY) {
   return anchor;
 }
 
-function wireQueueRow(el, listEl) {
-  el.querySelector(".queue-cancel")?.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    const btn = e.currentTarget;
-    btn.disabled = true;
-    await cancelQueuedJob(el.dataset.id);
+async function cancelImport(btn) {
+  btn.disabled = true;
+  const cancelled = await cancelQueuedJob(btn.closest(".queue-row").dataset.id);
+  if (!cancelled) btn.disabled = false;
+}
+
+// Cancelling deletes what the import has so far. A link can be fetched again,
+// but an uploaded file is gone for good, so only an upload asks first.
+function onQueueCancelClick(e) {
+  e.stopPropagation();
+  const btn = e.currentTarget;
+  if (!btn.hasAttribute("data-upload")) {
+    cancelImport(btn);
+    return;
+  }
+  confirmOnSecondClick(btn, {
+    label: btn.querySelector(`.${ARM_TEXT_CLASS}`),
+    armedText: i18nT("queue.cancelConfirm"),
+    onConfirm: () => cancelImport(btn),
   });
+}
+
+function wireQueueRow(el, listEl) {
+  el.querySelector(".queue-cancel")?.addEventListener("click", onQueueCancelClick);
 
   el.querySelector(".queue-top")?.addEventListener("click", async (e) => {
     e.stopPropagation();
@@ -2979,45 +3034,51 @@ function wireCatalogRailViews() {
   document.querySelector(".rail-trash")?.addEventListener("click", () => setCatalogView("trash"));
   document.querySelector(".rail-lyrics")?.addEventListener("click", () => setCatalogView("lyrics"));
   document.querySelector(".rail-queue")?.addEventListener("click", () => setCatalogView("queue"));
-  document.getElementById("clearBinBtn")?.addEventListener("click", async (e) => {
-    const btn = e.currentTarget;
-    if (btn.disabled) return;
-    btn.disabled = true;
-    try {
-      const trash = getTrashFolder();
-      const toDelete = [...(trash?.items || [])];
-      // Awaited: the tombstone has to be on disk before the tracks leave the
-      // local index, or a reload re-imports them (#521).
-      await markJobsDeleted(toDelete);
-      purgeTrash();
-      saveState();
-      render();
+  document.getElementById("clearBinBtn")?.addEventListener("click", onEmptyTrashClick);
+}
 
-      // Awaited too. These used to be fire-and-forget with .catch(() => {}),
-      // so a delete that failed -- a 409 on a job stuck in "queued", a 500
-      // when the files could not be removed -- was invisible, and the track
-      // came back the next time the registry was read from disk.
-      const failed = [];
-      for (const id of toDelete) {
-        try {
-          const res = await fetch(`/api/jobs/${id}`, { method: "DELETE" });
-          if (!res.ok && res.status !== 404) failed.push(id);
-        } catch (err) {
-          console.warn("[catalog] delete failed for", id, err);
-          failed.push(id);
-        }
-      }
-      if (failed.length) {
-        console.warn("[catalog] %d track(s) could not be deleted on the server", failed.length);
-        notifyFailure({
-          kind: "delete",
-          message: i18nT("library.deleteFailed", { count: failed.length }),
-        });
-      }
-    } finally {
-      btn.disabled = false;
-    }
+function onEmptyTrashClick(e) {
+  const btn = e.currentTarget;
+  if (btn.disabled) return;
+  confirmOnSecondClick(btn, {
+    label: btn.querySelector("[data-i18n]"),
+    armedText: i18nT("trash.emptyConfirm"),
+    onConfirm: () => emptyTrash(btn),
   });
+}
+
+/** The ids whose delete did not go through. A 404 is already gone. */
+async function deleteJobsOnServer(ids) {
+  const failed = [];
+  for (const id of ids) {
+    try {
+      const res = await fetch(`/api/jobs/${id}`, { method: "DELETE" });
+      if (!res.ok && res.status !== HTTP_NOT_FOUND) failed.push(id);
+    } catch (err) {
+      console.warn("[catalog] delete failed for", id, err);
+      failed.push(id);
+    }
+  }
+  return failed;
+}
+
+// A song whose delete failed stays in the Trash, so Empty trash can try again.
+async function emptyTrash(btn) {
+  btn.disabled = true;
+  try {
+    const toDelete = [...(getTrashFolder()?.items || [])];
+    const failed = await deleteJobsOnServer(toDelete);
+    const deleted = toDelete.filter((id) => !failed.includes(id));
+    await markJobsDeleted(deleted);
+    purgeTrash(deleted);
+    saveState();
+    render();
+    if (failed.length) {
+      notifyFailure({ kind: "trash", message: i18nT("library.deleteFailed", { count: failed.length }) });
+    }
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function wireCatalogSearch() {
@@ -4255,6 +4316,7 @@ async function wireGeneralSettings(overlay) {
   const autoDeleteDaysRow = overlay.querySelector(".auto-delete-days-row");
   const autoDeleteDays = overlay.querySelector(".set-auto-delete-days");
   const autoDeleteDaysDesc = overlay.querySelector(".auto-delete-days-desc");
+  const autoDeleteDesc = overlay.querySelector(".auto-delete-desc");
   if (!durInput && !playlistInput && !heightSel && !sampleRateSel && !portInput && !deviceSel && !qualitySel && !transcribeSel && !cookiesInput && !autoDeleteInput) return;
 
   // Last server-confirmed device choice, to revert the select when the server
@@ -4352,9 +4414,14 @@ async function wireGeneralSettings(overlay) {
   digitsOnly(portInput);
   digitsOnly(autoDeleteDays);
 
+  // What the server last said it holds, so a save it refused can be undone here.
+  let saved = null;
   try {
     const r = await fetch("/api/settings", { cache: "no-store" });
-    if (r.ok) apply(await r.json());
+    if (r.ok) {
+      saved = await r.json();
+      apply(saved);
+    }
   } catch { /* leave blank */ }
 
   const post = async (patch) => {
@@ -4365,11 +4432,15 @@ async function wireGeneralSettings(overlay) {
         body: JSON.stringify(patch),
       });
       if (r.ok) {
-        const data = await r.json();
-        apply(data); // reflect the server's clamped value
-        return data;
+        saved = await r.json();
+        apply(saved); // reflect the server's clamped value
+        return saved;
       }
-    } catch { /* ignore */ }
+    } catch (e) {
+      console.warn("[settings] save failed:", e);
+    }
+    if (saved) apply(saved);
+    notifyFailure({ kind: "settings", message: i18nT("notif.settingsSaveFailed") });
     return null;
   };
 
@@ -4385,10 +4456,8 @@ async function wireGeneralSettings(overlay) {
     const items = Math.max(1, Math.min(200, parseInt(playlistInput.value, 10) || 50));
     post({ playlist_max_items: items });
   });
-  // Not routed through post(): that helper drops a non-ok response silently,
-  // which is exactly the wrong behaviour for a path the user typed. A bad path
-  // has to say so, or the user retypes it and never learns why nothing
-  // happened.
+  // Not routed through post(): a bad path gets its own message by the field,
+  // or the user retypes it and never learns why nothing happened.
   cookiesInput?.addEventListener("change", async () => {
     if (cookiesMsg) cookiesMsg.textContent = "";
     try {
@@ -4422,7 +4491,19 @@ async function wireGeneralSettings(overlay) {
   transcribeSel?.addEventListener("change", () => {
     post({ transcribe_lyrics: transcribeSel.value });
   });
-  autoDeleteInput?.addEventListener("change", () => {
+  // Switching it on deletes songs for good, so the first click only says what
+  // it deletes. Switching it off needs no second click.
+  autoDeleteInput?.addEventListener("change", function onAutoDeleteChange() {
+    if (autoDeleteInput.checked && !isArmed(autoDeleteInput)) {
+      autoDeleteInput.checked = false;
+      arm(autoDeleteInput, {
+        label: autoDeleteDesc,
+        armedText: i18nT("settings.autoDelete.confirm"),
+        armMs: AUTO_DELETE_ARM_MS,
+      });
+      return;
+    }
+    disarm(autoDeleteInput);
     // Enable the days field immediately rather than waiting for the round
     // trip, so the switch does not appear to do nothing on a slow response.
     // apply() sets it again from the server's answer either way.
@@ -4433,11 +4514,11 @@ async function wireGeneralSettings(overlay) {
     // Floor of 1 only. The server owns the ceiling and returns what it kept,
     // the same arrangement as max track length, so the two cannot drift.
     const days = Math.max(1, parseInt(autoDeleteDays.value, 10) || 30);
-    const data = await post({ auto_delete_days: days });
+    const kept = (await post({ auto_delete_days: days })) ?? saved;
     // Written back here rather than left to apply(), which skips a focused
     // field: committing with Enter keeps focus, and the user still has to see
     // the number the server actually kept.
-    if (data?.auto_delete_days) autoDeleteDays.value = String(data.auto_delete_days);
+    if (kept?.auto_delete_days) autoDeleteDays.value = String(kept.auto_delete_days);
   });
   // Compute device needs its own POST path: unlike the clamped numeric
   // settings, the server can REJECT a forced device (422 with a reason, e.g.
@@ -4845,7 +4926,7 @@ function openLibraryEditor() {
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.autoDelete.title">Automatically delete finished tracks</div>
-              <div class="settings-row-desc" data-i18n="settings.autoDelete.desc">Deletes finished tracks after the days set below. This cannot be undone.</div>
+              <div class="settings-row-desc auto-delete-desc" data-i18n="settings.autoDelete.desc" aria-live="polite">Deletes finished tracks after the days set below. This cannot be undone.</div>
             </div>
             <label class="settings-switch">
               <input type="checkbox" class="auto-delete-input" />

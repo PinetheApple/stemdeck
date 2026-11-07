@@ -1,5 +1,5 @@
-// Trashing an import that is still in the queue (#748), and what the Trash
-// says about files on disk (#749).
+// Trashing an import that is still in the queue, what the Trash says about
+// files on disk, and the queue's own cancel.
 //
 // The queue is stubbed rather than driven: the e2e backend never runs a real
 // separation, so a job that stays "running" long enough to click on cannot be
@@ -12,11 +12,12 @@ import { fixtureTrack, seedCatalogState, stubUpdateCheck } from "./helpers.mjs";
 
 const RUNNING_ID = "e2e0feedf00d";
 const RUNNING_TITLE = "Still Importing";
+const RUNNING_SOURCE = "https://www.youtube.com/watch?v=e2e0feedf00";
 
 function queueFrame(running) {
   return {
     running: running
-      ? { job_id: RUNNING_ID, status: "analyzing", stage: "Analyzing audio...", progress: 0, title: RUNNING_TITLE }
+      ? { job_id: RUNNING_ID, status: "analyzing", stage: "Analyzing audio...", progress: 0, title: RUNNING_TITLE, source_url: RUNNING_SOURCE }
       : null,
     queued: [],
     paused: false,
@@ -73,16 +74,25 @@ async function seedRunningImport(page) {
   return seen;
 }
 
-test("a queue row offers the same trash can as the library rows", async ({ page }) => {
+test("a queue row cancels with an X, apart from the library's trash can", async ({ page }) => {
   await seedRunningImport(page);
+  let cancelled = false;
+  await page.route(`**/api/jobs/${RUNNING_ID}/cancel`, (route) => {
+    cancelled = true;
+    return route.fulfill({ status: 200, json: { job_id: RUNNING_ID } });
+  });
   await page.goto("/", { waitUntil: "domcontentloaded" });
 
   await page.locator(".rail-queue").click();
   const cancel = page.locator(`.queue-row[data-id="${RUNNING_ID}"] .queue-cancel`);
   await expect(cancel).toBeVisible();
-  // The library's trash can, not the old X (#748).
-  await expect(cancel.locator('polyline[points="3 6 5 6 21 6"]')).toHaveCount(1);
-  await expect(cancel.locator('path[d="M18 6 6 18 M6 6l12 12"]')).toHaveCount(0);
+  // Cancelling deletes the import's files and binning keeps them: the same
+  // icon means the same action, so the two controls look different.
+  await expect(cancel.locator('polyline[points="3 6 5 6 21 6"]')).toHaveCount(0);
+  await expect(cancel.locator('path[d="M18 6 6 18"]')).toHaveCount(1);
+  // A link import can be fetched again, so it cancels on the first click.
+  await cancel.click();
+  await expect.poll(() => cancelled).toBe(true);
 });
 
 test("trashing an import that is still running refreshes the queue at once", async ({ page }) => {

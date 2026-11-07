@@ -173,6 +173,13 @@ def mark_deleted(job_id: str) -> None:
         _deleted.add(job_id)
 
 
+def is_deleted(job_id: str) -> bool:
+    """True if the user deleted this job and its directory may still be on
+    disk, which is what lets a failed delete be retried."""
+    with _lock:
+        return job_id in _deleted
+
+
 def _prune_deleted(jobs_dir: Path) -> None:
     """Forget deletion records whose directory is finally gone.
 

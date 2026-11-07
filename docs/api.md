@@ -18,7 +18,7 @@ The endpoints the web app itself uses. They are not a stable public interface an
 | GET | `/api/jobs/{id}/stems/{name}.mp3` | Transcode and stream a stem as MP3 |
 | GET | `/api/jobs/{id}/bundle.zip` | Pack a finished song as a [song bundle](song-bundle.md) for another player |
 | GET | `/api/jobs/{id}/video.mp4` | Mux the current mix with the source video (MP4 upload or YouTube) into an MP4 |
-| DELETE | `/api/jobs/{id}` | Remove job dir from disk (terminal jobs only); also takes the song out of every setlist |
+| DELETE | `/api/jobs/{id}` | Remove job dir from disk (terminal jobs only); also takes the song out of every setlist. A 500 means the job left the library but its files stayed; repeating the DELETE retries removing them (200 or 500 again, not 404) |
 | GET | `/api/setlists` | All setlists, oldest first: `[{id, name, song_ids, updated_at}]` |
 | POST | `/api/setlists` | `{name, song_ids?}` → the created setlist (201) |
 | PATCH | `/api/setlists/{id}` | `{name?, song_ids?}` → the updated setlist |
@@ -30,4 +30,4 @@ Job state carries `title` (what to show: the user's title, else the detected one
 
 ### Setlists
 
-A setlist's `name` is trimmed, 1 to 100 characters. `song_ids` is an ordered list of job ids, at most 1000, each a job the server knows and each once. Anything else is a 422; an unknown setlist id is a 404. `updated_at` is Unix seconds. Deleting a song and the retention sweep both take it out of every setlist; a song gone any other way (its folder removed by hand) is left out of what `GET` returns.
+A setlist's `name` is trimmed, 1 to 100 characters. `song_ids` is an ordered list of job ids, at most 1000, each a job the server knows and each once. Anything else is a 422; an unknown setlist id is a 404. `updated_at` is Unix seconds. Deleting a song takes it out of every setlist, and the retention sweep never removes a song that is in one (nor a favourite); a song gone any other way (its folder removed by hand) is left out of what `GET` returns.

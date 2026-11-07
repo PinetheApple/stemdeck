@@ -603,6 +603,8 @@ test.describe("a band the upload left unsent", () => {
     expect(await heldBands(page)).toEqual({ [SIBLING_JOB_ID]: heldEntry });
 
     await page.locator(".rail-trash").click();
+    // Empty trash asks first: the second click deletes.
+    await page.locator("#clearBinBtn").click();
     await page.locator("#clearBinBtn").click();
 
     await expect.poll(() => heldBands(page)).toEqual({});

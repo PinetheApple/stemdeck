@@ -12,7 +12,7 @@
 // rule to `.daw`, while the settings overlay is appended to document.body.
 
 import { test, expect } from "@playwright/test";
-import { seedLibrary } from "./helpers.mjs";
+import { seedLibrary, uiText } from "./helpers.mjs";
 
 /** Open Settings on the General tab, which is where this setting lives. */
 async function openSettings(page) {
@@ -31,6 +31,17 @@ async function setRetention(page, patch) {
 // directly is intercepted. Clicking the label is both what Playwright can do
 // and what a user actually does.
 const switchFor = (page) => page.locator("label.settings-switch:has(.auto-delete-input)");
+
+/** Switching it on takes a second click, once the row has said what it deletes. */
+async function turnOn(page) {
+  await switchFor(page).click();
+  await expect(page.locator(".auto-delete-input")).toHaveAttribute("data-armed", "1");
+  await switchFor(page).click();
+  await expect(page.locator(".auto-delete-input")).toBeChecked();
+}
+
+const serverSaysOn = async (page) =>
+  (await (await page.request.get("/api/settings")).json()).auto_delete_jobs;
 
 test.describe("automatic deletion", () => {
   test.beforeEach(async ({ page }) => {
@@ -53,7 +64,7 @@ test.describe("automatic deletion", () => {
     await expect(page.locator(".auto-delete-days-row")).toHaveClass(/disabled/);
     await expect(page.locator(".set-auto-delete-days")).toBeDisabled();
 
-    await switchFor(page).click();
+    await turnOn(page);
     await expect(page.locator(".auto-delete-days-row")).not.toHaveClass(/disabled/);
     await expect(page.locator(".set-auto-delete-days")).toBeEnabled();
     // Readable the whole time, so deciding whether to switch deletion on does
@@ -63,17 +74,26 @@ test.describe("automatic deletion", () => {
 
   test("the toggle reaches the server and survives a reopen", async ({ page }) => {
     await openSettings(page);
-    await switchFor(page).click();
+    await turnOn(page);
 
-    await expect
-      .poll(async () => (await (await page.request.get("/api/settings")).json()).auto_delete_jobs)
-      .toBe(true);
+    await expect.poll(() => serverSaysOn(page)).toBe(true);
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.locator("#settingsBtn").click();
     await expect(page.locator(".auto-delete-input")).toBeChecked();
     await expect(page.locator(".auto-delete-days-row")).not.toHaveClass(/disabled/);
     await expect(page.locator(".set-auto-delete-days")).toBeEnabled();
+  });
+
+  test("the first click only says what it deletes, and turns nothing on", async ({ page }) => {
+    await openSettings(page);
+    await switchFor(page).click();
+
+    await expect(page.locator(".auto-delete-input")).not.toBeChecked();
+    // The sweep spares them, and the user decides knowing that.
+    await expect(page.locator(".auto-delete-desc")).toHaveText(await uiText(page, "settings.autoDelete.confirm"));
+    await expect(page.locator(".set-auto-delete-days")).toBeDisabled();
+    expect(await serverSaysOn(page)).toBe(false);
   });
 
   test("turning it back off makes the field inert and stops deletion", async ({ page }) => {
@@ -92,7 +112,7 @@ test.describe("automatic deletion", () => {
 
   test("the server owns the ceiling, and says so in the field", async ({ page }) => {
     await openSettings(page);
-    await switchFor(page).click();
+    await turnOn(page);
 
     const days = page.locator(".set-auto-delete-days");
     await days.fill("9999");
@@ -106,7 +126,7 @@ test.describe("automatic deletion", () => {
 
   test("the days field refuses non-digits as they are typed", async ({ page }) => {
     await openSettings(page);
-    await switchFor(page).click();
+    await turnOn(page);
 
     const days = page.locator(".set-auto-delete-days");
     await days.fill("");

@@ -57,7 +57,9 @@ def _clean(record: Any) -> dict[str, Any] | None:
     }
 
 
-def _read(jobs_dir: Path) -> list[dict[str, Any]]:
+def _read_or_none(jobs_dir: Path) -> list[dict[str, Any]] | None:
+    """The stored setlists, [] when there is no file yet, or None when the
+    file exists but cannot be read as setlists."""
     path = setlists_path(jobs_dir)
     if not path.is_file():
         return []
@@ -65,11 +67,15 @@ def _read(jobs_dir: Path) -> list[dict[str, Any]]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         logger.warning("could not read setlists from %s", path, exc_info=True)
-        return []
+        return None
     records = data.get("setlists") if isinstance(data, dict) else None
     if not isinstance(records, list):
-        return []
+        return None
     return [setlist for setlist in map(_clean, records) if setlist is not None]
+
+
+def _read(jobs_dir: Path) -> list[dict[str, Any]]:
+    return _read_or_none(jobs_dir) or []
 
 
 def _write(jobs_dir: Path, setlists: list[dict[str, Any]]) -> None:
@@ -91,6 +97,16 @@ def _write(jobs_dir: Path, setlists: list[dict[str, Any]]) -> None:
 def list_all(jobs_dir: Path) -> list[dict[str, Any]]:
     with _lock:
         return _read(jobs_dir)
+
+
+def all_song_ids(jobs_dir: Path) -> set[str] | None:
+    """Every song id in any setlist, or None when the file cannot be read, so a
+    caller about to delete songs can tell "in no setlist" from "unknown"."""
+    with _lock:
+        setlists = _read_or_none(jobs_dir)
+    if setlists is None:
+        return None
+    return {song_id for setlist in setlists for song_id in setlist["song_ids"]}
 
 
 def create(jobs_dir: Path, name: str, song_ids: list[str]) -> dict[str, Any]:
@@ -139,8 +155,8 @@ def delete(jobs_dir: Path, setlist_id: str) -> bool:
 
 
 def remove_songs(jobs_dir: Path, song_ids: Collection[str]) -> None:
-    """Take deleted songs out of every setlist that names them: the DELETE
-    route and the retention sweep (collect.sweep_old_jobs).
+    """Take deleted songs out of every setlist that names them, for the
+    DELETE route.
 
     Best-effort: the songs are already gone, so a failed write logs rather than
     failing the delete; the API leaves unknown ids out of what it serves."""

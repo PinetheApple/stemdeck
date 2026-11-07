@@ -9,6 +9,7 @@
 // when it changes; catalog.js decides what that looks like.
 
 import { t } from "./i18n.js";
+import { notifyFailure } from "./notifications.js";
 
 const POLL_MS = 2000;
 const MAX_SSE_ATTEMPTS = 6;
@@ -169,14 +170,20 @@ export async function reorderQueuedJob(jobId, afterId) {
   }
 }
 
+/** Ask the server to stop a job. Resolves whether it agreed; a refusal is
+ *  reported here, and the row stays as the next frame shows it. */
 export async function cancelQueuedJob(jobId) {
+  let cancelled = false;
   try {
-    await fetch(`/api/jobs/${jobId}/cancel`, { method: "POST" });
+    const r = await fetch(`/api/jobs/${jobId}/cancel`, { method: "POST" });
+    cancelled = r.ok;
   } catch (e) {
     console.warn("[queue] cancel failed:", e);
   }
+  if (!cancelled) notifyFailure({ kind: "cancel", message: t("notif.cancelFailed") });
   // Do not wait for the next frame: the row should go the moment it is clicked.
   await refreshQueue();
+  return cancelled;
 }
 
 // ─── transport ───────────────────────────────────────────────────────────────

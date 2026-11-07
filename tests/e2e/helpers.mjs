@@ -423,9 +423,10 @@ export async function stubLyricsLookup(page, { rows = [], artist = "", song = ""
  *
  * `run()` reports the job as running and `settle()` as gone, each followed by a
  * queue read so the page sees it at once. The queue stream is held off, or its
- * own empty frames would override the stub.
+ * own empty frames would override the stub. `sourceUrl` is what the job was
+ * imported from; a `local:` one is an upload.
  */
-export async function stubImportQueue(page, jobId, title = "Importing") {
+export async function stubImportQueue(page, jobId, title = "Importing", { sourceUrl = null } = {}) {
   let running = false;
   await page.route("**/api/queue", (route) =>
     route.fulfill({
@@ -433,7 +434,7 @@ export async function stubImportQueue(page, jobId, title = "Importing") {
       contentType: "application/json",
       body: JSON.stringify({
         running: running
-          ? { job_id: jobId, status: "separating", stage: "Separating 40%", progress: 0.4, title }
+          ? { job_id: jobId, status: "separating", stage: "Separating 40%", progress: 0.4, title, source_url: sourceUrl }
           : null,
         queued: [],
         paused: false,
@@ -468,4 +469,14 @@ export async function stubBandSave(page) {
       body: JSON.stringify({ ...real, user_band: band, artist: band }),
     });
   });
+}
+
+/** The messages in the notification centre, newest first. */
+export async function failureMessages(page) {
+  return page.evaluate(() => JSON.parse(localStorage.getItem("stemdeck:failures") || "[]").map((f) => f.message));
+}
+
+/** A string as the page shows it in its current language. */
+export async function uiText(page, key, vars = {}) {
+  return page.evaluate(async ([k, v]) => (await import("/js/i18n.js")).t(k, v), [key, vars]);
 }

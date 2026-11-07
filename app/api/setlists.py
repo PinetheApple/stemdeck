@@ -1,9 +1,9 @@
 """Setlists: named, ordered lists of library songs, shown in the library pane.
 
 Stored by app/core/setlists.py. Every song id must name a job the registry
-knows when it is saved, and appear once per list. Deleting a song and the
-retention sweep remove it from every list (delete_job in app/api/jobs.py,
-collect.sweep_old_jobs); anything else that drops a job, such as a folder
+knows when it is saved, and appear once per list. Deleting a song removes it
+from every list (delete_job in app/api/jobs.py), and the retention sweep spares
+songs that are in one; anything else that drops a job, such as a folder
 removed by hand, is covered by serving only ids the registry still knows.
 """
 
