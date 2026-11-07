@@ -28,6 +28,7 @@ const TRASH_PUSHED_KEY = "stemdeck.trash_pushed";
 const SETTLE_MS = 500;
 const SIBLING_URL = new RegExp(`/api/jobs/${SIBLING_JOB_ID}$`);
 const HTTP_UNPROCESSABLE = 422;
+const HTTP_CONFLICT = 409;
 const GONE = "gone";
 const OTHER_COPY_ID = "e2e0feedface";
 
@@ -324,7 +325,7 @@ test.describe("the re-import request", () => {
   });
 
   test("says so when the old copy is still importing, and changes nothing", async ({ page }) => {
-    await clickUnavailableLink(page, 409);
+    await clickUnavailableLink(page, HTTP_CONFLICT);
     await expect(page.locator("#error")).toContainText("still importing");
     expect(await folderItems(page, ROCK)).toEqual([LINKED_ID]);
   });
@@ -335,13 +336,13 @@ test.describe("a re-import from the import form", () => {
   const SHORT_LINK = "https://youtu.be/dQw4w9WgXcQ";
   const linked = (id, title) => ({ ...fixtureTrack(id, title), sourceUrl: LINK });
 
-  /** Submit `url` from the form; the server answers with SIBLING_JOB_ID. Resolves to the POST bodies. */
-  async function submitLink(page, url) {
+  /** Submit `url` from the form; the server answers `status`, with SIBLING_JOB_ID on 200. Resolves to the POST bodies. */
+  async function submitLink(page, url, status = 200) {
     const posted = [];
     await page.route(/\/api\/jobs$/, (route) => {
       if (route.request().method() !== "POST") return route.fallback();
       posted.push(route.request().postDataJSON());
-      return route.fulfill({ json: { job_id: SIBLING_JOB_ID } });
+      return route.fulfill({ status, json: status === 200 ? { job_id: SIBLING_JOB_ID } : { detail: "busy" } });
     });
     await page.locator("#url").fill(url);
     await page.locator("#submit").click();
@@ -363,6 +364,18 @@ test.describe("a re-import from the import form", () => {
     await expect.poll(() => folderItems(page, TRASH)).toEqual([JOB_ID]);
     expect(await folderItems(page, ROCK)).toEqual([SIBLING_JOB_ID]);
     expect(await folderItems(page, UNSORTED)).toEqual([]);
+  });
+
+  test("refused because the old copy is still importing, says so and changes nothing", async ({ page }) => {
+    await seed(page, { rock: [JOB_ID], tracks: { [JOB_ID]: linked(JOB_ID, TRACK_TITLE) } });
+    await stubServerTrash(page, { hidden: [SIBLING_JOB_ID] });
+    await open(page);
+    const posted = await submitLink(page, LINK, HTTP_CONFLICT);
+    expect(posted[0].replaces).toBe(JOB_ID);
+    await expect(page.locator("#error")).toContainText("still importing");
+    expect(await folderItems(page, ROCK)).toEqual([JOB_ID]);
+    expect(await folderItems(page, UNSORTED)).toEqual([]);
+    expect(await storedTrack(page, SIBLING_JOB_ID)).toBeUndefined();
   });
 
   test("of a link two songs share names neither", async ({ page }) => {

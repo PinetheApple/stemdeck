@@ -39,7 +39,6 @@ async function seedRunningImport(page) {
       { id: "f-unsorted", name: "Unsorted", items: [RUNNING_ID], color: null },
       { id: "trash", name: "Trash", items: [], color: null },
     ],
-    // Its own source, apart from the fixture jobs'.
     tracks: {
       [RUNNING_ID]: {
         ...fixtureTrack(RUNNING_ID, RUNNING_TITLE),
