@@ -26,8 +26,8 @@ let _sections = [];
 let _container = null;
 let _saveTimer = null;
 let _saveChain = Promise.resolve();
-// Each track's newest save the server has not confirmed yet, as its request body:
-// what the track shows if it is reopened first, and what goes out if the page closes.
+// Each track's newest save still waiting for an answer, as its request body: what
+// the track shows if it is reopened first, and what goes out if the page closes.
 const _unconfirmed = new Map();
 
 // The loop lives in transport.js, which reaches the DOM at import time through
@@ -669,10 +669,11 @@ export function flushSectionsSave() {
   return _queueSaveSnapshot();
 }
 
-/** Send every unconfirmed save at once, outside the queue: once the page is gone the queue never runs. */
+/** Send every unconfirmed save now, the open track's first, outside the queue: it dies with the page. */
 export function saveSectionsOnPageClose() {
   if (_cancelSaveTimer() && _trackId) _snapshot();
-  for (const [id, body] of _unconfirmed) _sendSave(id, body, PAGE_CLOSE_FETCH);
+  const ids = [...new Set([_trackId, ..._unconfirmed.keys()])].filter((id) => _unconfirmed.has(id));
+  for (const id of ids) _sendSave(id, _unconfirmed.get(id), PAGE_CLOSE_FETCH);
 }
 
 function _queueSaveSnapshot() {
@@ -697,13 +698,14 @@ async function _sendSave(id, body, fetchOptions = {}) {
       if (id === _trackId) _hideSaveIndicator();
       return;
     }
-    if (_unconfirmed.get(id) === body) _unconfirmed.delete(id);
     if (id === _trackId) {
       if (body === JSON.stringify({ sections: _sections }) && _saveTimer === null) _showSaved();
     }
   } catch (e) {
     console.warn("[sections] save failed:", e);
     if (id === _trackId) _hideSaveIndicator();
+  } finally {
+    if (_unconfirmed.get(id) === body) _unconfirmed.delete(id);
   }
 }
 

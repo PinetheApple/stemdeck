@@ -172,7 +172,7 @@ check("Clear stays hidden after a redundant clear", clearBtn.hidden === true);
 destroySections();
 
 // An edit still inside the save debounce belongs to the track it was made on,
-// even when the next track opens before the debounce ends (#40).
+// even when the next track opens before the debounce ends.
 const SONG_A = "aaaaaaaaaaaa";
 const SONG_B = "bbbbbbbbbbbb";
 const sent = [];
@@ -206,10 +206,10 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 await settle();
 
 // A save the server has not answered yet: the track shows it when reopened,
-// and the page sends it again on close (#40).
+// and the page sends it again on close.
 const held = [];
-globalThis.fetch = (url, options) => new Promise((resolve) => {
-  held.push({ url, body: JSON.parse(options.body), keepalive: options.keepalive === true, resolve });
+globalThis.fetch = (url, options) => new Promise((resolve, reject) => {
+  held.push({ url, body: JSON.parse(options.body), keepalive: options.keepalive === true, resolve, reject });
 });
 const SONG_C = "cccccccccccc";
 initSections(SONG_C, verse, 20);
@@ -231,6 +231,36 @@ initSections(SONG_C, verse, 20);
 check("a confirmed save no longer overrides what the server sends", getSections().length === 1);
 saveSectionsOnPageClose();
 check("nothing is resent on close once every save is confirmed", held.every((r) => !r.keepalive));
+destroySections();
+
+const refuse = (r) => r.resolve({ ok: false, status: 422, text: async () => "invalid" });
+const lose = (r) => r.reject(new TypeError("network"));
+for (const [how, answer] of [["refused", refuse], ["lost", lose]]) {
+  initSections(SONG_C, verse, 20);
+  clearAllSections();
+  initSections(SONG_B, verse, 20);
+  await settle();
+  held.splice(0).forEach(answer);
+  await settle();
+  initSections(SONG_C, verse, 20);
+  check(`a ${how} save leaves nothing over the server's sections on reopen`, getSections().length === 1);
+  saveSectionsOnPageClose();
+  check(`a ${how} save is not sent again on close`, held.every((r) => !r.keepalive));
+  destroySections();
+}
+
+initSections(SONG_C, verse, 20);
+clearAllSections();
+initSections(SONG_B, verse, 20);
+clearAllSections();
+saveSectionsOnPageClose();
+const closeOrder = held.filter((r) => r.keepalive).map((r) => r.url);
+check(
+  "on close the open track's save goes first",
+  closeOrder.join() === [`/api/jobs/${SONG_B}/sections`, `/api/jobs/${SONG_C}/sections`].join(),
+);
+held.splice(0).forEach((r) => r.resolve({ ok: true }));
+await settle();
 destroySections();
 
 console.log(`\n${pass} passed, ${fail} failed`);

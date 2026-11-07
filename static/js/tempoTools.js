@@ -118,7 +118,7 @@ async function sendUnsentFields(forJob) {
   let failed = false;
   try {
     while (unsentFieldsByJob.has(forJob)) {
-      const fields = unsentFieldsByJob.get(forJob);
+      const { fields } = unsentFieldsByJob.get(forJob);
       unsentFieldsByJob.delete(forJob);
       await saveBeatGridTempo(forJob, fields);
     }
@@ -134,8 +134,9 @@ async function sendUnsentFields(forJob) {
   await refreshGrid(forJob);
 }
 
-function addUnsentFields(forJob, fields) {
-  unsentFieldsByJob.set(forJob, { ...unsentFieldsByJob.get(forJob), ...fields });
+function addUnsentFields(forJob, fields, editedAt = performance.now()) {
+  const sofar = unsentFieldsByJob.get(forJob)?.fields;
+  unsentFieldsByJob.set(forJob, { fields: { ...sofar, ...fields }, editedAt });
 }
 
 /** Optimistic: show, save, then reload the server's grid. */
@@ -205,9 +206,9 @@ function commitTaps() {
   if (tempo) patchTempo({ bpm: tempo.bpm });
 }
 
-/** Hand over every song's unsent tempo changes, a tap still waiting to commit included, and forget them. */
+/** Hand over every song's unsent { fields, editedAt }, a tap still waiting to commit included, and forget them. */
 export function takeUnsentTempo() {
-  if (tapTimer !== null && jobId && tempo) addUnsentFields(jobId, { bpm: tempo.bpm });
+  if (tapTimer !== null && jobId && tempo) addUnsentFields(jobId, { bpm: tempo.bpm }, taps.at(-1));
   clearTimeout(tapTimer);
   tapTimer = null;
   const unsent = new Map(unsentFieldsByJob);
