@@ -18,7 +18,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.core.config as cfg
-from app.core import registry
+from app.core import registry, setlists
 from app.core.models import Job, JobCancelled
 from app.core.registry import _jobs
 from app.pipeline.runner import run_pipeline
@@ -145,6 +145,26 @@ async def test_an_old_copy_trashed_meanwhile_is_left_alone(client):
     old.trashed_at = 1.0
     await _finish(_new_job())
     assert _jobs[OLD_ID].trashed_at == 1.0
+
+
+@pytest.mark.parametrize("with_files", [True, False])
+async def test_the_new_copy_takes_the_old_ones_place_in_every_setlist(client, with_files):
+    _old_job(with_files=with_files)
+    swapped = setlists.create(cfg.JOBS_DIR, "Gig", ["aaaaaaaaaaaa", OLD_ID, "bbbbbbbbbbbb"])
+    already = setlists.create(cfg.JOBS_DIR, "Rehearsal", [NEW_ID, OLD_ID, "cccccccccccc"])
+    untouched = setlists.create(cfg.JOBS_DIR, "Other", ["dddddddddddd"])
+    await _finish(_new_job())
+    songs = {s["id"]: s["song_ids"] for s in setlists.list_all(cfg.JOBS_DIR)}
+    assert songs[swapped["id"]] == ["aaaaaaaaaaaa", NEW_ID, "bbbbbbbbbbbb"]
+    assert songs[already["id"]] == [NEW_ID, "cccccccccccc"]
+    assert songs[untouched["id"]] == ["dddddddddddd"]
+
+
+async def test_a_new_job_that_fails_leaves_the_setlists(client):
+    _old_job()
+    gig = setlists.create(cfg.JOBS_DIR, "Gig", [OLD_ID])
+    await _finish(_new_job(), _fail)
+    assert setlists.list_all(cfg.JOBS_DIR)[0]["song_ids"] == gig["song_ids"]
 
 
 def _fail(*args, **kwargs):

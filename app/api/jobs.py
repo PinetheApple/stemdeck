@@ -65,6 +65,7 @@ from app.core.registry import requeue_if_capacity as registry_requeue_if_capacit
 from app.core.registry import set_favorite as registry_set_favorite
 from app.core.registry import set_trashed as registry_set_trashed
 from app.core.setlists import remove_songs as setlists_remove_songs
+from app.core.setlists import replace_song as setlists_replace_song
 from app.core.settings import get_auto_sections, get_discogs_token, get_max_duration_sec
 from app.core.stems_location import is_relocating
 from app.pipeline import discogs, jobqueue
@@ -2219,15 +2220,18 @@ def _apply_replacement(job: Job) -> None:
 
     An old copy whose files are gone ("Sync again" on an unavailable song) is
     deleted outright. One that still plays goes to the Trash instead: it may
-    carry the user's sections, lyrics and tempo edits. An old copy the user
-    trashed or deleted meanwhile is left as it is, and so is everything when
-    the new job itself was trashed as it finished.
+    carry the user's sections, lyrics and tempo edits. Either way the new copy
+    takes the old one's place in every setlist. An old copy the user trashed or
+    deleted meanwhile is left as it is, and so is everything when the new job
+    itself was trashed as it finished.
     """
     if job.replaces is None or job.trashed_at is not None:
         return
     old = registry_get(job.replaces)
     if old is None or old.trashed_at is not None or old.status not in FINISHED_STATUSES:
         return
+    # Before the delete below, which would take the old copy out of its setlists.
+    setlists_replace_song(JOBS_DIR, old.id, job.id)
     if _job_files_missing(old):
         logger.info("[%s] replaces %s, whose files are gone: deleting it", job.id, old.id)
         if not _remove_job(old):

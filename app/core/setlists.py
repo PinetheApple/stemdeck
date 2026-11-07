@@ -178,3 +178,30 @@ def remove_songs(jobs_dir: Path, song_ids: Collection[str]) -> None:
             _write(jobs_dir, setlists)
         except OSError:
             logger.warning("could not remove %s from setlists", sorted(gone), exc_info=True)
+
+
+def replace_song(jobs_dir: Path, old_id: str, new_id: str) -> None:
+    """Put a re-imported song in its old copy's place in every setlist.
+
+    A setlist that already has the new copy just loses the old one, so no song
+    is listed twice. Best-effort like remove_songs: the re-import has finished
+    either way, so a failed write logs rather than failing it."""
+    with _lock:
+        setlists = _read(jobs_dir)
+        changed = False
+        for setlist in setlists:
+            songs = setlist["song_ids"]
+            if old_id not in songs:
+                continue
+            if new_id in songs:
+                setlist["song_ids"] = [song for song in songs if song != old_id]
+            else:
+                setlist["song_ids"] = [new_id if song == old_id else song for song in songs]
+            setlist["updated_at"] = time.time()
+            changed = True
+        if not changed:
+            return
+        try:
+            _write(jobs_dir, setlists)
+        except OSError:
+            logger.warning("could not put %s in place of %s", new_id, old_id, exc_info=True)
