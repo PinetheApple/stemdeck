@@ -1,8 +1,5 @@
-// Failures that used to look like success (#39).
-//
-// A browser export was a bare <a download>: a failed render produced no file
-// and no message. And with the server gone, every action silently did nothing
-// while the app looked normal.
+// A failed browser export and a lost server both tell the user, and the UI
+// shows the real state afterwards.
 
 import { test, expect } from "@playwright/test";
 import { openStudio, exportUi } from "./helpers.mjs";

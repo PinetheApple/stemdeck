@@ -595,8 +595,8 @@ function wireFooterControls() {
     applyFormatState(); // re-derives the region row's genuine disabled state
   }
 
-  // Safety net for the promise path: a pending invoke that somehow never settles
-  // must not leave the menu disabled for the rest of the session (#335).
+  // An export that never settles must not leave the menu disabled for the rest
+  // of the session.
   const EXPORT_BUSY_MAX_MS = 15 * 60 * 1000;
   // Guards against a stale timer from a finished export resetting a later one.
   let busyToken = 0;

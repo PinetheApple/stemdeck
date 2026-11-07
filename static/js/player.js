@@ -1837,9 +1837,8 @@ function _triggerDownload(url, filename, onTransferStart) {
 
 const BLOB_URL_LIFETIME_MS = 60_000;
 
-// Fetched here rather than handed to an <a download> pointed at the URL: the
-// download manager reports nothing back, so a failed render gave no file and
-// no message (#39).
+// Fetched rather than linked: a browser download reports nothing back to the
+// page, so only a fetch can tell that the export failed.
 async function _browserDownload(url, filename) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(await _errorDetail(res));
