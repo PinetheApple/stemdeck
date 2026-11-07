@@ -5,8 +5,10 @@ again end a removal."""
 from __future__ import annotations
 
 import json
+import sys
 
 from app.core.models import Job
+from app.pipeline import transcribe as tr
 from app.pipeline.lyrics_lookup import (
     LYRICS_REMOVED_FILE,
     LookupAnswer,
@@ -87,3 +89,23 @@ def test_lyrics_kept_again_end_a_removal(tmp_path):
     _remove(tmp_path)
     assert write_lyrics(_job(), tmp_path, {**FOUND, "source": "whisper"}) is True
     assert not (tmp_path / LYRICS_REMOVED_FILE).exists()
+
+
+def test_an_import_never_transcribes_removed_lyrics(tmp_path, monkeypatch):
+    spawned: list[str] = []
+
+    def worker(vocals, device):
+        spawned.append(device)
+        return [sys.executable, "-c", "pass"]
+
+    monkeypatch.setattr(tr, "_spawn_worker_cmd", worker)
+    (tmp_path / "stems").mkdir()
+    (tmp_path / "stems" / "vocals.wav").write_bytes(b"RIFF")
+    job = _job()
+    job.compute_device = "cuda"
+    job.stem_presence = {"vocals": 79}
+    assert tr.skip_reason(job, tmp_path) is None
+    _remove(tmp_path)
+    assert tr.transcribe_lyrics(job, tmp_path) is False
+    assert spawned == []
+    assert (tmp_path / LYRICS_REMOVED_FILE).is_file()
