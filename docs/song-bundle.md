@@ -118,9 +118,10 @@ The other fields describe how the grid was found and are for diagnostics only.
 | `instrumental` | boolean | The song has no lyrics |
 | `offset_sec` | number | Shift to add to every LRC timestamp; may be absent |
 | `source` | string | Where they came from: `lrclib`, `file`, `whisper`, or `user` when the user wrote or edited them |
+| `chosen` | boolean | Optional: `true` when the user picked this version over the one StemDeck found. A reader can ignore it. |
 | `untimed_lines` | number[] | Optional: indices of the lines of `synced` whose stamp is only StemDeck's estimate, because the user changed or added them and has not timed them yet. A reader can ignore it. |
 
-When `synced` is present, use it, shifted by `offset_sec`. Lyrics the user edited are what these fields hold; what they replaced is not in the bundle. StemDeck's other candidate lyrics (`others`) are left out of the bundle.
+When `synced` is present, use it, shifted by `offset_sec`. Lyrics the user edited are what these fields hold; what they replaced is not in the bundle. Lyrics the user removed leave the bundle without `lyrics.json`. StemDeck's other candidate lyrics (`others`) are left out of the bundle.
 
 ## vocal_envelope.json
 

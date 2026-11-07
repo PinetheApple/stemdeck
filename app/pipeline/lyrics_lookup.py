@@ -123,6 +123,10 @@ from app.pipeline.title_parse import TitleReading, coverage, resolvable, song_ke
 logger = logging.getLogger("stemdeck.lyrics")
 
 USER_SOURCE = "user"
+# Marks a version the user picked over the one found (lyrics_choice.py).
+CHOSEN = "chosen"
+# Kept while the user's Remove lyrics stands, in place of lyrics.json.
+LYRICS_REMOVED_FILE = "lyrics_removed.json"
 LYRICS_SOURCES = frozenset(("lrclib", "file", "whisper", USER_SOURCE))
 # "exact": the track's own timing (a version its length, the file's own, a
 # transcription); "unverified": a version of another length, as LRCLIB has it;
@@ -1157,6 +1161,8 @@ def clean_lyrics(value: Any) -> dict[str, Any] | None:
     # Only on lyrics whose lost letters were given back (lyrics_repair.py).
     if value.get("repaired") in LYRICS_REPAIRS:
         entry["repaired"] = value["repaired"]
+    if value.get(CHOSEN) is True:
+        entry[CHOSEN] = True
     # Only once the user has aligned them in the Lyrics tab: seconds later
     # (earlier when negative) than the synced text says, applied by the page.
     # A value out of bounds is dropped rather than the whole file.
@@ -1197,6 +1203,20 @@ def original_path(job_dir: Path) -> Path:
     return job_dir / LYRICS_ORIGINAL_FILE
 
 
+def removed_path(job_dir: Path) -> Path:
+    return job_dir / LYRICS_REMOVED_FILE
+
+
+def lyrics_removed(job_dir: Path) -> bool:
+    """Whether the user removed the job's lyrics and has not had any kept since."""
+    return removed_path(job_dir).is_file()
+
+
+def forget_removal(job_dir: Path) -> None:
+    """Let the job have lyrics again (Look up again). Raises OSError."""
+    removed_path(job_dir).unlink(missing_ok=True)
+
+
 def _write_json_atomic(path: Path, data: dict[str, Any]) -> None:
     """Replace ``path`` whole or not at all. Raises OSError."""
     temp = path.parent / f".{path.name}.{uuid.uuid4().hex}.tmp"
@@ -1212,7 +1232,8 @@ def _write_json_atomic(path: Path, data: dict[str, Any]) -> None:
 
 def write_lyrics(job: Job, job_dir: Path, entry: dict[str, Any]) -> bool:
     """Keep ``entry`` as the job's lyrics.json, whole or not at all, and mark
-    the job as having lyrics. False, logged, when it could not be written.
+    the job as having lyrics, which ends a removal. False, logged, when it
+    could not be written.
 
     LRCLIB lyrics carry their own others, so they replace the candidates
     file. A transcription leaves it: its versions are still worth offering."""
@@ -1221,6 +1242,7 @@ def write_lyrics(job: Job, job_dir: Path, entry: dict[str, Any]) -> bool:
         return False
     try:
         _write_json_atomic(lyrics_path(job_dir), entry)
+        forget_removal(job_dir)
         if entry["source"] == "lrclib":
             candidates_path(job_dir).unlink(missing_ok=True)
     except OSError:
@@ -1265,9 +1287,9 @@ def read_candidates(job_dir: Path) -> dict[str, Any] | None:
 
 
 def lyrics_worked_on(entry: dict[str, Any]) -> bool:
-    """Lyrics timed by the user, moved by them, or found line by line in the
-    vocals: each says they are the track's, whatever the names say."""
-    return any(k in entry for k in ("user_synced", "aligned", "offset_sec"))
+    """Lyrics picked by the user, timed or moved by them, or found line by line
+    in the vocals: each says they are the track's, whatever the names say."""
+    return any(k in entry for k in ("user_synced", "aligned", "offset_sec", CHOSEN))
 
 
 def kept_lyrics_belong(entry: dict[str, Any], job: Job) -> bool:
@@ -1302,9 +1324,10 @@ def forget_names(job: Job, job_dir: Path) -> bool:
 
 
 def lyrics_settled(job_dir: Path, now: float | None = None) -> bool:
-    """Whether there is nothing to ask LRCLIB for this job: it has lyrics, or
-    LRCLIB was asked less than LYRICS_NOT_FOUND_RETRY_SEC ago and had none."""
-    if lyrics_path(job_dir).is_file():
+    """Whether there is nothing to ask LRCLIB for this job: it has lyrics, the
+    user removed them, or LRCLIB was asked less than LYRICS_NOT_FOUND_RETRY_SEC
+    ago and had none."""
+    if lyrics_path(job_dir).is_file() or lyrics_removed(job_dir):
         return True
     found = read_candidates(job_dir)
     now = time.time() if now is None else now
@@ -1317,13 +1340,16 @@ def keep_answer(job: Job, job_dir: Path, answer: LookupAnswer) -> bool:
 
     Lyrics of unverified timing are then moved onto the track, which needs
     the vocals stem: both callers (LyricsLookup.finish and the tag backfill)
-    run once separation is done. The user's own lyrics saved since the lookup
-    started win: the answer is dropped."""
+    run once separation is done. The user's own lyrics, a version they picked
+    or their removal, made since the lookup started, win: the answer is dropped."""
     if answer.lyrics is None:
         write_candidates(job, job_dir, answer.others)
         return False
     with _OFFSET_LOCK:
-        if (read_lyrics(job_dir) or {}).get("source") == USER_SOURCE:
+        current = read_lyrics(job_dir) or {}
+        if current.get("source") == USER_SOURCE or current.get(CHOSEN):
+            return False
+        if lyrics_removed(job_dir):
             return False
         if not write_lyrics(job, job_dir, answer.lyrics):
             return False
@@ -1379,9 +1405,14 @@ def set_user_synced(job: Job, job_dir: Path, synced: str | None) -> dict[str, An
 def copy_lyrics(src_dir: Path, dest_dir: Path) -> bool:
     """Copy a job's lyrics.json and candidates file to another job of the
     same recording (a re-split), with any alignment the user gave the lyrics
-    (offset_sec). True when lyrics.json was copied."""
+    (offset_sec) and their removal. True when lyrics.json was copied."""
     copied = False
-    for path in (lyrics_path(src_dir), candidates_path(src_dir), original_path(src_dir)):
+    for path in (
+        lyrics_path(src_dir),
+        candidates_path(src_dir),
+        original_path(src_dir),
+        removed_path(src_dir),
+    ):
         if not path.is_file():
             continue
         try:
