@@ -1147,7 +1147,6 @@ input, textarea { font-family: inherit; }
 .settings-row-text { min-width: 0; }
 .settings-row-title { font-size: 12.5px; font-weight: 600; color: var(--fg); }
 .settings-row-desc { font-size: 10.5px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
-.settings-lock-note { font-style: italic; opacity: 0.85; margin-top: 5px; }
 .settings-switch { position: relative; flex-shrink: 0; width: 42px; height: 24px; cursor: pointer; }
 .settings-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
 .settings-switch-track { position: absolute; inset: 0; border-radius: 999px; background: color-mix(in srgb, var(--text-2) 22%, transparent); border: 1px solid var(--border-strong); transition: background 0.15s ease; }
@@ -3591,6 +3590,7 @@ input, textarea { font-family: inherit; }
    are hidden. main.js toggles .fmt-mp4 on the panel. */
 #t-export-panel.fmt-mp4 #t-export-stems,
 #t-export-panel.fmt-mp4 #t-export-region { display: none; }
+#t-export-panel:not(.fmt-mp4) .export-mix-video-desc { display: none; }
 
 /* ── About dialog ── */
 .about-backdrop {
@@ -3670,8 +3670,6 @@ input, textarea { font-family: inherit; }
   color: var(--muted); text-decoration: none; transition: all 0.15s;
 }
 .about-social-btn:hover { background: var(--accent); border-color: var(--accent); color: #000; }
-/* Where song details, lyrics and transcription come from, and their
-   licences: small print under the socials. */
 .about-credits { margin: 16px 0 0; font-size: 10.5px; line-height: 1.5; color: var(--muted); }
 
 /* ── Release notes dialog ── */
@@ -3968,7 +3966,6 @@ input, textarea { font-family: inherit; }
   margin: 0; font-size: 10px; font-weight: 600;
   letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
 }
-.lyrics-note { margin: 0; font-size: 10.5px; line-height: 1.4; color: var(--muted); }
 .lyrics-status { margin: 0; font-size: 12px; color: var(--fg-2); }
 .lyrics-status:empty { display: none; }
 .lyrics-status.muted { color: var(--muted); }
@@ -4256,10 +4253,6 @@ input, textarea { font-family: inherit; }
    first line then sits in the close button's corner and leaves it room. */
 .artist-search.hidden { display: none; }
 .artist-search.hidden + .artist-body > :first-child { margin-right: 34px; }
-/* What is sent where: the box's foot, under the scrolling body, in the
-   credit line's small muted type. */
-.artist-card-foot { flex-shrink: 0; padding-top: 8px; }
-.artist-privacy { margin: 0; font-size: 10.5px; line-height: 1.45; color: var(--muted); }
 .artist-other { margin: -6px 0 10px; font-size: 12px; }
 .artist-status + .artist-other { margin-top: -14px; text-align: center; }
 .artist-other-btn {
@@ -4349,14 +4342,13 @@ input, textarea { font-family: inherit; }
    share the row, so it wraps rather than squeezing them. */
 .artist-foot { flex-wrap: wrap; }
 .artist-discogs-credit { font-weight: 500; }
-/* "Only Wikipedia was searched": a quiet aside, not a warning, with the way
-   to the setting as a small secondary button. */
 .artist-discogs-note {
   margin: 0 0 12px; padding: 10px 12px;
   background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
   font-size: 12px; line-height: 1.5; color: var(--fg-2);
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3);
 }
-.artist-discogs-note p { margin: 0 0 8px; }
+.artist-discogs-note p { margin: 0; flex: 1 1 auto; }
 .artist-discogs-open {
   height: 28px; padding: 0 12px; border-radius: 8px;
   background: var(--bg-2); border: 1px solid var(--border-strong);
@@ -4609,7 +4601,6 @@ input, textarea { font-family: inherit; }
 .acoustid-register, .discogs-register {
   display: inline-block; margin-top: 4px; font-size: 11px; color: var(--accent);
 }
-.discogs-privacy { margin-top: 4px; }
 
 /* Logs sub-navigation: Location / Application / Setup. */
 .settings-subtabs {

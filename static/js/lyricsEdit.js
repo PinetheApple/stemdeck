@@ -150,7 +150,6 @@ function render() {
   hostEl.setAttribute("aria-label", title);
   fields.append(
     el("h3", "lyrics-sync-title", title),
-    el("p", "lyrics-align-hint", t(isLines ? "lyrics.edit.hint" : "lyrics.supply.hint")),
     ...(isLines ? linesFields() : pasteFields()),
     message,
     actions,
@@ -306,7 +305,8 @@ function pasteFields() {
   file.accept = ACCEPTED_FILE_TYPES;
   file.hidden = true;
   file.addEventListener("change", onFileChosen);
-  return [area, file, button("lyrics-align-btn", t("lyrics.supply.loadFile"), onLoadFileClick)];
+  const hint = el("p", "lyrics-align-hint", t("lyrics.supply.hint"));
+  return [hint, area, file, button("lyrics-align-btn", t("lyrics.supply.loadFile"), onLoadFileClick)];
 }
 
 function onLoadFileClick() {

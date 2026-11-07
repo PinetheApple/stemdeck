@@ -198,6 +198,7 @@ If you need the best quality, speed on any machine, or a store-bought phone app,
 | **[Build from source](docs/build-from-source.md)** | The macOS app, a web server on any platform, Docker and Unraid |
 | **[Configuration](docs/configuration.md)** | Environment variables, and serving other devices over https |
 | **[HTTP API](docs/api.md)** | The endpoints the web app uses |
+| **[How it works](docs/how-it-works.md)** | Where your data goes, logs, the registry and other internals |
 | **[Troubleshooting](docs/troubleshooting.md)** | Common problems, and what lives where on disk |
 | **[Model licenses](docs/models.md)** | Where each machine-learning model's license comes from |
 

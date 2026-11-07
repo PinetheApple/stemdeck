@@ -528,7 +528,6 @@ function wireFooterControls() {
   const itemStems  = document.getElementById("t-export-stems");
   const itemRegion = document.getElementById("t-export-region");
   const itemBundle = document.getElementById("t-export-bundle");
-  const mixDescEl  = itemMix?.querySelector(".chip-item-desc");
   // Only the rows actually visible in the current format mode (MP4 hides the
   // audio-only Stems/Region rows).
   const actionItems = () =>
@@ -576,16 +575,8 @@ function wireFooterControls() {
   function applyFormatState() {
     const video = format === "mp4";
     exportPanel?.classList.toggle("fmt-mp4", video);
-    if (mixDescEl) {
-      mixDescEl.textContent = video ? t("export.mixDescVideo") : t("export.mixDesc");
-    }
     if (!video) updateLoopRegionVisual(); // restores the region item's disabled state
   }
-  // mixDescEl's text depends on `format`, not just the current language, so a
-  // language switch needs to re-derive it rather than rely solely on the
-  // generic data-i18n pass (which would otherwise reset it to the non-video
-  // wording even while MP4 is selected).
-  onLanguageChange(applyFormatState);
 
   function resetBusy() {
     busy = false;

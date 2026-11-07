@@ -41,7 +41,7 @@ test.describe("AcoustID key", () => {
     await expect(page.locator(".set-acoustid-clear")).toBeDisabled();
     await expect(page.locator(".set-acoustid-save")).toBeDisabled();
     await expect(page.locator(".acoustid-row .settings-row-desc")).toContainText(
-      "Only the fingerprint is sent to AcoustID, never the audio.",
+      "A free key identifies imports by their sound.",
     );
     const link = page.locator(".acoustid-register");
     await expect(link).toHaveAttribute("href", "https://acoustid.org/new-application");

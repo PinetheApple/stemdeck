@@ -58,7 +58,7 @@ test.describe("Discogs token", () => {
     await page.request.post("/api/settings", { data: { discogs_token: "" } });
   });
 
-  test("starts empty and masked, and says when names are sent", async ({ page }) => {
+  test("starts empty and masked", async ({ page }) => {
     await openSettings(page);
     const input = page.locator(".set-discogs-token");
     await expect(input).toHaveAttribute("type", "password");
@@ -68,9 +68,6 @@ test.describe("Discogs token", () => {
     await expect(page.locator(".set-discogs-save")).toBeDisabled();
     await expect(page.locator(".discogs-row")).toContainText(
       "Band profiles, members and releases for bands Wikipedia does not cover, from Discogs. Optional.",
-    );
-    await expect(page.locator(".discogs-privacy")).toHaveText(
-      "Band names are sent to Discogs only when a token is saved, and only for a band Wikipedia has no history, members or albums for, or a name you search for that Wikipedia does not have.",
     );
     const link = page.locator(".discogs-register");
     await expect(link).toHaveText("Get a free token at discogs.com");

@@ -3917,7 +3917,6 @@ function networkSettingsHtml() {
         <div class="settings-row-text">
           <div class="settings-row-title" data-i18n="settings.network.allowTitle">Make StemDeck available on your network</div>
           <div class="settings-row-desc" data-i18n="settings.network.allowDesc">Let other devices (like your phone) open StemDeck at the address below.</div>
-          <div class="settings-row-desc settings-lock-note" data-i18n="settings.network.lockNote">Read-only when StemDeck is started in server mode — network access is then set by your server configuration.</div>
         </div>
         <label class="settings-switch">
           <input type="checkbox" class="net-access-input" />
@@ -4794,7 +4793,6 @@ function openLibraryEditor() {
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.language.title">Language</div>
-              <div class="settings-row-desc" data-i18n="settings.language.desc">Display language for this app.</div>
             </div>
             <select class="settings-select settings-select-wide set-language" aria-label="Language"></select>
           </div>
@@ -4836,7 +4834,7 @@ function openLibraryEditor() {
           <div class="settings-row settings-row-stack exports-location-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.exportsLocation.title">Exports folder</div>
-              <div class="settings-row-desc" data-i18n="settings.exportsLocation.desc">Where audio goes when you drag a stem or a loop out of StemDeck. Nothing here is ever deleted automatically, because a project that references a dragged file needs it to stay put.</div>
+              <div class="settings-row-desc" data-i18n="settings.exportsLocation.desc">Where stems and loops you drag out of StemDeck go. Nothing here is deleted automatically.</div>
             </div>
             <div class="stems-location">
               <code class="exports-location-path" title=""></code>
@@ -4847,7 +4845,7 @@ function openLibraryEditor() {
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.autoDelete.title">Automatically delete finished tracks</div>
-              <div class="settings-row-desc" data-i18n="settings.autoDelete.desc">Off unless you turn it on. Separated tracks are kept forever by default. Deleting them cannot be undone.</div>
+              <div class="settings-row-desc" data-i18n="settings.autoDelete.desc">Deletes finished tracks after the days set below. This cannot be undone.</div>
             </div>
             <label class="settings-switch">
               <input type="checkbox" class="auto-delete-input" />
@@ -4880,7 +4878,7 @@ function openLibraryEditor() {
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.quality.title">Separation quality</div>
-              <div class="settings-row-desc" data-i18n="settings.quality.desc">Best runs the separator twice with randomized shifts and averages the result — cleaner stems, twice the time.</div>
+              <div class="settings-row-desc" data-i18n="settings.quality.desc">Cleaner stems, twice as slow.</div>
             </div>
             <select class="settings-select settings-select-wide set-separation-quality" aria-label="Separation quality" data-i18n-aria-label="settings.quality.title">
               <option value="standard" data-i18n="settings.quality.standard">Standard</option>
@@ -4903,7 +4901,7 @@ function openLibraryEditor() {
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.exportLogs.title">Export logs</div>
-              <div class="settings-row-desc" data-i18n="settings.exportLogs.desc">Download every log file as a single zip — the thing to attach to a bug report. See the Logs tab for where they live.</div>
+              <div class="settings-row-desc" data-i18n="settings.exportLogs.desc">Every log in one zip, to attach to a bug report.</div>
             </div>
             <button class="settings-export-logs" type="button" data-i18n="settings.exportLogs.button">Export logs</button>
           </div>
@@ -4924,7 +4922,7 @@ function openLibraryEditor() {
           <div class="settings-row settings-row-stack acoustid-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.acoustid.title">Song identification</div>
-              <div class="settings-row-desc" data-i18n="settings.acoustid.desc">Optional. With a free AcoustID key, each import is identified by its audio fingerprint. Only the fingerprint is sent to AcoustID, never the audio. Without a key, tracks are identified by their tags on MusicBrainz.</div>
+              <div class="settings-row-desc" data-i18n="settings.acoustid.desc">Optional. A free key identifies imports by their sound.</div>
             </div>
             <div class="acoustid-key">
               <input type="password" class="settings-text-input set-acoustid-key" spellcheck="false" autocomplete="off" maxlength="64" placeholder="AcoustID API key" data-i18n-placeholder="settings.acoustid.placeholder" aria-label="AcoustID API key" data-i18n-aria-label="settings.acoustid.placeholder" />
@@ -4940,7 +4938,6 @@ function openLibraryEditor() {
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.discogs.title">Discogs</div>
               <div class="settings-row-desc" data-i18n="settings.discogs.desc">Band profiles, members and releases for bands Wikipedia does not cover, from Discogs. Optional.</div>
-              <div class="settings-row-desc discogs-privacy" data-i18n="settings.discogs.privacy">Band names are sent to Discogs only when a token is saved, and only for a band Wikipedia has no history, members or albums for, or a name you search for that Wikipedia does not have.</div>
             </div>
             <div class="discogs-token">
               <input type="password" class="settings-text-input set-discogs-token" spellcheck="false" autocomplete="off" maxlength="80" placeholder="Discogs personal access token" data-i18n-placeholder="settings.discogs.placeholder" aria-label="Discogs personal access token" data-i18n-aria-label="settings.discogs.placeholder" />
@@ -4955,7 +4952,7 @@ function openLibraryEditor() {
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.transcribe.title">Transcribe lyrics</div>
-              <div class="settings-row-desc" data-i18n="settings.transcribe.desc">When no lyrics are found for a track, transcribe them from its vocals locally with Whisper. Auto does this only on an NVIDIA GPU. The first run downloads a speech model (1.6 GB for an NVIDIA GPU, 0.5 GB otherwise). Applies to the next track.</div>
+              <div class="settings-row-desc" data-i18n="settings.transcribe.desc">When no lyrics are found, they are transcribed from the vocals on this computer. The first run downloads a speech model (1.6 GB for an NVIDIA GPU, 0.5 GB otherwise). Applies to the next track.</div>
             </div>
             <select class="settings-select settings-select-wide set-transcribe-lyrics" aria-label="Transcribe lyrics" data-i18n-aria-label="settings.transcribe.title">
               <option value="auto" data-i18n="settings.transcribe.auto">Auto (NVIDIA GPU only)</option>
@@ -4982,7 +4979,7 @@ function openLibraryEditor() {
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.export.sampleRate.title">Sample rate</div>
-              <div class="settings-row-desc" data-i18n="settings.export.sampleRate.desc">Sample rate for exported mixes and regions (WAV, FLAC, MP3). 44.1 kHz suits most DAWs and samplers; pick another if your hardware needs it.</div>
+              <div class="settings-row-desc" data-i18n="settings.export.sampleRate.desc">44.1 kHz suits most DAWs and samplers.</div>
             </div>
             <select class="settings-select set-export-samplerate" aria-label="Export sample rate" data-i18n-aria-label="settings.export.sampleRate.title">
               <option value="22050">22.05 kHz</option>
@@ -5018,7 +5015,7 @@ function openLibraryEditor() {
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.logs.location.title">Log location</div>
-              <div class="settings-row-desc" data-i18n="settings.logs.location.desc">Where StemDeck writes its logs on this machine. Read-only — open them in a file manager or use Export logs.</div>
+              <div class="settings-row-desc" data-i18n="settings.logs.location.desc">Open the logs in a file manager, or use Export logs.</div>
             </div>
             <button class="settings-registry-refresh settings-logs-refresh" type="button" data-i18n="settings.logs.refresh">Refresh</button>
           </div>
@@ -5029,7 +5026,6 @@ function openLibraryEditor() {
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.logs.application.title">Application log</div>
-              <div class="settings-row-desc" data-i18n="settings.logs.application.desc">The last hour from <code>stemdeck.log</code> — pipeline, API and job activity. Read-only.</div>
             </div>
             <button class="settings-registry-refresh settings-logtail-refresh" type="button" data-view="application" data-i18n="settings.logs.refresh">Refresh</button>
           </div>
@@ -5039,7 +5035,6 @@ function openLibraryEditor() {
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.logs.backend.title">Backend log</div>
-              <div class="settings-row-desc" data-i18n="settings.logs.backend.desc">The last hour from <code>backend.log</code> — raw output of the bundled Python process, including anything that crashed it before the application log could record it. Desktop app only. Read-only.</div>
             </div>
             <button class="settings-registry-refresh settings-logtail-refresh" type="button" data-view="backend" data-i18n="settings.logs.refresh">Refresh</button>
           </div>
@@ -5049,7 +5044,6 @@ function openLibraryEditor() {
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.logs.setup.title">Setup log</div>
-              <div class="settings-row-desc" data-i18n="settings.logs.setup.desc">The last hour from <code>setup.log</code> — first-run setup and GPU runtime installation. Desktop app only. Read-only.</div>
             </div>
             <button class="settings-registry-refresh settings-logtail-refresh" type="button" data-view="setup" data-i18n="settings.logs.refresh">Refresh</button>
           </div>
@@ -5060,7 +5054,6 @@ function openLibraryEditor() {
         <div class="settings-row">
           <div class="settings-row-text">
             <div class="settings-row-title" data-i18n="settings.registry.title">Job registry</div>
-            <div class="settings-row-desc" data-i18n="settings.registry.desc">Read-only view of <code>registry.json</code> — the persisted list of completed jobs on disk.</div>
           </div>
           <button class="settings-registry-refresh" type="button" data-i18n="settings.logs.refresh">Refresh</button>
         </div>

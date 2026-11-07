@@ -1417,6 +1417,8 @@ export function toggleMetronome(force) {
  * @param {string} reason  Shown to the user when there is no grid.
  */
 let _lastGrid = null;
+// Below this share of beats on a drum hit, the note says the beat is unsure.
+const UNSURE_BEAT_CONFIDENCE = 60;
 
 function _renderMetroNote(grid) {
   if (!metroNoteEl) return;
@@ -1428,25 +1430,19 @@ function _renderMetroNote(grid) {
   const bpm = Number.isFinite(eff) ? eff : Number(grid.bpm);
   const conf = Number(grid.confidence);
 
-  // Each branch is one complete, translated sentence (not clauses joined at
-  // runtime) so word order can differ freely per language -- see i18n.js's
-  // metro.note.* keys. Deliberately worded as "on a drum hit", not
-  // "confidence the tempo is right": a half-time grid scores ~100% here and
-  // is still musically wrong, so the note must not imply the metrical level
-  // was verified -- that is what the halve/double control is for.
+  // Each branch is one complete, translated sentence so word order can differ
+  // per language; see i18n.js's metro.note.* keys.
   let text = "";
-  if (Number.isFinite(bpm) && Number.isFinite(conf)) {
+  if (Number.isFinite(bpm)) {
     const bpmStr = bpm.toFixed(1);
     const nBars = Array.isArray(grid.bars) ? grid.bars.length : 0;
     if (metronomeBeatsPerBar < 0 && nBars === 1) {
-      text = t("metro.note.detectedSingleBar", { bpm: bpmStr, conf, beats: grid.bars[0].beats_per_bar });
+      text = t("metro.note.detectedSingleBar", { bpm: bpmStr, beats: grid.bars[0].beats_per_bar });
     } else if (metronomeBeatsPerBar < 0 && nBars > 1) {
-      text = t("metro.note.detectedMultiBar", { bpm: bpmStr, conf, count: nBars });
+      text = t("metro.note.detectedMultiBar", { bpm: bpmStr, count: nBars });
     } else if (metronomeBeatsPerBar > 0) {
       // A grouped bar accents more than the 1, so "accenting every N beats"
-      // would describe a click that is not being played (#595). Say the
-      // grouping and name the beats it stresses, which is also the only place
-      // the panel explains what "3+2" in the grouping box means.
+      // would describe a click that is not being played (#595).
       const g = normaliseGrouping(metronomeGrouping, metronomeBeatsPerBar);
       if (g.length > 1) {
         const stressed = [];
@@ -1454,23 +1450,22 @@ function _renderMetroNote(grid) {
         for (const n of g) { stressed.push(at); at += n; }
         text = t("metro.note.grouped", {
           bpm: bpmStr,
-          conf,
           accent: metronomeBeatsPerBar,
           groups: g.join("+"),
           stress: t("metro.note.stress", { beats: stressed.join(", ") }),
         });
       } else {
-        text = t("metro.note.full", { bpm: bpmStr, conf, accent: metronomeBeatsPerBar });
+        text = t("metro.note.full", { bpm: bpmStr, accent: metronomeBeatsPerBar });
       }
     } else {
-      text = t("metro.note.noAccent", { bpm: bpmStr, conf });
+      text = t("metro.note.noAccent", { bpm: bpmStr });
     }
-  } else if (Number.isFinite(bpm)) {
-    text = t("metro.note.fallback", { bpm: bpm.toFixed(1) });
   }
+  const unsure = Number.isFinite(conf) && conf < UNSURE_BEAT_CONFIDENCE;
+  if (text && unsure) text = t("metro.note.unsure", { note: text });
   metroNoteEl.textContent = text;
   metroNoteEl.title = text ? t("metro.note.scaleTip") : "";
-  metroNoteEl.className = Number.isFinite(conf) && conf < 60 ? "metro-note warn" : "metro-note";
+  metroNoteEl.className = unsure ? "metro-note warn" : "metro-note";
 }
 
 /**
