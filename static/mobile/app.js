@@ -8,6 +8,7 @@ import { createChunkedAudioEngine } from "../js/chunkedAudioEngine.js";
 import { PITCH_MAX, PITCH_MIN, clampPitch } from "../js/pitchBus.js";
 import { createPlaybackContext } from "../js/audioContext.js";
 import { HTTP_CONFLICT } from "../js/lyricsTranscribe.js";
+import { SPLIT_STATE, startSplit, followSplit } from "../js/vocalSplit.js";
 // Per-stem label + color, keyed by the backend stem name. Unknown names fall
 // back to a rotating palette so non-standard models still render sensibly.
 const STEM_META = {
@@ -699,20 +700,39 @@ function _finishExtractJob(jobId) {
 // from their perspective this is one action, even though the backend keeps
 // it a separate, best-effort pass over the already-done job.
 async function _runVocalSplitThenFinish(jobId) {
-  state.extractJob.stage = "Splitting lead/backing vocals…";
-  if (state.tab === "extract") render();
+  const showProgress = (view) => _showVocalSplitProgress(jobId, view);
+  showProgress({ progress: 0 });
+  let final = null;
   try {
-    const res = await fetch(`/api/jobs/${jobId}/vocal-split`, { method: "POST" });
-    if (!res.ok && res.status !== 202) throw new Error(String(res.status));
-    toast("Stems ready!");
+    await startSplit(jobId);
+    final = await followSplit(jobId, { onView: showProgress });
   } catch (e) {
     console.warn("[mobile] vocal split failed:", e);
-    // The base separation still succeeded -- the split is a best-effort
-    // extra, so this is a lesser notice, not a failure of the whole import.
-    toast("Stems ready (lead/backing split didn't work this time).");
   }
+  // The base separation still succeeded -- the split is a best-effort
+  // extra, so this is a lesser notice, not a failure of the whole import.
+  if (final?.state === SPLIT_STATE.DONE) toast("Stems ready!");
+  else toast("Stems ready (lead/backing split didn't work this time).");
+  _showExtractStatus(jobId, EXTRACT_DONE_STATUS, 1);
   loadLibrary();
   _finishExtractJob(jobId);
+}
+
+// The base job is already done; the card says the split is still going.
+const SPLITTING_STATUS = "splitting";
+const EXTRACT_DONE_STATUS = "done";
+
+function _showVocalSplitProgress(jobId, view) {
+  if (state.extractJob?.id !== jobId) return;
+  state.extractJob.stage = "Splitting lead/backing vocals";
+  _showExtractStatus(jobId, SPLITTING_STATUS, Number(view.progress) || 0);
+}
+
+function _showExtractStatus(jobId, status, progress) {
+  if (state.extractJob?.id !== jobId) return;
+  state.extractJob.status = status;
+  state.extractJob.progress = progress;
+  if (state.tab === "extract") render();
 }
 
 function _onExtractState(jobId, s) {
