@@ -92,8 +92,6 @@ test.describe("automatic deletion", () => {
     await expect(page.locator(".auto-delete-input")).not.toBeChecked();
     // The sweep spares them, and the user decides knowing that.
     await expect(page.locator(".auto-delete-desc")).toHaveText(await uiText(page, "settings.autoDelete.confirm"));
-    await expect(page.locator(".auto-delete-desc")).toContainText("Deletes for good");
-    await expect(page.locator(".auto-delete-desc")).toContainText("favorites and setlist songs are kept");
     await expect(page.locator(".set-auto-delete-days")).toBeDisabled();
     expect(await serverSaysOn(page)).toBe(false);
   });

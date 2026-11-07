@@ -97,15 +97,9 @@ function getDeletedJobIds() {
 
 async function markJobsDeleted(ids) {
   for (const id of ids) _deletedJobIds.add(id);
-  // Awaited by callers before they purge. Fire-and-forget meant that quitting
-  // soon after clearing the bin -- or one failed store write -- left no
-  // tombstone, and syncWithServer re-imported everything on the next launch
-  // (#521). The backend keeps its own deletion record now, so this is a second
-  // line of defence rather than the only one, but it still has to be written
-  // before the tracks are dropped from the local index.
-  const saved = await storeSet(DELETED_JOBS_KEY, [..._deletedJobIds]);
-  if (!saved) notifyFailure({ kind: "storage", message: i18nT("notif.storageFull") });
-  return saved;
+  // A second line of defence: the server keeps its own deletion record, so a
+  // failed write is reported, and the purge still goes ahead.
+  onStoreSaved(await storeSet(DELETED_JOBS_KEY, [..._deletedJobIds]));
 }
 
 function normalizeFolderColor(color) {
@@ -264,15 +258,15 @@ async function loadState() {
   if (changed) saveState();
 }
 
-// Said once per run of failed saves, not on every write while the device is full.
+// Said once per run of failed saves, not on every write while saving keeps failing.
 let _saveFailureShown = false;
 
 function saveState() {
   ensureTrash();
-  storeSet(STORAGE_KEY, { v: STORAGE_VERSION, folders, tracks }).then(onLibrarySaved);
+  storeSet(STORAGE_KEY, { v: STORAGE_VERSION, folders, tracks }).then(onStoreSaved);
 }
 
-function onLibrarySaved(saved) {
+function onStoreSaved(saved) {
   if (saved) {
     _saveFailureShown = false;
     return;
@@ -3075,8 +3069,6 @@ async function emptyTrash(btn) {
     const toDelete = [...(getTrashFolder()?.items || [])];
     const failed = await deleteJobsOnServer(toDelete);
     const deleted = toDelete.filter((id) => !failed.includes(id));
-    // Awaited: the tombstone has to be on disk before the tracks leave the
-    // local index, or a reload re-imports them.
     await markJobsDeleted(deleted);
     purgeTrash(deleted);
     saveState();
