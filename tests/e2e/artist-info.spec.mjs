@@ -16,6 +16,7 @@ import {
   seedCatalogState,
   seedLibrary,
   stubAudioTags,
+  stubBandSave,
   stubExportEndpoints,
   stubUpdateCheck,
 } from "./helpers.mjs";
@@ -267,6 +268,7 @@ test.describe("artist box", () => {
 
   test("a band saved on the track opens straight on it, after a reload too", async ({ page }) => {
     const asked = await stubWikimedia(page);
+    await stubBandSave(page);
     await openStudio(page);
     await openTrack(page);
     await page.locator("#np-details-btn").click();

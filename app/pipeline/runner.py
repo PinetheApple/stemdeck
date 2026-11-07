@@ -339,6 +339,7 @@ def _write_metadata(job: Job, job_dir: Path) -> None:
         "audio_tags": job.audio_tags,
         "identity": job.identity,
         "artist": job.artist,
+        "user_band": job.user_band,
         "work": job.work,
         "duration_sec": job.duration_sec,
         "bpm": job.bpm,

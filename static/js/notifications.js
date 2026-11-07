@@ -36,6 +36,7 @@ const KIND_KEYS = {
   playback: "notifKind.playbackFailed",
   export: "notifKind.exportFailed",
   update: "notifKind.updateCheckFailed",
+  band: "notifKind.bandSaveFailed",
 };
 function kindLabel(kind) {
   return kind in KIND_KEYS ? t(KIND_KEYS[kind]) : t("notifKind.default");

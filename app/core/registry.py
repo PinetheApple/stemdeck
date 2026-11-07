@@ -438,6 +438,7 @@ def _recover_done_job(job_dir: Path) -> Job | None:
         audio_tags=clean_audio_tags(meta.get("audio_tags")),
         identity=clean_identity(meta.get("identity")),
         artist=clean_artist(meta.get("artist")),
+        user_band=clean_artist(meta.get("user_band")),
         work=clean_work(meta.get("work")),
         # The file is the record: metadata.json predates it for most jobs.
         has_lyrics=(job_dir / LYRICS_FILE).is_file(),

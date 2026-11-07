@@ -50,6 +50,7 @@ import {
   getCurrentTrackWork,
   isCurrentTrackTagsPending,
   setCurrentTrackArtist,
+  setFoundTrackArtist,
 } from "./catalog.js";
 
 // One answer per language and name, for the life of the page. A band's
@@ -170,8 +171,10 @@ function saveButton(artist) {
     button.disabled = saved;
     button.classList.toggle("saved", saved);
   };
-  button.addEventListener("click", () => {
-    if (setCurrentTrackArtist({ id: artist.id, name: artist.name, englishName: artist.englishName })) paint();
+  button.addEventListener("click", async function onSaveBandForTrack() {
+    button.disabled = true;
+    await setCurrentTrackArtist({ id: artist.id, name: artist.name, englishName: artist.englishName });
+    paint();
   });
   paint();
   return button;
@@ -980,7 +983,7 @@ async function runFindBandFromTags(trackId) {
     if (!artist || !artistMatchesName(artist, name)) return;
     // Still the open track, and nobody saved a band on it in the meantime.
     if (getCurrentTrackInfo()?.id !== trackId || getCurrentTrackArtist()) return;
-    setCurrentTrackArtist({ id: artist.id, name: artist.name, englishName: artist.englishName });
+    setFoundTrackArtist({ id: artist.id, name: artist.name, englishName: artist.englishName });
   } catch (err) {
     // Aborted because another track was opened: not an attempt, so opening
     // this one again tries again.

@@ -17,6 +17,9 @@ import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailur
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
+import { fetchJson, isNotFound } from "./libraryControls.js";
+import { lookupArtist } from "./artistLookup.js";
+import { HELD_DROP, HELD_SEND, HTTP_UNPROCESSABLE, heldBandAction, libraryArtist, mergedBand, sendHeldBand, uploadBands } from "./trackBand.js";
 import { t as i18nT, plural as i18nPlural, LANGUAGES, getLanguage, setLanguage, onLanguageChange, applyTranslations } from "./i18n.js";
 
 // Escape user-supplied strings before inserting into innerHTML.
@@ -31,10 +34,18 @@ function esc(s) {
 const STORAGE_KEY = "stemdeck.folders";
 const STORAGE_VERSION = 2; // bump to wipe stale seeded data
 const DELETED_JOBS_KEY = "stemdeck.deleted_jobs";
+const BANDS_UPLOADED_KEY = "stemdeck.bands_uploaded";
+const HELD_BANDS_KEY = "stemdeck.held_bands";
 
 let folders = [];
 let tracks = {};
 let _deletedJobIds = new Set();
+let _bandsUploaded = false;
+// Bands the upload left unsent, by track: { band, tagName }. See trackBand.js.
+let _heldBands = {};
+const _heldBandSends = new Set();
+// The newest save per track, and the band to go back to if it fails.
+const _bandSaves = new Map();
 let _currentTrackId = null;
 // The open track's tags as the last render() saw them. See setCurrentTrack().
 let _renderedTagsKey = "";
@@ -163,6 +174,7 @@ function replaceTrackId(oldId, newId) {
   if (!oldId || !newId || oldId === newId || !tracks[oldId]) return;
   tracks[newId] = { ...tracks[oldId], ...(tracks[newId] || {}), id: newId };
   delete tracks[oldId];
+  moveHeldBand(oldId, newId);
   for (const folder of folders) {
     folder.items = folder.items.map((id) => (id === oldId ? newId : id));
     folder.items = [...new Set(folder.items)];
@@ -174,7 +186,10 @@ function purgeTrash() {
   const trash = folders.find((f) => f.id === TRASH_ID);
   if (!trash?.items.length) return false;
   const trashIds = new Set(trash.items);
-  for (const id of trashIds) delete tracks[id];
+  for (const id of trashIds) {
+    delete tracks[id];
+    dropHeldBand(id);
+  }
   for (const folder of folders) {
     folder.items = folder.items.filter((id) => !trashIds.has(id));
   }
@@ -188,6 +203,7 @@ function purgeTrash() {
 
 async function loadState() {
   let changed = false;
+  _heldBands = await storeGet(HELD_BANDS_KEY, {});
   try {
     const data = await storeGet(STORAGE_KEY, null);
     if (data) {
@@ -205,7 +221,10 @@ async function loadState() {
         const noTitle = Object.keys(tracks).filter((id) => !tracks[id].title);
         if (noTitle.length) {
           const toRemove = new Set(noTitle);
-          noTitle.forEach((id) => delete tracks[id]);
+          noTitle.forEach((id) => {
+            delete tracks[id];
+            dropHeldBand(id);
+          });
           folders.forEach((f) => { f.items = f.items.filter((id) => !toRemove.has(id)); });
           changed = true;
         }
@@ -218,6 +237,8 @@ async function loadState() {
     const arr = await storeGet(DELETED_JOBS_KEY, []);
     if (Array.isArray(arr)) _deletedJobIds = new Set(arr);
   } catch (e) { console.warn("[catalog] failed to load deleted jobs", e); }
+
+  _bandsUploaded = (await storeGet(BANDS_UPLOADED_KEY, false)) === true;
 
   ensureTrash();
   for (const folder of folders) {
@@ -261,16 +282,11 @@ export function libraryAudioTags(tags) {
   return lyrics ? { ...rest, hasLyrics: true } : rest;
 }
 
-/**
- * The band a job's state carries (#699), found by the server while the job
- * ran, as the library keeps a band: { id, name, englishName } with id a
- * Wikidata item. Null for anything else, so a malformed answer never reaches
- * the artist box.
- */
-export function libraryArtist(artist) {
-  if (!artist || typeof artist !== "object" || !/^Q\d+$/.test(String(artist.id || ""))) return null;
-  return { id: artist.id, name: String(artist.name || ""), englishName: String(artist.englishName || "") };
-}
+export { libraryArtist };
+
+const serverBand = (trackId, localBand, source) => (
+  mergedBand(localBand, source, !_bandsUploaded || trackId in _heldBands)
+);
 
 const WORK_KINDS = new Set(["musical", "film", "tv", "other"]);
 
@@ -329,7 +345,9 @@ export function addTrackToLibrary(track) {
   // One extra job sharing the source URL was enough to reach this, so trashing
   // a track and restarting brought it back.
   if (existingId && !getTrashFolder()?.items.includes(existingId)) {
+    const savedBand = tracks[existingId].bandSaved ? libraryArtist(tracks[existingId].artist) : null;
     replaceTrackId(existingId, track.id);
+    if (savedBand) carrySavedBand(track.id, savedBand);
     // The old track is gone, so any failure notification tied to it is moot
     // now (#401). A trashed match keeps the dismissal moveTrackToTrash already
     // did, and nothing here revives it.
@@ -339,9 +357,7 @@ export function addTrackToLibrary(track) {
   tracks[track.id] = {
     ...existing,
     ...track,
-    // A band already on the track, saved in the artist box or found before,
-    // is never replaced by the one the server found (#699).
-    ...(existing.artist ? { artist: existing.artist } : {}),
+    artist: serverBand(track.id, existing.artist, track),
     // Likewise the identity and the work behind a soundtrack, once known.
     ...(existing.identity ? { identity: existing.identity } : {}),
     ...(existing.work ? { work: existing.work } : {}),
@@ -462,18 +478,163 @@ export function getCurrentTrackSong() {
   };
 }
 
-/** Save a band on the open track, kept with the rest of the library. */
-export function setCurrentTrackArtist(artist) {
+function patchTrackBand(trackId, band) {
+  return fetchJson(`/api/jobs/${encodeURIComponent(trackId)}`, { method: "PATCH", body: { band } });
+}
+
+function takeBandState(trackId, state) {
+  const track = tracks[trackId];
+  if (!track) return;
+  track.artist = serverBand(trackId, track.artist, state);
+  applyServerNames(track, state);
+}
+
+function carrySavedBand(trackId, band) {
+  patchTrackBand(trackId, band).then((state) => {
+    takeBandState(trackId, state);
+    afterNamesChanged(trackId);
+  }).catch((err) => console.warn("[catalog] carrying a saved band to a re-import failed:", err));
+}
+
+function saveHeldBands() {
+  storeSet(HELD_BANDS_KEY, _heldBands).catch((err) => console.warn("[catalog] failed to save held bands:", err));
+}
+
+function holdBand(trackId, entry) {
+  _heldBands[trackId] = entry;
+  saveHeldBands();
+}
+
+function dropHeldBand(trackId) {
+  if (!(trackId in _heldBands)) return;
+  delete _heldBands[trackId];
+  saveHeldBands();
+}
+
+function moveHeldBand(oldId, newId) {
+  if (!(oldId in _heldBands)) return;
+  _heldBands[newId] = _heldBands[oldId];
+  dropHeldBand(oldId);
+}
+
+async function saveHeldBand(trackId, entry) {
+  _heldBandSends.add(trackId);
+  const state = await sendHeldBand(trackId, entry, { send: patchTrackBand, drop: dropHeldBand });
+  _heldBandSends.delete(trackId);
+  if (!state) return;
+  takeBandState(trackId, state);
+  afterNamesChanged(trackId);
+}
+
+/** Act on a full job state for a track with a held band; call it before serverBand. */
+function settleHeldBand(trackId, state) {
+  const entry = _heldBands[trackId];
+  // A save from the artist box is on its way, and its answer settles the entry.
+  if (!entry || !tracks[trackId] || _bandSaves.has(trackId)) return;
+  const action = heldBandAction(entry, tracks[trackId], state);
+  if (action === HELD_DROP) dropHeldBand(trackId);
+  if (action === HELD_SEND && !_heldBandSends.has(trackId)) saveHeldBand(trackId, entry);
+}
+
+function rollBackBand(trackId, previous, title) {
+  const track = tracks[trackId];
+  if (track) track.artist = previous;
+  afterNamesChanged(trackId);
+  notifyFailure({
+    kind: "band",
+    message: i18nT("artist.saveFailed", { title }),
+    context: { stage: "Saving a band" },
+  });
+}
+
+/** Save a band on the open track and on the server; resolves to whether it was saved. */
+export async function setCurrentTrackArtist(artist) {
+  const trackId = _currentTrackId;
+  const track = tracks[trackId];
+  const band = libraryArtist(artist);
+  if (!track || !band) return false;
+  const title = libraryTitle(track);
+  const save = { before: _bandSaves.has(trackId) ? _bandSaves.get(trackId).before : track.artist };
+  _bandSaves.set(trackId, save);
+  track.artist = band;
+  saveState();
+  paintNowPlayingArtist(track);
+  let state;
+  try {
+    state = await patchTrackBand(trackId, band);
+  } catch (err) {
+    console.warn("[catalog] saving a band failed:", err);
+    if (_bandSaves.get(trackId) !== save) return false;
+    _bandSaves.delete(trackId);
+    rollBackBand(trackId, save.before, title);
+    return false;
+  }
+  const newest = _bandSaves.get(trackId);
+  if (newest !== save) {
+    if (newest) newest.before = band;
+    return true;
+  }
+  _bandSaves.delete(trackId);
+  dropHeldBand(trackId);
+  dismissFailuresByKind("band");
+  takeBandState(trackId, state);
+  afterNamesChanged(trackId);
+  return true;
+}
+
+/** Keep a band looked up from the open track's tags here only: it is a guess, not a save. */
+export function setFoundTrackArtist(artist) {
   const track = tracks[_currentTrackId];
-  if (!track || !/^Q\d+$/.test(artist?.id || "")) return false;
-  track.artist = { id: artist.id, name: String(artist.name || ""), englishName: String(artist.englishName || "") };
+  const band = libraryArtist(artist);
+  if (!track || !band) return false;
+  track.artist = band;
   saveState();
   paintNowPlayingArtist(track);
   return true;
 }
 
-// The user's artist, else a soundtrack's show unless it repeats the title, else a
-// band saved here by hand (the server never hears of it), else display_artist.
+/** Asks once per name per run: a library often holds many songs by one artist. */
+function lookupOncePerName() {
+  const answers = new Map();
+  return (name) => {
+    if (!answers.has(name)) answers.set(name, lookupArtist(name, getLanguage()));
+    return answers.get(name);
+  };
+}
+
+/**
+ * Send the bands picked in this browser to the server, in the background and
+ * silently. A failure that can succeed later leaves the flag unset, for the next boot.
+ */
+async function uploadBrowserBands() {
+  if (_bandsUploaded) return;
+  try {
+    const jobs = await fetchJson("/api/jobs?trashed=include");
+    let uploaded = false;
+    const finished = await uploadBands(tracks, jobs, {
+      lookup: lookupOncePerName(),
+      hold: holdBand,
+      async send(trackId, band) {
+        try {
+          const state = await patchTrackBand(trackId, band);
+          takeBandState(trackId, state);
+          uploaded = true;
+        } catch (err) {
+          if (!isNotFound(err) && err?.status !== HTTP_UNPROCESSABLE) throw err;
+        }
+      },
+    });
+    if (uploaded) afterServerBackfill();
+    if (!finished) return;
+    _bandsUploaded = true;
+    await storeSet(BANDS_UPLOADED_KEY, true);
+  } catch (err) {
+    console.warn("[catalog] uploading the browser's bands failed:", err);
+  }
+}
+
+// The user's artist, else a soundtrack's show unless it repeats the title, else
+// the track's band, else display_artist.
 function nowPlayingArtist(track) {
   if (trimmed(track?.userArtist)) return trimmed(track.userArtist);
   let work = trimmed(libraryWork(track?.work)?.name);
@@ -546,7 +707,7 @@ async function backfillAudioTags(trackId) {
     target.audioTagsChecked = true;
     // The band, when the server found it from those tags, so artistInfo.js
     // has nothing left to look up when "tracktags" reaches it.
-    if (!target.artist) target.artist = libraryArtist(data?.artist);
+    target.artist = serverBand(trackId, target.artist, data);
     // And the recording and the work behind a soundtrack, when the server
     // found them. Asked once, like the tags: nothing found is an answer too.
     if (!target.identity) target.identity = libraryIdentity(data?.identity);
@@ -569,7 +730,9 @@ async function refreshServerNames(trackId) {
   try {
     const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}`, { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return Boolean(tracks[trackId] && applyServerNames(tracks[trackId], await res.json()));
+    const state = await res.json();
+    settleHeldBand(trackId, state);
+    return Boolean(tracks[trackId] && applyServerNames(tracks[trackId], state));
   } catch (err) {
     console.warn("[catalog] reading a song's names from the server failed:", err);
     return false;
@@ -596,7 +759,10 @@ export function applyRenamedState(trackId, state) {
   applyServerNames(track, state);
   track.identity = libraryIdentity(state.identity);
   track.work = libraryWork(state.work);
-  if (artistChanged) track.artist = libraryArtist(state.artist);
+  if (artistChanged) {
+    dropHeldBand(trackId);
+    track.artist = libraryArtist(state.artist);
+  }
   afterNamesChanged(trackId);
 }
 
@@ -616,7 +782,7 @@ export async function relookupTrack(trackId) {
       if (!target.audioTags) target.audioTags = libraryAudioTags(data?.audio_tags);
       target.identity = libraryIdentity(data?.identity);
       target.work = libraryWork(data?.work);
-      if (!target.artist) target.artist = libraryArtist(data?.artist);
+      target.artist = serverBand(trackId, target.artist, data);
     }
     await refreshServerNames(trackId);
     afterNamesChanged(trackId);
@@ -679,6 +845,7 @@ function applyServerNames(track, state) {
   if (!names.title) delete names.title;
   const changed = NAME_FIELDS.some((field) => field in names && track[field] !== names[field]);
   Object.assign(track, names);
+  if ("user_band" in state) track.bandSaved = Boolean(state.user_band);
   return changed;
 }
 
@@ -714,13 +881,10 @@ function stateMetadataToTrack(state, fallbackTrack) {
     videoStatus: state.video_status ?? fallbackTrack.videoStatus ?? null,
     createdAt: fallbackTrack.createdAt ?? state.created_at,
     favorite: fallbackTrack.favorite ?? false,
-    // The band (#699): the one saved on the track first, since a band chosen
-    // in the artist box always wins, and the server never hears of that one,
-    // so it only survives a rebuild from server state by being carried. Else
-    // the one the server found from the tags while the job ran.
-    artist: fallbackTrack.artist ?? libraryArtist(state.artist),
+    artist: serverBand(state.job_id, fallbackTrack.artist, state),
+    bandSaved: Boolean(state.user_band),
     // Which recording the server identified, and the musical or film a
-    // soundtrack is from: carried the same way.
+    // soundtrack is from: carried once known.
     identity: fallbackTrack.identity ?? libraryIdentity(state.identity),
     work: fallbackTrack.work ?? libraryWork(state.work),
   };
@@ -1056,6 +1220,7 @@ export async function loadTrackIntoStudio(trackId) {
     if (token !== _loadTrackToken) return;
     if (res.ok) {
       const state = await res.json();
+      settleHeldBand(trackId, state);
       track = stateMetadataToTrack(state, track);
       tracks[trackId] = track;
       saveState();
@@ -2459,6 +2624,7 @@ async function completeSettledJob(jobId) {
       // Nothing was produced; drop the placeholder row rather than leaving a
       // track that can never be loaded.
       delete tracks[jobId];
+      dropHeldBand(jobId);
       removeTrackFromFolders(jobId);
       saveState();
       render();
@@ -2488,6 +2654,7 @@ async function completeSettledJob(jobId) {
     // is the only place a background import's on-demand vocal split (#275)
     // can be triggered -- runVocalSplitIfWanted no-ops if it wasn't requested.
     const finalState = state.status === "done" ? await runVocalSplitIfWanted(state) : state;
+    settleHeldBand(jobId, finalState);
     const track = stateMetadataToTrack(finalState, { ...existing, id: jobId });
     track.id = jobId;
     // A server that sends "work" looked for it while the job ran, so the track
@@ -3543,6 +3710,16 @@ function reconcileTrashWithServer(jobs, trashIds) {
   }
 }
 
+function afterServerBackfill() {
+  saveState();
+  render();
+  const favBtn = document.getElementById("fav-btn");
+  const current = tracks[_currentTrackId];
+  if (favBtn && current) paintFavButton(favBtn, Boolean(current.favorite));
+  if (current) paintNowPlayingNames(current);
+  document.dispatchEvent(new CustomEvent("tracknames", { detail: { id: null } }));
+}
+
 async function syncWithServer() {
   try {
     // trashed=include, because this side keeps its own view of the library and
@@ -3568,11 +3745,10 @@ async function syncWithServer() {
           known.sourceFormat = state.source_format;
           backfilled = true;
         }
-        // Likewise the band the server found while the job ran (#699), for a
-        // track added before its import finished. Never over one already
-        // saved on the track.
-        if (!known.artist && libraryArtist(state.artist)) {
-          known.artist = libraryArtist(state.artist);
+        settleHeldBand(state.job_id, state);
+        const band = serverBand(state.job_id, known.artist, state);
+        if (JSON.stringify(band) !== JSON.stringify(known.artist)) {
+          known.artist = band;
           backfilled = true;
         }
         // And the identity and the work behind a soundtrack, the same way.
@@ -3594,15 +3770,7 @@ async function syncWithServer() {
       if (state.favorite) track.favorite = true;
       addTrackToLibrary(track);
     }
-    if (backfilled) {
-      saveState();
-      render();
-      const favBtn = document.getElementById("fav-btn");
-      const current = tracks[_currentTrackId];
-      if (favBtn && current) paintFavButton(favBtn, Boolean(current.favorite));
-      if (current) paintNowPlayingNames(current);
-      document.dispatchEvent(new CustomEvent("tracknames", { detail: { id: null } }));
-    }
+    if (backfilled) afterServerBackfill();
     reconcileAvailability(jobs);
     settleStaleProcessingTracks();
   } catch (e) { console.warn("[catalog] failed to load jobs from backend:", e); }
@@ -5076,7 +5244,7 @@ export async function initCatalog() {
   startQueueStream();
 
   loadCurrentVersion().finally(checkForUpdate);
-  syncWithServer();
+  syncWithServer().finally(uploadBrowserBands);
   // A heart pressed on the phone (#734) shows here the next time this window
   // is looked at, rather than only after a reload. At most every 15 seconds,
   // since switching windows back and forth is not new information.

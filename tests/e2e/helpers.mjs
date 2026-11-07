@@ -24,6 +24,7 @@ export const SOURCE_URL = "local:e2e-fixture";
 
 const STORAGE_KEY = "stemdeck.folders";
 const STORAGE_VERSION = 2;
+const BANDS_UPLOADED_KEY = "stemdeck.bands_uploaded";
 
 /** The library store's shape for one finished track. */
 export function fixtureTrack(id, title) {
@@ -43,11 +44,19 @@ export function fixtureTrack(id, title) {
  *
  * Tests that care about which folder a track is in build the state themselves
  * and call this. seedLibrary is the default arrangement on top of it.
+ *
+ * `bandsUploaded` defaults to true: a browser that has done its one-time band
+ * upload, since a seeded band would otherwise PATCH the fixture job shared by the run.
  */
-export async function seedCatalogState(page, { folders, tracks }) {
+export async function seedCatalogState(page, { folders, tracks, bandsUploaded = true }) {
   await page.addInitScript(
     ([key, value]) => window.localStorage.setItem(key, JSON.stringify(value)),
     [STORAGE_KEY, { v: STORAGE_VERSION, folders, tracks }],
+  );
+  if (!bandsUploaded) return;
+  await page.addInitScript(
+    (key) => window.localStorage.setItem(key, "true"),
+    BANDS_UPLOADED_KEY,
   );
 }
 
@@ -440,4 +449,23 @@ export async function stubImportQueue(page, jobId, title = "Importing") {
     run: async () => { running = true; await read(); },
     settle: async () => { running = false; await read(); },
   };
+}
+
+const JOB_URL = /\/api\/jobs\/[a-f0-9]{12}$/;
+
+/**
+ * Answer "Save for this track" here. The fixture job is shared by the whole run,
+ * so a real PATCH would leave its saved band on every spec after this one.
+ */
+export async function stubBandSave(page) {
+  await page.route(JOB_URL, async (route) => {
+    if (route.request().method() !== "PATCH") return route.fallback();
+    const real = await (await page.request.get(route.request().url())).json();
+    const { band } = route.request().postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ...real, user_band: band, artist: band }),
+    });
+  });
 }

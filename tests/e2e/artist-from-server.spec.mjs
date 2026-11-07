@@ -74,10 +74,10 @@ async function stubWikimedia(page) {
 
 /** The fixture job's real state, as the server would send it once the
  *  pipeline had found `band` from `tags`. */
-async function stubServerBand(page, id, { band = BAND, tags = TAGS } = {}) {
+async function stubServerBand(page, id, { band = BAND, tags = TAGS, saved = false } = {}) {
   const withBand = async () => {
     const real = await (await page.request.get(`/api/jobs/${id}`)).json();
-    return { ...real, audio_tags: tags, artist: band };
+    return { ...real, audio_tags: tags, artist: band, user_band: saved ? band : null };
   };
   await page.route(`**/api/jobs/${id}`, async (route) => {
     if (route.request().method() !== "GET") return route.fallback();
@@ -141,14 +141,17 @@ test.describe("band found by the server during the import", () => {
     expect(asked.some((url) => url.includes("ids=Q162586"))).toBe(true);
   });
 
-  test("a library track learns its band from the server, and one saved by hand wins", async ({ page }) => {
+  test("a library track learns its band from the server, and one saved there beats the browser's", async ({ page }) => {
     const asked = await stubWikimedia(page);
     await stubServerBand(page, JOB_ID);
     const chosen = { id: "Q1", name: "Chosen Band", englishName: "Chosen Band" };
-    await stubServerBand(page, SIBLING_JOB_ID, { tags: { artist: "Dream Theater", title: "Metropolis" } });
+    await stubServerBand(page, SIBLING_JOB_ID, { band: chosen, saved: true, tags: { artist: "Dream Theater", title: "Metropolis" } });
     await openPage(page, {
       [JOB_ID]: fixtureTrack(JOB_ID, "E2E Fixture Track"),
-      [SIBLING_JOB_ID]: { ...fixtureTrack(SIBLING_JOB_ID, "E2E Fixture Track (again)"), artist: chosen },
+      [SIBLING_JOB_ID]: {
+        ...fixtureTrack(SIBLING_JOB_ID, "E2E Fixture Track (again)"),
+        artist: { id: "Q2", name: "Stale Band", englishName: "Stale Band" },
+      },
     });
 
     await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
