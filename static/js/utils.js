@@ -17,14 +17,20 @@ export async function storeGet(key, fallback = null) {
   } catch (e) { console.warn("[store] localStorage get failed for", key, e); return fallback; }
 }
 
+/** Resolves whether the write landed; never rejects, since most callers do not wait. */
 export async function storeSet(key, value) {
   if (window.__TAURI__?.core?.invoke) {
     try {
       await window.__TAURI__.core.invoke("store_set", { key, value });
+      return true;
     } catch (e) { console.warn("[store] set failed for", key, e); }
-    return;
+    return false;
   }
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { console.warn("[store] localStorage set failed", e); }
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (e) { console.warn("[store] localStorage set failed", e); }
+  return false;
 }
 
 // Debounced variant — coalesces rapid writes (e.g. mixer slider moves) into
