@@ -37,7 +37,7 @@ from app.core.config import (
     ffmpeg_executable,
 )
 from app.core.registry import get as registry_get
-from app.pipeline.lyrics_lookup import lyrics_path
+from app.pipeline.lyrics_lookup import lyrics_path, shown_timing
 from app.pipeline.tempo_grid import EDITOR_ONLY_TEMPO_KEYS
 
 logger = logging.getLogger("stemdeck.api")
@@ -87,6 +87,13 @@ def _lyrics(job_dir: Path) -> dict | None:
         return None
     # The other candidates are for picking lyrics in the studio, not for playing.
     entry.pop("others", None)
+    # A reader takes ``synced`` and its offset, so that is where the timing in
+    # effect has to be, and it already includes any offset.
+    timing = shown_timing(entry)
+    if timing:
+        entry["synced"] = timing
+        entry.pop("offset_sec", None)
+        entry.pop("untimed_lines", None)
     return entry
 
 

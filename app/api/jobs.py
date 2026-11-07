@@ -80,7 +80,10 @@ from app.pipeline.identify import (
 from app.pipeline.lyrics_align import detect_offset
 from app.pipeline.lyrics_lookup import (
     _TEXT_MAX_CHARS,
+    USER_SOURCE,
+    LyricsTooLong,
     NotTheseLyrics,
+    UnusableLyrics,
     build_query,
     candidates_path,
     copy_lyrics,
@@ -92,9 +95,12 @@ from app.pipeline.lyrics_lookup import (
     lookup_lyrics,
     lyrics_path,
     lyrics_settled,
+    original_path,
     read_candidates,
     read_lyrics,
+    restore_lyrics,
     set_lyrics_offset,
+    set_user_lyrics,
     set_user_synced,
 )
 from app.pipeline.lyrics_retime import (
@@ -1332,6 +1338,8 @@ def get_lyrics(job_id: str) -> Response:
     if entry is not None:
         if not entry["others"]:
             entry["others"] = others
+        if entry["source"] == USER_SOURCE:
+            entry["has_original"] = original_path(job_dir).is_file()
         return JSONResponse(entry, headers=headers)
     if others:
         return JSONResponse(
@@ -1697,6 +1705,48 @@ async def delete_user_synced(job_id: str) -> dict:
     if entry is None:
         raise HTTPException(status_code=500, detail="could not save lyrics")
     return {"user_synced": None}
+
+
+class UserLyricsBody(BaseModel):
+    """The user's own words, pasted, loaded from a file or edited: plain text
+    or LRC, told apart by whether any line starts with a timestamp."""
+
+    text: str
+    keep_timing: StrictBool = False
+
+
+@router.put("/{job_id}/lyrics/user-text")
+async def put_user_text(job_id: str, request: Request) -> Response:
+    """Keep the user's own words as the track's lyrics, in place of what it
+    has (set_user_lyrics). Answers as GET .../lyrics then would. 409 before the
+    job is done, while its pipeline can still write lyrics; 413 when too long;
+    422, with a message for the user, when they are not usable."""
+    job, job_dir = _lyrics_job(job_id)
+    body = await _lyrics_body(request, UserLyricsBody)
+    if job.status != "done":
+        raise HTTPException(status_code=409, detail="job not ready")
+    try:
+        entry = await asyncio.to_thread(set_user_lyrics, job, job_dir, body.text, body.keep_timing)
+    except LyricsTooLong as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
+    except UnusableLyrics as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if entry is None:
+        raise HTTPException(status_code=500, detail="could not save lyrics")
+    registry_persist(JOBS_DIR)
+    return await asyncio.to_thread(get_lyrics, job_id)
+
+
+@router.delete("/{job_id}/lyrics/user-text")
+async def delete_user_text(job_id: str) -> Response:
+    """Go back to the found or transcribed lyrics the user's own replaced.
+    Idempotent. Answers as GET .../lyrics then would, so 404 when the user's
+    were all the track had."""
+    job, job_dir = _lyrics_job(job_id)
+    if not await asyncio.to_thread(restore_lyrics, job, job_dir):
+        raise HTTPException(status_code=500, detail="could not restore lyrics")
+    registry_persist(JOBS_DIR)
+    return await asyncio.to_thread(get_lyrics, job_id)
 
 
 # Upper bound on an edited grid. A 20-minute track at 300 BPM is ~6000 beats;

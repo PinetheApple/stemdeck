@@ -90,6 +90,7 @@ lock.
 from __future__ import annotations
 
 import bisect
+import difflib
 import json
 import logging
 import math
@@ -105,6 +106,7 @@ from typing import Any
 import numpy as np
 
 from app.core.config import (
+    LYRICS_NEW_LINE_SEC,
     LYRICS_RETIME_MAX_CELLS,
     LYRICS_RETIME_MIN_LINES_SHARE,
     LYRICS_RETIME_MIN_MATCHED,
@@ -120,6 +122,7 @@ from app.pipeline.lyrics_align import (
     _VOICE_FLOOR_DB,
     _VOICE_RANGE_DB,
     _offset,
+    _seconds,
     onset_strength,
 )
 from app.pipeline.zh_variants import to_simplified
@@ -287,10 +290,89 @@ def synced_lines(synced: str) -> list[tuple[float, str]]:
         if not text:
             continue
         for m in _LINE_STAMP.finditer(stamps.group(0)):
-            seconds = int(m.group(1)) * 60 + float(m.group(2).replace(":", "."))
-            out.append((max(0.0, seconds - offset), text))
+            out.append((max(0.0, _seconds(m.group(1), m.group(2)) - offset), text))
     out.sort(key=lambda pair: pair[0])
     return out
+
+
+def lrc_rows(lrc: str) -> list[tuple[float, str]]:
+    """Every stamped row of an LRC as (seconds, what follows the stamp), for
+    rewriting it: like synced_lines, but word stamps stay, empty rows (a pause)
+    stay, and the [offset:] tag is left to the caller."""
+    rows: list[tuple[float, str]] = []
+    for raw in lrc.splitlines():
+        stamps = _LINE_STAMPS.match(raw)
+        if stamps:
+            rest = raw[stamps.end() :].strip()
+            rows.extend(
+                (_seconds(m.group(1), m.group(2)), rest)
+                for m in _LINE_STAMP.finditer(stamps.group(0))
+            )
+    rows.sort(key=lambda row: row[0])
+    return rows
+
+
+def format_lrc_rows(rows: list[tuple[float, str]]) -> str:
+    return "\n".join(f"[{_stamp(seconds)}]{rest}" for seconds, rest in rows)
+
+
+def _fill_stamps(stamps: list[float | None]) -> list[float]:
+    """Each missing stamp spaced evenly between the known ones around it; past
+    the last known one, LYRICS_NEW_LINE_SEC apart."""
+    filled = list(stamps)
+    start = 0
+    while start < len(filled):
+        if filled[start] is not None:
+            start += 1
+            continue
+        end = start
+        while end < len(filled) and filled[end] is None:
+            end += 1
+        before = filled[start - 1] if start else 0.0
+        step = LYRICS_NEW_LINE_SEC
+        if end < len(filled):
+            step = (filled[end] - before) / (end - start + 1)
+        for k in range(start, end):
+            filled[k] = before + step * (k - start + 1)
+        start = end
+    return filled
+
+
+def carry_timing(lrc: str, lines: list[str], max_chars: int) -> tuple[str, list[int]]:
+    """``lines``, an edit of the lyrics ``lrc`` times, as LRC, and the indices
+    of the lines whose stamp is only an estimate.
+
+    A line left as it was keeps its row, word stamps and all. A changed line
+    with one old line in its place keeps that line's start; any other new line
+    is spaced between its neighbours. Pauses stay where they are. Word stamps
+    all go when they would take the LRC past ``max_chars``. ("", []) when no
+    stamp could be carried: no line is as it was, and none replaces exactly
+    one old line."""
+    rows = lrc_rows(lrc)
+    sung = [row for row in rows if line_text(row[1])]
+    pauses = [row for row in rows if not line_text(row[1])]
+    stamps: list[float | None] = [None] * len(lines)
+    rests = list(lines)
+    estimated: list[int] = []
+    matcher = difflib.SequenceMatcher(
+        None, [line_text(rest) for _t, rest in sung], lines, autojunk=False
+    )
+    for tag, old_start, old_end, new_start, new_end in matcher.get_opcodes():
+        same_size = old_end - old_start == new_end - new_start
+        if tag != "equal":
+            estimated.extend(range(new_start, new_end))
+        if same_size:
+            for k in range(new_end - new_start):
+                stamps[new_start + k] = sung[old_start + k][0]
+                if tag == "equal":
+                    rests[new_start + k] = sung[old_start + k][1]
+    if all(stamp is None for stamp in stamps):
+        return "", []
+    timed = zip(_fill_stamps(stamps), rests, strict=True)
+    merged = format_lrc_rows(sorted([*timed, *pauses], key=lambda row: row[0]))
+    if len(merged) > max_chars:
+        merged = _WORD_STAMP.sub("", merged)
+    return merged, estimated
 
 
 def plain_lines(plain: str) -> list[str]:
@@ -1687,6 +1769,8 @@ def lyric_line_texts(entry: dict[str, Any]) -> list[str]:
 
 _USER_ROW = re.compile(r"\s*\[(\d{1,3}):(\d{2}(?:\.\d{1,3})?)\](.*)")
 _USER_WORD = re.compile(r"<(\d{1,3}):(\d{2}(?:\.\d{1,3})?)>")
+# "[1st verse]" and "I <3 you" are words.
+STRAY_STAMP = re.compile(r"\[\d{1,3}:|<\d{1,3}:")
 
 
 def clean_user_synced(value: Any, lines: list[str]) -> str | None:
@@ -1715,7 +1799,7 @@ def clean_user_synced(value: Any, lines: list[str]) -> str | None:
             return None
         # Word stamps only: no other tag, and no stamp of another shape.
         stripped = _WORD_STAMP.sub("", rest)
-        if re.search(r"\[\d|<\d", stripped):
+        if STRAY_STAMP.search(stripped):
             return None
         text = line_text(rest)
         if text:

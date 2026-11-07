@@ -4139,6 +4139,62 @@ input, textarea { font-family: inherit; }
 .lyrics-line-tools .lyrics-align-nudge { font-family: var(--font-mono); }
 .lyrics-line-tools .lyrics-line-here { margin-left: auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--accent); border-color: var(--accent); }
 
+/* The user's own lyrics (lyricsEdit.js). */
+.lyrics-supply { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-3); }
+.lyrics-supply[hidden], .lyrics-supply .lyrics-link[hidden] { display: none; }
+.lyrics-untimed {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-1) var(--s-2);
+  margin: 0; font-size: var(--fs-xs); color: var(--warn);
+}
+.lyrics-untimed[hidden] { display: none; }
+.lyrics-line.untimed { box-shadow: inset 2px 0 0 var(--warn); }
+.lyrics-line.untimed::after {
+  content: attr(data-flag);
+  display: inline-block; white-space: nowrap;
+  margin-left: var(--s-2);
+  font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--warn);
+}
+.sidebar.lyrics-view .lyrics-panel.lyrics-editing .lyrics-versions,
+.sidebar.lyrics-view .lyrics-panel.lyrics-editing .lyrics-body { display: none; }
+.lyrics-editor { display: flex; flex: 1 1 auto; min-height: 0; outline: none; }
+.lyrics-editor[hidden] { display: none; }
+.lyrics-editor-fields {
+  display: flex; flex-direction: column; gap: var(--s-2);
+  flex: 1 1 auto; min-width: 0; min-height: 0; margin: 0; padding: var(--s-2);
+  border: 1px solid var(--accent); border-radius: var(--radius-sm); background: var(--panel);
+}
+.lyrics-edit-rows {
+  display: flex; flex-direction: column; gap: var(--s-1);
+  flex: 1 1 auto; min-height: 0; margin: 0; padding: 0; overflow-y: auto; list-style: none;
+}
+.lyrics-edit-row { display: flex; flex-direction: column; flex: 0 0 auto; }
+.lyrics-edit-row-actions { display: flex; justify-content: flex-end; }
+.lyrics-edit-input, .lyrics-paste {
+  min-width: 0; padding: var(--s-1) var(--s-2);
+  background: var(--bg-2); border: 1px solid var(--border-strong); border-radius: var(--r-1);
+  color: var(--fg); font-family: inherit; font-size: var(--fs-sm);
+}
+.lyrics-edit-input {
+  flex: 0 0 auto; width: 100%; min-height: var(--ctl-h-sm);
+  overflow: hidden; overflow-wrap: anywhere; resize: none;
+}
+.lyrics-paste { flex: 1 1 auto; min-height: calc(var(--ctl-h) * 3); resize: none; }
+.lyrics-edit-input:focus, .lyrics-paste:focus { outline: none; border-color: var(--accent); }
+.lyrics-paste:lang(ko), .lyrics-edit-input:lang(ko) { word-break: keep-all; }
+.lyrics-edit-btn {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  width: var(--icon-lg); height: var(--ctl-h-sm); padding: 0;
+  background: none; border: none; border-radius: var(--r-1);
+  color: var(--muted); cursor: pointer; transition: color var(--t-fast), background var(--t-fast);
+}
+.lyrics-edit-btn:hover { background: var(--panel-3); color: var(--fg); }
+.lyrics-edit-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.lyrics-edit-btn .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.lyrics-editor-actions { display: flex; gap: var(--s-2); }
+.lyrics-editor-actions .lyrics-align-btn { flex: 1 1 0; min-width: 0; }
+.lyrics-editor-fields:disabled .lyrics-align-btn,
+.lyrics-editor-fields:disabled .lyrics-edit-btn { cursor: default; opacity: 0.6; }
+
 /* The lyrics lane over the waveform (lyricsLane.js), shaped like the
    Sections ribbon above it: markers at percentages of a track that is the
    zoomed waveform's width. */

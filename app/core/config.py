@@ -564,6 +564,8 @@ LYRICS_FILE = "lyrics.json"
 # tab to offer, and when it was asked. The tag backfill does not ask again for
 # LYRICS_NOT_FOUND_RETRY_SEC; lyrics.json from any source settles it for good.
 LYRICS_CANDIDATES_FILE = "lyrics_candidates.json"
+LYRICS_ORIGINAL_FILE = "lyrics_original.json"
+LYRICS_NEW_LINE_SEC = 3.0
 LYRICS_NOT_FOUND_RETRY_SEC = _env_int("STEMDECK_LYRICS_NOT_FOUND_RETRY_DAYS", 30) * 24 * 3600
 # Each request is abandoned after this many seconds; /api/get can be slow when
 # LRCLIB has to look further afield for an exact match.
