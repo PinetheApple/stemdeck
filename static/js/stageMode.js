@@ -1,25 +1,35 @@
 // Stage mode: a full-window play-along view drawn over the lanes, so the studio keeps its size.
 // F toggles it, Esc leaves it.
 
-import { totalDuration } from "./state.js";
+import { metronomeBeatsPerBar, npScrubFill } from "./state.js";
 import { togglePlayPause, stopTransport, transport } from "./transport.js";
 import { getSections, sectionDisplayName } from "./sections.js";
 import { getCurrentTrackInfo } from "./catalog.js";
 import { playNextInUpNext } from "./upNext.js";
 import { shownBpm } from "./tempoTools.js";
-import { isBeatGridEditing } from "./beatgrid.js";
+import { isBeatGridEditing, getBeats, barPositionIndex, barLengthAt } from "./beatgrid.js";
+import { buildBeatTable, beatAt } from "./stageBeats.js";
+import { ensureLyricsLoaded, getTimedLyricLines, tagLang } from "./lyrics.js";
+import { currentLineIndex } from "./lyricsLookup.js";
 import { refitFooter } from "./footerFit.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $, fmtTime } from "./utils.js";
 
 const OPEN_MODAL = 'dialog[open], [role="dialog"][aria-modal="true"]';
+// As lyrics.js: a seek lands on a line's stamp, and the time read back can be a hair before it.
+const LYRIC_LEAD_SEC = 0.05;
+const GAP_LINE = "♪";
 
 let frameId = 0;
 let sections = [];
+let beatTable = [];
 let playObserver = null;
 // Last values written, so a frame that changes nothing writes nothing.
-const shown = { elapsed: "", total: "", section: "", next: "", playing: null };
+const shown = {
+  section: null, next: null, playing: null,
+  count: null, dotCount: null, dotOn: null, hasLyrics: null, lyric: null, nextLyric: null,
+};
 
 export function isStageMode() {
   return document.querySelector(".app")?.classList.contains("stage-mode") ?? false;
@@ -47,18 +57,65 @@ function nextLabel(time, next) {
   return t("stage.nextIn", { name: next.name, time: fmtTime(Math.max(0, next.start - time)) });
 }
 
+function readBeatTable() {
+  const fallbackLength = metronomeBeatsPerBar > 0 ? metronomeBeatsPerBar : barLengthAt(0);
+  beatTable = buildBeatTable(getBeats(), barPositionIndex, fallbackLength);
+}
+
+function paintDots(length, onIndex) {
+  const dots = $("stageBeats");
+  if (!dots) return;
+  if (shown.dotCount !== length) {
+    shown.dotCount = length;
+    shown.dotOn = null;
+    dots.replaceChildren(...Array.from({ length }, () => document.createElement("i")));
+  }
+  if (shown.dotOn === onIndex) return;
+  shown.dotOn = onIndex;
+  [...dots.children].forEach((dot, i) => {
+    dot.classList.toggle("on", i === onIndex);
+    dot.classList.toggle("down", i === 0);
+  });
+}
+
+function paintBeat(time) {
+  const at = beatAt(beatTable, time);
+  setText($("stageCount"), "count", at ? `${at.bar}.${at.beat}` : EMPTY_VALUE);
+  paintDots(at?.length ?? beatTable[0]?.length ?? 0, at ? at.beat - 1 : null);
+}
+
+function setLyric(el, key, text) {
+  if (!el || shown[key] === text) return;
+  setText(el, key, text);
+  el.removeAttribute("lang");
+  tagLang(el, text);
+}
+
+const lineText = (line) => (line ? line.text || GAP_LINE : "");
+
+function paintLyrics(time) {
+  const lines = getTimedLyricLines();
+  const hasLyrics = lines.length > 0;
+  if (shown.hasLyrics !== hasLyrics) {
+    shown.hasLyrics = hasLyrics;
+    $("stageLyrics").hidden = !hasLyrics;
+  }
+  const index = currentLineIndex(lines, time + LYRIC_LEAD_SEC);
+  setLyric($("stageLyric"), "lyric", lineText(lines[index]));
+  setLyric($("stageLyricNext"), "nextLyric", lineText(lines[index + 1]));
+}
+
 function isPlaying() {
   return Boolean(transport()?.isPlaying?.());
 }
 
 function paintFrame() {
   const time = transport()?.getCurrentTime?.() ?? 0;
-  setText($("stageElapsed"), "elapsed", fmtTime(time));
-  setText($("stageTotal"), "total", fmtTime(totalDuration || 0));
-
   const { current, next } = sectionsAt(time);
   setText($("stageSection"), "section", current?.name ?? "");
   setText($("stageNext"), "next", nextLabel(time, next));
+  paintBeat(time);
+  paintLyrics(time);
 
   const playing = isPlaying();
   if (shown.playing !== playing) {
@@ -97,6 +154,8 @@ function paintSong() {
   $("stageArtist").textContent = info?.artist ?? "";
   paintTempo();
   readSections();
+  readBeatTable();
+  ensureLyricsLoaded();
 }
 
 function paintTempo() {
@@ -105,16 +164,29 @@ function paintTempo() {
 }
 
 function forgetPainted() {
-  for (const key of Object.keys(shown)) shown[key] = key === "playing" ? null : "";
+  for (const key of Object.keys(shown)) shown[key] = null;
 }
 
-/** The footer's play button and time carry every play, pause and seek, whoever caused it. */
+function onTempoChange() {
+  paintTempo();
+  if (!isStageMode()) return;
+  readBeatTable();
+  paintFrame();
+}
+
+function onLyricsChange() {
+  if (isStageMode()) paintFrame();
+}
+
+/**
+ * The footer's play button and scrub fill carry every play, pause and seek, whoever caused it.
+ * Not its time text, which stays put for a seek inside the same second.
+ */
 function watchPlayback() {
   playObserver ??= new MutationObserver(syncLoop);
   const play = $("t-play");
-  const elapsed = $("footer-time-elapsed");
   if (play) playObserver.observe(play, { attributes: true, attributeFilter: ["class"] });
-  if (elapsed) playObserver.observe(elapsed, { childList: true, characterData: true, subtree: true });
+  if (npScrubFill) playObserver.observe(npScrubFill, { attributes: true, attributeFilter: ["style"] });
 }
 
 export function setStageMode(on) {
@@ -184,7 +256,9 @@ export function initStageMode() {
   window.addEventListener("keydown", onStageKeydown);
   document.addEventListener("trackopen", onSongChangeInStage);
   document.addEventListener("tracktags", onSongChangeInStage);
+  document.addEventListener("tracklookup", onSongChangeInStage);
   document.addEventListener("upnext:change", onUpNextChange);
-  document.addEventListener("tempochange", paintTempo);
+  document.addEventListener("tempochange", onTempoChange);
+  document.addEventListener("lyricschange", onLyricsChange);
   onLanguageChange(onSongChangeInStage);
 }

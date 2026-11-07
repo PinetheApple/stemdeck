@@ -679,8 +679,13 @@
             </header>
             <div class="stage-center">
               <div class="stage-section" id="stageSection"></div>
-              <div class="stage-time num" aria-live="off">
-                <span id="stageElapsed">0:00</span><span class="stage-total" id="stageTotal">0:00</span>
+              <div class="stage-count">
+                <span class="stage-counter num" id="stageCount">—</span>
+                <span class="stage-beats" id="stageBeats" aria-hidden="true"></span>
+              </div>
+              <div class="stage-lyrics" id="stageLyrics" hidden>
+                <p class="stage-lyric" id="stageLyric"></p>
+                <p class="stage-lyric stage-lyric-next" id="stageLyricNext"></p>
               </div>
               <dl class="stage-facts">
                 <div class="stage-fact">
