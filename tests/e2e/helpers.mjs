@@ -366,8 +366,12 @@ export async function stubServerTrash(
   return server;
 }
 
-export async function openStudio(page, { tauri = false, updateAvailable = false, serverFavorites = {} } = {}) {
-  await seedLibrary(page);
+export async function openStudio(
+  page,
+  { tauri = false, updateAvailable = false, serverFavorites = {}, catalog = null } = {},
+) {
+  if (catalog) await seedCatalogState(page, catalog);
+  else await seedLibrary(page);
   const favoriteWrites = await stubFavorites(page, serverFavorites);
   if (tauri) await stubTauri(page);
   await stubExportEndpoints(page);
