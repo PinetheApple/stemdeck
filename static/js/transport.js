@@ -1420,7 +1420,7 @@ let _lastGrid = null;
 
 function _renderMetroNote(grid) {
   if (!metroNoteEl) return;
-  if (!grid) { metroNoteEl.textContent = ""; metroNoteEl.className = "metro-note"; return; }
+  if (!grid) { metroNoteEl.textContent = ""; metroNoteEl.title = ""; metroNoteEl.className = "metro-note"; return; }
 
   // Report the tempo actually being clicked, which is the detected tempo times
   // whatever level the user picked -- not the raw detected value.
@@ -1469,7 +1469,7 @@ function _renderMetroNote(grid) {
     text = t("metro.note.fallback", { bpm: bpm.toFixed(1) });
   }
   metroNoteEl.textContent = text;
-  metroNoteEl.title = text; // clipped to one line; the full text is a hover away
+  metroNoteEl.title = text ? t("metro.note.scaleTip") : "";
   metroNoteEl.className = Number.isFinite(conf) && conf < 60 ? "metro-note warn" : "metro-note";
 }
 
@@ -1512,7 +1512,7 @@ export function updateMetronomeAvailability(grid, reason = "") {
     metroBtn.setAttribute("aria-pressed", "false");
     setMetroOptionsAvailable(false);
     renderAccentState();
-    if (metroNoteEl) { metroNoteEl.textContent = reason || ""; metroNoteEl.className = "metro-note"; }
+    if (metroNoteEl) { metroNoteEl.textContent = reason || ""; metroNoteEl.title = ""; metroNoteEl.className = "metro-note"; }
     // Still re-fits: the options keep their width now rather than leaving, so
     // the row is wider in this state than it used to be and may need to
     // collapse a level it did not before.

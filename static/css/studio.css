@@ -135,6 +135,7 @@
 
 /* #songHead-scoped: the card's composer-era rules in daw.css are ID-specific. */
 .song-head {
+  container: song-head / inline-size;
   display: flex;
   align-items: center;
   gap: var(--s-4);
@@ -437,3 +438,23 @@
 }
 .stage-mode-btn:hover { background: var(--surface-3); border-color: var(--accent-line); }
 .app.no-track .stage-mode-btn { opacity: 0.4; pointer-events: none; }
+
+@container song-head (max-width: 800px) {
+  #songHead .daw-panel-toggles-label { display: none; }
+}
+
+@container song-head (max-width: 680px) {
+  #songHead #nowPlayingPanel .track-panel-cover { display: none; }
+  #songHead .daw-panel-toggle { padding: 0 var(--s-2); }
+  #songHead #nowPlayingPanel .track-panel-head { gap: var(--s-2); }
+  #songHead #nowPlayingPanel .track-panel-title { font-size: var(--fs-md); }
+  #songHead .stage-mode-btn { width: var(--ctl-h); padding: 0; justify-content: center; }
+  /* Clipped rather than display: none, so the label stays the accessible name. */
+  #songHead .stage-mode-btn > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}

@@ -84,6 +84,7 @@
   --icon:        16px;
   --icon-lg:     20px;
   --icon-stroke: 2;
+  --disabled-opacity: 0.4;
 
   /* Layout */
   --topbar-h:     60px;

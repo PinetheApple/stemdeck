@@ -2,6 +2,8 @@ import { test, expect } from "@playwright/test";
 import { openStudio } from "./helpers.mjs";
 
 const STORE_KEY = "stemdeck.library.width";
+const INSPECTOR_HIDDEN_KEY = "stemdeck.inspector.hidden";
+const INSPECTOR_HIDDEN = "1";
 const MIN_WIDTH = 232;
 const MAX_WIDTH = 560;
 const MIN_TRACKS_WIDTH = 480;
@@ -266,6 +268,25 @@ test.describe("library pane width", () => {
     await expect(handleOf(page)).toBeVisible();
     await expect.poll(() => libraryWidth(page)).toBe(smallMax);
     await expect(handleOf(page)).toHaveAttribute("aria-valuenow", String(smallMax));
+  });
+
+  test("showing the inspector re-clamps a library sized while it was hidden", async ({ page }) => {
+    await page.setViewportSize(SMALL_WINDOW);
+    await openStudio(page);
+    await page.evaluate(
+      ([hiddenKey, hidden, widthKey, width]) => {
+        localStorage.setItem(hiddenKey, hidden);
+        localStorage.setItem(widthKey, String(width));
+      },
+      [INSPECTOR_HIDDEN_KEY, INSPECTOR_HIDDEN, STORE_KEY, MAX_WIDTH],
+    );
+    await reload(page);
+    await expect(page.locator("#inspector")).toBeHidden();
+    await expect.poll(() => libraryWidth(page)).toBe(MAX_WIDTH);
+
+    await page.locator("#inspectorToggleBtn").click();
+    await expect(page.locator("#inspector")).toBeVisible();
+    await expect.poll(() => libraryWidth(page)).toBe(await smallWindowMax(page));
   });
 
   test("the handle is reached with Tab and sized with the arrow keys", async ({ page }) => {

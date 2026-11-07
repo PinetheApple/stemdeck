@@ -4,6 +4,10 @@ import { $, storeGet, storeSet } from "./utils.js";
 
 const TAB_STORE_KEY = "stemdeck.inspector.tab";
 const DEFAULT_TAB = "tempo";
+const HIDDEN_STORE_KEY = "stemdeck.inspector.hidden";
+const HIDDEN_CLASS = "inspector-hidden";
+const HIDDEN_STORED = "1";
+const SHOWN_STORED = "0";
 
 const tabs = () => [...document.querySelectorAll(".inspector-tab[data-tab]")];
 
@@ -48,11 +52,41 @@ async function restoreInspectorTab() {
   showInspectorTab(await storeGet(TAB_STORE_KEY, DEFAULT_TAB));
 }
 
+function setInspectorHidden(hidden) {
+  document.querySelector(".app")?.classList.toggle(HIDDEN_CLASS, hidden);
+  $("inspectorToggleBtn")?.setAttribute("aria-expanded", String(!hidden));
+}
+
+function saveInspectorHidden(hidden) {
+  try {
+    localStorage.setItem(HIDDEN_STORE_KEY, hidden ? HIDDEN_STORED : SHOWN_STORED);
+  } catch (e) {
+    console.warn("[inspector] could not persist hidden state:", e);
+  }
+}
+
+function readInspectorHidden() {
+  try {
+    return localStorage.getItem(HIDDEN_STORE_KEY) === HIDDEN_STORED;
+  } catch (e) {
+    console.warn("[inspector] could not read hidden state:", e);
+    return false;
+  }
+}
+
+function onInspectorToggleClick(e) {
+  const hidden = e.currentTarget.getAttribute("aria-expanded") === "true";
+  setInspectorHidden(hidden);
+  saveInspectorHidden(hidden);
+}
+
 export function initInspector() {
   const tablist = document.querySelector(".inspector-tabs");
   if (!tablist) return;
+  setInspectorHidden(readInspectorHidden());
   tablist.addEventListener("click", onTabClick);
   tablist.addEventListener("keydown", onTabKeydown);
+  $("inspectorToggleBtn")?.addEventListener("click", onInspectorToggleClick);
   showInspectorTab(DEFAULT_TAB);
   restoreInspectorTab().catch(console.error);
 }
