@@ -1038,7 +1038,7 @@ test(title("E4"), async ({ app }, testInfo) => {
     await openLyrics(page);
     const offline = "Could not reach LRCLIB. Check your connection and try again.";
     await expect(page.locator("#lyricsPanel #lyricsStatus")).toHaveText(offline, { timeout: 30_000 });
-    const again = page.locator("#lyricsVersions .lyrics-link", { hasText: "Look up again" });
+    const again = page.locator("#lyricsVersions .lyrics-tool", { hasText: "Look up again" });
     await expect(again).toBeVisible();
     await again.click();
     await expect(page.locator("#lyricsPanel #lyricsStatus")).toHaveText(offline, { timeout: 30_000 });

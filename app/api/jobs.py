@@ -11,6 +11,7 @@ import subprocess
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
 
@@ -43,8 +44,8 @@ from app.core.config import (
 )
 from app.core.models import (
     FINISHED_STATUSES,
+    STATUS_DONE,
     Job,
-    JobCancelled,
     _set,
     checked_name,
     clean_artist,
@@ -103,19 +104,10 @@ from app.pipeline.lyrics_lookup import (
     set_user_lyrics,
     set_user_synced,
 )
-from app.pipeline.lyrics_retime import (
-    RetimeFailed,
-    RetimeRun,
-    cancel_run,
-    claim_run,
-    current_run,
-    forget_run,
-    lyric_pairs,
-    retime_job,
-    wait_run_ended,
-)
+from app.pipeline.lyrics_retime import RETIME_RUNS, RetimeFailed, RetimeRun, lyric_pairs, retime_job
 from app.pipeline.lyrics_retime import saved_view as saved_retime_view
 from app.pipeline.runner import _pipeline_lock
+from app.pipeline.runs import FAILED, run_behind_lock, start_run_task
 from app.pipeline.tempo import MODE_CONSTANT, MODE_FOLLOW
 from app.pipeline.tempo_grid import (
     effective_grid,
@@ -123,11 +115,17 @@ from app.pipeline.tempo_grid import (
     read_detected_grid,
     write_json_atomic,
 )
+from app.pipeline.transcribe_on_demand import TRANSCRIBE_RUNS
 from app.pipeline.vocal_split import split_vocals
 from app.pipeline.work_lookup import find_work, might_have_work
 
 router = APIRouter(tags=["jobs"])
 logger = logging.getLogger("stemdeck.api")
+
+JOB_NOT_READY = "job not ready"
+NO_VOCALS_STEM = "no vocals stem"
+LYRICS_TIMING_RUNNING = "lyrics timing already running"
+TRANSCRIPTION_RUNNING = "transcription already running"
 
 _ALLOWED_EXTS = frozenset((".mp3", ".wav", ".flac", ".mp4", ".m4a", ".ogg", ".opus"))
 _MAX_UPLOAD_BYTES = 400 * 1024 * 1024  # 400 MB
@@ -599,6 +597,9 @@ def cancel_job(job_id: str) -> dict:
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
     if job.status in FINISHED_STATUSES:
+        # Lyrics runs see their own flag, never the job's, and leave the
+        # lyrics as they were; one queued behind a split stops too.
+        lyrics_run = _cancel_lyrics_runs(job_id)
         # A vocal split only ever runs on a done job, so this early return made
         # it uncancellable by construction: the flag was never even set, while
         # the split held _pipeline_lock and stalled the whole import queue for
@@ -606,19 +607,26 @@ def cancel_job(job_id: str) -> dict:
         # split's own error path marks it failed and releases the lock.
         if job.vocal_split == "running":
             job.cancel_requested = True
-            proc = registry_get_proc(job_id)
-            if proc is not None and proc.poll() is None:
-                proc.terminate()
-        # A line-by-line timing of its lyrics (POST .../lyrics/retime) stops
-        # the same way: the run sees its own flag, never the job's, and
-        # leaves the lyrics as they were.
-        elif cancel_run(job_id):
-            proc = registry_get_proc(job_id)
-            if proc is not None and proc.poll() is None:
-                proc.terminate()
+            _terminate_worker(job_id)
+        elif lyrics_run:
+            _terminate_worker(job_id)
         return job.to_state()
     _cancel_pipeline(job)
     return job.to_state()
+
+
+def _cancel_lyrics_runs(job_id: str) -> bool:
+    """Ask both kinds of lyrics run of ``job_id`` to stop. True when one was
+    running."""
+    retiming = RETIME_RUNS.cancel(job_id)
+    transcribing = TRANSCRIBE_RUNS.cancel(job_id)
+    return retiming or transcribing
+
+
+def _terminate_worker(job_id: str) -> None:
+    proc = registry_get_proc(job_id)
+    if proc is not None and proc.poll() is None:
+        proc.terminate()
 
 
 def _cancel_pipeline(job: Job) -> None:
@@ -1556,10 +1564,6 @@ async def align_lyrics_route(job_id: str, request: Request) -> dict:
     return {"confident": True, "offset_sec": shift}
 
 
-# Line-by-line timing runs in flight, held so the loop does not drop them.
-_retime_tasks: set[asyncio.Task] = set()
-
-
 def _retime_ready(job_dir: Path, lyrics: dict | None) -> None:
     """Blocking: 404 without lyrics (kept, or given), 409 when they have no
     lines to time (an instrumental) or there is no vocals stem to time them
@@ -1572,39 +1576,35 @@ def _retime_ready(job_dir: Path, lyrics: dict | None) -> None:
         raise HTTPException(status_code=409, detail="lyrics have no lines")
     vocals = (job_dir / "stems" / "vocals.wav").resolve()
     if not vocals.is_relative_to(JOBS_DIR.resolve()) or not vocals.is_file():
-        raise HTTPException(status_code=409, detail="no vocals stem")
+        raise HTTPException(status_code=409, detail=NO_VOCALS_STEM)
 
 
-async def _retime_task(job: Job, job_dir: Path, run: RetimeRun, lyrics: dict | None) -> None:
-    """One on-demand run: behind _pipeline_lock, so it never shares the GPU
-    with a separation, and stopped by a cancel or the job's deletion."""
-
-    def cancelled() -> bool:
-        return run.cancel.is_set() or registry_get(job.id) is not job
-
+def _retime_work(
+    job: Job,
+    job_dir: Path,
+    run: RetimeRun,
+    lyrics: dict | None,
+) -> Callable[[Callable[[], bool]], None]:
     def report(share: float) -> None:
         run.progress = share
 
-    try:
-        async with _pipeline_lock:
-            run.started = True
-            if cancelled():
-                raise JobCancelled()
-            outcome = await asyncio.to_thread(
-                retime_job, job, job_dir, cancelled=cancelled, report=report, lyrics=lyrics
+    def work(cancelled: Callable[[], bool]) -> None:
+        try:
+            outcome = retime_job(
+                job,
+                job_dir,
+                cancelled=cancelled,
+                report=report,
+                lyrics=lyrics,
             )
+        except RetimeFailed as exc:
+            logger.info("[%s] lyrics not timed: %s", job.id, exc)
+            run.state = FAILED
+            return
         run.outcome = outcome
         run.state = outcome.state
-    except JobCancelled:
-        run.state = "idle"
-    except RetimeFailed as exc:
-        logger.info("[%s] lyrics not timed: %s", job.id, exc)
-        run.state = "failed"
-    except Exception:
-        logger.exception("[%s] lyrics timing failed", job.id)
-        run.state = "failed"
-    finally:
-        run.ended.set()
+
+    return work
 
 
 class LyricsRetimeBody(BaseModel):
@@ -1630,21 +1630,29 @@ async def start_lyrics_retime(job_id: str, request: Request) -> JSONResponse:
     Runs behind the pipeline lock, after any import in progress, and takes a
     transcription of the vocals the first time (about 30 s on a GPU, a few
     minutes on a CPU; asked for here, it runs on either). One run at a time
-    per track: 409 while one is running. POST .../cancel stops it."""
+    per track: 409 while one, or a transcription (POST .../lyrics/transcribe),
+    is running. POST .../cancel stops it."""
     job, job_dir = _lyrics_job(job_id)
     body = await _lyrics_body(request, LyricsRetimeBody, empty_ok=True)
-    if job.status != "done":
-        raise HTTPException(status_code=409, detail="job not ready")
+    if job.status != STATUS_DONE:
+        raise HTTPException(status_code=409, detail=JOB_NOT_READY)
     lyrics = None
     if body is not None and (body.synced or body.plain):
         lyrics = {"synced": body.synced or "", "plain": body.plain or ""}
     await asyncio.to_thread(_retime_ready, job_dir, lyrics)
-    run = claim_run(job_id)
+    if TRANSCRIBE_RUNS.running(job_id):
+        raise HTTPException(status_code=409, detail=TRANSCRIPTION_RUNNING)
+    run = RETIME_RUNS.claim(job_id)
     if run is None:
-        raise HTTPException(status_code=409, detail="lyrics timing already running")
-    task = asyncio.create_task(_retime_task(job, job_dir, run, lyrics))
-    _retime_tasks.add(task)
-    task.add_done_callback(_retime_tasks.discard)
+        raise HTTPException(status_code=409, detail=LYRICS_TIMING_RUNNING)
+    start_run_task(
+        run_behind_lock(
+            job,
+            run,
+            _retime_work(job, job_dir, run, lyrics),
+            "lyrics timing",
+        )
+    )
     return JSONResponse(run.view(), status_code=202)
 
 
@@ -1656,7 +1664,7 @@ def get_lyrics_retime(job_id: str) -> dict:
     lyrics heard), "lines_matched" and "lines" once there is a result; for
     lyrics the browser sent, "done" carries the timing itself, "aligned"."""
     job, job_dir = _lyrics_job(job_id)
-    run = current_run(job_id)
+    run = RETIME_RUNS.current(job_id)
     if run is not None and (
         run.state not in ("done", "idle")
         or (run.outcome is not None and run.outcome.aligned is not None)
@@ -2027,6 +2035,17 @@ def reset_beats(job_id: str) -> dict:
     return {"job_id": job_id, "edited": keep is not None}
 
 
+def _wait_lyrics_runs_ended(job_id: str) -> None:
+    """Wait, at most RETIME_DELETE_WAIT_SEC for both together, for the
+    worker of a stopped lyrics run to let go of the vocals."""
+    deadline = time.monotonic() + RETIME_DELETE_WAIT_SEC
+    if not RETIME_RUNS.wait_ended(job_id, RETIME_DELETE_WAIT_SEC):
+        logger.warning("[%s] lyrics timing still stopping; removing files anyway", job_id)
+    left = max(0.0, deadline - time.monotonic())
+    if not TRANSCRIBE_RUNS.wait_ended(job_id, left):
+        logger.warning("[%s] lyrics transcription still stopping; removing files anyway", job_id)
+
+
 @router.delete("/{job_id}")
 def delete_job(job_id: str) -> dict[str, str]:
     """Delete a completed or failed job and remove its stem files from disk."""
@@ -2037,16 +2056,13 @@ def delete_job(job_id: str) -> dict[str, str]:
         raise HTTPException(status_code=404, detail="job not found")
     if job.status not in FINISHED_STATUSES:
         raise HTTPException(status_code=409, detail="job is still running")
-    # A timing of its lyrics in flight stops rather than write into a
-    # directory being removed (it also checks the job is still registered).
-    if cancel_run(job_id) and job.vocal_split != "running":
-        proc = registry_get_proc(job_id)
-        if proc is not None and proc.poll() is None:
-            proc.terminate()
-        # The worker may still have the vocals open while it stops.
-        if not wait_run_ended(job_id, RETIME_DELETE_WAIT_SEC):
-            logger.warning("[%s] lyrics timing still stopping; removing files anyway", job_id)
-    forget_run(job_id)
+    # A lyrics run in flight stops rather than write into a directory being
+    # removed (it also checks the job is still registered).
+    if _cancel_lyrics_runs(job_id) and job.vocal_split != "running":
+        _terminate_worker(job_id)
+        _wait_lyrics_runs_ended(job_id)
+    RETIME_RUNS.forget(job_id)
+    TRANSCRIBE_RUNS.forget(job_id)
     # A fingerprint of its audio may still have a file open (Windows).
     release_source(job_id)
     removed = _rmtree_job(job_id)

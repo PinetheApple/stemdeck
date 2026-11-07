@@ -547,7 +547,7 @@ test.describe("stage mode and the Lyrics tab's load", () => {
     const live = { ...lyricsOf("Fixture Song", "", "Live words"), album: "Live", lrclib_id: 2 };
     await setUp(page, { lyrics: { [JOB_ID]: { ...SERVER_LYRICS, others: [live] } } });
     await page.locator(".rail-lyrics").click();
-    await page.locator(".lyrics-tools .lyrics-link").first().click();
+    await page.locator(".lyrics-versions-toggle").click();
     await page.locator(".lyrics-version", { hasText: "Live" }).click();
 
     await expect(page.locator(".lyrics-text").first()).toHaveText("Live words");

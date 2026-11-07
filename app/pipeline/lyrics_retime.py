@@ -95,7 +95,6 @@ import json
 import logging
 import math
 import re
-import threading
 import time
 import unicodedata
 from collections.abc import Callable
@@ -125,6 +124,7 @@ from app.pipeline.lyrics_align import (
     _seconds,
     onset_strength,
 )
+from app.pipeline.runs import RUNNING, Run, RunBoard
 from app.pipeline.zh_variants import to_simplified
 
 logger = logging.getLogger("stemdeck.lyrics")
@@ -2111,24 +2111,15 @@ def retime_after_separation(job: Any, job_dir: Path) -> bool:
 
 
 @dataclass
-class RetimeRun:
+class RetimeRun(Run):
     """One on-demand run of a job, for GET .../lyrics/retime: "running"
     until it ends "done", "unsure", "failed" or, cancelled, "idle"."""
 
-    state: str = "running"
-    progress: float = 0.0
     outcome: Outcome | None = None
-    cancel: threading.Event = field(default_factory=threading.Event)
-    # Set once it holds the pipeline lock: a run cancelled while waiting for
-    # it is over at once.
-    started: bool = False
-    # Set when its task has finished, whatever the outcome: from then on it
-    # holds no file of the job open (wait_run_ended).
-    ended: threading.Event = field(default_factory=threading.Event)
 
     def view(self) -> dict[str, Any]:
         out: dict[str, Any] = {"state": self.state}
-        if self.state == "running":
+        if self.state == RUNNING:
             out["progress"] = round(self.progress, 3)
         if self.outcome is not None:
             out["matched"] = self.outcome.matched
@@ -2139,53 +2130,7 @@ class RetimeRun:
         return out
 
 
-_RUNS: dict[str, RetimeRun] = {}
-_RUNS_LOCK = threading.Lock()
-
-
-def claim_run(job_id: str) -> RetimeRun | None:
-    """A new run for ``job_id``, or None while one is running already."""
-    with _RUNS_LOCK:
-        current = _RUNS.get(job_id)
-        if current is not None and current.state == "running":
-            return None
-        run = RetimeRun()
-        _RUNS[job_id] = run
-        return run
-
-
-def current_run(job_id: str) -> RetimeRun | None:
-    with _RUNS_LOCK:
-        return _RUNS.get(job_id)
-
-
-def cancel_run(job_id: str) -> bool:
-    """Ask a running run of ``job_id`` to stop. True when one was running."""
-    with _RUNS_LOCK:
-        run = _RUNS.get(job_id)
-        if run is None or run.state != "running":
-            return False
-        run.cancel.set()
-        if not run.started:
-            run.state = "idle"
-        return True
-
-
-def wait_run_ended(job_id: str, timeout: float) -> bool:
-    """Wait up to ``timeout`` seconds for a run of ``job_id`` that got as far
-    as the vocals to let go of them. True when none holds them now. Deleting
-    a job waits on this: on Windows a file the transcription still has open
-    cannot be removed, and the delete would fail and leave the folder."""
-    with _RUNS_LOCK:
-        run = _RUNS.get(job_id)
-    if run is None or not run.started:
-        return True
-    return run.ended.wait(timeout)
-
-
-def forget_run(job_id: str) -> None:
-    with _RUNS_LOCK:
-        _RUNS.pop(job_id, None)
+RETIME_RUNS: RunBoard[RetimeRun] = RunBoard(RetimeRun)
 
 
 def saved_view(entry: dict[str, Any] | None) -> dict[str, Any]:

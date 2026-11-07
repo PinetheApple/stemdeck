@@ -27,10 +27,10 @@ JOB_ID = "abcdef123456"
 @pytest.fixture(autouse=True)
 def _isolate():
     _jobs.clear()
-    rt._RUNS.clear()
+    rt.RETIME_RUNS.runs.clear()
     yield
     _jobs.clear()
-    rt._RUNS.clear()
+    rt.RETIME_RUNS.runs.clear()
 
 
 @pytest.fixture
@@ -102,7 +102,7 @@ def test_the_state_after_a_restart_comes_from_the_file(client, monkeypatch, tmp_
     stub_worker(monkeypatch, tmp_path, HEARD)
     client.post(RETIME)
     wait_for(client, RETIME)
-    rt._RUNS.clear()
+    rt.RETIME_RUNS.runs.clear()
     body = client.get(RETIME).json()
     assert body["state"] == "done" and body["lines_matched"] == 2
 
@@ -183,7 +183,7 @@ def test_a_traversing_id_never_reaches_the_disk(client):
 def hold_the_lock(client, monkeypatch) -> asyncio.Semaphore:
     """The pipeline lock as busy: a separation is running."""
     lock = client.portal.call(lambda: _make_semaphore())
-    monkeypatch.setattr(jobs_mod, "_pipeline_lock", lock)
+    monkeypatch.setattr("app.pipeline.runner._pipeline_lock", lock)
     return lock
 
 
@@ -234,7 +234,7 @@ def test_a_running_transcription_is_cancelled(client, monkeypatch):
     before = lyrics_file().read_bytes()
     client.post(RETIME)
     deadline = time.monotonic() + 10
-    while rt.current_run(JOB_ID).started is False and time.monotonic() < deadline:
+    while rt.RETIME_RUNS.current(JOB_ID).started is False and time.monotonic() < deadline:
         time.sleep(0.05)
     time.sleep(0.5)
     started = time.monotonic()
@@ -253,7 +253,7 @@ def test_deleting_the_job_stops_its_run(client, monkeypatch):
     client.post(RETIME)
     time.sleep(0.5)
     assert client.delete(f"/api/jobs/{JOB_ID}").status_code == 200
-    assert rt.current_run(JOB_ID) is None
+    assert rt.RETIME_RUNS.current(JOB_ID) is None
 
 
 def test_deleting_waits_for_the_run_to_let_go_of_the_vocals(client, monkeypatch):
@@ -266,9 +266,9 @@ def test_deleting_waits_for_the_run_to_let_go_of_the_vocals(client, monkeypatch)
     )
     client.post(RETIME)
     deadline = time.monotonic() + 10
-    while not rt.current_run(JOB_ID).started and time.monotonic() < deadline:
+    while not rt.RETIME_RUNS.current(JOB_ID).started and time.monotonic() < deadline:
         time.sleep(0.05)
-    run = rt.current_run(JOB_ID)
+    run = rt.RETIME_RUNS.current(JOB_ID)
     seen = {}
     real_rmtree = jobs_mod._rmtree_job
 

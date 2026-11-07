@@ -170,7 +170,7 @@ test.describe("lyrics tab", () => {
     expect(await stored(page)).toBeNull();
 
     // The other version is folded away until asked for, then can be taken.
-    const toggle = page.locator(".lyrics-tools .lyrics-link").first();
+    const toggle = page.locator(".lyrics-versions-toggle");
     await expect(toggle).toHaveText("Other versions (1)");
     await expect(page.locator(".lyrics-version-list")).toBeHidden();
     await toggle.click();
@@ -346,7 +346,7 @@ test.describe("lyrics tab", () => {
 
   test("removed lyrics stay removed until looked up again", async ({ page }) => {
     const asked = await lyricsShown(page);
-    await page.locator(".lyrics-tools .lyrics-link", { hasText: "Remove lyrics" }).click();
+    await page.locator(".lyrics-tools .lyrics-tool", { hasText: "Remove lyrics" }).click();
     await expect(page.locator(".lyrics-line")).toHaveCount(0);
     await expect(page.locator("#lyricsStatus")).toHaveText("Lyrics removed for this track.");
     await expect.poll(() => stored(page)).toEqual({ dismissed: true });
@@ -360,7 +360,7 @@ test.describe("lyrics tab", () => {
     expect(asked).toHaveLength(1);
 
     // Looking up again finds what the server kept, with nothing more asked.
-    await page.locator(".lyrics-link", { hasText: "Look up again" }).click();
+    await page.locator(".lyrics-tool", { hasText: "Look up again" }).click();
     await expect(page.locator(".lyrics-line")).toHaveCount(3);
     expect(asked).toHaveLength(1);
   });
@@ -408,7 +408,7 @@ test.describe("lyrics tab", () => {
     await open(page);
     await openTrack(page);
     await showLyricsTab(page);
-    const again = page.locator(".lyrics-link", { hasText: "Look up again" });
+    const again = page.locator(".lyrics-tool", { hasText: "Look up again" });
     await expect(again).toBeVisible();
 
     await page.unroute(LRCLIB);

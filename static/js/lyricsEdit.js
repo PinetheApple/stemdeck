@@ -3,6 +3,7 @@
 
 import { t, getLanguage } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
+import { toolButton, setToolLabel } from "./lyricsToolbar.js";
 import {
   ACCEPTED_FILE_TYPES,
   LYRICS_MAX_CHARS,
@@ -27,8 +28,8 @@ const SPLIT_ICON = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="curr
 let deps = null;
 let panelEl = null;
 let barEl = null;
-let editLink = null;
-let supplyLink = null;
+let editButton = null;
+let supplyButton = null;
 let hostEl = null;
 let session = null; // the edit open on screen
 let ui = null; // its elements
@@ -60,22 +61,22 @@ function retag(field) {
   deps.tagLang(field, field.value);
 }
 
-/** Show the links for what is on screen now; lyrics.js calls it on each draw. */
+/** Show the buttons for what is on screen now; lyrics.js calls it on each draw. */
 export function refreshEditBar() {
   if (!barEl) return;
   barEl.hidden = !deps.trackId() || Boolean(session);
-  editLink.textContent = t("lyrics.edit.open");
-  editLink.title = t("lyrics.edit.openTitle");
-  editLink.hidden = !deps.editable().rows.length;
-  supplyLink.textContent = t("lyrics.supply.open");
-  supplyLink.title = t("lyrics.supply.openTitle");
+  setToolLabel(editButton, t("lyrics.edit.open"));
+  editButton.title = t("lyrics.edit.openTitle");
+  editButton.hidden = !deps.editable().rows.length;
+  setToolLabel(supplyButton, t("lyrics.supply.open"));
+  supplyButton.title = t("lyrics.supply.openTitle");
 }
 
-function onEditLinkClick() {
+function onEditButtonClick() {
   openEditor(KIND_LINES);
 }
 
-function onSupplyLinkClick() {
+function onSupplyButtonClick() {
   openEditor(KIND_PASTE);
 }
 
@@ -113,7 +114,7 @@ function closeEditor() {
   hostEl.replaceChildren();
   panelEl.classList.remove("lyrics-editing");
   refreshEditBar();
-  if (hadFocus) (editLink.hidden ? supplyLink : editLink).focus();
+  if (hadFocus) (editButton.hidden ? supplyButton : editButton).focus();
 }
 
 /** Another track was opened: the edit on screen goes aside, and one put aside
@@ -418,20 +419,21 @@ export async function restoreOriginal() {
 }
 
 /**
+ * The Edit lines and Paste or load lyrics buttons go in `toolbar`.
  * `dependencies`: trackId() the open track; editable() { rows, seedText } what
  * can be edited now; closeTools() leave Sync lines and Align; flush() save what
  * is waiting; tagLang(node, text); setStatus(text, kind); onSaved(trackId, data)
  * and onRestored(trackId, nothingLeft) to draw the answer.
  */
-export function initLyricsEdit(panel, versionsEl, dependencies) {
+export function initLyricsEdit(panel, toolbar, dependencies) {
   deps = dependencies;
   panelEl = panel;
   barEl = el("div", "lyrics-supply");
-  editLink = button("lyrics-link lyrics-edit-open", "", onEditLinkClick);
-  supplyLink = button("lyrics-link lyrics-supply-open", "", onSupplyLinkClick);
-  barEl.append(editLink, supplyLink);
+  editButton = toolButton("lyrics-edit-open", "pencil", "", onEditButtonClick);
+  supplyButton = toolButton("lyrics-supply-open", "clipboard", "", onSupplyButtonClick);
+  barEl.append(editButton, supplyButton);
   barEl.hidden = true;
-  versionsEl.after(barEl);
+  toolbar.append(barEl);
   hostEl = el("div", "lyrics-editor");
   hostEl.id = "lyricsEditor";
   hostEl.tabIndex = -1;

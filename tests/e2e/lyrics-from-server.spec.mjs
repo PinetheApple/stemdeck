@@ -111,7 +111,7 @@ test.describe("lyrics from the server", () => {
     await expect(page.locator(".lyrics-line")).toHaveText(["Server one", "Server two", "Server three"]);
     await expect(page.locator(".lyrics-match-title")).toHaveText("Fixture Song");
     await expect(page.locator(".lyrics-match-meta")).toHaveText("Fixture Band · Studio");
-    await expect(page.locator(".lyrics-tools .lyrics-link").first()).toHaveText("Other versions (1)");
+    await expect(page.locator(".lyrics-versions-toggle")).toHaveText("Other versions (1)");
     expect(served.length).toBeGreaterThan(0);
     expect(lrclib).toEqual([]);
     expect(await stored(page)).toBeNull();
@@ -119,7 +119,7 @@ test.describe("lyrics from the server", () => {
 
   test("a version picked from the server's others is kept as the user's choice", async ({ page }) => {
     const { lrclib } = await setUp(page);
-    await page.locator(".lyrics-tools .lyrics-link").first().click();
+    await page.locator(".lyrics-versions-toggle").click();
     await page.locator(".lyrics-version", { hasText: "Live" }).click();
     await expect(page.locator(".lyrics-text").first()).toHaveText("Live words");
     const kept = await stored(page);
@@ -165,7 +165,7 @@ test.describe("lyrics from the server", () => {
     await setUp(page, { server: whisper });
     await expect(page.locator(".lyrics-line")).toHaveText(["Heard words"]);
     await expect(page.locator(".lyrics-match-meta")).toHaveText("Fixture Band · Transcribed");
-    await expect(page.locator(".lyrics-tools .lyrics-link")).toHaveText(["Sync lines", "Align", "Remove lyrics"]);
+    await expect(page.locator(".lyrics-tools-own .lyrics-tool")).toHaveText(["Sync lines", "Align", "Remove lyrics"]);
   });
 
   test("Polish is shown letter for letter, a word to a span, even when it came decomposed", async ({ page }) => {

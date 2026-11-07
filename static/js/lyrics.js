@@ -77,6 +77,9 @@ import {
 } from "./lyricsLane.js";
 import { initLyricsEdit, refreshEditBar, editorTrackChanged, restoreOriginal } from "./lyricsEdit.js";
 import { editableRows, plainTexts, plainTimedLines, untimedRows } from "./lyricsUserText.js";
+import { toolButton, setToolLabel, keepOnePrimary, TOOL_QUIET } from "./lyricsToolbar.js";
+import { initLyricsTranscribe, checkTranscribe, resetTranscribe } from "./lyricsTranscribe.js";
+import { RUN_STATE } from "./lyricsRunState.js";
 
 // One store entry per track rather than a field in the library store: a song's
 // lyrics run to a few kilobytes, and the library is rewritten whole on every
@@ -88,6 +91,19 @@ const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 let statusEl = null;
 let versionsEl = null;
 let bodyEl = null;
+// The one toolbar of the tab's actions (#31), and in it this file's own,
+// redrawn with what is shown; the editor's and the transcription's keep theirs.
+let toolbarEl = null;
+let ownToolsEl = null;
+// The main action is the first of these shown; a transcription under way has none,
+// so Paste does not invite throwing the run away.
+const PRIMARY_ORDER = [
+  ".lyrics-sync-toggle:not([aria-disabled='true'])",
+  ".lyrics-edit-open",
+  ".lyrics-transcribe-open",
+  ".lyrics-supply-open",
+];
+const transcriptionRunning = () => Boolean(toolbarEl.querySelector(".lyrics-transcribe-progress:not([hidden])"));
 
 let visible = false;
 let shownTrackId = null; // the track whose lyrics are on screen
@@ -110,7 +126,7 @@ let syncOpen = false;
 let sync = null;
 let plainSeeded = false; // plain text given starting times, while it is being timed
 let untimedNoteEl = null; // says what still needs timing, with the way in
-let syncToggleEl = null; // the Sync lines link in the tools row
+let syncToggleEl = null; // the Sync lines button in the toolbar
 let userSave = null; // the user's timing waiting to be saved, or its removal
 let userSaveTimer = 0;
 let userSaveChain = Promise.resolve();
@@ -119,7 +135,7 @@ let leadIn = false; // a line taken in hand puts the playhead a little before it
 let snapOn = true; // taps and drops snap to where the singing starts
 let alignOpen = false; // the Align panel, kept open while the track is
 let align = null; // the Align panel's elements while it is on screen
-let alignToggleEl = null; // the Align link in the tools row
+let alignToggleEl = null; // the Align button in the toolbar
 let saveTimer = 0;
 let pendingSave = null;
 let alignToken = 0; // guards against an estimate landing after a switch
@@ -183,6 +199,10 @@ function clearLyrics() {
   bodyEl.replaceChildren();
   bodyEl.classList.remove("synced", "aligning", "syncing");
   versionsEl.replaceChildren();
+  ownToolsEl.replaceChildren();
+  resetTranscribe();
+  toolbarEl.setAttribute("aria-label", t("lyrics.toolsAria"));
+  if (shownTrackId) versionsEl.append(toolbarEl);
   refreshEditBar();
   announceLines();
 }
@@ -277,33 +297,25 @@ function show(entry, others = [], from = "store") {
       entry.source === USER_SOURCE ? t("lyrics.edit.yours") : "",
     ].filter(Boolean).join(" · ")),
   );
-  const tools = el("div", "lyrics-tools");
-  versionsEl.append(head, tools);
+  const tools = ownToolsEl;
+  versionsEl.replaceChildren(head, toolbarEl);
   baseLines = entry.synced ? parseLrc(entry.synced) : [];
   offset = clampOffset(entry.offsetSec);
   applyTiming();
   if (others.length && entry.source !== USER_SOURCE) {
-    const toggle = el("button", "lyrics-link", t("lyrics.otherVersions", { count: others.length }));
-    toggle.type = "button";
-    toggle.setAttribute("aria-expanded", "false");
     const list = versionList(others, [entry, ...others]);
     list.hidden = true;
-    toggle.addEventListener("click", () => {
-      list.hidden = !list.hidden;
-      toggle.setAttribute("aria-expanded", String(!list.hidden));
-      toggle.textContent = t(list.hidden ? "lyrics.otherVersions" : "lyrics.hideVersions", { count: others.length });
-    });
-    tools.append(toggle);
+    tools.append(versionsToggle(list, others.length));
     versionsEl.append(list);
   }
   // Words to align, or to say why they cannot be: not for an instrumental.
-  // The panel goes under the tools row, above the versions list.
+  // The panel goes under the toolbar, above the versions list.
   if (entry.synced || entry.plain) tools.append(syncToggle(), alignToggle());
-  if (baseLines.length && alignOpen && !syncOpen) tools.after(alignPanel());
-  tools.append(entry.source === USER_SOURCE ? restoreLink(entry) : removeLink());
+  if (baseLines.length && alignOpen && !syncOpen) toolbarEl.after(alignPanel());
+  tools.append(entry.source === USER_SOURCE ? restoreButton(entry) : removeButton());
   if (entry.source === USER_SOURCE) {
     untimedNoteEl = untimedNote();
-    tools.after(untimedNoteEl);
+    toolbarEl.after(untimedNoteEl);
   }
 
   drawBody();
@@ -312,21 +324,30 @@ function show(entry, others = [], from = "store") {
   refreshEditBar();
 }
 
-function removeLink() {
-  const remove = el("button", "lyrics-link", t("lyrics.remove"));
-  remove.type = "button";
-  remove.addEventListener("click", removeLyrics);
-  return remove;
+/** Other versions, which shows `list` of `count` versions or folds it away. */
+function versionsToggle(list, count) {
+  const toggle = toolButton(`${TOOL_QUIET} lyrics-versions-toggle`, "listMusic", t("lyrics.otherVersions", { count }));
+  toggle.setAttribute("aria-expanded", "false");
+  function onVersionsToggleClick() {
+    list.hidden = !list.hidden;
+    toggle.setAttribute("aria-expanded", String(!list.hidden));
+    setToolLabel(toggle, t(list.hidden ? "lyrics.otherVersions" : "lyrics.hideVersions", { count }));
+  }
+  toggle.addEventListener("click", onVersionsToggleClick);
+  return toggle;
+}
+
+function removeButton() {
+  return toolButton(`${TOOL_QUIET} lyrics-remove`, "trash", t("lyrics.remove"), removeLyrics);
 }
 
 /** Where Remove lyrics stands for the user's own, which the server keeps:
  * back to what they replaced, or with nothing replaced, simply away. */
-function restoreLink(entry) {
-  const link = el("button", "lyrics-link lyrics-restore", t(entry.hasOriginal ? "lyrics.edit.backToOriginal" : "lyrics.remove"));
-  link.type = "button";
-  if (entry.hasOriginal) link.title = t("lyrics.edit.backToOriginalTitle");
-  link.addEventListener("click", restoreOriginal);
-  return link;
+function restoreButton(entry) {
+  const label = t(entry.hasOriginal ? "lyrics.edit.backToOriginal" : "lyrics.remove");
+  const restore = toolButton(`${TOOL_QUIET} lyrics-restore`, entry.hasOriginal ? "restore" : "trash", label, restoreOriginal);
+  if (entry.hasOriginal) restore.title = t("lyrics.edit.backToOriginalTitle");
+  return restore;
 }
 
 function untimedNote() {
@@ -491,12 +512,11 @@ function formatSeconds(seconds, signDisplay = "exceptZero", digits = 1) {
   }
 }
 
-/** The Align link in the tools row. Disabled, and saying why, for lyrics
+/** The Align button in the toolbar. Disabled, and saying why, for lyrics
  * without timing: aria-disabled rather than disabled, so it keeps its
  * tooltip and can still be reached with the keys to read it. */
 function alignToggle() {
-  const toggle = el("button", "lyrics-link lyrics-align-toggle", t("lyrics.align.button"));
-  toggle.type = "button";
+  const toggle = toolButton("lyrics-align-toggle", "moveHorizontal", t("lyrics.align.button"));
   alignToggleEl = toggle;
   if (!baseLines.length) {
     toggle.setAttribute("aria-disabled", "true");
@@ -794,11 +814,10 @@ function canSync() {
   return lines.length > 0 || (shownEntry?.source === USER_SOURCE && plainTexts(shownEntry.plain).length > 0);
 }
 
-/** The Sync lines link in the tools row. Disabled, and saying why, for
+/** The Sync lines button in the toolbar. Disabled, and saying why, for
  * lyrics with no timing at all. */
 function syncToggle() {
-  const toggle = el("button", "lyrics-link lyrics-sync-toggle", t("lyrics.sync.button"));
-  toggle.type = "button";
+  const toggle = toolButton("lyrics-sync-toggle", "timer", t("lyrics.sync.button"));
   syncToggleEl = toggle;
   if (!canSync()) {
     toggle.setAttribute("aria-disabled", "true");
@@ -1231,14 +1250,14 @@ async function retimeFromVocals() {
     }
     if (!live()) return;
     const state = status?.state;
-    if (state === "running" || (state === "idle" && ++idle <= RETIME_IDLE_POLLS)) {
+    if (state === RUN_STATE.RUNNING || (state === RUN_STATE.IDLE && ++idle <= RETIME_IDLE_POLLS)) {
       const p = Number(status?.progress);
       const percent = Number.isFinite(p) && p > 0 ? Math.round(p <= 1 ? p * 100 : p) : 0;
       setSyncMessage(percent ? t("lyrics.sync.retimingProgress", { percent }) : t("lyrics.sync.retiming"), "loading");
       continue;
     }
-    if (state === "unsure") return finish(t("lyrics.sync.retimeUnsure"), "muted");
-    if (state !== "done") return finish(t("lyrics.sync.retimeFailed"), "error");
+    if (state === RUN_STATE.UNSURE) return finish(t("lyrics.sync.retimeUnsure"), "muted");
+    if (state !== RUN_STATE.DONE) return finish(t("lyrics.sync.retimeFailed"), "error");
     // Lyrics.json holds the new timing; lyrics kept here get it in the answer.
     const aligned = from === "server"
       ? (await serverLyrics(trackId))?.entry?.aligned ?? null
@@ -1355,6 +1374,7 @@ function offer(matches) {
   clearLyrics();
   setStatus(t("lyrics.pickVersion"), "muted");
   versionsEl.append(versionList(matches, matches));
+  checkTranscribe(shownTrackId);
 }
 
 /** Save `match` on the open track and show it, with `others` still offered. */
@@ -1433,20 +1453,35 @@ async function onUserTextRestored(trackId, nothingLeft) {
 function showRemoved() {
   clearLyrics();
   setStatus(t("lyrics.removed"), "muted");
-  versionsEl.append(lookAgainButton());
+  ownToolsEl.append(lookAgainButton());
+  checkTranscribe(shownTrackId);
 }
 
 /** "Look up again": forget what is kept for the open track and find it anew. */
 function lookAgainButton() {
-  const again = el("button", "lyrics-link", t("lyrics.lookAgain"));
-  again.type = "button";
-  again.addEventListener("click", async () => {
-    const info = getCurrentTrackInfo();
-    if (!info) return;
-    await storeSet(storeKey(info.id), null);
-    loadForCurrentTrack();
-  });
-  return again;
+  return toolButton("lyrics-look-again", "search", t("lyrics.lookAgain"), onLookAgainClick);
+}
+
+async function onLookAgainClick() {
+  const info = getCurrentTrackInfo();
+  if (!info) return;
+  await storeSet(storeKey(info.id), null);
+  loadForCurrentTrack();
+}
+
+/** A transcription left lyrics on the server: show them as any load does.
+ * Asked for, they go ahead of a Remove lyrics made here before. */
+async function onTranscribed(trackId) {
+  if (trackId !== shownTrackId) return;
+  answered.delete(trackId);
+  const saved = await keptLyrics(trackId);
+  if (saved?.dismissed) await storeSet(storeKey(trackId), null);
+  if (trackId !== shownTrackId) return;
+  await loadForCurrentTrack();
+}
+
+function onTranscribeStale(trackId) {
+  if (trackId === shownTrackId) loadForCurrentTrack();
 }
 
 /**
@@ -1481,8 +1516,7 @@ async function lookUp(info, { song }) {
     if (!res.ok && res.status !== 404) throw new Error(`lyrics lookup -> ${res.status}`);
     const data = await res.json().catch(() => null);
     if (res.status === 404 && data?.nothing_known) {
-      setStatus(t("lyrics.nothingKnown"), "muted");
-      nothingKnownFor = info.id;
+      showNothingKnown(info.id);
       return;
     }
     const found = fromServerLyrics(data);
@@ -1498,7 +1532,8 @@ async function lookUp(info, { song }) {
     console.warn("lyrics lookup failed", err);
     setStatus(t("lyrics.offline"), "error");
     // There is no search box to press again, so the retry is offered here.
-    versionsEl.replaceChildren(lookAgainButton());
+    ownToolsEl.replaceChildren(lookAgainButton());
+    checkTranscribe(info.id);
   } finally {
     if (searchController === controller) searchController = null;
   }
@@ -1506,8 +1541,18 @@ async function lookUp(info, { song }) {
 
 /** A lookup's answer that kept nothing: versions to pick from, or none. */
 function showAnswer({ song, matches }) {
-  if (matches.length) offer(matches);
-  else setStatus(t("lyrics.notFound", { song }), "muted");
+  if (matches.length) {
+    offer(matches);
+    return;
+  }
+  setStatus(t("lyrics.notFound", { song }), "muted");
+  checkTranscribe(shownTrackId);
+}
+
+function showNothingKnown(trackId) {
+  setStatus(t("lyrics.nothingKnown"), "muted");
+  nothingKnownFor = trackId;
+  checkTranscribe(trackId);
 }
 
 /**
@@ -1660,8 +1705,7 @@ async function loadForCurrentTrack() {
     return;
   }
   if (!song) {
-    setStatus(t("lyrics.nothingKnown"), "muted");
-    nothingKnownFor = info.id;
+    showNothingKnown(info.id);
     return;
   }
   if (answered.has(info.id)) {
@@ -1773,7 +1817,12 @@ export function initLyrics() {
   bodyEl = document.getElementById("lyricsBody");
   if (!panel || !statusEl || !versionsEl || !bodyEl) return;
 
-  initLyricsEdit(panel, versionsEl, {
+  toolbarEl = el("div", "lyrics-tools");
+  toolbarEl.setAttribute("role", "group");
+  ownToolsEl = el("span", "lyrics-tools-own");
+  toolbarEl.append(ownToolsEl);
+  initLyricsTranscribe(toolbarEl, { onLyrics: onTranscribed, onStale: onTranscribeStale });
+  initLyricsEdit(panel, toolbarEl, {
     trackId: () => shownTrackId,
     editable: editableNow,
     closeTools: closeLyricsTools,
@@ -1783,6 +1832,7 @@ export function initLyrics() {
     onSaved: onUserTextSaved,
     onRestored: onUserTextRestored,
   });
+  keepOnePrimary(toolbarEl, PRIMARY_ORDER, transcriptionRunning);
   // An offset or a timing still waiting to be saved goes before the page does.
   window.addEventListener("pagehide", () => {
     flushSave();
