@@ -1256,6 +1256,7 @@ const en = {
   "about.data.import": "YouTube, or the site you import from, gets the link or search text you enter.",
   "about.data.github": "GitHub gets your IP when StemDeck checks for updates as it opens.",
   "about.data.models": "Model files download once, at desktop setup or on first use, sending only your IP.",
+  "notif.favoriteSaveFailed": "Could not save the favorite. Try again.",
   "job.reimportBusy": "This song is still importing. Try again when it finishes.",
 };
 
@@ -2289,6 +2290,7 @@ const pl = {
   "about.data.import": "YouTube lub strona, z której importujesz, dostaje wpisany link lub tekst wyszukiwania.",
   "about.data.github": "GitHub dostaje Twój adres IP, gdy StemDeck przy uruchomieniu sprawdza aktualizacje.",
   "about.data.models": "Pliki modeli pobierają się raz, przy konfiguracji aplikacji desktopowej lub przy pierwszym użyciu, wysyłając tylko Twój adres IP.",
+  "notif.favoriteSaveFailed": "Nie udało się zapisać ulubionego. Spróbuj ponownie.",
   "job.reimportBusy": "Ten utwór wciąż się importuje. Spróbuj ponownie, gdy się skończy.",
 };
 
@@ -3295,6 +3297,7 @@ const ja = {
   "about.data.import": "YouTube など取り込み元のサイトには、入力したリンクや検索語が送られます。",
   "about.data.github": "StemDeck の起動時に更新を確認するとき、GitHub には IP アドレスが送られます。",
   "about.data.models": "モデルファイルはデスクトップ版のセットアップ時か初回使用時に一度だけダウンロードされ、送られるのは IP アドレスだけです。",
+  "notif.favoriteSaveFailed": "お気に入りを保存できませんでした。もう一度お試しください。",
   "job.reimportBusy": "この曲はまだ取り込み中です。完了してからもう一度お試しください。",
 };
 
@@ -4301,6 +4304,7 @@ const zhHans = {
   "about.data.import": "YouTube 或你导入来源的网站会收到你输入的链接或搜索词。",
   "about.data.github": "StemDeck 启动时检查更新，GitHub 会收到你的 IP 地址。",
   "about.data.models": "模型文件只下载一次，在桌面版设置时或首次使用时，只发送你的 IP 地址。",
+  "notif.favoriteSaveFailed": "无法保存收藏，请重试。",
   "job.reimportBusy": "这首歌仍在导入中，请在完成后重试。",
 };
 
@@ -5319,6 +5323,7 @@ const de = {
   "about.data.import": "YouTube oder die Seite, von der du importierst, erhält den eingegebenen Link oder Suchtext.",
   "about.data.github": "GitHub erhält deine IP, wenn StemDeck beim Start nach Updates sucht.",
   "about.data.models": "Modelldateien werden einmal geladen, beim Einrichten der Desktop-App oder bei der ersten Nutzung, und senden nur deine IP.",
+  "notif.favoriteSaveFailed": "Der Favorit konnte nicht gespeichert werden. Versuche es noch einmal.",
   "job.reimportBusy": "Dieser Song wird noch importiert. Versuche es noch einmal, wenn er fertig ist.",
 };
 
@@ -6339,6 +6344,7 @@ const pt = {
   "about.data.import": "O YouTube, ou o site de onde você importa, recebe o link ou o texto de busca que você digita.",
   "about.data.github": "O GitHub recebe seu IP quando o StemDeck procura atualizações ao abrir.",
   "about.data.models": "Os arquivos de modelo são baixados uma vez, na configuração do app para desktop ou no primeiro uso, enviando só seu IP.",
+  "notif.favoriteSaveFailed": "Não foi possível salvar o favorito. Tente de novo.",
   "job.reimportBusy": "Esta música ainda está sendo importada. Tente de novo quando terminar.",
 };
 
@@ -7345,6 +7351,7 @@ const id = {
   "about.data.import": "YouTube, atau situs tempat Anda mengimpor, menerima tautan atau teks pencarian yang Anda masukkan.",
   "about.data.github": "GitHub menerima IP Anda saat StemDeck memeriksa pembaruan ketika dibuka.",
   "about.data.models": "Berkas model diunduh sekali, saat penyiapan aplikasi desktop atau pemakaian pertama, dengan hanya mengirim IP Anda.",
+  "notif.favoriteSaveFailed": "Favorit tidak dapat disimpan. Coba lagi.",
   "job.reimportBusy": "Lagu ini masih diimpor. Coba lagi setelah selesai.",
 };
 
@@ -8365,6 +8372,7 @@ const fr = {
   "about.data.import": "YouTube, ou le site d'où vous importez, reçoit le lien ou le texte de recherche saisi.",
   "about.data.github": "GitHub reçoit votre IP quand StemDeck cherche des mises à jour à son ouverture.",
   "about.data.models": "Les fichiers de modèle se téléchargent une fois, à l'installation de l'application de bureau ou à la première utilisation, en n'envoyant que votre IP.",
+  "notif.favoriteSaveFailed": "Impossible d'enregistrer le favori. Réessayez.",
   "job.reimportBusy": "Ce morceau est encore en cours d'importation. Réessayez quand il sera terminé.",
 };
 
@@ -8586,6 +8594,7 @@ const ptPT = {
   "about.data.github": "O GitHub recebe o seu IP quando o StemDeck procura atualizações ao abrir.",
   "about.data.models": "Os ficheiros de modelo são transferidos uma vez, na configuração da aplicação para computador ou na primeira utilização, enviando só o seu IP.",
   "about.data.summary": "Para onde vão os seus dados",
+  "notif.favoriteSaveFailed": "Não foi possível guardar o favorito. Tente novamente.",
   "job.reimportBusy": "Esta música ainda está a ser importada. Tente novamente quando terminar.",
 };
 
@@ -9618,6 +9627,7 @@ const es = {
   "about.data.import": "YouTube, o el sitio desde el que importas, recibe el enlace o el texto de búsqueda que escribes.",
   "about.data.github": "GitHub recibe tu IP cuando StemDeck busca actualizaciones al abrirse.",
   "about.data.models": "Los archivos de modelo se descargan una vez, al configurar la app de escritorio o en el primer uso, y solo envían tu IP.",
+  "notif.favoriteSaveFailed": "No se pudo guardar el favorito. Inténtalo de nuevo.",
   "job.reimportBusy": "Esta canción todavía se está importando. Inténtalo de nuevo cuando termine.",
 };
 
@@ -10633,6 +10643,7 @@ const ko = {
   "about.data.import": "YouTube 또는 가져오는 사이트에 입력한 링크나 검색어가 전송돼요.",
   "about.data.github": "StemDeck이 열릴 때 업데이트를 확인하면서 GitHub에 IP가 전송돼요.",
   "about.data.models": "모델 파일은 데스크톱 앱 설정 때나 처음 사용할 때 한 번 내려받으며, IP만 전송돼요.",
+  "notif.favoriteSaveFailed": "즐겨찾기를 저장하지 못했어요. 다시 시도해 주세요.",
   "job.reimportBusy": "이 곡은 아직 가져오는 중이에요. 끝나면 다시 시도해 주세요.",
 };
 

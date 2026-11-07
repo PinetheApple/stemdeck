@@ -10,6 +10,7 @@ import {
   SOURCE_URL,
   TRACK_TITLE,
   fixtureTrack,
+  openStudio,
   readCatalogState,
   seedCatalogState,
   stubImportQueue,
@@ -329,3 +330,19 @@ test.describe("the re-import request", () => {
   });
 });
 
+test.describe("a favourite the server refuses", () => {
+  test.use({ viewport: { width: 1600, height: 900 } });
+
+  test("is taken back and reported", async ({ page }) => {
+    await openStudio(page);
+    await page.route("**/api/jobs/*/favorite", (route) => route.fulfill({ status: 500, json: { detail: "stubbed" } }));
+    const row = page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`).first();
+    await row.hover();
+    await row.locator(".cat-fav").click();
+
+    await expect(row).not.toHaveClass(/\bis-fav\b/);
+    expect((await readCatalogState(page)).tracks[SIBLING_JOB_ID].favorite).toBe(false);
+    await page.locator("#notifBtn").click();
+    await expect(page.locator(".daw-notif-error")).toContainText("Could not save the favorite");
+  });
+});

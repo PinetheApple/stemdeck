@@ -1155,14 +1155,21 @@ function resendUnconfirmedTrash() {
  * The server holds the answer the phone reads, and the phone can change it, so
  * this side adopts the server's value on every sync (applyServerFavorite) and
  * only says something when the user presses a heart here. Not awaited, for the
- * same reason as the Trash: a heart must answer at once.
+ * same reason as the Trash: a heart must answer at once. Resolves to whether
+ * the server saved it.
  */
 async function syncFavoriteToServer(trackId, favorite) {
-  fetch(`/api/jobs/${encodeURIComponent(trackId)}/favorite`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ favorite }),
-  }).catch((e) => console.warn(`[catalog] could not save the favourite for ${trackId}`, e));
+  try {
+    const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/favorite`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ favorite }),
+    });
+    return res.ok;
+  } catch (e) {
+    console.warn(`[catalog] could not save the favourite for ${trackId}`, e);
+    return false;
+  }
 }
 
 /**
@@ -1700,11 +1707,28 @@ export function toggleFavorite(trackId) {
   const track = tracks[trackId];
   if (!track) return;
   track.favorite = !track.favorite;
-  syncFavoriteToServer(trackId, track.favorite);
+  const favorite = track.favorite;
+  syncFavoriteToServer(trackId, favorite).then((saved) => {
+    if (!saved) undoFavorite(trackId, favorite);
+  });
   saveState();
+  paintFavoriteHearts(trackId);
+}
+
+/** The server refused a heart: take it back, unless it was pressed again since. */
+function undoFavorite(trackId, favorite) {
+  const track = tracks[trackId];
+  if (!track || Boolean(track.favorite) !== favorite) return;
+  track.favorite = !favorite;
+  saveState();
+  paintFavoriteHearts(trackId);
+  notifyFailure({ kind: "favorite", message: i18nT("notif.favoriteSaveFailed") });
+}
+
+function paintFavoriteHearts(trackId) {
   if (trackId === _currentTrackId) {
     const favBtn = document.getElementById("fav-btn");
-    if (favBtn) paintFavButton(favBtn, track.favorite);
+    if (favBtn) paintFavButton(favBtn, Boolean(tracks[trackId].favorite));
   }
   // Rows show the state at rest, and the Favorites view lists by it.
   render();
