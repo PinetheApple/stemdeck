@@ -4,6 +4,8 @@
 Both are kept on the server with the song, so every device and every song
 bundle shows the same lyrics. A browser's earlier choice is carried over with
 ?carry_over=true, which never overrides a decision the server already holds.
+A version saved with ?picked=false is kept as lyrics found are, and yields to
+the same decisions.
 """
 
 from __future__ import annotations
@@ -19,13 +21,14 @@ from app.core.config import LYRICS_SAME_RECORDING_SEC
 from app.core.models import Job
 from app.core.registry import _jobs
 from app.main import app
-from app.pipeline.lyrics_lookup import LYRICS_REMOVED_FILE, LookupAnswer
+from app.pipeline.lyrics_lookup import LYRICS_REMOVED_FILE, LookupAnswer, keep_answer
 from tests.ffmpeg_probe import skip_without_ffmpeg
 from tests.test_bundle_api import _bundle, _write_stem
 
 JOB_ID = "aaaaaaaaaaaa"
 URL = f"/api/jobs/{JOB_ID}/lyrics"
 CARRY = {"carry_over": "true"}
+AUTOMATIC = {"picked": "false"}
 DURATION = 50.0
 
 FOUND_SYNCED = "[00:10.00] one\n[00:20.00] two\n[00:30.00] three\n[00:40.00] four"
@@ -46,7 +49,7 @@ def client() -> TestClient:
     return TestClient(app)
 
 
-def _version(lrclib_id: int, synced: str, **fields) -> dict:
+def _version(lrclib_id: int | None, synced: str, **fields) -> dict:
     return {
         "source": "lrclib",
         "track": "detected title",
@@ -63,6 +66,7 @@ def _version(lrclib_id: int, synced: str, **fields) -> dict:
 
 FOUND = {"v": 1, **_version(7, FOUND_SYNCED), "others": [_version(9, "[00:01.00] nine")]}
 PICK = _version(8, PICK_SYNCED)
+EMBEDDED = {**_version(None, "", plain="from the file"), "source": "file"}
 
 
 def _job(lyrics: dict | None = None, status: str = "done") -> Job:
@@ -286,6 +290,56 @@ def test_a_carried_over_pick_leaves_a_removal_on_the_server(client):
 def test_a_carried_over_removal_beats_lyrics_the_server_only_found(client):
     _job(FOUND)
     resp = client.delete(URL, params=CARRY)
+    assert (resp.status_code, resp.json()) == (404, REMOVED)
+    assert _removed()
+
+
+def test_an_automatic_save_is_kept_as_lyrics_found_not_as_a_pick(client):
+    job = _job()
+    resp = client.put(URL, params=AUTOMATIC, json=EMBEDDED)
+    assert resp.status_code == 200
+    assert (resp.json()["plain"], resp.json()["source"]) == ("from the file", "file")
+    assert "chosen" not in resp.json()
+    assert "chosen" not in _on_disk()
+    assert job.has_lyrics is True
+
+
+def test_a_lookups_answer_may_replace_an_automatic_save(client):
+    job = _job()
+    client.put(URL, params=AUTOMATIC, json=EMBEDDED)
+    assert keep_answer(job, _job_dir(), LookupAnswer({**FOUND, "timing": "exact"}, [])) is True
+    assert _on_disk()["lrclib_id"] == 7
+
+
+@pytest.mark.parametrize("params", [{}, CARRY])
+def test_a_pick_after_an_automatic_save_is_kept(client, params):
+    _job()
+    client.put(URL, params=AUTOMATIC, json=EMBEDDED)
+    body = client.put(URL, params=params, json=PICK).json()
+    assert (body["lrclib_id"], body["chosen"]) == (8, True)
+
+
+@pytest.mark.parametrize("params", [AUTOMATIC, {**AUTOMATIC, **CARRY}])
+@pytest.mark.parametrize(
+    "server",
+    [
+        {**FOUND, "chosen": True},
+        {**FOUND, "offset_sec": 2.0},
+        {**FOUND, "source": "user", "lrclib_id": None},
+    ],
+)
+def test_an_automatic_save_never_overrides_a_decision_on_the_server(client, params, server):
+    _job(server)
+    before = _on_disk()
+    resp = client.put(URL, params=params, json=EMBEDDED)
+    assert (resp.status_code, resp.json()["lrclib_id"]) == (200, server["lrclib_id"])
+    assert _on_disk() == before
+
+
+def test_an_automatic_save_leaves_a_removal(client):
+    _job(FOUND)
+    client.delete(URL)
+    resp = client.put(URL, params=AUTOMATIC, json=EMBEDDED)
     assert (resp.status_code, resp.json()) == (404, REMOVED)
     assert _removed()
 

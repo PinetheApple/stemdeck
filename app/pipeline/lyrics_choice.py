@@ -1,17 +1,20 @@
-"""The lyrics the user picked for a track, or their removal, kept with the song.
+"""The track's lyrics as the user decided them, kept with the song: a version
+they picked, or their removal.
 
-The Lyrics tab used to keep both in the browser that made them, so the phone,
-other browsers and song bundles went on showing the lyrics found at import.
-Here a picked version becomes the job's lyrics.json, marked "chosen", and a
-removal deletes it and leaves LYRICS_REMOVED_FILE in its place: every reader of
-lyrics.json gets the user's decision, and nothing found later undoes it
-(keep_answer and lyrics_settled honour both).
+A picked version becomes the job's lyrics.json, marked CHOSEN; a removal
+deletes it and leaves LYRICS_REMOVED_FILE in its place. Every reader of
+lyrics.json, every device and song bundle, gets the user's decision, and
+nothing found later undoes it (keep_answer and lyrics_settled honour both).
 
-A browser carries what it kept before over once (``carry_over``). The server
-wins then whenever it already holds a decision of the user's: their own words,
-a pick, timing or alignment they gave, or a removal. Such a decision was made
-on purpose, maybe after the browser's entry, while lyrics merely found were
-not; so the upload never throws away the user's work, and a second browser's
+A version kept with ``picked`` false, such as a file's embedded lyrics the
+page keeps on its own, is no decision: it is written without CHOSEN, as
+lyrics the server finds are, and yields to any decision of the user's.
+
+A browser carries over what it kept once (``carry_over``). The server wins
+then whenever it holds a decision of the user's: their own words, a pick,
+timing or alignment they gave, or a removal. Such a decision was made on
+purpose, maybe after the browser's entry, while lyrics merely found were not;
+so the upload never throws away the user's work, and a second browser's
 upload, or the same one repeated, changes nothing.
 """
 
@@ -22,11 +25,13 @@ import time
 from pathlib import Path
 from typing import Any
 
-from app.core.config import LYRICS_OTHERS_MAX, LYRICS_SAME_RECORDING_SEC
+from app.core.config import LYRICS_OTHERS_MAX
 from app.core.models import Job, _set
 from app.pipeline.lyrics_lookup import (
     _OFFSET_LOCK,
     CHOSEN,
+    TIMING_EXACT,
+    TIMING_UNVERIFIED,
     USER_SOURCE,
     _clean_version,
     _write_json_atomic,
@@ -38,12 +43,13 @@ from app.pipeline.lyrics_lookup import (
     read_candidates,
     read_lyrics,
     removed_path,
+    same_recording,
     write_lyrics,
 )
 
 logger = logging.getLogger("stemdeck.lyrics")
 
-# What the server works out itself, whatever a pick says about them.
+# What the server works out itself, whatever the version sent says.
 _NOT_TAKEN = frozenset(("others", "timing", CHOSEN, "untimed_lines", "has_original"))
 
 
@@ -64,7 +70,7 @@ def user_decided(job_dir: Path, entry: dict[str, Any] | None) -> bool:
     return entry is not None and (entry["source"] == USER_SOURCE or lyrics_worked_on(entry))
 
 
-def _picked(version: Any) -> dict[str, Any]:
+def _as_version(version: Any) -> dict[str, Any]:
     if not isinstance(version, dict) or version.get("source") == USER_SOURCE:
         raise NotAVersion("not a version of lyrics")
     entry = clean_lyrics({k: v for k, v in version.items() if k not in _NOT_TAKEN} | {"v": 1})
@@ -73,27 +79,25 @@ def _picked(version: Any) -> dict[str, Any]:
     return entry
 
 
-def _timing(picked: dict[str, Any], job: Job) -> str:
-    """The pick's timing: "exact" unless it is synced and its length and the
-    track's are known and further apart than one recording's."""
+def _timing(version: dict[str, Any], job: Job) -> str:
+    """TIMING_EXACT unless the version is synced and its length and the
+    track's are known and are not one recording's."""
     track = job.duration_sec or 0
-    if not (picked["synced"] and track and picked["duration"]):
-        return "exact"
-    near = abs(picked["duration"] - track) <= LYRICS_SAME_RECORDING_SEC
-    return "exact" if near else "unverified"
+    unknown = not (version["synced"] and track and version["duration"])
+    return TIMING_EXACT if unknown or same_recording(version, track) else TIMING_UNVERIFIED
 
 
 def _others_beside(
-    picked: dict[str, Any],
+    kept: dict[str, Any],
     current: dict[str, Any] | None,
     job_dir: Path,
 ) -> list[dict[str, Any]]:
     """The LRCLIB versions still to offer: what was shown, what it offered and
-    the candidates, once each, without the pick."""
+    the candidates, once each, without ``kept``."""
     pool = [current, *current["others"]] if current else []
     found = read_candidates(job_dir)
     pool += found["others"] if found else []
-    seen = {picked["lrclib_id"]}
+    seen = {kept["lrclib_id"]}
     others = []
     for version in filter(None, map(_clean_version, pool)):
         if version["lrclib_id"] and version["lrclib_id"] not in seen:
@@ -102,24 +106,30 @@ def _others_beside(
     return others[:LYRICS_OTHERS_MAX]
 
 
-def choose_lyrics(job: Job, job_dir: Path, version: Any, *, carry_over: bool = False) -> bool:
+def choose_lyrics(
+    job: Job,
+    job_dir: Path,
+    version: Any,
+    *,
+    picked: bool = True,
+    carry_over: bool = False,
+) -> bool:
     """Keep ``version`` (a version in lyrics.json's shape, without ``v``) as
-    the job's lyrics, the user's pick. With ``carry_over``, nothing changes
-    when the user already decided on the server. False when it could not be
-    written. Raises NotAVersion, and UsersOwnWords over the user's own words."""
-    picked = _picked(version)
+    the job's lyrics: the user's pick, or with ``picked`` false lyrics kept as
+    found ones are. Unless it is a live pick, nothing changes when the user
+    already decided on the server. False when it could not be written.
+    Raises NotAVersion, and UsersOwnWords for a live pick over the user's
+    own words."""
+    entry = _as_version(version)
     with _OFFSET_LOCK:
         current = read_lyrics(job_dir)
-        if carry_over and user_decided(job_dir, current):
+        if (carry_over or not picked) and user_decided(job_dir, current):
             return True
         if current is not None and current["source"] == USER_SOURCE:
             raise UsersOwnWords("lyrics are the user's own")
-        entry = {
-            **picked,
-            CHOSEN: True,
-            "timing": _timing(picked, job),
-            "others": _others_beside(picked, current, job_dir),
-        }
+        entry |= {"timing": _timing(entry, job), "others": _others_beside(entry, current, job_dir)}
+        if picked:
+            entry[CHOSEN] = True
         return write_lyrics(job, job_dir, entry)
 
 

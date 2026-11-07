@@ -131,7 +131,9 @@ LYRICS_SOURCES = frozenset(("lrclib", "file", "whisper", USER_SOURCE))
 # "exact": the track's own timing (a version its length, the file's own, a
 # transcription); "unverified": a version of another length, as LRCLIB has it;
 # "shifted": that, moved onto the track by lyrics_align.py.
-LYRICS_TIMINGS = frozenset(("exact", "shifted", "unverified"))
+TIMING_EXACT = "exact"
+TIMING_UNVERIFIED = "unverified"
+LYRICS_TIMINGS = frozenset((TIMING_EXACT, "shifted", TIMING_UNVERIFIED))
 # Where the letters a stripped copy lost were taken from (lyrics_repair.py):
 # another LRCLIB copy of the song, or what Whisper heard in the vocals stem.
 # Absent on lyrics that were never mended.
