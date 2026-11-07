@@ -14,7 +14,6 @@ import {
   fetchSplitView,
   followSplit,
   cancelSplit,
-  resumeRequestedSplits,
 } from "../../static/js/vocalSplit.js";
 import { TRANSLATIONS } from "../../static/js/i18n.js";
 
@@ -158,16 +157,6 @@ const doneJob = (overrides = {}) => ({
   check("cancel goes through the job's own cancel", cancelled && calls[0].method === "POST" && calls[0].url === `/api/jobs/${JOB}/cancel`);
   const refused = scriptedFetch([reply(500, {})]);
   check("a refused cancel says so", (await cancelSplit(JOB, refused.io)) === false);
-}
-
-{
-  const other = "0123456789ab";
-  const jobs = [doneJob(), doneJob({ job_id: other, vocal_split_choice: SPLIT_CHOICE.COMBINED })];
-  const { calls, io } = scriptedFetch([reply(200, jobs), reply(202, running("queued", 0))]);
-  const started = await resumeRequestedSplits(io);
-  const posts = calls.filter((c) => c.method === "POST");
-  check("resume starts only the songs that asked for a split", posts.length === 1 && posts[0].url.includes(JOB));
-  check("resume names what it started", started.join() === JOB);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

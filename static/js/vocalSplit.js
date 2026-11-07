@@ -129,20 +129,3 @@ export async function cancelSplit(jobId, io = DEFAULT_IO) {
   }
   return false;
 }
-
-/** Start every split a song asked for that has not run, e.g. one cut short by a restart. */
-export async function resumeRequestedSplits(io = DEFAULT_IO) {
-  const res = await io.fetch("/api/jobs", { cache: "no-store" });
-  if (!res.ok) throw new Error(`GET /api/jobs: HTTP ${res.status}`);
-  const wanted = (await res.json()).filter(wantsAutoSplit).map((job) => job.job_id);
-  const started = [];
-  for (const jobId of wanted) {
-    try {
-      await startSplit(jobId, io);
-      started.push(jobId);
-    } catch (err) {
-      console.warn("[vocalSplit] could not resume", jobId, err);
-    }
-  }
-  return started;
-}

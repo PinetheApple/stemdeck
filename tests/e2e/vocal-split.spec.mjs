@@ -5,7 +5,6 @@ import { JOB_ID, openStudio, openInspectorTab } from "./helpers.mjs";
 
 const JSON_TYPE = "application/json";
 const JOB_URL = `**/api/jobs/${JOB_ID}`;
-const JOBS_LIST = /\/api\/jobs(\?.*)?$/;
 const START_LABEL = "Split lead/backing";
 const RETRY_LABEL = "Try again";
 const QUEUED = "Waiting for an import to finish…";
@@ -18,14 +17,13 @@ const ended = (state, error = null) => ({ state, choice: "split", error });
 
 /**
  * Stub the fixture song's split. `job` patches the song's own state (GET
- * /api/jobs/{id} and the list), `view` is what GET .../vocal-split answers and
+ * /api/jobs/{id}), `view` is what GET .../vocal-split answers and
  * changes as the test goes; a POST starts a run as `started`.
  */
 async function stubSplit(page, { job = {}, view = ended("none"), started = running("queued", 0) } = {}) {
   const server = { job, view };
   const calls = { starts: 0, cancels: 0, jobReads: 0 };
   const patched = (state) => (state.job_id === JOB_ID ? { ...state, ...server.job } : state);
-  server.patched = patched;
   await page.route(JOB_URL, async (route) => {
     calls.jobReads++;
     const res = await route.fetch();
@@ -47,12 +45,6 @@ async function stubSplit(page, { job = {}, view = ended("none"), started = runni
 async function openDetails(page, options) {
   const stub = await stubSplit(page, options);
   await openStudio(page);
-  // After openStudio, so it answers the list ahead of the favourites stub.
-  await page.route(JOBS_LIST, async (route) => {
-    if (route.request().method() !== "GET") return route.fallback();
-    const res = await route.fetch();
-    return answer(route, res.status(), (await res.json()).map(stub.server.patched));
-  });
   await openInspectorTab(page, "details");
   return stub;
 }
@@ -116,17 +108,15 @@ test.describe("splitting lead and backing vocals on demand", () => {
     await expect(card(page)).toBeHidden();
   });
 
-  test("the choice stored with the song starts its split after a reload", async ({ page }) => {
-    const { server, calls } = await openDetails(page, { started: running("splitting", 0.25) });
-    expect(calls.starts).toBe(0);
-
-    server.job = { vocal_split: "none", vocal_split_choice: "split" };
-    await reopen(page);
-    await expect.poll(() => calls.starts).toBe(1);
-
-    server.job = { ...server.job, vocal_split: "running" };
-    await reopen(page);
+  test("the choice stored with the song starts its split, and a reload follows it", async ({ page }) => {
+    const requested = { vocal_split: "none", vocal_split_choice: "split" };
+    const { server, calls } = await openDetails(page, { job: requested, started: running("splitting", 0.25) });
     await expect(message(page)).toHaveText(SPLITTING);
+    await expect(percent(page)).toHaveText("25%");
+    expect(calls.starts).toBe(1);
+
+    server.job = { ...requested, vocal_split: "running" };
+    await reopen(page);
     await expect(percent(page)).toHaveText("25%");
     expect(calls.starts).toBe(1);
   });

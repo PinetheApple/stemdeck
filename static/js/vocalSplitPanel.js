@@ -8,11 +8,11 @@ import {
   SPLIT_PHASE,
   failureKey,
   hasVocalsStem,
+  wantsAutoSplit,
   fetchSplitView,
   startSplit,
   followSplit,
   cancelSplit,
-  resumeRequestedSplits,
 } from "./vocalSplit.js";
 
 const JOB_DONE = "done";
@@ -95,21 +95,21 @@ async function follow(jobId, mine) {
   if (final && mine === token) showEnded(jobId, final);
 }
 
-/** Show the card for `jobId`, following a split already under way. */
+/** Show the card for `jobId`, following a split under way or starting one the song asked for. */
 async function showFor(jobId) {
   const mine = ++token;
   shownFor = jobId;
   paint(null);
   if (!jobId) return;
-  const view = viewForJob(await fetchJob(jobId));
+  const job = await fetchJob(jobId);
   if (mine !== token) return;
+  if (wantsAutoSplit(job)) return runSplit(jobId);
+  const view = viewForJob(job);
   paint(view);
   if (view?.state === SPLIT_STATE.RUNNING) follow(jobId, mine);
 }
 
-async function onStartClick() {
-  const jobId = shownFor;
-  if (!jobId || ui.start.getAttribute("aria-busy") === "true") return;
+async function runSplit(jobId) {
   const mine = ++token;
   // Busy rather than disabled: a disabled button drops focus to the page.
   ui.start.setAttribute("aria-busy", "true");
@@ -122,8 +122,13 @@ async function onStartClick() {
   if (mine !== token) return;
   if (view.state !== SPLIT_STATE.RUNNING) return showEnded(jobId, view);
   paint(view);
-  ui.cancel.focus();
   follow(jobId, mine);
+}
+
+async function onStartClick() {
+  if (!shownFor || ui.start.getAttribute("aria-busy") === "true") return;
+  await runSplit(shownFor);
+  if (!ui.progress.hidden) ui.cancel.focus();
 }
 
 async function onCancelClick() {
@@ -149,14 +154,6 @@ function onLanguageChanged() {
   if (shownView) paint(shownView);
 }
 
-async function resumeOnBoot() {
-  try {
-    await resumeRequestedSplits();
-  } catch (err) {
-    console.warn("[vocalSplit] requested splits not resumed", err);
-  }
-}
-
 function initVocalSplitPanel() {
   const card = document.getElementById("vocalSplitCard");
   if (!card) return;
@@ -174,7 +171,6 @@ function initVocalSplitPanel() {
   document.addEventListener("trackopen", onTrackOpen);
   document.addEventListener("playbackready", onPlaybackReady);
   onLanguageChange(onLanguageChanged);
-  resumeOnBoot();
 }
 
 initVocalSplitPanel();
