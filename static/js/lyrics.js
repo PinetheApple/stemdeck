@@ -2,10 +2,9 @@
 // found, kept, and shown in time with playback, karaoke style (#699).
 //
 // Where they come from, in order:
-//   0. what the user chose for the track, kept here; else what the server
-//      found while the track was separated (GET /api/jobs/{id}/lyrics: the
-//      file's own, LRCLIB's, or a transcription), shown but not kept here, so
-//      a better answer from the server later still shows. Failing both:
+//   0. what the server keeps for the track (GET /api/jobs/{id}/lyrics): the
+//      version the user picked, else the file's own, LRCLIB's or a
+//      transcription found while the track was separated. Failing that:
 //   1. lyrics the file itself carried (an upload's embedded lyrics tag);
 //   2. LRCLIB (lyricsLookup.js), looked up by itself when the tab opens, by
 //      the artist and song the file was tagged with, or failing that the band
@@ -23,8 +22,7 @@
 // intro) onto this track: the first sung line, or the one last clicked, to
 // the playhead; nudges earlier or later; the server's estimate from the
 // vocals stem; or back to their own timing. What moved is one offset kept
-// beside the synced text, never the text: on the server for lyrics it keeps
-// (POST .../lyrics/offset), in the track's store entry for lyrics kept here.
+// beside the synced text, never the text, on the server (POST .../lyrics/offset).
 //
 // Sync lines times the lines one by one: tap along with playback, drag a
 // line's marker in the lane over the waveform (lyricsLane.js), nudge the line
@@ -41,6 +39,7 @@
 
 import { t, getLanguage } from "./i18n.js";
 import { storeGet, storeSet } from "./utils.js";
+import { notifyFailure } from "./notifications.js";
 import { getCurrentTrackInfo, getCurrentTrackArtist } from "./catalog.js";
 import { transport, setPlayheadTime } from "./transport.js";
 import { totalDuration } from "./state.js";
@@ -48,16 +47,17 @@ import {
   parseLrc,
   currentLineIndex,
   wordTimings,
-  songFromTitle,
   fromServerLyrics,
-  sameSong,
   clampOffset,
   shiftLines,
   firstSungIndex,
   offsetToStart,
-  alignedFrom,
+  knownSong,
+  isRemovedAnswer,
+  toServerVersion,
   USER_SOURCE,
 } from "./lyricsLookup.js";
+import { carryOverLyrics, lyricsStoreKey } from "./lyricsCarryOver.js";
 import {
   timingOf,
   serializeLrc,
@@ -81,10 +81,9 @@ import { toolButton, setToolLabel, keepOnePrimary, TOOL_QUIET } from "./lyricsTo
 import { initLyricsTranscribe, checkTranscribe, resetTranscribe } from "./lyricsTranscribe.js";
 import { RUN_STATE } from "./lyricsRunState.js";
 
-// One store entry per track rather than a field in the library store: a song's
-// lyrics run to a few kilobytes, and the library is rewritten whole on every
-// change to any track.
-const storeKey = (trackId) => `stemdeck.lyrics.${trackId}`;
+// Set once every lyrics entry this browser kept is on the server (lyricsCarryOver.js).
+const CARRIED_OVER_KEY = "stemdeck.lyrics_carried_over";
+const LYRICS_FAILURE_KIND = "lyrics";
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -114,11 +113,9 @@ let offset = 0; // seconds the lines are moved later (earlier when negative)
 // "aligned" (fitted to the vocals by the server) or "offset" (the lyrics' own,
 // moved by the Align panel's offset, which applies to this one only).
 let timingKind = "offset";
-// What is on screen and where it is kept: "server" for lyrics.json, "store"
-// for the track's entry here. The Align panel saves to the same place.
+// What is on screen, as the server keeps it in lyrics.json.
 let shownEntry = null;
 let shownOthers = [];
-let shownFrom = "store";
 let pickedIndex = -1; // the line last clicked, which Start lyrics here moves
 // Sync lines (lyricsSync.js, lyricsLane.js): the mode, kept on while the
 // track is; its panel, session and elements while it is on screen.
@@ -144,7 +141,7 @@ let lineWords = []; // per line: [{ el, start, end }] for the wipe
 let currentIndex = -1;
 let frame = 0;
 let searchController = null;
-let loadToken = 0; // guards against a slow store read landing after a switch
+let loadToken = 0; // guards against a slow answer landing after a switch
 // The track the tab said "nothing known" for, so tags read for it after it
 // was opened (catalog.js, "tracktags") can be looked up without a reopen.
 let nothingKnownFor = null;
@@ -268,17 +265,12 @@ function fillLine(row, line, nextTime) {
   return words;
 }
 
-/**
- * Draw what is kept for the track: `entry` as saved, `others` to offer.
- * `from` is where it is kept, "server" or "store", which is where the Align
- * panel saves an offset.
- */
-function show(entry, others = [], from = "store") {
+/** Draw what is kept for the track: `entry` as saved, `others` to offer. */
+function show(entry, others = []) {
   clearLyrics();
   if (!entry) return;
   shownEntry = entry;
   shownOthers = others;
-  shownFrom = from;
 
   if (entry.instrumental && !entry.synced && !entry.plain) {
     setStatus(t("lyrics.instrumental"), "muted");
@@ -303,7 +295,7 @@ function show(entry, others = [], from = "store") {
   offset = clampOffset(entry.offsetSec);
   applyTiming();
   if (others.length && entry.source !== USER_SOURCE) {
-    const list = versionList(others, [entry, ...others]);
+    const list = versionList(others);
     list.hidden = true;
     tools.append(versionsToggle(list, others.length));
     versionsEl.append(list);
@@ -691,7 +683,7 @@ function applyOffset(seconds, { save = true } = {}) {
 }
 
 function scheduleSave() {
-  pendingSave = { trackId: shownTrackId, entry: shownEntry, others: shownOthers, from: shownFrom, value: offset };
+  pendingSave = { trackId: shownTrackId, value: offset };
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushSave, SAVE_DELAY_MS);
 }
@@ -705,36 +697,15 @@ function flushSave() {
   return Promise.all([save ? saveOffset(save) : null, flushUserSave()]);
 }
 
-/** Forget an offset waiting to be saved in the store: the entry it belongs
- * to is being replaced or removed there, and saving it would bring it back.
- * One for the server is saved, since lyrics.json stays. */
-function dropStoreSave() {
-  if (pendingSave?.from === "store") {
-    clearTimeout(saveTimer);
-    saveTimer = 0;
-    pendingSave = null;
-  }
-  if (userSave?.from === "store") {
-    clearTimeout(userSaveTimer);
-    userSaveTimer = 0;
-    userSave = null;
-  }
-  return flushSave();
-}
-
-async function saveOffset({ trackId, entry, others, from, value }) {
+async function saveOffset({ trackId, value }) {
   try {
-    if (from === "server") {
-      const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/lyrics/offset`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ offset_sec: value }),
-        keepalive: true,
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    } else {
-      await storeSet(storeKey(trackId), { entry: { ...entry, offsetSec: value }, others });
-    }
+    const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/lyrics/offset`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ offset_sec: value }),
+      keepalive: true,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
   } catch (err) {
     console.warn("lyrics offset save failed", err);
     if (trackId === shownTrackId) setAlignMessage(t("lyrics.align.saveFailed"), "error");
@@ -745,14 +716,11 @@ async function saveOffset({ trackId, entry, others, from, value }) {
  * Auto-detect: the server estimates from the vocals stem how much later the
  * lines are sung than their own timing says. Applied when it is sure; when
  * not, the lyrics stay as they are and the panel says so. The server keeps
- * what it applies to lyrics.json itself; lyrics kept here are sent along
- * and the answer saved here.
+ * what it applies to lyrics.json itself.
  */
 async function autoDetect() {
   if (!align || !baseLines.length || align.detect.getAttribute("aria-busy") === "true") return;
   const trackId = shownTrackId;
-  const from = shownFrom;
-  const synced = shownEntry?.synced || "";
   // A nudge not yet saved is what "as they are" means if it cannot tell.
   await flushSave();
   const token = ++alignToken;
@@ -764,7 +732,7 @@ async function autoDetect() {
     const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/lyrics/align`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(from === "server" ? {} : { synced }),
+      body: JSON.stringify({}),
     });
     if (res.ok) answer = await res.json();
     else console.warn("lyrics auto-detect refused", res.status);
@@ -776,7 +744,7 @@ async function autoDetect() {
   if (!answer) {
     setAlignMessage(t("lyrics.align.detectFailed"), "error");
   } else if (answer.confident === true && typeof answer.offset_sec === "number") {
-    applyOffset(answer.offset_sec, { save: from !== "server" });
+    applyOffset(answer.offset_sec, { save: false });
     setAlignMessage(t("lyrics.align.detected", { offset: formatSeconds(offset) }));
   } else {
     setAlignMessage(t("lyrics.align.unsure"), "muted");
@@ -790,9 +758,7 @@ async function autoDetect() {
 // each line), or drag a line's marker in the lane over the waveform, or nudge
 // the line in hand. What is set is the user's timing, which takes precedence
 // over the server's fitted to the vocals and over the Align offset
-// (lyricsSync.js timingOf). It is kept where the lyrics are: PUT
-// .../lyrics/user-synced for lyrics.json, the track's store entry for lyrics
-// kept here.
+// (lyricsSync.js timingOf). It is kept with the lyrics: PUT .../lyrics/user-synced.
 
 // The arrows' steps, in seconds, and Shift's.
 const NUDGE_FINE = 0.05;
@@ -1153,7 +1119,7 @@ function saveUserTiming(lrc) {
   if (!shownEntry) return;
   if (lrc == null) delete shownEntry.userSynced;
   else shownEntry.userSynced = lrc;
-  userSave = { trackId: shownTrackId, entry: shownEntry, others: shownOthers, from: shownFrom, lrc };
+  userSave = { trackId: shownTrackId, lrc };
   if (sync) sync.saveState.textContent = t("lyrics.sync.saving");
   clearTimeout(userSaveTimer);
   userSaveTimer = setTimeout(flushUserSave, SAVE_DELAY_MS);
@@ -1170,26 +1136,19 @@ function flushUserSave() {
   return userSaveChain;
 }
 
-async function sendUserTiming({ trackId, entry, others, from, lrc }) {
+async function sendUserTiming({ trackId, lrc }) {
   try {
-    if (from === "server") {
-      const url = `/api/jobs/${encodeURIComponent(trackId)}/lyrics/user-synced`;
-      const res = lrc == null
-        ? await fetch(url, { method: "DELETE", keepalive: true })
-        : await fetch(url, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ synced: lrc }),
-          keepalive: true,
-        });
-      // Nothing to remove is what a removal wanted.
-      if (!res.ok && !(lrc == null && res.status === 404)) throw new Error(`HTTP ${res.status}`);
-    } else {
-      const kept = { ...entry };
-      if (lrc == null) delete kept.userSynced;
-      else kept.userSynced = lrc;
-      await storeSet(storeKey(trackId), { entry: kept, others });
-    }
+    const url = `/api/jobs/${encodeURIComponent(trackId)}/lyrics/user-synced`;
+    const res = lrc == null
+      ? await fetch(url, { method: "DELETE", keepalive: true })
+      : await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ synced: lrc }),
+        keepalive: true,
+      });
+    // Nothing to remove is what a removal wanted.
+    if (!res.ok && !(lrc == null && res.status === 404)) throw new Error(`HTTP ${res.status}`);
     if (trackId === shownTrackId && sync && !userSave) sync.saveState.textContent = t("lyrics.sync.saved");
   } catch (err) {
     console.warn("lyrics timing save failed", err);
@@ -1210,7 +1169,6 @@ async function sendUserTiming({ trackId, entry, others, from, lrc }) {
 async function retimeFromVocals() {
   if (!sync || sync.retimeBtn.getAttribute("aria-busy") === "true") return;
   const trackId = shownTrackId;
-  const from = shownFrom;
   const entry = shownEntry;
   const token = ++retimeToken;
   const base = `/api/jobs/${encodeURIComponent(trackId)}/lyrics/retime`;
@@ -1227,8 +1185,7 @@ async function retimeFromVocals() {
     const res = await fetch(base, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // Lyrics kept here are not in lyrics.json: they go along.
-      body: JSON.stringify(from === "server" ? {} : { synced: entry?.synced || "", plain: entry?.plain || "" }),
+      body: JSON.stringify({}),
     });
     started = res.ok;
     if (!started) console.warn("lyrics re-time refused", res.status);
@@ -1258,10 +1215,8 @@ async function retimeFromVocals() {
     }
     if (state === RUN_STATE.UNSURE) return finish(t("lyrics.sync.retimeUnsure"), "muted");
     if (state !== RUN_STATE.DONE) return finish(t("lyrics.sync.retimeFailed"), "error");
-    // Lyrics.json holds the new timing; lyrics kept here get it in the answer.
-    const aligned = from === "server"
-      ? (await serverLyrics(trackId))?.entry?.aligned ?? null
-      : alignedFrom(status.aligned);
+    // Lyrics.json holds the new timing.
+    const aligned = (await serverLyrics(trackId))?.entry?.aligned ?? null;
     if (!live()) return;
     const next = aligned ? parseLrc(aligned.synced) : [];
     if (!next.length) return finish(t("lyrics.sync.retimeFailed"), "error");
@@ -1269,12 +1224,6 @@ async function retimeFromVocals() {
     sync.session.replace(next);
     sync.session.meta.kind = "aligned";
     syncChanged();
-    // Kept here: the new timing is saved with the entry (the user's own
-    // timing went with the change above).
-    if (from === "store") {
-      storeSet(storeKey(trackId), { entry: { ...entry }, others: shownOthers })
-        .catch((err) => console.warn("lyrics timing save failed", err));
-    }
     return finish(aligned.lines
       ? t("lyrics.sync.retimed", { matched: aligned.linesMatched, count: aligned.lines })
       : t("lyrics.sync.retimedPlain"));
@@ -1346,7 +1295,7 @@ function onSyncKey(e) {
   }
 }
 
-function versionList(matches, all) {
+function versionList(matches) {
   const list = el("ul", "lyrics-version-list");
   for (const match of matches) {
     const item = el("li");
@@ -1361,7 +1310,9 @@ function versionList(matches, all) {
         t(match.synced ? "lyrics.synced" : "lyrics.plain"),
       ].filter(Boolean).join(" · ")),
     );
-    pick.addEventListener("click", () => keep(match, all.filter((m) => m.id !== match.id)));
+    pick.addEventListener("click", function onVersionClick() {
+      keep(match);
+    });
     item.append(pick);
     list.append(item);
   }
@@ -1373,12 +1324,46 @@ function versionList(matches, all) {
 function offer(matches) {
   clearLyrics();
   setStatus(t("lyrics.pickVersion"), "muted");
-  versionsEl.append(versionList(matches, matches));
+  versionsEl.append(versionList(matches));
   checkTranscribe(shownTrackId);
 }
 
-/** Save `match` on the open track and show it, with `others` still offered. */
-async function keep(match, others) {
+/** PUT or DELETE the track's lyrics: { ok, status, data }, or null when the
+ * server cannot be reached. */
+async function sendLyrics(trackId, method, { body = null, carryOver = false } = {}) {
+  const query = carryOver ? "?carry_over=true" : "";
+  try {
+    const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/lyrics${query}`, {
+      method,
+      ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
+    });
+    return { ok: res.ok, status: res.status, data: await res.json().catch(() => null) };
+  } catch (err) {
+    console.warn("lyrics save failed", err);
+    return null;
+  }
+}
+
+function notifyLyricsFailure(messageKey, stage, trackId) {
+  notifyFailure({
+    kind: LYRICS_FAILURE_KIND,
+    message: t(messageKey),
+    context: { stage, jobId: trackId },
+  });
+}
+
+/** Keep `version` as the track's lyrics on the server: what it keeps then,
+ * { entry, others }, or null when it could not. */
+async function keepOnServer(trackId, version) {
+  const answer = await sendLyrics(trackId, "PUT", { body: toServerVersion(version) });
+  const found = answer?.ok ? fromServerLyrics(answer.data) : null;
+  if (found?.entry) return found;
+  console.warn("lyrics not kept", answer?.status);
+  return null;
+}
+
+/** The user's pick: kept with the song on the server, and shown. */
+async function keep(match) {
   const info = getCurrentTrackInfo();
   if (!info) return;
   // A load left behind by a switch: these lyrics are the shown track's, not the open one's.
@@ -1386,36 +1371,41 @@ async function keep(match, others) {
     reloadsOwed.add(shownTrackId);
     return;
   }
-  const entry = { v: 1, source: "lrclib", ...match, savedAt: Date.now() };
-  // Another version, at its own timing: the offset and the timing line by
-  // line were the old one's.
-  delete entry.offsetSec;
-  delete entry.userSynced;
-  delete entry.aligned;
-  await dropStoreSave();
-  await storeSet(storeKey(info.id), { entry, others });
+  // An offset or timing still waiting belongs to the version being replaced.
+  await flushSave();
+  const kept = await keepOnServer(info.id, match);
   answered.delete(info.id);
-  if (getCurrentTrackInfo()?.id !== info.id) return;
-  show(entry, others);
+  if (!kept) {
+    notifyLyricsFailure("lyrics.keepFailed", "Keeping lyrics", info.id);
+    return;
+  }
+  if (getCurrentTrackInfo()?.id === info.id) show(kept.entry, kept.others);
 }
 
-// Removing is remembered, not just a cleared entry: the lookup runs by itself,
-// and would otherwise bring the same lyrics straight back the next time the
-// tab opened. "Look up again" is the way back.
+/** Keep on the server that the track's lyrics were removed; whether it did. */
+async function recordRemoval(trackId) {
+  const answer = await sendLyrics(trackId, "DELETE");
+  return isRemovedAnswer(answer?.data);
+}
+
+// Removing is remembered, not just cleared: the lookup runs by itself, and
+// would otherwise bring the same lyrics straight back. "Look up again" is the way back.
 async function removeLyrics() {
   const info = getCurrentTrackInfo();
   if (!info) return;
-  await dropStoreSave();
-  await storeSet(storeKey(info.id), { dismissed: true });
+  await flushSave();
+  const removed = await recordRemoval(info.id);
   answered.delete(info.id);
-  showRemoved();
+  if (!removed) {
+    notifyLyricsFailure("lyrics.removeFailed", "Removing lyrics", info.id);
+    return;
+  }
+  if (info.id === shownTrackId) showRemoved();
 }
 
-/** What the editor can start from: the words shown, and for lyrics kept here,
- * which the server does not have, the text that puts them there first. */
+/** What the editor can start from: the words shown. */
 function editableNow() {
-  const seedText = shownFrom === "store" && shownEntry ? (lines.length ? serializeLrc(lines) : shownEntry.plain) : "";
-  return { rows: editableRows(lines, shownEntry?.plain), seedText };
+  return { rows: editableRows(lines, shownEntry?.plain) };
 }
 
 function closeLyricsTools() {
@@ -1435,18 +1425,17 @@ function onUserTextSaved(trackId, data) {
   searchController = null;
   nothingKnownFor = null;
   const found = fromServerLyrics(data);
-  if (found?.entry) show(found.entry, found.others, "server");
+  if (found?.entry) show(found.entry, found.others);
   else loadForCurrentTrack();
 }
 
-/** The user's lyrics are gone. Whatever they had removed here goes too, or
- * going back would land on "removed". With nothing left on the server this was
- * Remove lyrics, so a copy kept here must not come back. */
+/** The user's lyrics are gone. With nothing left on the server this was Remove
+ * lyrics, which is kept so that a lookup does not bring lyrics back. */
 async function onUserTextRestored(trackId, nothingLeft) {
   answered.delete(trackId);
-  const saved = await storeGet(storeKey(trackId), null);
-  if (saved?.dismissed) await storeSet(storeKey(trackId), null);
-  else if (nothingLeft && saved?.entry) await storeSet(storeKey(trackId), { dismissed: true });
+  if (nothingLeft && !(await recordRemoval(trackId))) {
+    notifyLyricsFailure("lyrics.removeFailed", "Removing lyrics", trackId);
+  }
   if (trackId === shownTrackId) loadForCurrentTrack();
 }
 
@@ -1457,26 +1446,19 @@ function showRemoved() {
   checkTranscribe(shownTrackId);
 }
 
-/** "Look up again": forget what is kept for the open track and find it anew. */
+/** "Look up again": find the open track's lyrics anew, ending a removal. */
 function lookAgainButton() {
   return toolButton("lyrics-look-again", "search", t("lyrics.lookAgain"), onLookAgainClick);
 }
 
-async function onLookAgainClick() {
-  const info = getCurrentTrackInfo();
-  if (!info) return;
-  await storeSet(storeKey(info.id), null);
-  loadForCurrentTrack();
+function onLookAgainClick() {
+  loadForCurrentTrack({ again: true });
 }
 
-/** A transcription left lyrics on the server: show them as any load does.
- * Asked for, they go ahead of a Remove lyrics made here before. */
+/** A transcription left lyrics on the server: show them as any load does. */
 async function onTranscribed(trackId) {
   if (trackId !== shownTrackId) return;
   answered.delete(trackId);
-  const saved = await keptLyrics(trackId);
-  if (saved?.dismissed) await storeSet(storeKey(trackId), null);
-  if (trackId !== shownTrackId) return;
   await loadForCurrentTrack();
 }
 
@@ -1497,9 +1479,10 @@ function onTranscribeStale(trackId) {
  *
  * What came back without lyrics is remembered for the session, so opening the
  * tab again does not ask again. A failed connection is not, so the next
- * opening tries again.
+ * opening tries again. A lookup after Remove lyrics is answered "removed",
+ * unless `again` (Look up again) ends the removal.
  */
-async function lookUp(info, { song }) {
+async function lookUp(info, { song, again = false }) {
   searchController?.abort();
   const controller = new AbortController();
   searchController = controller;
@@ -1509,7 +1492,7 @@ async function lookUp(info, { song }) {
     const res = await fetch(`/api/jobs/${encodeURIComponent(info.id)}/lyrics/lookup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(band ? { band } : {}),
+      body: JSON.stringify({ ...(band ? { band } : {}), ...(again ? { again: true } : {}) }),
       signal: controller.signal,
     });
     if (controller.signal.aborted || getCurrentTrackInfo()?.id !== info.id) return;
@@ -1519,9 +1502,13 @@ async function lookUp(info, { song }) {
       showNothingKnown(info.id);
       return;
     }
+    if (isRemovedAnswer(data)) {
+      showRemoved();
+      return;
+    }
     const found = fromServerLyrics(data);
     if (found?.entry) {
-      show(found.entry, found.others, "server");
+      show(found.entry, found.others);
       return;
     }
     answered.set(info.id, { song, matches: found?.others || [] });
@@ -1555,17 +1542,21 @@ function showNothingKnown(trackId) {
   checkTranscribe(trackId);
 }
 
+// GET .../lyrics after the user removed them.
+const REMOVED = Object.freeze({ removed: true, entry: null, others: [] });
+
 /**
- * The lyrics the server found for a track (lyrics.json), as { entry, others }
+ * The lyrics the server keeps for a track (lyrics.json), as { entry, others }
  * in the shape this tab keeps; entry null when it kept none but has LRCLIB's
- * versions to offer, which its 404 carries. Null when it has neither or cannot
- * be reached, and the tab then looks for them itself.
+ * versions to offer, which its 404 carries, and REMOVED after Remove lyrics.
+ * Null when it has none or cannot be reached, and the tab then looks for them.
  */
 async function serverLyrics(trackId) {
   try {
     const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/lyrics`);
     if (!res.ok && res.status !== 404) return null;
-    return fromServerLyrics(await res.json().catch(() => null));
+    const data = await res.json().catch(() => null);
+    return isRemovedAnswer(data) ? REMOVED : fromServerLyrics(data);
   } catch (err) {
     console.warn("server lyrics fetch failed", err);
     return null;
@@ -1585,52 +1576,9 @@ async function embeddedLyrics(trackId) {
   }
 }
 
-/**
- * The artist and song the track is known to be, best source first: the
- * file's tags, then the artist (tagged, or the band saved from the artist box)
- * with the song's name cleaned out of the title. An empty song means nothing
- * is known well enough to look up.
- */
-function knownSong(info) {
-  const tags = info.audioTags || {};
-  const band = getCurrentTrackArtist();
-  const artist = info.userArtist || tags.artist || band?.englishName || band?.name || "";
-  // The band's names, its own and its English one: the same artist, which
-  // LRCLIB may file the song under.
-  const names = [band?.name, band?.englishName].filter(Boolean);
-  // A name the user gave is the song's name exactly, with nothing to strip.
-  if (info.userTitle) return { artist, names, song: info.userTitle };
-  if (tags.title) return { artist, names, song: songFromTitle(tags.title, artist) || tags.title };
-  if (!artist) return { artist, names, song: "" };
-  return { artist, names, song: songFromTitle(info.title, artist) };
-}
-
-/** Show what is kept for the open track, or find it. */
-/**
- * Whether lyrics this tab kept for a track are another song's. Before a lookup
- * held a version to the track's own song and artist, a fuzzy search could keep
- * another song of a similar name (NIHIL "Barro" got "Joao de Barro"). Only the
- * song is held to it here: the artist of a version the user picked on purpose,
- * a cover say, is their choice.
- */
-function keptForAnotherSong(entry, info) {
-  if (entry?.source !== "lrclib") return false;
-  const { song } = knownSong(info);
-  if (!song || !entry.track) return false;
-  const titles = [song, info.identity?.title, ...(info.identity?.titleAliases || [])].filter(Boolean);
-  return !titles.some((title) => sameSong(entry.track, title));
-}
-
-async function keptLyrics(trackId) {
-  try {
-    return await storeGet(storeKey(trackId), null);
-  } catch (err) {
-    console.warn("lyrics store read failed", err);
-    return null;
-  }
-}
-
-async function loadForCurrentTrack() {
+/** Show what the server keeps for the open track, or find it. `again` is
+ * Look up again, which a removal does not hold back. */
+async function loadForCurrentTrack({ again = false } = {}) {
   const info = getCurrentTrackInfo();
   // The Align panel stays open while the same track is shown again.
   const trackChanged = (info?.id ?? null) !== shownTrackId;
@@ -1650,69 +1598,94 @@ async function loadForCurrentTrack() {
     return;
   }
   setStatus("");
-  const [saved, found] = await Promise.all([keptLyrics(info.id), serverLyrics(info.id)]);
+  const found = await serverLyrics(info.id);
   if (token !== loadToken) return;
-  if (found?.entry?.source === USER_SOURCE) {
-    show(found.entry, found.others, "server");
-    return;
-  }
-  if (saved?.dismissed) {
-    showRemoved();
-    return;
-  }
-  if (saved?.entry && !keptForAnotherSong(saved.entry, info)) {
-    show(saved.entry, Array.isArray(saved.others) ? saved.others : []);
-    return;
-  }
-  if (saved?.entry) {
-    // Kept by the tab before a lookup was held to the track's own song:
-    // another song's lyrics, dropped so the track is looked up again.
-    await storeSet(storeKey(info.id), null);
-    if (token !== loadToken) return;
-  }
-
-  // What the server found while the track was separated. Shown, not saved:
-  // picking another version is what saves one, as the user's own choice.
-  if (found?.entry) {
-    show(found.entry, found.others, "server");
-    return;
-  }
+  if (found?.removed && !again) showRemoved();
+  // The user's pick or own words, else what the server found.
+  else if (found?.entry) show(found.entry, found.others);
   // None was the length of the track: its versions, to pick from.
-  if (found?.others.length) {
-    offer(found.others);
-    return;
-  }
+  else if (found?.others.length) offer(found.others);
+  else await findLyrics(info, token, again);
+}
 
+/** Lyrics for a track the server has none for: the file's own, else a lookup. */
+async function findLyrics(info, token, again) {
   // Lyrics the file came with are this recording's own: nothing to look up.
   // The library keeps only that there are some (libraryAudioTags); the text is
-  // asked of the server once, then kept in this track's own entry below.
-  const { artist, song, names } = knownSong(info);
+  // asked of the server once, then kept there as the track's lyrics.
+  const known = knownSong(info, getCurrentTrackArtist());
   const embedded = info.audioTags?.lyrics || (info.audioTags?.hasLyrics ? await embeddedLyrics(info.id) : "");
   if (token !== loadToken) return;
   if (embedded) {
-    const synced = parseLrc(embedded).length ? embedded : "";
-    await keep({
-      id: 0,
-      source: "file",
-      track: info.audioTags.title || song || info.title,
-      artist,
-      album: info.audioTags.album || "",
-      duration: info.duration,
-      instrumental: false,
-      synced,
-      plain: synced ? "" : embedded,
-    }, []);
+    await keepEmbedded(info, embedded, known, token);
     return;
   }
-  if (!song) {
+  if (!known.song) {
     showNothingKnown(info.id);
     return;
   }
-  if (answered.has(info.id)) {
+  if (answered.has(info.id) && !again) {
     showAnswer(answered.get(info.id));
     return;
   }
-  lookUp(info, { song });
+  lookUp(info, { song: known.song, again });
+}
+
+/** Keep the lyrics a file came with as the track's, and show them; shown
+ * still when the server could not keep them. */
+async function keepEmbedded(info, embedded, { artist, song }, token) {
+  // A load left behind by a switch keeps nothing, and runs again when the track is back.
+  if (getCurrentTrackInfo()?.id !== info.id) {
+    reloadsOwed.add(info.id);
+    return;
+  }
+  const synced = parseLrc(embedded).length ? embedded : "";
+  const version = {
+    id: 0,
+    source: "file",
+    track: info.audioTags.title || song || info.title,
+    artist,
+    album: info.audioTags.album || "",
+    duration: info.duration,
+    instrumental: false,
+    synced,
+    plain: synced ? "" : embedded,
+  };
+  const kept = await keepOnServer(info.id, version);
+  if (token !== loadToken) return;
+  show(kept?.entry ?? version, kept?.others ?? []);
+}
+
+/** Carry the lyrics this browser kept before over to the server, once, in the
+ * background; an entry the server could not take yet waits for the next boot. */
+async function carryOverBrowserLyrics() {
+  if (await storeGet(CARRIED_OVER_KEY, false)) return;
+  try {
+    const res = await fetch("/api/jobs?trashed=include");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const finished = await carryOverLyrics(await res.json(), {
+      read: readBrowserLyrics,
+      drop: dropBrowserLyrics,
+      send: sendCarryOver,
+      carried: onLyricsCarried,
+    });
+    if (finished) await storeSet(CARRIED_OVER_KEY, true);
+  } catch (err) {
+    console.warn("[lyrics] carrying this browser's lyrics over failed:", err);
+  }
+}
+
+const readBrowserLyrics = (trackId) => storeGet(lyricsStoreKey(trackId), null);
+const dropBrowserLyrics = (trackId) => storeSet(lyricsStoreKey(trackId), null);
+
+async function sendCarryOver(trackId, { method, body }) {
+  const answer = await sendLyrics(trackId, method, { body, carryOver: true });
+  return answer?.status ?? null;
+}
+
+function onLyricsCarried(trackId) {
+  answered.delete(trackId);
+  if (trackId === shownTrackId) loadForCurrentTrack();
 }
 
 // While the tab is on screen: notice a different track being opened, mark the
@@ -1844,4 +1817,5 @@ export function initLyrics() {
     if (visible && nothingKnownFor && e.detail?.id === nothingKnownFor) loadForCurrentTrack();
   });
   document.addEventListener("tracklookup", onTrackLookup);
+  carryOverBrowserLyrics();
 }

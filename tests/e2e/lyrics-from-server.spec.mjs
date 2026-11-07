@@ -1,8 +1,7 @@
 // The Lyrics tab with lyrics the server found while the track was separated
 // (GET /api/jobs/{id}/lyrics, lyrics.json): shown straight away, with nothing
-// asked of LRCLIB by the browser. A version the user picked for the track
-// still wins over them, and one picked from the server's others is kept as
-// the user's own choice.
+// asked of LRCLIB by the browser. One picked from the server's others is kept
+// on the server as the user's own choice (#41), so every device shows it.
 //
 // When LRCLIB had versions but none the track's length, the server keeps none
 // and its 404 carries them as `others`, which the tab offers to pick from.
@@ -20,6 +19,7 @@ import {
   stubExportEndpoints,
   stubUpdateCheck,
   LYRICS_LOOKUP,
+  answerLyricsChoice,
 } from "./helpers.mjs";
 
 const WIKIMEDIA = /^https:\/\/((www|query)\.wikidata\.org|[a-z-]+\.wikipedia\.org)\//;
@@ -50,7 +50,7 @@ const SERVER = {
   ],
 };
 
-async function setUp(page, { server = SERVER, saved = null } = {}) {
+async function setUp(page, { server = SERVER } = {}) {
   // Lookups the tab asks the server for (#719), answered as LRCLIB being
   // out of reach.
   const lrclib = [];
@@ -59,12 +59,15 @@ async function setUp(page, { server = SERVER, saved = null } = {}) {
     return route.fulfill({ status: 502, json: { detail: "lyrics service unreachable" } });
   });
   const served = [];
-  await page.route(`**/api/jobs/${JOB_ID}/lyrics`, (route) => {
+  const kept = { lyrics: server };
+  const choices = [];
+  await page.route(`**/api/jobs/${JOB_ID}/lyrics`, async (route) => {
+    if (await answerLyricsChoice(route, kept, choices)) return;
     served.push(route.request().url());
-    if (!server) return route.fulfill({ status: 404, contentType: "application/json", body: '{"detail":"no lyrics"}' });
+    if (!kept.lyrics) return route.fulfill({ status: 404, contentType: "application/json", body: '{"detail":"no lyrics"}' });
     // Versions but no lyrics kept: the server's 404 carries them.
-    const status = server.source ? 200 : 404;
-    return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(server) });
+    const status = kept.lyrics.source ? 200 : 404;
+    return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(kept.lyrics) });
   });
   await page.route(WIKIMEDIA, (route) => route.fulfill({
     status: 200,
@@ -88,18 +91,12 @@ async function setUp(page, { server = SERVER, saved = null } = {}) {
       [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, "E2E Fixture Track (again)"),
     },
   });
-  if (saved) {
-    await page.addInitScript(
-      ([key, value]) => window.localStorage.setItem(key, JSON.stringify(value)),
-      [`stemdeck.lyrics.${JOB_ID}`, saved],
-    );
-  }
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
   await page.locator(".rail-lyrics").click();
-  return { lrclib, served };
+  return { lrclib, served, choices };
 }
 
 const stored = (page) =>
@@ -107,26 +104,27 @@ const stored = (page) =>
 
 test.describe("lyrics from the server", () => {
   test("are shown with nothing asked of LRCLIB, and not saved as the user's choice", async ({ page }) => {
-    const { lrclib, served } = await setUp(page);
+    const { lrclib, served, choices } = await setUp(page);
     await expect(page.locator(".lyrics-line")).toHaveText(["Server one", "Server two", "Server three"]);
     await expect(page.locator(".lyrics-match-title")).toHaveText("Fixture Song");
     await expect(page.locator(".lyrics-match-meta")).toHaveText("Fixture Band · Studio");
     await expect(page.locator(".lyrics-versions-toggle")).toHaveText("Other versions (1)");
     expect(served.length).toBeGreaterThan(0);
     expect(lrclib).toEqual([]);
+    expect(choices).toEqual([]);
     expect(await stored(page)).toBeNull();
   });
 
-  test("a version picked from the server's others is kept as the user's choice", async ({ page }) => {
-    const { lrclib } = await setUp(page);
+  test("a version picked from the server's others is kept on the server as the user's choice", async ({ page }) => {
+    const { lrclib, choices } = await setUp(page);
     await page.locator(".lyrics-versions-toggle").click();
     await page.locator(".lyrics-version", { hasText: "Live" }).click();
     await expect(page.locator(".lyrics-text").first()).toHaveText("Live words");
-    const kept = await stored(page);
-    expect(kept.entry.id).toBe(202);
-    expect(kept.others.map((m) => m.id)).toEqual([201]);
+    expect(choices.map((c) => [c.method, c.body.lrclib_id])).toEqual([["PUT", 202]]);
+    await expect(page.locator(".lyrics-versions-toggle")).toHaveText("Other versions (1)");
+    expect(await stored(page)).toBeNull();
 
-    // And it wins over the server's from then on.
+    // The server serves it from then on.
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
     await page.locator(".rail-lyrics").click();
@@ -134,24 +132,14 @@ test.describe("lyrics from the server", () => {
     expect(lrclib).toEqual([]);
   });
 
-  test("the user's saved choice wins over the server's", async ({ page }) => {
-    const saved = {
-      entry: {
-        v: 1,
-        source: "lrclib",
-        id: 77,
-        track: "Fixture Song",
-        artist: "Fixture Band",
-        album: "Chosen",
-        duration: 6,
-        instrumental: false,
-        synced: "[00:00.50] Chosen one\n[00:02.00] Chosen two",
-        plain: "",
-        savedAt: 1,
-      },
+  test("a version picked on another device is shown", async ({ page }) => {
+    const chosen = {
+      ...version(77, { album: "Chosen", synced: "[00:00.50] Chosen one\n[00:02.00] Chosen two", plain: "" }),
+      chosen: true,
+      timing: "exact",
       others: [],
     };
-    const { lrclib } = await setUp(page, { saved });
+    const { lrclib } = await setUp(page, { server: chosen });
     await expect(page.locator(".lyrics-line")).toHaveText(["Chosen one", "Chosen two"]);
     await expect(page.locator(".lyrics-match-meta")).toHaveText("Fixture Band · Chosen");
     expect(lrclib).toEqual([]);
@@ -200,13 +188,13 @@ test.describe("lyrics from the server", () => {
   });
 
   test("versions the server kept none of are offered to pick from, with nothing asked of LRCLIB", async ({ page }) => {
-    const { lrclib } = await setUp(page, { server: { detail: "no lyrics", others: SERVER.others } });
+    const { lrclib, choices } = await setUp(page, { server: { detail: "no lyrics", others: SERVER.others } });
     await expect(page.locator("#lyricsStatus")).toContainText("Pick the right one");
     await expect(page.locator(".lyrics-version")).toHaveCount(1);
     await expect(page.locator(".lyrics-line")).toHaveCount(0);
     await page.locator(".lyrics-version").click();
     await expect(page.locator(".lyrics-text").first()).toHaveText("Live words");
-    expect((await stored(page)).entry.id).toBe(202);
+    expect(choices.map((c) => [c.method, c.body.lrclib_id])).toEqual([["PUT", 202]]);
     expect(lrclib).toEqual([]);
   });
 

@@ -82,14 +82,13 @@ function onSupplyButtonClick() {
 
 function openEditor(kind) {
   deps.closeTools();
-  const { rows, seedText } = deps.editable();
+  const { rows } = deps.editable();
   showSession({
     trackId: deps.trackId(),
     kind,
     rows: kind === KIND_LINES ? rows.slice() : [],
     text: "",
     baseText: rows.join("\n"),
-    seedText,
     busy: false,
     dirty: false,
     problem: null,
@@ -355,18 +354,6 @@ async function onFileChosen(e) {
   focusFirstField();
 }
 
-/** Lyrics kept in this browser are not the server's to carry timing from, so
- * they go up as they are first; what that answers is on screen behind the edit. */
-async function saveLineEdit(owner, text) {
-  if (owner.seedText) {
-    const seeded = await putUserText(owner.trackId, { text: owner.seedText });
-    if (!seeded.ok) return seeded;
-    owner.seedText = "";
-    deps.onSaved(owner.trackId, seeded.data);
-  }
-  return putUserText(owner.trackId, { text, keep_timing: true });
-}
-
 function setBusy(owner, busy) {
   owner.busy = busy;
   if (owner !== session) return;
@@ -389,7 +376,7 @@ async function onSaveClick() {
   owner.notice = "";
   setBusy(owner, true);
   await deps.flush();
-  const answer = isLines ? await saveLineEdit(owner, text) : await putUserText(owner.trackId, { text });
+  const answer = await putUserText(owner.trackId, isLines ? { text, keep_timing: true } : { text });
   if (answer.ok) {
     owner.busy = false;
     drafts.delete(owner.trackId);
@@ -420,7 +407,7 @@ export async function restoreOriginal() {
 
 /**
  * The Edit lines and Paste or load lyrics buttons go in `toolbar`.
- * `dependencies`: trackId() the open track; editable() { rows, seedText } what
+ * `dependencies`: trackId() the open track; editable() { rows } what
  * can be edited now; closeTools() leave Sync lines and Align; flush() save what
  * is waiting; tagLang(node, text); setStatus(text, kind); onSaved(trackId, data)
  * and onRestored(trackId, nothingLeft) to draw the answer.

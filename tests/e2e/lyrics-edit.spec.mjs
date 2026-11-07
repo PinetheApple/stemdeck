@@ -10,6 +10,8 @@ import {
   stubAudioTags,
   stubExportEndpoints,
   stubUpdateCheck,
+  answerLyricsChoice,
+  LYRICS_REMOVED,
 } from "./helpers.mjs";
 
 const WIKIMEDIA = /^https:\/\/((www|query)\.wikidata\.org|[a-z-]+\.wikipedia\.org)\//;
@@ -38,21 +40,24 @@ const answer = (route, status, body) => route.fulfill({ status, contentType: JSO
 
 /**
  * Open the fixture track's Lyrics tab. `server` is its lyrics.json (null for
- * none), `saved` its store entry. A PUT keeps the words as user lyrics unless
- * `onPut` answers it; a DELETE puts `original` back unless `onDelete` does; a
- * lookup finds LRCLIB out of reach unless `onLookup` answers it.
+ * none), and a pick or Remove lyrics is kept as answerLyricsChoice keeps it. A
+ * PUT of user text keeps the words as user lyrics unless `onPut` answers it; a
+ * DELETE puts `original` back unless `onDelete` does; a lookup finds LRCLIB
+ * out of reach unless `onLookup` answers it.
  */
-async function setUp(page, { server = found(), saved = null, original = found(), onPut = null, onDelete = null, onLookup = null } = {}) {
+async function setUp(page, { server = found(), original = found(), onPut = null, onDelete = null, onLookup = null } = {}) {
   const kept = { lyrics: server };
   const puts = [];
   const deletes = [];
   const lookups = [];
+  const choices = [];
   await page.route(LYRICS_LOOKUP, (route) => {
     lookups.push(1);
     if (onLookup) return onLookup(route);
     return answer(route, 502, { detail: "lyrics service unreachable" });
   });
-  await page.route(`**/api/jobs/${JOB_ID}/lyrics`, (route) => {
+  await page.route(`**/api/jobs/${JOB_ID}/lyrics`, async (route) => {
+    if (await answerLyricsChoice(route, kept, choices)) return;
     if (!kept.lyrics) return answer(route, 404, { detail: "no lyrics" });
     return answer(route, kept.lyrics.source ? 200 : 404, kept.lyrics);
   });
@@ -94,15 +99,9 @@ async function setUp(page, { server = found(), saved = null, original = found(),
       [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, "E2E Fixture Track (again)"),
     },
   });
-  if (saved) {
-    await page.addInitScript(
-      ([key, value]) => window.localStorage.setItem(key, JSON.stringify(value)),
-      [`stemdeck.lyrics.${JOB_ID}`, saved],
-    );
-  }
   await page.setViewportSize({ width: 1600, height: 900 });
   await openLyrics(page);
-  return { kept, puts, deletes, lookups };
+  return { kept, puts, deletes, lookups, choices };
 }
 
 async function openLyrics(page) {
@@ -262,22 +261,6 @@ test.describe("correcting lyrics line by line", () => {
     await expect(shownLines(page).first()).toBeVisible();
     await expect(page.locator(".lyrics-line.untimed")).toHaveCount(0);
     await expect(page.locator(".lyrics-untimed")).toBeHidden();
-  });
-
-  test("lyrics kept in this browser go up first, so their timing can be carried", async ({ page }) => {
-    const saved = {
-      entry: { v: 1, source: "lrclib", id: 77, track: "Fixture Song", artist: "Fixture Band", album: "Chosen", duration: 6, instrumental: false, synced: "[00:01.00] Chosen one\n[00:03.00] Chosen two", plain: "", savedAt: 1 },
-      others: [],
-    };
-    const { puts } = await setUp(page, { saved });
-    await editLink(page).click();
-    await rowInput(page, 1).fill("Chosen too");
-    await save(page).click();
-    await expect(editor(page)).toBeHidden();
-    expect(puts).toEqual([
-      { text: "[00:01.00] Chosen one\n[00:03.00] Chosen two" },
-      { text: "Chosen one\nChosen too", keep_timing: true },
-    ]);
   });
 
   test("a refused edit stays open with the server's words", async ({ page }) => {
@@ -491,22 +474,6 @@ test.describe("supplying lyrics", () => {
 });
 
 test.describe("the user's lyrics come first", () => {
-  test("over lyrics kept in this browser", async ({ page }) => {
-    const saved = {
-      entry: { v: 1, source: "lrclib", id: 77, track: "Fixture Song", artist: "Fixture Band", album: "Chosen", duration: 6, instrumental: false, synced: "[00:00.50] Chosen one", plain: "", savedAt: 1 },
-      others: [],
-    };
-    await setUp(page, { server: yours(), saved });
-    await expect(shownLines(page)).toHaveText(SYNCED_ROWS);
-    await expect(page.locator(".lyrics-match-meta")).toContainText("Your lyrics");
-  });
-
-  test("over lyrics removed in this browser", async ({ page }) => {
-    await setUp(page, { server: yours(), saved: { dismissed: true } });
-    await expect(shownLines(page)).toHaveText(SYNCED_ROWS);
-    await expect(page.locator("#lyricsStatus")).toHaveText("");
-  });
-
   test("over a lookup this session that kept nothing", async ({ page }) => {
     const { kept, lookups } = await setUp(page, {
       server: null,
@@ -574,46 +541,23 @@ test.describe("going back", () => {
     expect(deletes).toHaveLength(1);
   });
 
-  test("past lyrics this browser removed before", async ({ page }) => {
-    await setUp(page, { server: yours(), saved: { dismissed: true } });
-    await restore(page).click();
-    await expect(page.locator(".lyrics-match-meta")).toHaveText("Fixture Band · Studio");
-    expect(await stored(page)).toBeNull();
-  });
-
-  test("with no original, Remove lyrics drops them on the server, and a 404 with versions offers those", async ({ page }) => {
+  test("with no original, Remove lyrics drops them and keeps the removal on the server", async ({ page }) => {
     const other = found({ lrclib_id: 202, album: "Live", plain: "Live words", synced: "", duration: 300 });
-    const { deletes } = await setUp(page, {
+    const { deletes, choices, kept } = await setUp(page, {
       server: yours({ has_original: false }),
-      onDelete: (route, kept) => {
-        kept.lyrics = { others: [other] };
-        return answer(route, 404, kept.lyrics);
-      },
-    });
-    await expect(restore(page)).toHaveText("Remove lyrics");
-    await restore(page).click();
-    await expect(page.locator(".lyrics-version", { hasText: "Live" })).toBeVisible();
-    expect(deletes).toHaveLength(1);
-    expect(await stored(page)).toBeNull();
-  });
-
-  test("with nothing on the server, Remove lyrics does not bring the browser's copy back", async ({ page }) => {
-    const { deletes } = await setUp(page, {
-      server: yours({ has_original: false }),
-      saved: {
-        entry: { v: 1, source: "lrclib", id: 77, track: "Fixture Song", artist: "Fixture Band", album: "Chosen", duration: 6, instrumental: false, plain: "Kept in this browser", synced: "" },
-      },
-      onDelete: (route, kept) => {
-        kept.lyrics = null;
-        return answer(route, 404, { detail: "no lyrics" });
+      onDelete: (route, held) => {
+        held.lyrics = { others: [other] };
+        return answer(route, 404, held.lyrics);
       },
     });
     await expect(restore(page)).toHaveText("Remove lyrics");
     await restore(page).click();
     await expect(page.locator("#lyricsStatus")).toHaveText("Lyrics removed for this track.");
-    await expect(page.locator(".lyrics-text", { hasText: "Kept in this browser" })).toHaveCount(0);
+    await expect(page.locator(".lyrics-version")).toHaveCount(0);
     expect(deletes).toHaveLength(1);
-    expect(await stored(page)).toEqual({ dismissed: true });
+    expect(choices.map((c) => c.method)).toEqual(["DELETE"]);
+    expect(kept.lyrics).toEqual(LYRICS_REMOVED);
+    expect(await stored(page)).toBeNull();
   });
 
   test("a 404 with nothing leaves the track with nothing, and a way to supply some", async ({ page }) => {
