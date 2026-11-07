@@ -416,14 +416,14 @@ export function addTrackToLibrary({ replaces, ...track }) {
  * The open track, for the lyrics panel: its id, title and length in seconds,
  * or null when none is open.
  */
-/** The library track an import of `url` would replace, or null. See soleSourceMatch. */
-export function replaceableTrackId(url) {
-  return soleSourceMatch(tracks, new Set(getTrashFolder().items), url);
-}
-
 /** A library track by id, or null. Read-only: the store is this module's. */
 export function getLibraryTrack(trackId) {
   return tracks[trackId] ?? null;
+}
+
+/** The library track an import of `url` would replace, or null. See soleSourceMatch. */
+export function replaceableTrackId(url) {
+  return soleSourceMatch(tracks, new Set(getTrashFolder().items), url);
 }
 
 /** A song's name in lists: the user's title when set, else the job's title. */

@@ -1,5 +1,7 @@
 // Trash and re-import decisions on server job state, kept free of IO so node can test them.
 
+import { isReimportableSource } from "./utils.js";
+
 export const CANCELLED_STATUS = "cancelled";
 export const RELEASE_REPLACED = "release";
 export const REINSTATE_REPLACED = "reinstate";
@@ -48,7 +50,6 @@ export function replacementOutcome(status) {
 }
 
 const YOUTUBE_ID = /(?:youtu\.be\/|[?&]v=)([a-zA-Z0-9_-]{11})/;
-const UPLOAD_PREFIX = "local:";
 
 /** A source as typed, or a YouTube link reduced to its video id, so its variants match. */
 export function normalizeSource(value) {
@@ -63,7 +64,7 @@ export function normalizeSource(value) {
  */
 export function soleSourceMatch(tracks, trashIds, url) {
   const source = normalizeSource(url);
-  if (!source || source.startsWith(UPLOAD_PREFIX)) return null;
+  if (!isReimportableSource(source)) return null;
   const matches = Object.entries(tracks)
     .filter(([id, track]) => !trashIds.has(id) && normalizeSource(track.sourceUrl) === source)
     .map(([id]) => id);
