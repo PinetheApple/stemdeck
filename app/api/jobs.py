@@ -11,6 +11,7 @@ import subprocess
 import threading
 import time
 import uuid
+from collections.abc import Callable, Coroutine
 from pathlib import Path
 from typing import Literal
 
@@ -65,7 +66,7 @@ from app.core.registry import set_trashed as registry_set_trashed
 from app.core.setlists import remove_songs as setlists_remove_songs
 from app.core.settings import get_auto_sections, get_discogs_token, get_max_duration_sec
 from app.core.stems_location import is_relocating
-from app.pipeline import discogs, jobqueue
+from app.pipeline import discogs, jobqueue, transcribe_on_demand
 from app.pipeline.artist_lookup import tagged_artist_name
 from app.pipeline.audio_tags import probe_tags
 from app.pipeline.collect import merge_stem_peaks, presence_for_split, remove_job_dir
@@ -116,6 +117,7 @@ from app.pipeline.lyrics_retime import (
 )
 from app.pipeline.lyrics_retime import saved_view as saved_retime_view
 from app.pipeline.runner import _pipeline_lock
+from app.pipeline.runs import Run
 from app.pipeline.tempo import MODE_CONSTANT, MODE_FOLLOW
 from app.pipeline.tempo_grid import (
     effective_grid,
@@ -609,10 +611,11 @@ def cancel_job(job_id: str) -> dict:
             proc = registry_get_proc(job_id)
             if proc is not None and proc.poll() is None:
                 proc.terminate()
-        # A line-by-line timing of its lyrics (POST .../lyrics/retime) stops
-        # the same way: the run sees its own flag, never the job's, and
-        # leaves the lyrics as they were.
-        elif cancel_run(job_id):
+        # A line-by-line timing or a transcription of its lyrics (POST
+        # .../lyrics/retime, .../lyrics/transcribe) stops the same way: the
+        # run sees its own flag, never the job's, and leaves the lyrics as
+        # they were.
+        elif cancel_run(job_id) or transcribe_on_demand.cancel_run(job_id):
             proc = registry_get_proc(job_id)
             if proc is not None and proc.poll() is None:
                 proc.terminate()
@@ -1556,8 +1559,42 @@ async def align_lyrics_route(job_id: str, request: Request) -> dict:
     return {"confident": True, "offset_sec": shift}
 
 
-# Line-by-line timing runs in flight, held so the loop does not drop them.
-_retime_tasks: set[asyncio.Task] = set()
+# On-demand runs in flight (app/pipeline/runs.py), held so the loop does not
+# drop them.
+_run_tasks: set[asyncio.Task] = set()
+
+
+def start_run_task(coro: Coroutine[None, None, None]) -> None:
+    task = asyncio.create_task(coro)
+    _run_tasks.add(task)
+    task.add_done_callback(_run_tasks.discard)
+
+
+async def run_behind_lock(
+    job: Job, run: Run, work: Callable[[Callable[[], bool]], None], what: str
+) -> None:
+    """One on-demand run: behind _pipeline_lock, so it never shares the GPU
+    with a separation, and stopped by a cancel or the job's deletion.
+    ``work``, blocking, is given that stop test and sets the run's outcome;
+    a cancel ends the run in its cancelled_state, anything else it raises
+    in "failed"."""
+
+    def cancelled() -> bool:
+        return run.cancel.is_set() or registry_get(job.id) is not job
+
+    try:
+        async with _pipeline_lock:
+            run.started = True
+            if cancelled():
+                raise JobCancelled()
+            await asyncio.to_thread(work, cancelled)
+    except JobCancelled:
+        run.state = run.cancelled_state
+    except Exception:
+        logger.exception("[%s] %s failed", job.id, what)
+        run.state = "failed"
+    finally:
+        run.ended.set()
 
 
 def _retime_ready(job_dir: Path, lyrics: dict | None) -> None:
@@ -1575,36 +1612,23 @@ def _retime_ready(job_dir: Path, lyrics: dict | None) -> None:
         raise HTTPException(status_code=409, detail="no vocals stem")
 
 
-async def _retime_task(job: Job, job_dir: Path, run: RetimeRun, lyrics: dict | None) -> None:
-    """One on-demand run: behind _pipeline_lock, so it never shares the GPU
-    with a separation, and stopped by a cancel or the job's deletion."""
-
-    def cancelled() -> bool:
-        return run.cancel.is_set() or registry_get(job.id) is not job
-
+def _retime_work(
+    job: Job, job_dir: Path, run: RetimeRun, lyrics: dict | None
+) -> Callable[[Callable[[], bool]], None]:
     def report(share: float) -> None:
         run.progress = share
 
-    try:
-        async with _pipeline_lock:
-            run.started = True
-            if cancelled():
-                raise JobCancelled()
-            outcome = await asyncio.to_thread(
-                retime_job, job, job_dir, cancelled=cancelled, report=report, lyrics=lyrics
-            )
+    def work(cancelled: Callable[[], bool]) -> None:
+        try:
+            outcome = retime_job(job, job_dir, cancelled=cancelled, report=report, lyrics=lyrics)
+        except RetimeFailed as exc:
+            logger.info("[%s] lyrics not timed: %s", job.id, exc)
+            run.state = "failed"
+            return
         run.outcome = outcome
         run.state = outcome.state
-    except JobCancelled:
-        run.state = "idle"
-    except RetimeFailed as exc:
-        logger.info("[%s] lyrics not timed: %s", job.id, exc)
-        run.state = "failed"
-    except Exception:
-        logger.exception("[%s] lyrics timing failed", job.id)
-        run.state = "failed"
-    finally:
-        run.ended.set()
+
+    return work
 
 
 class LyricsRetimeBody(BaseModel):
@@ -1642,9 +1666,9 @@ async def start_lyrics_retime(job_id: str, request: Request) -> JSONResponse:
     run = claim_run(job_id)
     if run is None:
         raise HTTPException(status_code=409, detail="lyrics timing already running")
-    task = asyncio.create_task(_retime_task(job, job_dir, run, lyrics))
-    _retime_tasks.add(task)
-    task.add_done_callback(_retime_tasks.discard)
+    start_run_task(
+        run_behind_lock(job, run, _retime_work(job, job_dir, run, lyrics), "lyrics timing")
+    )
     return JSONResponse(run.view(), status_code=202)
 
 
@@ -2037,16 +2061,23 @@ def delete_job(job_id: str) -> dict[str, str]:
         raise HTTPException(status_code=404, detail="job not found")
     if job.status not in FINISHED_STATUSES:
         raise HTTPException(status_code=409, detail="job is still running")
-    # A timing of its lyrics in flight stops rather than write into a
-    # directory being removed (it also checks the job is still registered).
-    if cancel_run(job_id) and job.vocal_split != "running":
+    # A timing or transcription of its lyrics in flight stops rather than
+    # write into a directory being removed (it also checks the job is still
+    # registered).
+    retiming = cancel_run(job_id)
+    transcribing = transcribe_on_demand.cancel_run(job_id)
+    if (retiming or transcribing) and job.vocal_split != "running":
         proc = registry_get_proc(job_id)
         if proc is not None and proc.poll() is None:
             proc.terminate()
         # The worker may still have the vocals open while it stops.
-        if not wait_run_ended(job_id, RETIME_DELETE_WAIT_SEC):
-            logger.warning("[%s] lyrics timing still stopping; removing files anyway", job_id)
+        if not (
+            wait_run_ended(job_id, RETIME_DELETE_WAIT_SEC)
+            and transcribe_on_demand.wait_run_ended(job_id, RETIME_DELETE_WAIT_SEC)
+        ):
+            logger.warning("[%s] lyrics run still stopping; removing files anyway", job_id)
     forget_run(job_id)
+    transcribe_on_demand.forget_run(job_id)
     # A fingerprint of its audio may still have a file open (Windows).
     release_source(job_id)
     removed = _rmtree_job(job_id)
