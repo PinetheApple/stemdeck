@@ -9,10 +9,9 @@ any setting but "off", in the background and behind the pipeline lock, like
 the line-by-line timing of lyrics_retime.py, whose run machinery
 (runs.RunBoard) it shares.
 
-The result is the one an import makes: lyrics.json with source "whisper",
-from build_lyrics. When the vocals already have a transcript kept beside
-them (lyrics_retime.save_transcript, by a timing or an accent mend), its
-words are used and no model runs; a new transcript is kept the same way.
+The result is the one an import makes: the worker always runs, and its
+answer becomes lyrics.json with source "whisper" through build_lyrics. Like
+an import, it keeps no transcript beside the lyrics.
 
 The user's own lyrics always win: none is started while the track has lyrics
 of any kind, and a result that finds lyrics there when it is done (the user
@@ -27,8 +26,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
-from app.core.models import Job, JobCancelled
-from app.core.settings import get_transcribe_lyrics
+from app.core.models import STATUS_DONE, Job, JobCancelled
+from app.core.settings import TRANSCRIBE_LYRICS_OFF, get_transcribe_lyrics
 from app.pipeline import transcribe
 from app.pipeline.lyrics_lookup import (
     _OFFSET_LOCK,
@@ -37,16 +36,17 @@ from app.pipeline.lyrics_lookup import (
     read_lyrics,
     write_lyrics,
 )
-from app.pipeline.lyrics_retime import read_transcript, save_transcript
-from app.pipeline.runs import Run, RunBoard
+from app.pipeline.runs import CANCELLED, DONE, FAILED, RUNNING, Run, RunBoard
 from app.pipeline.transcribe import _device, _run_worker, _vocals_reason, build_lyrics
 
 logger = logging.getLogger("stemdeck.transcribe")
 
-DONE = "done"
 NO_SINGING = "no_singing"
-FAILED = "failed"
 HAS_LYRICS = "has_lyrics"
+
+# The phase of a run still waiting for the pipeline lock.
+QUEUED = "queued"
+_PERCENT = 100
 
 # Why a track gets no transcription now (unavailable_reason).
 OFF = "off"
@@ -57,38 +57,28 @@ NO_VOCALS = "no_vocals"
 
 @dataclass
 class TranscribeRun(Run):
-    """One on-demand transcription, for GET .../lyrics/transcribe: "running"
-    until it ends DONE, NO_SINGING, FAILED, HAS_LYRICS or "cancelled"."""
+    """One on-demand transcription, for GET .../lyrics/transcribe: RUNNING
+    until it ends DONE, NO_SINGING, FAILED, HAS_LYRICS or CANCELLED."""
 
-    cancelled_state: ClassVar[str] = "cancelled"
+    cancelled_state: ClassVar[str] = CANCELLED
 
-    # "queued" until it holds the pipeline lock, then the worker's own
-    # phases: "load", "download" (the model, first run only), "transcribe".
-    phase: str = "queued"
+    # QUEUED until it holds the pipeline lock, then the worker's own phases:
+    # "load", "download" (the model, first run only), "transcribe".
+    phase: str = QUEUED
 
     def view(self) -> dict[str, Any]:
         out: dict[str, Any] = {"state": self.state}
-        if self.state == "running":
+        if self.state == RUNNING:
             out["phase"] = self.phase
             out["progress"] = round(self.progress, 3)
         return out
 
     def report(self, phase: str, pct: int | None) -> None:
         self.phase = phase
-        self.progress = (pct or 0) / 100
+        self.progress = (pct or 0) / _PERCENT
 
 
-_BOARD: RunBoard[TranscribeRun] = RunBoard(TranscribeRun)
-claim_run = _BOARD.claim
-current_run = _BOARD.current
-cancel_run = _BOARD.cancel
-wait_run_ended = _BOARD.wait_ended
-forget_run = _BOARD.forget
-
-
-def device(job: Job) -> str:
-    """Where a run for ``job`` goes: "cuda" or "cpu" (transcribe._device)."""
-    return _device(job)
+TRANSCRIBE_RUNS: RunBoard[TranscribeRun] = RunBoard(TranscribeRun)
 
 
 def unavailable_reason(job: Job, job_dir: Path) -> str | None:
@@ -96,9 +86,9 @@ def unavailable_reason(job: Job, job_dir: Path) -> str | None:
     NOT_READY, USER_LYRICS, HAS_LYRICS or NO_VOCALS. Blocking (reads the
     job's files). Too little singing is not checked here: a run ends in
     NO_SINGING for it, so the tab says so in the same place either way."""
-    if get_transcribe_lyrics() == "off":
+    if get_transcribe_lyrics() == TRANSCRIBE_LYRICS_OFF:
         return OFF
-    if job.status != "done":
+    if job.status != STATUS_DONE:
         return NOT_READY
     if lyrics_path(job_dir).is_file():
         entry = read_lyrics(job_dir)
@@ -108,38 +98,12 @@ def unavailable_reason(job: Job, job_dir: Path) -> str | None:
     return None
 
 
-def _kept_answer(job_dir: Path) -> dict[str, Any] | None:
-    """A kept transcript of these vocals as a worker answer of one segment,
-    or None when there is none. Its words were kept by the looser rule of
-    transcript_words, which drops only what Whisper took for silence."""
-    kept = read_transcript(job_dir)
-    if kept is None or not kept["words"]:
-        return None
-    words = [{"word": w["text"], "start": w["start"], "end": w["end"]} for w in kept["words"]]
-    return {"segments": [{"words": words}], "language": kept["language"], "model": "kept"}
-
-
-def _heard(
+def _keep(
     job: Job,
     job_dir: Path,
+    entry: dict[str, Any],
     cancelled: Callable[[], bool],
-    report: Callable[[str, int | None], None],
-) -> dict[str, Any] | None:
-    """The worker's answer for the vocals, or the kept transcript's; None
-    when the worker failed. Raises JobCancelled."""
-    kept = _kept_answer(job_dir)
-    if kept is not None:
-        return kept
-    vocals = job_dir / "stems" / "vocals.wav"
-    # Looked up on the module, where tests put their stub worker.
-    cmd = transcribe._spawn_worker_cmd(vocals, _device(job))
-    result = _run_worker(job, cmd, cancelled=cancelled, report=report)
-    if result is not None:
-        save_transcript(job_dir, result)
-    return result
-
-
-def _keep(job: Job, job_dir: Path, entry: dict[str, Any], cancelled: Callable[[], bool]) -> str:
+) -> str:
     """Write ``entry`` as the job's lyrics unless it has some by now."""
     with _OFFSET_LOCK:
         if cancelled():
@@ -158,14 +122,16 @@ def transcribe_now(
 ) -> str:
     """Transcribe the job's vocals into lyrics.json, and say how it ended:
     DONE, NO_SINGING (the vocal-presence gate, or too few words heard),
-    FAILED or HAS_LYRICS. Blocking: may run a worker for minutes. Raises
+    FAILED or HAS_LYRICS. Blocking: runs a worker for up to minutes. Raises
     JobCancelled when ``cancelled()`` turned true; nothing is written then.
     ``report`` hears the worker's phases and percentages."""
     reason = _vocals_reason(job, job_dir)
     if reason is not None:
         logger.info("[%s] lyrics not transcribed: %s", job.id, reason)
         return NO_SINGING
-    result = _heard(job, job_dir, cancelled, report)
+    # Looked up on the module, where tests put their stub worker.
+    cmd = transcribe._spawn_worker_cmd(job_dir / "stems" / "vocals.wav", _device(job))
+    result = _run_worker(job, cmd, cancelled=cancelled, report=report)
     if result is None:
         return FAILED
     entry = build_lyrics(result, job)

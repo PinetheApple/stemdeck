@@ -26,6 +26,8 @@ JobStatus = Literal[
     "stopped",
 ]
 
+STATUS_DONE: JobStatus = "done"
+
 # Statuses no pipeline will move on from. "stopped" is a job halted because the
 # user put it in the Trash (#748): unlike "cancelled", its files stay on disk,
 # because only emptying the Trash deletes anything.

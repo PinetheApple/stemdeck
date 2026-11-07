@@ -8,26 +8,39 @@ transcribe_on_demand.py). Each kind keeps its runs on a RunBoard, by job id,
 so GET can follow one, the job's cancel can stop it, and deleting the job can
 wait for it to let go of the vocals.
 
-A run is "running" from the moment it is claimed until its task ends it in a
-state of its own kind; a cancel ends it in ``cancelled_state``, at once when
-it is still waiting for the lock.
+A run is RUNNING from the moment it is claimed until its task
+(run_behind_lock) ends it in a state of its own kind; a cancel ends it in
+``cancelled_state``, at once when it is still waiting for the lock.
 """
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from typing import ClassVar, Generic, TypeVar
+
+from app.core.models import Job, JobCancelled
+from app.core.registry import get as registry_get
+
+logger = logging.getLogger("stemdeck.runs")
+
+RUNNING = "running"
+IDLE = "idle"
+DONE = "done"
+FAILED = "failed"
+CANCELLED = "cancelled"
 
 
 @dataclass
 class Run:
     """One on-demand run of a job."""
 
-    cancelled_state: ClassVar[str] = "idle"
+    cancelled_state: ClassVar[str] = IDLE
 
-    state: str = "running"
+    state: str = RUNNING
     progress: float = 0.0
     cancel: threading.Event = field(default_factory=threading.Event)
     # Set once it holds the pipeline lock: a run cancelled while waiting for
@@ -54,7 +67,7 @@ class RunBoard(Generic[R]):
         """A new run for ``job_id``, or None while one is running already."""
         with self._lock:
             current = self.runs.get(job_id)
-            if current is not None and current.state == "running":
+            if current is not None and current.state == RUNNING:
                 return None
             run = self._make()
             self.runs[job_id] = run
@@ -64,11 +77,15 @@ class RunBoard(Generic[R]):
         with self._lock:
             return self.runs.get(job_id)
 
+    def running(self, job_id: str) -> bool:
+        run = self.current(job_id)
+        return run is not None and run.state == RUNNING
+
     def cancel(self, job_id: str) -> bool:
         """Ask a running run of ``job_id`` to stop. True when one was running."""
         with self._lock:
             run = self.runs.get(job_id)
-            if run is None or run.state != "running":
+            if run is None or run.state != RUNNING:
                 return False
             run.cancel.set()
             if not run.started:
@@ -90,3 +107,45 @@ class RunBoard(Generic[R]):
     def forget(self, job_id: str) -> None:
         with self._lock:
             self.runs.pop(job_id, None)
+
+
+# Runs in flight, held so the event loop does not drop them.
+_tasks: set[asyncio.Task] = set()
+
+
+def start_run_task(coro: Coroutine[None, None, None]) -> None:
+    task = asyncio.create_task(coro)
+    _tasks.add(task)
+    task.add_done_callback(_tasks.discard)
+
+
+async def run_behind_lock(
+    job: Job,
+    run: Run,
+    work: Callable[[Callable[[], bool]], None],
+    what: str,
+) -> None:
+    """One on-demand run: behind the pipeline lock, so it never shares the
+    GPU with a separation, and stopped by a cancel or the job's deletion.
+    ``work``, blocking, is given that stop test and sets the run's outcome;
+    a cancel ends the run in its cancelled_state, anything else it raises
+    in FAILED."""
+    # Imported here: runner imports lyrics_retime, which imports this module.
+    from app.pipeline import runner
+
+    def cancelled() -> bool:
+        return run.cancel.is_set() or registry_get(job.id) is not job
+
+    try:
+        async with runner._pipeline_lock:
+            run.started = True
+            if cancelled():
+                raise JobCancelled()
+            await asyncio.to_thread(work, cancelled)
+    except JobCancelled:
+        run.state = run.cancelled_state
+    except Exception:
+        logger.exception("[%s] %s failed", job.id, what)
+        run.state = FAILED
+    finally:
+        run.ended.set()

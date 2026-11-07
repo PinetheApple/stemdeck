@@ -124,7 +124,7 @@ from app.pipeline.lyrics_align import (
     _seconds,
     onset_strength,
 )
-from app.pipeline.runs import Run, RunBoard
+from app.pipeline.runs import RUNNING, Run, RunBoard
 from app.pipeline.zh_variants import to_simplified
 
 logger = logging.getLogger("stemdeck.lyrics")
@@ -2119,7 +2119,7 @@ class RetimeRun(Run):
 
     def view(self) -> dict[str, Any]:
         out: dict[str, Any] = {"state": self.state}
-        if self.state == "running":
+        if self.state == RUNNING:
             out["progress"] = round(self.progress, 3)
         if self.outcome is not None:
             out["matched"] = self.outcome.matched
@@ -2130,13 +2130,7 @@ class RetimeRun(Run):
         return out
 
 
-_BOARD: RunBoard[RetimeRun] = RunBoard(RetimeRun)
-_RUNS = _BOARD.runs
-claim_run = _BOARD.claim
-current_run = _BOARD.current
-cancel_run = _BOARD.cancel
-wait_run_ended = _BOARD.wait_ended
-forget_run = _BOARD.forget
+RETIME_RUNS: RunBoard[RetimeRun] = RunBoard(RetimeRun)
 
 
 def saved_view(entry: dict[str, Any] | None) -> dict[str, Any]:

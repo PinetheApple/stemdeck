@@ -4,7 +4,7 @@
 Follows POST/GET .../lyrics/retime (app/api/jobs.py): POST starts a run in
 the background, behind the pipeline lock, and answers 202; GET follows it;
 the job's own POST .../cancel stops it, and deleting the job does too. One
-run per track at a time.
+lyrics run per track at a time, of either kind.
 """
 
 from __future__ import annotations
@@ -17,41 +17,62 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from app.api.jobs import _lyrics_job, run_behind_lock, start_run_task
+from app.api.jobs import (
+    JOB_NOT_READY,
+    LYRICS_TIMING_RUNNING,
+    NO_VOCALS_STEM,
+    TRANSCRIPTION_RUNNING,
+    _lyrics_job,
+)
 from app.core.config import JOBS_DIR
 from app.core.models import Job
 from app.core.registry import persist as registry_persist
 from app.pipeline import transcribe_on_demand as tod
-from app.pipeline.lyrics_retime import current_run as current_retime
+from app.pipeline.lyrics_retime import RETIME_RUNS
+from app.pipeline.runs import DONE, IDLE, RUNNING, run_behind_lock, start_run_task
+from app.pipeline.transcribe import _device
 
 router = APIRouter()
 
-# POST's 409 detail for each reason a track cannot be transcribed now.
+TRANSCRIPTION_OFF = "transcription is off"
+USER_LYRICS_KEPT = "user lyrics kept"
+LYRICS_EXIST = "lyrics already exist"
+
 _REFUSALS = {
-    tod.OFF: "transcription is off",
-    tod.NOT_READY: "job not ready",
-    tod.USER_LYRICS: "user lyrics kept",
-    tod.HAS_LYRICS: "lyrics already exist",
-    tod.NO_VOCALS: "no vocals stem",
+    tod.OFF: TRANSCRIPTION_OFF,
+    tod.NOT_READY: JOB_NOT_READY,
+    tod.USER_LYRICS: USER_LYRICS_KEPT,
+    tod.HAS_LYRICS: LYRICS_EXIST,
+    tod.NO_VOCALS: NO_VOCALS_STEM,
 }
 
 
 def _view(job: Job, job_dir: Path) -> dict[str, Any]:
     """Blocking: the run's state, whether a run could start now and why not,
     and where it would run."""
-    run = tod.current_run(job.id)
-    out = run.view() if run is not None else {"state": "idle"}
-    reason = None if out["state"] == "running" else tod.unavailable_reason(job, job_dir)
-    out["available"] = out["state"] != "running" and reason is None
+    run = tod.TRANSCRIBE_RUNS.current(job.id)
+    out = run.view() if run is not None else {"state": IDLE}
+    running = out["state"] == RUNNING
+    reason = None if running else tod.unavailable_reason(job, job_dir)
+    out["available"] = not running and reason is None
     out["unavailable"] = reason
-    out["device"] = tod.device(job)
+    out["device"] = _device(job)
     return out
 
 
-def _work(job: Job, job_dir: Path, run: tod.TranscribeRun) -> Callable[[Callable[[], bool]], None]:
+def _work(
+    job: Job,
+    job_dir: Path,
+    run: tod.TranscribeRun,
+) -> Callable[[Callable[[], bool]], None]:
     def work(cancelled: Callable[[], bool]) -> None:
-        run.state = tod.transcribe_now(job, job_dir, cancelled=cancelled, report=run.report)
-        if run.state == tod.DONE:
+        run.state = tod.transcribe_now(
+            job,
+            job_dir,
+            cancelled=cancelled,
+            report=run.report,
+        )
+        if run.state == DONE:
             registry_persist(JOBS_DIR)
 
     return work
@@ -82,11 +103,17 @@ async def start_lyrics_transcribe(job_id: str) -> JSONResponse:
     reason = await asyncio.to_thread(tod.unavailable_reason, job, job_dir)
     if reason is not None:
         raise HTTPException(status_code=409, detail=_REFUSALS[reason])
-    retime = current_retime(job_id)
-    if retime is not None and retime.state == "running":
-        raise HTTPException(status_code=409, detail="lyrics timing running")
-    run = tod.claim_run(job_id)
+    if RETIME_RUNS.running(job_id):
+        raise HTTPException(status_code=409, detail=LYRICS_TIMING_RUNNING)
+    run = tod.TRANSCRIBE_RUNS.claim(job_id)
     if run is None:
-        raise HTTPException(status_code=409, detail="transcription already running")
-    start_run_task(run_behind_lock(job, run, _work(job, job_dir, run), "lyrics transcription"))
+        raise HTTPException(status_code=409, detail=TRANSCRIPTION_RUNNING)
+    start_run_task(
+        run_behind_lock(
+            job,
+            run,
+            _work(job, job_dir, run),
+            "lyrics transcription",
+        )
+    )
     return JSONResponse(await asyncio.to_thread(_view, job, job_dir), status_code=202)

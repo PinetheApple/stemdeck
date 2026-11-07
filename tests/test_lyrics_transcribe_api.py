@@ -34,12 +34,12 @@ SLEEPER = [sys.executable, "-c", "import time; time.sleep(30)"]
 @pytest.fixture(autouse=True)
 def _isolate():
     _jobs.clear()
-    rt._RUNS.clear()
-    tod._BOARD.runs.clear()
+    rt.RETIME_RUNS.runs.clear()
+    tod.TRANSCRIBE_RUNS.runs.clear()
     yield
     _jobs.clear()
-    rt._RUNS.clear()
-    tod._BOARD.runs.clear()
+    rt.RETIME_RUNS.runs.clear()
+    tod.TRANSCRIBE_RUNS.runs.clear()
 
 
 @pytest.fixture
@@ -79,7 +79,7 @@ def wait_for(client, until=lambda body: body["state"] != "running") -> dict:
 
 def worker_started():
     deadline = time.monotonic() + 10
-    while tod.current_run(JOB_ID).phase == "queued" and time.monotonic() < deadline:
+    while tod.TRANSCRIBE_RUNS.current(JOB_ID).phase == "queued" and time.monotonic() < deadline:
         time.sleep(0.05)
 
 
@@ -97,20 +97,20 @@ def test_a_cpu_run_under_auto_transcribes_the_vocals(client, monkeypatch, tmp_pa
     assert lyrics["source"] == "whisper" and lyrics["language"] == "pl"
     assert lyrics["synced"].startswith("[00:20.00]<00:20.00>znowu")
     assert calls == ["cpu"] and job.has_lyrics
-    assert rt.read_transcript(jobs_mod.JOBS_DIR / JOB_ID)["words"]
+    assert not rt.transcript_path(jobs_mod.JOBS_DIR / JOB_ID).exists()
     after = client.get(URL).json()
     assert after["available"] is False and after["unavailable"] == "has_lyrics"
 
 
-def test_a_kept_transcript_is_used_without_the_worker(client, monkeypatch, tmp_path):
+def test_a_kept_transcript_is_not_used(client, monkeypatch, tmp_path):
     done_job()
     calls: list[str] = []
     stub_worker(monkeypatch, tmp_path, HEARD, calls)
-    rt.save_transcript(jobs_mod.JOBS_DIR / JOB_ID, words=HEARD, language="pl")
+    rt.save_transcript(jobs_mod.JOBS_DIR / JOB_ID, words=sing("other words here", 5), language="pl")
     client.post(URL)
     assert wait_for(client)["state"] == "done"
-    assert calls == []
-    assert client.get(LYRICS).json()["source"] == "whisper"
+    assert calls == ["cpu"]
+    assert client.get(LYRICS).json()["plain"].startswith("znowu")
 
 
 def test_off_is_not_offered_and_refused(client):
@@ -168,9 +168,34 @@ def test_one_run_at_a_time_while_queued(client, monkeypatch, tmp_path):
 
 def test_refused_while_the_lyrics_are_being_timed(client):
     done_job()
-    rt._RUNS[JOB_ID] = rt.RetimeRun()
+    rt.RETIME_RUNS.claim(JOB_ID)
     r = client.post(URL)
-    assert r.status_code == 409 and r.json()["detail"] == "lyrics timing running"
+    assert r.status_code == 409 and r.json()["detail"] == "lyrics timing already running"
+
+
+def test_timing_is_refused_while_a_transcription_runs(client, monkeypatch):
+    done_job(entry())
+    tod.TRANSCRIBE_RUNS.claim(JOB_ID)
+    r = client.post(f"{LYRICS}/retime")
+    assert r.status_code == 409 and r.json()["detail"] == "transcription already running"
+    assert rt.RETIME_RUNS.current(JOB_ID) is None
+
+
+def test_cancel_reaches_both_kinds_of_run(client):
+    done_job()
+    retime = rt.RETIME_RUNS.claim(JOB_ID)
+    transcription = tod.TRANSCRIBE_RUNS.claim(JOB_ID)
+    assert client.post(CANCEL).status_code == 200
+    assert retime.cancel.is_set() and retime.state == "idle"
+    assert transcription.cancel.is_set() and transcription.state == "cancelled"
+
+
+def test_cancel_during_a_split_reaches_a_queued_transcription(client):
+    job = done_job(vocal_split="running")
+    transcription = tod.TRANSCRIBE_RUNS.claim(JOB_ID)
+    assert client.post(CANCEL).status_code == 200
+    assert job.cancel_requested
+    assert transcription.state == "cancelled"
 
 
 def test_a_queued_run_is_cancelled_at_once(client, monkeypatch, tmp_path):
@@ -243,6 +268,6 @@ def test_deleting_the_job_stops_its_run(client, monkeypatch):
     monkeypatch.setattr("app.pipeline.transcribe._spawn_worker_cmd", lambda v, d: SLEEPER)
     client.post(URL)
     worker_started()
-    run = tod.current_run(JOB_ID)
+    run = tod.TRANSCRIBE_RUNS.current(JOB_ID)
     assert client.delete(f"/api/jobs/{JOB_ID}").status_code == 200
-    assert run.ended.is_set() and tod.current_run(JOB_ID) is None
+    assert run.ended.is_set() and tod.TRANSCRIBE_RUNS.current(JOB_ID) is None

@@ -605,7 +605,8 @@ def set_separation_quality(value: str) -> str:
 # "auto" leaves it off; "on" and "off" force it. Read per job, so
 # a change applies to the next import. STEMDECK_TRANSCRIBE_LYRICS seeds the
 # default for env-based deployments.
-_TRANSCRIBE_CHOICES = ("auto", "on", "off")
+TRANSCRIBE_LYRICS_OFF = "off"
+_TRANSCRIBE_CHOICES = ("auto", "on", TRANSCRIBE_LYRICS_OFF)
 
 
 def _default_transcribe_lyrics() -> str:
@@ -651,7 +652,7 @@ def lyrics_mending_enabled() -> bool:
     Unlike a transcription, "auto" does not keep this to CUDA: its gates hold
     it to the rare song whose lyrics are missing letters, which otherwise
     shows broken words on every CPU and Mac install."""
-    return get_transcribe_lyrics() != "off"
+    return get_transcribe_lyrics() != TRANSCRIBE_LYRICS_OFF
 
 
 # ── acoustid_api_key ──
