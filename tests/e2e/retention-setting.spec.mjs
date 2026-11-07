@@ -12,7 +12,7 @@
 // rule to `.daw`, while the settings overlay is appended to document.body.
 
 import { test, expect } from "@playwright/test";
-import { seedLibrary } from "./helpers.mjs";
+import { seedLibrary, uiText } from "./helpers.mjs";
 
 /** Open Settings on the General tab, which is where this setting lives. */
 async function openSettings(page) {
@@ -90,8 +90,9 @@ test.describe("automatic deletion", () => {
     await switchFor(page).click();
 
     await expect(page.locator(".auto-delete-input")).not.toBeChecked();
-    await expect(page.locator(".auto-delete-desc")).toContainText("favorites");
-    await expect(page.locator(".auto-delete-desc")).toContainText("setlists");
+    // The sweep spares them, and the user decides knowing that.
+    await expect(page.locator(".auto-delete-desc")).toHaveText(await uiText(page, "settings.autoDelete.confirm"));
+    await expect(page.locator(".auto-delete-desc")).toContainText("Favorites and songs in setlists are kept");
     await expect(page.locator(".set-auto-delete-days")).toBeDisabled();
     expect(await serverSaysOn(page)).toBe(false);
   });
