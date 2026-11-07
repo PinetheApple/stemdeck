@@ -300,7 +300,6 @@ function render() {
     btn.disabled = !ready;
     btn.setAttribute("aria-checked", String(ready && btn.dataset.tempoMode === tempo.mode));
   }
-  $("tempoModeHint").textContent = t(constant || !ready ? "tempo.constantHint" : "tempo.followHint");
 
   setValueUnlessEditing($("tempoBpm"), Number.isFinite(tempo?.bpm) ? formatBpm(tempo.bpm) : "");
   const barsEdited = ready && tempo.bars_edited;

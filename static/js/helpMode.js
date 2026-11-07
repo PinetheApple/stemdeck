@@ -35,6 +35,8 @@ const HELP = [
   [".rail-favorites", "help.favorites"],
   [".rail-library", "help.library"],
   [".rail-lyrics", "help.lyrics"],
+  [".lyrics-edit-open", "help.lyricsEdit"],
+  [".lyrics-supply-open", "help.lyricsSupply"],
   [".rail-trash", "help.trash"],
   [".rail-queue", "help.queue"],
   ["#notifBtn", "help.notifications"],
@@ -81,6 +83,8 @@ const HELP = [
   ["#t-export-btn", "help.export"],
   ["#stageModeBtn", "help.stageMode"],
   ['.inspector-tab[data-tab="tempo"]', "help.inspectorTempo"],
+  ['[data-tempo-mode="constant"]', "help.tempoConstant"],
+  ['[data-tempo-mode="follow"]', "help.tempoFollow"],
   ['.inspector-tab[data-tab="upnext"]', "help.inspectorUpNext"],
   ['.inspector-tab[data-tab="details"]', "help.inspectorDetails"],
 ];

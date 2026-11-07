@@ -320,7 +320,6 @@
                  says it is, not what someone types. -->
             <section class="lyrics-panel" id="lyricsPanel" aria-labelledby="lyricsTitle">
               <h2 class="lyrics-title" id="lyricsTitle" data-i18n="lyrics.title">Lyrics</h2>
-              <p class="lyrics-note" data-i18n="lyrics.privacy">Taken from the file itself, or found on LRCLIB by the song this track was identified as. If neither has any and the setting allows it, they are transcribed locally from the vocals. Nothing else is sent.</p>
               <p class="lyrics-status" id="lyricsStatus" aria-live="polite"></p>
               <div class="lyrics-versions" id="lyricsVersions"></div>
               <div class="lyrics-body" id="lyricsBody"></div>
@@ -747,7 +746,6 @@
                 <button class="tempo-mode-btn" id="tempoModeConstant" type="button" role="radio" aria-checked="false" data-tempo-mode="constant" data-i18n="tempo.constant" disabled>Constant tempo</button>
                 <button class="tempo-mode-btn" id="tempoModeFollow" type="button" role="radio" aria-checked="false" data-tempo-mode="follow" data-i18n="tempo.follow" disabled>Follow the band</button>
               </div>
-              <p class="inspector-hint" id="tempoModeHint"></p>
               <div class="tempo-row">
                 <label class="tempo-row-label" for="tempoBpm" data-i18n="meta.bpm">BPM</label>
                 <div class="tempo-bpm-edit">
@@ -886,7 +884,6 @@
                 <span data-i18n="upNext.emptyHint">Choose Add to Up Next from a song's … menu in the library.</span>
               </div>
             </div>
-            <p class="inspector-hint" data-i18n="upNext.autoplayHint">When a song ends, the next one starts.</p>
           </section>
 
           <section class="inspector-pane" id="inspectorPaneDetails" role="tabpanel" aria-labelledby="inspectorTabDetails" data-pane="details" hidden>
@@ -1130,7 +1127,6 @@
                   </span>
                   <span class="chip-item-text">
                     <span class="chip-item-title" data-i18n="export.mix">Export Mix</span>
-                    <span class="chip-item-desc" data-i18n="export.mixDesc">Export the mixed audio</span>
                   </span>
                   <svg class="chip-item-check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
                 </button>
@@ -1158,7 +1154,6 @@
                   </span>
                   <span class="chip-item-text">
                     <span class="chip-item-title" data-i18n="export.currentRegion">Export Current Region</span>
-                    <span class="chip-item-desc" data-i18n="export.currentRegionDesc">Export selected region</span>
                   </span>
                 </button>
               </div>
@@ -1214,7 +1209,7 @@
         </div>
 
         <h2 id="aboutTitle" data-i18n="about.title">StemDeck</h2>
-        <p class="about-tagline" data-i18n="about.tagline">Open source. No subscriptions. Built by musicians, for musicians.</p>
+        <p class="about-tagline" data-i18n="about.tagline">Open source. No subscriptions.</p>
         <span class="about-version-badge" id="aboutVersion">…</span>
 
         <div class="about-primary-links">
@@ -1244,7 +1239,8 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
           </a>
         </div>
-        <p class="about-credits" data-i18n="about.credits">Song details from AcoustID, MusicBrainz (CC0), Wikipedia (CC BY-SA) and Wikidata (CC0). Band profiles from Discogs, with a Discogs token set. Lyrics from LRCLIB. Transcription by OpenAI Whisper (MIT).</p>
+        <p class="about-credits" data-i18n="about.credits">Wikipedia (CC BY-SA), MusicBrainz and Wikidata (CC0), Whisper (MIT).</p>
+        <a class="about-data-link" href="https://github.com/stemdeckapp/stemdeck/blob/main/docs/how-it-works.md#where-your-data-goes" target="_blank" rel="noopener noreferrer" data-i18n="about.dataLink">Where your data goes</a>
       </div>
     </div>
 
@@ -1262,11 +1258,6 @@
           <button type="submit" class="artist-search-btn" data-i18n="artist.search">Search</button>
         </form>
         <div class="artist-body" id="artistBody" aria-live="polite"></div>
-        <!-- What is sent where, at the foot of the box rather than the first thing
-             read in it. Outside the body, so it stays put while the body scrolls. -->
-        <footer class="artist-card-foot">
-          <p class="artist-privacy" data-i18n="artist.privacy">When a track is imported or opened, names from it (artist, song, album or show) are sent to MusicBrainz, Wikidata, Wikipedia and LRCLIB, and a name you search for here to Wikidata and Wikipedia. With an AcoustID key set, an audio fingerprint also goes to AcoustID. With a Discogs token set, the artist, song and album names also go to Discogs when this box opens, and so does a name you search for here that Wikipedia does not have. Nothing else is sent.</p>
-        </footer>
       </div>
     </div>
 
@@ -1297,7 +1288,7 @@
           </div>
           <p class="release-inapp-error hidden" id="releaseInappError"></p>
         </div>
-        <p class="release-full-download hidden" id="releaseFullDownload" data-i18n="release.fullDownload">This version is a full download rather than an update: press Download, unzip it, and run it. Your library stays as it is.</p>
+        <p class="release-full-download hidden" id="releaseFullDownload" data-i18n="release.fullDownload">Press Download, unzip it, and run it.</p>
         <div class="about-primary-links">
           <a class="about-link about-link-primary" id="releaseDownload" href="#" target="_blank" rel="noopener noreferrer" data-i18n="release.download">Download</a>
           <button class="about-link about-link-accent hidden" id="releaseDownloadApp" type="button" data-i18n="release.updateNow">Update now</button>
@@ -1323,7 +1314,7 @@
         <h2 id="failureTitle" data-i18n="failure.title">Something failed</h2>
         <span class="about-version-badge failure-when" id="failureWhen"></span>
         <p class="failure-message" id="failureMessage"></p>
-        <p class="failure-hint" data-i18n="failure.hint">These details go in the report. Your track title and source link are not included - add them yourself if they help. Clicking a button below copies this to your clipboard.</p>
+        <p class="failure-hint" data-i18n="failure.hint">Add the track title and source link if they help.</p>
         <pre class="failure-tech"><code id="failureTech"></code></pre>
         <button class="failure-logs-btn" id="failureIncludeLogs" type="button" data-i18n="failure.includeLogs">Include recent logs</button>
         <div class="about-primary-links">

@@ -529,7 +529,7 @@ function openDiscogsSettings() {
   settings?.querySelector(".set-discogs-token")?.focus();
 }
 
-// "Only Wikipedia was searched", and the button to the setting.
+// The offer of a Discogs token, and the button to the setting.
 function discogsSetupNote() {
   const note = el("div", "artist-discogs-note");
   const button = el("button", "artist-discogs-open", t("artist.discogsOpenSettings"));

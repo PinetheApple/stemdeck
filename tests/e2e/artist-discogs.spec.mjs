@@ -258,8 +258,7 @@ async function stubDiscogsSearch(page, answer = CANDIDATES) {
   return asked;
 }
 
-const NOTE =
-  "Only Wikipedia was searched. Add a free Discogs token in Settings, Song details, to also search Discogs, which covers many smaller and independent bands.";
+const NOTE = "Add a free Discogs token to search smaller bands too.";
 
 test.describe("artist box: only Wikipedia, or Discogs too", () => {
   test("with no token, a name Wikipedia does not know says so and opens Song details", async ({ page }) => {

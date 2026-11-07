@@ -52,14 +52,14 @@ async function installedAppOffered(page, check) {
 }
 
 test.describe("update dialog", () => {
-  test("a release that needs a new runtime says it is a full download", async ({ page }) => {
+  test("a release that needs a new runtime says how to install it", async ({ page }) => {
     await installedAppOffered(page, {
       supported: false,
       reason: "python dependencies changed (py3.12-aaaaaaaaaaaaaaaa -> py3.12-bbbbbbbbbbbbbbbb)",
     });
     const note = page.locator("#releaseFullDownload");
     await expect(note).toBeVisible();
-    await expect(note).toContainText("full download");
+    await expect(note).toContainText("unzip it");
     await expect(page.locator("#releaseDownloadApp")).toBeHidden();
     await expect(page.locator("#releaseDownload")).toHaveAttribute(
       "href",
