@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -85,6 +86,17 @@ def test_keeps_an_old_song_that_is_in_a_setlist(tmp_path: Path):
     assert kept_dir.is_dir() and listed.id in _jobs
     assert not swept_dir.exists() and ordinary.id not in _jobs
     assert setlists.list_all(tmp_path)[0]["song_ids"] == [listed.id]
+
+
+def test_an_unreadable_setlists_file_stops_the_sweep(tmp_path: Path, caplog):
+    kept_dir, job = _old_done_job(tmp_path, "abcdefabcd05")
+    setlists.setlists_path(tmp_path).write_text("{not json", encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING, logger="stemdeck.collect"):
+        sweep_old_jobs(tmp_path, ttl_seconds=60)
+
+    assert kept_dir.is_dir() and job.id in _jobs
+    assert any(r.name == "stemdeck.collect" for r in caplog.records)
 
 
 def test_deletion_is_off_unless_asked_for(monkeypatch):
