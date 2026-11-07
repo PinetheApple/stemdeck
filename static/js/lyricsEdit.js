@@ -3,6 +3,7 @@
 
 import { t, getLanguage } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
+import { toolButton, setToolLabel } from "./lyricsToolbar.js";
 import {
   ACCEPTED_FILE_TYPES,
   LYRICS_MAX_CHARS,
@@ -60,14 +61,14 @@ function retag(field) {
   deps.tagLang(field, field.value);
 }
 
-/** Show the links for what is on screen now; lyrics.js calls it on each draw. */
+/** Show the buttons for what is on screen now; lyrics.js calls it on each draw. */
 export function refreshEditBar() {
   if (!barEl) return;
   barEl.hidden = !deps.trackId() || Boolean(session);
-  editLink.textContent = t("lyrics.edit.open");
+  setToolLabel(editLink, t("lyrics.edit.open"));
   editLink.title = t("lyrics.edit.openTitle");
   editLink.hidden = !deps.editable().rows.length;
-  supplyLink.textContent = t("lyrics.supply.open");
+  setToolLabel(supplyLink, t("lyrics.supply.open"));
   supplyLink.title = t("lyrics.supply.openTitle");
 }
 
@@ -418,20 +419,21 @@ export async function restoreOriginal() {
 }
 
 /**
+ * The Edit lines and Paste or load lyrics buttons go in `toolbar`.
  * `dependencies`: trackId() the open track; editable() { rows, seedText } what
  * can be edited now; closeTools() leave Sync lines and Align; flush() save what
  * is waiting; tagLang(node, text); setStatus(text, kind); onSaved(trackId, data)
  * and onRestored(trackId, nothingLeft) to draw the answer.
  */
-export function initLyricsEdit(panel, versionsEl, dependencies) {
+export function initLyricsEdit(panel, toolbar, dependencies) {
   deps = dependencies;
   panelEl = panel;
   barEl = el("div", "lyrics-supply");
-  editLink = button("lyrics-link lyrics-edit-open", "", onEditLinkClick);
-  supplyLink = button("lyrics-link lyrics-supply-open", "", onSupplyLinkClick);
+  editLink = toolButton("lyrics-edit-open", "pencil", "", onEditLinkClick);
+  supplyLink = toolButton("lyrics-supply-open", "clipboard", "", onSupplyLinkClick);
   barEl.append(editLink, supplyLink);
   barEl.hidden = true;
-  versionsEl.after(barEl);
+  toolbar.append(barEl);
   hostEl = el("div", "lyrics-editor");
   hostEl.id = "lyricsEditor";
   hostEl.tabIndex = -1;
