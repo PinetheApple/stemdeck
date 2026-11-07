@@ -1,6 +1,5 @@
-// Edits made just before a song switch or a page close (#40). Each test makes the
-// race certain: it holds a save open with a route, or freezes the page's timers
-// so no save debounce can fire before the switch does.
+// Edits made just before a song switch or a page close. Each test holds a save open
+// with a route, or freezes the page's timers so no debounce fires before the switch.
 import { test, expect } from "@playwright/test";
 import { JOB_ID, SIBLING_JOB_ID, openStudio, waitForClickTrack } from "./helpers.mjs";
 
@@ -9,6 +8,7 @@ const STALE_BPM = 97;
 const TAP_GAP_MS = 400;
 const NUDGE_SEC = 0.01;
 const SIBLING_LENGTH_SEC = 2;
+const SETTLE_MS = 500;
 const TRACK_TIME = { [JOB_ID]: /\/\s*00:06\s*$/, [SIBLING_JOB_ID]: /\/\s*00:02\s*$/ };
 
 const sectionsUrl = (id) => `/api/jobs/${id}/sections`;
@@ -60,21 +60,48 @@ async function openSongTempo(page, id) {
   await expect(page.locator("#tempoModeConstant")).toBeEnabled();
 }
 
-/** Hold the first PATCH matching `pattern` until `release()`; `seen` resolves when it is sent. */
-async function holdFirstPatch(page, pattern) {
+/**
+ * Hold the first PATCH matching `pattern` until `release()`, then `answer` it.
+ * `seen` resolves when it is sent; `later` collects every PATCH after it.
+ */
+async function holdFirstPatch(page, pattern, answer = (route) => route.fallback()) {
   let release;
   const held = new Promise((resolve) => { release = resolve; });
   let markSeen;
   const seen = new Promise((resolve) => { markSeen = resolve; });
+  const later = [];
   let first = true;
   await page.route(pattern, async (route) => {
-    if (route.request().method() !== "PATCH" || !first) return route.fallback();
+    if (route.request().method() !== "PATCH") return route.fallback();
+    if (!first) {
+      later.push(route.request());
+      return route.fallback();
+    }
     first = false;
     markSeen(route.request());
     await held;
-    await route.fallback();
+    await answer(route);
   });
-  return { seen, release };
+  return { seen, release, later };
+}
+
+// A save the server refuses, and one whose request is lost, with the event that settles each.
+const FAILED_SAVES = {
+  refused: { answer: (route) => route.fulfill({ status: 422, json: { detail: "invalid" } }), settles: "requestfinished" },
+  lost: { answer: (route) => route.abort(), settles: "requestfailed" },
+};
+
+/** Let the held save fail, and wait until the page has its answer. */
+async function failHeldSave(page, hold, { settles }, url) {
+  const settled = page.waitForEvent(settles, (r) => r.url().endsWith(url));
+  hold.release();
+  await settled;
+}
+
+/** Close the page and give any save it sends on the way out time to arrive. */
+async function closeAndSettle(page) {
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(SETTLE_MS);
 }
 
 /** Stop the page's clock: from here a debounce fires only when the test runs time on. */
@@ -123,6 +150,22 @@ test.describe("sections", () => {
     release();
     await expect.poll(() => savedSections(request, JOB_ID).then((s) => s.length)).toBe(1);
   });
+
+  for (const [how, failure] of Object.entries(FAILED_SAVES)) {
+    test(`a ${how} section save is neither shown on reopen nor sent on close`, async ({ page }) => {
+      await openStudio(page);
+      const hold = await holdFirstPatch(page, `**${sectionsUrl(JOB_ID)}`, failure.answer);
+      await page.locator("#sectionsAddBtn").click();
+      await openSong(page, SIBLING_JOB_ID);
+      await hold.seen;
+      await failHeldSave(page, hold, failure, sectionsUrl(JOB_ID));
+      await openSong(page, JOB_ID);
+
+      await expect(page.locator(".section-block")).toHaveCount(0);
+      await closeAndSettle(page);
+      expect(hold.later).toEqual([]);
+    });
+  }
 
   test("a section added just before the page closes is saved", async ({ page, request }) => {
     await openStudio(page);
@@ -194,6 +237,21 @@ test.describe("beat grid", () => {
     await expect.poll(() => savedBarLength(request, JOB_ID)).toBe(3);
   });
 
+  for (const [how, failure] of Object.entries(FAILED_SAVES)) {
+    test(`a ${how} grid save is neither shown on reopen nor sent on close`, async ({ page }) => {
+      const hold = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`, failure.answer);
+      await setGridBars(page, 3);
+      await openSongTempo(page, SIBLING_JOB_ID);
+      await hold.seen;
+      await failHeldSave(page, hold, failure, beatsUrl(JOB_ID));
+      await openSongTempo(page, JOB_ID);
+
+      expect(await shownBarLength(page)).not.toBe(3);
+      await closeAndSettle(page);
+      expect(hold.later).toEqual([]);
+    });
+  }
+
   test("a grid save answered after a switch never puts its tempo on the new song", async ({ page }) => {
     await page.evaluate(() => {
       window.gridSaves = 0;
@@ -250,6 +308,23 @@ test.describe("tempo", () => {
     await page.reload({ waitUntil: "domcontentloaded" });
 
     await expect.poll(async () => (await savedTempo(request, JOB_ID)).bpm).toBeCloseTo(tapped, 5);
+  });
+
+  test("a grid edit after an unsent mode change closes on the mode the normal order gives", async ({ page, request }) => {
+    await page.clock.install();
+    await openTempo(page);
+    const { seen } = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`);
+    await page.locator("#tempoModeFollow").click();
+    await seen;
+    await freezeTimers(page);
+    await clickFrozen(page, "#tempoModeConstant");
+    await page.clock.runFor(1);
+    await setGridBars(page, 3);
+    await page.reload({ waitUntil: "domcontentloaded" });
+
+    await expect.poll(() => savedBarLength(request, JOB_ID)).toBe(3);
+    // Sent one after the other, the grid save drops the mode the tempo save set.
+    expect((await savedTempo(request, JOB_ID)).mode).toBe("follow");
   });
 
   test("a nudge queued behind a save in flight still reaches its song after a switch", async ({ page, request }) => {

@@ -1,5 +1,5 @@
-// A "Sync again" restore that finishes must put every panel on the restored song,
-// as opening it from the library does (#40).
+// A finished "Sync again" restore puts every panel on the restored song, as opening
+// it from the library does.
 import { test, expect } from "@playwright/test";
 import {
   JOB_ID,
@@ -78,7 +78,11 @@ test("a finished Sync again restore puts every panel on the restored song", asyn
 
   await expect(page.locator("#stageTitle")).toContainText(SIBLING_TITLE);
   await expect(page.locator("#upNextNow")).toContainText(SIBLING_TITLE);
-  await expect(page.locator("#tempoReadout")).toHaveText(RESTORED_BPM.toFixed(1));
   await expect(page.locator("#np-artist")).toHaveText(RESTORED_BAND.name);
   expect(await page.evaluate(() => window.openedTracks)).toContain(RESTORED_ID);
+
+  await page.locator("#stageExitBtn").click();
+  await openInspectorTab(page, "tempo");
+  await expect(page.locator("#tempoReadout")).toBeVisible();
+  await expect(page.locator("#tempoReadout")).toHaveText(RESTORED_BPM.toFixed(1));
 });
