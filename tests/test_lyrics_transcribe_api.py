@@ -201,10 +201,17 @@ def test_cancel_reaches_both_kinds_of_run(client):
 
 
 def test_cancel_during_a_split_reaches_a_queued_transcription(client):
-    job = done_job(vocal_split="running")
+    from app.pipeline.vocal_split import VOCAL_SPLIT_RUNS
+
+    done_job()
+    split = VOCAL_SPLIT_RUNS.claim(JOB_ID)
+    split.started = True
     transcription = tod.TRANSCRIBE_RUNS.claim(JOB_ID)
-    assert client.post(CANCEL).status_code == 200
-    assert job.cancel_requested
+    try:
+        assert client.post(CANCEL).status_code == 200
+    finally:
+        VOCAL_SPLIT_RUNS.forget(JOB_ID)
+    assert split.cancel.is_set()
     assert transcription.state == "cancelled"
 
 

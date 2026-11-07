@@ -142,17 +142,22 @@ def test_cancelling_a_running_vocal_split_terminates_it(monkeypatch):
     # runs on a done job, so it was uncancellable by construction while holding
     # _pipeline_lock and stalling the import queue.
     from app.api import jobs as _jobs_api
+    from app.pipeline.vocal_split import VOCAL_SPLIT_RUNS
 
     job = _job(status="done", title="Song")
-    job.vocal_split = "running"
     registry_register(job)
+    run = VOCAL_SPLIT_RUNS.claim(job.id)
+    run.started = True
 
     proc = _LiveProc()
     monkeypatch.setattr(_jobs_api, "registry_get_proc", lambda job_id: proc)
 
-    _jobs_api.cancel_job(job.id)
+    try:
+        _jobs_api.cancel_job(job.id)
+    finally:
+        VOCAL_SPLIT_RUNS.forget(job.id)
 
-    assert job.cancel_requested is True
+    assert run.cancel.is_set()
     assert proc.terminated, "the split ran to completion with the cancel button doing nothing"
 
 
