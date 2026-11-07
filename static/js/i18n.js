@@ -307,7 +307,8 @@ const en = {
   "lyrics.nothingKnown": "This track has no artist or song tags. Save its band with the ⓘ button on the now-playing card, and its lyrics will be looked up here.",
   "lyrics.removed": "Lyrics removed for this track.",
   "lyrics.lookAgain": "Look up again",
-  // ── Lane F (#41): lyrics kept with the song ──
+  // ── Lyrics saving (static/js/lyrics.js) ──
+  "notifKind.lyricsSaveFailed": "Lyrics not saved",
   "lyrics.keepFailed": "Could not keep these lyrics. Try again.",
   "lyrics.removeFailed": "Could not remove the lyrics. Try again.",
   "lyrics.loading": "Searching LRCLIB for “{song}”…",
@@ -1347,7 +1348,8 @@ const pl = {
   "lyrics.nothingKnown": "Ten utwór nie ma tagów wykonawcy ani tytułu. Zapisz jego zespół przyciskiem ⓘ na karcie odtwarzanego utworu, a tekst zostanie tu wyszukany.",
   "lyrics.removed": "Usunięto tekst tego utworu.",
   "lyrics.lookAgain": "Wyszukaj ponownie",
-  // ── Lane F (#41): lyrics kept with the song ──
+  // ── Lyrics saving (static/js/lyrics.js) ──
+  "notifKind.lyricsSaveFailed": "Nie zapisano tekstu",
   "lyrics.keepFailed": "Nie udało się zachować tego tekstu. Spróbuj ponownie.",
   "lyrics.removeFailed": "Nie udało się usunąć tekstu. Spróbuj ponownie.",
   "lyrics.loading": "Szukam „{song}” w LRCLIB…",
@@ -2378,7 +2380,8 @@ const ja = {
   "lyrics.nothingKnown": "この曲にはアーティストや曲名のタグがありません。再生中カードの ⓘ ボタンでバンドを保存すると、ここで歌詞を探します。",
   "lyrics.removed": "この曲の歌詞を削除しました。",
   "lyrics.lookAgain": "もう一度探す",
-  // ── Lane F (#41): lyrics kept with the song ──
+  // ── Lyrics saving (static/js/lyrics.js) ──
+  "notifKind.lyricsSaveFailed": "歌詞を保存できませんでした",
   "lyrics.keepFailed": "この歌詞を保存できませんでした。もう一度お試しください。",
   "lyrics.removeFailed": "歌詞を削除できませんでした。もう一度お試しください。",
   "lyrics.loading": "LRCLIB で「{song}」を検索中…",
@@ -3382,7 +3385,8 @@ const zhHans = {
   "lyrics.nothingKnown": "此曲目没有艺人或歌曲标签。用正在播放卡片上的 ⓘ 按钮保存它的乐队,歌词就会在这里查找。",
   "lyrics.removed": "已移除此曲目的歌词。",
   "lyrics.lookAgain": "重新查找",
-  // ── Lane F (#41): lyrics kept with the song ──
+  // ── Lyrics saving (static/js/lyrics.js) ──
+  "notifKind.lyricsSaveFailed": "歌词未保存",
   "lyrics.keepFailed": "无法保存这份歌词。请重试。",
   "lyrics.removeFailed": "无法移除歌词。请重试。",
   "lyrics.loading": "正在 LRCLIB 中搜索“{song}”…",
@@ -4386,7 +4390,8 @@ const de = {
   "lyrics.nothingKnown": "Dieser Track hat keine Tags für Künstler oder Song. Speichere seine Band mit der ⓘ-Taste auf der Karte „Wird abgespielt“, dann wird der Songtext hier gesucht.",
   "lyrics.removed": "Songtext für diesen Track entfernt.",
   "lyrics.lookAgain": "Erneut suchen",
-  // ── Lane F (#41): lyrics kept with the song ──
+  // ── Lyrics saving (static/js/lyrics.js) ──
+  "notifKind.lyricsSaveFailed": "Songtext nicht gespeichert",
   "lyrics.keepFailed": "Dieser Songtext konnte nicht gespeichert werden. Versuche es erneut.",
   "lyrics.removeFailed": "Der Songtext konnte nicht entfernt werden. Versuche es erneut.",
   "lyrics.loading": "„{song}“ wird auf LRCLIB gesucht…",
@@ -5402,7 +5407,8 @@ const pt = {
   "lyrics.nothingKnown": "Esta faixa não tem tags de artista nem de música. Salve a banda com o botão ⓘ no cartão Tocando agora e a letra será buscada aqui.",
   "lyrics.removed": "Letra removida desta faixa.",
   "lyrics.lookAgain": "Buscar de novo",
-  // ── Lane F (#41): lyrics kept with the song ──
+  // ── Lyrics saving (static/js/lyrics.js) ──
+  "notifKind.lyricsSaveFailed": "Letra não salva",
   "lyrics.keepFailed": "Não foi possível salvar esta letra. Tente novamente.",
   "lyrics.removeFailed": "Não foi possível remover a letra. Tente novamente.",
   "lyrics.loading": "Procurando “{song}” no LRCLIB…",
@@ -6420,7 +6426,8 @@ const id = {
   "lyrics.nothingKnown": "Trek ini tidak memiliki tag artis atau lagu. Simpan band-nya dengan tombol ⓘ di kartu Sedang diputar, lalu liriknya akan dicari di sini.",
   "lyrics.removed": "Lirik untuk trek ini dihapus.",
   "lyrics.lookAgain": "Cari lagi",
-  // ── Lane F (#41): lyrics kept with the song ──
+  // ── Lyrics saving (static/js/lyrics.js) ──
+  "notifKind.lyricsSaveFailed": "Lirik tidak tersimpan",
   "lyrics.keepFailed": "Lirik ini tidak dapat disimpan. Coba lagi.",
   "lyrics.removeFailed": "Lirik tidak dapat dihapus. Coba lagi.",
   "lyrics.loading": "Mencari “{song}” di LRCLIB…",
@@ -7424,7 +7431,8 @@ const fr = {
   "lyrics.nothingKnown": "Ce morceau n'a pas de tags d'artiste ni de chanson. Enregistrez son groupe avec le bouton ⓘ de la carte Lecture en cours, et ses paroles seront recherchées ici.",
   "lyrics.removed": "Paroles supprimées pour ce morceau.",
   "lyrics.lookAgain": "Rechercher à nouveau",
-  // ── Lane F (#41): lyrics kept with the song ──
+  // ── Lyrics saving (static/js/lyrics.js) ──
+  "notifKind.lyricsSaveFailed": "Paroles non enregistrées",
   "lyrics.keepFailed": "Impossible d'enregistrer ces paroles. Réessayez.",
   "lyrics.removeFailed": "Impossible de supprimer les paroles. Réessayez.",
   "lyrics.loading": "Recherche de « {song} » sur LRCLIB…",
@@ -8455,7 +8463,8 @@ const ptPT = {
   "conn.offline": "Não foi possível ligar ao StemDeck",
   "lyrics.nothingKnown": "Esta faixa não tem etiquetas de artista nem de música. Guarde a banda com o botão ⓘ no cartão A reproduzir e a letra será procurada aqui.",
   "lyrics.lookAgain": "Procurar de novo",
-  // ── Lane F (#41): lyrics kept with the song ──
+  // ── Lyrics saving (static/js/lyrics.js) ──
+  "notifKind.lyricsSaveFailed": "Letra não guardada",
   "lyrics.keepFailed": "Não foi possível guardar esta letra. Tente novamente.",
   "lyrics.edit.openTitle": "Corrija a letra: edite, adicione, elimine ou divida linhas",
   "help.lyricsEdit": "As linhas que não alterar mantêm os tempos. As linhas alteradas e novas podem ser sincronizadas depois.",
@@ -8661,7 +8670,8 @@ const es = {
   "lyrics.nothingKnown": "Esta pista no tiene etiquetas de artista ni de canción. Guarda su grupo con el botón ⓘ de la tarjeta Reproduciendo y su letra se buscará aquí.",
   "lyrics.removed": "Letra quitada de esta pista.",
   "lyrics.lookAgain": "Buscar de nuevo",
-  // ── Lane F (#41): lyrics kept with the song ──
+  // ── Lyrics saving (static/js/lyrics.js) ──
+  "notifKind.lyricsSaveFailed": "Letra no guardada",
   "lyrics.keepFailed": "No se pudo guardar esta letra. Inténtalo de nuevo.",
   "lyrics.removeFailed": "No se pudo quitar la letra. Inténtalo de nuevo.",
   "lyrics.loading": "Buscando «{song}» en LRCLIB…",
@@ -9700,7 +9710,8 @@ const ko = {
   "lyrics.nothingKnown": "이 트랙에는 아티스트나 곡 태그가 없습니다. 재생 중 카드의 ⓘ 버튼으로 밴드를 저장하면 여기서 가사를 찾습니다.",
   "lyrics.removed": "이 트랙의 가사를 삭제했습니다.",
   "lyrics.lookAgain": "다시 찾기",
-  // ── Lane F (#41): lyrics kept with the song ──
+  // ── Lyrics saving (static/js/lyrics.js) ──
+  "notifKind.lyricsSaveFailed": "가사를 저장하지 못했어요",
   "lyrics.keepFailed": "이 가사를 저장할 수 없었습니다. 다시 시도하세요.",
   "lyrics.removeFailed": "가사를 삭제할 수 없었습니다. 다시 시도하세요.",
   "lyrics.loading": "LRCLIB에서 '{song}' 검색 중…",
