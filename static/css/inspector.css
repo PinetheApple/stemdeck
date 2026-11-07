@@ -200,6 +200,15 @@
 .tempo-tool-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-1); }
 .tempo-tool-grid .tempo-btn > span { overflow: hidden; text-overflow: ellipsis; }
 .tempo-status { margin: 0; font-size: var(--fs-xs); color: var(--warn); }
+.tempo-accent-override[hidden] { display: none; }
+.tempo-accent-override-text {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--accent);
+}
 .tempo-reset { margin-left: auto; }
 .tempo-reset:disabled:hover { background: none; color: var(--text-2); }
 .inspector .footer-group-click {
@@ -229,6 +238,15 @@
   position: static;
 }
 .inspector #t-metro-more { display: none; }
+.inspector .metro-select-wrap.active .metro-select,
+.inspector .metro-select-wrap.active .metro-select:hover:not(:disabled) {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.inspector .metro-select-wrap.active .metro-select:focus,
+.inspector .metro-select-wrap.active .metro-select:focus:hover:not(:disabled) { border-color: var(--accent); }
+.inspector .metro-select-wrap.active > .ic { color: var(--accent); }
 .inspector .metro-countin-hint { flex-basis: 100%; order: 1; font-size: var(--fs-xs); color: var(--text-3); }
 .inspector .metro-note {
   margin: 0;

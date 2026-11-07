@@ -769,6 +769,10 @@
                 <input class="tempo-field num" id="tempoBeatsPerBar" type="number" step="1" inputmode="numeric" disabled>
                 <button class="tempo-detected" id="tempoBeatsPerBarDetected" type="button" data-tempo-field="beats_per_bar" title="Back to the detected value" data-i18n-title="tempo.resetFieldTitle" hidden><span></span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
               </div>
+              <div class="tempo-row tempo-accent-override" id="tempoAccentOverride" hidden>
+                <p class="tempo-accent-override-text" id="tempoAccentOverrideText" role="status"></p>
+                <button class="inspector-quiet-btn" id="tempoAccentUseAuto" type="button" data-i18n="tempo.accentUseAuto">Use Auto</button>
+              </div>
               <div class="tempo-row">
                 <p class="tempo-status" id="tempoStatus" role="status" hidden></p>
                 <button class="inspector-quiet-btn tempo-reset" id="tempoReset" type="button" title="Go back to the detected tempo, beat 1 and meter" aria-label="Reset to detected tempo" data-i18n-title="tempo.resetTitle" data-i18n-aria-label="tempo.resetAria" data-i18n="tempo.reset" disabled>Reset to detected</button>
@@ -834,7 +838,7 @@
                     <option value="custom" data-i18n="click.barCustom">Custom...</option>
                   </select>
                 </span>
-                <input type="number" id="t-metro-bar-custom" class="metro-custom-beats hidden" min="1" max="32" step="1" value="4" title="Beats per bar" data-i18n-title="click.barCustomTitle" aria-label="Beats per bar" data-i18n-aria-label="click.barCustomTitle">
+                <input type="number" id="t-metro-bar-custom" class="metro-custom-beats hidden" min="1" max="32" step="1" value="4" title="Beats between accents" data-i18n-title="click.barCustomTitle" aria-label="Beats between accents" data-i18n-aria-label="click.barCustomTitle">
                 <input type="text" id="t-metro-group" class="metro-group hidden" inputmode="numeric" size="7" placeholder="3+2+2" title="How the bar divides, e.g. 3+2+2. Blank uses the usual grouping for the meter." data-i18n-title="click.groupTitle" aria-label="Beat grouping" data-i18n-aria-label="click.groupAria">
                 <button class="click-toggle-btn" id="t-metro-edit" type="button" title="Edit the beat grid" data-i18n-title="click.editTitle" aria-pressed="false">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">

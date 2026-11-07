@@ -1,4 +1,4 @@
-import { fmtTime, fmtTickLabel, fmtTimeMs, parseTimecode, storeGet, storeSet } from "./utils.js";
+import { $, fmtTime, fmtTickLabel, fmtTimeMs, parseTimecode, storeGet, storeSet } from "./utils.js";
 import { MIN_LOOP_SEC, loopDragResult } from "./loopRegion.js";
 import { tickStepAt } from "./rulerTicks.js";
 import {
@@ -28,7 +28,10 @@ import {
 } from "./state.js";
 import { applyMix, nudgeAllLanePitches, resetAllLanePitches } from "./mixer.js";
 import { isDownbeatIndex, barPositionIndex, getBeats as getGridBeats, getBars as getGridBars } from "./beatgrid.js";
-import { computeCountIn, defaultGrouping, normaliseGrouping } from "./metronome.js";
+import {
+  accentOverride, computeCountIn, defaultGrouping, normaliseGrouping,
+  OVERRIDE_LENGTH, OVERRIDE_OFF, OVERRIDE_UNALIGNED,
+} from "./metronome.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { pitchBlockedKey } from "./pitchBus.js";
 import { refitFooter } from "./footerFit.js";
@@ -1158,6 +1161,11 @@ function wireSpeedControl() {
 
 const _METRO_PREFS_KEY = "stemdeck:metronome";
 const AUTO_BEATS_PER_BAR = -1;
+const ACCENT_OVERRIDE_NOTE = {
+  [OVERRIDE_OFF]: "tempo.accentOverrideOff",
+  [OVERRIDE_LENGTH]: "tempo.accentOverride",
+  [OVERRIDE_UNALIGNED]: "tempo.accentOverrideUnaligned",
+};
 
 function _saveMetroPrefs() {
   storeSet(_METRO_PREFS_KEY, {
@@ -1178,6 +1186,7 @@ function _saveMetroPrefs() {
  * detection can be wrong and because some players want no accent at all.
  */
 export function applyMetronomeAccent() {
+  renderAccentState();
   if (!metronome) return;
   // Grouping is only applied to an explicit meter; under bar marks each bar is
   // grouped by its own length instead (#595), which is why the position lookup
@@ -1191,6 +1200,48 @@ export function applyMetronomeAccent() {
     metronome.setBarPositionFn?.(null);
     metronome.setBeatsPerBar?.(Math.max(0, metronomeBeatsPerBar));
   }
+}
+
+const _singleBarLength = (bars) => (bars.length === 1 ? bars[0].beats_per_bar : null);
+
+function _autoOptionLabel(bars) {
+  if (!metronome) return t("click.auto");
+  if (!bars.length) return t("click.autoNone");
+  const beats = _singleBarLength(bars);
+  return beats ? t("click.autoBeats", { beats }) : t("click.auto");
+}
+
+function _accentAriaLabel(bars, override) {
+  const accent = metronomeBeatsPerBar;
+  if (!bars.length) return t("click.barAccentAria");
+  if (accent < 0) {
+    const beats = _singleBarLength(bars);
+    return beats ? t("click.barAccentAriaAuto", { beats }) : t("click.barAccentAriaAutoBars");
+  }
+  if (accent === 0) return t("click.barAccentAriaOff");
+  return t(override ? "click.barAccentAriaOverride" : "click.barAccentAriaMatch", { accent });
+}
+
+export function renderAccentState() {
+  if (!metroBarEl) return;
+  const bars = metronome ? getGridBars() : [];
+  const override = accentOverride(metronomeBeatsPerBar, bars);
+  $("tempoAccentOverride").hidden = !override;
+  $("tempoAccentOverrideText").textContent = override
+    ? t(ACCENT_OVERRIDE_NOTE[override], { accent: metronomeBeatsPerBar, bar: bars[0].beats_per_bar })
+    : "";
+  metroBarEl.parentElement?.classList.toggle("active", Boolean(override));
+  metroBarEl.setAttribute("aria-label", _accentAriaLabel(bars, override));
+  const autoOpt = metroBarEl.querySelector(`option[value="${AUTO_BEATS_PER_BAR}"]`);
+  if (autoOpt) {
+    autoOpt.disabled = Boolean(metronome) && !bars.length;
+    autoOpt.textContent = _autoOptionLabel(bars);
+  }
+}
+
+function _onAccentUseAutoClick() {
+  setMetronomeAccentAuto();
+  metroBarEl?.focus();
 }
 
 function _renderMetroVolume() {
@@ -1460,6 +1511,7 @@ export function updateMetronomeAvailability(grid, reason = "") {
     metroBtn.classList.remove("active");
     metroBtn.setAttribute("aria-pressed", "false");
     setMetroOptionsAvailable(false);
+    renderAccentState();
     if (metroNoteEl) { metroNoteEl.textContent = reason || ""; metroNoteEl.className = "metro-note"; }
     // Still re-fits: the options keep their width now rather than leaving, so
     // the row is wider in this state than it used to be and may need to
@@ -1473,11 +1525,6 @@ export function updateMetronomeAvailability(grid, reason = "") {
   setMetroOptionsAvailable(true);
   refitFooter(); // see the matching call on the unavailable path above
   setMetronomeHasBars(Array.isArray(grid.bars) && grid.bars.length > 0);
-  const autoOpt = metroBarEl?.querySelector('option[value="-1"]');
-  if (autoOpt) {
-    autoOpt.disabled = !metronomeHasBars;
-    autoOpt.textContent = metronomeHasBars ? t("click.auto") : t("click.autoNone");
-  }
   _renderMetroBar();
   _renderMetroNote(grid);
 }
@@ -1595,6 +1642,8 @@ function wireMetronomeControl() {
   if (!metroBtn) return;
   wireFooterPopovers();
   onLanguageChange(_renderMetroVolume);
+  onLanguageChange(renderAccentState);
+  $("tempoAccentUseAuto")?.addEventListener("click", _onAccentUseAutoClick);
 
   // Restore preferences before the first track loads so the click comes back
   // on exactly as the user left it.
@@ -1612,6 +1661,8 @@ function wireMetronomeControl() {
     }
     _renderMetroVolume();
     _renderMetroBar();
+    applyMetronomeAccent();
+    if (_lastGrid) _renderMetroNote(_lastGrid);
     _renderCountIn();
     if (metronomeEnabled && !metroBtn.disabled) {
       metroBtn.classList.add("active");

@@ -32,7 +32,7 @@ test.describe("click track", () => {
 
     // Bar marks present, so the detected-meter accent mode is live rather than
     // silently degrading to "none found".
-    await expect(page.locator('#t-metro-bar option[value="-1"]')).toHaveText("Auto");
+    await expect(page.locator('#t-metro-bar option[value="-1"]')).toHaveText("Auto · 4");
     await expect(page.locator('#t-metro-bar option[value="-1"]')).toBeEnabled();
   });
 

@@ -99,6 +99,21 @@ export function levelAt(offset, beatsPerBar, groups) {
     : LEVEL_WEAK;
 }
 
+export const OVERRIDE_OFF = "off";
+export const OVERRIDE_LENGTH = "length";
+export const OVERRIDE_UNALIGNED = "unaligned";
+
+// How the accent departs from the grid's bar lines, or null when it lands on them.
+// A number counts from beat 0, so it matches only if the first mark is there too.
+export function accentOverride(accentMode, bars) {
+  if (accentMode < 0 || !bars.length) return null;
+  if (accentMode === 0) return OVERRIDE_OFF;
+  const landsOnBars = bars[0].beat === 0
+    && bars.every((b) => b.beats_per_bar === accentMode && b.beat % accentMode === 0);
+  if (landsOnBars) return null;
+  return bars.length === 1 && bars[0].beats_per_bar !== accentMode ? OVERRIDE_LENGTH : OVERRIDE_UNALIGNED;
+}
+
 // ─── Count-in (issue #269) ───────────────────────────────────────────────
 //
 // A count-in is one bar of click *before* playback, leading into the start

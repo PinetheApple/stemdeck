@@ -36,7 +36,7 @@ logger = logging.getLogger("stemdeck.tempo")
 
 USER_SETTABLE_KEYS = ("mode", "bpm", "anchor", "beats_per_bar")
 DETECTED_KEYS = ("bpm", "anchor", "beats_per_bar")
-EDITOR_ONLY_TEMPO_KEYS = ("detected", "user_keys")
+EDITOR_ONLY_TEMPO_KEYS = ("detected", "user_keys", "bars_edited")
 
 
 def _read_json(path: Path) -> dict | None:
@@ -182,6 +182,7 @@ def effective_grid(grid: dict, edits: dict | None) -> dict:
     user = _user_tempo(edits)
     follow_edits = bool(edited_beats) and "mode" not in user
     tempo = _merged_tempo(grid.get("tempo") or {}, user, follow_edits)
+    tempo["bars_edited"] = edited_bars and tempo["mode"] != MODE_CONSTANT
     out["edited"] = bool(edited_beats or user)
 
     duration = float(grid.get("duration") or 0.0)
