@@ -3610,7 +3610,6 @@ input, textarea { font-family: inherit; }
   border-radius: 18px; box-shadow: 0 24px 64px rgba(0,0,0,0.6);
   padding: 28px 24px 24px; text-align: center;
   position: relative; display: flex; flex-direction: column; align-items: center; gap: 0;
-  max-height: calc(100vh - var(--s-6)); overflow-y: auto;
 }
 .about-close {
   position: absolute; top: 12px; right: 12px;
@@ -3677,8 +3676,10 @@ input, textarea { font-family: inherit; }
 }
 .about-social-btn:hover { background: var(--accent); border-color: var(--accent); color: #000; }
 .about-credits { margin: 16px 0 0; font-size: 10.5px; line-height: 1.5; color: var(--muted); }
+.app-about-card { max-height: calc(100vh - var(--s-6)); }
 .about-data {
   width: 100%; margin-top: var(--s-4); text-align: left;
+  min-height: 0; overflow-y: auto;
   border-top: 1px solid var(--border); padding-top: var(--s-3);
 }
 .about-data-summary {

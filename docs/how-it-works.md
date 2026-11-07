@@ -6,20 +6,23 @@ The app keeps its screens short. This page has the detail behind them.
 
 ## Where your data goes
 
-Separation, analysis and lyric transcription run on the machine running StemDeck. For song
-details, lyrics and band info, these are the only things it sends, and where:
+Separation, analysis and transcription run on the computer running StemDeck, and your audio is
+never uploaded. These are the only things it sends, and where:
 
 | Sent to | What | When |
 |---|---|---|
 | MusicBrainz, Wikidata, Wikipedia, LRCLIB | Names from the track: artist, song, album or show | When a track is imported or opened |
-| Wikidata, Wikipedia | A band or artist name you type | When you search in the song details box |
+| Wikidata, Wikipedia | A band or artist name you type | When you search in About this song |
 | AcoustID | An audio fingerprint, never the audio itself | On import, only with an AcoustID key saved |
-| Discogs | The artist, song and album names | When the song details box opens for a band Wikipedia has no history, members or albums for, only with a Discogs token saved |
+| Discogs | The artist, song and album or show names | When About this song opens for a band Wikipedia has no history, members or albums for, only with a Discogs token saved |
 | Discogs | A band or artist name you type | When you search for a name Wikipedia does not have, only with a Discogs token saved |
+| Wikimedia Commons | A photo's file name and your IP | When About this song shows a band or work photo |
+| YouTube, or the site you import from | The link or search text you enter | When you import from a link or a search |
+| GitHub | Your IP | When StemDeck checks for updates as it opens |
+| Model downloads | Only your IP | Once per model, at desktop setup or on first use |
 
-Nothing else is sent for song details, lyrics or band info. The page never talks to Discogs
-itself: your token stays on the server, which makes the request. Importing from a link or a
-search fetches the song from that site, as you would expect.
+Nothing else is sent. The page never talks to Discogs itself: your token stays on the server,
+which makes the request.
 
 **Licences.** Text from Wikipedia is CC BY-SA. Data from MusicBrainz and Wikidata is CC0.
 Lyric transcription uses OpenAI Whisper, which is MIT licensed; see [Model licenses](models.md)

@@ -1199,7 +1199,7 @@
 
     <!-- About dialog -->
     <div class="about-backdrop hidden" id="aboutDialog" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
-      <div class="about-card">
+      <div class="about-card app-about-card">
         <button class="about-close" id="aboutClose" type="button" aria-label="Close about dialog" data-i18n-aria-label="about.closeAria">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
@@ -1249,11 +1249,15 @@
         <details class="about-data" id="aboutData">
           <summary class="about-data-summary" id="aboutDataSummary" data-i18n="about.data.summary">Where your data goes</summary>
           <ul class="about-data-list" id="aboutDataList">
-            <li data-i18n="about.data.audio">Your audio never leaves the computer running StemDeck.</li>
-            <li data-i18n="about.data.names">MusicBrainz, Wikidata, Wikipedia and LRCLIB get the artist, song and album names when a track is imported or opened.</li>
+            <li data-i18n="about.data.audio">Separation, analysis and transcription run on the computer running StemDeck, and your audio is never uploaded.</li>
+            <li data-i18n="about.data.names">MusicBrainz, Wikidata, Wikipedia and LRCLIB get the artist, song and album or show names when a track is imported or opened.</li>
             <li data-i18n="about.data.search">Wikidata and Wikipedia get a band name you search for in About this song.</li>
             <li data-i18n="about.data.acoustid">AcoustID gets an audio fingerprint on import, only if you saved an AcoustID key.</li>
             <li data-i18n="about.data.discogs">Discogs gets the same names, or a name you type, when Wikipedia lacks the band's details, only if you saved a Discogs token.</li>
+            <li data-i18n="about.data.commons">Wikimedia Commons gets a photo's file name and your IP when About this song shows a band or work photo.</li>
+            <li data-i18n="about.data.import">YouTube, or the site you import from, gets the link or search text you enter.</li>
+            <li data-i18n="about.data.github">GitHub gets your IP when StemDeck checks for updates as it opens.</li>
+            <li data-i18n="about.data.models">Model files download once, at desktop setup or on first use, sending only your IP.</li>
           </ul>
         </details>
       </div>

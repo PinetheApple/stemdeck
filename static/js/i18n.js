@@ -1236,11 +1236,15 @@ const en = {
   "setlists.songCount.one": "{count} song",
   "setlists.songCount.other": "{count} songs",
   "about.data.summary": "Where your data goes",
-  "about.data.audio": "Your audio never leaves the computer running StemDeck.",
-  "about.data.names": "MusicBrainz, Wikidata, Wikipedia and LRCLIB get the artist, song and album names when a track is imported or opened.",
+  "about.data.audio": "Separation, analysis and transcription run on the computer running StemDeck, and your audio is never uploaded.",
+  "about.data.names": "MusicBrainz, Wikidata, Wikipedia and LRCLIB get the artist, song and album or show names when a track is imported or opened.",
   "about.data.search": "Wikidata and Wikipedia get a band name you search for in About this song.",
   "about.data.acoustid": "AcoustID gets an audio fingerprint on import, only if you saved an AcoustID key.",
   "about.data.discogs": "Discogs gets the same names, or a name you type, when Wikipedia lacks the band's details, only if you saved a Discogs token.",
+  "about.data.commons": "Wikimedia Commons gets a photo's file name and your IP when About this song shows a band or work photo.",
+  "about.data.import": "YouTube, or the site you import from, gets the link or search text you enter.",
+  "about.data.github": "GitHub gets your IP when StemDeck checks for updates as it opens.",
+  "about.data.models": "Model files download once, at desktop setup or on first use, sending only your IP.",
 };
 
 const pl = {
@@ -2253,11 +2257,15 @@ const pl = {
   "setlists.songCount.few": "{count} utwory",
   "setlists.songCount.many": "{count} utworów",
   "about.data.summary": "Dokąd trafiają Twoje dane",
-  "about.data.audio": "Twoje nagrania nigdy nie opuszczają komputera, na którym działa StemDeck.",
-  "about.data.names": "MusicBrainz, Wikidane, Wikipedia i LRCLIB dostają nazwę wykonawcy, utworu i albumu przy imporcie lub otwarciu utworu.",
+  "about.data.audio": "Separacja, analiza i transkrypcja działają na komputerze, na którym działa StemDeck, a Twoje nagrania nigdy nie są wysyłane.",
+  "about.data.names": "MusicBrainz, Wikidane, Wikipedia i LRCLIB dostają nazwę wykonawcy, utworu oraz albumu lub spektaklu przy imporcie lub otwarciu utworu.",
   "about.data.search": "Wikidane i Wikipedia dostają nazwę zespołu, którą wyszukujesz w oknie O tym utworze.",
   "about.data.acoustid": "AcoustID dostaje odcisk dźwięku przy imporcie, tylko jeśli zapisano klucz AcoustID.",
   "about.data.discogs": "Discogs dostaje te same nazwy lub wpisaną nazwę, gdy Wikipedii brakuje informacji o zespole, tylko jeśli zapisano token Discogs.",
+  "about.data.commons": "Wikimedia Commons dostaje nazwę pliku zdjęcia i Twój adres IP, gdy okno O tym utworze pokazuje zdjęcie zespołu lub dzieła.",
+  "about.data.import": "YouTube lub strona, z której importujesz, dostaje wpisany link lub tekst wyszukiwania.",
+  "about.data.github": "GitHub dostaje Twój adres IP, gdy StemDeck przy uruchomieniu sprawdza aktualizacje.",
+  "about.data.models": "Pliki modeli pobierają się raz, przy konfiguracji aplikacji desktopowej lub przy pierwszym użyciu, wysyłając tylko Twój adres IP.",
 };
 
 const ja = {
@@ -3243,11 +3251,15 @@ const ja = {
   "rename.rejected": "新しい名前を保存できませんでした: {reason}",
   "setlists.songCount.other": "{count} 曲",
   "about.data.summary": "データの送信先",
-  "about.data.audio": "音声は StemDeck を実行しているコンピューターの外に出ません。",
-  "about.data.names": "MusicBrainz・Wikidata・Wikipedia・LRCLIB には、トラックを取り込んだときや開いたときにアーティスト名・曲名・アルバム名が送られます。",
+  "about.data.audio": "分離・解析・文字起こしは StemDeck を実行しているコンピューター上で行われ、音声がアップロードされることはありません。",
+  "about.data.names": "MusicBrainz・Wikidata・Wikipedia・LRCLIB には、トラックを取り込んだときや開いたときにアーティスト名・曲名・アルバム名または作品名が送られます。",
   "about.data.search": "Wikidata と Wikipedia には、「この曲について」で検索したバンド名が送られます。",
   "about.data.acoustid": "AcoustID には、取り込み時に音声フィンガープリントが送られます（AcoustID キーを保存した場合のみ）。",
   "about.data.discogs": "Discogs には、Wikipedia にバンドの情報が足りないとき、同じ名前か入力した名前が送られます（Discogs トークンを保存した場合のみ）。",
+  "about.data.commons": "「この曲について」でバンドや作品の写真を表示するとき、Wikimedia Commons には写真のファイル名と IP アドレスが送られます。",
+  "about.data.import": "YouTube など取り込み元のサイトには、入力したリンクや検索語が送られます。",
+  "about.data.github": "StemDeck の起動時に更新を確認するとき、GitHub には IP アドレスが送られます。",
+  "about.data.models": "モデルファイルはデスクトップ版のセットアップ時か初回使用時に一度だけダウンロードされ、送られるのは IP アドレスだけです。",
 };
 
 const zhHans = {
@@ -4233,11 +4245,15 @@ const zhHans = {
   "rename.rejected": "无法保存新名称：{reason}",
   "setlists.songCount.other": "{count} 首",
   "about.data.summary": "你的数据去向",
-  "about.data.audio": "你的音频绝不会离开运行 StemDeck 的电脑。",
-  "about.data.names": "导入或打开曲目时，MusicBrainz、维基数据、维基百科和 LRCLIB 会收到艺人名、歌曲名和专辑名。",
+  "about.data.audio": "分离、分析和转录都在运行 StemDeck 的电脑上进行，你的音频绝不会被上传。",
+  "about.data.names": "导入或打开曲目时，MusicBrainz、维基数据、维基百科和 LRCLIB 会收到艺人名、歌曲名，以及专辑名或剧目名。",
   "about.data.search": "在“关于这首歌”中搜索乐队时，维基数据和维基百科会收到你搜索的乐队名。",
   "about.data.acoustid": "导入时，AcoustID 会收到音频指纹，仅在你保存了 AcoustID 密钥时。",
   "about.data.discogs": "维基百科缺少乐队信息时，Discogs 会收到同样的名称或你输入的名称，仅在你保存了 Discogs 令牌时。",
+  "about.data.commons": "“关于这首歌”显示乐队或作品照片时，维基共享资源会收到照片文件名和你的 IP 地址。",
+  "about.data.import": "YouTube 或你导入来源的网站会收到你输入的链接或搜索词。",
+  "about.data.github": "StemDeck 启动时检查更新，GitHub 会收到你的 IP 地址。",
+  "about.data.models": "模型文件只下载一次，在桌面版设置时或首次使用时，只发送你的 IP 地址。",
 };
 
 const de = {
@@ -5235,11 +5251,15 @@ const de = {
   "setlists.songCount.one": "{count} Song",
   "setlists.songCount.other": "{count} Songs",
   "about.data.summary": "Wohin deine Daten gehen",
-  "about.data.audio": "Dein Audio verlässt nie den Computer, auf dem StemDeck läuft.",
-  "about.data.names": "MusicBrainz, Wikidata, Wikipedia und LRCLIB erhalten Künstler-, Song- und Albumnamen, wenn ein Track importiert oder geöffnet wird.",
+  "about.data.audio": "Trennung, Analyse und Transkription laufen auf dem Computer, auf dem StemDeck läuft, und dein Audio wird nie hochgeladen.",
+  "about.data.names": "MusicBrainz, Wikidata, Wikipedia und LRCLIB erhalten Künstler-, Song- und Album- oder Shownamen, wenn ein Track importiert oder geöffnet wird.",
   "about.data.search": "Wikidata und Wikipedia erhalten einen Bandnamen, nach dem du in „Über diesen Song“ suchst.",
   "about.data.acoustid": "AcoustID erhält beim Import einen Audio-Fingerabdruck, nur wenn ein AcoustID-Schlüssel gespeichert ist.",
   "about.data.discogs": "Discogs erhält dieselben Namen oder einen eingegebenen Namen, wenn Wikipedia Angaben zur Band fehlen, nur wenn ein Discogs-Token gespeichert ist.",
+  "about.data.commons": "Wikimedia Commons erhält den Dateinamen eines Fotos und deine IP, wenn „Über diesen Song“ ein Band- oder Werkfoto zeigt.",
+  "about.data.import": "YouTube oder die Seite, von der du importierst, erhält den eingegebenen Link oder Suchtext.",
+  "about.data.github": "GitHub erhält deine IP, wenn StemDeck beim Start nach Updates sucht.",
+  "about.data.models": "Modelldateien werden einmal geladen, beim Einrichten der Desktop-App oder bei der ersten Nutzung, und senden nur deine IP.",
 };
 
 const pt = {
@@ -6239,11 +6259,15 @@ const pt = {
   "setlists.songCount.one": "{count} música",
   "setlists.songCount.other": "{count} músicas",
   "about.data.summary": "Para onde vão seus dados",
-  "about.data.audio": "Seu áudio nunca sai do computador que executa o StemDeck.",
-  "about.data.names": "MusicBrainz, Wikidata, Wikipédia e LRCLIB recebem os nomes do artista, da música e do álbum quando uma faixa é importada ou aberta.",
+  "about.data.audio": "Separação, análise e transcrição rodam no computador que executa o StemDeck, e seu áudio nunca é enviado.",
+  "about.data.names": "MusicBrainz, Wikidata, Wikipédia e LRCLIB recebem os nomes do artista, da música e do álbum ou espetáculo quando uma faixa é importada ou aberta.",
   "about.data.search": "Wikidata e Wikipédia recebem o nome de banda que você pesquisa em Sobre esta música.",
   "about.data.acoustid": "O AcoustID recebe uma impressão digital do áudio na importação, só se você salvou uma chave do AcoustID.",
   "about.data.discogs": "O Discogs recebe os mesmos nomes, ou um nome que você digita, quando faltam dados da banda na Wikipédia, só se você salvou um token do Discogs.",
+  "about.data.commons": "O Wikimedia Commons recebe o nome do arquivo de uma foto e seu IP quando Sobre esta música mostra uma foto da banda ou da obra.",
+  "about.data.import": "O YouTube, ou o site de onde você importa, recebe o link ou o texto de busca que você digita.",
+  "about.data.github": "O GitHub recebe seu IP quando o StemDeck procura atualizações ao abrir.",
+  "about.data.models": "Os arquivos de modelo são baixados uma vez, na configuração do app para desktop ou no primeiro uso, enviando só seu IP.",
 };
 
 const id = {
@@ -7229,11 +7253,15 @@ const id = {
   "rename.rejected": "Nama baru tidak dapat disimpan: {reason}",
   "setlists.songCount.other": "{count} lagu",
   "about.data.summary": "Ke mana data Anda pergi",
-  "about.data.audio": "Audio Anda tidak pernah meninggalkan komputer yang menjalankan StemDeck.",
-  "about.data.names": "MusicBrainz, Wikidata, Wikipedia, dan LRCLIB menerima nama artis, lagu, dan album saat trek diimpor atau dibuka.",
+  "about.data.audio": "Pemisahan, analisis, dan transkripsi berjalan di komputer yang menjalankan StemDeck, dan audio Anda tidak pernah diunggah.",
+  "about.data.names": "MusicBrainz, Wikidata, Wikipedia, dan LRCLIB menerima nama artis, lagu, dan album atau pertunjukan saat trek diimpor atau dibuka.",
   "about.data.search": "Wikidata dan Wikipedia menerima nama band yang Anda cari di Tentang lagu ini.",
   "about.data.acoustid": "AcoustID menerima sidik jari audio saat impor, hanya jika Anda menyimpan kunci AcoustID.",
   "about.data.discogs": "Discogs menerima nama yang sama, atau nama yang Anda ketik, saat Wikipedia kurang lengkap tentang band itu, hanya jika Anda menyimpan token Discogs.",
+  "about.data.commons": "Wikimedia Commons menerima nama berkas foto dan IP Anda saat Tentang lagu ini menampilkan foto band atau karya.",
+  "about.data.import": "YouTube, atau situs tempat Anda mengimpor, menerima tautan atau teks pencarian yang Anda masukkan.",
+  "about.data.github": "GitHub menerima IP Anda saat StemDeck memeriksa pembaruan ketika dibuka.",
+  "about.data.models": "Berkas model diunduh sekali, saat penyiapan aplikasi desktop atau pemakaian pertama, dengan hanya mengirim IP Anda.",
 };
 
 const fr = {
@@ -8233,11 +8261,15 @@ const fr = {
   "setlists.songCount.one": "{count} morceau",
   "setlists.songCount.other": "{count} morceaux",
   "about.data.summary": "Où vont vos données",
-  "about.data.audio": "Votre audio ne quitte jamais l'ordinateur qui exécute StemDeck.",
-  "about.data.names": "MusicBrainz, Wikidata, Wikipédia et LRCLIB reçoivent les noms de l'artiste, du morceau et de l'album à l'import ou à l'ouverture d'une piste.",
+  "about.data.audio": "La séparation, l'analyse et la transcription se font sur l'ordinateur qui exécute StemDeck, et votre audio n'est jamais envoyé.",
+  "about.data.names": "MusicBrainz, Wikidata, Wikipédia et LRCLIB reçoivent les noms de l'artiste, du morceau et de l'album ou du spectacle à l'import ou à l'ouverture d'une piste.",
   "about.data.search": "Wikidata et Wikipédia reçoivent le nom de groupe que vous cherchez dans À propos de ce morceau.",
   "about.data.acoustid": "AcoustID reçoit une empreinte audio à l'import, seulement si une clé AcoustID est enregistrée.",
   "about.data.discogs": "Discogs reçoit les mêmes noms, ou un nom saisi, quand Wikipédia manque d'informations sur le groupe, seulement si un jeton Discogs est enregistré.",
+  "about.data.commons": "Wikimedia Commons reçoit le nom de fichier d'une photo et votre IP quand À propos de ce morceau affiche une photo du groupe ou de l'œuvre.",
+  "about.data.import": "YouTube, ou le site d'où vous importez, reçoit le lien ou le texte de recherche saisi.",
+  "about.data.github": "GitHub reçoit votre IP quand StemDeck cherche des mises à jour à son ouverture.",
+  "about.data.models": "Les fichiers de modèle se téléchargent une fois, à l'installation de l'application de bureau ou à la première utilisation, en n'envoyant que votre IP.",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -8439,10 +8471,15 @@ const ptPT = {
   "rename.failed": "Não foi possível guardar o novo nome. Tente novamente.",
   "rename.gone": "Esta música já não está na biblioteca.",
   "rename.rejected": "Não foi possível guardar o novo nome: {reason}",
-  "about.data.audio": "O seu áudio nunca sai do computador onde o StemDeck está a ser executado.",
+  "about.data.audio": "A separação, a análise e a transcrição são feitas no computador onde o StemDeck está a ser executado, e o seu áudio nunca é enviado.",
   "about.data.search": "Wikidata e Wikipédia recebem o nome de banda que pesquisa em Sobre esta música.",
   "about.data.acoustid": "O AcoustID recebe uma impressão digital do áudio na importação, só se tiver guardado uma chave do AcoustID.",
   "about.data.discogs": "O Discogs recebe os mesmos nomes, ou um nome que escreva, quando faltam dados da banda na Wikipédia, só se tiver guardado um token do Discogs.",
+  "about.data.commons": "O Wikimedia Commons recebe o nome do ficheiro de uma fotografia e o seu IP quando Sobre esta música mostra uma fotografia da banda ou da obra.",
+  "about.data.import": "O YouTube, ou o site de onde importa, recebe a ligação ou o texto de pesquisa que escreve.",
+  "about.data.github": "O GitHub recebe o seu IP quando o StemDeck procura atualizações ao abrir.",
+  "about.data.models": "Os ficheiros de modelo são transferidos uma vez, na configuração da aplicação para computador ou na primeira utilização, enviando só o seu IP.",
+  "about.data.summary": "Para onde vão os seus dados",
 };
 
 const es = {
@@ -9454,11 +9491,15 @@ const es = {
   "setlists.songCount.one": "{count} canción",
   "setlists.songCount.other": "{count} canciones",
   "about.data.summary": "Adónde van tus datos",
-  "about.data.audio": "Tu audio nunca sale del ordenador que ejecuta StemDeck.",
-  "about.data.names": "MusicBrainz, Wikidata, Wikipedia y LRCLIB reciben los nombres del artista, la canción y el álbum al importar o abrir una pista.",
+  "about.data.audio": "La separación, el análisis y la transcripción se hacen en el ordenador que ejecuta StemDeck, y tu audio nunca se sube.",
+  "about.data.names": "MusicBrainz, Wikidata, Wikipedia y LRCLIB reciben los nombres del artista, la canción y el álbum o espectáculo al importar o abrir una pista.",
   "about.data.search": "Wikidata y Wikipedia reciben el nombre de grupo que buscas en Acerca de esta canción.",
   "about.data.acoustid": "AcoustID recibe una huella de audio al importar, solo si guardaste una clave de AcoustID.",
   "about.data.discogs": "Discogs recibe los mismos nombres, o un nombre que escribes, cuando a Wikipedia le faltan datos del grupo, solo si guardaste un token de Discogs.",
+  "about.data.commons": "Wikimedia Commons recibe el nombre de archivo de una foto y tu IP cuando Acerca de esta canción muestra una foto del grupo o de la obra.",
+  "about.data.import": "YouTube, o el sitio desde el que importas, recibe el enlace o el texto de búsqueda que escribes.",
+  "about.data.github": "GitHub recibe tu IP cuando StemDeck busca actualizaciones al abrirse.",
+  "about.data.models": "Los archivos de modelo se descargan una vez, al configurar la app de escritorio o en el primer uso, y solo envían tu IP.",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -10453,11 +10494,15 @@ const ko = {
   "rename.rejected": "새 이름을 저장하지 못했어요: {reason}",
   "setlists.songCount.other": "{count}곡",
   "about.data.summary": "데이터가 가는 곳",
-  "about.data.audio": "오디오는 StemDeck이 실행 중인 컴퓨터 밖으로 나가지 않아요.",
-  "about.data.names": "트랙을 가져오거나 열 때 MusicBrainz, 위키데이터, 위키백과, LRCLIB에 아티스트, 곡, 앨범 이름이 전송돼요.",
+  "about.data.audio": "분리, 분석, 받아쓰기는 StemDeck이 실행 중인 컴퓨터에서 이루어지고, 오디오는 업로드되지 않아요.",
+  "about.data.names": "트랙을 가져오거나 열 때 MusicBrainz, 위키데이터, 위키백과, LRCLIB에 아티스트, 곡, 앨범 또는 공연 이름이 전송돼요.",
   "about.data.search": "'이 곡 정보'에서 검색한 밴드 이름이 위키데이터와 위키백과에 전송돼요.",
   "about.data.acoustid": "가져올 때 AcoustID에 오디오 지문이 전송돼요. AcoustID 키를 저장한 경우에만요.",
   "about.data.discogs": "위키백과에 밴드 정보가 부족하면 같은 이름이나 입력한 이름이 Discogs에 전송돼요. Discogs 토큰을 저장한 경우에만요.",
+  "about.data.commons": "'이 곡 정보'에 밴드나 작품 사진이 표시될 때 위키미디어 공용에 사진 파일 이름과 IP가 전송돼요.",
+  "about.data.import": "YouTube 또는 가져오는 사이트에 입력한 링크나 검색어가 전송돼요.",
+  "about.data.github": "StemDeck이 열릴 때 업데이트를 확인하면서 GitHub에 IP가 전송돼요.",
+  "about.data.models": "모델 파일은 데스크톱 앱 설정 때나 처음 사용할 때 한 번 내려받으며, IP만 전송돼요.",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };
