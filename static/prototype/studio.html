@@ -1,0 +1,23 @@
+<!doctype html>
+<!-- PROTOTYPE — throwaway. One layout (library · tracks · inspector + Stage mode),
+     three visual directions switchable via ?look=console|instrument|stage. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StemDeck — visual directions (prototype)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Familjen+Grotesk:wght@400;500;600;700&family=Martian+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="studio.css">
+</head>
+<body>
+  <div id="app"></div>
+  <div class="proto-switcher">
+    <button type="button" data-action="look-prev" aria-label="Previous direction">&larr;</button>
+    <span id="protoLabel"></span>
+    <button type="button" data-action="look-next" aria-label="Next direction">&rarr;</button>
+  </div>
+  <script type="module" src="studio.js"></script>
+</body>
+</html>
