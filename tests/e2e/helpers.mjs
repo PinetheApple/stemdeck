@@ -469,3 +469,13 @@ export async function stubBandSave(page) {
     });
   });
 }
+
+/** The messages in the notification centre, newest first. */
+export async function failureMessages(page) {
+  return page.evaluate(() => JSON.parse(localStorage.getItem("stemdeck:failures") || "[]").map((f) => f.message));
+}
+
+/** A string as the page shows it in its current language. */
+export async function uiText(page, key, vars = {}) {
+  return page.evaluate(async ([k, v]) => (await import("/js/i18n.js")).t(k, v), [key, vars]);
+}

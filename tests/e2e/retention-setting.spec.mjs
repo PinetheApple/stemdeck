@@ -32,6 +32,17 @@ async function setRetention(page, patch) {
 // and what a user actually does.
 const switchFor = (page) => page.locator("label.settings-switch:has(.auto-delete-input)");
 
+/** Switching it on takes a second click, once the row has said what it deletes (#38). */
+async function turnOn(page) {
+  await switchFor(page).click();
+  await expect(page.locator(".auto-delete-input")).toHaveAttribute("data-armed", "1");
+  await switchFor(page).click();
+  await expect(page.locator(".auto-delete-input")).toBeChecked();
+}
+
+const serverSaysOn = async (page) =>
+  (await (await page.request.get("/api/settings")).json()).auto_delete_jobs;
+
 test.describe("automatic deletion", () => {
   test.beforeEach(async ({ page }) => {
     await setRetention(page, { auto_delete_jobs: false, auto_delete_days: 30 });
@@ -53,7 +64,7 @@ test.describe("automatic deletion", () => {
     await expect(page.locator(".auto-delete-days-row")).toHaveClass(/disabled/);
     await expect(page.locator(".set-auto-delete-days")).toBeDisabled();
 
-    await switchFor(page).click();
+    await turnOn(page);
     await expect(page.locator(".auto-delete-days-row")).not.toHaveClass(/disabled/);
     await expect(page.locator(".set-auto-delete-days")).toBeEnabled();
     // Readable the whole time, so deciding whether to switch deletion on does
@@ -63,17 +74,26 @@ test.describe("automatic deletion", () => {
 
   test("the toggle reaches the server and survives a reopen", async ({ page }) => {
     await openSettings(page);
-    await switchFor(page).click();
+    await turnOn(page);
 
-    await expect
-      .poll(async () => (await (await page.request.get("/api/settings")).json()).auto_delete_jobs)
-      .toBe(true);
+    await expect.poll(() => serverSaysOn(page)).toBe(true);
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.locator("#settingsBtn").click();
     await expect(page.locator(".auto-delete-input")).toBeChecked();
     await expect(page.locator(".auto-delete-days-row")).not.toHaveClass(/disabled/);
     await expect(page.locator(".set-auto-delete-days")).toBeEnabled();
+  });
+
+  test("the first click only says what it deletes, and turns nothing on", async ({ page }) => {
+    await openSettings(page);
+    await switchFor(page).click();
+
+    await expect(page.locator(".auto-delete-input")).not.toBeChecked();
+    await expect(page.locator(".auto-delete-desc")).toContainText("favorites");
+    await expect(page.locator(".auto-delete-desc")).toContainText("setlists");
+    await expect(page.locator(".set-auto-delete-days")).toBeDisabled();
+    expect(await serverSaysOn(page)).toBe(false);
   });
 
   test("turning it back off makes the field inert and stops deletion", async ({ page }) => {
@@ -92,7 +112,7 @@ test.describe("automatic deletion", () => {
 
   test("the server owns the ceiling, and says so in the field", async ({ page }) => {
     await openSettings(page);
-    await switchFor(page).click();
+    await turnOn(page);
 
     const days = page.locator(".set-auto-delete-days");
     await days.fill("9999");
@@ -106,7 +126,7 @@ test.describe("automatic deletion", () => {
 
   test("the days field refuses non-digits as they are typed", async ({ page }) => {
     await openSettings(page);
-    await switchFor(page).click();
+    await turnOn(page);
 
     const days = page.locator(".set-auto-delete-days");
     await days.fill("");

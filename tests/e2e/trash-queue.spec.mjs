@@ -1,5 +1,5 @@
-// Trashing an import that is still in the queue (#748), and what the Trash
-// says about files on disk (#749).
+// Trashing an import that is still in the queue (#748), what the Trash says
+// about files on disk (#749), and the queue's own cancel (#38).
 //
 // The queue is stubbed rather than driven: the e2e backend never runs a real
 // separation, so a job that stays "running" long enough to click on cannot be
@@ -73,16 +73,17 @@ async function seedRunningImport(page) {
   return seen;
 }
 
-test("a queue row offers the same trash can as the library rows", async ({ page }) => {
+test("a queue row cancels with an X, apart from the library's trash can", async ({ page }) => {
   await seedRunningImport(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
 
   await page.locator(".rail-queue").click();
   const cancel = page.locator(`.queue-row[data-id="${RUNNING_ID}"] .queue-cancel`);
   await expect(cancel).toBeVisible();
-  // The library's trash can, not the old X (#748).
-  await expect(cancel.locator('polyline[points="3 6 5 6 21 6"]')).toHaveCount(1);
-  await expect(cancel.locator('path[d="M18 6 6 18 M6 6l12 12"]')).toHaveCount(0);
+  // Cancelling deletes the import's files, binning keeps them (#38), so the two
+  // controls look different.
+  await expect(cancel.locator('polyline[points="3 6 5 6 21 6"]')).toHaveCount(0);
+  await expect(cancel.locator('path[d="M18 6 6 18"]')).toHaveCount(1);
 });
 
 test("trashing an import that is still running refreshes the queue at once", async ({ page }) => {
