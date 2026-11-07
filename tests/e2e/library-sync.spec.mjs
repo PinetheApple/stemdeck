@@ -330,6 +330,54 @@ test.describe("the re-import request", () => {
   });
 });
 
+test.describe("a re-import from the import form", () => {
+  const LINK = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+  const SHORT_LINK = "https://youtu.be/dQw4w9WgXcQ";
+  const linked = (id, title) => ({ ...fixtureTrack(id, title), sourceUrl: LINK });
+
+  /** Submit `url` from the form; the server answers with SIBLING_JOB_ID. Resolves to the POST bodies. */
+  async function submitLink(page, url) {
+    const posted = [];
+    await page.route(/\/api\/jobs$/, (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      posted.push(route.request().postDataJSON());
+      return route.fulfill({ json: { job_id: SIBLING_JOB_ID } });
+    });
+    await page.locator("#url").fill(url);
+    await page.locator("#submit").click();
+    await expect.poll(() => posted.length).toBe(1);
+    return posted;
+  }
+
+  test("of a song already in the library leaves one row, in its folder", async ({ page }) => {
+    await seed(page, { rock: [JOB_ID], tracks: { [JOB_ID]: linked(JOB_ID, TRACK_TITLE) } });
+    const server = await stubServerTrash(page, { hidden: [SIBLING_JOB_ID] });
+    await open(page);
+    const posted = await submitLink(page, SHORT_LINK);
+    expect(posted[0]).toMatchObject({ url: SHORT_LINK, replaces: JOB_ID });
+    await expect.poll(() => folderItems(page, ROCK)).toEqual([SIBLING_JOB_ID]);
+
+    server.hidden.delete(SIBLING_JOB_ID);
+    server.trashed.add(JOB_ID);
+    await reopen(page);
+    await expect.poll(() => folderItems(page, TRASH)).toEqual([JOB_ID]);
+    expect(await folderItems(page, ROCK)).toEqual([SIBLING_JOB_ID]);
+    expect(await folderItems(page, UNSORTED)).toEqual([]);
+  });
+
+  test("of a link two songs share names neither", async ({ page }) => {
+    await seed(page, {
+      rock: [JOB_ID, OTHER_COPY_ID],
+      tracks: { [JOB_ID]: linked(JOB_ID, TRACK_TITLE), [OTHER_COPY_ID]: linked(OTHER_COPY_ID, "Other copy") },
+    });
+    await stubServerTrash(page, { hidden: [SIBLING_JOB_ID] });
+    await open(page);
+    const posted = await submitLink(page, LINK);
+    expect(posted[0].replaces).toBeUndefined();
+    await expect.poll(() => folderItems(page, UNSORTED)).toEqual([SIBLING_JOB_ID]);
+  });
+});
+
 test.describe("a favourite the server refuses", () => {
   test.use({ viewport: { width: 1600, height: 900 } });
 

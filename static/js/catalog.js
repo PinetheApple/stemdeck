@@ -24,7 +24,7 @@ import { lookupArtist } from "./artistLookup.js";
 import { HELD_DROP, HELD_SEND, HTTP_UNPROCESSABLE, heldBandAction, libraryArtist, mergedBand, sendHeldBand, uploadBands } from "./trackBand.js";
 import {
   CANCELLED_STATUS, REINSTATE_REPLACED, RELEASE_REPLACED, isServerTrashed, migrationTrashIds, replacedJobIds,
-  replacementOutcome, serverTrashMoves,
+  replacementOutcome, serverTrashMoves, soleSourceMatch,
 } from "./librarySync.js";
 import { t as i18nT, plural as i18nPlural, LANGUAGES, getLanguage, setLanguage, onLanguageChange, applyTranslations } from "./i18n.js";
 
@@ -416,6 +416,11 @@ export function addTrackToLibrary({ replaces, ...track }) {
  * The open track, for the lyrics panel: its id, title and length in seconds,
  * or null when none is open.
  */
+/** The library track an import of `url` would replace, or null. See soleSourceMatch. */
+export function replaceableTrackId(url) {
+  return soleSourceMatch(tracks, new Set(getTrashFolder().items), url);
+}
+
 /** A library track by id, or null. Read-only: the store is this module's. */
 export function getLibraryTrack(trackId) {
   return tracks[trackId] ?? null;

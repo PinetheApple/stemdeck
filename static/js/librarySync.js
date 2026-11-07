@@ -47,6 +47,29 @@ export function replacementOutcome(status) {
   return REINSTATE_STATUSES.has(status) ? REINSTATE_REPLACED : null;
 }
 
+const YOUTUBE_ID = /(?:youtu\.be\/|[?&]v=)([a-zA-Z0-9_-]{11})/;
+const UPLOAD_PREFIX = "local:";
+
+/** A source as typed, or a YouTube link reduced to its video id, so its variants match. */
+export function normalizeSource(value) {
+  const source = String(value || "").trim();
+  const youtube = source.match(YOUTUBE_ID);
+  return youtube ? `yt:${youtube[1]}` : source;
+}
+
+/**
+ * The library track a new import of `url` replaces: the one track outside the
+ * Trash with that source, or null when none or several have it. Uploads never.
+ */
+export function soleSourceMatch(tracks, trashIds, url) {
+  const source = normalizeSource(url);
+  if (!source || source.startsWith(UPLOAD_PREFIX)) return null;
+  const matches = Object.entries(tracks)
+    .filter(([id, track]) => !trashIds.has(id) && normalizeSource(track.sourceUrl) === source)
+    .map(([id]) => id);
+  return matches.length === 1 ? matches[0] : null;
+}
+
 /** The jobs an unsettled re-import stands in for, which a sync must not adopt. */
 export function replacedJobIds(tracks) {
   return new Set(Object.values(tracks).map((track) => track.replaced?.id).filter(Boolean));

@@ -8,7 +8,7 @@ import {
 import { destroyPlayer, wireUpAudio, setWaveformLoading, updateFooterTrack } from "./player.js";
 import { notifyFailure, dismissFailuresByJobId } from "./notifications.js";
 import { getStagePhrases } from "./phrases.js";
-import { addTrackToLibrary, setCurrentTrack, updateTrackStatus, applyStemPresenceCards, libraryAudioTags, libraryArtist, libraryIdentity, libraryWork, paintFinishedTrackNames, armAutoOpen } from "./catalog.js";
+import { addTrackToLibrary, replaceableTrackId, setCurrentTrack, updateTrackStatus, applyStemPresenceCards, libraryAudioTags, libraryArtist, libraryIdentity, libraryWork, paintFinishedTrackNames, armAutoOpen } from "./catalog.js";
 import { initSections } from "./sections.js";
 import { importPlaylist, looksLikePlaylist } from "./playlist.js";
 import { t } from "./i18n.js";
@@ -827,6 +827,7 @@ export function wireJobForm() {
 
     let endpoint = "/api/jobs";
     let fetchInit;
+    let replaces = null;
     if (resplitJob) {
       endpoint = `/api/jobs/${encodeURIComponent(resplitJob)}/resplit`;
       fetchInit = {
@@ -840,6 +841,7 @@ export function wireJobForm() {
       fd.append("stems", JSON.stringify([...selectedStems]));
       fetchInit = { method: "POST", body: fd };
     } else {
+      replaces = replaceableTrackId(urlInput.value);
       fetchInit = {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -848,24 +850,28 @@ export function wireJobForm() {
           // Backend uses this to decide whether to ffmpeg-amix a
           // "selected stems" track (mix.wav) at the end of the pipeline.
           stems: [...selectedStems],
+          ...(replaces ? { replaces } : {}),
         }),
       };
     }
 
     let jobId;
-    // A re-split's source is deliberately not the one it was asked with: the
-    // library replaces any existing track sharing a sourceUrl, so reusing it
-    // would delete the track this was made from. The server decides the new
-    // one and says so here, because nothing on this side can derive it.
+    // A re-split gets a source of its own from the server, so a later import of
+    // the original link still has exactly one track to replace.
     let newSourceUrl = sourceUrl;
     try {
       const res = await fetch(endpoint, fetchInit);
       const data = await res.json();
+      if (replaces && res.status === HTTP_CONFLICT) throw new ReplaceBusyError();
       if (!res.ok) throw new Error(data.detail || res.statusText);
       jobId = data.job_id;
       if (data.source_url) newSourceUrl = data.source_url;
     } catch (err) {
-      showError(t("job.startFailed", { message: err.message }));
+      showError(
+        err instanceof ReplaceBusyError
+          ? t("job.reimportBusy")
+          : t("job.startFailed", { message: err.message }),
+      );
       setSubmitProcessing(false);
       return;
     }
@@ -880,6 +886,7 @@ export function wireJobForm() {
     jobVocalSplitModes.set(jobId, selectedStems.has("vocals") ? vocalSplitMode : "all");
     addTrackToLibrary({
       id: jobId,
+      replaces,
       title: displayTitle,
       thumb: "",
       stems: [...selectedStems],

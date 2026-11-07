@@ -5,9 +5,11 @@ import {
   REINSTATE_REPLACED,
   RELEASE_REPLACED,
   migrationTrashIds,
+  normalizeSource,
   replacedJobIds,
   replacementOutcome,
   serverTrashMoves,
+  soleSourceMatch,
 } from "../../static/js/librarySync.js";
 
 let pass = 0;
@@ -73,6 +75,18 @@ check(
   "replaced jobs are the ones still waiting on their replacement",
   same([...replacedJobIds({ n1: { replaced: { id: "o1" } }, n2: {}, n3: { replaced: null } })], ["o1"]),
 );
+
+check("a short YouTube link matches the long one", normalizeSource("https://youtu.be/abcdefghijk?t=3") === "yt:abcdefghijk");
+check("anything else is compared as typed", normalizeSource(" local:song ") === "local:song");
+
+const LINK = "https://www.youtube.com/watch?v=abcdefghijk";
+const linked = (status = "done") => ({ sourceUrl: LINK, status });
+const sole = (tracks, trash = []) => soleSourceMatch(tracks, new Set(trash), "https://youtu.be/abcdefghijk");
+check("one song with the link is the one replaced", sole({ a: linked(), b: { sourceUrl: "x" } }) === "a");
+check("two songs with the link name neither", sole({ a: linked(), b: linked() }) === null);
+check("a song in the Trash does not count", sole({ a: linked(), b: linked() }, ["b"]) === "a");
+check("no song with the link names none", sole({ b: { sourceUrl: "x" } }) === null);
+check("an upload is never replaced", soleSourceMatch({ a: { sourceUrl: "local:x" } }, new Set(), "local:x") === null);
 
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
