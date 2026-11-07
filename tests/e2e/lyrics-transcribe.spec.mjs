@@ -182,6 +182,16 @@ test.describe("transcribing lyrics on demand", () => {
     await expect(page.locator(".lyrics-line")).toHaveCount(0);
   });
 
+  test("focus follows the keys to Cancel, then to a button still shown", async ({ page }) => {
+    const { server } = await setUp(page, { started: running("transcribe", 0.1) });
+    await startButton(page).focus();
+    await page.keyboard.press("Enter");
+    await expect(cancelButton(page)).toBeFocused();
+    server.transcribe[JOB_ID] = { state: "no_singing", available: false, unavailable: "no_vocals", device: "cuda" };
+    await expect(startButton(page)).toBeHidden();
+    await expect(pasteButton(page)).toBeFocused();
+  });
+
   test("says so when it fails, and keeps Paste", async ({ page }) => {
     const { server } = await setUp(page, { started: running("load", 0) });
     await startButton(page).click();

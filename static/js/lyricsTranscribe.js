@@ -68,6 +68,15 @@ function paintProgress({ phase, progress }) {
   ui.percent.textContent = measured ? formatPercent(ui.bar.value) : "";
 }
 
+const canTakeFocus = (node) => !node.closest("[hidden]") && !node.disabled;
+
+/** Focus leaving a control that went away goes to Cancel while the run
+ * goes on, else to the first toolbar button still there. */
+function refocus(running) {
+  const target = running ? ui.cancel : [ui.start, ...ui.toolbar.querySelectorAll(".lyrics-tool")].find(canTakeFocus);
+  target?.focus();
+}
+
 /** Show `state` (the server's answer, or null for nothing to offer). */
 function paint(state) {
   const focusWasOurs = ui.start.contains(document.activeElement) || ui.panel.contains(document.activeElement);
@@ -81,9 +90,7 @@ function paint(state) {
   ui.panel.hidden = !offered || (!running && !ui.message.textContent);
   if (running) paintProgress(state);
   const focusLost = document.activeElement === document.body || document.activeElement?.closest("[hidden], :disabled");
-  if (focusWasOurs && focusLost) {
-    (running ? ui.cancel : ui.start).focus();
-  }
+  if (focusWasOurs && focusLost) refocus(running);
 }
 
 function schedulePoll(trackId, mine, failures = 0) {
@@ -203,7 +210,7 @@ function buildPanel() {
 export function initLyricsTranscribe(toolbar, dependencies) {
   deps = dependencies;
   const start = toolButton("lyrics-transcribe-open", "mic", t("lyrics.transcribe.open"), onStartClick);
-  ui = { start, ...buildPanel() };
+  ui = { toolbar, start, ...buildPanel() };
   toolbar.append(start, ui.panel);
   paint(null);
 }
