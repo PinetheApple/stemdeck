@@ -1,6 +1,7 @@
 // sections.js — interactive sections bar above the waveform
 
 import { onLanguageChange, t } from "./i18n.js";
+import { PAGE_CLOSE_FETCH } from "./utils.js";
 
 const SECTION_COLORS = [
   "#4a7fff",
@@ -51,6 +52,7 @@ onLanguageChange(() => _render());
 // ─── Public API ───────────────────────────────────────────
 
 export function initSections(trackId, sections, duration) {
+  _flushPendingSave();
   _trackId = trackId;
   _duration = Math.max(1, duration || 0);
   _sections = (sections || []).map((s) => ({ ...s }));
@@ -80,15 +82,7 @@ export function getSections() {
 }
 
 export function destroySections() {
-  // Flush any pending debounced save before clearing state so switching tracks
-  // never drops unsaved sections. _save() serializes _sections synchronously
-  // (JSON.stringify runs before the first await) so it's safe to clear state
-  // after calling it.
-  if (_saveTimer !== null) {
-    clearTimeout(_saveTimer);
-    _saveTimer = null;
-    _queueSaveSnapshot();
-  }
+  _flushPendingSave();
   _hideSaveIndicator();
   _trackId = null;
   _sections = [];
@@ -644,6 +638,23 @@ function _scheduleSave() {
   }, 600);
 }
 
+// The snapshot is taken now, so the open track's id and sections go together
+// even when the caller is about to replace them.
+function _flushPendingSave() {
+  if (_saveTimer === null) return;
+  clearTimeout(_saveTimer);
+  _saveTimer = null;
+  _queueSaveSnapshot();
+}
+
+/** Send a pending save straight away, outside the queue: once the page is gone the queue never runs. */
+export function saveSectionsOnPageClose() {
+  if (_saveTimer === null || !_trackId) return;
+  clearTimeout(_saveTimer);
+  _saveTimer = null;
+  _sendSave(_trackId, JSON.stringify({ sections: _sections }), PAGE_CLOSE_FETCH);
+}
+
 export function flushSectionsSave() {
   if (_saveTimer !== null) {
     clearTimeout(_saveTimer);
@@ -660,12 +671,13 @@ function _queueSaveSnapshot() {
   return _saveChain;
 }
 
-async function _sendSave(id, body) {
+async function _sendSave(id, body, fetchOptions = {}) {
   try {
     const res = await fetch(`/api/jobs/${id}/sections`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body,
+      ...fetchOptions,
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => String(res.status));

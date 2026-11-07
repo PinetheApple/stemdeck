@@ -5,6 +5,7 @@ import {
   initSections,
   sectionDisplayName,
   clearAllSections,
+  saveSectionsOnPageClose,
 } from "../../static/js/sections.js";
 
 let pass = 0;
@@ -167,6 +168,41 @@ complete.length = 0;
 clearAllSections();
 check("clearing an already-empty list schedules nothing", requests.length === 0);
 check("Clear stays hidden after a redundant clear", clearBtn.hidden === true);
+destroySections();
+
+// An edit still inside the save debounce belongs to the track it was made on,
+// even when the next track opens before the debounce ends (#40).
+const SONG_A = "aaaaaaaaaaaa";
+const SONG_B = "bbbbbbbbbbbb";
+const sent = [];
+globalThis.fetch = async (url, options) => {
+  sent.push({ url, body: JSON.parse(options.body), keepalive: options.keepalive === true });
+  return { ok: true };
+};
+const verse = [{ id: "a1", kind: "verse", name: "Verse", start: 0, end: 10, color: "#fff" }];
+initSections(SONG_A, verse, 20);
+clearAllSections();
+initSections(SONG_B, verse, 20);
+await flushSectionsSave();
+check(
+  "an edit pending when the next track opens is saved to its own track",
+  sent[0]?.url === `/api/jobs/${SONG_A}/sections` && sent[0].body.sections.length === 0,
+);
+check(
+  "the next track's save carries the next track's sections",
+  sent.slice(1).every((r) => r.url === `/api/jobs/${SONG_B}/sections` && r.body.sections.length === 1),
+);
+
+sent.length = 0;
+clearAllSections();
+saveSectionsOnPageClose();
+check(
+  "closing the page sends a pending edit at once, with keepalive",
+  sent.length === 1 && sent[0].keepalive && sent[0].url === `/api/jobs/${SONG_B}/sections`,
+);
+sent.length = 0;
+saveSectionsOnPageClose();
+check("closing the page with nothing pending sends nothing", sent.length === 0);
 destroySections();
 
 console.log(`\n${pass} passed, ${fail} failed`);

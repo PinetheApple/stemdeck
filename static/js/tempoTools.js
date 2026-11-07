@@ -8,7 +8,7 @@ import {
 import { getCurrentTrackInfo } from "./catalog.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { t, getLanguage, onLanguageChange } from "./i18n.js";
-import { $ } from "./utils.js";
+import { $, PAGE_CLOSE_FETCH } from "./utils.js";
 
 const MODE_CONSTANT = "constant";
 const SOURCE_USER = "user";
@@ -34,8 +34,8 @@ const RESET_FIELDS = { mode: null, bpm: null, anchor: null, beats_per_bar: null 
 let jobId = null;
 let grid = null;
 let tempo = null;
-let unsentFields = null;
-let saveInFlight = null;
+const unsentFieldsByJob = new Map();
+const savesInFlight = new Map();
 let refreshSeq = 0;
 let taps = [];
 let tapTimer = null;
@@ -111,32 +111,40 @@ async function refreshGrid(forJob) {
   }
 }
 
+// Keyed by song, so a song switch mid-save neither drops one song's edits nor
+// sends them to the next.
 async function sendUnsentFields(forJob) {
   await flushBeatGrid();
+  let failed = false;
   try {
-    while (unsentFields && forJob === jobId) {
-      const fields = unsentFields;
-      unsentFields = null;
+    while (unsentFieldsByJob.has(forJob)) {
+      const fields = unsentFieldsByJob.get(forJob);
+      unsentFieldsByJob.delete(forJob);
       await saveBeatGridTempo(forJob, fields);
     }
-    saveFailed = false;
   } catch (e) {
     console.warn("[tempoTools] could not save the tempo:", e);
-    unsentFields = null;
-    saveFailed = true;
+    unsentFieldsByJob.delete(forJob);
+    failed = true;
   } finally {
-    if (forJob === jobId) saveInFlight = null;
+    savesInFlight.delete(forJob);
   }
+  if (forJob !== jobId) return;
+  saveFailed = failed;
   await refreshGrid(forJob);
+}
+
+function addUnsentFields(forJob, fields) {
+  unsentFieldsByJob.set(forJob, { ...unsentFieldsByJob.get(forJob), ...fields });
 }
 
 /** Optimistic: show, save, then reload the server's grid. */
 function patchTempo(fields) {
   if (!jobId || !tempo) return;
   tempo = withFields(tempo, fields);
-  unsentFields = { ...unsentFields, ...fields };
+  addUnsentFields(jobId, fields);
   render();
-  saveInFlight ??= sendUnsentFields(jobId);
+  if (!savesInFlight.has(jobId)) savesInFlight.set(jobId, sendUnsentFields(jobId));
 }
 
 function applyGrid(next) {
@@ -155,10 +163,8 @@ function announce() {
 
 export function setTempoGrid(nextJobId, nextGrid) {
   if (nextJobId !== jobId) {
-    unsentFields = null;
-    saveInFlight = null;
+    commitPendingTaps();
     taps = [];
-    clearTimeout(tapTimer);
     saveFailed = false;
   }
   jobId = nextGrid ? nextJobId : null;
@@ -195,7 +201,26 @@ function onBpmStepClick(e) {
 }
 
 function commitTaps() {
+  tapTimer = null;
   if (tempo) patchTempo({ bpm: tempo.bpm });
+}
+
+/** Send every unsent change, and a tap still waiting to commit, at once with keepalive. */
+export function saveTempoOnPageClose() {
+  if (tapTimer !== null && jobId && tempo) addUnsentFields(jobId, { bpm: tempo.bpm });
+  clearTimeout(tapTimer);
+  tapTimer = null;
+  for (const [forJob, fields] of unsentFieldsByJob) {
+    saveBeatGridTempo(forJob, fields, PAGE_CLOSE_FETCH)
+      .catch((e) => console.warn("[tempoTools] could not save the tempo:", e));
+  }
+  unsentFieldsByJob.clear();
+}
+
+function commitPendingTaps() {
+  if (tapTimer === null) return;
+  clearTimeout(tapTimer);
+  commitTaps();
 }
 
 function onTapClick() {

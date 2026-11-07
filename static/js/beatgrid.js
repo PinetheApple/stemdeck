@@ -19,7 +19,7 @@
 // ~2000 onset ticks; that many absolutely-positioned elements janks every
 // scroll and resize.
 
-import { storeGet, storeSet } from "./utils.js";
+import { storeGet, storeSet, PAGE_CLOSE_FETCH } from "./utils.js";
 import { clickLines, thinLines } from "./beatgridShown.js";
 
 const MIN_GAP = 0.01;          // seconds; keeps the grid strictly increasing
@@ -74,6 +74,8 @@ let _undo = [];
 let _redo = [];
 let _saveTimer = null;
 let _dirty = false;
+let _editSeq = 0;
+let _saveChain = Promise.resolve();
 
 // ─── geometry ───────────────────────────────────────────────
 
@@ -260,6 +262,7 @@ export function setBarLengthAt(idx, n) {
 
 function _commit() {
   _dirty = true;
+  _editSeq += 1;
   _onChange?.(_beats.slice(), _bars.map((b) => ({ ...b })));
   _render();
   if (_saveTimer !== null) clearTimeout(_saveTimer);
@@ -268,18 +271,19 @@ function _commit() {
 
 const _beatsUrl = (jobId) => `/api/jobs/${jobId}/beats`;
 
-async function _patchBeats(jobId, body) {
+async function _patchBeats(jobId, body, fetchOptions = {}) {
   const r = await fetch(_beatsUrl(jobId), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    ...fetchOptions,
   });
   if (!r.ok) throw new Error(`PATCH ${r.status}`);
   return r.json();
 }
 
 /** Save tempo fields for a song; a `null` field goes back to the detected value. */
-export const saveBeatGridTempo = (jobId, tempo) => _patchBeats(jobId, { tempo });
+export const saveBeatGridTempo = (jobId, tempo, fetchOptions) => _patchBeats(jobId, { tempo }, fetchOptions);
 
 /** The song's beat grid as the server builds it now. */
 export async function loadBeatGrid(jobId) {
@@ -288,21 +292,32 @@ export async function loadBeatGrid(jobId) {
   return r.json();
 }
 
-async function _save() {
+const _gridPayload = () => ({ beats: _beats.map((t) => +t.toFixed(6)), bars: _bars.map((b) => ({ ...b })) });
+
+// Queued behind any save still in flight, so the newer grid always lands last.
+function _save() {
   _saveTimer = null;
-  if (!_jobId || !_dirty) return;
-  const payload = { beats: _beats.map((t) => +t.toFixed(6)), bars: _bars };
+  const jobId = _jobId;
+  if (!jobId || !_dirty) return _saveChain;
+  const payload = _gridPayload();
+  const seq = _editSeq;
+  _saveChain = _saveChain.then(() => _sendGrid(jobId, payload, seq));
+  return _saveChain;
+}
+
+async function _sendGrid(jobId, payload, seq, fetchOptions) {
   try {
-    const saved = await _patchBeats(_jobId, payload);
-    _dirty = false;
-    _announceTempo(saved.tempo);
+    const saved = await _patchBeats(jobId, payload, fetchOptions);
+    // An edit made while this was in flight still has its own save to come.
+    if (jobId === _jobId && seq === _editSeq) _dirty = false;
+    _announceTempo(jobId, saved.tempo);
   } catch (e) {
     console.warn("[beatgrid] failed to save edits:", e);
   }
 }
 
-function _announceTempo(tempo) {
-  document.dispatchEvent(new CustomEvent("beatgridsave", { detail: { jobId: _jobId, tempo } }));
+function _announceTempo(jobId, tempo) {
+  document.dispatchEvent(new CustomEvent("beatgridsave", { detail: { jobId, tempo } }));
 }
 
 /** Flush a pending save. Called before teardown so edits are never dropped. */
@@ -311,6 +326,14 @@ export function flushBeatGrid() {
   clearTimeout(_saveTimer);
   _saveTimer = null;
   return _save();
+}
+
+/** Send a pending save at once with keepalive, outside the queue: once the page is gone the queue never runs. */
+export function saveBeatGridOnPageClose() {
+  if (_saveTimer === null || !_jobId) return;
+  clearTimeout(_saveTimer);
+  _saveTimer = null;
+  _sendGrid(_jobId, _gridPayload(), _editSeq, PAGE_CLOSE_FETCH);
 }
 
 /** Take a grid the server rebuilt (a tempo change) as the new starting point, with no undo across it. */
@@ -327,10 +350,12 @@ export function replaceBeatGrid(grid) {
 }
 
 export async function resetBeatGrid() {
-  if (!_jobId) return null;
+  const jobId = _jobId;
+  if (!jobId) return null;
   try {
-    await fetch(_beatsUrl(_jobId), { method: "DELETE" });
-    const grid = await loadBeatGrid(_jobId);
+    await fetch(_beatsUrl(jobId), { method: "DELETE" });
+    const grid = await loadBeatGrid(jobId);
+    if (jobId !== _jobId) return null;
     _pushUndo();
     _beats = (grid.beats || []).slice();
     _bars = (grid.bars || []).slice();
@@ -338,7 +363,7 @@ export async function resetBeatGrid() {
     _dirty = false;
     _onChange?.(_beats.slice(), _bars.slice());
     _render();
-    _announceTempo(grid.tempo);
+    _announceTempo(jobId, grid.tempo);
     return grid;
   } catch (e) {
     console.warn("[beatgrid] reset failed:", e);
