@@ -7,10 +7,13 @@ import { t, getLanguage } from "./i18n.js";
 import { toolButton, setToolLabel, TOOL_QUIET } from "./lyricsToolbar.js";
 
 const POLL_MS = 1000;
+// Polls in a row that got no answer before the run is given up for failed.
+const MAX_FAILED_POLLS = 3;
 const HTTP_CONFLICT = 409;
 const STATE_RUNNING = "running";
 const STATE_FAILED = "failed";
 const DEVICE_CPU = "cpu";
+const FAILED_VIEW = { state: STATE_FAILED, available: true };
 const PHASE_KEYS = {
   queued: "lyrics.transcribe.queued",
   load: "lyrics.transcribe.loading",
@@ -83,16 +86,21 @@ function paint(state) {
   }
 }
 
-function schedulePoll(trackId, mine) {
+function schedulePoll(trackId, mine, failures = 0) {
   clearTimeout(pollTimer);
-  pollTimer = setTimeout(() => poll(trackId, mine), POLL_MS);
+  pollTimer = setTimeout(() => poll(trackId, mine, failures), POLL_MS);
 }
 
-async function poll(trackId, mine) {
+async function poll(trackId, mine, failures) {
   const state = await fetchState(trackId);
   if (mine !== token) return;
-  if (!state || state.state === STATE_RUNNING) {
-    if (state) paint(state);
+  if (!state) {
+    if (failures + 1 >= MAX_FAILED_POLLS) paint(FAILED_VIEW);
+    else schedulePoll(trackId, mine, failures + 1);
+    return;
+  }
+  if (state.state === STATE_RUNNING) {
+    paint(state);
     schedulePoll(trackId, mine);
     return;
   }
@@ -146,7 +154,7 @@ async function onStartClick() {
   if (mine !== token) return;
   if (!state) {
     if (res) console.warn("lyrics transcription refused", res.status);
-    paint({ state: STATE_FAILED, available: true });
+    paint(FAILED_VIEW);
     return;
   }
   paint(state);

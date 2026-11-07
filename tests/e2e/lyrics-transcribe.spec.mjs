@@ -14,6 +14,8 @@ import {
 
 const JSON_TYPE = "application/json";
 const POLL_WAIT_MS = 2500;
+// The server's answer to a GET that should fail, as a stand-in state.
+const UNREACHABLE = "unreachable";
 const CPU_NOTE = "Transcribing on the CPU can take a few minutes.";
 const WHISPER = {
   v: 1,
@@ -54,6 +56,7 @@ async function setUp(page, { transcribe = {}, started = running("queued", 0) } =
         return answer(route, 202, started);
       }
       calls.gets[id]++;
+      if (server.transcribe[id] === UNREACHABLE) return answer(route, 500, { detail: "server error" });
       return answer(route, 200, server.transcribe[id]);
     });
     await page.route(`**/api/jobs/${id}/cancel`, (route) => {
@@ -186,6 +189,19 @@ test.describe("transcribing lyrics on demand", () => {
     server.transcribe[JOB_ID] = ended("failed", "cpu");
     await expect(message(page)).toHaveText("The lyrics could not be transcribed.");
     await expect(pasteButton(page)).toBeVisible();
+  });
+
+  test("gives up following a run the server stops answering about, and keeps Paste", async ({ page }) => {
+    const { server, calls } = await setUp(page, { started: running("transcribe", 0.3) });
+    await startButton(page).click();
+    await expect(progress(page)).toBeVisible();
+    server.transcribe[JOB_ID] = UNREACHABLE;
+    await expect(message(page)).toHaveText("The lyrics could not be transcribed.");
+    await expect(progress(page)).toBeHidden();
+    await expect(pasteButton(page)).toBeVisible();
+    const getsWhenGivenUp = calls.gets[JOB_ID];
+    await page.waitForTimeout(POLL_WAIT_MS);
+    expect(calls.gets[JOB_ID]).toBe(getsWhenGivenUp);
   });
 
   test("a run never shows on another song, and its lyrics wait for their own", async ({ page }) => {
