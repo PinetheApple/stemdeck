@@ -1055,7 +1055,7 @@ function wireAppShellControls() {
 
 document.addEventListener("keydown", (e) => {
   if (!transport()) return;
-  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.ctrlKey || e.metaKey) return;
   // Textareas were not excluded, so Space in the log viewer started playback
   // instead of scrolling.
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;

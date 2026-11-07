@@ -6,6 +6,7 @@ import { openStudio, waitForClickTrack } from "./helpers.mjs";
 const search = (page) => page.locator("#catalogSearch");
 const clickToggle = (page) => page.locator("#t-metro");
 const blurFocus = (page) => page.evaluate(() => document.activeElement?.blur());
+const app = (page) => page.locator(".app");
 
 async function openTrackView(page) {
   await openStudio(page, { tauri: true });
@@ -37,10 +38,10 @@ test.describe("library search shortcut", () => {
   test("Ctrl+K opens a collapsed library first", async ({ page }) => {
     await openTrackView(page);
     await page.locator("#sidebarCollapseBtn").click();
-    await expect(page.locator(".app")).toHaveClass(/cat-collapsed/);
+    await expect(app(page)).toHaveClass(/cat-collapsed/);
 
     await page.keyboard.press("Control+K");
-    await expect(page.locator(".app")).not.toHaveClass(/cat-collapsed/);
+    await expect(app(page)).not.toHaveClass(/cat-collapsed/);
     await expect(search(page)).toBeFocused();
   });
 
@@ -58,6 +59,41 @@ test.describe("library search shortcut", () => {
     await page.keyboard.press("k");
     await expect(clickToggle(page)).toHaveAttribute("aria-pressed", "true");
     await expect(search(page)).not.toBeFocused();
+  });
+
+  test("Ctrl+K does nothing while a modal is open", async ({ page }) => {
+    await openTrackView(page);
+    await page.locator("#sidebarCollapseBtn").click();
+    await page.locator("#aboutBtn").click();
+    await expect(page.locator("#aboutDialog")).toBeVisible();
+
+    await page.keyboard.press("Control+K");
+    await expect(search(page)).not.toBeFocused();
+    await expect(app(page)).toHaveClass(/cat-collapsed/);
+  });
+
+  test("Ctrl+K leaves the Lyrics view for the library and focuses the search", async ({ page }) => {
+    await openTrackView(page);
+    await page.locator(".rail-lyrics").click();
+    await expect(page.locator(".sidebar")).toHaveClass(/lyrics-view/);
+    await blurFocus(page);
+
+    await page.keyboard.press("Control+K");
+    await expect(page.locator(".sidebar")).not.toHaveClass(/lyrics-view/);
+    await expect(search(page)).toBeFocused();
+  });
+
+  test("Ctrl+K does nothing in Stage mode", async ({ page }) => {
+    await openTrackView(page);
+    await page.locator("#sidebarCollapseBtn").click();
+    await page.locator("#stageModeBtn").click();
+    await expect(app(page)).toHaveClass(/stage-mode/);
+    await blurFocus(page);
+
+    await page.keyboard.press("Control+K");
+    await expect(search(page)).not.toBeFocused();
+    await expect(app(page)).toHaveClass(/cat-collapsed/);
+    await expect(app(page)).toHaveClass(/stage-mode/);
   });
 
   test("the ⌘K hint hides while the search has text", async ({ page }) => {

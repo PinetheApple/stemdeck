@@ -210,11 +210,15 @@ export function setStageMode(on) {
   }
 }
 
+export function isModalOpen() {
+  return [...document.querySelectorAll(OPEN_MODAL)].some((el) => el.getClientRects().length > 0);
+}
+
 function keysBelongElsewhere(e) {
   if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return true;
   if (e.target.closest?.("input, textarea, select, [contenteditable]")) return true;
   if (isBeatGridEditing()) return true;
-  return [...document.querySelectorAll(OPEN_MODAL)].some((el) => el.getClientRects().length > 0);
+  return isModalOpen();
 }
 
 function onStageKeydown(e) {
