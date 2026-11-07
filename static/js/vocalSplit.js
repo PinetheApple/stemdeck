@@ -95,11 +95,7 @@ export async function startSplit(jobId, io = DEFAULT_IO) {
   throw new Error(`vocal split refused: HTTP ${res.status}`);
 }
 
-/**
- * Poll until the split ends and answer its last view, or null once
- * `isCurrent()` says nobody is waiting for it any more.
- */
-export async function followSplit(jobId, { onView = () => {}, isCurrent = () => true, io = DEFAULT_IO } = {}) {
+async function pollUntilEnded(jobId, onView, isCurrent, io) {
   let failures = 0;
   while (isCurrent()) {
     const view = await fetchSplitView(jobId, io);
@@ -116,6 +112,20 @@ export async function followSplit(jobId, { onView = () => {}, isCurrent = () => 
     await io.wait(POLL_MS);
   }
   return null;
+}
+
+/**
+ * Poll until the split ends and answer its last view, or null once
+ * `isCurrent()` says nobody is waiting for it any more. `onFailure(jobId, view)`
+ * is told when it ends in error.
+ */
+export async function followSplit(
+  jobId,
+  { onView = () => {}, onFailure = () => {}, isCurrent = () => true, io = DEFAULT_IO } = {},
+) {
+  const final = await pollUntilEnded(jobId, onView, isCurrent, io);
+  if (final?.state === SPLIT_STATE.ERROR) onFailure(jobId, final);
+  return final;
 }
 
 /** The job's own cancel stops its split; the next poll says "cancelled". */

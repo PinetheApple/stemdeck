@@ -9,6 +9,7 @@ const START_LABEL = "Split lead/backing";
 const RETRY_LABEL = "Try again";
 const QUEUED = "Waiting for an import to finish…";
 const SPLITTING = "Splitting lead and backing vocals…";
+const SPLIT_KIND = "vocalSplit";
 const OUT_OF_MEMORY = "There was not enough memory to split the vocals. Close other apps, then try again.";
 
 const answer = (route, status, body) => route.fulfill({ status, contentType: JSON_TYPE, body: JSON.stringify(body) });
@@ -61,6 +62,8 @@ const cancelButton = (page) => page.locator("#vocalSplitCancel");
 const message = (page) => page.locator("#vocalSplitMessage");
 const progress = (page) => page.locator("#vocalSplitProgress");
 const percent = (page) => page.locator("#vocalSplitPercent");
+const splitNotices = (page) => page.evaluate(async (kind) =>
+  (await import("/js/notifications.js")).getFailures().filter((f) => f.kind === kind).map((f) => f.message), SPLIT_KIND);
 
 test.describe("splitting lead and backing vocals on demand", () => {
   test("a finished song offers the split, shows its progress, and Cancel stops it", async ({ page }) => {
@@ -119,5 +122,25 @@ test.describe("splitting lead and backing vocals on demand", () => {
     await reopen(page);
     await expect(percent(page)).toHaveText("25%");
     expect(calls.starts).toBe(1);
+  });
+
+  test("a split started on its own that fails is notified, and says why", async ({ page }) => {
+    const requested = { vocal_split: "none", vocal_split_choice: "split" };
+    const { server } = await openDetails(page, { job: requested, started: running("splitting", 0.1) });
+    await expect(progress(page)).toBeVisible();
+
+    server.view = ended("error", "out_of_memory");
+    await expect(message(page)).toHaveText(OUT_OF_MEMORY);
+    await expect.poll(() => splitNotices(page)).toEqual([OUT_OF_MEMORY]);
+  });
+
+  test("a split the user started that fails stays on its card", async ({ page }) => {
+    const { server } = await openDetails(page, { started: running("splitting", 0.1) });
+    await startButton(page).click();
+    await expect(progress(page)).toBeVisible();
+
+    server.view = ended("error", "out_of_memory");
+    await expect(message(page)).toHaveText(OUT_OF_MEMORY);
+    expect(await splitNotices(page)).toEqual([]);
   });
 });

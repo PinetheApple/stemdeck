@@ -127,8 +127,17 @@ const doneJob = (overrides = {}) => ({
   check("follow reports each running view", seen.join() === "queued,splitting", seen.join());
 
   const failed = scriptedFetch([reply(200, ended(SPLIT_STATE.ERROR, "out_of_memory"))]);
-  const failure = await followSplit(JOB, { io: failed.io });
+  const reported = [];
+  const failure = await followSplit(JOB, { onFailure: (id, view) => reported.push([id, view.error]), io: failed.io });
   check("follow ends on the failure with its code", failure.state === SPLIT_STATE.ERROR && failure.error === "out_of_memory");
+  check("follow reports the failure once, with its song", reported.length === 1 && reported[0].join() === `${JOB},out_of_memory`);
+
+  for (const state of [SPLIT_STATE.DONE, SPLIT_STATE.CANCELLED]) {
+    const ending = scriptedFetch([reply(200, ended(state))]);
+    const told = [];
+    await followSplit(JOB, { onFailure: () => told.push(state), io: ending.io });
+    check(`a split that ends ${state} reports no failure`, told.length === 0);
+  }
 }
 
 {
@@ -144,6 +153,10 @@ const doneJob = (overrides = {}) => ({
   const final = await followSplit(JOB, { io });
   check("follow gives up after the server stops answering", calls.length === MAX_FAILED_POLLS);
   check("giving up reads as a failure with no known cause", final.state === SPLIT_STATE.ERROR && final.error === null);
+  const lost = scriptedFetch(Array.from({ length: MAX_FAILED_POLLS }, () => reply(500, {})));
+  const told = [];
+  await followSplit(JOB, { onFailure: (id) => told.push(id), io: lost.io });
+  check("giving up is reported as a failure", told.length === 1);
 }
 
 {

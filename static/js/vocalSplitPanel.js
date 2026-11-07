@@ -14,6 +14,7 @@ import {
   followSplit,
   cancelSplit,
 } from "./vocalSplit.js";
+import { reportSplitFailure } from "./vocalSplitNotify.js";
 
 const JOB_DONE = "done";
 const PHASE_KEYS = {
@@ -103,13 +104,17 @@ async function showFor(jobId) {
   if (!jobId) return;
   const job = await fetchJob(jobId);
   if (mine !== token) return;
-  if (wantsAutoSplit(job)) return runSplit(jobId);
+  if (wantsAutoSplit(job)) return runSplit(jobId, { automatic: true });
   const view = viewForJob(job);
   paint(view);
   if (view?.state === SPLIT_STATE.RUNNING) follow(jobId, mine);
 }
 
-async function runSplit(jobId) {
+/**
+ * Start the split and follow it on the card. One the user did not start is
+ * also watched to its end, so its failure is notified even once they leave the song.
+ */
+async function runSplit(jobId, { automatic = false } = {}) {
   const mine = ++token;
   // Busy rather than disabled: a disabled button drops focus to the page.
   ui.start.setAttribute("aria-busy", "true");
@@ -119,6 +124,8 @@ async function runSplit(jobId) {
   } catch (err) {
     console.warn("[vocalSplit] split not started", err);
   }
+  if (automatic && view.state === SPLIT_STATE.ERROR) reportSplitFailure(jobId, view);
+  if (automatic && view.state === SPLIT_STATE.RUNNING) followSplit(jobId, { onFailure: reportSplitFailure });
   if (mine !== token) return;
   if (view.state !== SPLIT_STATE.RUNNING) return showEnded(jobId, view);
   paint(view);
