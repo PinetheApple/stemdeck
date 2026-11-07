@@ -37,7 +37,15 @@ const KIND_KEYS = {
   export: "notifKind.exportFailed",
   update: "notifKind.updateCheckFailed",
   band: "notifKind.bandSaveFailed",
+  settings: "notifKind.settingsSaveFailed",
+  favorite: "notifKind.favoriteSaveFailed",
+  storage: "notifKind.storageSaveFailed",
+  trash: "notifKind.trashFailed",
+  cancel: "notifKind.cancelFailed",
+  save: "notifKind.saveFailed",
 };
+// Stored for a kind with no label of its own, which reads as "Something failed".
+const UNLABELLED_KIND = "other";
 function kindLabel(kind) {
   return kind in KIND_KEYS ? t(KIND_KEYS[kind]) : t("notifKind.default");
 }
@@ -231,7 +239,7 @@ export function notifyFailure({ kind, message, detail = null, cause = null, cont
   const record = {
     id: nowId(),
     at: Date.now(),
-    kind: kind in KIND_KEYS ? kind : "import",
+    kind: kind in KIND_KEYS ? kind : UNLABELLED_KIND,
     message: String(message || t("notif.somethingWentWrong")),
     detail: cleanCause(detail) ? String(detail) : null,
     // The backend's classified cause (out-of-memory / disk-full / bad-input /
