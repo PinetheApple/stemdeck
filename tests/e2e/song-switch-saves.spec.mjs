@@ -9,6 +9,8 @@ const TAP_GAP_MS = 400;
 const NUDGE_SEC = 0.01;
 const SIBLING_LENGTH_SEC = 2;
 const SETTLE_MS = 500;
+// The page's clock keeps running while the test asks to pause it, so it pauses a little ahead.
+const FREEZE_AHEAD_MS = 100;
 const TRACK_TIME = { [JOB_ID]: /\/\s*00:06\s*$/, [SIBLING_JOB_ID]: /\/\s*00:02\s*$/ };
 
 const sectionsUrl = (id) => `/api/jobs/${id}/sections`;
@@ -106,7 +108,7 @@ async function closeAndSettle(page) {
 
 /** Stop the page's clock: from here a debounce fires only when the test runs time on. */
 async function freezeTimers(page) {
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1));
+  await page.clock.pauseAt(await page.evaluate((ahead) => Date.now() + ahead, FREEZE_AHEAD_MS));
 }
 
 // Clicks without Playwright's actionability wait, which needs the frozen clock to move.
