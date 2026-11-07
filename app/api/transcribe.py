@@ -55,7 +55,8 @@ def _view(job: Job, job_dir: Path) -> dict[str, Any]:
     reason = None if running else tod.unavailable_reason(job, job_dir)
     out["available"] = not running and reason is None
     out["unavailable"] = reason
-    out["device"] = tod.device_now()
+    on_run = running and run.device is not None
+    out["device"] = run.device if on_run else tod.whisper_device_now()
     return out
 
 
@@ -68,6 +69,7 @@ def _work(
         run.state = tod.transcribe_now(
             job,
             job_dir,
+            device=run.device,
             cancelled=cancelled,
             report=run.report,
         )
@@ -104,9 +106,11 @@ async def start_lyrics_transcribe(job_id: str) -> JSONResponse:
         raise HTTPException(status_code=409, detail=_REFUSALS[reason])
     if RETIME_RUNS.running(job_id):
         raise HTTPException(status_code=409, detail=LYRICS_TIMING_RUNNING)
+    device = await asyncio.to_thread(tod.whisper_device_now)
     run = tod.TRANSCRIBE_RUNS.claim(job_id)
     if run is None:
         raise HTTPException(status_code=409, detail=TRANSCRIPTION_RUNNING)
+    run.device = device
     start_run_task(
         run_behind_lock(
             job,

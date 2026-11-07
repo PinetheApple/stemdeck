@@ -65,6 +65,7 @@ class TranscribeRun(Run):
     # QUEUED until it holds the pipeline lock, then the worker's own phases:
     # "load", "download" (the model, first run only), "transcribe".
     phase: str = QUEUED
+    device: str | None = None
 
     def view(self) -> dict[str, Any]:
         out: dict[str, Any] = {"state": self.state}
@@ -81,15 +82,9 @@ class TranscribeRun(Run):
 TRANSCRIBE_RUNS: RunBoard[TranscribeRun] = RunBoard(TranscribeRun)
 
 
-def device_now() -> str:
-    """Where a run started now transcribes: the device separation resolves to
-    now, as Whisper runs on it ("cuda" or "cpu").
-
-    Unlike an import, which transcribes on the device its job was just
-    separated on (transcribe._device), a run here may come long after the
-    import: a job that fell back to the CPU then, or predates compute_device,
-    still gets the GPU it has now. A busy GPU falls back to the CPU in the
-    worker, as an import's does."""
+def whisper_device_now() -> str:
+    """Resolved now: the job's separation device may be stale (CPU fallback,
+    jobs from before compute_device)."""
     return whisper_device(get_demucs_device())
 
 
@@ -129,6 +124,7 @@ def transcribe_now(
     job: Job,
     job_dir: Path,
     *,
+    device: str,
     cancelled: Callable[[], bool],
     report: Callable[[str, int | None], None],
 ) -> str:
@@ -142,7 +138,7 @@ def transcribe_now(
         logger.info("[%s] lyrics not transcribed: %s", job.id, reason)
         return NO_SINGING
     # Looked up on the module, where tests put their stub worker.
-    cmd = transcribe._spawn_worker_cmd(job_dir / "stems" / "vocals.wav", device_now())
+    cmd = transcribe._spawn_worker_cmd(job_dir / "stems" / "vocals.wav", device)
     result = _run_worker(job, cmd, cancelled=cancelled, report=report)
     if result is None:
         return FAILED
