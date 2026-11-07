@@ -42,6 +42,15 @@ def _isolate():
     tod.TRANSCRIBE_RUNS.runs.clear()
 
 
+@pytest.fixture(autouse=True)
+def pin_device(monkeypatch):
+    def to(device: str) -> None:
+        monkeypatch.setattr(tod, "get_demucs_device", lambda: device)
+
+    to("cpu")
+    return to
+
+
 @pytest.fixture
 def client():
     with patch("app.api.jobs.jobqueue.enqueue", lambda job_id: None):
@@ -271,3 +280,43 @@ def test_deleting_the_job_stops_its_run(client, monkeypatch):
     run = tod.TRANSCRIBE_RUNS.current(JOB_ID)
     assert client.delete(f"/api/jobs/{JOB_ID}").status_code == 200
     assert run.ended.is_set() and tod.TRANSCRIBE_RUNS.current(JOB_ID) is None
+
+
+def reported_and_run(client, monkeypatch, tmp_path) -> tuple[str, list[str]]:
+    calls: list[str] = []
+    stub_worker(monkeypatch, tmp_path, HEARD, calls)
+    reported = client.get(URL).json()["device"]
+    client.post(URL)
+    assert wait_for(client)["state"] == "done"
+    return reported, calls
+
+
+def test_a_cpu_fallback_job_runs_on_the_gpu_it_has_now(client, monkeypatch, tmp_path, pin_device):
+    done_job().compute_device = "cpu (fallback from cuda)"
+    pin_device("cuda")
+    assert reported_and_run(client, monkeypatch, tmp_path) == ("cuda", ["cuda"])
+
+
+@pytest.mark.parametrize(
+    ("separated_on", "resolved"),
+    [("cuda", "cpu"), ("mps", "mps")],
+)
+def test_a_machine_without_cuda_transcribes_on_the_cpu(
+    client,
+    monkeypatch,
+    tmp_path,
+    pin_device,
+    separated_on,
+    resolved,
+):
+    done_job().compute_device = separated_on
+    pin_device(resolved)
+    assert reported_and_run(client, monkeypatch, tmp_path) == ("cpu", ["cpu"])
+
+
+def test_a_cpu_setting_on_a_cuda_machine_transcribes_on_the_cpu(client, monkeypatch, tmp_path):
+    done_job().compute_device = "cuda"
+    monkeypatch.setattr(tod, "get_demucs_device", settings_mod.get_demucs_device)
+    monkeypatch.setattr(settings_mod, "detect_torch_device", lambda: "cuda")
+    settings_mod.set_demucs_device("cpu")
+    assert reported_and_run(client, monkeypatch, tmp_path) == ("cpu", ["cpu"])

@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from app.core.models import STATUS_DONE, Job, JobCancelled
-from app.core.settings import TRANSCRIBE_LYRICS_OFF, get_transcribe_lyrics
+from app.core.settings import TRANSCRIBE_LYRICS_OFF, get_demucs_device, get_transcribe_lyrics
 from app.pipeline import transcribe
 from app.pipeline.lyrics_lookup import (
     _OFFSET_LOCK,
@@ -37,7 +37,7 @@ from app.pipeline.lyrics_lookup import (
     write_lyrics,
 )
 from app.pipeline.runs import CANCELLED, DONE, FAILED, RUNNING, Run, RunBoard
-from app.pipeline.transcribe import _device, _run_worker, _vocals_reason, build_lyrics
+from app.pipeline.transcribe import _run_worker, _vocals_reason, build_lyrics, whisper_device
 
 logger = logging.getLogger("stemdeck.transcribe")
 
@@ -65,6 +65,7 @@ class TranscribeRun(Run):
     # QUEUED until it holds the pipeline lock, then the worker's own phases:
     # "load", "download" (the model, first run only), "transcribe".
     phase: str = QUEUED
+    device: str | None = None
 
     def view(self) -> dict[str, Any]:
         out: dict[str, Any] = {"state": self.state}
@@ -79,6 +80,12 @@ class TranscribeRun(Run):
 
 
 TRANSCRIBE_RUNS: RunBoard[TranscribeRun] = RunBoard(TranscribeRun)
+
+
+def whisper_device_now() -> str:
+    """Resolved now: the job's separation device may be stale (CPU fallback,
+    jobs from before compute_device)."""
+    return whisper_device(get_demucs_device())
 
 
 def unavailable_reason(job: Job, job_dir: Path) -> str | None:
@@ -117,6 +124,7 @@ def transcribe_now(
     job: Job,
     job_dir: Path,
     *,
+    device: str,
     cancelled: Callable[[], bool],
     report: Callable[[str, int | None], None],
 ) -> str:
@@ -130,7 +138,7 @@ def transcribe_now(
         logger.info("[%s] lyrics not transcribed: %s", job.id, reason)
         return NO_SINGING
     # Looked up on the module, where tests put their stub worker.
-    cmd = transcribe._spawn_worker_cmd(job_dir / "stems" / "vocals.wav", _device(job))
+    cmd = transcribe._spawn_worker_cmd(job_dir / "stems" / "vocals.wav", device)
     result = _run_worker(job, cmd, cancelled=cancelled, report=report)
     if result is None:
         return FAILED
