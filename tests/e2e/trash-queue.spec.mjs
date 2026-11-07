@@ -39,8 +39,7 @@ async function seedRunningImport(page) {
       { id: "f-unsorted", name: "Unsorted", items: [RUNNING_ID], color: null },
       { id: "trash", name: "Trash", items: [], color: null },
     ],
-    // Its own source, or the startup sync's dedup-by-source (#542) folds it
-    // into the seeded fixture job and the row under test is gone.
+    // Its own source, apart from the fixture jobs'.
     tracks: {
       [RUNNING_ID]: {
         ...fixtureTrack(RUNNING_ID, RUNNING_TITLE),

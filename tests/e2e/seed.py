@@ -15,12 +15,8 @@ it drives is quietly untestable. Both were in the job root once: the studio fell
 back to decoding every stem for its waveforms, and the click track never
 appeared at all.
 
-There are two jobs, and they deliberately share one `source_url`. That is the
-whole shape of #542: the catalog deduplicates imports by source URL, so a second
-job for a URL the library already knows is what makes the dedup branch run at
-all. Processing the same link twice is ordinary user behaviour, and until #542
-it silently evicted a trashed track. A fixture with a single job cannot reach
-that code path.
+There are two jobs, and they deliberately share one `source_url`, as processing
+the same link twice does; the library keeps them as two rows.
 
 The sibling is shorter than the fixture track. Nothing needs six seconds of it,
 and the tone generator is a per-sample Python loop, so the extra seconds are

@@ -96,8 +96,8 @@ async function serveJobTitle(page, id, title) {
   });
 }
 
-// Both fixture jobs are always in the library: they share a source, and a
-// job the server lists that the library lacks replaces its twin (#542).
+// Both fixture jobs are always in the library, or the startup sync adds the
+// missing one as a row of its own.
 async function openPage(page, tracks, { audioTags = null } = {}) {
   tracks = { [JOB_ID]: fixtureTrack(JOB_ID, "E2E Fixture Track"), [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, "E2E Fixture Track (again)"), ...tracks };
   await seedCatalogState(page, {

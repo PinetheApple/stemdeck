@@ -1,15 +1,5 @@
-// A trashed track stays trashed, even when another job shares its source URL
-// (#542).
-//
-// Worth driving in a real browser rather than unit-testing addTrackToLibrary,
-// because the damage is invisible in the call that does it. Evicting a trashed
-// entry leaves a job on the server with no track, no trash entry and no
-// tombstone. Nothing looks wrong that session. It is the *next* launch's
-// syncWithServer, finding an orphan, that produces the reported symptom: the
-// song is back in the library and the Trash is empty.
-//
-// The condition is two jobs sharing one source_url, which tests/e2e/seed.py now
-// builds. That is not an exotic state: processing the same link twice is enough.
+// A trashed track stays trashed across a restart, even when the startup sync
+// adopts another job with its source URL.
 //
 // The trap in writing this is the barrier. Assertions about what did *not*
 // happen have to be made after the startup sync, or they pass on a page that

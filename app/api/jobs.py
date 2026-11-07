@@ -744,15 +744,8 @@ def _retained_source(job_id: str) -> Path | None:
 def _resplit_source_url(source_url: str | None, new_id: str) -> str:
     """A source that names the same file without colliding with it.
 
-    The library replaces any existing track that shares a sourceUrl -- that is
-    how re-importing a link supersedes its old entry -- so a re-split reusing
-    the original's source deleted the very track it came from. Worse than
-    losing the row: the job directory stayed on disk with nothing referencing
-    it, and syncWithServer re-adopted it on the next launch as a duplicate.
-
-    Reusing the row is not an option either. Two jobs that share a source are
-    collapsed again on every launch, so the pair has to differ on disk, not
-    just in this session.
+    A re-split stays a row beside the track it came from, and a later import
+    of the original link still finds exactly one track with that source to replace.
 
     The marker goes on the end. It once went before the last dot, to keep an
     extension that the client read the format from, but an upload's title has
@@ -844,8 +837,7 @@ async def resplit_job(job_id: str, body: ResplitBody) -> dict:
     jobqueue.enqueue(new_job.id)
     registry_persist(JOBS_DIR)
     # source_url comes back because the client cannot derive it: it is
-    # deliberately not the one it asked with, and the library keys its
-    # dedup on exactly this string.
+    # deliberately not the one it asked with.
     return {"job_id": new_job.id, "source_url": new_job.source_url}
 
 
