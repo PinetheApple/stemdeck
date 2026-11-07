@@ -42,6 +42,17 @@ def _isolate():
     tod.TRANSCRIBE_RUNS.runs.clear()
 
 
+@pytest.fixture(autouse=True)
+def resolves(monkeypatch):
+    """Pins the device separation resolves to now; "cpu" unless a test says."""
+
+    def to(device: str) -> None:
+        monkeypatch.setattr(tod, "get_demucs_device", lambda: device)
+
+    to("cpu")
+    return to
+
+
 @pytest.fixture
 def client():
     with patch("app.api.jobs.jobqueue.enqueue", lambda job_id: None):
@@ -271,3 +282,26 @@ def test_deleting_the_job_stops_its_run(client, monkeypatch):
     run = tod.TRANSCRIBE_RUNS.current(JOB_ID)
     assert client.delete(f"/api/jobs/{JOB_ID}").status_code == 200
     assert run.ended.is_set() and tod.TRANSCRIBE_RUNS.current(JOB_ID) is None
+
+
+def test_a_cpu_fallback_job_runs_on_the_gpu_it_has_now(client, monkeypatch, tmp_path, resolves):
+    job = done_job()
+    job.compute_device = "cpu (fallback from cuda)"
+    resolves("cuda")
+    calls: list[str] = []
+    stub_worker(monkeypatch, tmp_path, HEARD, calls)
+    assert client.get(URL).json()["device"] == "cuda"
+    client.post(URL)
+    assert wait_for(client)["state"] == "done"
+    assert calls == ["cuda"]
+
+
+@pytest.mark.parametrize(
+    ("separated_on", "resolved"),
+    [("cuda", "cpu"), ("mps", "mps")],
+)
+def test_a_machine_without_cuda_transcribes_on_the_cpu(client, resolves, separated_on, resolved):
+    job = done_job()
+    job.compute_device = separated_on
+    resolves(resolved)
+    assert client.get(URL).json()["device"] == "cpu"

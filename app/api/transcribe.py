@@ -30,7 +30,6 @@ from app.core.registry import persist as registry_persist
 from app.pipeline import transcribe_on_demand as tod
 from app.pipeline.lyrics_retime import RETIME_RUNS
 from app.pipeline.runs import DONE, IDLE, RUNNING, run_behind_lock, start_run_task
-from app.pipeline.transcribe import _device
 
 router = APIRouter()
 
@@ -56,7 +55,7 @@ def _view(job: Job, job_dir: Path) -> dict[str, Any]:
     reason = None if running else tod.unavailable_reason(job, job_dir)
     out["available"] = not running and reason is None
     out["unavailable"] = reason
-    out["device"] = _device(job)
+    out["device"] = tod.device_now()
     return out
 
 

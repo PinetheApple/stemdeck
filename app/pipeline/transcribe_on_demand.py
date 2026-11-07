@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from app.core.models import STATUS_DONE, Job, JobCancelled
-from app.core.settings import TRANSCRIBE_LYRICS_OFF, get_transcribe_lyrics
+from app.core.settings import TRANSCRIBE_LYRICS_OFF, get_demucs_device, get_transcribe_lyrics
 from app.pipeline import transcribe
 from app.pipeline.lyrics_lookup import (
     _OFFSET_LOCK,
@@ -37,7 +37,7 @@ from app.pipeline.lyrics_lookup import (
     write_lyrics,
 )
 from app.pipeline.runs import CANCELLED, DONE, FAILED, RUNNING, Run, RunBoard
-from app.pipeline.transcribe import _device, _run_worker, _vocals_reason, build_lyrics
+from app.pipeline.transcribe import _run_worker, _vocals_reason, build_lyrics, whisper_device
 
 logger = logging.getLogger("stemdeck.transcribe")
 
@@ -79,6 +79,18 @@ class TranscribeRun(Run):
 
 
 TRANSCRIBE_RUNS: RunBoard[TranscribeRun] = RunBoard(TranscribeRun)
+
+
+def device_now() -> str:
+    """Where a run started now transcribes: the device separation resolves to
+    now, as Whisper runs on it ("cuda" or "cpu").
+
+    Unlike an import, which transcribes on the device its job was just
+    separated on (transcribe._device), a run here may come long after the
+    import: a job that fell back to the CPU then, or predates compute_device,
+    still gets the GPU it has now. A busy GPU falls back to the CPU in the
+    worker, as an import's does."""
+    return whisper_device(get_demucs_device())
 
 
 def unavailable_reason(job: Job, job_dir: Path) -> str | None:
@@ -130,7 +142,7 @@ def transcribe_now(
         logger.info("[%s] lyrics not transcribed: %s", job.id, reason)
         return NO_SINGING
     # Looked up on the module, where tests put their stub worker.
-    cmd = transcribe._spawn_worker_cmd(job_dir / "stems" / "vocals.wav", _device(job))
+    cmd = transcribe._spawn_worker_cmd(job_dir / "stems" / "vocals.wav", device_now())
     result = _run_worker(job, cmd, cancelled=cancelled, report=report)
     if result is None:
         return FAILED

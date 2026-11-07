@@ -152,10 +152,15 @@ def _vocals_reason(job: Job, job_dir: Path) -> str | None:
     return None
 
 
-def _device(job: Job) -> str:
+def whisper_device(compute_device: str | None) -> str:
+    """The device Whisper runs on for a torch device: "cuda" or "cpu"."""
     # macOS has no CUDA, and Whisper's alignment buffer is a sparse tensor
-    # MPS cannot hold, so an MPS job transcribes on the CPU, CPU model.
-    return "cuda" if job.compute_device == "cuda" else "cpu"
+    # MPS cannot hold, so MPS transcribes on the CPU, CPU model.
+    return "cuda" if compute_device == "cuda" else "cpu"
+
+
+def _device(job: Job) -> str:
+    return whisper_device(job.compute_device)
 
 
 def _terminate(proc: subprocess.Popen) -> None:
