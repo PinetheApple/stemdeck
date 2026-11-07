@@ -38,7 +38,9 @@
 //
 // "tight" only closes up the spacing between clusters, for the windows where
 // even the popover leaves the row overflowing.
-const LEVELS = ["wrap", "click", "tight"];
+//
+// "compact" drops the inline labels and shrinks the controls when still short.
+const LEVELS = ["wrap", "click", "tight", "compact"];
 
 // Below this the panel is too narrow to hold the widest control in it with
 // anything beside it, and wrapping stops being a two-row layout.
@@ -187,6 +189,12 @@ function apply() {
   if (deficit > 0) {
     strip.classList.add("collapse-tight");
     level = 3;
+    deficit = overrun() + slack(3);
+  }
+
+  if (deficit > 0) {
+    strip.classList.add("collapse-compact");
+    level = 4;
   }
 
   strip.style.removeProperty("justify-content");

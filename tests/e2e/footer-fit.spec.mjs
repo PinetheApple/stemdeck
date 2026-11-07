@@ -73,6 +73,15 @@ test.describe("footer fit", () => {
     expect(await stripFits(page)).toBe(true);
   });
 
+  test("a 1024 window keeps every transport control on screen", async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await openStudio(page, { tauri: true });
+    await waitForClickTrack(page, { revealOptions: false });
+
+    await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toContain("collapse-compact");
+    expect(await stripFits(page)).toBe(true);
+  });
+
   // Deleted: "the page itself never scrolls sideways".
   //
   // It could not fail. `html, body { overflow: hidden }` (daw.css:7) means the

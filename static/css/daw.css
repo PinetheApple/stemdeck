@@ -2963,9 +2963,7 @@ input, textarea { font-family: inherit; }
 .speed-btn.active:hover {
   background: color-mix(in srgb, var(--text-2) 16%, transparent); color: var(--accent);
 }
-/* Transpose stepper (#245). Sits in a .footer-seg so it inherits the frame and
-   hover behaviour of the speed and click controls beside it; only the readout
-   between the two buttons is new. */
+/* Transpose stepper (#245): two icon buttons and the readout between them. */
 .pitch-value {
   display: flex; align-items: center; justify-content: center;
   min-width: 34px; padding: 0 6px;
@@ -3209,8 +3207,8 @@ input, textarea { font-family: inherit; }
 /* No grid, no options, nothing to disclose. */
 .footer-clusters.collapse-click .footer-metro-panel.hidden + .click-more-btn { display: none; }
 
-/* Last resort before the strip would scroll: close up the spacing. Nothing is
-   hidden or moved, so it costs the user nothing but density. */
+/* Before the strip would scroll: close up the spacing. studio.css also shrinks
+   the readout and hides the Loop label at this level. */
 /* Only the gaps between clusters. Reaching into .footer-group-body as well was
    worth a few pixels and cost more than it saved: at (0,3,0) it outranked
    `.footer-group-position .footer-group-body { gap: 4px }` at (0,2,0), so the

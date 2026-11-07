@@ -240,7 +240,44 @@
 .daw-wave-label .daw-label-title,
 .daw-sections-header .daw-label-title { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
 
-#t-next:disabled { opacity: 0.35; cursor: default; }
+/* ── Transport bar ── */
+.footer-row-controls { align-items: center; padding: var(--s-2) var(--s-4); }
+/* The strip's overflow clips vertically, so this is the room focus rings need. */
+.footer-clusters { align-items: center; padding-block: var(--s-1); }
+.footer-clusters > .footer-group { flex-direction: row; align-items: center; gap: var(--s-2); }
+.footer-clusters .footer-group-label {
+  font: var(--fw-medium) var(--fs-sm) / 1 var(--font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  color: var(--text-3);
+}
+.footer-group-transport > .footer-group-label,
+.footer-group-position > .footer-group-label { display: none; }
+.footer-row-controls .footer-divider { height: var(--s-6); background: var(--line-strong); }
+
+.footer-group-transport .daw-iconbtn.btn-transport {
+  width: var(--ctl-h);
+  height: var(--ctl-h);
+  border-color: transparent;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text-2);
+}
+.footer-group-transport .daw-iconbtn.btn-transport:hover { background: var(--surface-2); color: var(--text); }
+.footer-group-transport .daw-iconbtn.btn-transport.stopped { background: none; border-color: transparent; color: var(--accent); }
+.footer-group-transport .daw-iconbtn.btn-transport.stopped:hover { background: var(--surface-2); color: var(--accent); }
+#t-next:disabled { opacity: 0.35; cursor: default; background: none; }
+/* These can sit on the strip's edges, which would clip an outset ring. */
+#t-stop:focus-visible,
+#t-pitch-reset:focus-visible { outline-offset: -2px; }
+.footer-group-transport .daw-play-btn {
+  width: var(--play-size);
+  height: var(--play-size);
+  border-radius: 50%;
+  box-shadow: none;
+}
+.footer-group-transport .daw-play-btn:hover { box-shadow: none; filter: brightness(var(--hover-brightness)); }
 .footer-group-transport .daw-play-btn.playing,
 .footer-group-transport .daw-play-btn.playing:hover {
   background: var(--accent);
@@ -249,6 +286,113 @@
 }
 .btn-transport .ic { width: var(--icon); height: var(--icon); }
 .footer-group-transport .daw-play-btn .ic { width: var(--icon-lg); height: var(--icon-lg); }
+
+.footer-group-position .footer-group-body { gap: var(--s-4); align-items: center; }
+.footer-time { display: flex; align-items: baseline; gap: var(--s-1); }
+.footer-group-position .footer-elapsed,
+.footer-group-position .footer-total,
+.footer-group-position .footer-time-sep { line-height: 1; }
+.footer-elapsed { font-size: var(--fs-2xl); color: var(--text); }
+.footer-total,
+.footer-time-sep { font: var(--fw-regular) var(--fs-base) var(--font-mono); color: var(--text-3); }
+
+.footer-group-position .daw-iconbtn.btn-transport.loop {
+  flex-direction: row;
+  align-self: center;
+  width: auto;
+  height: var(--ctl-h);
+  margin-left: 0;
+  padding: 0 var(--s-3);
+  gap: var(--s-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+.footer-group-position .daw-iconbtn.btn-transport.loop:hover { background: var(--surface-3); color: var(--text); }
+.footer-group-position .daw-iconbtn.btn-transport.loop.active,
+.footer-group-position .daw-iconbtn.btn-transport.loop.active:hover {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.loop-btn-label { font: var(--fw-medium) var(--fs-base) / 1 var(--font-sans); }
+.footer-loop-times-wrap { gap: var(--s-1); margin-left: 0; }
+.footer-loop-hint {
+  font: var(--fw-medium) var(--fs-sm) / 1 var(--font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-2);
+}
+.footer-loop-times { gap: var(--s-1); }
+.loop-times-sep { font-size: var(--fs-sm); color: var(--text-3); }
+.loop-time-input {
+  padding: var(--s-1) var(--s-2);
+  border-color: var(--line-strong);
+  border-radius: var(--r-1);
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+}
+
+.footer-seg {
+  height: var(--ctl-h);
+  gap: var(--seg-inset);
+  padding: var(--seg-inset);
+  overflow: visible;
+  border-color: var(--line);
+  border-radius: var(--r-2);
+  background: none;
+}
+.footer-seg > button {
+  padding: 0 var(--s-2);
+  border-radius: var(--r-1);
+  color: var(--text-3);
+  font: var(--fw-medium) var(--fs-sm) / 1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.footer-seg > button:hover { background: none; color: var(--text); }
+.footer-seg > button + button { border-left: 0; }
+.speed-btn.active,
+.speed-btn.active:hover { background: var(--surface-3); color: var(--text); }
+
+.pitch-group { display: flex; align-items: center; gap: var(--s-1); }
+.footer-group-key .daw-iconbtn {
+  width: var(--ctl-h);
+  height: var(--ctl-h);
+  border-color: transparent;
+  border-radius: var(--r-2);
+  color: var(--text-2);
+}
+.footer-group-key .daw-iconbtn:hover:not(:disabled) { background: var(--surface-2); border-color: transparent; color: var(--text); }
+.footer-group-key .daw-iconbtn:disabled:hover { background: none; border-color: transparent; color: var(--text-2); }
+.pitch-value {
+  min-width: var(--s-6);
+  padding: 0;
+  border: 0;
+  color: var(--text-2);
+  font: var(--fw-medium) var(--fs-base) / 1 var(--font-mono);
+}
+.pitch-value.active { background: none; color: var(--accent); }
+
+.footer-clusters.collapse-tight .footer-elapsed { font-size: var(--fs-xl); }
+.footer-clusters.collapse-tight .loop-btn-label { display: none; }
+.footer-clusters.collapse-tight .daw-iconbtn.btn-transport.loop { width: var(--ctl-h); padding: 0; }
+.footer-clusters.collapse-compact .footer-group-label { display: none; }
+.footer-clusters.collapse-compact .footer-elapsed { font-size: var(--fs-lg); }
+.footer-clusters.collapse-compact .daw-play-btn { width: var(--ctl-h); height: var(--ctl-h); }
+.footer-clusters.collapse-compact .daw-play-btn .ic { width: var(--icon); height: var(--icon); }
+.footer-clusters.collapse-compact .loop-time-input { padding-inline: var(--s-1); }
+.footer-clusters.collapse-compact .footer-seg > button { padding: 0 var(--s-1); }
+.footer-clusters.collapse-compact .footer-group-key .daw-iconbtn { width: var(--ctl-h-sm); height: var(--ctl-h-sm); }
+
+.footer-track-actions { margin-top: 0; }
+.footer-track-actions .track-chip {
+  height: var(--ctl-h);
+  border-radius: var(--r-2);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
+}
 
 .stage-mode-btn {
   display: inline-flex;

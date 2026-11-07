@@ -31,6 +31,10 @@ const sum = (a) => a.reduce((s, v) => s + v, 0);
 const NATURAL = sum(FIXED) + CLICK_HEAD + PANEL_INLINE + GAP * FIXED.length;
 const CLICK_W = sum(FIXED) + CLICK_HEAD + MORE_BTN + GAP * FIXED.length;
 const TIGHT_W = sum(FIXED) + CLICK_HEAD + MORE_BTN + TIGHT_GAP * FIXED.length;
+// What the compact level takes off the row, modelled as one sum off Position.
+const COMPACT_SAVING = 100;
+const POSITION = 2;
+const COMPACT_W = TIGHT_W - COMPACT_SAVING;
 
 // ── A strip that lays itself out from its classes ─────────────────────────────
 
@@ -58,7 +62,9 @@ function layout() {
   const wrap = !click && classes.has('collapse-wrap');
   const gap = classes.has('collapse-tight') ? TIGHT_GAP : GAP;
   const wrapW = parseFloat(props.get('--metro-wrap-w')) || 380;
-  const widths = [...FIXED, CLICK_HEAD + (click ? MORE_BTN : wrap ? wrapW : PANEL_INLINE)];
+  const fixed = [...FIXED];
+  if (classes.has('collapse-compact')) fixed[POSITION] -= COMPACT_SAVING;
+  const widths = [...fixed, CLICK_HEAD + (click ? MORE_BTN : wrap ? wrapW : PANEL_INLINE)];
   const total = sum(widths) + gap * (widths.length - 1);
   // space-between at the "click" level, unless something holds the row packed
   // left. An overflowing row falls back to flex-start on its own.
@@ -147,7 +153,7 @@ function resizeTo(w, height = 54) {
   flush();
 }
 
-const levelNow = () => ['collapse-wrap', 'collapse-click', 'collapse-tight'].filter((c) => classes.has(c)).join(' ') || 'inline';
+const levelNow = () => ['collapse-wrap', 'collapse-click', 'collapse-tight', 'collapse-compact'].filter((c) => classes.has(c)).join(' ') || 'inline';
 
 let passed = 0;
 let failed = 0;
@@ -224,6 +230,23 @@ check('a strip too short for any wrap goes to the popover and tightens', levelNo
     new Set(seen).size === 1 && seen[0] === 'collapse-click collapse-tight' && events.length === 1,
     `from=${settled} levels=${[...new Set(seen)].join(',')} footerfit events=${events.length}`,
   );
+}
+
+{
+  // The tight/compact boundary. Compact narrows the row, so without the slack
+  // it would undo itself on the next pass.
+  resizeTo(TIGHT_W + 30);
+  events.length = 0;
+  const seen = wobble(TIGHT_W - 6, TIGHT_W + 11);
+  check(
+    'a wobble across the tight/compact threshold collapses once and stays',
+    new Set(seen).size === 1 && seen[0] === 'collapse-click collapse-tight collapse-compact' && events.length === 1,
+    `levels=${[...new Set(seen)].join(',')} footerfit events=${events.length}`,
+  );
+  resizeTo(TIGHT_W + 30);
+  check('compact opens back up once the room really returns', levelNow() === 'collapse-click collapse-tight', levelNow());
+  resizeTo(COMPACT_W - 10);
+  check('a strip too short even for compact keeps every level', levelNow() === 'collapse-click collapse-tight collapse-compact', levelNow());
 }
 
 {
