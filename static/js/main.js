@@ -30,6 +30,7 @@ import { initTempoTools } from "./tempoTools.js";
 import { initSetlists } from "./setlists.js";
 import { initSongRename } from "./songRename.js";
 import { initTrackMenu } from "./trackMenu.js";
+import { initConnection } from "./connection.js";
 
 // ─── Stem choice toggles on the import page ───
 //
@@ -419,6 +420,9 @@ function wireAllButton() {
 }
 
 // ─── Wire everything up ───
+
+// First, so every request below is watched for a lost server.
+initConnection();
 
 // Applied as early as possible in module execution, ahead of every other
 // top-level call below, to minimize the flash of English before the DOM

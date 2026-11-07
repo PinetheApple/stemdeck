@@ -1,7 +1,8 @@
 // Failures that used to look like success (#39).
 //
 // A browser export was a bare <a download>: a failed render produced no file
-// and no message.
+// and no message. And with the server gone, every action silently did nothing
+// while the app looked normal.
 
 import { test, expect } from "@playwright/test";
 import { openStudio, exportUi } from "./helpers.mjs";
@@ -51,5 +52,36 @@ test.describe("a browser export", () => {
     expect((await download).suggestedFilename()).toMatch(/_stems\.zip$/);
     await expect(ui.error).toHaveCount(0);
     await expect(ui.label).toHaveText("Export Mix");
+  });
+});
+
+test.describe("losing the server", () => {
+  const status = (page) => page.locator("#connStatus");
+  const fetchApiTimes = (page, n) =>
+    page.evaluate((count) =>
+      Promise.allSettled(Array.from({ length: count }, () => fetch("/api/jobs"))), n);
+
+  test("shows a visible state, and clears it when the server is back", async ({ page }) => {
+    await openStudio(page);
+    await expect(status(page)).toBeHidden();
+
+    await page.route("**/api/**", (route) => route.abort("connectionrefused"));
+    await fetchApiTimes(page, 3);
+
+    await expect(status(page)).toBeVisible();
+    await expect(status(page)).toHaveAttribute("aria-label", "Can't reach StemDeck");
+
+    // Nothing else is asked of the user: the app notices recovery on its own.
+    await page.unroute("**/api/**");
+    await expect(status(page)).toBeHidden();
+  });
+
+  test("an error answer is not a lost server", async ({ page }) => {
+    await openStudio(page);
+    await page.route("**/api/jobs", (route) => route.fulfill({ status: 503, body: "busy" }));
+
+    await fetchApiTimes(page, 5);
+
+    await expect(status(page)).toBeHidden();
   });
 });

@@ -592,6 +592,10 @@ input, textarea { font-family: inherit; }
   pointer-events: none;
 }
 
+/* The offline mark: a rail item in looks only, so no hover and no pointer. */
+.rail-btn.rail-conn,
+.rail-btn.rail-conn:hover { cursor: default; background: none; color: var(--danger); }
+
 /* Sidebar body */
 .sidebar-body {
   flex: 1;

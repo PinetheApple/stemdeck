@@ -227,6 +227,11 @@
               <span data-i18n="help.railLabel">Guide</span>
             </button>
             <div style="flex:1"></div>
+            <!-- Shown by connection.js while the server can't be reached (#39). -->
+            <div class="rail-btn rail-conn hidden" id="connStatus" role="status" title="Can't reach StemDeck" aria-label="Can't reach StemDeck" data-i18n-title="conn.offline" data-i18n-aria-label="conn.offline">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 5 3-3" /> <path d="m2 22 3-3" /> <path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z" /> <path d="M7.5 13.5 10 11" /> <path d="M10.5 16.5 13 14" /> <path d="m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z" /></svg>
+              <span data-i18n="conn.offlineShort">Offline</span>
+            </div>
             <!-- Notifications (#636). In the rail rather than at the end
                  of the top bar: that row is the import and split controls, so
                  a bell parked on it read as part of that job. Everything else
