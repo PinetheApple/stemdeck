@@ -165,9 +165,9 @@ export async function stubTauri(page) {
 /**
  * Keep export requests off the real backend.
  *
- * A browser-mode export is an <a download> pointed at a mixdown endpoint that
- * shells out to ffmpeg. These tests are about the menu's state machine, so the
- * bytes are irrelevant and the render time is not worth paying.
+ * A browser-mode export fetches a mixdown endpoint that shells out to ffmpeg.
+ * These tests are about the menu's state machine, so the bytes are irrelevant
+ * and the render time is not worth paying.
  */
 export async function stubExportEndpoints(page) {
   await page.route("**/api/jobs/*/mix**", (route) =>

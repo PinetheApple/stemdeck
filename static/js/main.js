@@ -30,6 +30,7 @@ import { initTempoTools } from "./tempoTools.js";
 import { initSetlists } from "./setlists.js";
 import { initSongRename } from "./songRename.js";
 import { initTrackMenu } from "./trackMenu.js";
+import { initConnection } from "./connection.js";
 
 // ─── Stem choice toggles on the import page ───
 //
@@ -420,6 +421,9 @@ function wireAllButton() {
 
 // ─── Wire everything up ───
 
+// First, so every request below is watched for a lost server.
+initConnection();
+
 // Applied as early as possible in module execution, ahead of every other
 // top-level call below, to minimize the flash of English before the DOM
 // gets its real language (unavoidable without server-side rendering, since
@@ -591,10 +595,8 @@ function wireFooterControls() {
     applyFormatState(); // re-derives the region row's genuine disabled state
   }
 
-  // How long to hold the indeterminate state when the host reports nothing back.
-  const EXPORT_FLASH_MS = 1200;
-  // Safety net for the promise path: a pending invoke that somehow never settles
-  // must not leave the menu disabled for the rest of the session (#335).
+  // An export that never settles must not leave the menu disabled for the rest
+  // of the session.
   const EXPORT_BUSY_MAX_MS = 15 * 60 * 1000;
   // Guards against a stale timer from a finished export resetting a later one.
   let busyToken = 0;
@@ -617,10 +619,8 @@ function wireFooterControls() {
     if (exportLabel) exportLabel.textContent = t(busy ? "export.mixing" : "export.mix");
   });
 
-  // `pending` is whatever the download helper returned: a promise on desktop,
-  // resolving once the file is written, or `true` in a browser, where an
-  // <a download> is fire-and-forget and there is nothing to wait on. Only the
-  // guess needs a fixed duration.
+  // `pending` is the download helper's promise, which settles once the file is
+  // written on desktop, or handed to the browser's downloads.
   //
   // `picking` covers the gap between the click and the transfer: the dialog is
   // app-modal so the menu is unreachable anyway, but the flag keeps a second
@@ -636,10 +636,6 @@ function wireFooterControls() {
       if (token === busyToken) resetBusy();
     };
 
-    if (!pending || typeof pending.then !== "function") {
-      window.setTimeout(finish, EXPORT_FLASH_MS);
-      return;
-    }
     const backstop = window.setTimeout(finish, EXPORT_BUSY_MAX_MS);
     pending
       .then((ok) => {

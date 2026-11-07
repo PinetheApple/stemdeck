@@ -1,0 +1,84 @@
+// A failed browser export and a lost server both tell the user, and the UI
+// shows the real state afterwards.
+
+import { test, expect } from "@playwright/test";
+import { openStudio, exportUi } from "./helpers.mjs";
+
+const STEMS_ZIP = "**/api/jobs/*/stems/all.zip**";
+const notifCard = (page, title) =>
+  page.locator("#notifList .daw-notif-error .daw-notif-card-title", { hasText: title });
+
+test.describe("a browser export", () => {
+  test("a server error says so and leaves the menu usable", async ({ page }) => {
+    await openStudio(page);
+    await page.route(STEMS_ZIP, (route) =>
+      route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: "boom" }) }));
+    const ui = exportUi(page);
+
+    await ui.open();
+    await ui.stems.click();
+
+    await expect(ui.error).toContainText("Export failed");
+    await expect(notifCard(page, "Export failed")).toHaveCount(1);
+    await expect(ui.label).toHaveText("Export Mix");
+    await expect(ui.stems).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  test("a dropped connection says so", async ({ page }) => {
+    await openStudio(page);
+    await page.route(STEMS_ZIP, (route) => route.abort("connectionreset"));
+    const ui = exportUi(page);
+
+    await ui.open();
+    await ui.stems.click();
+
+    await expect(ui.error).toContainText("Export failed");
+    await expect(notifCard(page, "Export failed")).toHaveCount(1);
+  });
+
+  test("a successful export still saves the file under its name", async ({ page }) => {
+    await openStudio(page);
+    await page.route(STEMS_ZIP, (route) =>
+      route.fulfill({ status: 200, contentType: "application/zip", body: Buffer.from("PK") }));
+    const ui = exportUi(page);
+
+    await ui.open();
+    const download = page.waitForEvent("download");
+    await ui.stems.click();
+
+    expect((await download).suggestedFilename()).toMatch(/_stems\.zip$/);
+    await expect(ui.error).toHaveCount(0);
+    await expect(ui.label).toHaveText("Export Mix");
+  });
+});
+
+test.describe("losing the server", () => {
+  const status = (page) => page.locator("#connStatus");
+  const fetchApiTimes = (page, n) =>
+    page.evaluate((count) =>
+      Promise.allSettled(Array.from({ length: count }, () => fetch("/api/jobs"))), n);
+
+  test("shows a visible state, and clears it when the server is back", async ({ page }) => {
+    await openStudio(page);
+    await expect(status(page)).toBeHidden();
+
+    await page.route("**/api/**", (route) => route.abort("connectionrefused"));
+    await fetchApiTimes(page, 3);
+
+    await expect(status(page)).toBeVisible();
+    await expect(status(page)).toHaveAttribute("aria-label", "Can't reach StemDeck");
+
+    // Nothing else is asked of the user: the app notices recovery on its own.
+    await page.unroute("**/api/**");
+    await expect(status(page)).toBeHidden();
+  });
+
+  test("an error answer is not a lost server", async ({ page }) => {
+    await openStudio(page);
+    await page.route("**/api/jobs", (route) => route.fulfill({ status: 503, body: "busy" }));
+
+    await fetchApiTimes(page, 5);
+
+    await expect(status(page)).toBeHidden();
+  });
+});

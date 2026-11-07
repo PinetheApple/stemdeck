@@ -1801,9 +1801,8 @@ export function updateFooterTrack({ title, thumbnail, key, bpm, stemCount } = {}
   }
 }
 
-// Returns a promise that settles when the file is actually on disk, or `true`
-// when the host gives no completion signal. Callers use the difference to show
-// a real "Exporting…" state instead of a fixed-length guess.
+// Returns a promise that settles when the file is actually on disk, or saved
+// by the browser, and rejects when the export failed.
 //
 // `onTransferStart` fires when bytes actually begin moving, which on desktop is
 // after the user has chosen a destination. Awaiting one combined command made
@@ -1831,17 +1830,33 @@ function _triggerDownload(url, filename, onTransferStart) {
       return invoke("download_to_path", { token, url: fullUrl });
     });
   }
-  // A browser <a download> is fire-and-forget: the fetch is owned by the
-  // download manager and reports nothing back to the page. There is no dialog
-  // to wait on, so the transfer is under way as soon as the click lands.
+  // No dialog to wait on, so the transfer is under way at once.
   onTransferStart?.();
+  return _browserDownload(fullUrl, filename);
+}
+
+const BLOB_URL_LIFETIME_MS = 60_000;
+
+// Fetched rather than linked: a browser download reports nothing back to the
+// page, so only a fetch can tell that the export failed.
+async function _browserDownload(url, filename) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(await _errorDetail(res));
+  const blobUrl = URL.createObjectURL(await res.blob());
   const a = document.createElement("a");
-  a.href = fullUrl;
+  a.href = blobUrl;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
+  // Revoked later: some browsers drop a download whose URL is revoked at once.
+  window.setTimeout(function revokeExportUrl() { URL.revokeObjectURL(blobUrl); }, BLOB_URL_LIFETIME_MS);
   return true;
+}
+
+async function _errorDetail(res) {
+  const body = await res.json().catch(() => null);
+  return typeof body?.detail === "string" ? body.detail : `${res.status} ${res.statusText}`.trim();
 }
 
 // Per-lane effective gain mirroring mixer.js applyMix (volume + mute + solo),
@@ -1957,9 +1972,9 @@ function _exportFilename(ext) {
   return safe ? `${safe}_exported_mix.${ext}` : `exported_mix.${ext}`;
 }
 
-// The download functions return true when a download was triggered and false
-// when there is nothing audible to export (every lane muted), so the caller can
-// surface a message.
+// The download functions return the pending export, or false when there is
+// nothing audible to export (every lane muted), so the caller can surface a
+// message.
 export function downloadCurrentMix(ext = "wav", onTransferStart) {
   const url = _mixdownUrl(ext, false);
   if (!url) return false;
