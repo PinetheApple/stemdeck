@@ -1,5 +1,5 @@
-// Each failure is named for what failed (#39). An unmapped kind used to be
-// stored as "import", so a failed Empty trash read "Import failed".
+// Each failure kind is named for what failed, and a kind with no label of its
+// own reads as a generic failure rather than borrowing another kind's.
 //
 // Run:  node tests/js/notification-kinds.test.mjs
 
@@ -24,7 +24,6 @@ const EXPECTED = {
   storage: "Library not saved",
   trash: "Trash not emptied",
   cancel: "Cancel failed",
-  save: "Changes not saved",
 };
 
 for (const [kind, label] of Object.entries(EXPECTED)) {

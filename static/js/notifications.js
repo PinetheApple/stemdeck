@@ -42,7 +42,6 @@ const KIND_KEYS = {
   storage: "notifKind.storageSaveFailed",
   trash: "notifKind.trashFailed",
   cancel: "notifKind.cancelFailed",
-  save: "notifKind.saveFailed",
 };
 // Stored for a kind with no label of its own, which reads as "Something failed".
 const UNLABELLED_KIND = "other";
