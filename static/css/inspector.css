@@ -399,7 +399,7 @@
   text-align: left;
   cursor: pointer;
 }
-.upnext-index { width: 1.5em; text-align: right; color: var(--text-3); font-size: var(--fs-xs); }
+.upnext-index { flex: none; width: 1.5em; text-align: right; color: var(--text-3); font-size: var(--fs-xs); }
 .upnext-thumb {
   width: 36px;
   height: 36px;
