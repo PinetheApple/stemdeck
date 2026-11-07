@@ -142,6 +142,7 @@ const answered = new Map();
 let envelope = null;
 let envelopeFor = null;
 let envelopeAsked = null; // the track whose envelope is being fetched
+const reloadsOwed = new Set(); // tracks ensureLyricsLoaded() loads again, though they may be the ones shown
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -159,6 +160,8 @@ function fmtLength(seconds) {
   const s = Math.round(Number(seconds) || 0);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
+
+const announceLines = () => document.dispatchEvent(new CustomEvent("lyricschange"));
 
 function clearLyrics() {
   closeSync(false, { keepOpen: true });
@@ -181,6 +184,7 @@ function clearLyrics() {
   bodyEl.classList.remove("synced", "aligning", "syncing");
   versionsEl.replaceChildren();
   refreshEditBar();
+  announceLines();
 }
 
 // The language a line's script says it is in, for its lang attribute: Korean
@@ -198,7 +202,7 @@ function scriptLang(text) {
   return "";
 }
 
-function tagLang(node, text) {
+export function tagLang(node, text) {
   const lang = scriptLang(text);
   if (lang) node.lang = lang;
   return node;
@@ -382,6 +386,7 @@ function applyTiming() {
   lines = plainSeeded && !timing.lines.length
     ? plainTimedLines(shownEntry.plain, totalDuration || shownEntry.duration)
     : timing.lines;
+  announceLines();
 }
 
 /** Draw `lines` as the synced list, afresh. */
@@ -401,6 +406,7 @@ function renderLines() {
 function setDisplayLines(next) {
   const same = next.length === lines.length && next.every((line, i) => line.text === lines[i].text);
   lines = next;
+  announceLines();
   if (!same) {
     renderLines();
     if (sync) placeLineTools();
@@ -656,6 +662,7 @@ function applyOffset(seconds, { save = true } = {}) {
   // keep their times.
   if (timingKind === "offset") {
     lines = shiftLines(baseLines, offset);
+    announceLines();
     retime();
   }
   showOffset();
@@ -1354,6 +1361,11 @@ function offer(matches) {
 async function keep(match, others) {
   const info = getCurrentTrackInfo();
   if (!info) return;
+  // A load left behind by a switch: these lyrics are the shown track's, not the open one's.
+  if (info.id !== shownTrackId) {
+    reloadsOwed.add(shownTrackId);
+    return;
+  }
   const entry = { v: 1, source: "lrclib", ...match, savedAt: Date.now() };
   // Another version, at its own timing: the offset and the timing line by
   // line were the old one's.
@@ -1740,7 +1752,19 @@ function onTrackLookup(e) {
   const id = e.detail?.id;
   answered.delete(id);
   if (visible && id === getCurrentTrackInfo()?.id) loadForCurrentTrack();
+  else if (!visible) reloadsOwed.add(id);
 }
+
+/** Load the open track's lyrics for a view other than the tab, if they are not the ones held. */
+export function ensureLyricsLoaded() {
+  if (!statusEl || !versionsEl || !bodyEl) return;
+  const id = getCurrentTrackInfo()?.id ?? null;
+  const owed = reloadsOwed.delete(id);
+  if (owed || id !== shownTrackId || (id && id === nothingKnownFor)) loadForCurrentTrack();
+}
+
+/** The lines timing the song, for other views: Sync's starting times on plain text are not timing. */
+export const getTimedLyricLines = () => (plainSeeded && timingKind === "offset" ? [] : lines);
 
 export function initLyrics() {
   const panel = document.getElementById("lyricsPanel");
