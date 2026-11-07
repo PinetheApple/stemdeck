@@ -184,6 +184,7 @@ test.describe("transcribing lyrics on demand", () => {
 
   test("focus follows the keys to Cancel, then to a button still shown", async ({ page }) => {
     const { server } = await setUp(page, { started: running("transcribe", 0.1) });
+    await expect(startButton(page)).toBeVisible();
     await startButton(page).focus();
     await page.keyboard.press("Enter");
     await expect(cancelButton(page)).toBeFocused();
