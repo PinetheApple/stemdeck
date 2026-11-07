@@ -163,8 +163,8 @@ test.describe("transcribing lyrics on demand", () => {
     expect(calls.cancels).toEqual([JOB_ID]);
 
     server.transcribe[JOB_ID] = ended("cancelled");
-    await expect(message(page)).toHaveText("Transcription cancelled.");
     await expect(progress(page)).toBeHidden();
+    await expect(message(page)).toBeHidden();
     await expect(startButton(page)).toBeVisible();
     await expect(pasteButton(page)).toBeVisible();
   });

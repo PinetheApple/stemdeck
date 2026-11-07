@@ -1464,14 +1464,13 @@ async function onLookAgainClick() {
 
 /** A transcription left lyrics on the server: show them as any load does.
  * Asked for, they go ahead of a Remove lyrics made here before. */
-async function onTranscribed(trackId, notice) {
+async function onTranscribed(trackId) {
   if (trackId !== shownTrackId) return;
   answered.delete(trackId);
   const saved = await keptLyrics(trackId);
   if (saved?.dismissed) await storeSet(storeKey(trackId), null);
   if (trackId !== shownTrackId) return;
   await loadForCurrentTrack();
-  if (notice && trackId === shownTrackId) setStatus(notice, "muted");
 }
 
 function onTranscribeStale(trackId) {

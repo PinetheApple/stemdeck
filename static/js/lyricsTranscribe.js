@@ -22,13 +22,9 @@ const MEASURED_PHASES = new Set(["download", "transcribe"]);
 const OUTCOME_KEYS = {
   no_singing: "lyrics.transcribe.noSinging",
   failed: "lyrics.transcribe.failed",
-  cancelled: "lyrics.transcribe.cancelled",
 };
-// What a run that ends with lyrics on the server says, if anything.
-const LYRICS_NOTICES = {
-  done: "",
-  has_lyrics: "lyrics.transcribe.hasLyrics",
-};
+// A run that ended with lyrics on the server: its own, or ones that came meanwhile.
+const LYRICS_STATES = new Set(["done", "has_lyrics"]);
 
 let deps = null;
 let ui = null;
@@ -100,9 +96,8 @@ async function poll(trackId, mine) {
     schedulePoll(trackId, mine);
     return;
   }
-  if (state.state in LYRICS_NOTICES) {
-    const key = LYRICS_NOTICES[state.state];
-    deps.onLyrics(trackId, key ? t(key) : "");
+  if (LYRICS_STATES.has(state.state)) {
+    deps.onLyrics(trackId);
     return;
   }
   paint(state);
@@ -194,7 +189,7 @@ function buildPanel() {
 
 /**
  * Put the Transcribe lyrics button and its progress in `toolbar`.
- * `dependencies`: onLyrics(trackId, notice) when a run left lyrics on the
+ * `dependencies`: onLyrics(trackId) when a run left lyrics on the
  * server; onStale(trackId) when the server refused a start the view allowed.
  */
 export function initLyricsTranscribe(toolbar, dependencies) {
