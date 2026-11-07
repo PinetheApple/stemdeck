@@ -56,6 +56,32 @@
   background: var(--surface-1);
   border-right-color: var(--line);
 }
+.sidebar.is-sizing { transition: none; }
+/* Sits over the library's own right padding, so it never covers the lanes. */
+.library-resizer {
+  flex: none;
+  position: relative;
+  z-index: 1;
+  width: var(--pane-handle-w);
+  margin-left: calc(-1 * var(--pane-handle-w));
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+}
+.library-resizer::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  width: var(--pane-handle-line);
+  background: transparent;
+  transition: background var(--t-fast);
+}
+.library-resizer:hover::after,
+.library-resizer:focus-visible::after,
+.library-resizer.is-dragging::after { background: var(--accent); }
+.daw.cat-collapsed .library-resizer,
+.daw.stage-mode .library-resizer { display: none; }
 .sidebar-rail { padding: var(--s-3) 0; gap: var(--s-1); }
 .rail-btn {
   width: 48px;

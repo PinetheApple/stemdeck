@@ -431,6 +431,8 @@ const en = {
 
   "nav.libraryNav": "Library navigation",
   "nav.toggleLibrary": "Toggle library",
+  "nav.resizeLibrary": "Resize library",
+  "nav.resizeLibraryTitle": "Drag to resize. Double-click to reset.",
   "nav.library": "Library",
   "nav.favorites": "Favorites",
   "nav.trash": "Trash",
@@ -1405,6 +1407,8 @@ const pl = {
 
   "nav.libraryNav": "Nawigacja biblioteki",
   "nav.toggleLibrary": "Przełącz bibliotekę",
+  "nav.resizeLibrary": "Zmień szerokość biblioteki",
+  "nav.resizeLibraryTitle": "Przeciągnij, aby zmienić szerokość. Kliknij dwukrotnie, aby przywrócić.",
   "nav.library": "Biblioteka",
   "nav.favorites": "Ulubione",
   "nav.trash": "Kosz",
@@ -2370,6 +2374,8 @@ const ja = {
 
   "nav.libraryNav": "ライブラリナビゲーション",
   "nav.toggleLibrary": "ライブラリの表示切替",
+  "nav.resizeLibrary": "ライブラリの幅を変更",
+  "nav.resizeLibraryTitle": "ドラッグで幅を変更、ダブルクリックで元に戻します。",
   "nav.library": "ライブラリ",
   "nav.favorites": "お気に入り",
   "nav.trash": "ゴミ箱",
@@ -3308,6 +3314,8 @@ const zhHans = {
 
   "nav.libraryNav": "资料库导航",
   "nav.toggleLibrary": "切换资料库",
+  "nav.resizeLibrary": "调整资料库宽度",
+  "nav.resizeLibraryTitle": "拖动以调整宽度，双击恢复默认。",
   "nav.library": "资料库",
   "nav.favorites": "收藏夹",
   "nav.trash": "回收站",
@@ -4246,6 +4254,8 @@ const de = {
 
   "nav.libraryNav": "Bibliotheksnavigation",
   "nav.toggleLibrary": "Bibliothek umschalten",
+  "nav.resizeLibrary": "Bibliotheksbreite ändern",
+  "nav.resizeLibraryTitle": "Ziehe, um die Breite zu ändern. Doppelklick setzt sie zurück.",
   "nav.library": "Bibliothek",
   "nav.favorites": "Favoriten",
   "nav.trash": "Papierkorb",
@@ -5196,6 +5206,8 @@ const pt = {
 
   "nav.libraryNav": "Navegação da biblioteca",
   "nav.toggleLibrary": "Alternar biblioteca",
+  "nav.resizeLibrary": "Redimensionar biblioteca",
+  "nav.resizeLibraryTitle": "Arraste para redimensionar. Clique duas vezes para redefinir.",
   "nav.library": "Biblioteca",
   "nav.favorites": "Favoritos",
   "nav.trash": "Lixeira",
@@ -6148,6 +6160,8 @@ const id = {
 
   "nav.libraryNav": "Navigasi pustaka",
   "nav.toggleLibrary": "Alihkan pustaka",
+  "nav.resizeLibrary": "Ubah ukuran pustaka",
+  "nav.resizeLibraryTitle": "Seret untuk mengubah ukuran. Klik dua kali untuk mengatur ulang.",
   "nav.library": "Pustaka",
   "nav.favorites": "Favorit",
   "nav.trash": "Sampah",
@@ -7086,6 +7100,8 @@ const fr = {
 
   "nav.libraryNav": "Navigation de la bibliothèque",
   "nav.toggleLibrary": "Afficher/masquer la bibliothèque",
+  "nav.resizeLibrary": "Redimensionner la bibliothèque",
+  "nav.resizeLibraryTitle": "Faites glisser pour redimensionner. Double-cliquez pour réinitialiser.",
   "nav.library": "Bibliothèque",
   "nav.favorites": "Favoris",
   "nav.trash": "Corbeille",
@@ -8219,6 +8235,8 @@ const es = {
 
   "nav.libraryNav": "Navegación de la biblioteca",
   "nav.toggleLibrary": "Mostrar u ocultar la biblioteca",
+  "nav.resizeLibrary": "Cambiar el ancho de la biblioteca",
+  "nav.resizeLibraryTitle": "Arrastra para cambiar el ancho. Haz doble clic para restablecerlo.",
   "nav.library": "Biblioteca",
   "nav.favorites": "Favoritos",
   "nav.trash": "Papelera",
@@ -9192,6 +9210,8 @@ const ko = {
 
   "nav.libraryNav": "라이브러리 탐색",
   "nav.toggleLibrary": "라이브러리 접기/펼치기",
+  "nav.resizeLibrary": "라이브러리 너비 조절",
+  "nav.resizeLibraryTitle": "끌어서 너비를 조절해요. 두 번 클릭하면 원래대로 돌아가요.",
   "nav.library": "라이브러리",
   "nav.favorites": "즐겨찾기",
   "nav.trash": "휴지통",

@@ -88,10 +88,12 @@
   /* Layout */
   --topbar-h:     60px;
   --library-w:    clamp(232px, 15vw, 300px);
+  --pane-handle-w:    8px;
+  --pane-handle-line: 2px;
   /* Narrow enough that the lanes clear transport.js's 720px floor (WAVE_MIN_WIDTH)
      from a 1600px window up, so a song opens fitted rather than scrolled. */
   --inspector-w:  clamp(264px, 17vw, 340px);
-  --header-w:     300px;
+    --header-w:     300px;
   /* The studio's left column, the label cell above it and the footer gutter share
      one width so the footer waveform aligns with the lane waveforms. */
   --daw-col-w:    288px;
