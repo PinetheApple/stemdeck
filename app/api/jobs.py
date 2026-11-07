@@ -47,6 +47,7 @@ from app.core.models import (
     JobCancelled,
     _set,
     checked_name,
+    clean_artist,
     settle_cancelled,
 )
 from app.core.registry import all_jobs as registry_all_jobs
@@ -87,12 +88,12 @@ from app.pipeline.lyrics_lookup import (
     find_lyrics,
     forget_names,
     keep_answer,
+    kept_lyrics_belong,
     lookup_lyrics,
     lyrics_path,
     lyrics_settled,
     read_candidates,
     read_lyrics,
-    saved_lyrics_belong,
     set_lyrics_offset,
     set_user_synced,
 )
@@ -496,18 +497,35 @@ def set_favorite(job_id: str, body: FavoriteBody) -> dict:
     return {"job_id": job.id, "favorite": job.favorite}
 
 
+class LookupBand(BaseModel):
+    """The band saved on the track from the artist box, which lives in the
+    studio's own store and may not be on the job yet."""
+
+    id: str = Field(pattern=r"^Q[0-9]{1,12}$")
+    name: str = Field(default="", max_length=300)
+    englishName: str = Field(default="", max_length=300)  # noqa: N815 (the store's own key)
+
+
 class RenameBody(BaseModel):
-    """A string sets the user's value; null goes back to the detected one."""
+    """A value sets the user's own; null goes back to the detected one."""
 
     model_config = ConfigDict(extra="forbid")
 
     title: str | None = None
     artist: str | None = None
+    band: LookupBand | None = None
 
     @field_validator("title", "artist")
     @classmethod
     def _check_name(cls, value: str | None) -> str | None:
         return None if value is None else checked_name(value, SONG_NAME_MAX_CHARS)
+
+    @field_validator("band")
+    @classmethod
+    def _check_band(cls, value: LookupBand | None) -> LookupBand | None:
+        if value is not None and clean_artist(value.model_dump()) is None:
+            raise ValueError("a band needs a name")
+        return value
 
 
 @router.patch("/{job_id}")
@@ -522,7 +540,11 @@ def rename_job(job_id: str, body: RenameBody) -> dict:
     old ones is forgotten when a name changes: the identity and the work, the
     band too when the artist changed, LRCLIB's last answer, and kept LRCLIB
     lyrics the new names disown. The next tag backfill (POST .../audio-tags)
-    or Lyrics tab lookup finds them again by the new names."""
+    or Lyrics tab lookup finds them again by the new names.
+
+    ``band`` saves the band picked in the artist box as user_band, beside the
+    one found, or clears it with null. The user chose it, so nothing here
+    forgets it, and saving one forgets nothing else."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
     job = registry_get(job_id)
@@ -530,19 +552,25 @@ def rename_job(job_id: str, body: RenameBody) -> dict:
         raise HTTPException(status_code=404, detail="job not found")
     sent = body.model_fields_set
     if not sent:
-        raise HTTPException(status_code=422, detail="send title, artist or both")
+        raise HTTPException(status_code=422, detail="send title, artist or band")
     fields: dict[str, object] = {
         f"user_{name}": getattr(body, name)
         for name in ("title", "artist")
         if name in sent and getattr(body, name) != getattr(job, f"user_{name}")
     }
+    renamed = bool(fields)
+    if "band" in sent:
+        band = clean_artist(body.band.model_dump()) if body.band else None
+        if band != job.user_band:
+            fields["user_band"] = band
     if not fields:
         return _job_state(job)
-    fields.update(identity=None, work=None)
+    if renamed:
+        fields.update(identity=None, work=None)
     if "user_artist" in fields:
         fields["artist"] = None
     _set(job, **fields)
-    if forget_names(job, _job_dir(job_id)):
+    if renamed and forget_names(job, _job_dir(job_id)):
         _set(job, has_lyrics=False)
     _write_metadata_fields(job_id, fields)
     registry_persist(JOBS_DIR)
@@ -740,6 +768,7 @@ async def resplit_job(job_id: str, body: ResplitBody) -> dict:
         title=job.title,
         user_title=job.user_title,
         user_artist=job.user_artist,
+        user_band=job.user_band,
         duration_sec=job.duration_sec,
         # Still a local: source, so this job keeps its own copy and can be
         # re-split in turn -- but distinct, so the library shows it beside the
@@ -1018,7 +1047,7 @@ async def refresh_audio_tags(job_id: str) -> dict:
     ):
         return {
             "audio_tags": job.audio_tags,
-            "artist": job.artist,
+            "artist": job.band,
             "has_lyrics": True,
             "identity": job.identity,
             "work": job.work,
@@ -1145,7 +1174,7 @@ async def refresh_audio_tags(job_id: str) -> dict:
         await asyncio.to_thread(_write_metadata_fields, job_id, found)
     return {
         "audio_tags": job.audio_tags,
-        "artist": job.artist,
+        "artist": job.band,
         "has_lyrics": lyrics_path(job_dir).is_file(),
         "identity": job.identity,
         "work": job.work,
@@ -1238,7 +1267,7 @@ async def get_artist_extra(job_id: str) -> dict:
                 discogs.artist_for_track,
                 job.identity,
                 job.lookup_tags(job.audio_tags),
-                job.artist,
+                job.band,
                 token,
                 cancelled=cancelled,
             )
@@ -1274,7 +1303,8 @@ def get_lyrics(job_id: str) -> Response:
     """
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
-    if registry_get(job_id) is None:
+    job = registry_get(job_id)
+    if job is None:
         raise HTTPException(status_code=404, detail="job not found")
     job_dir = _job_dir(job_id)
     jobs_root = JOBS_DIR.resolve()
@@ -1290,17 +1320,14 @@ def get_lyrics(job_id: str) -> Response:
     # Lyrics kept before a lookup held them to the track's own song and artist
     # can be another song's: checked by that rule each time they are asked for,
     # and dropped for good when they fail it.
-    job = registry_get(job_id)
-    query = build_query(job) if job is not None else None
-    others = [o for o in others if saved_lyrics_belong(o, query)]
-    if entry is not None and drop_if_another_song(job_dir, entry, query):
+    others = [o for o in others if kept_lyrics_belong(o, job)]
+    if entry is not None and drop_if_another_song(job_dir, entry, job):
         logger.info("[%s] dropping kept lyrics of another song", job_id)
-        if job is not None:
-            _set(job, has_lyrics=False)
-            registry_persist(JOBS_DIR)
+        _set(job, has_lyrics=False)
+        registry_persist(JOBS_DIR)
         entry = None
     if entry is not None:
-        entry["others"] = [o for o in entry["others"] if saved_lyrics_belong(o, query)]
+        entry["others"] = [o for o in entry["others"] if kept_lyrics_belong(o, job)]
     headers = {"Cache-Control": "no-cache"}
     if entry is not None:
         if not entry["others"]:
@@ -1311,15 +1338,6 @@ def get_lyrics(job_id: str) -> Response:
             {"detail": "no lyrics", "others": others}, status_code=404, headers=headers
         )
     raise HTTPException(status_code=404, detail="no lyrics")
-
-
-class LookupBand(BaseModel):
-    """The band saved on the track from the artist box, which lives in the
-    studio's own store and may not be on the job yet."""
-
-    id: str = Field(pattern=r"^Q\d{1,12}$")
-    name: str = Field(default="", max_length=300)
-    englishName: str = Field(default="", max_length=300)  # noqa: N815 (the store's own key)
 
 
 class LyricsLookupBody(BaseModel):

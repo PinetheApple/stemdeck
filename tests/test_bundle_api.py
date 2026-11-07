@@ -248,3 +248,21 @@ def test_bundle_beat_grid_carries_the_tempo_and_the_grid_it_implies(client, tmp_
     assert "detected" not in shipped["tempo"]
     assert "user_keys" not in shipped["tempo"]
     assert "bars_edited" not in shipped["tempo"]
+
+
+def test_bundle_carries_the_saved_band_in_the_manifest(client, tmp_path):
+    skip_without_ffmpeg()
+    job_id = "abcdef000899"
+    job = _done_job(job_id)
+    _write_stem(tmp_path, job_id, "vocals")
+    found = {"id": "Q9", "name": "Found", "englishName": "Found"}
+    saved = {"id": "Q123", "name": "Picked", "englishName": "Picked Band"}
+    job.artist = found
+
+    manifest = json.loads(_bundle(client, job_id).read("manifest.json"))
+    assert (manifest["band"], manifest["artist"]) == (found, "Found")
+
+    assert client.patch(f"/api/jobs/{job_id}", json={"band": saved}).status_code == 200
+    manifest = json.loads(_bundle(client, job_id).read("manifest.json"))
+    assert (manifest["band"], manifest["artist"]) == (saved, "Picked")
+    assert manifest["version"] == 1

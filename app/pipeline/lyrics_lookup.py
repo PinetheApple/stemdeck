@@ -69,7 +69,7 @@ import urllib.parse
 import urllib.request
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import cmp_to_key
 from pathlib import Path
 from typing import Any
@@ -648,7 +648,7 @@ def build_query(
     given (they can be known before they are on the job). None when nothing
     is known well enough to look up and the file carried no lyrics."""
     tags = job.lookup_tags(audio_tags if audio_tags is not None else job.audio_tags) or {}
-    band = band or job.artist or {}
+    band = band or job.band or {}
     identity = identity or getattr(job, "identity", None)
     identity = identity if isinstance(identity, dict) else {}
     band_name = _name(band.get("englishName")) or _name(band.get("name"))
@@ -1238,11 +1238,22 @@ def lyrics_worked_on(entry: dict[str, Any]) -> bool:
     return any(k in entry for k in ("user_synced", "aligned", "offset_sec"))
 
 
-def drop_if_another_song(job_dir: Path, entry: dict[str, Any], query: LyricsQuery | None) -> bool:
+def kept_lyrics_belong(entry: dict[str, Any], job: Job) -> bool:
+    """Whether lyrics kept on ``job`` are its own, under the band in effect or
+    the one found: saving or clearing a band never disowns what the found band
+    owns, and lyrics found under the saved band stand while it is saved."""
+    if saved_lyrics_belong(entry, build_query(job)):
+        return True
+    if job.user_band is None:
+        return False
+    return saved_lyrics_belong(entry, build_query(replace(job, user_band=None)))
+
+
+def drop_if_another_song(job_dir: Path, entry: dict[str, Any], job: Job) -> bool:
     """Delete the job's lyrics.json when ``entry`` (what it holds) is LRCLIB's
-    version of a song ``query`` does not name, unless the user worked on it.
-    True when it was deleted."""
-    if lyrics_worked_on(entry) or saved_lyrics_belong(entry, query):
+    version of a song the job is not (kept_lyrics_belong), unless the user
+    worked on it. True when it was deleted."""
+    if lyrics_worked_on(entry) or kept_lyrics_belong(entry, job):
         return False
     lyrics_path(job_dir).unlink(missing_ok=True)
     return True
@@ -1255,7 +1266,7 @@ def forget_names(job: Job, job_dir: Path) -> bool:
     True when lyrics.json was deleted."""
     candidates_path(job_dir).unlink(missing_ok=True)
     entry = read_lyrics(job_dir)
-    return entry is not None and drop_if_another_song(job_dir, entry, build_query(job))
+    return entry is not None and drop_if_another_song(job_dir, entry, job)
 
 
 def lyrics_settled(job_dir: Path, now: float | None = None) -> bool:

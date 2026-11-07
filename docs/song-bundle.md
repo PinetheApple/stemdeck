@@ -36,6 +36,7 @@ A reader ignores members it does not know. A missing optional member means StemD
   "job_id": "0297074f4836",
   "title": "Song title",
   "artist": "Artist name",
+  "band": { "id": "Q12345", "name": "Artist name", "englishName": "Artist name" },
   "duration_sec": 377.4,
   "sample_rate": 44100,
   "channels": 2,
@@ -52,6 +53,7 @@ A reader ignores members it does not know. A missing optional member means StemD
 - `vocals` never appears together with `lead_vocals` or `backing_vocals`; they are the same signal split two ways, and playing both doubles the voice.
 - `files` lists the optional JSON members that are present.
 - `title` and `artist` are what StemDeck shows for the song: the names the user gave it, else the detected ones. Either can be `null`. `artist` is absent from bundles made before it was added.
+- `band` is the band behind the song: the one the user saved on it, else the one StemDeck found. `id` is a Wikidata item (`Q` and digits); either name can be empty, not both. `null` when no band is known, and absent from bundles made before it was added. `artist` still wins for display when the user typed one.
 
 ## stems/*.flac
 

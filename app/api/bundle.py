@@ -247,6 +247,7 @@ async def export_bundle(
         "job_id": job_id,
         "title": job.display_title or metadata.get("title"),
         "artist": job.display_artist,
+        "band": job.band,
         "duration_sec": metadata.get("duration_sec"),
     }
 

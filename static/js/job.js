@@ -424,8 +424,7 @@ function applyState(state) {
       // and title (#699), rather than only once it is reopened from the library.
       ...(state.audio_tags ? { audioTags: libraryAudioTags(state.audio_tags) } : {}),
       // And its band, found by the server while the job ran, so the artist box
-      // and the Lyrics tab have it with no lookup of their own. A band already
-      // saved on the track is kept (see addTrackToLibrary).
+      // and the Lyrics tab have it with no lookup of their own.
       ...(libraryArtist(state.artist) ? { artist: libraryArtist(state.artist) } : {}),
       // The recording it was identified as, and the musical or film a
       // soundtrack is from, on the same terms.

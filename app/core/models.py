@@ -32,7 +32,7 @@ JobStatus = Literal[
 FINISHED_STATUSES = frozenset(("done", "error", "cancelled", "stopped"))
 
 # A Wikidata item id. Anything else is not a band this app found.
-_WIKIDATA_ID_RE = re.compile(r"^Q\d{1,12}$")
+_WIKIDATA_ID_RE = re.compile(r"^Q[0-9]{1,12}$")
 # A band's name, as kept on the job. Longer than this is not a name.
 _ARTIST_NAME_MAX_CHARS = 300
 
@@ -294,6 +294,9 @@ class Job:
     # Kept apart from title/tags so pipeline rewrites don't undo a rename.
     user_title: str | None = None
     user_artist: str | None = None
+    # Apart from ``artist`` so a band found later never replaces it, and clearing
+    # it brings the found one back.
+    user_band: dict[str, str] | None = None
     # Which recording this is, found while the job ran (app/pipeline/identify.py):
     # by audio fingerprint on AcoustID when the user set a key, else a
     # confident MusicBrainz search by the tags, else the tags alone. The shape
@@ -397,14 +400,21 @@ class Job:
         return self.user_title or self.title
 
     @property
+    def band(self) -> dict[str, str] | None:
+        """The band in effect: the one the user saved, else the one found."""
+        return self.user_band or self.artist
+
+    @property
     def display_artist(self) -> str | None:
         """The artist the library and exports show: the user's, else the band
-        found for the tag, the tag itself, or the credit of an identity from a
-        confident source, in that order."""
+        saved or found for the tag, the tag itself, or the credit of an identity
+        from a confident source, in that order."""
         identity = self.identity or {}
         confident = identity.get("source") in CONFIDENT_IDENTITY_SOURCES
+        band = self.band or {}
         detected = (
-            (self.artist or {}).get("name")
+            band.get("name")
+            or band.get("englishName")
             or (self.audio_tags or {}).get("artist")
             or (identity.get("artist") if confident else None)
         )
@@ -466,7 +476,8 @@ class Job:
             "source_format": self.source_format,
             "audio_tags": self.audio_tags,
             "identity": self.identity,
-            "artist": self.artist,
+            "artist": self.band,
+            "user_band": self.user_band,
             "work": self.work,
             "has_lyrics": self.has_lyrics,
             "has_video": self.has_video,
@@ -510,6 +521,7 @@ class Job:
         for key, value in fields.items():
             setattr(job, key, value)
         job.artist = clean_artist(job.artist)
+        job.user_band = clean_artist(job.user_band)
         job.identity = clean_identity(job.identity)
         job.work = clean_work(job.work)
         job.audio_tags = clean_audio_tags(job.audio_tags)
