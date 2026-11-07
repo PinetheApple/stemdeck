@@ -139,8 +139,8 @@ def delete(jobs_dir: Path, setlist_id: str) -> bool:
 
 
 def remove_songs(jobs_dir: Path, song_ids: Collection[str]) -> None:
-    """Take deleted songs out of every setlist that names them: the DELETE
-    route and the retention sweep (collect.sweep_old_jobs).
+    """Take deleted songs out of every setlist that names them, for the
+    DELETE route.
 
     Best-effort: the songs are already gone, so a failed write logs rather than
     failing the delete; the API leaves unknown ids out of what it serves."""

@@ -13,7 +13,6 @@ from app.core.config import SETLIST_MAX_SONGS, SETLIST_NAME_MAX_CHARS
 from app.core.models import Job
 from app.core.registry import _jobs, register
 from app.main import app
-from app.pipeline.collect import sweep_old_jobs
 
 SONG_A = "aaaaaaaaaaaa"
 SONG_B = "bbbbbbbbbbbb"
@@ -134,23 +133,6 @@ def test_deleting_a_song_removes_it_from_every_setlist(client: TestClient) -> No
     on_disk = {s["id"]: s for s in store.list_all(cfg.JOBS_DIR)}
     assert on_disk[first["id"]]["song_ids"] == [SONG_A]
     assert on_disk[second["id"]]["song_ids"] == [SONG_C]
-    assert on_disk[untouched["id"]] == untouched
-
-
-def test_the_retention_sweep_removes_its_songs_from_every_setlist(client: TestClient) -> None:
-    first = _create(client, name="One", song_ids=(SONG_A, SONG_B))
-    second = _create(client, name="Two", song_ids=(SONG_C, SONG_A))
-    untouched = _create(client, name="Three", song_ids=(SONG_B,))
-    for song_id in (SONG_A, SONG_C):
-        (cfg.JOBS_DIR / song_id).mkdir(parents=True, exist_ok=True)
-        _jobs[song_id].created_at = 0.0
-
-    sweep_old_jobs(cfg.JOBS_DIR, ttl_seconds=60)
-
-    assert SONG_A not in _jobs and SONG_C not in _jobs
-    on_disk = {s["id"]: s for s in store.list_all(cfg.JOBS_DIR)}
-    assert on_disk[first["id"]]["song_ids"] == [SONG_B]
-    assert on_disk[second["id"]]["song_ids"] == []
     assert on_disk[untouched["id"]] == untouched
 
 

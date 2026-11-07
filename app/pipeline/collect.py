@@ -20,7 +20,7 @@ from app.core.registry import all_jobs as registry_all
 from app.core.registry import persist as registry_persist
 from app.core.registry import remove as registry_remove
 from app.core.registry import set_proc
-from app.core.setlists import remove_songs as setlists_remove_songs
+from app.core.setlists import list_all as setlists_list_all
 from app.pipeline.audio_stats import scan_stem
 
 logger = logging.getLogger("stemdeck.collect")
@@ -336,31 +336,38 @@ def sweep_old_jobs(jobs_dir: Path, ttl_seconds: int | None = None) -> None:
     unrelated filesystem events), and never deletes the directory of an
     active (non-terminal) registered job even if its timestamp looks old.
     Falls back to mtime for orphan directories left over from a previous
-    server run, since the registry is in-memory only."""
+    server run, since the registry is in-memory only.
+
+    Favourites and songs in any setlist are kept however old they are: the
+    user has said they want them, which outranks a retention limit."""
     cutoff = time.time() - (JOB_TTL_SECONDS if ttl_seconds is None else ttl_seconds)
     if not jobs_dir.is_dir():
         return
     jobs = registry_all()
-    removed: list[str] = []
+    in_setlists = {
+        song_id for setlist in setlists_list_all(jobs_dir) for song_id in setlist["song_ids"]
+    }
+    removed = False
     for d in jobs_dir.iterdir():
         if not d.is_dir():
             continue
         if d.name == "failed":
             continue  # the failure quarantine has its own TTL (sweep_failed_jobs)
+        if d.name in in_setlists:
+            continue
         job = jobs.get(d.name)
         if job is not None:
             if job.status not in _TERMINAL:
                 continue  # never delete an active job's working dir
-            if job.created_at >= cutoff:
+            if job.favorite or job.created_at >= cutoff:
                 continue
         elif d.stat().st_mtime >= cutoff:
             continue
         _rmtree(d)
         registry_remove(d.name)
-        removed.append(d.name)
+        removed = True
     if removed:
         registry_persist(jobs_dir)
-        setlists_remove_songs(jobs_dir, removed)
 
 
 def sweep_failed_jobs(jobs_dir: Path) -> None:

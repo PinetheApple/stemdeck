@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from app.core import setlists
 from app.core.models import Job
 from app.core.registry import _jobs
 from app.pipeline.collect import sweep_old_jobs
@@ -53,6 +54,37 @@ def test_sweeps_terminal_old_job(tmp_path: Path):
 
     assert not d.exists()
     assert job.id not in _jobs
+
+
+def _old_done_job(jobs_dir: Path, job_id: str) -> tuple[Path, Job]:
+    d = _mkdir(jobs_dir, job_id)
+    job = Job(id=job_id, status="done")
+    job.created_at = time.time() - 999_999
+    _jobs[job.id] = job
+    return d, job
+
+
+def test_keeps_an_old_favourite(tmp_path: Path):
+    kept_dir, favourite = _old_done_job(tmp_path, "abcdefabcd01")
+    favourite.favorite = True
+    swept_dir, ordinary = _old_done_job(tmp_path, "abcdefabcd02")
+
+    sweep_old_jobs(tmp_path, ttl_seconds=60)
+
+    assert kept_dir.is_dir() and favourite.id in _jobs
+    assert not swept_dir.exists() and ordinary.id not in _jobs
+
+
+def test_keeps_an_old_song_that_is_in_a_setlist(tmp_path: Path):
+    kept_dir, listed = _old_done_job(tmp_path, "abcdefabcd03")
+    swept_dir, ordinary = _old_done_job(tmp_path, "abcdefabcd04")
+    setlists.create(tmp_path, "Friday gig", [listed.id])
+
+    sweep_old_jobs(tmp_path, ttl_seconds=60)
+
+    assert kept_dir.is_dir() and listed.id in _jobs
+    assert not swept_dir.exists() and ordinary.id not in _jobs
+    assert setlists.list_all(tmp_path)[0]["song_ids"] == [listed.id]
 
 
 def test_deletion_is_off_unless_asked_for(monkeypatch):
