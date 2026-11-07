@@ -2,7 +2,7 @@
 // server fits it as constant tempo anchored at 0.
 
 import { test, expect } from "@playwright/test";
-import { JOB_ID, openStudio, waitForClickTrack } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, openStudio, waitForClickTrack } from "./helpers.mjs";
 
 const BEATS_URL = `/api/jobs/${JOB_ID}/beats`;
 const RESET = { mode: null, bpm: null, anchor: null, beats_per_bar: null };
@@ -26,6 +26,11 @@ const tools = (page) => ({
   anchorDetected: page.locator("#tempoAnchorDetected"),
   perBarDetected: page.locator("#tempoBeatsPerBarDetected"),
   accent: page.locator("#t-metro-bar"),
+  accentWrap: page.locator("#t-metro-bar").locator("xpath=.."),
+  accentAuto: page.locator('#t-metro-bar option[value="-1"]'),
+  override: page.locator("#tempoAccentOverride"),
+  overrideText: page.locator("#tempoAccentOverrideText"),
+  useAuto: page.locator("#tempoAccentUseAuto"),
 });
 
 /** The next tempo PATCH's body, and the grid reload that follows it. */
@@ -62,6 +67,51 @@ function heard(page) {
       clickBpm: Number(metronome.getEffectiveBpm().toFixed(3)),
     };
   });
+}
+
+function spyClickAccent(page) {
+  return page.evaluate(async () => {
+    const { metronome } = await import("/js/state.js");
+    const { setBarPositionFn, setDownbeatFn, setBeatsPerBar } = metronome;
+    metronome.setBarPositionFn = (fn) => { window.clickBarPosition = fn; setBarPositionFn(fn); };
+    metronome.setDownbeatFn = (fn) => { window.clickDownbeat = fn; setDownbeatFn(fn); };
+    metronome.setBeatsPerBar = (n) => { window.clickEvery = n; setBeatsPerBar(n); };
+  });
+}
+
+function accentAndBarLines(page) {
+  return page.evaluate(async () => {
+    const grid = await import("/js/beatgrid.js");
+    const position = window.clickBarPosition;
+    return {
+      clickDownbeats: grid.getBeats().filter((_, i) => position?.(i)?.[0] === 0),
+      barLines: grid.getShownGridLines().filter((line) => line.bar).map((line) => line.t),
+      clickEvery: window.clickEvery,
+      barMarksDropped: window.clickBarPosition === null && window.clickDownbeat === null,
+    };
+  });
+}
+
+/** A bar edit in the grid, saved with the page still open. */
+function editGridBars(page, beatsPerBar) {
+  return page.evaluate(async (n) => {
+    const grid = await import("/js/beatgrid.js");
+    grid.setBarLengthAt(0, n);
+    await grid.flushBeatGrid();
+  }, beatsPerBar);
+}
+
+/** Hidden by its own attribute: toBeHidden would also pass on a closed Tempo tab. */
+async function expectNoOverride(ui) {
+  await expect(ui.override).toHaveJSProperty("hidden", true);
+  await expect(ui.overrideText).toHaveText("");
+  await expect(ui.accentWrap).not.toHaveClass(/active/);
+}
+
+async function expectOverride(ui, text) {
+  await expect(ui.override).toBeVisible();
+  await expect(ui.overrideText).toHaveText(text);
+  await expect(ui.accentWrap).toHaveClass(/active/);
 }
 
 async function openTempo(page) {
@@ -245,5 +295,220 @@ test.describe("tempo tools", () => {
 
     await page.locator("#stageModeBtn").click();
     await expect(page.locator("#stageTempo")).toHaveText("100.0 BPM");
+  });
+});
+
+test.describe("the accent select as an override of the grid's bars", () => {
+  test.afterEach(async ({ request }) => {
+    await request.delete(BEATS_URL);
+    await request.patch(BEATS_URL, { data: { tempo: RESET } });
+  });
+
+  test("on Auto the click accents the grid's bar lines and follows beats per bar", async ({ page }) => {
+    await openTempo(page);
+    const ui = tools(page);
+    await expect(ui.accentAuto).toHaveText("Auto · 4");
+    await expect(ui.accent).toHaveAccessibleName("Accent: Auto, following the grid's 4 beats per bar");
+    await spyClickAccent(page);
+
+    await patchFrom(page, async () => {
+      await ui.perBar.fill("3");
+      await ui.perBar.press("Enter");
+    });
+
+    await expect(ui.accent).toHaveValue("-1");
+    await expect(ui.accentAuto).toHaveText("Auto · 3");
+    await expectNoOverride(ui);
+    const { clickDownbeats, barLines } = await accentAndBarLines(page);
+    expect(clickDownbeats.slice(0, 4)).toEqual([0, 1.5, 3, 4.5]);
+    expect(clickDownbeats).toEqual(barLines);
+  });
+
+  test("a number that differs from the grid shows the note and the override state", async ({ page }) => {
+    await openTempo(page);
+    const ui = tools(page);
+    await expectNoOverride(ui);
+    await spyClickAccent(page);
+
+    await ui.accent.selectOption("3");
+
+    await expectOverride(ui, "Click accents every 3 beats, grid has 4.");
+    await expect(ui.accent).toHaveAccessibleName("Accent every 3 beats, overriding the grid's bar lines");
+    const accent = await accentAndBarLines(page);
+    expect(accent.clickEvery).toBe(3);
+    expect(accent.barMarksDropped).toBe(true);
+  });
+
+  test("a custom number and Off count as overrides too", async ({ page }) => {
+    await openTempo(page);
+    const ui = tools(page);
+
+    await ui.accent.selectOption("custom");
+    const custom = page.locator("#t-metro-bar-custom");
+    await custom.fill("11");
+    await custom.blur();
+    await expectOverride(ui, "Click accents every 11 beats, grid has 4.");
+
+    await ui.accent.selectOption("0");
+    await expectOverride(ui, "Click accents are off, so they don't mark the grid's bar lines.");
+    await expect(ui.accent).toHaveAccessibleName("Accent off, overriding the grid's bar lines");
+  });
+
+  test("a number equal to the grid's bar shows nothing", async ({ page }) => {
+    await openTempo(page);
+    const ui = tools(page);
+
+    await ui.accent.selectOption("3");
+    await expectOverride(ui, "Click accents every 3 beats, grid has 4.");
+
+    await ui.accent.selectOption("4");
+    await expect(ui.accent).toHaveValue("4");
+    await expectNoOverride(ui);
+    await expect(ui.accent).toHaveAccessibleName("Accent every 4 beats, matching the grid's bar lines");
+  });
+
+  test("an equal number counted from another beat is still shown as an override", async ({ page, request }) => {
+    await request.patch(BEATS_URL, { data: { tempo: { anchor: 0.5 } } });
+    await openTempo(page);
+    const ui = tools(page);
+    await expect(ui.perBar).toHaveValue("4");
+    await expectNoOverride(ui);
+
+    await ui.accent.selectOption("4");
+
+    await expectOverride(ui, "Click accents every 4 beats from the first beat, which doesn't match the grid's bar lines.");
+  });
+
+  test("going back to Auto clears it, from the select or from the note", async ({ page }) => {
+    await openTempo(page);
+    const ui = tools(page);
+    const patches = [];
+    page.on("request", (r) => { if (r.method() === "PATCH") patches.push(r.url()); });
+
+    await ui.accent.selectOption("3");
+    await ui.accent.selectOption("-1");
+    await expectNoOverride(ui);
+    await expect(ui.accentAuto).toHaveText("Auto · 4");
+
+    await ui.accent.selectOption("5");
+    await expectOverride(ui, "Click accents every 5 beats, grid has 4.");
+    await ui.useAuto.click();
+    await expect(ui.accent).toHaveValue("-1");
+    await expect(ui.accent).toBeFocused();
+    await expectNoOverride(ui);
+    expect(patches).toEqual([]);
+  });
+
+  test("Use Auto survives a reload", async ({ page }) => {
+    await openTempo(page);
+    const ui = tools(page);
+    await ui.accent.selectOption("3");
+    await expectOverride(ui, "Click accents every 3 beats, grid has 4.");
+
+    await openTempo(page);
+    await expect(ui.accent).toHaveValue("3");
+    await ui.useAuto.click();
+    await expect(ui.accent).toHaveValue("-1");
+
+    await openTempo(page);
+    await expect(ui.accent).toHaveValue("-1");
+    await expectNoOverride(ui);
+  });
+
+  test("bars edited in the grid replace beats per bar, which goes read-only", async ({ page, request }) => {
+    const beats = Array.from({ length: 12 }, (_, i) => i * 0.5);
+    await request.patch(BEATS_URL, { data: { beats, bars: [{ beat: 0, beats_per_bar: 6 }] } });
+    await openTempo(page);
+    const ui = tools(page);
+
+    await expect(ui.perBar).toHaveValue("6");
+    await expect(ui.perBar).toBeDisabled();
+    await expect(ui.perBar).toHaveAttribute("title", "Bars were edited in the grid. Change them there, or reset the grid to use this field.");
+    await expect(ui.accentAuto).toHaveText("Auto · 6");
+    await ui.accent.selectOption("3");
+    await expectOverride(ui, "Click accents every 3 beats, grid has 6.");
+  });
+
+  test("bars of mixed length in the grid leave beats per bar empty", async ({ page, request }) => {
+    const beats = Array.from({ length: 12 }, (_, i) => i * 0.5);
+    const bars = [{ beat: 0, beats_per_bar: 4 }, { beat: 8, beats_per_bar: 3 }];
+    await request.patch(BEATS_URL, { data: { beats, bars } });
+    await openTempo(page);
+    const ui = tools(page);
+
+    await expect(ui.perBar).toHaveValue("");
+    await expect(ui.perBar).toBeDisabled();
+    await expect(ui.accentAuto).toHaveText("Auto");
+  });
+
+  test("a grid edit, then Constant, then Follow leaves the field read-only on the grid's value", async ({ page }) => {
+    await openTempo(page);
+    const ui = tools(page);
+
+    await expect(ui.note).toContainText("accenting 4/4");
+    await editGridBars(page, 6);
+    await expect(ui.perBar).toBeDisabled();
+    await expect(ui.perBar).toHaveValue("6");
+    await expect(ui.note).toContainText("accenting 6/4");
+
+    await patchFrom(page, () => ui.constant.click());
+    await expect(ui.perBar).toBeEnabled();
+    await expect(ui.perBar).toHaveValue("4");
+
+    await patchFrom(page, () => ui.follow.click());
+    await expect(ui.perBar).toBeDisabled();
+    await expect(ui.perBar).toHaveValue("6");
+  });
+
+  test("resetting the grid gives the field back without a reload", async ({ page }) => {
+    await openTempo(page);
+    const ui = tools(page);
+    await editGridBars(page, 6);
+    await expect(ui.perBar).toBeDisabled();
+    await expect(ui.note).toContainText("accenting 6/4");
+
+    await page.evaluate(async () => {
+      const grid = await import("/js/beatgrid.js");
+      await grid.resetBeatGrid();
+    });
+
+    await expect(ui.perBar).toBeEnabled();
+    await expect(ui.perBar).toHaveValue("4");
+    await expect(ui.note).toContainText("accenting 4/4");
+  });
+
+  test("switching songs compares the kept number with the new song's bars", async ({ page }) => {
+    await openTempo(page);
+    const ui = tools(page);
+    await ui.accent.selectOption("3");
+    await expectOverride(ui, "Click accents every 3 beats, grid has 4.");
+
+    let releaseSibling;
+    const siblingHeld = new Promise((resolve) => { releaseSibling = resolve; });
+    await page.route(`**/api/jobs/${SIBLING_JOB_ID}/beats`, async (route) => {
+      await siblingHeld;
+      const response = await route.fetch();
+      const grid = await response.json();
+      await route.fulfill({
+        response,
+        json: {
+          ...grid,
+          bars: [{ beat: 0, beats_per_bar: 3 }],
+          tempo: { ...grid.tempo, beats_per_bar: 3 },
+        },
+      });
+    });
+
+    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().click();
+    await expectNoOverride(ui);
+
+    releaseSibling();
+    await expect(ui.accentAuto).toHaveText("Auto · 3");
+    await expect(ui.accent).toHaveValue("3");
+    await expectNoOverride(ui);
+
+    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+    await expect(ui.accentAuto).toHaveText("Auto · 4");
+    await expectOverride(ui, "Click accents every 3 beats, grid has 4.");
   });
 });

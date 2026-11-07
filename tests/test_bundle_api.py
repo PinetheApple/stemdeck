@@ -247,3 +247,4 @@ def test_bundle_beat_grid_carries_the_tempo_and_the_grid_it_implies(client, tmp_
     assert shipped["bpm"] == 60.0
     assert "detected" not in shipped["tempo"]
     assert "user_keys" not in shipped["tempo"]
+    assert "bars_edited" not in shipped["tempo"]

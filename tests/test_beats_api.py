@@ -375,3 +375,53 @@ def test_partial_user_edit_lists_only_the_keys_set(client, tmp_path, done_job):
     tempo = client.get(f"/api/jobs/{JOB}/beats").json()["tempo"]
     assert tempo["user_keys"] == ["anchor", "bpm"]
     assert tempo["detected"] == {"bpm": 120.0, "anchor": 1.0, "beats_per_bar": 4}
+
+
+_GRID_EDIT = {"beats": [0.2, 0.9], "bars": [{"beat": 0, "beats_per_bar": 3}]}
+
+
+def _patch_bars_edited(client, body):
+    return client.patch(f"/api/jobs/{JOB}/beats", json=body).json()["tempo"]["bars_edited"]
+
+
+def _get_bars_edited(client):
+    return client.get(f"/api/jobs/{JOB}/beats").json()["tempo"]["bars_edited"]
+
+
+def test_bars_edited_is_true_in_follow_mode_with_edited_bars(client, tmp_path, done_job):
+    _write_computed(tmp_path, tempo=_DETECTED)
+    assert _patch_bars_edited(client, _GRID_EDIT) is True
+    assert _get_bars_edited(client) is True
+
+
+def test_bars_edited_is_false_without_grid_edits(client, tmp_path, done_job):
+    _write_computed(tmp_path, tempo=_FOLLOW)
+    assert _get_bars_edited(client) is False
+    assert _patch_bars_edited(client, {"tempo": {"beats_per_bar": 3}}) is False
+    assert _get_bars_edited(client) is False
+
+
+def test_bars_edited_is_false_after_switching_to_constant(client, tmp_path, done_job):
+    _write_computed(tmp_path, tempo=_DETECTED)
+    client.patch(f"/api/jobs/{JOB}/beats", json=_GRID_EDIT)
+    assert _patch_bars_edited(client, {"tempo": {"mode": "constant"}}) is False
+    assert _get_bars_edited(client) is False
+
+
+def test_bars_edited_returns_when_constant_goes_back_to_follow(client, tmp_path, done_job):
+    _write_computed(tmp_path, tempo=_DETECTED)
+    client.patch(f"/api/jobs/{JOB}/beats", json=_GRID_EDIT)
+    client.patch(f"/api/jobs/{JOB}/beats", json={"tempo": {"mode": "constant"}})
+    assert _patch_bars_edited(client, {"tempo": {"mode": "follow"}}) is True
+    assert _get_bars_edited(client) is True
+
+
+def test_bars_edited_is_never_written_to_disk(client, tmp_path, done_job):
+    """A grid with no tempo is the one case a read rewrites beats.json."""
+    _write_computed(tmp_path)
+    client.patch(f"/api/jobs/{JOB}/beats", json=_GRID_EDIT)
+    assert _get_bars_edited(client) is True
+    stems = tmp_path / JOB / "stems"
+    assert "tempo" in json.loads((stems / "beats.json").read_text(encoding="utf-8"))
+    assert "bars_edited" not in (stems / "beats.json").read_text(encoding="utf-8")
+    assert "bars_edited" not in (stems / "beats.user.json").read_text(encoding="utf-8")

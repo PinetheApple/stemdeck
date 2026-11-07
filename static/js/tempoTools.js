@@ -1,9 +1,9 @@
 // The Tempo tab: each change PATCHes the song's tempo, then the server's grid drives the lanes and the click.
 
 import { metronome } from "./state.js";
-import { transport, updateMetronomeAvailability, setMetronomeAccentAuto } from "./transport.js";
+import { transport, updateMetronomeAvailability, setMetronomeAccentAuto, renderAccentState } from "./transport.js";
 import {
-  flushBeatGrid, replaceBeatGrid, saveBeatGridTempo, loadBeatGrid, setBeatGridRate,
+  flushBeatGrid, replaceBeatGrid, saveBeatGridTempo, loadBeatGrid, setBeatGridRate, getBars, getBeats,
 } from "./beatgrid.js";
 import { getCurrentTrackInfo } from "./catalog.js";
 import { EMPTY_VALUE } from "./constants.js";
@@ -164,6 +164,7 @@ export function setTempoGrid(nextJobId, nextGrid) {
   jobId = nextGrid ? nextJobId : null;
   grid = nextGrid ?? null;
   tempo = nextGrid?.tempo ?? null;
+  renderAccentState();
   render();
   announce();
 }
@@ -255,6 +256,12 @@ function setValueUnlessEditing(input, value) {
   if (input && document.activeElement !== input) input.value = value;
 }
 
+function shownBeatsPerBar(barsEdited) {
+  if (!barsEdited) return String(tempo.beats_per_bar);
+  const bars = getBars();
+  return bars.length === 1 ? String(bars[0].beats_per_bar) : "";
+}
+
 function paintDetected(chip, field, format) {
   const value = tempo?.detected?.[field];
   chip.hidden = !isUserSet(field);
@@ -295,7 +302,8 @@ function render() {
   $("tempoModeHint").textContent = t(constant || !ready ? "tempo.constantHint" : "tempo.followHint");
 
   setValueUnlessEditing($("tempoBpm"), Number.isFinite(tempo?.bpm) ? formatBpm(tempo.bpm) : "");
-  setValueUnlessEditing($("tempoBeatsPerBar"), ready ? String(tempo.beats_per_bar) : "");
+  const barsEdited = ready && tempo.bars_edited;
+  setValueUnlessEditing($("tempoBeatsPerBar"), ready ? shownBeatsPerBar(barsEdited) : "");
   $("tempoAnchor").textContent = Number.isFinite(tempo?.anchor) ? formatAnchor(tempo.anchor) : EMPTY_VALUE;
   paintDetected($("tempoBpmDetected"), "bpm", formatBpm);
   paintDetected($("tempoAnchorDetected"), "anchor", formatAnchor);
@@ -305,7 +313,11 @@ function render() {
     $(id).disabled = !constant;
   }
   $("tempoBeatOne").disabled = !ready;
-  $("tempoBeatsPerBar").disabled = !ready;
+  Object.assign($("tempoBeatsPerBar"), {
+    disabled: !ready || barsEdited,
+    title: barsEdited ? t("tempo.beatsPerBarGridEdited") : "",
+    placeholder: barsEdited ? EMPTY_VALUE : "",
+  });
   $("tempoReset").disabled = !edited;
 
   for (const btn of [$("tempoHalf"), $("tempoDouble")]) {
@@ -327,7 +339,10 @@ function onLanguageSwitch() {
 function onBeatGridSave(e) {
   if (e.detail?.jobId !== jobId || !e.detail.tempo) return;
   tempo = e.detail.tempo;
-  if (grid) grid = { ...grid, tempo };
+  if (grid) {
+    grid = { ...grid, tempo, beats: getBeats(), bars: getBars() };
+    updateMetronomeAvailability(grid);
+  }
   render();
   announce();
 }
