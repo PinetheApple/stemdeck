@@ -1417,6 +1417,8 @@ export function toggleMetronome(force) {
  * @param {string} reason  Shown to the user when there is no grid.
  */
 let _lastGrid = null;
+// Below this share of beats on a drum hit, the note says the beat is unsure.
+const UNSURE_BEAT_CONFIDENCE = 60;
 
 function _renderMetroNote(grid) {
   if (!metroNoteEl) return;
@@ -1459,9 +1461,11 @@ function _renderMetroNote(grid) {
       text = t("metro.note.noAccent", { bpm: bpmStr });
     }
   }
+  const unsure = Number.isFinite(conf) && conf < UNSURE_BEAT_CONFIDENCE;
+  if (text && unsure) text = t("metro.note.unsure", { note: text });
   metroNoteEl.textContent = text;
   metroNoteEl.title = text ? t("metro.note.scaleTip") : "";
-  metroNoteEl.className = Number.isFinite(conf) && conf < 60 ? "metro-note warn" : "metro-note";
+  metroNoteEl.className = unsure ? "metro-note warn" : "metro-note";
 }
 
 /**

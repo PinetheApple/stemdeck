@@ -5015,7 +5015,7 @@ function openLibraryEditor() {
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.logs.location.title">Log location</div>
-              <div class="settings-row-desc" data-i18n="settings.logs.location.desc">Open them in a file manager, or use Export logs.</div>
+              <div class="settings-row-desc" data-i18n="settings.logs.location.desc">Open the logs in a file manager, or use Export logs.</div>
             </div>
             <button class="settings-registry-refresh settings-logs-refresh" type="button" data-i18n="settings.logs.refresh">Refresh</button>
           </div>

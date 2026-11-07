@@ -3590,6 +3590,7 @@ input, textarea { font-family: inherit; }
    are hidden. main.js toggles .fmt-mp4 on the panel. */
 #t-export-panel.fmt-mp4 #t-export-stems,
 #t-export-panel.fmt-mp4 #t-export-region { display: none; }
+#t-export-panel:not(.fmt-mp4) .export-mix-video-desc { display: none; }
 
 /* ── About dialog ── */
 .about-backdrop {
@@ -3669,7 +3670,6 @@ input, textarea { font-family: inherit; }
   color: var(--muted); text-decoration: none; transition: all 0.15s;
 }
 .about-social-btn:hover { background: var(--accent); border-color: var(--accent); color: #000; }
-/* Licences of the data and models used: small print under the socials. */
 .about-credits { margin: 16px 0 0; font-size: 10.5px; line-height: 1.5; color: var(--muted); }
 
 /* ── Release notes dialog ── */
@@ -4342,15 +4342,13 @@ input, textarea { font-family: inherit; }
    share the row, so it wraps rather than squeezing them. */
 .artist-foot { flex-wrap: wrap; }
 .artist-discogs-credit { font-weight: 500; }
-/* The Discogs token offer: a quiet aside, not a warning, on one line with
-   the small secondary button to the setting. */
 .artist-discogs-note {
   margin: 0 0 12px; padding: 10px 12px;
   background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
   font-size: 12px; line-height: 1.5; color: var(--fg-2);
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3);
 }
-.artist-discogs-note p { margin: 0; flex: 1 1 14em; }
+.artist-discogs-note p { margin: 0; flex: 1 1 auto; }
 .artist-discogs-open {
   height: 28px; padding: 0 12px; border-radius: 8px;
   background: var(--bg-2); border: 1px solid var(--border-strong);

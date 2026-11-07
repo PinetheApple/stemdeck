@@ -206,7 +206,7 @@ test.describe("artist box from Discogs", () => {
     // Links Wikidata has none of come from Discogs, marked as such.
     await expect(dialog.locator(".artist-link.from-discogs")).toHaveCount(5);
     // Credited to both, and still a Wikidata band that can be saved.
-    await expect(dialog.locator(".artist-source")).toHaveText("From Wikipedia and Wikidata, CC BY-SA");
+    await expect(dialog.locator(".artist-source")).toHaveText("From Wikipedia (CC BY-SA) and Wikidata (CC0)");
     await expect(dialog.locator(".artist-discogs-credit")).toHaveAttribute("href", DISCOGS_PAGE);
     await expect(dialog.locator(".artist-save")).toBeVisible();
   });
@@ -294,7 +294,7 @@ test.describe("artist box: only Wikipedia, or Discogs too", () => {
     const dialog = page.locator("#artistDialog");
     await expect(dialog.locator(".artist-name")).toHaveText("Nihil");
     await expect(dialog.locator(".artist-discogs-note")).toContainText(NOTE);
-    await expect(dialog.locator(".artist-source")).toHaveText("From Wikipedia and Wikidata, CC BY-SA");
+    await expect(dialog.locator(".artist-source")).toHaveText("From Wikipedia (CC BY-SA) and Wikidata (CC0)");
   });
 
   test("never under a band Wikipedia covers in full", async ({ page }) => {
