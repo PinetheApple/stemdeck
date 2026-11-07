@@ -8,7 +8,7 @@ import { createChunkedAudioEngine } from "../js/chunkedAudioEngine.js";
 import { PITCH_MAX, PITCH_MIN, clampPitch } from "../js/pitchBus.js";
 import { createPlaybackContext } from "../js/audioContext.js";
 import { HTTP_CONFLICT } from "../js/lyricsTranscribe.js";
-import { SPLIT_STATE, startSplit, followSplit } from "../js/vocalSplit.js";
+import { SPLIT_STATE, SPLIT_CHOICE, startSplit, followSplit, storeSplitChoice } from "../js/vocalSplit.js";
 // Per-stem label + color, keyed by the backend stem name. Unknown names fall
 // back to a rotating palette so non-standard models still render sensibly.
 const STEM_META = {
@@ -678,6 +678,8 @@ async function startExtraction() {
   }
 
   state.extractJob.id = jobId;
+  // Kept with the job, so a reload during the import still splits it.
+  if (vocalSplitMode === SPLIT_CHOICE.SPLIT) storeSplitChoice(jobId, SPLIT_CHOICE.SPLIT);
   state.extractFile = null;
   state.extractUrl = "";
   state.vocalSplitMode = "all";

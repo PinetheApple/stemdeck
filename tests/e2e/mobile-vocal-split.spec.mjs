@@ -16,7 +16,11 @@ const ended = (state, error = null) => ({ state, choice: "split", error });
 /** A new import that is done at once; `server.view` is the split's state. */
 async function stubImport(page) {
   const server = { view: running(0) };
-  const calls = { starts: 0 };
+  const calls = { starts: 0, choices: [] };
+  await page.route(`**/api/jobs/${NEW_JOB}/vocal-split/choice`, (route) => {
+    calls.choices.push(route.request().postDataJSON());
+    return answer(route, 200, { job_id: NEW_JOB });
+  });
   await page.route("**/api/jobs", (route) =>
     (route.request().method() === "POST" ? answer(route, 200, { job_id: NEW_JOB }) : route.fallback()));
   await page.route(`**/api/jobs/${NEW_JOB}/events`, (route) => answer(route, 500, {}));
@@ -30,10 +34,10 @@ async function stubImport(page) {
   return { server, calls };
 }
 
-async function importWithSplit(page) {
+async function importWith(page, mode) {
   await page.goto("/?ui=mobile", { waitUntil: "domcontentloaded" });
   await page.locator('[data-action="tab"][data-tab="extract"]').first().click();
-  await page.locator('[data-action="vocalmode"][data-mode="split"]').click();
+  if (mode === "split") await page.locator('[data-action="vocalmode"][data-mode="split"]').click();
   await page.locator("#ext-url").fill(SOURCE);
   await page.locator('[data-action="split"]').click();
 }
@@ -44,7 +48,7 @@ const toastEl = (page) => page.locator("#m-toast");
 test.describe("phone: Lead + Backing import", () => {
   test("waits for the split before saying the stems are ready", async ({ page }) => {
     const { server, calls } = await stubImport(page);
-    await importWithSplit(page);
+    await importWith(page, "split");
 
     await expect(progressCard(page)).toContainText("Splitting lead/backing vocals…");
     expect(calls.starts).toBe(1);
@@ -56,9 +60,23 @@ test.describe("phone: Lead + Backing import", () => {
     await expect(toastEl(page)).toHaveText(READY);
   });
 
+  test("stores Lead + Backing with the job as soon as it has an id", async ({ page }) => {
+    const { calls } = await stubImport(page);
+    await importWith(page, "split");
+    await expect.poll(() => calls.choices).toEqual([{ choice: "split" }]);
+  });
+
+  test("a Combined import stores no split and starts none", async ({ page }) => {
+    const { calls } = await stubImport(page);
+    await importWith(page, "all");
+    await expect(toastEl(page)).toHaveText(READY);
+    expect(calls.choices).toEqual([]);
+    expect(calls.starts).toBe(0);
+  });
+
   test("says so when the split fails", async ({ page }) => {
     const { server } = await stubImport(page);
-    await importWithSplit(page);
+    await importWith(page, "split");
     await expect(progressCard(page)).toContainText("Splitting lead/backing vocals…");
 
     server.view = ended("error", "out_of_memory");
