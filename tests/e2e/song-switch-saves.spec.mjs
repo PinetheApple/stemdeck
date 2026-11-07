@@ -138,11 +138,15 @@ test.describe("sections", () => {
     await page.locator("#sectionsAddBtn").click();
     await queueSectionsSave(page);
     await seen;
-    await page.locator("#sectionsAddBtn").click();
-    await queueSectionsSave(page);
+    // Two queued behind it: a reload cancels the held save and the next one can
+    // still slip out before the page is gone, but never the last.
+    for (let queued = 0; queued < 2; queued++) {
+      await page.locator("#sectionsAddBtn").click();
+      await queueSectionsSave(page);
+    }
     await page.reload({ waitUntil: "domcontentloaded" });
 
-    await expect.poll(() => savedSections(request, JOB_ID).then((s) => s.length)).toBe(2);
+    await expect.poll(() => savedSections(request, JOB_ID).then((s) => s.length)).toBe(3);
   });
 });
 
