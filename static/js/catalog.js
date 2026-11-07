@@ -15,6 +15,7 @@ import {
 import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
 import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
+import { isModalOpen } from "./stageMode.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
@@ -1937,13 +1938,6 @@ const LIBRARY_ROW_SELECTOR = "#catalogList .cat-item:not(.in-trash):not(.queue-r
 function focusedLibraryTrackId(target) {
   const row = target?.closest?.(LIBRARY_ROW_SELECTOR);
   return row && tracks[row.dataset.id] ? row.dataset.id : null;
-}
-
-const MODAL_SELECTOR = '[role="dialog"][aria-modal="true"]';
-
-/** The app's dialogs are hidden by a class or removed, not native <dialog>s. */
-function isModalOpen() {
-  return [...document.querySelectorAll(MODAL_SELECTOR)].some((el) => el.getClientRects().length > 0);
 }
 
 // Only a song whose row has focus: the open song is not a target, or Delete
