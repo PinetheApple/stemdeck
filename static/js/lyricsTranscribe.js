@@ -1,7 +1,5 @@
-// Transcribe lyrics on demand (#30): for a processed song with none, the
-// server transcribes its vocals stem (GET/POST /api/jobs/{id}/lyrics/transcribe).
-// This module offers the run in the Lyrics toolbar and follows it; lyrics.js
-// draws the lyrics it writes.
+// Transcribe lyrics on demand (#30): offers a run of .../lyrics/transcribe for a
+// song with none, and follows it in the Lyrics toolbar; lyrics.js draws the result.
 
 import { t, getLanguage } from "./i18n.js";
 import { toolButton, setToolLabel, TOOL_QUIET } from "./lyricsToolbar.js";

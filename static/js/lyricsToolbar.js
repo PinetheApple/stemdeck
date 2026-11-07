@@ -10,7 +10,7 @@ export const TOOL_QUIET = "lyrics-tool-quiet";
 export function toolButton(className, iconName, label, onClick) {
   const node = document.createElement("button");
   node.type = "button";
-  node.className = className ? `lyrics-tool ${className}` : "lyrics-tool";
+  node.className = `lyrics-tool ${className}`;
   node.innerHTML = icon(iconName);
   const text = document.createElement("span");
   text.className = "lyrics-tool-label";

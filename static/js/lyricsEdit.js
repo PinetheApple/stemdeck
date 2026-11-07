@@ -28,8 +28,8 @@ const SPLIT_ICON = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="curr
 let deps = null;
 let panelEl = null;
 let barEl = null;
-let editLink = null;
-let supplyLink = null;
+let editButton = null;
+let supplyButton = null;
 let hostEl = null;
 let session = null; // the edit open on screen
 let ui = null; // its elements
@@ -65,18 +65,18 @@ function retag(field) {
 export function refreshEditBar() {
   if (!barEl) return;
   barEl.hidden = !deps.trackId() || Boolean(session);
-  setToolLabel(editLink, t("lyrics.edit.open"));
-  editLink.title = t("lyrics.edit.openTitle");
-  editLink.hidden = !deps.editable().rows.length;
-  setToolLabel(supplyLink, t("lyrics.supply.open"));
-  supplyLink.title = t("lyrics.supply.openTitle");
+  setToolLabel(editButton, t("lyrics.edit.open"));
+  editButton.title = t("lyrics.edit.openTitle");
+  editButton.hidden = !deps.editable().rows.length;
+  setToolLabel(supplyButton, t("lyrics.supply.open"));
+  supplyButton.title = t("lyrics.supply.openTitle");
 }
 
-function onEditLinkClick() {
+function onEditButtonClick() {
   openEditor(KIND_LINES);
 }
 
-function onSupplyLinkClick() {
+function onSupplyButtonClick() {
   openEditor(KIND_PASTE);
 }
 
@@ -114,7 +114,7 @@ function closeEditor() {
   hostEl.replaceChildren();
   panelEl.classList.remove("lyrics-editing");
   refreshEditBar();
-  if (hadFocus) (editLink.hidden ? supplyLink : editLink).focus();
+  if (hadFocus) (editButton.hidden ? supplyButton : editButton).focus();
 }
 
 /** Another track was opened: the edit on screen goes aside, and one put aside
@@ -429,9 +429,9 @@ export function initLyricsEdit(panel, toolbar, dependencies) {
   deps = dependencies;
   panelEl = panel;
   barEl = el("div", "lyrics-supply");
-  editLink = toolButton("lyrics-edit-open", "pencil", "", onEditLinkClick);
-  supplyLink = toolButton("lyrics-supply-open", "clipboard", "", onSupplyLinkClick);
-  barEl.append(editLink, supplyLink);
+  editButton = toolButton("lyrics-edit-open", "pencil", "", onEditButtonClick);
+  supplyButton = toolButton("lyrics-supply-open", "clipboard", "", onSupplyButtonClick);
+  barEl.append(editButton, supplyButton);
   barEl.hidden = true;
   toolbar.append(barEl);
   hostEl = el("div", "lyrics-editor");

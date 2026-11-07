@@ -302,23 +302,16 @@ function show(entry, others = [], from = "store") {
   offset = clampOffset(entry.offsetSec);
   applyTiming();
   if (others.length && entry.source !== USER_SOURCE) {
-    const toggle = toolButton(`${TOOL_QUIET} lyrics-versions-toggle`, "listMusic", t("lyrics.otherVersions", { count: others.length }));
-    toggle.setAttribute("aria-expanded", "false");
     const list = versionList(others, [entry, ...others]);
     list.hidden = true;
-    toggle.addEventListener("click", () => {
-      list.hidden = !list.hidden;
-      toggle.setAttribute("aria-expanded", String(!list.hidden));
-      setToolLabel(toggle, t(list.hidden ? "lyrics.otherVersions" : "lyrics.hideVersions", { count: others.length }));
-    });
-    tools.append(toggle);
+    tools.append(versionsToggle(list, others.length));
     versionsEl.append(list);
   }
   // Words to align, or to say why they cannot be: not for an instrumental.
   // The panel goes under the toolbar, above the versions list.
   if (entry.synced || entry.plain) tools.append(syncToggle(), alignToggle());
   if (baseLines.length && alignOpen && !syncOpen) toolbarEl.after(alignPanel());
-  tools.append(entry.source === USER_SOURCE ? restoreLink(entry) : removeLink());
+  tools.append(entry.source === USER_SOURCE ? restoreButton(entry) : removeButton());
   if (entry.source === USER_SOURCE) {
     untimedNoteEl = untimedNote();
     toolbarEl.after(untimedNoteEl);
@@ -330,17 +323,30 @@ function show(entry, others = [], from = "store") {
   refreshEditBar();
 }
 
-function removeLink() {
+/** Other versions, which shows `list` of `count` versions or folds it away. */
+function versionsToggle(list, count) {
+  const toggle = toolButton(`${TOOL_QUIET} lyrics-versions-toggle`, "listMusic", t("lyrics.otherVersions", { count }));
+  toggle.setAttribute("aria-expanded", "false");
+  function onVersionsToggleClick() {
+    list.hidden = !list.hidden;
+    toggle.setAttribute("aria-expanded", String(!list.hidden));
+    setToolLabel(toggle, t(list.hidden ? "lyrics.otherVersions" : "lyrics.hideVersions", { count }));
+  }
+  toggle.addEventListener("click", onVersionsToggleClick);
+  return toggle;
+}
+
+function removeButton() {
   return toolButton(`${TOOL_QUIET} lyrics-remove`, "trash", t("lyrics.remove"), removeLyrics);
 }
 
 /** Where Remove lyrics stands for the user's own, which the server keeps:
  * back to what they replaced, or with nothing replaced, simply away. */
-function restoreLink(entry) {
+function restoreButton(entry) {
   const label = t(entry.hasOriginal ? "lyrics.edit.backToOriginal" : "lyrics.remove");
-  const link = toolButton(`${TOOL_QUIET} lyrics-restore`, entry.hasOriginal ? "restore" : "trash", label, restoreOriginal);
-  if (entry.hasOriginal) link.title = t("lyrics.edit.backToOriginalTitle");
-  return link;
+  const restore = toolButton(`${TOOL_QUIET} lyrics-restore`, entry.hasOriginal ? "restore" : "trash", label, restoreOriginal);
+  if (entry.hasOriginal) restore.title = t("lyrics.edit.backToOriginalTitle");
+  return restore;
 }
 
 function untimedNote() {
