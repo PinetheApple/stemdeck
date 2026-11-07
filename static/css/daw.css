@@ -641,6 +641,7 @@ input, textarea { font-family: inherit; }
   padding: 0 5px;
   flex-shrink: 0;
 }
+.daw-search input:not(:placeholder-shown) ~ .search-kbd { display: none; }
 
 /* Lib header row */
 .daw-lib-header {

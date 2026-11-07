@@ -26,6 +26,7 @@ import { initInspector } from "./inspector.js";
 import { initLibraryResize } from "./libraryResize.js";
 import { initUpNext, renderUpNext } from "./upNext.js";
 import { initStageMode } from "./stageMode.js";
+import { initSearchShortcut } from "./searchShortcut.js";
 import { initTempoTools } from "./tempoTools.js";
 import { initSetlists } from "./setlists.js";
 import { initSongRename } from "./songRename.js";
@@ -477,6 +478,7 @@ initSetlists();
 initSongRename();
 initTrackMenu();
 initStageMode();
+initSearchShortcut();
 initTempoTools();
 // Re-measure after a language switch. Measured across en/fr/de/pl the strip
 // came out the same width in all four, because the group labels are 10px
@@ -1053,6 +1055,7 @@ function wireAppShellControls() {
 
 document.addEventListener("keydown", (e) => {
   if (!transport()) return;
+  if (e.ctrlKey || e.metaKey) return;
   // Textareas were not excluded, so Space in the log viewer started playback
   // instead of scrolling.
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
