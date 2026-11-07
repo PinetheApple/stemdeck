@@ -196,9 +196,9 @@ test.describe("the save dialog phase (#338)", () => {
 });
 
 test.describe("export menu, browser mode", () => {
-  test("rows recover after the fire-and-forget download path", async ({ page }) => {
-    // No Tauri bridge: _triggerDownload falls back to a synthetic <a download>,
-    // which reports nothing back, so the reset runs on the timer instead.
+  test("rows recover after a browser download", async ({ page }) => {
+    // No Tauri bridge: the export is fetched and saved through a blob link, and
+    // the reset waits on that fetch.
     await openStudio(page);
     const ui = exportUi(page);
 
