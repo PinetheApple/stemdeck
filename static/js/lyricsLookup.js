@@ -13,7 +13,8 @@
 import { artistNameKey } from "./artistLookup.js";
 import { toSimplified } from "./zhVariants.js";
 
-const SERVER_SOURCES = new Set(["lrclib", "file", "whisper"]);
+export const USER_SOURCE = "user";
+const SERVER_SOURCES = new Set(["lrclib", "file", "whisper", USER_SOURCE]);
 
 /** One version from the server's lyrics.json in the tab's shape, or null. */
 function fromServerVersion(v) {
@@ -68,6 +69,7 @@ export function fromServerLyrics(data) {
   const offsetSec = clampOffset(data.offset_sec);
   const userSynced = typeof data.user_synced === "string" && data.user_synced.trim() ? data.user_synced : "";
   const aligned = alignedFrom(data.aligned);
+  const untimedLines = (Array.isArray(data.untimed_lines) ? data.untimed_lines : []).filter(Number.isInteger);
   if (found) {
     return {
       entry: {
@@ -76,6 +78,8 @@ export function fromServerLyrics(data) {
         ...(offsetSec ? { offsetSec } : {}),
         ...(userSynced ? { userSynced } : {}),
         ...(aligned ? { aligned } : {}),
+        ...(data.has_original === true ? { hasOriginal: true } : {}),
+        ...(untimedLines.length ? { untimedLines } : {}),
       },
       others,
     };

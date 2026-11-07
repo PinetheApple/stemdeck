@@ -33,6 +33,8 @@
 // over the lyrics' own at the Align offset (lyricsSync.js timingOf); the
 // offset applies to the last only, and the Align panel says so.
 //
+// The user's own lyrics (lyricsEdit.js) are the server's, and go before all else.
+//
 // Everything that came from the network or a file's tags goes in with
 // textContent, never as HTML: anyone can edit LRCLIB or a tag, and this page
 // can reach the desktop app's native commands.
@@ -54,6 +56,7 @@ import {
   firstSungIndex,
   offsetToStart,
   alignedFrom,
+  USER_SOURCE,
 } from "./lyricsLookup.js";
 import {
   timingOf,
@@ -72,6 +75,8 @@ import {
   revealLaneSelected,
   formatClock,
 } from "./lyricsLane.js";
+import { initLyricsEdit, refreshEditBar, editorTrackChanged, restoreOriginal } from "./lyricsEdit.js";
+import { editableRows, plainTexts, plainTimedLines, untimedRows } from "./lyricsUserText.js";
 
 // One store entry per track rather than a field in the library store: a song's
 // lyrics run to a few kilobytes, and the library is rewritten whole on every
@@ -103,6 +108,8 @@ let pickedIndex = -1; // the line last clicked, which Start lyrics here moves
 // track is; its panel, session and elements while it is on screen.
 let syncOpen = false;
 let sync = null;
+let plainSeeded = false; // plain text given starting times, while it is being timed
+let untimedNoteEl = null; // says what still needs timing, with the way in
 let syncToggleEl = null; // the Sync lines link in the tools row
 let userSave = null; // the user's timing waiting to be saved, or its removal
 let userSaveTimer = 0;
@@ -165,6 +172,7 @@ function clearLyrics() {
   pickedIndex = -1;
   align = null;
   alignToggleEl = null;
+  untimedNoteEl = null;
   alignToken++;
   lineEls = [];
   lineWords = [];
@@ -172,6 +180,7 @@ function clearLyrics() {
   bodyEl.replaceChildren();
   bodyEl.classList.remove("synced", "aligning", "syncing");
   versionsEl.replaceChildren();
+  refreshEditBar();
 }
 
 // The language a line's script says it is in, for its lang attribute: Korean
@@ -261,6 +270,7 @@ function show(entry, others = [], from = "store") {
       entry.album,
       entry.source === "file" ? t("lyrics.fromFile") : "",
       entry.source === "whisper" ? t("lyrics.transcribed") : "",
+      entry.source === USER_SOURCE ? t("lyrics.edit.yours") : "",
     ].filter(Boolean).join(" · ")),
   );
   const tools = el("div", "lyrics-tools");
@@ -268,7 +278,7 @@ function show(entry, others = [], from = "store") {
   baseLines = entry.synced ? parseLrc(entry.synced) : [];
   offset = clampOffset(entry.offsetSec);
   applyTiming();
-  if (others.length) {
+  if (others.length && entry.source !== USER_SOURCE) {
     const toggle = el("button", "lyrics-link", t("lyrics.otherVersions", { count: others.length }));
     toggle.type = "button";
     toggle.setAttribute("aria-expanded", "false");
@@ -286,20 +296,82 @@ function show(entry, others = [], from = "store") {
   // The panel goes under the tools row, above the versions list.
   if (entry.synced || entry.plain) tools.append(syncToggle(), alignToggle());
   if (baseLines.length && alignOpen && !syncOpen) tools.after(alignPanel());
+  tools.append(entry.source === USER_SOURCE ? restoreLink(entry) : removeLink());
+  if (entry.source === USER_SOURCE) {
+    untimedNoteEl = untimedNote();
+    tools.after(untimedNoteEl);
+  }
+
+  drawBody();
+  bodyEl.scrollTop = 0;
+  if (syncOpen && canSync()) openSync();
+  refreshEditBar();
+}
+
+function removeLink() {
   const remove = el("button", "lyrics-link", t("lyrics.remove"));
   remove.type = "button";
-  remove.addEventListener("click", () => removeLyrics());
-  tools.append(remove);
+  remove.addEventListener("click", removeLyrics);
+  return remove;
+}
 
+/** Where Remove lyrics stands for the user's own, which the server keeps:
+ * back to what they replaced, or with nothing replaced, simply away. */
+function restoreLink(entry) {
+  const link = el("button", "lyrics-link lyrics-restore", t(entry.hasOriginal ? "lyrics.edit.backToOriginal" : "lyrics.remove"));
+  link.type = "button";
+  if (entry.hasOriginal) link.title = t("lyrics.edit.backToOriginalTitle");
+  link.addEventListener("click", restoreOriginal);
+  return link;
+}
+
+function untimedNote() {
+  const note = el("p", "lyrics-untimed");
+  const open = el("button", "lyrics-link", t("lyrics.sync.open"));
+  open.type = "button";
+  open.addEventListener("click", onUntimedSyncClick);
+  note.hidden = true;
+  note.append(el("span"), open);
+  return note;
+}
+
+function onUntimedSyncClick() {
+  openSync({ focus: true });
+}
+
+/** The lines `lines` holds as the list, or plain text as text. */
+function drawBody() {
   if (lines.length) {
     renderLines();
     loadEnvelope(shownTrackId);
-  } else if (entry.plain) {
-    // Composed, as parseLrc does for synced lines.
-    for (const text of entry.plain.normalize("NFC").split(/\r?\n/)) bodyEl.append(tagLang(el("p", "lyrics-text", text || " "), text));
+    return;
   }
-  bodyEl.scrollTop = 0;
-  if (syncOpen && lines.length) openSync();
+  lineEls = [];
+  lineWords = [];
+  currentIndex = -1;
+  bodyEl.classList.remove("synced");
+  bodyEl.replaceChildren();
+  // Composed, as parseLrc does for synced lines.
+  const plain = shownEntry?.plain ? shownEntry.plain.normalize("NFC").split(/\r?\n/) : [];
+  for (const text of plain) bodyEl.append(tagLang(el("p", "lyrics-text", text || " "), text));
+  showUntimed();
+}
+
+/** Mark the lines the server only estimated, which matter only while nothing
+ * has timed the lines one by one, and say so with the way into Sync lines. */
+function showUntimed() {
+  const flagged = timingKind === "offset" && !plainSeeded ? untimedRows(lines, shownEntry?.untimedLines) : new Set();
+  lineEls.forEach((row, i) => {
+    row.classList.toggle("untimed", flagged.has(i));
+    if (flagged.has(i)) row.dataset.flag = t("lyrics.edit.needsTiming");
+    else delete row.dataset.flag;
+  });
+  if (!untimedNoteEl) return;
+  const message = !lines.length && canSync()
+    ? t("lyrics.edit.noTiming")
+    : flagged.size ? t("lyrics.edit.untimedCount", { count: flagged.size }) : "";
+  untimedNoteEl.firstChild.textContent = message;
+  untimedNoteEl.hidden = !message || Boolean(sync);
 }
 
 /** The timing in effect for what is shown, into `lines`: the user's own, the
@@ -307,7 +379,9 @@ function show(entry, others = [], from = "store") {
 function applyTiming() {
   const timing = shownEntry ? timingOf({ ...shownEntry, offsetSec: offset }) : { kind: "offset", lines: [] };
   timingKind = timing.kind;
-  lines = timing.lines;
+  lines = plainSeeded && !timing.lines.length
+    ? plainTimedLines(shownEntry.plain, totalDuration || shownEntry.duration)
+    : timing.lines;
 }
 
 /** Draw `lines` as the synced list, afresh. */
@@ -318,6 +392,7 @@ function renderLines() {
   bodyEl.replaceChildren(...lineEls);
   bodyEl.classList.add("synced");
   showLineTimes();
+  showUntimed();
 }
 
 /** Show `next` as the lines' timing at once: the list, the wipe, a line
@@ -706,13 +781,19 @@ const now = () => transport()?.getCurrentTime?.() ?? 0;
 const levels = () => (envelopeFor === shownTrackId ? envelope : null);
 const laneLength = () => totalDuration || (lines.at(-1)?.time ?? 0) + 10;
 
+/** Whether Sync lines has lines to work on. The user's plain text does: PUT
+ * .../user-synced takes a timing of it, though nothing has timed it yet. */
+function canSync() {
+  return lines.length > 0 || (shownEntry?.source === USER_SOURCE && plainTexts(shownEntry.plain).length > 0);
+}
+
 /** The Sync lines link in the tools row. Disabled, and saying why, for
  * lyrics with no timing at all. */
 function syncToggle() {
   const toggle = el("button", "lyrics-link lyrics-sync-toggle", t("lyrics.sync.button"));
   toggle.type = "button";
   syncToggleEl = toggle;
-  if (!lines.length) {
+  if (!canSync()) {
     toggle.setAttribute("aria-disabled", "true");
     toggle.title = t("lyrics.sync.syncedOnly");
     return toggle;
@@ -729,9 +810,14 @@ function syncToggle() {
 }
 
 function openSync({ focus = false } = {}) {
-  if (!lines.length || sync) return;
+  if (!canSync() || sync) return;
   if (align) closeAlign(false);
   syncOpen = true;
+  if (!lines.length) {
+    plainSeeded = true;
+    applyTiming();
+    drawBody();
+  }
   const session = new SyncSession(lines, {
     // The lyrics' own timing is usually right line to line and off as a
     // whole, so a tap carries the lines after it along; timing already fitted
@@ -761,6 +847,7 @@ function openSync({ focus = false } = {}) {
   });
   onCursor();
   showSyncState();
+  showUntimed();
   if (focus) sync.tap.focus();
 }
 
@@ -781,7 +868,16 @@ function closeSync(focusToggle, { keepOpen = false } = {}) {
   hideLane();
   sync = null;
   syncToggleEl?.setAttribute("aria-expanded", "false");
+  if (plainSeeded) dropPlainSeed();
+  showUntimed();
   if (focusToggle) syncToggleEl?.focus();
+}
+
+/** Starting times are not timing: left unchanged, the plain text shows again. */
+function dropPlainSeed() {
+  plainSeeded = false;
+  applyTiming();
+  if (!lines.length) drawBody();
 }
 
 /** One of the panel's options, a checkbox that lets go of focus once
@@ -923,7 +1019,9 @@ function placeLineTools() {
 /** What Sync lines says about the timing in effect. */
 function showSyncState() {
   if (!sync) return;
-  sync.kind.textContent = t(`lyrics.sync.kind.${timingKind}`);
+  sync.kind.textContent = plainSeeded && timingKind === "offset"
+    ? t("lyrics.edit.estimatedKind")
+    : t(`lyrics.sync.kind.${timingKind}`);
   sync.undo.disabled = !sync.session.canUndo;
 }
 
@@ -942,6 +1040,7 @@ function setSyncMessage(text = "", kind = "") {
 function syncChanged({ reveal = false } = {}) {
   if (!sync) return;
   const { session } = sync;
+  timingKind = session.meta.kind;
   setDisplayLines(session.lines);
   updateLane(lines, session.cursor);
   onCursor({ reveal });
@@ -950,9 +1049,9 @@ function syncChanged({ reveal = false } = {}) {
   } else if (shownEntry?.userSynced) {
     saveUserTiming(null);
   }
-  timingKind = session.meta.kind;
   showSyncState();
   showAlignApplies();
+  showUntimed();
 }
 
 /** An edit by hand: the lines are now the user's own timing. */
@@ -1280,6 +1379,45 @@ async function removeLyrics() {
   showRemoved();
 }
 
+/** What the editor can start from: the words shown, and for lyrics kept here,
+ * which the server does not have, the text that puts them there first. */
+function editableNow() {
+  const seedText = shownFrom === "store" && shownEntry ? (lines.length ? serializeLrc(lines) : shownEntry.plain) : "";
+  return { rows: editableRows(lines, shownEntry?.plain), seedText };
+}
+
+function closeLyricsTools() {
+  if (sync) closeSync(false);
+  if (align) closeAlign(false);
+  syncOpen = false;
+  alignOpen = false;
+}
+
+/** The server's answer to the user's lyrics being kept, which goes ahead of
+ * any lookup or load still under way. */
+function onUserTextSaved(trackId, data) {
+  answered.delete(trackId);
+  if (trackId !== shownTrackId) return;
+  loadToken++;
+  searchController?.abort();
+  searchController = null;
+  nothingKnownFor = null;
+  const found = fromServerLyrics(data);
+  if (found?.entry) show(found.entry, found.others, "server");
+  else loadForCurrentTrack();
+}
+
+/** The user's lyrics are gone. Whatever they had removed here goes too, or
+ * going back would land on "removed". With nothing left on the server this was
+ * Remove lyrics, so a copy kept here must not come back. */
+async function onUserTextRestored(trackId, nothingLeft) {
+  answered.delete(trackId);
+  const saved = await storeGet(storeKey(trackId), null);
+  if (saved?.dismissed) await storeSet(storeKey(trackId), null);
+  else if (nothingLeft && saved?.entry) await storeSet(storeKey(trackId), { dismissed: true });
+  if (trackId === shownTrackId) loadForCurrentTrack();
+}
+
 function showRemoved() {
   clearLyrics();
   setStatus(t("lyrics.removed"), "muted");
@@ -1426,10 +1564,20 @@ function keptForAnotherSong(entry, info) {
   return !titles.some((title) => sameSong(entry.track, title));
 }
 
+async function keptLyrics(trackId) {
+  try {
+    return await storeGet(storeKey(trackId), null);
+  } catch (err) {
+    console.warn("lyrics store read failed", err);
+    return null;
+  }
+}
+
 async function loadForCurrentTrack() {
   const info = getCurrentTrackInfo();
   // The Align panel stays open while the same track is shown again.
-  if ((info?.id ?? null) !== shownTrackId) {
+  const trackChanged = (info?.id ?? null) !== shownTrackId;
+  if (trackChanged) {
     alignOpen = false;
     syncOpen = false;
   }
@@ -1438,19 +1586,19 @@ async function loadForCurrentTrack() {
   searchController?.abort();
   searchController = null;
   clearLyrics();
+  if (trackChanged) editorTrackChanged(shownTrackId);
   const token = ++loadToken;
   if (!info) {
     setStatus(t("lyrics.noTrack"), "muted");
     return;
   }
   setStatus("");
-  let saved = null;
-  try {
-    saved = await storeGet(storeKey(info.id), null);
-  } catch (err) {
-    console.warn("lyrics store read failed", err);
-  }
+  const [saved, found] = await Promise.all([keptLyrics(info.id), serverLyrics(info.id)]);
   if (token !== loadToken) return;
+  if (found?.entry?.source === USER_SOURCE) {
+    show(found.entry, found.others, "server");
+    return;
+  }
   if (saved?.dismissed) {
     showRemoved();
     return;
@@ -1468,8 +1616,6 @@ async function loadForCurrentTrack() {
 
   // What the server found while the track was separated. Shown, not saved:
   // picking another version is what saves one, as the user's own choice.
-  const found = await serverLyrics(info.id);
-  if (token !== loadToken) return;
   if (found?.entry) {
     show(found.entry, found.others, "server");
     return;
@@ -1603,6 +1749,16 @@ export function initLyrics() {
   bodyEl = document.getElementById("lyricsBody");
   if (!panel || !statusEl || !versionsEl || !bodyEl) return;
 
+  initLyricsEdit(panel, versionsEl, {
+    trackId: () => shownTrackId,
+    editable: editableNow,
+    closeTools: closeLyricsTools,
+    flush: flushSave,
+    tagLang,
+    setStatus,
+    onSaved: onUserTextSaved,
+    onRestored: onUserTextRestored,
+  });
   // An offset or a timing still waiting to be saved goes before the page does.
   window.addEventListener("pagehide", () => {
     flushSave();

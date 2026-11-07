@@ -51,6 +51,12 @@ nothing else (and to MusicBrainz and Wikidata, for the artist's other names,
 only the artist's MBID or Wikidata id). Everything here is best-effort: no connection, no match or a
 slow answer leave the job without lyrics.json, and the tab then looks for them
 itself as it always has.
+
+The user can put their own words in their place (set_user_lyrics, from PUT
+.../lyrics/user-text): lyrics.json then holds them with source "user", so every
+reader of it gets them, and what they replaced waits in LYRICS_ORIGINAL_FILE
+until restore_lyrics puts it back. A later edit of the user's own words leaves
+that file alone.
 """
 
 from __future__ import annotations
@@ -85,22 +91,39 @@ from app.core.config import (
     LYRICS_LOOKUP_RETRY_SEC,
     LYRICS_NOT_FOUND_RETRY_SEC,
     LYRICS_OFFSET_MAX_SEC,
+    LYRICS_ORIGINAL_FILE,
     LYRICS_OTHERS_MAX,
     LYRICS_SAME_RECORDING_SEC,
+    LYRICS_USER_SYNCED_MAX_LINES,
     TIMEOUT_LYRICS_LOOKUP,
     TITLE_MIN_COVERAGE,
 )
 from app.core.models import Job, _set, clean_identity
 from app.pipeline.artist_lookup import _ssl_context, artist_name_key
-from app.pipeline.lyrics_align import align_lyrics
+from app.pipeline.lyrics_align import _offset as lrc_offset_tag
+from app.pipeline.lyrics_align import _seconds, align_lyrics
 from app.pipeline.lyrics_repair import restore_letters, words_of
-from app.pipeline.lyrics_retime import clean_aligned, clean_user_synced, lyric_line_texts
+from app.pipeline.lyrics_retime import (
+    _LINE_STAMP,
+    _LINE_STAMPS,
+    _WORD_STAMP,
+    STRAY_STAMP,
+    carry_timing,
+    clean_aligned,
+    clean_user_synced,
+    format_lrc_rows,
+    line_text,
+    lrc_rows,
+    lyric_line_texts,
+    plain_lines,
+)
 from app.pipeline.name_aliases import artist_aliases, fold, has_cjk, name_key, name_weight
 from app.pipeline.title_parse import TitleReading, coverage, resolvable, song_key, work_hint
 
 logger = logging.getLogger("stemdeck.lyrics")
 
-LYRICS_SOURCES = frozenset(("lrclib", "file", "whisper"))
+USER_SOURCE = "user"
+LYRICS_SOURCES = frozenset(("lrclib", "file", "whisper", USER_SOURCE))
 # "exact": the track's own timing (a version its length, the file's own, a
 # transcription); "unverified": a version of another length, as LRCLIB has it;
 # "shifted": that, moved onto the track by lyrics_align.py.
@@ -1151,6 +1174,11 @@ def clean_lyrics(value: Any) -> dict[str, Any] | None:
         user = clean_user_synced(value.get("user_synced"), lines)
         if user is not None:
             entry["user_synced"] = user
+    untimed = value.get("untimed_lines")
+    if isinstance(untimed, list) and entry["synced"]:
+        count = len(lyric_line_texts(entry))
+        if all(type(i) is int and 0 <= i < count for i in untimed):
+            entry["untimed_lines"] = untimed
     others = value.get("others")
     cleaned = [_clean_version(o) for o in (others if isinstance(others, list) else [])]
     entry["others"] = [o for o in cleaned if o is not None][:LYRICS_OTHERS_MAX]
@@ -1163,6 +1191,10 @@ def lyrics_path(job_dir: Path) -> Path:
 
 def candidates_path(job_dir: Path) -> Path:
     return job_dir / LYRICS_CANDIDATES_FILE
+
+
+def original_path(job_dir: Path) -> Path:
+    return job_dir / LYRICS_ORIGINAL_FILE
 
 
 def _write_json_atomic(path: Path, data: dict[str, Any]) -> None:
@@ -1285,12 +1317,16 @@ def keep_answer(job: Job, job_dir: Path, answer: LookupAnswer) -> bool:
 
     Lyrics of unverified timing are then moved onto the track, which needs
     the vocals stem: both callers (LyricsLookup.finish and the tag backfill)
-    run once separation is done."""
+    run once separation is done. The user's own lyrics saved since the lookup
+    started win: the answer is dropped."""
     if answer.lyrics is None:
         write_candidates(job, job_dir, answer.others)
         return False
-    if not write_lyrics(job, job_dir, answer.lyrics):
-        return False
+    with _OFFSET_LOCK:
+        if (read_lyrics(job_dir) or {}).get("source") == USER_SOURCE:
+            return False
+        if not write_lyrics(job, job_dir, answer.lyrics):
+            return False
     align_lyrics(job, job_dir)
     return True
 
@@ -1345,7 +1381,7 @@ def copy_lyrics(src_dir: Path, dest_dir: Path) -> bool:
     same recording (a re-split), with any alignment the user gave the lyrics
     (offset_sec). True when lyrics.json was copied."""
     copied = False
-    for path in (lyrics_path(src_dir), candidates_path(src_dir)):
+    for path in (lyrics_path(src_dir), candidates_path(src_dir), original_path(src_dir)):
         if not path.is_file():
             continue
         try:
@@ -1359,10 +1395,188 @@ def copy_lyrics(src_dir: Path, dest_dir: Path) -> bool:
 
 def read_lyrics(job_dir: Path) -> dict[str, Any] | None:
     """The job's lyrics.json, cleaned, or None when it has none."""
+    return _read_entry(lyrics_path(job_dir))
+
+
+def _read_entry(path: Path) -> dict[str, Any] | None:
     try:
-        return clean_lyrics(json.loads(lyrics_path(job_dir).read_text(encoding="utf-8")))
+        return clean_lyrics(json.loads(path.read_text(encoding="utf-8")))
     except (OSError, ValueError):
         return None
+
+
+class UnusableLyrics(ValueError):
+    """Lyrics the user sent that cannot be kept. The message is for the user,
+    and repeats nothing of what they sent."""
+
+
+class LyricsTooLong(UnusableLyrics):
+    pass
+
+
+# Tabs and line breaks are allowed.
+_NOT_TEXT = re.compile(r"[\x00-\x08\x0e-\x1f\x7f\ud800-\udfff\ufffd]")
+# An LRC's ID tags. Only these: "[Chorus: Beyonce]" is a line of lyrics.
+_LRC_ID_TAGS = re.compile(
+    r"(?:\[(?:ar|al|ti|au|by|re|ve|la|id|tool|lang|length|offset|total):[^\]]*\]\s*)+", re.I
+)
+_TOO_LONG = f"Lyrics are longer than {_TEXT_MAX_CHARS} characters."
+
+
+def _checked_lrc_row(number: int, row: str) -> None:
+    stamps = _LINE_STAMPS.match(row)
+    if not stamps:
+        raise UnusableLyrics(f"Line {number} has no timestamp, and other lines do.")
+    if any(_seconds("0", m.group(2)) >= 60 for m in _LINE_STAMP.finditer(stamps[0])):
+        raise UnusableLyrics(f"Line {number} has an invalid timestamp.")
+
+
+def _checked_line_count(count: int) -> None:
+    if not count:
+        raise UnusableLyrics("There are no lyrics in this.")
+    if count > LYRICS_USER_SYNCED_MAX_LINES:
+        raise UnusableLyrics(f"Lyrics have more than {LYRICS_USER_SYNCED_MAX_LINES} lines.")
+
+
+def parse_user_lyrics(text: str) -> tuple[str, str, float]:
+    """Lyrics the user pasted or loaded as (synced, plain, offset_sec): LRC when
+    any line starts with a timestamp, keeping its timing, else plain text with
+    its blank lines, and "" for synced. Raises UnusableLyrics, LyricsTooLong
+    when that is why."""
+    if len(text) > _TEXT_MAX_CHARS:
+        raise LyricsTooLong(_TOO_LONG)
+    text = _lyric_text(text, _TEXT_MAX_CHARS)
+    if _NOT_TEXT.search(text):
+        raise UnusableLyrics("This is not text: it holds characters lyrics never have.")
+    is_lrc = has_synced_lines(text)
+    kept: list[str] = []
+    for number, raw in enumerate(text.split("\n"), 1):
+        row = raw.strip()
+        if _LRC_ID_TAGS.fullmatch(row):
+            continue
+        if is_lrc and row:
+            _checked_lrc_row(number, row)
+        if STRAY_STAMP.search(_WORD_STAMP.sub("", _LINE_STAMPS.sub("", row))):
+            raise UnusableLyrics(f"Line {number} has a timestamp inside it.")
+        kept.append(row)
+    body = "\n".join(kept).strip()
+    if not is_lrc:
+        _checked_line_count(len(plain_lines(body)))
+        return "", body, 0.0
+    rows = lrc_rows(body)
+    sung = [line_text(rest) for _t, rest in rows if line_text(rest)]
+    _checked_line_count(len(rows) if sung else 0)
+    offset = clean_offset(-lrc_offset_tag(text))
+    if offset is None:
+        raise UnusableLyrics("The [offset:] tag moves the lyrics too far.")
+    return format_lrc_rows(rows), "\n".join(sung), offset
+
+
+def shown_timing(entry: dict[str, Any]) -> str:
+    """The line-by-line timing that outranks the lyrics' own ``synced`` and
+    its offset: the user's, else the fitted one. "" when neither is there."""
+    aligned = entry.get("aligned")
+    fitted = aligned.get("synced") if isinstance(aligned, dict) else ""
+    return entry.get("user_synced") or fitted or ""
+
+
+def _edited_timing(
+    current: dict[str, Any] | None, lines: list[str]
+) -> tuple[str, float, list[int]]:
+    """(synced, offset_sec, untimed_lines) for ``lines``, an edit of ``current``,
+    from the timing in effect now. A whole-song offset stays when that is the
+    lyrics' own timing; the line-by-line ones already include theirs."""
+    timing = shown_timing(current) if current else ""
+    own = "" if timing or not current else current["synced"]
+    lrc = timing or own
+    if not lrc:
+        return "", 0.0, []
+    synced, untimed = carry_timing(lrc, lines, _TEXT_MAX_CHARS)
+    if not synced:
+        return "", 0.0, []
+    moved = current.get("offset_sec", 0.0) if own else 0.0
+    return synced, clean_offset(moved - lrc_offset_tag(lrc)) or 0.0, untimed
+
+
+def _set_aside(job_dir: Path, current: dict[str, Any] | None) -> None:
+    """Keep what the user's lyrics replace. Raises OSError."""
+    if current is not None:
+        if current["source"] != USER_SOURCE:
+            _write_json_atomic(original_path(job_dir), current)
+    elif not lyrics_path(job_dir).is_file():
+        original_path(job_dir).unlink(missing_ok=True)
+
+
+def set_user_lyrics(
+    job: Job, job_dir: Path, text: str, keep_timing: bool = False
+) -> dict[str, Any] | None:
+    """Keep ``text`` as the job's lyrics in place of what it has, which can be
+    put back (restore_lyrics), and return the entry as written. None when it
+    could not be written. Raises UnusableLyrics.
+
+    With ``keep_timing``, plain ``text`` is an edit of the lyrics there: lines
+    left as they were keep their timing (carry_timing), and lines all as they
+    were change nothing. Otherwise plain text is untimed; LRC always keeps its
+    own stamps. Any other timing kept for the old lines goes with them."""
+    synced, plain, offset = parse_user_lyrics(text)
+    with _OFFSET_LOCK:
+        current = read_lyrics(job_dir)
+        untimed: list[int] = []
+        if keep_timing and not synced:
+            lines = plain_lines(plain)
+            if current is not None and lyric_line_texts(current) == lines:
+                return current
+            synced, offset, untimed = _edited_timing(current, lines)
+        if len(synced) > _TEXT_MAX_CHARS:
+            raise LyricsTooLong(_TOO_LONG)
+        previous = current or {}
+        entry: dict[str, Any] = {
+            "v": 1,
+            "source": USER_SOURCE,
+            "track": job.display_title or "",
+            "artist": job.display_artist or "",
+            "album": previous.get("album", ""),
+            "duration": _number(job.duration_sec) or 0.0,
+            "synced": synced,
+            "plain": plain,
+            "instrumental": False,
+            "lrclib_id": None,
+            "others": previous.get("others", []),
+        }
+        if keep_timing and previous.get("language"):
+            entry["language"] = previous["language"]
+        if offset:
+            entry["offset_sec"] = offset
+        if untimed:
+            entry["untimed_lines"] = untimed
+        try:
+            _set_aside(job_dir, current)
+        except OSError:
+            logger.warning("could not set aside lyrics for job %s", job.id, exc_info=True)
+            return None
+        return entry if write_lyrics(job, job_dir, entry) else None
+
+
+def restore_lyrics(job: Job, job_dir: Path) -> bool:
+    """Put back what the user's lyrics replaced, or remove them when they
+    replaced nothing. Nothing to do when the lyrics are not the user's. False,
+    logged, when it could not be done."""
+    with _OFFSET_LOCK:
+        current = read_lyrics(job_dir)
+        if current is None or current["source"] != USER_SOURCE:
+            return True
+        original = original_path(job_dir)
+        try:
+            if _read_entry(original) is None:
+                lyrics_path(job_dir).unlink(missing_ok=True)
+                original.unlink(missing_ok=True)
+                _set(job, has_lyrics=False)
+            else:
+                os.replace(original, lyrics_path(job_dir))
+        except OSError:
+            logger.warning("could not restore lyrics for job %s", job.id, exc_info=True)
+            return False
+        return True
 
 
 class LyricsLookup:
