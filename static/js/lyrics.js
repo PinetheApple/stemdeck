@@ -79,6 +79,7 @@ import { initLyricsEdit, refreshEditBar, editorTrackChanged, restoreOriginal } f
 import { editableRows, plainTexts, plainTimedLines, untimedRows } from "./lyricsUserText.js";
 import { toolButton, setToolLabel, keepOnePrimary, TOOL_QUIET } from "./lyricsToolbar.js";
 import { initLyricsTranscribe, checkTranscribe, resetTranscribe } from "./lyricsTranscribe.js";
+import { RUN_STATE } from "./lyricsRunState.js";
 
 // One store entry per track rather than a field in the library store: a song's
 // lyrics run to a few kilobytes, and the library is rewritten whole on every
@@ -1249,14 +1250,14 @@ async function retimeFromVocals() {
     }
     if (!live()) return;
     const state = status?.state;
-    if (state === "running" || (state === "idle" && ++idle <= RETIME_IDLE_POLLS)) {
+    if (state === RUN_STATE.RUNNING || (state === RUN_STATE.IDLE && ++idle <= RETIME_IDLE_POLLS)) {
       const p = Number(status?.progress);
       const percent = Number.isFinite(p) && p > 0 ? Math.round(p <= 1 ? p * 100 : p) : 0;
       setSyncMessage(percent ? t("lyrics.sync.retimingProgress", { percent }) : t("lyrics.sync.retiming"), "loading");
       continue;
     }
-    if (state === "unsure") return finish(t("lyrics.sync.retimeUnsure"), "muted");
-    if (state !== "done") return finish(t("lyrics.sync.retimeFailed"), "error");
+    if (state === RUN_STATE.UNSURE) return finish(t("lyrics.sync.retimeUnsure"), "muted");
+    if (state !== RUN_STATE.DONE) return finish(t("lyrics.sync.retimeFailed"), "error");
     // Lyrics.json holds the new timing; lyrics kept here get it in the answer.
     const aligned = from === "server"
       ? (await serverLyrics(trackId))?.entry?.aligned ?? null

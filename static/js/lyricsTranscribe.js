@@ -3,15 +3,14 @@
 
 import { t, getLanguage } from "./i18n.js";
 import { toolButton, setToolLabel, TOOL_QUIET } from "./lyricsToolbar.js";
+import { RUN_STATE } from "./lyricsRunState.js";
 
 const POLL_MS = 1000;
 // Polls in a row that got no answer before the run is given up for failed.
 const MAX_FAILED_POLLS = 3;
 const HTTP_CONFLICT = 409;
-const STATE_RUNNING = "running";
-const STATE_FAILED = "failed";
 const DEVICE_CPU = "cpu";
-const FAILED_VIEW = { state: STATE_FAILED, available: true };
+const FAILED_VIEW = { state: RUN_STATE.FAILED, available: true };
 const PHASE_KEYS = {
   queued: "lyrics.transcribe.queued",
   load: "lyrics.transcribe.loading",
@@ -21,11 +20,11 @@ const PHASE_KEYS = {
 // Only these phases report how far they are; the others stay at 0.
 const MEASURED_PHASES = new Set(["download", "transcribe"]);
 const OUTCOME_KEYS = {
-  no_singing: "lyrics.transcribe.noSinging",
-  failed: "lyrics.transcribe.failed",
+  [RUN_STATE.NO_SINGING]: "lyrics.transcribe.noSinging",
+  [RUN_STATE.FAILED]: "lyrics.transcribe.failed",
 };
 // A run that ended with lyrics on the server: its own, or ones that came meanwhile.
-const LYRICS_STATES = new Set(["done", "has_lyrics"]);
+const LYRICS_STATES = new Set([RUN_STATE.DONE, RUN_STATE.HAS_LYRICS]);
 
 let deps = null;
 let ui = null;
@@ -52,7 +51,7 @@ function formatPercent(share) {
 }
 
 function messageFor(state) {
-  if (state.state === STATE_RUNNING) return t(PHASE_KEYS[state.phase] ?? PHASE_KEYS.transcribe);
+  if (state.state === RUN_STATE.RUNNING) return t(PHASE_KEYS[state.phase] ?? PHASE_KEYS.transcribe);
   const outcome = OUTCOME_KEYS[state.state];
   if (outcome) return t(outcome);
   return state.device === DEVICE_CPU ? t("lyrics.transcribe.cpuNote") : "";
@@ -78,7 +77,7 @@ function refocus(running) {
 /** Show `state` (the server's answer, or null for nothing to offer). */
 function paint(state) {
   const focusWasOurs = ui.start.contains(document.activeElement) || ui.panel.contains(document.activeElement);
-  const running = state?.state === STATE_RUNNING;
+  const running = state?.state === RUN_STATE.RUNNING;
   const offered = running || Boolean(state?.available);
   ui.start.hidden = !state?.available || running;
   ui.start.disabled = false;
@@ -104,7 +103,7 @@ async function poll(trackId, mine, failures) {
     else schedulePoll(trackId, mine, failures + 1);
     return;
   }
-  if (state.state === STATE_RUNNING) {
+  if (state.state === RUN_STATE.RUNNING) {
     paint(state);
     schedulePoll(trackId, mine);
     return;
@@ -138,7 +137,7 @@ export async function checkTranscribe(trackId) {
   if (mine !== token) return;
   shownFor = trackId;
   paint(state);
-  if (state?.state === STATE_RUNNING) schedulePoll(trackId, mine);
+  if (state?.state === RUN_STATE.RUNNING) schedulePoll(trackId, mine);
 }
 
 async function onStartClick() {
@@ -163,7 +162,7 @@ async function onStartClick() {
     return;
   }
   paint(state);
-  if (state.state === STATE_RUNNING) schedulePoll(trackId, mine);
+  if (state.state === RUN_STATE.RUNNING) schedulePoll(trackId, mine);
 }
 
 /** The job's own cancel stops its lyrics runs; the next poll says cancelled. */
