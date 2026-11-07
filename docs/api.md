@@ -18,7 +18,7 @@ The endpoints the web app itself uses. They are not a stable public interface an
 | GET | `/api/jobs/{id}/stems/{name}.mp3` | Transcode and stream a stem as MP3 |
 | GET | `/api/jobs/{id}/bundle.zip` | Pack a finished song as a [song bundle](song-bundle.md) for another player |
 | GET | `/api/jobs/{id}/video.mp4` | Mux the current mix with the source video (MP4 upload or YouTube) into an MP4 |
-| DELETE | `/api/jobs/{id}` | Remove job dir from disk (terminal jobs only); also takes the song out of every setlist |
+| DELETE | `/api/jobs/{id}` | Remove job dir from disk (terminal jobs only); also takes the song out of every setlist. A 500 means the job left the library but its files stayed; repeating the DELETE retries removing them (200 or 500 again, not 404) |
 | GET | `/api/setlists` | All setlists, oldest first: `[{id, name, song_ids, updated_at}]` |
 | POST | `/api/setlists` | `{name, song_ids?}` → the created setlist (201) |
 | PATCH | `/api/setlists/{id}` | `{name?, song_ids?}` → the updated setlist |

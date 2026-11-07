@@ -54,6 +54,7 @@ from app.core.models import (
 from app.core.registry import all_jobs as registry_all_jobs
 from app.core.registry import get as registry_get
 from app.core.registry import get_proc as registry_get_proc
+from app.core.registry import is_deleted as registry_is_deleted
 from app.core.registry import is_upload
 from app.core.registry import mark_deleted as registry_mark_deleted
 from app.core.registry import pending_count as registry_pending_count
@@ -139,6 +140,7 @@ _URL_QUEUE_FULL_DETAIL = (
 _UPLOAD_QUEUE_FULL_DETAIL = (
     f"Upload queue is full ({MAX_PENDING_UPLOAD_JOBS} waiting) - cancel a job or wait"
 )
+_FILES_NOT_DELETED_DETAIL = "Removed from the library, but its files could not be deleted."
 
 
 def _sanitize_title(filename: str) -> str:
@@ -2053,7 +2055,7 @@ def delete_job(job_id: str) -> dict[str, str]:
         raise HTTPException(status_code=404, detail="job not found")
     job = registry_get(job_id)
     if job is None:
-        raise HTTPException(status_code=404, detail="job not found")
+        return _retry_deleted_job_files(job_id)
     if job.status not in FINISHED_STATUSES:
         raise HTTPException(status_code=409, detail="job is still running")
     # A lyrics run in flight stops rather than write into a directory being
@@ -2074,8 +2076,15 @@ def delete_job(job_id: str) -> dict[str, str]:
     registry_persist(JOBS_DIR)
     setlists_remove_songs(JOBS_DIR, [job_id])
     if not removed:
-        raise HTTPException(
-            status_code=500,
-            detail="Removed from the library, but its files could not be deleted.",
-        )
+        raise HTTPException(status_code=500, detail=_FILES_NOT_DELETED_DETAIL)
+    return {"job_id": job_id, "status": "deleted"}
+
+
+def _retry_deleted_job_files(job_id: str) -> dict[str, str]:
+    """Remove the files a deleted job left behind. Only a job the user deleted
+    qualifies, so an orphan directory awaiting adoption is never removed."""
+    if not registry_is_deleted(job_id) or not (JOBS_DIR / job_id).is_dir():
+        raise HTTPException(status_code=404, detail="job not found")
+    if not _rmtree_job(job_id):
+        raise HTTPException(status_code=500, detail=_FILES_NOT_DELETED_DETAIL)
     return {"job_id": job_id, "status": "deleted"}

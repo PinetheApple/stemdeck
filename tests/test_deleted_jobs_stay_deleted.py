@@ -130,3 +130,72 @@ def test_a_clean_reset_reports_nothing_undeleted(jobs_dir):
     _done_job_dir(jobs_dir)
 
     assert _registry.reset_all(jobs_dir) == []
+
+
+# ── a failed DELETE can be retried ──
+
+JOB_ID = "a1b2c3d4e5f6"
+
+
+@pytest.fixture
+def client():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    return TestClient(app)
+
+
+@pytest.fixture
+def library_job():
+    import app.core.config as cfg
+    from app.core.models import Job
+
+    _registry.register(Job(id=JOB_ID, status="done"))
+    return _done_job_dir(cfg.JOBS_DIR, JOB_ID)
+
+
+@pytest.fixture
+def rmtree_fails(monkeypatch):
+    """Set to False to let removal work again. monkeypatch.undo() is no way
+    back: it would also undo conftest's JOBS_DIR isolation."""
+    import shutil
+
+    real_rmtree = shutil.rmtree
+    failing = {"on": True}
+
+    def _rmtree(path, *a, **kw):
+        if failing["on"]:
+            raise OSError("Directory not empty")
+        return real_rmtree(path, *a, **kw)
+
+    monkeypatch.setattr("shutil.rmtree", _rmtree)
+    return failing
+
+
+def test_a_failed_delete_succeeds_on_retry(client, library_job, rmtree_fails):
+    assert client.delete(f"/api/jobs/{JOB_ID}").status_code == 500
+    rmtree_fails["on"] = False
+
+    assert client.delete(f"/api/jobs/{JOB_ID}").status_code == 200
+    assert not library_job.exists()
+
+
+def test_a_retry_that_fails_again_is_500_not_404(client, library_job, rmtree_fails):
+    assert client.delete(f"/api/jobs/{JOB_ID}").status_code == 500
+
+    assert client.delete(f"/api/jobs/{JOB_ID}").status_code == 500
+    assert library_job.is_dir()
+
+
+def test_an_unknown_job_with_no_directory_is_404(client):
+    assert client.delete(f"/api/jobs/{JOB_ID}").status_code == 404
+
+
+def test_a_directory_nobody_deleted_is_not_removed_by_delete(client):
+    import app.core.config as cfg
+
+    orphan = _done_job_dir(cfg.JOBS_DIR, JOB_ID)
+
+    assert client.delete(f"/api/jobs/{JOB_ID}").status_code == 404
+    assert orphan.is_dir()
