@@ -8,7 +8,7 @@ import {
 import { getCurrentTrackInfo } from "./catalog.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { t, getLanguage, onLanguageChange } from "./i18n.js";
-import { $, PAGE_CLOSE_FETCH } from "./utils.js";
+import { $ } from "./utils.js";
 
 const MODE_CONSTANT = "constant";
 const SOURCE_USER = "user";
@@ -205,16 +205,14 @@ function commitTaps() {
   if (tempo) patchTempo({ bpm: tempo.bpm });
 }
 
-/** Send every unsent change, and a tap still waiting to commit, at once with keepalive. */
-export function saveTempoOnPageClose() {
+/** Hand over every song's unsent tempo changes, a tap still waiting to commit included, and forget them. */
+export function takeUnsentTempo() {
   if (tapTimer !== null && jobId && tempo) addUnsentFields(jobId, { bpm: tempo.bpm });
   clearTimeout(tapTimer);
   tapTimer = null;
-  for (const [forJob, fields] of unsentFieldsByJob) {
-    saveBeatGridTempo(forJob, fields, PAGE_CLOSE_FETCH)
-      .catch((e) => console.warn("[tempoTools] could not save the tempo:", e));
-  }
+  const unsent = new Map(unsentFieldsByJob);
   unsentFieldsByJob.clear();
+  return unsent;
 }
 
 function commitPendingTaps() {

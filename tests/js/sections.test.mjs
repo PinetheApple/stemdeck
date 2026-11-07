@@ -6,6 +6,7 @@ import {
   sectionDisplayName,
   clearAllSections,
   saveSectionsOnPageClose,
+  getSections,
 } from "../../static/js/sections.js";
 
 let pass = 0;
@@ -120,7 +121,7 @@ initSections(
 const firstSave = flushSectionsSave();
 await Promise.resolve();
 initSections(
-  "abcdefabcdef",
+  "abcdefabcde2",
   [{ id: "auto-002", kind: "verse", name: "Verse", start: 10, end: 20, color: "#fff" }],
   20,
 );
@@ -200,9 +201,36 @@ check(
   "closing the page sends a pending edit at once, with keepalive",
   sent.length === 1 && sent[0].keepalive && sent[0].url === `/api/jobs/${SONG_B}/sections`,
 );
-sent.length = 0;
+destroySections();
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+await settle();
+
+// A save the server has not answered yet: the track shows it when reopened,
+// and the page sends it again on close (#40).
+const held = [];
+globalThis.fetch = (url, options) => new Promise((resolve) => {
+  held.push({ url, body: JSON.parse(options.body), keepalive: options.keepalive === true, resolve });
+});
+const SONG_C = "cccccccccccc";
+initSections(SONG_C, verse, 20);
+clearAllSections();
+initSections(SONG_B, verse, 20);
+initSections(SONG_C, verse, 20);
+check("a track reopened before its save lands shows the unsaved edit", getSections().length === 0);
 saveSectionsOnPageClose();
-check("closing the page with nothing pending sends nothing", sent.length === 0);
+const resent = held.filter((r) => r.keepalive);
+check(
+  "closing the page resends the unconfirmed save with keepalive",
+  resent.length === 1 && resent[0].url === `/api/jobs/${SONG_C}/sections` && resent[0].body.sections.length === 0,
+);
+for (let round = 0; round < 2; round++) {
+  for (const r of held.splice(0)) r.resolve({ ok: true });
+  await settle();
+}
+initSections(SONG_C, verse, 20);
+check("a confirmed save no longer overrides what the server sends", getSections().length === 1);
+saveSectionsOnPageClose();
+check("nothing is resent on close once every save is confirmed", held.every((r) => !r.keepalive));
 destroySections();
 
 console.log(`\n${pass} passed, ${fail} failed`);

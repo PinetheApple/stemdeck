@@ -76,6 +76,9 @@ let _saveTimer = null;
 let _dirty = false;
 let _editSeq = 0;
 let _saveChain = Promise.resolve();
+// Each song's newest grid the server has not confirmed yet: what the song shows
+// if it is reopened first, and what goes out if the page closes.
+const _unconfirmed = new Map();
 
 // ─── geometry ───────────────────────────────────────────────
 
@@ -283,7 +286,7 @@ async function _patchBeats(jobId, body, fetchOptions = {}) {
 }
 
 /** Save tempo fields for a song; a `null` field goes back to the detected value. */
-export const saveBeatGridTempo = (jobId, tempo, fetchOptions) => _patchBeats(jobId, { tempo }, fetchOptions);
+export const saveBeatGridTempo = (jobId, tempo) => _patchBeats(jobId, { tempo });
 
 /** The song's beat grid as the server builds it now. */
 export async function loadBeatGrid(jobId) {
@@ -300,6 +303,7 @@ function _save() {
   const jobId = _jobId;
   if (!jobId || !_dirty) return _saveChain;
   const payload = _gridPayload();
+  _unconfirmed.set(jobId, payload);
   const seq = _editSeq;
   _saveChain = _saveChain.then(() => _sendGrid(jobId, payload, seq));
   return _saveChain;
@@ -308,6 +312,7 @@ function _save() {
 async function _sendGrid(jobId, payload, seq, fetchOptions) {
   try {
     const saved = await _patchBeats(jobId, payload, fetchOptions);
+    if (_unconfirmed.get(jobId) === payload) _unconfirmed.delete(jobId);
     // An edit made while this was in flight still has its own save to come.
     if (jobId === _jobId && seq === _editSeq) _dirty = false;
     _announceTempo(jobId, saved.tempo);
@@ -322,18 +327,29 @@ function _announceTempo(jobId, tempo) {
 
 /** Flush a pending save. Called before teardown so edits are never dropped. */
 export function flushBeatGrid() {
-  if (_saveTimer === null) return Promise.resolve();
-  clearTimeout(_saveTimer);
-  _saveTimer = null;
-  return _save();
+  return _cancelSaveTimer() ? _save() : Promise.resolve();
 }
 
-/** Send a pending save at once with keepalive, outside the queue: once the page is gone the queue never runs. */
-export function saveBeatGridOnPageClose() {
-  if (_saveTimer === null || !_jobId) return;
+/** Stop the debounce. True when an edit was waiting on it. */
+function _cancelSaveTimer() {
+  if (_saveTimer === null) return false;
   clearTimeout(_saveTimer);
   _saveTimer = null;
-  _sendGrid(_jobId, _gridPayload(), _editSeq, PAGE_CLOSE_FETCH);
+  return true;
+}
+
+/**
+ * Send each song's unconfirmed grid at once with keepalive, outside the queue, which
+ * never runs once the page is gone. A song's unsent tempo fields ride in the same
+ * request, which the server applies after the grid, as the normal order does.
+ */
+export function saveBeatGridOnPageClose(unsentTempo = new Map()) {
+  if (_cancelSaveTimer() && _jobId && _dirty) _unconfirmed.set(_jobId, _gridPayload());
+  for (const jobId of new Set([..._unconfirmed.keys(), ...unsentTempo.keys()])) {
+    const tempo = unsentTempo.get(jobId);
+    _patchBeats(jobId, { ..._unconfirmed.get(jobId), ...(tempo && { tempo }) }, PAGE_CLOSE_FETCH)
+      .catch((e) => console.warn("[beatgrid] failed to save edits:", e));
+  }
 }
 
 /** Take a grid the server rebuilt (a tempo change) as the new starting point, with no undo across it. */
@@ -354,6 +370,7 @@ export async function resetBeatGrid() {
   if (!jobId) return null;
   try {
     await fetch(_beatsUrl(jobId), { method: "DELETE" });
+    _unconfirmed.delete(jobId);
     const grid = await loadBeatGrid(jobId);
     if (jobId !== _jobId) return null;
     _pushUndo();
@@ -598,14 +615,17 @@ export function initBeatGrid({ jobId, grid, duration, onChange }) {
   destroyBeatGrid();
   _jobId = jobId;
   _duration = Math.max(0, duration || 0);
-  _beats = Array.isArray(grid?.beats) ? grid.beats.slice() : [];
-  _bars = Array.isArray(grid?.bars) ? grid.bars.slice() : [];
+  const unconfirmed = _unconfirmed.get(jobId);
+  const shown = unconfirmed ?? grid;
+  _beats = Array.isArray(shown?.beats) ? shown.beats.slice() : [];
+  _bars = Array.isArray(shown?.bars) ? shown.bars.map((b) => ({ ...b })) : [];
   _onsets = Array.isArray(grid?.onsets) ? grid.onsets.slice() : [];
   _anchors = new Set();
   _undo = [];
   _redo = [];
   _dirty = false;
   _onChange = onChange || null;
+  if (unconfirmed) _onChange?.(_beats.slice(), _bars.map((b) => ({ ...b })));
 
   _host = document.querySelector(".waves-column");
   _canvas = document.getElementById("beatgrid-canvas");
