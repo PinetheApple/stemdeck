@@ -78,6 +78,7 @@ import {
 import { initLyricsEdit, refreshEditBar, editorTrackChanged, restoreOriginal } from "./lyricsEdit.js";
 import { editableRows, plainTexts, plainTimedLines, untimedRows } from "./lyricsUserText.js";
 import { toolButton, setToolLabel, TOOL_PRIMARY, TOOL_QUIET } from "./lyricsToolbar.js";
+import { initLyricsTranscribe, checkTranscribe, resetTranscribe } from "./lyricsTranscribe.js";
 
 // One store entry per track rather than a field in the library store: a song's
 // lyrics run to a few kilobytes, and the library is rewritten whole on every
@@ -90,7 +91,7 @@ let statusEl = null;
 let versionsEl = null;
 let bodyEl = null;
 // The one toolbar of the tab's actions (#31), and in it this file's own,
-// redrawn with what is shown; the editor's keep theirs.
+// redrawn with what is shown; the editor's and the transcription's keep theirs.
 let toolbarEl = null;
 let ownToolsEl = null;
 
@@ -189,6 +190,7 @@ function clearLyrics() {
   bodyEl.classList.remove("synced", "aligning", "syncing");
   versionsEl.replaceChildren();
   ownToolsEl.replaceChildren();
+  resetTranscribe();
   toolbarEl.setAttribute("aria-label", t("lyrics.toolsAria"));
   if (shownTrackId) versionsEl.append(toolbarEl);
   refreshEditBar();
@@ -1357,6 +1359,7 @@ function offer(matches) {
   clearLyrics();
   setStatus(t("lyrics.pickVersion"), "muted");
   versionsEl.append(versionList(matches, matches));
+  checkTranscribe(shownTrackId);
 }
 
 /** Save `match` on the open track and show it, with `others` still offered. */
@@ -1436,6 +1439,7 @@ function showRemoved() {
   clearLyrics();
   setStatus(t("lyrics.removed"), "muted");
   ownToolsEl.append(lookAgainButton());
+  checkTranscribe(shownTrackId);
 }
 
 /** "Look up again": forget what is kept for the open track and find it anew. */
@@ -1448,6 +1452,22 @@ async function onLookAgainClick() {
   if (!info) return;
   await storeSet(storeKey(info.id), null);
   loadForCurrentTrack();
+}
+
+/** A transcription left lyrics on the server: show them as any load does.
+ * Asked for, they go ahead of a Remove lyrics made here before. */
+async function onTranscribed(trackId, notice) {
+  if (trackId !== shownTrackId) return;
+  answered.delete(trackId);
+  const saved = await keptLyrics(trackId);
+  if (saved?.dismissed) await storeSet(storeKey(trackId), null);
+  if (trackId !== shownTrackId) return;
+  await loadForCurrentTrack();
+  if (notice && trackId === shownTrackId) setStatus(notice, "muted");
+}
+
+function onTranscribeStale(trackId) {
+  if (trackId === shownTrackId) loadForCurrentTrack();
 }
 
 /**
@@ -1482,8 +1502,7 @@ async function lookUp(info, { song }) {
     if (!res.ok && res.status !== 404) throw new Error(`lyrics lookup -> ${res.status}`);
     const data = await res.json().catch(() => null);
     if (res.status === 404 && data?.nothing_known) {
-      setStatus(t("lyrics.nothingKnown"), "muted");
-      nothingKnownFor = info.id;
+      showNothingKnown(info.id);
       return;
     }
     const found = fromServerLyrics(data);
@@ -1500,6 +1519,7 @@ async function lookUp(info, { song }) {
     setStatus(t("lyrics.offline"), "error");
     // There is no search box to press again, so the retry is offered here.
     ownToolsEl.replaceChildren(lookAgainButton());
+    checkTranscribe(info.id);
   } finally {
     if (searchController === controller) searchController = null;
   }
@@ -1507,8 +1527,18 @@ async function lookUp(info, { song }) {
 
 /** A lookup's answer that kept nothing: versions to pick from, or none. */
 function showAnswer({ song, matches }) {
-  if (matches.length) offer(matches);
-  else setStatus(t("lyrics.notFound", { song }), "muted");
+  if (matches.length) {
+    offer(matches);
+    return;
+  }
+  setStatus(t("lyrics.notFound", { song }), "muted");
+  checkTranscribe(shownTrackId);
+}
+
+function showNothingKnown(trackId) {
+  setStatus(t("lyrics.nothingKnown"), "muted");
+  nothingKnownFor = trackId;
+  checkTranscribe(trackId);
 }
 
 /**
@@ -1661,8 +1691,7 @@ async function loadForCurrentTrack() {
     return;
   }
   if (!song) {
-    setStatus(t("lyrics.nothingKnown"), "muted");
-    nothingKnownFor = info.id;
+    showNothingKnown(info.id);
     return;
   }
   if (answered.has(info.id)) {
@@ -1778,6 +1807,7 @@ export function initLyrics() {
   toolbarEl.setAttribute("role", "group");
   ownToolsEl = el("span", "lyrics-tools-own");
   toolbarEl.append(ownToolsEl);
+  initLyricsTranscribe(toolbarEl, { onLyrics: onTranscribed, onStale: onTranscribeStale });
   initLyricsEdit(panel, toolbarEl, {
     trackId: () => shownTrackId,
     editable: editableNow,

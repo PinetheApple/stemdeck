@@ -4022,6 +4022,28 @@ input, textarea { font-family: inherit; }
 .lyrics-tool:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
 .lyrics-tool[aria-disabled="true"]:hover,
 .lyrics-tool:disabled:hover { background: var(--surface-2); color: var(--text-2); }
+.lyrics-tool[aria-busy="true"] { cursor: progress; opacity: var(--disabled-opacity); }
+
+/* Transcribe lyrics (lyricsTranscribe.js): its note, or its progress with
+   Cancel, on a row of its own under the buttons. */
+.lyrics-transcribe { order: 2; flex: 1 0 100%; min-width: 0; display: flex; flex-direction: column; gap: var(--s-1); }
+.lyrics-transcribe[hidden], .lyrics-transcribe-progress[hidden] { display: none; }
+.lyrics-transcribe-message { margin: 0; font-size: var(--fs-xs); color: var(--text-2); }
+.lyrics-transcribe-message:empty { display: none; }
+.lyrics-transcribe-progress { display: flex; align-items: center; gap: var(--s-2); }
+.lyrics-transcribe-progress progress {
+  flex: 1 1 0; min-width: 0; height: var(--s-1);
+  appearance: none; border: 0; border-radius: var(--r-pill);
+  background: var(--surface-3); overflow: hidden;
+}
+.lyrics-transcribe-progress progress::-webkit-progress-bar { background: var(--surface-3); }
+.lyrics-transcribe-progress progress::-webkit-progress-value { background: var(--accent); }
+.lyrics-transcribe-progress progress::-moz-progress-bar { background: var(--accent); }
+.lyrics-transcribe-percent {
+  font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.lyrics-transcribe-percent:empty { display: none; }
 
 /* A link inside a sentence: the untimed note's way into Sync lines. */
 .lyrics-link {
