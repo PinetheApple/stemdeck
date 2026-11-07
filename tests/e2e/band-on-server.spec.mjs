@@ -90,18 +90,20 @@ const untilPageGone = (handler) => async (route) => {
 
 /**
  * A server holding bands per job: `bands` is { jobId: { artist, user_band } },
- * `listed` the jobs GET /api/jobs names. Set `server.patchStatus` to fail a save,
- * `server.listStatus` to fail the list, and `server.hold` to a promise to keep
- * PATCH answers back.
+ * `listed` the jobs GET /api/jobs names and `trashed` those it calls trashed.
+ * Set `server.patchStatus` to fail a save, `server.listStatus` to fail the
+ * list, and `server.hold` to a promise to keep PATCH answers back.
  */
-async function stubServer(page, { bands = {}, listed = [JOB_ID] } = {}) {
+async function stubServer(page, { bands = {}, listed = [JOB_ID], trashed = [] } = {}) {
   const server = { patches: [], patchStatus: 200, listStatus: 200, hold: null };
   const withBand = (state) => ({ user_band: null, artist: null, ...state, ...bands[state.job_id] });
 
   await page.route(JOB_LIST_URL, untilPageGone(async (route) => {
     if (server.listStatus !== 200) return route.fulfill(json(server.listStatus, { detail: "stubbed" }));
     const real = await (await route.fetch()).json();
-    await route.fulfill(json(200, real.filter((state) => listed.includes(state.job_id)).map(withBand)));
+    const inList = real.filter((state) => listed.includes(state.job_id));
+    const trashState = (state) => ({ ...state, trashed_at: trashed.includes(state.job_id) ? 1 : null });
+    await route.fulfill(json(200, inList.map(withBand).map(trashState)));
   }));
   await page.route(JOB_URL, untilPageGone(async (route) => {
     const request = route.request();
@@ -342,7 +344,14 @@ test.describe("the server's band against the browser's", () => {
 });
 
 test.describe("re-importing a track's source", () => {
-  const reimport = { id: SIBLING_JOB_ID, title: "Re-imported", status: "queued", stems: [], sourceUrl: SOURCE_URL };
+  const reimport = {
+    id: SIBLING_JOB_ID,
+    replaces: JOB_ID,
+    title: "Re-imported",
+    status: "queued",
+    stems: [],
+    sourceUrl: SOURCE_URL,
+  };
 
   test("a band saved on the server goes to the new job", async ({ page }) => {
     const server = await stubServer(page, { bands: { [JOB_ID]: { artist: SAVED, user_band: SAVED } }, listed: [JOB_ID] });
@@ -589,7 +598,7 @@ test.describe("a band the upload left unsent", () => {
   });
 
   test("deleting the track drops it", async ({ page }) => {
-    await stubServer(page, { listed: [JOB_ID, SIBLING_JOB_ID] });
+    await stubServer(page, { listed: [JOB_ID, SIBLING_JOB_ID], trashed: [SIBLING_JOB_ID] });
     await page.route(JOB_URL, untilPageGone(async (route) => {
       if (route.request().method() !== "DELETE") return route.fallback();
       await route.fulfill(json(200, {}));
@@ -616,6 +625,7 @@ test.describe("a band the upload left unsent", () => {
 
     await callCatalog(page, "addTrackToLibrary", {
       id: SIBLING_JOB_ID,
+      replaces: JOB_ID,
       title: "Re-imported",
       status: "queued",
       stems: [],
@@ -641,7 +651,7 @@ test.describe("a band the upload left unsent", () => {
 test.describe("uploading the browser's bands at boot", () => {
   test("a track with no tag can hold no guess: sent once, one at a time, trashed too, and not again", async ({ page }) => {
     const wikimedia = await stubWikimedia(page);
-    const server = await stubServer(page, { listed: [JOB_ID, SIBLING_JOB_ID] });
+    const server = await stubServer(page, { listed: [JOB_ID, SIBLING_JOB_ID], trashed: [SIBLING_JOB_ID] });
     let release;
     server.hold = new Promise((resolve) => { release = resolve; });
     await bootWith(

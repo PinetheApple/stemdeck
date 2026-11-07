@@ -7,6 +7,7 @@ import { fetchJobs, jobToCard } from "../js/shared/jobs.js";
 import { createChunkedAudioEngine } from "../js/chunkedAudioEngine.js";
 import { PITCH_MAX, PITCH_MIN, clampPitch } from "../js/pitchBus.js";
 import { createPlaybackContext } from "../js/audioContext.js";
+import { HTTP_CONFLICT } from "../js/libraryControls.js";
 // Per-stem label + color, keyed by the backend stem name. Unknown names fall
 // back to a rotating palette so non-standard models still render sensibly.
 const STEM_META = {
@@ -1104,9 +1105,13 @@ async function reimportTrack(card) {
     const res = await fetch("/api/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: card.sourceUrl, stems: card.selectedStems || [] }),
+      body: JSON.stringify({ url: card.sourceUrl, stems: card.selectedStems || [], replaces: card.id }),
     });
     const data = await res.json().catch(() => ({}));
+    if (res.status === HTTP_CONFLICT) {
+      toast("This song is still importing. Try again when it finishes.");
+      return;
+    }
     if (!res.ok) throw new Error(data.detail || res.statusText);
     await loadLibrary();
   } catch (e) {

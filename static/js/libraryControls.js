@@ -7,6 +7,7 @@ export const SETLIST_NAME_MAX_CHARS = 100;
 export const SONG_NAME_MAX_CHARS = 300;
 
 export const HTTP_NOT_FOUND = 404;
+export const HTTP_CONFLICT = 409;
 const HTTP_UNPROCESSABLE = 422;
 const PYDANTIC_VALUE_ERROR = /^Value error, /;
 

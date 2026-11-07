@@ -24,6 +24,7 @@ import {
   fixtureTrack,
   readCatalogState,
   seedCatalogState,
+  stubServerTrash,
   stubUpdateCheck,
 } from "./helpers.mjs";
 
@@ -43,6 +44,7 @@ async function seedTrashedWithUnknownSibling(page) {
     tracks: { [JOB_ID]: fixtureTrack(JOB_ID, TRACK_TITLE) },
   });
   await stubUpdateCheck(page);
+  await stubServerTrash(page, { trashed: [JOB_ID] });
 }
 
 /**

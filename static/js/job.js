@@ -13,6 +13,7 @@ import { initSections } from "./sections.js";
 import { importPlaylist, looksLikePlaylist } from "./playlist.js";
 import { t } from "./i18n.js";
 import { formatKey } from "./keyLabel.js";
+import { HTTP_CONFLICT } from "./libraryControls.js";
 
 // Playful stage label rotation (Claude-Code-style flair). The backend
 // emits truthful stage strings; we surface them in the small #job-detail
@@ -676,11 +677,16 @@ function sanitizeFilename(name) {
     .slice(0, 120);
 }
 
+/** The song a re-import would replace is itself still importing. */
+class ReplaceBusyError extends Error {}
+
 // Programmatic URL import — re-uses the full studio/SSE pipeline (same as the
 // import form's URL path). Used by the library "Sync again" auto-restore to
 // re-download + re-separate a track whose backend audio was swept. Takes over
 // the studio like a normal import. Returns the new job id, or null on failure.
-export async function importFromUrl(url, { title, stems } = {}) {
+// `replaces` names the job this one stands in for; the server retires it once
+// the new one is done.
+export async function importFromUrl(url, { title, stems, replaces } = {}) {
   if (!url || url.startsWith("local:")) return null; // local files can't auto-restore
   reset();
   setSubmitProcessing(true);
@@ -692,13 +698,18 @@ export async function importFromUrl(url, { title, stems } = {}) {
     const res = await fetch("/api/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, stems: stemSel }),
+      body: JSON.stringify({ url, stems: stemSel, ...(replaces ? { replaces } : {}) }),
     });
     const data = await res.json();
+    if (res.status === HTTP_CONFLICT) throw new ReplaceBusyError();
     if (!res.ok) throw new Error(data.detail || res.statusText);
     jobId = data.job_id;
   } catch (err) {
-    showError(t("job.restoreFailed", { message: err.message }));
+    showError(
+      err instanceof ReplaceBusyError
+        ? t("job.reimportBusy")
+        : t("job.restoreFailed", { message: err.message }),
+    );
     setSubmitProcessing(false);
     return null;
   }
@@ -707,10 +718,11 @@ export async function importFromUrl(url, { title, stems } = {}) {
   setCurrentJobId(jobId);
   setForegroundJobId(jobId);
   jobSources.set(jobId, url);
-  // Merges into the existing library entry by sourceUrl (replaceTrackId),
-  // preserving its folder placement; status updates as SSE frames arrive.
+  // Takes the replaced track's place in its folder; status updates as SSE
+  // frames arrive.
   addTrackToLibrary({
     id: jobId,
+    replaces,
     title: title || url || t("job.processingTrackTitle"),
     thumb: "",
     stems: stemSel,
