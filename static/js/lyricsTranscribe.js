@@ -8,7 +8,7 @@ import { RUN_STATE } from "./lyricsRunState.js";
 const POLL_MS = 1000;
 // Polls in a row that got no answer before the run is given up for failed.
 const MAX_FAILED_POLLS = 3;
-const HTTP_CONFLICT = 409;
+export const HTTP_CONFLICT = 409;
 const DEVICE_CPU = "cpu";
 const FAILED_VIEW = { state: RUN_STATE.FAILED, available: true };
 const PHASE_KEYS = {

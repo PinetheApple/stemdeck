@@ -14,7 +14,8 @@ import { artistNameKey } from "./artistLookup.js";
 import { toSimplified } from "./zhVariants.js";
 
 export const USER_SOURCE = "user";
-const SERVER_SOURCES = new Set(["lrclib", "file", "whisper", USER_SOURCE]);
+export const FILE_SOURCE = "file";
+const SERVER_SOURCES = new Set(["lrclib", FILE_SOURCE, "whisper", USER_SOURCE]);
 
 /** One version from the server's lyrics.json in the tab's shape, or null. */
 function fromServerVersion(v) {
@@ -107,8 +108,8 @@ export function toServerVersion(version) {
   };
 }
 
-/** Lyrics this tab kept in the browser, with the timing given them there, in
- * the server's shape. */
+/** A browser store entry (`stemdeck.lyrics.<trackId>`), its offset and timings
+ * included, in the server's shape. */
 export function toServerKept(entry) {
   const kept = toServerVersion(entry);
   const offset = clampOffset(entry.offsetSec);
@@ -587,11 +588,10 @@ export function knownSong(info, band) {
 }
 
 /**
- * Whether lyrics a browser kept for a track are another song's. Before a lookup
- * held a version to the track's own song and artist, a fuzzy search could keep
- * another song of a similar name (NIHIL "Barro" got "Joao de Barro"). Only the
- * song is held to it here: the artist of a version the user picked on purpose,
- * a cover say, is their choice.
+ * Whether an LRCLIB version in a browser store entry is another song's: its
+ * name matches neither the track's song nor any title it is known by. Only the
+ * song is held to it: the artist of a version the user picked on purpose, a
+ * cover say, is their choice.
  */
 export function keptForAnotherSong(entry, info, band) {
   if (entry?.source !== "lrclib") return false;

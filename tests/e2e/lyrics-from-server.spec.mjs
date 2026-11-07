@@ -1,7 +1,7 @@
 // The Lyrics tab with lyrics the server found while the track was separated
 // (GET /api/jobs/{id}/lyrics, lyrics.json): shown straight away, with nothing
 // asked of LRCLIB by the browser. One picked from the server's others is kept
-// on the server as the user's own choice (#41), so every device shows it.
+// on the server as the user's own choice, so every device shows it.
 //
 // When LRCLIB had versions but none the track's length, the server keeps none
 // and its 404 carries them as `others`, which the tab offers to pick from.

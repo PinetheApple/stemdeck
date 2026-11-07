@@ -1,4 +1,4 @@
-// Lyrics a browser kept, carried over to the server once (lyricsCarryOver.js, #41).
+// Lyrics a browser kept, carried over to the server once (lyricsCarryOver.js).
 // Run:  node tests/js/lyrics-carry-over.test.mjs
 
 import { carryOverLyrics, carryOverRequest, lyricsStoreKey, retryLater } from "../../static/js/lyricsCarryOver.js";
@@ -38,6 +38,7 @@ check("the store key is the one the tab used", lyricsStoreKey("a") === "stemdeck
 
 const put = carryOverRequest({ entry: ENTRY, others: [] }, STATE);
 check("a kept entry goes up as a PUT", put?.method === "PUT");
+check("as the user's pick", put?.picked === true);
 check(
   "in the server's shape, its timing included",
   same(put?.body, {
@@ -61,6 +62,7 @@ check("a file's lyrics have no LRCLIB id, and no timing of their own", same(
   [fromFile.body.lrclib_id, "offset_sec" in fromFile.body, "user_synced" in fromFile.body, "aligned" in fromFile.body],
   [null, false, false, false],
 ), fromFile.body);
+check("a file's lyrics were kept without a pick, and go up as none", fromFile.picked === false);
 check("a removal goes up as a DELETE", same(carryOverRequest({ dismissed: true }, STATE), { method: "DELETE" }));
 check("nothing usable carries nothing", carryOverRequest({ others: [] }, STATE) === null);
 
@@ -72,8 +74,12 @@ check(
 );
 check("with no song known, the entry is carried", carryOverRequest(another, { job_id: "a", title: "x" })?.method === "PUT");
 
-for (const status of [null, 409, 500, 503]) check(`${status} is tried again later`, retryLater(status));
-for (const status of [200, 404, 413, 422]) check(`${status} is final`, !retryLater(status));
+for (const status of [null, 500, 503]) check(`${status} is tried again later`, retryLater(status, "done"));
+for (const status of [200, 404, 413, 422]) check(`${status} is final`, !retryLater(status, "done"));
+for (const jobStatus of ["queued", "separating", "stopped"]) {
+  check(`409 on a ${jobStatus} job is tried again later`, retryLater(409, jobStatus));
+}
+for (const jobStatus of ["error", "cancelled"]) check(`409 on a ${jobStatus} job is final`, !retryLater(409, jobStatus));
 
 /** A store of browser entries and a server answering `statuses` per track. */
 function fakeDeps(entries, statuses) {
@@ -96,19 +102,31 @@ function fakeDeps(entries, statuses) {
   };
 }
 
-const job = (id) => ({ ...STATE, job_id: id });
+const job = (id, status = "done") => ({ ...STATE, job_id: id, status });
 const kept = { entry: ENTRY, others: [] };
 {
   const ids = ["ok", "removed", "gone", "refused", "busy", "failing", "offline", "none"];
   const { store, sent, carried, deps } = fakeDeps(
-    { ok: kept, removed: { dismissed: true }, gone: kept, refused: kept, busy: kept, failing: kept, offline: kept },
-    { ok: 200, removed: 404, gone: 404, refused: 422, busy: 409, failing: 500, offline: null },
+    {
+      ok: kept,
+      removed: { dismissed: true },
+      gone: kept,
+      refused: kept,
+      busy: kept,
+      failing: kept,
+      offline: kept,
+      broken: kept,
+      cancelled: kept,
+    },
+    { ok: 200, removed: 404, gone: 404, refused: 422, busy: 409, failing: 500, offline: null, broken: 409, cancelled: 409 },
   );
-  const finished = await carryOverLyrics(ids.map(job), deps);
+  const jobs = [...ids.map((id) => job(id, id === "busy" ? "queued" : "done")), job("broken", "error"), job("cancelled", "cancelled")];
+  const finished = await carryOverLyrics(jobs, deps);
   check("an entry left for later means not finished", finished === false);
-  check("each entry is sent once, none for a track without one", sent.length === 7, sent);
+  check("each entry is sent once, none for a track without one", sent.length === 9, sent);
   check("a removal is sent as one", sent.find((s) => s.id === "removed")?.method === "DELETE");
   check("2xx, any 404 and 422 drop the entry", ["ok", "removed", "gone", "refused"].every((id) => !store.has(id)));
+  check("409 on a job that ended without its stems drops it", ["broken", "cancelled"].every((id) => !store.has(id)));
   check("409, 5xx and no answer keep it", ["busy", "failing", "offline"].every((id) => store.has(id)));
   check("only a request the server took is followed up", same(carried, ["ok"]), carried);
 }

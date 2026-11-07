@@ -2,8 +2,8 @@
 //
 // A track's lyrics can be timed three ways, and the one in effect is, first
 // found:
-//   1. the user's own, set line by line here ("user_synced", or userSynced
-//      in the store entry of lyrics kept in the browser);
+//   1. the user's own, set line by line here ("user_synced", userSynced in
+//      the tab's entry);
 //   2. the server's, fitted line by line to the vocals stem ("aligned");
 //   3. the lyrics' own timing, moved as a whole by the Align panel's offset.
 // timingOf() picks it. Everything that times a line or a word (the list, the

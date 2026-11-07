@@ -1,6 +1,6 @@
-// The user's choice of lyrics kept with the song (#41): a picked version and a
+// The user's choice of lyrics kept with the song: a picked version and a
 // removal go to PUT and DELETE /api/jobs/{id}/lyrics, so every device and song
-// bundle has them, and what a browser kept before is carried over once.
+// bundle has them, and a browser's own store entries are carried over once.
 //
 // The server is stood in for (stubLyricsLookup, answerLyricsChoice); what it
 // keeps and refuses is tests/test_lyrics_choice_api.py.
@@ -42,6 +42,7 @@ const STORE_KEY = `stemdeck.lyrics.${JOB_ID}`;
 const CARRIED_OVER_KEY = "stemdeck.lyrics_carried_over";
 const CARRY_OVER = /\/lyrics\?carry_over=true$/;
 const REMOVED = "Lyrics removed for this track.";
+const NOTHING_KNOWN = "This track has no artist or song tags.";
 const SERVER_ERROR = 500;
 
 const KEPT_HERE = {
@@ -71,9 +72,10 @@ async function keepInBrowser(page, saved) {
   }, [STORE_KEY, saved]);
 }
 
-/** The tagged fixture track's routes and library, the server's lyrics stood in for. */
-async function prepare(page) {
-  const asked = await stubLyricsLookup(page, { rows: ROWS, artist: TAGS.artist, song: TAGS.title });
+/** The fixture track's routes and library, tagged with `audioTags`, the
+ * server's lyrics stood in for; `nothingKnown` as stubLyricsLookup takes it. */
+async function prepare(page, { audioTags = TAGS, nothingKnown = false } = {}) {
+  const asked = await stubLyricsLookup(page, { rows: ROWS, artist: TAGS.artist, song: TAGS.title, nothingKnown });
   await page.route(WIKIMEDIA, (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -89,7 +91,7 @@ async function prepare(page) {
       { id: "trash", name: "Trash", items: [], color: null },
     ],
     tracks: {
-      [JOB_ID]: { ...fixtureTrack(JOB_ID, "E2E Fixture Track"), audioTags: TAGS },
+      [JOB_ID]: { ...fixtureTrack(JOB_ID, "E2E Fixture Track"), audioTags },
       [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, "E2E Fixture Track (again)"),
     },
   });
@@ -101,8 +103,8 @@ async function boot(page) {
   await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
 }
 
-async function open(page) {
-  const asked = await prepare(page);
+async function open(page, options) {
+  const asked = await prepare(page, options);
   await boot(page);
   return asked;
 }
@@ -200,6 +202,20 @@ test.describe("the user's lyrics choice is kept with the song", () => {
     expect(asked.at(-1).body).toEqual({ again: true });
   });
 
+  test("Look up again on a song nothing is known of still ends its removal", async ({ page }) => {
+    const asked = await open(page, { audioTags: null, nothingKnown: true });
+    await page.evaluate((id) => fetch(`/api/jobs/${id}/lyrics`, { method: "DELETE" }), JOB_ID);
+    await showLyrics(page);
+    await expect(page.locator("#lyricsStatus")).toHaveText(REMOVED);
+
+    await page.locator(".lyrics-tool", { hasText: "Look up again" }).click();
+    await expect(page.locator("#lyricsStatus")).toContainText(NOTHING_KNOWN);
+    expect(asked.map((a) => a.body)).toEqual([{ again: true }]);
+
+    await openElsewhere(page);
+    await expect(page.locator("#lyricsStatus")).toContainText(NOTHING_KNOWN);
+  });
+
   test("a pick or removal the server could not keep says so, and leaves what was shown", async ({ page }) => {
     await open(page);
     await showLyrics(page);
@@ -219,7 +235,7 @@ test.describe("the user's lyrics choice is kept with the song", () => {
   });
 });
 
-test.describe("lyrics this browser kept before are carried over once", () => {
+test.describe("lyrics in this browser's store are carried over once", () => {
   test("a kept version goes up with its offset, and the browser's copy is dropped", async ({ page }) => {
     await keepInBrowser(page, KEPT_HERE);
     const asked = await open(page);
@@ -255,6 +271,14 @@ test.describe("lyrics this browser kept before are carried over once", () => {
     await expect.poll(() => stored(page)).toBeNull();
     expect(asked.choices.map((c) => c.method)).toEqual(["PUT"]);
     await expect.poll(() => stored(page, CARRIED_OVER_KEY)).toBe(true);
+  });
+
+  test("a file's lyrics, kept without a pick, go up as no pick", async ({ page }) => {
+    await keepInBrowser(page, { entry: { ...KEPT_HERE.entry, source: "file", id: 0 }, others: [] });
+    const asked = await open(page);
+    await expect.poll(() => stored(page)).toBeNull();
+    const query = new URL(asked.choices[0].url).searchParams;
+    expect([query.get("carry_over"), query.get("picked")]).toEqual(["true", "false"]);
   });
 
   test("a removal goes up as one", async ({ page }) => {

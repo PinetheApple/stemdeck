@@ -238,6 +238,8 @@ test.describe("lyrics tab", () => {
     await expect(page.locator(".lyrics-line")).toHaveText(["Embedded one", "Embedded two"]);
     await expect(page.locator(".lyrics-match-meta")).toContainText("From the file");
     expect(asked).toEqual([]);
+    // Kept as the track's lyrics, not as a version the user picked.
+    expect(asked.choices.map((c) => new URL(c.url).searchParams.get("picked"))).toEqual(["false"]);
   });
 
   test("with no version the track's length, they are offered and none is kept", async ({ page }) => {
@@ -348,7 +350,7 @@ test.describe("lyrics tab", () => {
     await page.locator(".lyrics-tools .lyrics-tool", { hasText: "Remove lyrics" }).click();
     await expect(page.locator(".lyrics-line")).toHaveCount(0);
     await expect(page.locator("#lyricsStatus")).toHaveText("Lyrics removed for this track.");
-    // Kept on the server, with the song (#41), not in this browser.
+    // Kept on the server with the song; the browser's store holds nothing.
     expect(asked.choices.map((c) => c.method)).toEqual(["DELETE"]);
     expect(await stored(page)).toBeNull();
 

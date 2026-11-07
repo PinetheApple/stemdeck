@@ -1215,7 +1215,6 @@ async function retimeFromVocals() {
     }
     if (state === RUN_STATE.UNSURE) return finish(t("lyrics.sync.retimeUnsure"), "muted");
     if (state !== RUN_STATE.DONE) return finish(t("lyrics.sync.retimeFailed"), "error");
-    // Lyrics.json holds the new timing.
     const aligned = (await serverLyrics(trackId))?.entry?.aligned ?? null;
     if (!live()) return;
     const next = aligned ? parseLrc(aligned.synced) : [];
@@ -1329,9 +1328,14 @@ function offer(matches) {
 }
 
 /** PUT or DELETE the track's lyrics: { ok, status, data }, or null when the
- * server cannot be reached. */
-async function sendLyrics(trackId, method, { body = null, carryOver = false } = {}) {
-  const query = carryOver ? "?carry_over=true" : "";
+ * server cannot be reached. A PUT not `picked` keeps them without making them
+ * the user's choice. */
+async function sendLyrics(trackId, method, { body = null, carryOver = false, picked = true } = {}) {
+  const params = new URLSearchParams();
+  if (carryOver) params.set("carry_over", "true");
+  if (!picked) params.set("picked", "false");
+  const search = params.toString();
+  const query = search ? `?${search}` : "";
   try {
     const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/lyrics${query}`, {
       method,
@@ -1352,10 +1356,10 @@ function notifyLyricsFailure(messageKey, stage, trackId) {
   });
 }
 
-/** Keep `version` as the track's lyrics on the server: what it keeps then,
- * { entry, others }, or null when it could not. */
-async function keepOnServer(trackId, version) {
-  const answer = await sendLyrics(trackId, "PUT", { body: toServerVersion(version) });
+/** Keep `version` as the track's lyrics on the server, as the user's choice
+ * when `picked`: what it keeps then, { entry, others }, or null when it could not. */
+async function keepOnServer(trackId, version, { picked = true } = {}) {
+  const answer = await sendLyrics(trackId, "PUT", { body: toServerVersion(version), picked });
   const found = answer?.ok ? fromServerLyrics(answer.data) : null;
   if (found?.entry) return found;
   console.warn("lyrics not kept", answer?.status);
@@ -1467,15 +1471,10 @@ function onTranscribeStale(trackId) {
 }
 
 /**
- * Ask the server to look the open track up on LRCLIB (#719).
- *
- * The tab used to search LRCLIB itself, with its own copy of the rules that
- * decide which version is this song by this artist and which length fits.
- * The two copies were kept equal by hand, and a track could get lyrics at
- * import and none here. Now there is one copy, the import's, and what it
- * finds is kept on the server like the import's answer, so the phone sees it
- * too. The band saved from the artist box goes along: it lives in this side's
- * store, and the server may not have it yet.
+ * Ask the server to look the open track up on LRCLIB, by the import's own
+ * rules; what it finds is kept on the server, so every device sees it. The
+ * band saved from the artist box goes along: it lives in this side's store,
+ * and the server may not have it yet.
  *
  * What came back without lyrics is remembered for the session, so opening the
  * tab again does not ask again. A failed connection is not, so the next
@@ -1610,9 +1609,8 @@ async function loadForCurrentTrack({ again = false } = {}) {
 
 /** Lyrics for a track the server has none for: the file's own, else a lookup. */
 async function findLyrics(info, token, again) {
-  // Lyrics the file came with are this recording's own: nothing to look up.
-  // The library keeps only that there are some (libraryAudioTags); the text is
-  // asked of the server once, then kept there as the track's lyrics.
+  // A file's own lyrics are this recording's: nothing to look up. The library
+  // keeps only that there are some (libraryAudioTags); the text is the server's.
   const known = knownSong(info, getCurrentTrackArtist());
   const embedded = info.audioTags?.lyrics || (info.audioTags?.hasLyrics ? await embeddedLyrics(info.id) : "");
   if (token !== loadToken) return;
@@ -1620,7 +1618,8 @@ async function findLyrics(info, token, again) {
     await keepEmbedded(info, embedded, known, token);
     return;
   }
-  if (!known.song) {
+  // Look up again still asks: only the server can end a removal.
+  if (!known.song && !again) {
     showNothingKnown(info.id);
     return;
   }
@@ -1628,7 +1627,7 @@ async function findLyrics(info, token, again) {
     showAnswer(answered.get(info.id));
     return;
   }
-  lookUp(info, { song: known.song, again });
+  lookUp(info, { song: known.song || info.title, again });
 }
 
 /** Keep the lyrics a file came with as the track's, and show them; shown
@@ -1651,13 +1650,13 @@ async function keepEmbedded(info, embedded, { artist, song }, token) {
     synced,
     plain: synced ? "" : embedded,
   };
-  const kept = await keepOnServer(info.id, version);
+  const kept = await keepOnServer(info.id, version, { picked: false });
   if (token !== loadToken) return;
   show(kept?.entry ?? version, kept?.others ?? []);
 }
 
-/** Carry the lyrics this browser kept before over to the server, once, in the
- * background; an entry the server could not take yet waits for the next boot. */
+/** Carry the lyrics entries in this browser's store over to the server, once,
+ * in the background; an entry the server could not take yet waits for the next boot. */
 async function carryOverBrowserLyrics() {
   if (await storeGet(CARRIED_OVER_KEY, false)) return;
   try {
@@ -1678,8 +1677,8 @@ async function carryOverBrowserLyrics() {
 const readBrowserLyrics = (trackId) => storeGet(lyricsStoreKey(trackId), null);
 const dropBrowserLyrics = (trackId) => storeSet(lyricsStoreKey(trackId), null);
 
-async function sendCarryOver(trackId, { method, body }) {
-  const answer = await sendLyrics(trackId, method, { body, carryOver: true });
+async function sendCarryOver(trackId, { method, body, picked }) {
+  const answer = await sendLyrics(trackId, method, { body, carryOver: true, picked });
   return answer?.status ?? null;
 }
 
