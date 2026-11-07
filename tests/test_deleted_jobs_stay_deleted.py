@@ -13,6 +13,7 @@ import json
 
 import pytest
 
+import app.api.jobs as jobs_mod
 from app.core import registry as _registry
 from app.core.registry import registry_path
 
@@ -186,6 +187,25 @@ def test_a_retry_that_fails_again_is_500_not_404(client, library_job, rmtree_fai
 
     assert client.delete(f"/api/jobs/{JOB_ID}").status_code == 500
     assert library_job.is_dir()
+
+
+def test_a_retry_releases_the_source_before_removing(
+    client, library_job, rmtree_fails, monkeypatch
+):
+    assert client.delete(f"/api/jobs/{JOB_ID}").status_code == 500
+    rmtree_fails["on"] = False
+    order = []
+    monkeypatch.setattr(jobs_mod, "release_source", lambda job_id: order.append("released"))
+    real_rmtree = jobs_mod._rmtree_job
+
+    def _rmtree(job_id):
+        order.append("removed")
+        return real_rmtree(job_id)
+
+    monkeypatch.setattr(jobs_mod, "_rmtree_job", _rmtree)
+
+    assert client.delete(f"/api/jobs/{JOB_ID}").status_code == 200
+    assert order == ["released", "removed"]
 
 
 def test_an_unknown_job_with_no_directory_is_404(client):

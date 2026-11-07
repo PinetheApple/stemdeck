@@ -2085,6 +2085,7 @@ def _retry_deleted_job_files(job_id: str) -> dict[str, str]:
     qualifies, so an orphan directory awaiting adoption is never removed."""
     if not registry_is_deleted(job_id) or not (JOBS_DIR / job_id).is_dir():
         raise HTTPException(status_code=404, detail="job not found")
+    release_source(job_id)
     if not _rmtree_job(job_id):
         raise HTTPException(status_code=500, detail=_FILES_NOT_DELETED_DETAIL)
     return {"job_id": job_id, "status": "deleted"}
