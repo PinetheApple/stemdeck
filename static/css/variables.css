@@ -77,6 +77,9 @@
   /* Controls and icons */
   --ctl-h:       36px;
   --ctl-h-sm:    28px;
+  --play-size:   56px;
+  --seg-inset:   2px;
+  --hover-brightness: 1.08;
   --icon-sm:     14px;
   --icon:        16px;
   --icon-lg:     20px;

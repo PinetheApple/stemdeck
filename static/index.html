@@ -1025,20 +1025,17 @@
             </div>
           </div>
 
-          <span class="footer-divider" aria-hidden="true"></span>
-
           <!-- Loop lives with the readout it acts on: the loop is a position,
                not a transport mode (design 1b). -->
           <div class="footer-group footer-group-position">
             <span class="footer-group-label" data-i18n="position.group">Position</span>
             <div class="footer-group-body">
-              <span class="num footer-elapsed" id="footer-time-elapsed">0:00</span>
-              <span class="footer-time-sep">/</span>
-              <span class="num footer-total" id="footer-time-total">0:00</span>
-              <!-- Loop stands beside the two bounds rather than over them. As a
-                   row of its own it stretched the footer bar to three lines for
-                   one button; as a column it fills the height the fields and
-                   their hint already take. -->
+              <div class="footer-time">
+                <span class="num footer-elapsed" id="footer-time-elapsed">0:00</span>
+                <span class="footer-time-sep">/</span>
+                <span class="num footer-total" id="footer-time-total">0:00</span>
+              </div>
+              <span class="footer-divider" aria-hidden="true"></span>
               <button class="daw-iconbtn btn-transport loop" id="t-loop" type="button" title="Loop the selected position (L)" aria-label="Loop" data-i18n-title="position.loopTitle">
                 <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4" /> <path d="M3 11v-1a4 4 0 0 1 4-4h14" /> <path d="m7 22-4-4 4-4" /> <path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg>
                 <span class="loop-btn-label" data-i18n="position.loopLabel">Loop</span>
@@ -1075,12 +1072,12 @@
           <div class="footer-group footer-group-key">
             <span class="footer-group-label" id="t-pitch-label" data-i18n="pitch.group">Global key</span>
             <div class="footer-group-body">
-              <div class="footer-seg pitch-group" id="t-pitch-wrap" role="group" aria-labelledby="t-pitch-label">
-                <button class="pitch-btn" id="t-pitch-down" type="button" title="Transpose down a semitone" aria-label="Transpose down a semitone" data-i18n-title="pitch.downTitle" data-i18n-aria-label="pitch.downTitle" disabled>&minus;</button>
+              <div class="pitch-group" id="t-pitch-wrap" role="group" aria-labelledby="t-pitch-label">
+                <button class="daw-iconbtn pitch-btn" id="t-pitch-down" type="button" title="Transpose down a semitone" aria-label="Transpose down a semitone" data-i18n-title="pitch.downTitle" data-i18n-aria-label="pitch.downTitle" disabled><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
                 <output class="pitch-value" id="t-pitch-value" for="t-pitch-down t-pitch-up" aria-labelledby="t-pitch-label" aria-live="polite">0</output>
-                <button class="pitch-btn" id="t-pitch-up" type="button" title="Transpose up a semitone" aria-label="Transpose up a semitone" data-i18n-title="pitch.upTitle" data-i18n-aria-label="pitch.upTitle" disabled>+</button>
+                <button class="daw-iconbtn pitch-btn" id="t-pitch-up" type="button" title="Transpose up a semitone" aria-label="Transpose up a semitone" data-i18n-title="pitch.upTitle" data-i18n-aria-label="pitch.upTitle" disabled><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
               </div>
-              <button class="pitch-reset" id="t-pitch-reset" type="button" title="Put every lane back in the original key" aria-label="Put every lane back in the original key" data-i18n-title="pitch.resetTitle" data-i18n-aria-label="pitch.resetTitle" disabled>&#8634;</button>
+              <button class="daw-iconbtn pitch-reset" id="t-pitch-reset" type="button" title="Put every lane back in the original key" aria-label="Put every lane back in the original key" data-i18n-title="pitch.resetTitle" data-i18n-aria-label="pitch.resetTitle" disabled><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
             </div>
           </div>
 
