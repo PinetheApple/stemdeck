@@ -393,9 +393,10 @@ function keptLyrics(version, shown, picked) {
 /**
  * Answer PUT or DELETE /api/jobs/{id}/lyrics the way the server keeps the
  * user's choice (tests/test_lyrics_choice_api.py): a version becomes the
- * lyrics, chosen unless ?picked=false, a removal leaves LYRICS_REMOVED, and with
- * ?carry_over=true a decision already held stays. `holder.lyrics` is what GET then answers (200
- * with a source, else 404), and `sent` collects { method, url, body }.
+ * lyrics, chosen unless ?picked=false, and a removal leaves LYRICS_REMOVED; a
+ * decision already held stays against ?carry_over=true or ?picked=false.
+ * `holder.lyrics` is what GET then answers (200 with a source, else 404), and
+ * `sent` collects { method, url, body }.
  * Resolves to false for any other method, which the caller answers.
  */
 export async function answerLyricsChoice(route, holder, sent = []) {
@@ -407,7 +408,7 @@ export async function answerLyricsChoice(route, holder, sent = []) {
   const query = new URL(request.url()).searchParams;
   const carryOver = query.get("carry_over") === "true";
   const picked = query.get("picked") !== "false";
-  if (!(carryOver && isUsersDecision(holder.lyrics))) {
+  if (!((carryOver || !picked) && isUsersDecision(holder.lyrics))) {
     holder.lyrics = method === "PUT" ? keptLyrics(body, holder.lyrics, picked) : LYRICS_REMOVED;
   }
   await route.fulfill({ status: holder.lyrics.source ? 200 : 404, json: holder.lyrics });
@@ -424,9 +425,9 @@ export async function answerLyricsChoice(route, holder, sent = []) {
  * when none is that length. What it kept or offered is then what GET
  * .../lyrics answers, as the server's lyrics.json would; the user's pick and
  * removal are kept as answerLyricsChoice does, and a lookup after a removal
- * answers it unless asked `again`, which ends it. The rule itself is tested against the real
- * server in tests/test_lyrics_lookup.py; this only has to answer the way it
- * does. Resolves to the requests the page made: [{ id, body }], with the PUTs
+ * answers it unless asked `again`, which ends it. The rule itself is tested
+ * against the real server in tests/test_lyrics_lookup.py; this only has to
+ * answer the way it does. Resolves to the requests the page made: [{ id, body }], with the PUTs
  * and DELETEs in its `choices`.
  */
 export async function stubLyricsLookup(page, { rows = [], artist = "", song = "", duration = 6, offline = false, nothingKnown = false } = {}) {

@@ -56,6 +56,7 @@ import {
   isRemovedAnswer,
   toServerVersion,
   USER_SOURCE,
+  FILE_SOURCE,
 } from "./lyricsLookup.js";
 import { carryOverLyrics, lyricsStoreKey } from "./lyricsCarryOver.js";
 import {
@@ -284,7 +285,7 @@ function show(entry, others = []) {
     el("span", "lyrics-match-meta", [
       entry.artist,
       entry.album,
-      entry.source === "file" ? t("lyrics.fromFile") : "",
+      entry.source === FILE_SOURCE ? t("lyrics.fromFile") : "",
       entry.source === "whisper" ? t("lyrics.transcribed") : "",
       entry.source === USER_SOURCE ? t("lyrics.edit.yours") : "",
     ].filter(Boolean).join(" · ")),
@@ -1615,7 +1616,7 @@ async function findLyrics(info, token, again) {
   const embedded = info.audioTags?.lyrics || (info.audioTags?.hasLyrics ? await embeddedLyrics(info.id) : "");
   if (token !== loadToken) return;
   if (embedded) {
-    await keepEmbedded(info, embedded, known, token);
+    await keepEmbedded(info, embedded, known, token, again);
     return;
   }
   // Look up again still asks: only the server can end a removal.
@@ -1631,8 +1632,9 @@ async function findLyrics(info, token, again) {
 }
 
 /** Keep the lyrics a file came with as the track's, and show them; shown
- * still when the server could not keep them. */
-async function keepEmbedded(info, embedded, { artist, song }, token) {
+ * still when the server could not keep them. `again` is Look up again: the
+ * user asks for lyrics back, so they are kept as the user's pick. */
+async function keepEmbedded(info, embedded, { artist, song }, token, again = false) {
   // A load left behind by a switch keeps nothing, and runs again when the track is back.
   if (getCurrentTrackInfo()?.id !== info.id) {
     reloadsOwed.add(info.id);
@@ -1641,7 +1643,7 @@ async function keepEmbedded(info, embedded, { artist, song }, token) {
   const synced = parseLrc(embedded).length ? embedded : "";
   const version = {
     id: 0,
-    source: "file",
+    source: FILE_SOURCE,
     track: info.audioTags.title || song || info.title,
     artist,
     album: info.audioTags.album || "",
@@ -1650,7 +1652,7 @@ async function keepEmbedded(info, embedded, { artist, song }, token) {
     synced,
     plain: synced ? "" : embedded,
   };
-  const kept = await keepOnServer(info.id, version, { picked: false });
+  const kept = await keepOnServer(info.id, version, { picked: again });
   if (token !== loadToken) return;
   show(kept?.entry ?? version, kept?.others ?? []);
 }

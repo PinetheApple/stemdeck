@@ -39,7 +39,7 @@ export function carryOverRequest(saved, state) {
   const entry = saved?.entry;
   if (!entry || typeof entry !== "object") return null;
   if (keptForAnotherSong(entry, songInfo(state), libraryArtist(state.artist))) return null;
-  // The tab kept a file's own lyrics by itself; the user never picked them.
+  // A file's own lyrics are kept without the user picking them, so they go up as no pick.
   return { method: "PUT", body: toServerKept(entry), picked: entry.source !== FILE_SOURCE };
 }
 

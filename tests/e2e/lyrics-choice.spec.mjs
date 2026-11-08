@@ -216,6 +216,22 @@ test.describe("the user's lyrics choice is kept with the song", () => {
     await expect(page.locator("#lyricsStatus")).toContainText(NOTHING_KNOWN);
   });
 
+  test("Look up again on a removed song brings its file's lyrics back as the user's pick", async ({ page }) => {
+    const embedded = { ...TAGS, lyrics: "[00:00.50]Embedded one\n[00:02.00]Embedded two" };
+    const asked = await open(page, { audioTags: embedded });
+    await page.evaluate((id) => fetch(`/api/jobs/${id}/lyrics`, { method: "DELETE" }), JOB_ID);
+    await showLyrics(page);
+    await expect(page.locator("#lyricsStatus")).toHaveText(REMOVED);
+
+    await page.locator(".lyrics-tool", { hasText: "Look up again" }).click();
+    await expect(page.locator(".lyrics-line")).toHaveText(["Embedded one", "Embedded two"]);
+    const [kept] = asked.choices.filter((c) => c.method === "PUT");
+    expect(new URL(kept.url).search).toBe("");
+
+    await openElsewhere(page);
+    await expect(page.locator(".lyrics-line")).toHaveText(["Embedded one", "Embedded two"]);
+  });
+
   test("a pick or removal the server could not keep says so, and leaves what was shown", async ({ page }) => {
     await open(page);
     await showLyrics(page);
