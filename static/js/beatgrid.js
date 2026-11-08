@@ -344,7 +344,7 @@ function _cancelSaveTimer() {
 /**
  * Send each song's unconfirmed grid at once with keepalive, the open song first,
  * outside the queue, which never runs once the page is gone. `unsentTempo` maps a
- * song to its unsent { fields, editedAt }, which ride in the same request.
+ * song to its unconfirmed { fields, modeEditedAt }, which ride in the same request.
  */
 export function saveBeatGridOnPageClose(unsentTempo = new Map()) {
   if (_cancelSaveTimer() && _jobId && _dirty) {
@@ -359,12 +359,12 @@ export function saveBeatGridOnPageClose(unsentTempo = new Map()) {
 }
 
 // The server applies a body's grid before its tempo, and any grid drops the
-// saved mode. A grid edited after the tempo must drop the tempo's mode too.
+// saved mode. A grid edited after the mode change must drop that mode too.
 function _closeBody(grid, tempo) {
   if (!tempo) return grid?.payload ?? null;
-  const gridCameLast = grid && grid.editedAt > tempo.editedAt;
+  const gridAfterMode = grid && tempo.modeEditedAt !== undefined && grid.editedAt > tempo.modeEditedAt;
   const { mode, ...withoutMode } = tempo.fields;
-  return { ...grid?.payload, tempo: gridCameLast ? withoutMode : tempo.fields };
+  return { ...grid?.payload, tempo: gridAfterMode ? withoutMode : tempo.fields };
 }
 
 /** Take a grid the server rebuilt (a tempo change) as the new starting point, with no undo across it. */

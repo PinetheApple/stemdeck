@@ -34,7 +34,7 @@ const RESET_FIELDS = { mode: null, bpm: null, anchor: null, beats_per_bar: null 
 let jobId = null;
 let grid = null;
 let tempo = null;
-const unsentFieldsByJob = new Map();
+const unconfirmedFieldsByJob = new Map();
 const savesInFlight = new Map();
 let refreshSeq = 0;
 let taps = [];
@@ -112,31 +112,37 @@ async function refreshGrid(forJob) {
 }
 
 // Keyed by song, so a song switch mid-save neither drops one song's edits nor
-// sends them to the next.
+// sends them to the next. An entry stays until its save is answered, so the page
+// can send it again on close; a newer edit replaces it and is sent after it.
 async function sendUnsentFields(forJob) {
   await flushBeatGrid();
   let failed = false;
-  try {
-    while (unsentFieldsByJob.has(forJob)) {
-      const { fields } = unsentFieldsByJob.get(forJob);
-      unsentFieldsByJob.delete(forJob);
-      await saveBeatGridTempo(forJob, fields);
+  let entry;
+  while ((entry = unconfirmedFieldsByJob.get(forJob)) && !entry.sending) {
+    entry.sending = true;
+    try {
+      await saveBeatGridTempo(forJob, entry.fields);
+    } catch (e) {
+      console.warn("[tempoTools] could not save the tempo:", e);
+      failed = true;
+    } finally {
+      if (unconfirmedFieldsByJob.get(forJob) === entry) unconfirmedFieldsByJob.delete(forJob);
     }
-  } catch (e) {
-    console.warn("[tempoTools] could not save the tempo:", e);
-    unsentFieldsByJob.delete(forJob);
-    failed = true;
-  } finally {
-    savesInFlight.delete(forJob);
   }
+  savesInFlight.delete(forJob);
   if (forJob !== jobId) return;
   saveFailed = failed;
   await refreshGrid(forJob);
 }
 
-function addUnsentFields(forJob, fields, editedAt = performance.now()) {
-  const sofar = unsentFieldsByJob.get(forJob)?.fields;
-  unsentFieldsByJob.set(forJob, { fields: { ...sofar, ...fields }, editedAt });
+// Carries the fields of a save still in flight, and when the mode last changed:
+// a grid edited after that drops the mode, as the server does.
+function addUnsentFields(forJob, fields) {
+  const sofar = unconfirmedFieldsByJob.get(forJob);
+  unconfirmedFieldsByJob.set(forJob, {
+    fields: { ...sofar?.fields, ...fields },
+    modeEditedAt: "mode" in fields ? performance.now() : sofar?.modeEditedAt,
+  });
 }
 
 /** Optimistic: show, save, then reload the server's grid. */
@@ -206,13 +212,13 @@ function commitTaps() {
   if (tempo) patchTempo({ bpm: tempo.bpm });
 }
 
-/** Hand over every song's unsent { fields, editedAt }, a tap still waiting to commit included, and forget them. */
+/** Hand over every song's unconfirmed { fields, modeEditedAt }, a tap still waiting to commit included, and forget them. */
 export function takeUnsentTempo() {
-  if (tapTimer !== null && jobId && tempo) addUnsentFields(jobId, { bpm: tempo.bpm }, taps.at(-1));
+  if (tapTimer !== null && jobId && tempo) addUnsentFields(jobId, { bpm: tempo.bpm });
   clearTimeout(tapTimer);
   tapTimer = null;
-  const unsent = new Map(unsentFieldsByJob);
-  unsentFieldsByJob.clear();
+  const unsent = new Map(unconfirmedFieldsByJob);
+  unconfirmedFieldsByJob.clear();
   return unsent;
 }
 
