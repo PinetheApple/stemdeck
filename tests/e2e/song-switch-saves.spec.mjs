@@ -1,118 +1,31 @@
-// Edits made just before a song switch or a page close. Each test holds a save open
-// with a route, or freezes the page's timers so no debounce fires before the switch.
+// Section and grid edits made just before a song switch or a page close.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, openStudio, waitForClickTrack } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, openStudio } from "./helpers.mjs";
+import {
+  STALE_BPM,
+  beatsUrl,
+  sectionsUrl,
+  isBeatsPatch,
+  savedSections,
+  savedTempo,
+  savedBarLength,
+  setGridBars,
+  shownBarLength,
+  queueSectionsSave,
+  queueGridSave,
+  openSong,
+  openTempo,
+  openSongTempo,
+  holdFirstPatch,
+  FAILED_SAVES,
+  failHeldSave,
+  closeAndSettle,
+  freezeTimers,
+  clickFrozen,
+  resetSongs,
+} from "./saveRaces.mjs";
 
-const RESET_TEMPO = { mode: null, bpm: null, anchor: null, beats_per_bar: null };
-const STALE_BPM = 97;
-const TAP_GAP_MS = 400;
-const NUDGE_SEC = 0.01;
-const SIBLING_LENGTH_SEC = 2;
-const SETTLE_MS = 500;
-// The page's clock keeps running while the test asks to pause it, so it pauses a little ahead.
-const FREEZE_AHEAD_MS = 100;
-const TRACK_TIME = { [JOB_ID]: /\/\s*00:06\s*$/, [SIBLING_JOB_ID]: /\/\s*00:02\s*$/ };
-
-const sectionsUrl = (id) => `/api/jobs/${id}/sections`;
-const beatsUrl = (id) => `/api/jobs/${id}/beats`;
-const isBeatsPatch = (id) => (r) => r.url().endsWith(beatsUrl(id)) && r.method() === "PATCH";
-
-test.afterEach(async ({ request }) => {
-  for (const id of [JOB_ID, SIBLING_JOB_ID]) {
-    await request.patch(sectionsUrl(id), { data: { sections: [] } });
-    await request.delete(beatsUrl(id));
-    await request.patch(beatsUrl(id), { data: { tempo: RESET_TEMPO } });
-  }
-});
-
-const savedSections = async (request, id) => (await (await request.get(`/api/jobs/${id}`)).json()).sections ?? [];
-const savedGrid = async (request, id) => (await request.get(beatsUrl(id))).json();
-const savedTempo = async (request, id) => (await savedGrid(request, id)).tempo;
-const savedBarLength = async (request, id) => (await savedGrid(request, id)).bars?.[0]?.beats_per_bar;
-const setGridBars = (page, beatsPerBar) =>
-  page.evaluate(async (n) => (await import("/js/beatgrid.js")).setBarLengthAt(0, n), beatsPerBar);
-const shownBarLength = (page) =>
-  page.evaluate(async () => (await import("/js/beatgrid.js")).getBars()[0]?.beats_per_bar);
-// Not awaited in the page: the save it queues may be the one a test is holding.
-const queueSave = (page, module, flush) =>
-  page.evaluate(([path, name]) => { import(path).then((m) => m[name]()); }, [module, flush]);
-const queueSectionsSave = (page) => queueSave(page, "/js/sections.js", "flushSectionsSave");
-const queueGridSave = (page) => queueSave(page, "/js/beatgrid.js", "flushBeatGrid");
-
-async function openSong(page, id) {
-  await page.locator(`.cat-item[data-id="${id}"]`).first().click();
-  await expect(page.locator("#t-time")).toHaveText(TRACK_TIME[id], { timeout: 20000 });
-}
-
-/** Studio on the fixture track with the click live and the Tempo tab showing. */
-async function openTempo(page) {
-  await openStudio(page, { tauri: true });
-  await waitForClickTrack(page);
-  await expect(page.locator("#tempoModeConstant")).toBeEnabled();
-}
-
-/** Open a song and wait for its own grid: only the sibling's ends inside its length. */
-async function openSongTempo(page, id) {
-  await openSong(page, id);
-  await waitForClickTrack(page, { revealOptions: false });
-  await page.waitForFunction(async ([sibling, lengthSec]) => {
-    const beats = (await import("/js/beatgrid.js")).getBeats();
-    return beats.length > 0 && (beats.at(-1) < lengthSec) === sibling;
-  }, [id === SIBLING_JOB_ID, SIBLING_LENGTH_SEC]);
-  await expect(page.locator("#tempoModeConstant")).toBeEnabled();
-}
-
-/**
- * Hold the first PATCH matching `pattern` until `release()`, then `answer` it.
- * `seen` resolves when it is sent; `later` collects every PATCH after it.
- */
-async function holdFirstPatch(page, pattern, answer = (route) => route.fallback()) {
-  let release;
-  const held = new Promise((resolve) => { release = resolve; });
-  let markSeen;
-  const seen = new Promise((resolve) => { markSeen = resolve; });
-  const later = [];
-  let first = true;
-  await page.route(pattern, async (route) => {
-    if (route.request().method() !== "PATCH") return route.fallback();
-    if (!first) {
-      later.push(route.request());
-      return route.fallback();
-    }
-    first = false;
-    markSeen(route.request());
-    await held;
-    await answer(route);
-  });
-  return { seen, release, later };
-}
-
-// A save the server refuses, and one whose request is lost, with the event that settles each.
-const FAILED_SAVES = {
-  refused: { answer: (route) => route.fulfill({ status: 422, json: { detail: "invalid" } }), settles: "requestfinished" },
-  lost: { answer: (route) => route.abort(), settles: "requestfailed" },
-};
-
-/** Let the held save fail, and wait until the page has its answer. */
-async function failHeldSave(page, hold, { settles }, url) {
-  const settled = page.waitForEvent(settles, (r) => r.url().endsWith(url));
-  hold.release();
-  await settled;
-}
-
-/** Close the page and give any save it sends on the way out time to arrive. */
-async function closeAndSettle(page) {
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(SETTLE_MS);
-}
-
-/** Stop the page's clock: from here a debounce fires only when the test runs time on. */
-async function freezeTimers(page) {
-  await page.clock.pauseAt(await page.evaluate((ahead) => Date.now() + ahead, FREEZE_AHEAD_MS));
-}
-
-// Clicks without Playwright's actionability wait, which needs the frozen clock to move.
-const clickFrozen = (page, selector) => page.locator(selector).first().dispatchEvent("click");
+test.afterEach(resetSongs);
 
 test.describe("sections", () => {
   test("a section added just before switching songs is saved to its song", async ({ page, request }) => {
@@ -254,6 +167,19 @@ test.describe("beat grid", () => {
     });
   }
 
+  test("the open song's grid goes first when the page closes", async ({ page }) => {
+    const { seen } = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`);
+    await setGridBars(page, 3);
+    await openSongTempo(page, SIBLING_JOB_ID);
+    await seen;
+    await setGridBars(page, 5);
+    const sent = [];
+    page.on("request", (r) => { if (r.method() === "PATCH" && r.url().endsWith("/beats")) sent.push(r.url()); });
+    await closeAndSettle(page);
+
+    expect(sent.map((url) => url.endsWith(beatsUrl(SIBLING_JOB_ID)))).toEqual([true, false]);
+  });
+
   test("a grid save answered after a switch never puts its tempo on the new song", async ({ page }) => {
     await page.evaluate(() => {
       window.gridSaves = 0;
@@ -282,65 +208,5 @@ test.describe("beat grid", () => {
     const next = page.waitForRequest(isBeatsPatch(SIBLING_JOB_ID));
     await page.locator("#tempoBpmUp").click();
     expect((await next).postDataJSON().tempo.bpm).toBeCloseTo(Number(siblingBpm) + 0.1, 5);
-  });
-});
-
-test.describe("tempo", () => {
-  test("a tapped tempo still commits to its song when the song changes first", async ({ page, request }) => {
-    await page.clock.install();
-    await openTempo(page);
-    await freezeTimers(page);
-    await clickFrozen(page, "#tempoTap");
-    await page.clock.runFor(TAP_GAP_MS);
-    await clickFrozen(page, "#tempoTap");
-    const tapped = Number(await page.locator("#tempoReadout").textContent());
-    await clickFrozen(page, `.cat-item[data-id="${SIBLING_JOB_ID}"]`);
-
-    await expect.poll(async () => (await savedTempo(request, JOB_ID)).bpm).toBeCloseTo(tapped, 5);
-    expect((await savedTempo(request, SIBLING_JOB_ID)).user_keys ?? []).toEqual([]);
-  });
-
-  test("a tap made just before the page closes is saved", async ({ page, request }) => {
-    await openTempo(page);
-    const tap = page.locator("#tempoTap");
-    await tap.click();
-    await page.waitForTimeout(TAP_GAP_MS);
-    await tap.click();
-    const tapped = Number(await page.locator("#tempoReadout").textContent());
-    await page.reload({ waitUntil: "domcontentloaded" });
-
-    await expect.poll(async () => (await savedTempo(request, JOB_ID)).bpm).toBeCloseTo(tapped, 5);
-  });
-
-  test("a grid edit after an unsent mode change closes on the mode the normal order gives", async ({ page, request }) => {
-    await page.clock.install();
-    await openTempo(page);
-    const { seen } = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`);
-    await page.locator("#tempoModeFollow").click();
-    await seen;
-    await freezeTimers(page);
-    await clickFrozen(page, "#tempoModeConstant");
-    await page.clock.runFor(1);
-    await setGridBars(page, 3);
-    await page.reload({ waitUntil: "domcontentloaded" });
-
-    await expect.poll(() => savedBarLength(request, JOB_ID)).toBe(3);
-    // Sent one after the other, the grid save drops the mode the tempo save set.
-    expect((await savedTempo(request, JOB_ID)).mode).toBe("follow");
-  });
-
-  test("a nudge queued behind a save in flight still reaches its song after a switch", async ({ page, request }) => {
-    await openTempo(page);
-    const { seen, release } = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`);
-    const later = page.locator("#tempoNudgeLater");
-    await later.click();
-    await seen;
-    await later.click();
-
-    await openSongTempo(page, SIBLING_JOB_ID);
-    release();
-
-    await expect.poll(async () => (await savedTempo(request, JOB_ID)).anchor).toBeCloseTo(2 * NUDGE_SEC, 5);
-    expect((await savedTempo(request, SIBLING_JOB_ID)).user_keys ?? []).toEqual([]);
   });
 });
