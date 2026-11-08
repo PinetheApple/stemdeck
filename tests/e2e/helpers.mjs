@@ -261,6 +261,10 @@ export async function stubUpdateCheck(page, { available = false } = {}) {
     }));
 }
 
+// A read still in flight when the test ends: its response is gone and the
+// request can no longer be answered.
+const TEARDOWN_ERROR = /Response has been disposed|Target page, context or browser has been closed/;
+
 /** Open the fixture track in the studio and wait until the transport is live. */
 /**
  * Keep favourites off the shared e2e backend (#734).
@@ -282,10 +286,14 @@ export async function stubFavorites(page, serverFavorites = {}) {
   });
   await page.route(/\/api\/jobs(\?.*)?$/, async (route) => {
     if (route.request().method() !== "GET") return route.continue();
-    const res = await route.fetch();
-    const jobs = await res.json();
-    for (const j of jobs) j.favorite = serverFavorites[j.job_id] ?? null;
-    await route.fulfill({ response: res, json: jobs });
+    try {
+      const res = await route.fetch();
+      const jobs = await res.json();
+      for (const j of jobs) j.favorite = serverFavorites[j.job_id] ?? null;
+      await route.fulfill({ response: res, json: jobs });
+    } catch (err) {
+      if (!TEARDOWN_ERROR.test(String(err?.message))) throw err;
+    }
   });
   return writes;
 }
