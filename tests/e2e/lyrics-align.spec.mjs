@@ -3,8 +3,7 @@
 // the one last clicked) at the playhead, the nudges move every line a step,
 // Auto-detect asks the server for its estimate from the vocals stem, and
 // Reset goes back to the lyrics' own timing. The wipe, the line marked and a
-// line click follow at once; the offset is kept on the server for lyrics it
-// keeps, and in the track's store entry for lyrics kept here.
+// line click follow at once; the offset is kept on the server with the lyrics.
 //
 // The server's endpoints are stood in for here: what they keep and estimate
 // is covered in tests/test_lyrics_api.py. The fixture track is 6 seconds, so
@@ -42,11 +41,11 @@ const version = (extra = {}) => ({
 
 /**
  * Open the fixture track's Lyrics tab with `server` as its lyrics.json (null
- * for none) and `saved` as its store entry. `detect` is what POST
+ * for none). `detect` is what POST
  * .../lyrics/align answers. Returns what was sent to the two endpoints, and
  * the lyrics.json the stand-in keeps, which GET serves back.
  */
-async function setUp(page, { server = version(), saved = null, detect = { confident: false, offset_sec: null } } = {}) {
+async function setUp(page, { server = version(), detect = { confident: false, offset_sec: null } } = {}) {
   const kept = { lyrics: server };
   const offsets = [];
   const aligns = [];
@@ -63,7 +62,7 @@ async function setUp(page, { server = version(), saved = null, detect = { confid
   });
   await page.route(`**/api/jobs/${JOB_ID}/lyrics/align`, (route) => {
     aligns.push(route.request().postDataJSON());
-    if (detect.confident && kept.lyrics && !route.request().postDataJSON().synced) {
+    if (detect.confident && kept.lyrics) {
       kept.lyrics = { ...kept.lyrics, offset_sec: detect.offset_sec };
     }
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(detect) });
@@ -90,18 +89,6 @@ async function setUp(page, { server = version(), saved = null, detect = { confid
       [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, "E2E Fixture Track (again)"),
     },
   });
-  if (saved) {
-    await page.addInitScript(
-      ([key, value]) => {
-        // Only on the first load: a reload must find what the page saved.
-        if (!sessionStorage.getItem("e2e-seeded-lyrics")) {
-          window.localStorage.setItem(key, JSON.stringify(value));
-          sessionStorage.setItem("e2e-seeded-lyrics", "1");
-        }
-      },
-      [`stemdeck.lyrics.${JOB_ID}`, saved],
-    );
-  }
   await openLyrics(page);
   return { kept, offsets, aligns };
 }
@@ -130,9 +117,6 @@ async function openAlign(page) {
 /** Move the playhead without touching the lyrics. */
 const seek = (page, seconds) =>
   page.evaluate(async (s) => (await import("/js/transport.js")).setPlayheadTime(s), seconds);
-
-const stored = (page) =>
-  page.evaluate((id) => JSON.parse(localStorage.getItem(`stemdeck.lyrics.${id}`) || "null"), JOB_ID);
 
 test.describe("aligning lyrics to the track", () => {
   test("Start lyrics here moves the first sung line to the playhead, and a line click follows", async ({ page }) => {
@@ -275,35 +259,6 @@ test.describe("aligning lyrics to the track", () => {
     await expect(current(page)).toHaveText("Server two");
     await openAlign(page);
     await expect(readout(page)).toHaveText("+0.5 s");
-  });
-
-  test("lyrics kept in the browser keep their offset with them, and Auto-detect sends them along", async ({ page }) => {
-    const saved = {
-      entry: { ...version(), id: 77, album: "Chosen", savedAt: 1 },
-      others: [],
-    };
-    const { offsets, aligns } = await setUp(page, { server: null, saved, detect: { confident: true, offset_sec: 0.8 } });
-    await openAlign(page);
-    await button(page, "Later by 0.5 s").click();
-    await expect.poll(async () => (await stored(page))?.entry?.offsetSec).toBe(0.5);
-
-    await button(page, "Auto-detect").click();
-    await expect(readout(page)).toHaveText("+0.8 s");
-    expect(aligns).toEqual([{ synced: SYNCED }]);
-    await expect.poll(async () => (await stored(page))?.entry?.offsetSec).toBe(0.8);
-    expect(offsets).toEqual([]);
-
-    // Opening the tab again, and reloading, find it where it was left. The
-    // panel stays open while the track does.
-    await page.locator(".rail-library").click();
-    await page.locator(".rail-lyrics").click();
-    await expect(readout(page)).toHaveText("+0.8 s");
-    await page.reload({ waitUntil: "domcontentloaded" });
-    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
-    await page.locator(".rail-lyrics").click();
-    await openAlign(page);
-    await expect(readout(page)).toHaveText("+0.8 s");
-    expect((await stored(page)).entry.album).toBe("Chosen");
   });
 
   test("text-only lyrics show Align disabled, saying why", async ({ page }) => {

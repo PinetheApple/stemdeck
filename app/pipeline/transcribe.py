@@ -62,7 +62,7 @@ from app.core.config import (
 from app.core.models import Job, JobCancelled, _set
 from app.core.registry import set_proc
 from app.core.settings import lyrics_mending_enabled, transcribe_lyrics_enabled
-from app.pipeline.lyrics_lookup import lyrics_path, read_lyrics, write_lyrics
+from app.pipeline.lyrics_lookup import lyrics_path, lyrics_removed, read_lyrics, write_lyrics
 from app.pipeline.lyrics_repair import looks_stripped, mend_from_transcript, words_of
 from app.pipeline.lyrics_retime import save_transcript
 
@@ -128,6 +128,8 @@ def _spawn_worker_cmd(vocals: Path, device: str) -> list[str]:
 
 
 _FOUND = "lyrics already found"
+# Only the Lyrics tab's Transcribe (transcribe_on_demand.py) ends a removal.
+_REMOVED = "the user removed the lyrics"
 
 
 def skip_reason(job: Job, job_dir: Path) -> str | None:
@@ -136,6 +138,8 @@ def skip_reason(job: Job, job_dir: Path) -> str | None:
         return f"off for device {job.compute_device or 'unknown'}"
     if job.has_lyrics or lyrics_path(job_dir).is_file():
         return _FOUND
+    if lyrics_removed(job_dir):
+        return _REMOVED
     tags = job.audio_tags or {}
     if isinstance(tags.get("lyrics"), str) and tags["lyrics"].strip():
         return "the file carries its own lyrics"

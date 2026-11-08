@@ -238,6 +238,8 @@ test.describe("lyrics tab", () => {
     await expect(page.locator(".lyrics-line")).toHaveText(["Embedded one", "Embedded two"]);
     await expect(page.locator(".lyrics-match-meta")).toContainText("From the file");
     expect(asked).toEqual([]);
+    // Kept as the track's lyrics, not as a version the user picked.
+    expect(asked.choices.map((c) => new URL(c.url).searchParams.get("picked"))).toEqual(["false"]);
   });
 
   test("with no version the track's length, they are offered and none is kept", async ({ page }) => {
@@ -333,8 +335,7 @@ test.describe("lyrics tab", () => {
 
   test("kept lyrics come back after a reload, with nothing asked", async ({ page }) => {
     const asked = await lyricsShown(page);
-    // The library is re-seeded on every load; the lyrics have a store entry of
-    // their own, so they survive it.
+    // The library is re-seeded on every load; the lyrics are the server's.
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
     asked.length = 0;
@@ -349,7 +350,9 @@ test.describe("lyrics tab", () => {
     await page.locator(".lyrics-tools .lyrics-tool", { hasText: "Remove lyrics" }).click();
     await expect(page.locator(".lyrics-line")).toHaveCount(0);
     await expect(page.locator("#lyricsStatus")).toHaveText("Lyrics removed for this track.");
-    await expect.poll(() => stored(page)).toEqual({ dismissed: true });
+    // Kept on the server with the song; the browser's store holds nothing.
+    expect(asked.choices.map((c) => c.method)).toEqual(["DELETE"]);
+    expect(await stored(page)).toBeNull();
 
     // The lookup runs by itself, and must not bring them straight back.
     await page.reload({ waitUntil: "domcontentloaded" });
@@ -359,10 +362,10 @@ test.describe("lyrics tab", () => {
     await expect(page.locator("#lyricsStatus")).toHaveText("Lyrics removed for this track.");
     expect(asked).toHaveLength(1);
 
-    // Looking up again finds what the server kept, with nothing more asked.
+    // Looking up again asks past the removal, which it ends.
     await page.locator(".lyrics-tool", { hasText: "Look up again" }).click();
     await expect(page.locator(".lyrics-line")).toHaveCount(3);
-    expect(asked).toHaveLength(1);
+    expect(asked.map((a) => a.body)).toEqual([{}, { again: true }]);
   });
 
   test("nothing found says so", async ({ page }) => {
@@ -443,7 +446,7 @@ test.describe("lyrics tab", () => {
 });
 
 test.describe("lyrics kept before a lookup was held to the track", () => {
-  test("another song's lyrics kept by the tab are dropped and the track looked up again", async ({ page }) => {
+  test("another song's lyrics kept by the tab are dropped, not carried over, and the track looked up again", async ({ page }) => {
     // Kept by an older tab from a fuzzy search: NIHIL "Barro" once got
     // Renato Vianna's "Joao de Barro".
     await page.addInitScript((id) => {
@@ -452,6 +455,14 @@ test.describe("lyrics kept before a lookup was held to the track", () => {
         others: [],
       }));
     }, JOB_ID);
+    // The carry-over judges by the job's names on the server, which has the
+    // file's tags as the library does.
+    await page.route(/\/api\/jobs\?trashed=include$/, async (route) => {
+      const response = await route.fetch();
+      const jobs = await response.json();
+      const tagged = jobs.map((job) => (job.job_id === JOB_ID ? { ...job, audio_tags: TAGS.audioTags } : job));
+      await route.fulfill({ response, json: tagged });
+    });
     const asked = await stubLrclib(page);
     await seedWith(page, TAGS);
     await open(page);
@@ -460,5 +471,7 @@ test.describe("lyrics kept before a lookup was held to the track", () => {
     await expect(page.locator(".lyrics-line")).toHaveCount(3);
     await expect(page.locator(".lyrics-body")).not.toContainText("Not this song");
     expect(asked.length).toBeGreaterThan(0);
+    await expect.poll(() => stored(page)).toBeNull();
+    expect(asked.choices).toEqual([]);
   });
 });

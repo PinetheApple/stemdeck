@@ -80,6 +80,7 @@ from app.pipeline.identify import (
     release_source,
 )
 from app.pipeline.lyrics_align import detect_offset
+from app.pipeline.lyrics_choice import NotAVersion, UsersOwnWords, choose_lyrics, remove_lyrics
 from app.pipeline.lyrics_lookup import (
     _TEXT_MAX_CHARS,
     USER_SOURCE,
@@ -92,10 +93,12 @@ from app.pipeline.lyrics_lookup import (
     drop_if_another_song,
     find_lyrics,
     forget_names,
+    forget_removal,
     keep_answer,
     kept_lyrics_belong,
     lookup_lyrics,
     lyrics_path,
+    lyrics_removed,
     lyrics_settled,
     original_path,
     read_candidates,
@@ -124,6 +127,8 @@ router = APIRouter(tags=["jobs"])
 logger = logging.getLogger("stemdeck.api")
 
 JOB_NOT_READY = "job not ready"
+LYRICS_NOT_SAVED = "could not save lyrics"
+LYRICS_NOT_REMOVED = "could not remove lyrics"
 NO_VOCALS_STEM = "no vocals stem"
 LYRICS_TIMING_RUNNING = "lyrics timing already running"
 TRANSCRIPTION_RUNNING = "transcription already running"
@@ -1311,7 +1316,8 @@ def get_lyrics(job_id: str) -> Response:
 
     A 404 may carry {"others": [...]}: the versions LRCLIB had when none was
     the length of the track (lyrics_candidates.json), for the tab to offer.
-    A transcription with no others of its own is served with those.
+    A transcription with no others of its own is served with those. After
+    the user's Remove lyrics, the 404 is _REMOVED_ANSWER instead.
 
     Served apart from the job's state, which carries only has_lyrics: the
     text runs to kilobytes, with every other version kept beside it, and the
@@ -1351,6 +1357,8 @@ def get_lyrics(job_id: str) -> Response:
         if entry["source"] == USER_SOURCE:
             entry["has_original"] = original_path(job_dir).is_file()
         return JSONResponse(entry, headers=headers)
+    if lyrics_removed(job_dir):
+        return JSONResponse(_REMOVED_ANSWER, status_code=404, headers=headers)
     if others:
         return JSONResponse(
             {"detail": "no lyrics", "others": others}, status_code=404, headers=headers
@@ -1358,8 +1366,14 @@ def get_lyrics(job_id: str) -> Response:
     raise HTTPException(status_code=404, detail="no lyrics")
 
 
+# GET .../lyrics after the user's Remove lyrics, until lyrics are kept again.
+_REMOVED_ANSWER = {"detail": "lyrics removed", "removed": True, "others": []}
+
+
 class LyricsLookupBody(BaseModel):
     band: LookupBand | None = None
+    # Look up again: ends the user's removal, which otherwise holds the lookup back.
+    again: StrictBool = False
 
 
 # Jobs whose lyrics the tab is looking up now, so a second request for the
@@ -1381,10 +1395,15 @@ async def lookup_lyrics_route(job_id: str, body: LyricsLookupBody | None = None)
     Only ever asked when the tab is opened on a track with no lyrics, or the
     user presses Look up again: LRCLIB is never reached on its own. 502 when
     LRCLIB cannot be reached, so the tab can offer to try again; 404 with
-    {"nothing_known": true} when the track says too little to look up.
+    {"nothing_known": true} when the track says too little to look up. After
+    the user's Remove lyrics, only {"again": true} asks, and ends the removal.
     """
     job, job_dir = _lyrics_job(job_id)
     if await asyncio.to_thread(lyrics_path(job_dir).is_file):
+        return await asyncio.to_thread(get_lyrics, job_id)
+    if body and body.again:
+        await asyncio.to_thread(forget_removal, job_dir)
+    elif await asyncio.to_thread(lyrics_removed, job_dir):
         return await asyncio.to_thread(get_lyrics, job_id)
     if job_id in _LYRICS_LOOKUPS:
         raise HTTPException(status_code=409, detail="already looking")
@@ -1439,8 +1458,7 @@ class LyricsOffsetBody(BaseModel):
 
 
 class LyricsAlignBody(BaseModel):
-    """Synced lyrics kept only in the browser (found by the tab's own
-    LRCLIB lookup), to estimate against the track's vocals without saving
+    """Synced lyrics to estimate against the track's vocals without saving
     anything. Omitted for the lyrics the server keeps (lyrics.json)."""
 
     synced: str | None = Field(default=None, max_length=_TEXT_MAX_CHARS)
@@ -1478,6 +1496,11 @@ _LYRICS_BODY_MAX_BYTES = 4 * _TEXT_MAX_CHARS + 1024
 
 # A manual timing's body: LYRICS_TIMED_MAX_CHARS of LRC, as UTF-8.
 _TIMED_BODY_MAX_BYTES = 4 * LYRICS_TIMED_MAX_CHARS + 1024
+
+
+# A version's body: its synced and plain text, its fitted timing and the
+# user's own.
+_CHOICE_BODY_MAX_BYTES = 3 * _LYRICS_BODY_MAX_BYTES + _TIMED_BODY_MAX_BYTES
 
 
 async def _lyrics_body(
@@ -1521,7 +1544,7 @@ async def set_lyrics_offset_route(job_id: str, request: Request) -> dict:
     await asyncio.to_thread(_synced_lyrics, job_dir)
     entry = await asyncio.to_thread(set_lyrics_offset, job, job_dir, body.offset_sec)
     if entry is None:
-        raise HTTPException(status_code=500, detail="could not save lyrics")
+        raise HTTPException(status_code=500, detail=LYRICS_NOT_SAVED)
     return {"offset_sec": entry["offset_sec"]}
 
 
@@ -1534,8 +1557,8 @@ async def align_lyrics_route(job_id: str, request: Request) -> dict:
 
     Without a body, for the lyrics the server keeps: a confident estimate is
     kept as their offset, as POST .../lyrics/offset would, and one that is
-    not leaves them as they are. With {"synced": ...}, lyrics the browser
-    keeps: only the estimate is answered, and nothing is saved.
+    not leaves them as they are. With {"synced": ...}: only the estimate is
+    answered, and nothing is saved.
 
     Outside _pipeline_lock, like GET .../vocal-envelope: at most one streamed
     read of one stem, and none when its envelope is already kept."""
@@ -1561,7 +1584,7 @@ async def align_lyrics_route(job_id: str, request: Request) -> dict:
     if kept_here:
         entry = await asyncio.to_thread(set_lyrics_offset, job, job_dir, shift)
         if entry is None:
-            raise HTTPException(status_code=500, detail="could not save lyrics")
+            raise HTTPException(status_code=500, detail=LYRICS_NOT_SAVED)
         shift = entry["offset_sec"]
     return {"confident": True, "offset_sec": shift}
 
@@ -1701,7 +1724,7 @@ async def put_user_synced(job_id: str, request: Request) -> dict:
     if entry is None:
         if not lyrics_path(job_dir).is_file():
             raise HTTPException(status_code=404, detail="no lyrics")
-        raise HTTPException(status_code=500, detail="could not save lyrics")
+        raise HTTPException(status_code=500, detail=LYRICS_NOT_SAVED)
     return {"user_synced": entry["user_synced"]}
 
 
@@ -1713,7 +1736,7 @@ async def delete_user_synced(job_id: str) -> dict:
         raise HTTPException(status_code=404, detail="no lyrics")
     entry = await asyncio.to_thread(set_user_synced, job, job_dir, None)
     if entry is None:
-        raise HTTPException(status_code=500, detail="could not save lyrics")
+        raise HTTPException(status_code=500, detail=LYRICS_NOT_SAVED)
     return {"user_synced": None}
 
 
@@ -1742,7 +1765,7 @@ async def put_user_text(job_id: str, request: Request) -> Response:
     except UnusableLyrics as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if entry is None:
-        raise HTTPException(status_code=500, detail="could not save lyrics")
+        raise HTTPException(status_code=500, detail=LYRICS_NOT_SAVED)
     registry_persist(JOBS_DIR)
     return await asyncio.to_thread(get_lyrics, job_id)
 
@@ -1755,6 +1778,65 @@ async def delete_user_text(job_id: str) -> Response:
     job, job_dir = _lyrics_job(job_id)
     if not await asyncio.to_thread(restore_lyrics, job, job_dir):
         raise HTTPException(status_code=500, detail="could not restore lyrics")
+    registry_persist(JOBS_DIR)
+    return await asyncio.to_thread(get_lyrics, job_id)
+
+
+class LyricsChoiceBody(BaseModel):
+    """A version of the track's lyrics as GET .../lyrics answers one, checked
+    whole by lyrics_choice.choose_lyrics."""
+
+    model_config = ConfigDict(extra="allow")
+
+
+@router.put("/{job_id}/lyrics")
+async def put_lyrics(
+    job_id: str,
+    request: Request,
+    picked: bool = True,
+    carry_over: bool = False,
+) -> Response:
+    """Keep a version as the track's lyrics, on every device and in song
+    bundles (app/pipeline/lyrics_choice.py): the user's pick, or with
+    ?picked=false lyrics kept as found ones are, without ``chosen``. With
+    ?picked=false or ?carry_over=true, a decision the server holds stays.
+    Answers as GET .../lyrics then would. 409 until the job is done or for a
+    live pick over the user's own words; 413 too long; 422 not a version."""
+    job, job_dir = _lyrics_job(job_id)
+    body = await _lyrics_body(request, LyricsChoiceBody, max_bytes=_CHOICE_BODY_MAX_BYTES)
+    if job.status != STATUS_DONE:
+        raise HTTPException(status_code=409, detail=JOB_NOT_READY)
+    try:
+        kept = await asyncio.to_thread(
+            choose_lyrics,
+            job,
+            job_dir,
+            body.model_dump(),
+            picked=picked,
+            carry_over=carry_over,
+        )
+    except NotAVersion as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except UsersOwnWords as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if not kept:
+        raise HTTPException(status_code=500, detail=LYRICS_NOT_SAVED)
+    registry_persist(JOBS_DIR)
+    return await asyncio.to_thread(get_lyrics, job_id)
+
+
+@router.delete("/{job_id}/lyrics")
+async def delete_lyrics(job_id: str, carry_over: bool = False) -> Response:
+    """Remove the track's lyrics on every device and from song bundles, and
+    keep them away from later lookups until lyrics are kept again. Idempotent.
+    With ?carry_over=true, a removal a browser kept for the track, which
+    leaves any decision the server already holds as it is. Answers as GET
+    .../lyrics then would. 409 until the job is done."""
+    job, job_dir = _lyrics_job(job_id)
+    if job.status != STATUS_DONE:
+        raise HTTPException(status_code=409, detail=JOB_NOT_READY)
+    if not await asyncio.to_thread(remove_lyrics, job, job_dir, carry_over=carry_over):
+        raise HTTPException(status_code=500, detail=LYRICS_NOT_REMOVED)
     registry_persist(JOBS_DIR)
     return await asyncio.to_thread(get_lyrics, job_id)
 

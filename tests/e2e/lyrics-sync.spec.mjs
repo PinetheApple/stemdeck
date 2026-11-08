@@ -57,12 +57,12 @@ function stamps(lrc) {
 
 /**
  * Open the fixture track's Lyrics tab with `server` as its lyrics.json (null
- * for none) and `saved` as its store entry. `retime` is the list of answers
+ * for none). `retime` is the list of answers
  * GET .../lyrics/retime gives in turn (the last repeats), and `retimed` what
  * lyrics.json holds once it is done. `envelope` is the vocal envelope, or
  * null for a track without one (so nothing snaps).
  */
-async function setUp(page, { server = version(), saved = null, retime = [], retimed = null, envelope = null } = {}) {
+async function setUp(page, { server = version(), retime = [], retimed = null, envelope = null } = {}) {
   const kept = { lyrics: server };
   const puts = [];
   const deletes = [];
@@ -123,17 +123,6 @@ async function setUp(page, { server = version(), saved = null, retime = [], reti
       [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, "E2E Fixture Track (again)"),
     },
   });
-  if (saved) {
-    await page.addInitScript(
-      ([key, value]) => {
-        if (!sessionStorage.getItem("e2e-seeded-lyrics")) {
-          window.localStorage.setItem(key, JSON.stringify(value));
-          sessionStorage.setItem("e2e-seeded-lyrics", "1");
-        }
-      },
-      [`stemdeck.lyrics.${JOB_ID}`, saved],
-    );
-  }
   await page.setViewportSize({ width: 1600, height: 900 });
   await openLyrics(page);
   return { kept, puts, deletes, retimes, envelopes };
@@ -168,8 +157,6 @@ const seek = (page, seconds) =>
   page.evaluate(async (s) => (await import("/js/transport.js")).setPlayheadTime(s), seconds);
 const playhead = (page) =>
   page.evaluate(async () => (await import("/js/transport.js")).transport()?.getCurrentTime?.() ?? 0);
-const stored = (page) =>
-  page.evaluate((id) => JSON.parse(localStorage.getItem(`stemdeck.lyrics.${id}`) || "null"), JOB_ID);
 
 /** Press `key` as a tap, returning the playhead just before and just after. */
 async function tapAt(page, key) {
@@ -431,26 +418,6 @@ test.describe("syncing lyrics line by line", () => {
     await expect(current(page)).toHaveText("Server two");
     await expect(page.locator(".lyrics-align-note")).toHaveText("");
     await expect(button(page, "Start lyrics here")).toBeEnabled();
-  });
-
-  test("lyrics kept in the browser keep their line timing in their store entry", async ({ page }) => {
-    const saved = { entry: { ...version(), id: 77, album: "Chosen", savedAt: 1 }, others: [] };
-    const { puts } = await setUp(page, { server: null, saved });
-    await openSync(page);
-    await line(page, "Server three").click();
-    await seek(page, 4.7);
-    await page.keyboard.press("t");
-    await expect.poll(async () => stamps((await stored(page))?.entry?.userSynced)).toEqual([["Server one", 0.5], ["Server two", 2], ["Server three", 4.7]]);
-    expect(puts).toEqual([]);
-    expect((await stored(page)).entry.album).toBe("Chosen");
-
-    await page.reload({ waitUntil: "domcontentloaded" });
-    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
-    await page.locator(".rail-lyrics").click();
-    await line(page, "Server three").click();
-    await expect(page.locator("#t-time")).toContainText("00:04");
-    await seek(page, 4.5);
-    await expect(current(page)).toHaveText("Server two");
   });
 
   test("the lane lines up with the waveform when zoomed and scrolled", async ({ page }) => {

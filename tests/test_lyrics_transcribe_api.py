@@ -20,6 +20,7 @@ from app.core.models import Job
 from app.core.registry import _jobs
 from app.pipeline import lyrics_retime as rt
 from app.pipeline import transcribe_on_demand as tod
+from app.pipeline.lyrics_lookup import LYRICS_REMOVED_FILE
 from tests.test_lyrics_retime import entry, sing, stub_worker
 from tests.test_lyrics_retime_api import _release, hold_the_lock
 
@@ -320,3 +321,20 @@ def test_a_cpu_setting_on_a_cuda_machine_transcribes_on_the_cpu(client, monkeypa
     monkeypatch.setattr(settings_mod, "detect_torch_device", lambda: "cuda")
     settings_mod.set_demucs_device("cpu")
     assert reported_and_run(client, monkeypatch, tmp_path) == ("cpu", ["cpu"])
+
+
+def test_removed_lyrics_are_offered_a_transcription_which_ends_the_removal(
+    client,
+    monkeypatch,
+    tmp_path,
+):
+    done_job(entry())
+    removed = jobs_mod.JOBS_DIR / JOB_ID / LYRICS_REMOVED_FILE
+    client.delete(LYRICS)
+    assert removed.is_file()
+    assert client.get(URL).json()["available"] is True
+    stub_worker(monkeypatch, tmp_path, HEARD, [])
+    assert client.post(URL).status_code == 202
+    assert wait_for(client)["state"] == "done"
+    assert client.get(LYRICS).json()["source"] == "whisper"
+    assert not removed.exists()

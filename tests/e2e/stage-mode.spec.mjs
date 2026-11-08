@@ -11,6 +11,8 @@ import {
   stubExportEndpoints,
   stubUpdateCheck,
   LYRICS_LOOKUP,
+  LYRICS_REMOVED,
+  answerLyricsChoice,
 } from "./helpers.mjs";
 
 const BEAT_PERIOD = 0.5;
@@ -34,7 +36,6 @@ const heldPromise = () => {
   const held = new Promise((resolve) => { release = resolve; });
   return { held, release };
 };
-const storedLyrics = (page, id) => page.evaluate((job) => localStorage.getItem(`stemdeck.lyrics.${job}`), id);
 const LONG_LINE = "A line long enough that it has to wrap over several rows on any desktop window rather than run out past the sides of it";
 
 const ui = (page) => ({
@@ -77,14 +78,14 @@ async function waitForGrid(page) {
 
 /**
  * The studio with the first track open and the tab never opened. `lyrics` and
- * `lookup` map a job id to its answer. `embedded` is what the first track's file
- * carried; `gate()` holds each read of it.
+ * `lookup` map a job id to its answer; a pick or removal is kept in `lyrics`
+ * as answerLyricsChoice keeps it, and listed in `choices`. `embedded` is what
+ * the first track's file carried; `gate()` holds each read of it.
  */
 async function setUp(page, {
   grid = null,
   lyrics = {},
   lookup = {},
-  saved = {},
   sections = [],
   firstTrackTags = FIXTURE_TAGS,
   lateTags = null,
@@ -98,11 +99,16 @@ async function setUp(page, {
     lookups.push(id);
     return route.fulfill({ status: 200, json: lookup[id] ?? { track: "", others: [] } });
   });
+  const choices = [];
   await page.route("**/api/jobs/*/lyrics", async (route) => {
     const id = route.request().url().split("/")[5];
-    const answer = await lyrics[id];
-    if (!answer) return route.fulfill({ status: 404, json: { detail: "no lyrics" } });
-    return route.fulfill({ status: 200, json: answer });
+    const held = { lyrics: await lyrics[id] };
+    if (await answerLyricsChoice(route, held, choices)) {
+      lyrics[id] = held.lyrics;
+      return;
+    }
+    if (!held.lyrics) return route.fulfill({ status: 404, json: { detail: "no lyrics" } });
+    return route.fulfill({ status: held.lyrics.source ? 200 : 404, json: held.lyrics });
   });
   await page.route("**/api/jobs/*/vocal-envelope", (route) => route.fulfill({ status: 404, json: {} }));
   if (grid) await page.route("**/api/jobs/*/beats", async (route) => route.fulfill(await grid()));
@@ -133,12 +139,6 @@ async function setUp(page, {
       [SIBLING_JOB_ID]: { ...fixtureTrack(SIBLING_JOB_ID, "Second"), audioTags: { artist: "Fixture Band", title: "Other Song" } },
     },
   });
-  for (const [id, value] of Object.entries(saved)) {
-    await page.addInitScript(
-      ([key, entry]) => window.localStorage.setItem(key, JSON.stringify(entry)),
-      [`stemdeck.lyrics.${id}`, value],
-    );
-  }
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
   await page.waitForFunction(
@@ -146,7 +146,7 @@ async function setUp(page, {
     null,
     { timeout: 20000 },
   );
-  return { errors, lookups };
+  return { errors, lookups, choices };
 }
 
 const gridAnswer = (beats, bars) => async () => ({ status: 200, json: gridOf(beats, bars) });
@@ -297,9 +297,9 @@ test.describe("stage mode lyrics", () => {
     await expect(ui(page).lyric).toHaveText("Line one", { timeout: 15000 });
   });
 
-  test("a kept entry's Align offset shifts them", async ({ page }) => {
-    const entry = { ...lyricsOf("Fixture Song", "[00:01.00] Line one\n[00:03.00] Line three"), offsetSec: 2 };
-    await setUp(page, { saved: { [JOB_ID]: { entry, others: [] } } });
+  test("the kept lyrics' Align offset shifts them", async ({ page }) => {
+    const kept = { ...lyricsOf("Fixture Song", "[00:01.00] Line one\n[00:03.00] Line three"), offset_sec: 2 };
+    await setUp(page, { lyrics: { [JOB_ID]: kept } });
     await enterStage(page);
     const { lyric, next } = ui(page);
     await seekShows(page, 1.1, next, "Line one");
@@ -447,15 +447,12 @@ test.describe("stage mode and the Lyrics tab's load", () => {
   });
 
   test("lyrics the user removed stay removed", async ({ page }) => {
-    const { lookups } = await setUp(page, {
-      lyrics: { [JOB_ID]: SERVER_LYRICS },
-      saved: { [JOB_ID]: { dismissed: true } },
-    });
+    const { lookups } = await setUp(page, { lyrics: { [JOB_ID]: LYRICS_REMOVED } });
     await enterStage(page);
     await page.waitForFunction(() => document.querySelector("#lyricsStatus")?.textContent);
     await expect(ui(page).lyrics).toBeHidden();
+    await expect(page.locator("#lyricsStatus")).toHaveText("Lyrics removed for this track.");
     expect(lookups).toEqual([]);
-    expect(await page.evaluate((id) => localStorage.getItem(`stemdeck.lyrics.${id}`), JOB_ID)).toBe('{"dismissed":true}');
   });
 
   test("the tab opened after stage shows the open track's lyrics, not stale ones", async ({ page }) => {
@@ -516,12 +513,9 @@ test.describe("stage mode and the Lyrics tab's load", () => {
   test("a load left behind by a switch saves nothing under the new track, and runs again on return", async ({ page }) => {
     const firstLoad = heldPromise();
     let gate = Promise.resolve();
-    // No `entry` in it: one with lyrics would be shown, and the load would never reach a save.
-    const keptForFirst = { others: [] };
-    await setUp(page, {
+    const { choices } = await setUp(page, {
       firstTrackTags: { ...FIXTURE_TAGS, hasLyrics: true },
       embedded: { lyrics: "[00:01.00] Line one", gate: () => gate },
-      saved: { [JOB_ID]: keptForFirst },
     });
     gate = firstLoad.held;
     const read = page.waitForRequest((r) => r.url().endsWith(`/api/jobs/${JOB_ID}`));
@@ -534,8 +528,7 @@ test.describe("stage mode and the Lyrics tab's load", () => {
     firstLoad.release();
     await answered;
     await page.waitForTimeout(NOTHING_HAPPENS_MS);
-    expect(await storedLyrics(page, SIBLING_JOB_ID)).toBeNull();
-    expect(await storedLyrics(page, JOB_ID)).toBe(JSON.stringify(keptForFirst));
+    expect(choices).toEqual([]);
 
     gate = Promise.resolve();
     await openTrack(page, JOB_ID);
@@ -545,14 +538,15 @@ test.describe("stage mode and the Lyrics tab's load", () => {
 
   test("a version picked in the visible tab is saved to its track", async ({ page }) => {
     const live = { ...lyricsOf("Fixture Song", "", "Live words"), album: "Live", lrclib_id: 2 };
-    await setUp(page, { lyrics: { [JOB_ID]: { ...SERVER_LYRICS, others: [live] } } });
+    const { choices } = await setUp(page, { lyrics: { [JOB_ID]: { ...SERVER_LYRICS, others: [live] } } });
     await page.locator(".rail-lyrics").click();
     await page.locator(".lyrics-versions-toggle").click();
     await page.locator(".lyrics-version", { hasText: "Live" }).click();
 
     await expect(page.locator(".lyrics-text").first()).toHaveText("Live words");
-    expect(JSON.parse(await storedLyrics(page, JOB_ID)).entry.id).toBe(live.lrclib_id);
-    expect(await storedLyrics(page, SIBLING_JOB_ID)).toBeNull();
+    expect(choices.map((c) => [c.method, new URL(c.url).pathname, c.body.lrclib_id])).toEqual([
+      ["PUT", `/api/jobs/${JOB_ID}/lyrics`, live.lrclib_id],
+    ]);
   });
 
   test("tags that arrive after stage said nothing is known bring the lookup", async ({ page }) => {

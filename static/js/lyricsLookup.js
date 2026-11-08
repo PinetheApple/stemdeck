@@ -14,7 +14,8 @@ import { artistNameKey } from "./artistLookup.js";
 import { toSimplified } from "./zhVariants.js";
 
 export const USER_SOURCE = "user";
-const SERVER_SOURCES = new Set(["lrclib", "file", "whisper", USER_SOURCE]);
+export const FILE_SOURCE = "file";
+const SERVER_SOURCES = new Set(["lrclib", FILE_SOURCE, "whisper", USER_SOURCE]);
 
 /** One version from the server's lyrics.json in the tab's shape, or null. */
 function fromServerVersion(v) {
@@ -85,6 +86,47 @@ export function fromServerLyrics(data) {
     };
   }
   return others.length ? { entry: null, others } : null;
+}
+
+/** Whether a 404 from GET .../lyrics, or from what answers as it does, says
+ * the user removed the track's lyrics. */
+export const isRemovedAnswer = (data) => data?.removed === true;
+
+/** A version in the tab's shape as the server keeps one (PUT .../lyrics). */
+export function toServerVersion(version) {
+  const id = Number(version.id);
+  return {
+    source: version.source,
+    track: version.track || "",
+    artist: version.artist || "",
+    album: version.album || "",
+    duration: Number(version.duration) || 0,
+    instrumental: version.instrumental === true,
+    synced: version.synced || "",
+    plain: version.plain || "",
+    lrclib_id: Number.isInteger(id) && id > 0 ? id : null,
+  };
+}
+
+/** A browser store entry (`stemdeck.lyrics.<trackId>`), its offset and timings
+ * included, in the server's shape. */
+export function toServerKept(entry) {
+  const kept = toServerVersion(entry);
+  const offset = clampOffset(entry.offsetSec);
+  if (offset) kept.offset_sec = offset;
+  if (typeof entry.userSynced === "string" && entry.userSynced.trim()) kept.user_synced = entry.userSynced;
+  const aligned = entry.aligned;
+  if (typeof aligned?.synced === "string" && aligned.synced.trim()) {
+    kept.aligned = {
+      synced: aligned.synced,
+      method: aligned.method,
+      matched: aligned.matched,
+      lines_matched: aligned.linesMatched,
+      lines: aligned.lines,
+      at: aligned.at,
+    };
+  }
+  return kept;
 }
 
 /**
@@ -524,6 +566,39 @@ export function sameSong(found, song) {
   const b = songKeys(song);
   if (!a.full || !b.full) return false;
   return a.full === b.full || a.head === b.full || a.full === b.head;
+}
+
+/**
+ * The artist and song a track (catalog.js getCurrentTrackInfo's shape) is
+ * known to be, best source first: the file's tags, then the artist (tagged, or
+ * `band`, saved from the artist box) with the song's name cleaned out of the
+ * title. An empty song means nothing is known well enough to look up.
+ */
+export function knownSong(info, band) {
+  const tags = info.audioTags || {};
+  const artist = info.userArtist || tags.artist || band?.englishName || band?.name || "";
+  // The band's names, its own and its English one: the same artist, which
+  // LRCLIB may file the song under.
+  const names = [band?.name, band?.englishName].filter(Boolean);
+  // A name the user gave is the song's name exactly, with nothing to strip.
+  if (info.userTitle) return { artist, names, song: info.userTitle };
+  if (tags.title) return { artist, names, song: songFromTitle(tags.title, artist) || tags.title };
+  if (!artist) return { artist, names, song: "" };
+  return { artist, names, song: songFromTitle(info.title, artist) };
+}
+
+/**
+ * Whether an LRCLIB version in a browser store entry is another song's: its
+ * name matches neither the track's song nor any title it is known by. Only the
+ * song is held to it: the artist of a version the user picked on purpose, a
+ * cover say, is their choice.
+ */
+export function keptForAnotherSong(entry, info, band) {
+  if (entry?.source !== "lrclib") return false;
+  const { song } = knownSong(info, band);
+  if (!song || !entry.track) return false;
+  const titles = [song, info.identity?.title, ...(info.identity?.titleAliases || [])].filter(Boolean);
+  return !titles.some((title) => sameSong(entry.track, title));
 }
 
 // How far the Align panel moves lyrics either way, as the server bounds it

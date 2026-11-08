@@ -261,6 +261,10 @@ export async function stubUpdateCheck(page, { available = false } = {}) {
     }));
 }
 
+// A read still in flight when the test ends: its response is gone and the
+// request can no longer be answered.
+const TEARDOWN_ERROR = /Response has been disposed|Target page, context or browser has been closed/;
+
 /** Open the fixture track in the studio and wait until the transport is live. */
 /**
  * Keep favourites off the shared e2e backend (#734).
@@ -282,10 +286,14 @@ export async function stubFavorites(page, serverFavorites = {}) {
   });
   await page.route(/\/api\/jobs(\?.*)?$/, async (route) => {
     if (route.request().method() !== "GET") return route.continue();
-    const res = await route.fetch();
-    const jobs = await res.json();
-    for (const j of jobs) j.favorite = serverFavorites[j.job_id] ?? null;
-    await route.fulfill({ response: res, json: jobs });
+    try {
+      const res = await route.fetch();
+      const jobs = await res.json();
+      for (const j of jobs) j.favorite = serverFavorites[j.job_id] ?? null;
+      await route.fulfill({ response: res, json: jobs });
+    } catch (err) {
+      if (!TEARDOWN_ERROR.test(String(err?.message))) throw err;
+    }
   });
   return writes;
 }
@@ -362,6 +370,51 @@ export const exportUi = (page) => ({
 /** The server's lyrics lookup, which the Lyrics tab asks rather than LRCLIB (#719). */
 export const LYRICS_LOOKUP = /\/api\/jobs\/[a-f0-9]{12}\/lyrics\/lookup$/;
 
+/** GET .../lyrics after the user removed the track's lyrics. */
+export const LYRICS_REMOVED = { detail: "lyrics removed", removed: true, others: [] };
+
+const isUsersDecision = (lyrics) => Boolean(lyrics?.removed || lyrics?.chosen || lyrics?.source === "user");
+
+/** lyrics.json once `version` is kept over `shown`: chosen when `picked`, with
+ * what was shown and its others still offered, once each, without it. */
+function keptLyrics(version, shown, picked) {
+  const pool = shown?.source ? [shown, ...(shown.others || [])] : shown?.others || [];
+  const seen = new Set([version.lrclib_id]);
+  const others = [];
+  for (const { others: _, chosen: __, timing: ___, ...other } of pool) {
+    if (other.lrclib_id && !seen.has(other.lrclib_id)) {
+      seen.add(other.lrclib_id);
+      others.push(other);
+    }
+  }
+  return { v: 1, ...version, ...(picked ? { chosen: true } : {}), timing: "exact", others };
+}
+
+/**
+ * Answer PUT or DELETE /api/jobs/{id}/lyrics the way the server keeps the
+ * user's choice (tests/test_lyrics_choice_api.py): a version becomes the
+ * lyrics, chosen unless ?picked=false, and a removal leaves LYRICS_REMOVED; a
+ * decision already held stays against ?carry_over=true or ?picked=false.
+ * `holder.lyrics` is what GET then answers (200 with a source, else 404), and
+ * `sent` collects { method, url, body }.
+ * Resolves to false for any other method, which the caller answers.
+ */
+export async function answerLyricsChoice(route, holder, sent = []) {
+  const request = route.request();
+  const method = request.method();
+  if (method !== "PUT" && method !== "DELETE") return false;
+  const body = method === "PUT" ? request.postDataJSON() : null;
+  sent.push({ method, url: request.url(), body });
+  const query = new URL(request.url()).searchParams;
+  const carryOver = query.get("carry_over") === "true";
+  const picked = query.get("picked") !== "false";
+  if (!((carryOver || !picked) && isUsersDecision(holder.lyrics))) {
+    holder.lyrics = method === "PUT" ? keptLyrics(body, holder.lyrics, picked) : LYRICS_REMOVED;
+  }
+  await route.fulfill({ status: holder.lyrics.source ? 200 : 404, json: holder.lyrics });
+  return true;
+}
+
 /**
  * Stand in for the server's lyrics lookup, so the lyrics specs run offline and
  * never reach LRCLIB through the shared backend.
@@ -370,16 +423,20 @@ export const LYRICS_LOOKUP = /\/api\/jobs\/[a-f0-9]{12}\/lyrics\/lookup$/;
  * `artist` (brackets and a " - ..." tail aside), keeps the first within 3 s of
  * the track's `duration` and offers the others with it, or offers them all
  * when none is that length. What it kept or offered is then what GET
- * .../lyrics answers, as the server's lyrics.json would. The rule itself is
- * tested against the real server in tests/test_lyrics_lookup.py; this only
- * has to answer the way it does. Resolves to the requests the page made:
- * [{ id, body }].
+ * .../lyrics answers, as the server's lyrics.json would; the user's pick and
+ * removal are kept as answerLyricsChoice does, and a lookup after a removal
+ * answers it unless asked `again`, which ends it. The rule itself is tested
+ * against the real server in tests/test_lyrics_lookup.py; this only has to
+ * answer the way it does. Resolves to the requests the page made: [{ id, body }], with the PUTs
+ * and DELETEs in its `choices`.
  */
 export async function stubLyricsLookup(page, { rows = [], artist = "", song = "", duration = 6, offline = false, nothingKnown = false } = {}) {
   const asked = [];
-  const kept = {};
-  const offered = {};
+  // Not enumerable, so `asked` still equals a plain array of lookups.
+  Object.defineProperty(asked, "choices", { value: [] });
+  const jobs = {};
   const jobOf = (route) => new URL(route.request().url()).pathname.split("/")[3];
+  const holderOf = (route) => (jobs[jobOf(route)] ??= { lyrics: null });
   const version = (r) => ({
     source: "lrclib",
     lrclib_id: r.id,
@@ -392,26 +449,33 @@ export async function stubLyricsLookup(page, { rows = [], artist = "", song = ""
     plain: r.plainLyrics || "",
   });
   const songKey = (s) => String(s || "").replace(/[([{][^)\]}]*[)\]}]/g, "").replace(/\s+-\s+.*$/, "").trim().toLowerCase();
-  await page.route(/\/api\/jobs\/[a-f0-9]{12}\/lyrics$/, (route) => {
+  const answerHeld = (route, lyrics) => route.fulfill({
+    status: lyrics.source ? 200 : 404,
+    json: lyrics,
+    headers: { "cache-control": "no-cache" },
+  });
+  await page.route(/\/api\/jobs\/[a-f0-9]{12}\/lyrics(\?.*)?$/, async (route) => {
+    const holder = holderOf(route);
+    if (await answerLyricsChoice(route, holder, asked.choices)) return;
     if (route.request().method() !== "GET") return route.fallback();
-    const id = jobOf(route);
-    if (kept[id]) return route.fulfill({ json: kept[id], headers: { "cache-control": "no-cache" } });
-    if (offered[id]?.length) return route.fulfill({ status: 404, json: { detail: "no lyrics", others: offered[id] } });
+    if (holder.lyrics?.source || holder.lyrics?.removed || holder.lyrics?.others?.length) return answerHeld(route, holder.lyrics);
     return route.fallback();
   });
   await page.route(LYRICS_LOOKUP, (route) => {
-    const id = jobOf(route);
-    asked.push({ id, body: JSON.parse(route.request().postData() || "{}") });
+    const holder = holderOf(route);
+    const body = JSON.parse(route.request().postData() || "{}");
+    asked.push({ id: jobOf(route), body });
+    if (holder.lyrics?.source) return answerHeld(route, holder.lyrics);
+    if (holder.lyrics?.removed && !body.again) return answerHeld(route, holder.lyrics);
+    if (holder.lyrics?.removed) holder.lyrics = null;
     if (offline) return route.fulfill({ status: 502, json: { detail: "lyrics service unreachable" } });
     if (nothingKnown) return route.fulfill({ status: 404, json: { detail: "nothing to look up", others: [], nothing_known: true } });
     const mine = rows.filter((r) => r.artistName === artist && songKey(r.trackName) === songKey(song)).map(version);
     const best = mine.find((v) => Math.abs(v.duration - duration) <= 3);
-    if (best) {
-      kept[id] = { v: 1, ...best, timing: "exact", others: mine.filter((v) => v !== best) };
-      return route.fulfill({ json: kept[id] });
-    }
-    offered[id] = mine;
-    return route.fulfill({ status: 404, json: { detail: "no lyrics", others: mine } });
+    holder.lyrics = best
+      ? { v: 1, ...best, timing: "exact", others: mine.filter((v) => v !== best) }
+      : { detail: "no lyrics", others: mine };
+    return answerHeld(route, holder.lyrics);
   });
   return asked;
 }
