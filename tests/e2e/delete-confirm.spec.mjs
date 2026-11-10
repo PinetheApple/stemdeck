@@ -195,8 +195,7 @@ test.describe("keyboard delete", () => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
 
     await page.locator(`.cat-item[data-id="${JOB_ID}"] .cat-title`).click();
-    // A click focuses the row (#46); with focus taken off it, Delete has no row.
-    await page.evaluate(() => document.activeElement?.blur());
+    await page.locator("body").focus();
     await page.keyboard.press("Delete");
     await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"] .cat-fav`).focus();
     await page.keyboard.press("Backspace");

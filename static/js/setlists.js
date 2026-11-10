@@ -19,8 +19,10 @@ import { ARM_MS } from "./armConfirm.js";
 import { OUT_OF_TAB_ORDER, wireRovingRows } from "./rovingRows.js";
 
 const SETLISTS_URL = "/api/setlists";
+const SETLIST = ".setlist";
 const SETLIST_HEAD = ".setlist-head";
 const SETLIST_SONG = ".setlist-song";
+const SETLIST_SONG_ACTIONS = ".setlist-song-actions button";
 
 let setlists = [];
 let tab = "songs";
@@ -427,7 +429,7 @@ function renderSaveUpNext() {
 }
 
 function setlistRowKey(row) {
-  const setlistId = row.closest(".setlist")?.dataset.id;
+  const setlistId = row.closest(SETLIST)?.dataset.id;
   return row.matches(SETLIST_SONG) ? `${setlistId}/${row.dataset.id}` : setlistId;
 }
 
@@ -469,13 +471,16 @@ function onSaveUpNextClick() {
 export function initSetlists() {
   const list = $("setlistsList");
   if (list) {
-    setlistRows = wireRovingRows(list, {
-      rowSelector: `${SETLIST_HEAD}, ${SETLIST_SONG}`,
-      actionSelector: `${SETLIST_HEAD} button, .setlist-song-actions button`,
-      keyOf: setlistRowKey,
-      openRow: openSetlistRow,
-      preferredRow: firstSetlistSong,
-    });
+    setlistRows = wireRovingRows(
+      list,
+      {
+        rowSelector: `${SETLIST_HEAD}, ${SETLIST_SONG}`,
+        actionSelector: `${SETLIST_HEAD} button, ${SETLIST_SONG_ACTIONS}`,
+        keyOf: setlistRowKey,
+        openRow: openSetlistRow,
+        preferredRow: firstSetlistSong,
+      },
+    );
   }
   $("libTabSongs")?.addEventListener("click", onSongsTabClick);
   $("libTabSetlists")?.addEventListener("click", onSetlistsTabClick);

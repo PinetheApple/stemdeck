@@ -1,9 +1,9 @@
-// The library's keyboard model (#46): which row or row button a key leads to,
+// The library's keyboard model: which row or row button a key leads to,
 // and where focus lands after the list is drawn again.
 //
 // Run:  node tests/js/roving-rows.test.mjs
 
-import { ON_ROW, ROW_KEY, actionStep, landingIndex, rowStep } from '../../static/js/rovingRows.js';
+import { ON_ROW, ROW_KEY, actionIndexOf, actionStep, landingIndex, rowStep } from '../../static/js/rovingRows.js';
 
 let passed = 0;
 let failed = 0;
@@ -41,6 +41,10 @@ check('Left moves back along the buttons', actionStep(ROW_KEY.BACK, 1, ACTIONS),
 check('Left from the first button returns to the row', actionStep(ROW_KEY.BACK, 0, ACTIONS), ON_ROW);
 check('Left on the row stays', actionStep(ROW_KEY.BACK, ON_ROW, ACTIONS), null);
 check('Down is not a button movement', actionStep(ROW_KEY.NEXT, 0, ACTIONS), null);
+
+const BUTTONS = ['up', 'remove'];
+check('focus on a button is that button', actionIndexOf(BUTTONS, 'remove'), 1);
+check('focus anywhere else in the row counts as on the row', actionIndexOf(BUTTONS, 'title'), ON_ROW);
 
 const KEYS = ['a', 'b', 'c'];
 check('a redraw keeps the same row', landingIndex(KEYS, { key: 'c', index: 0 }), 2);

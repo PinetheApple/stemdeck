@@ -1547,7 +1547,7 @@ function closeFolderEditor() {
 }
 
 function folderHeadEl(folderId) {
-  return folderId ? document.querySelector(`#catalogList .folder[data-id="${CSS.escape(folderId)}"] > .folder-head`) : null;
+  return folderId ? document.querySelector(`#catalogList .folder[data-id="${CSS.escape(folderId)}"] > ${FOLDER_ROW_SELECTOR}`) : null;
 }
 
 // Folder names accept letters (any language), digits, spaces, and a small safe
@@ -1931,7 +1931,6 @@ function selectTrashRow(trackId, e) {
  *  click no longer opens the song: every hold let go early would do that. */
 function wireTrashRow(el, trackId) {
   el.draggable = true;
-  el.tabIndex = 0;
   el.style.setProperty("--hold-ms", `${TRASH_HOLD_MS}ms`);
   let timer = null;
   let restored = false;
@@ -2028,6 +2027,7 @@ function isTextEditingTarget(target) {
 }
 
 const SONG_ROW_SELECTOR = ".cat-item:not(.in-trash):not(.queue-row)";
+const TRASH_ROW_SELECTOR = ".cat-item.in-trash";
 const FOLDER_ROW_SELECTOR = ".folder-head";
 const LIBRARY_ROW_SELECTOR = `#catalogList ${SONG_ROW_SELECTOR}`;
 
@@ -2046,7 +2046,9 @@ function libraryRowKey(row) {
   return row.matches(FOLDER_ROW_SELECTOR) ? `folder:${row.parentElement.dataset.id}` : row.dataset.id;
 }
 
+// A Trash row's own Enter is hold-to-restore (wireTrashRow); it never opens the song.
 function openLibraryRow(row) {
+  if (row.matches(TRASH_ROW_SELECTOR)) return;
   if (row.matches(FOLDER_ROW_SELECTOR)) toggleFolderCollapsed(row.parentElement);
   else loadTrackIntoStudio(row.dataset.id);
 }
@@ -2058,13 +2060,16 @@ function preferredLibraryRow(rows) {
 function wireLibraryRows() {
   const list = document.getElementById("catalogList");
   if (!list || libraryRows) return;
-  libraryRows = wireRovingRows(list, {
-    rowSelector: `${SONG_ROW_SELECTOR}, ${FOLDER_ROW_SELECTOR}`,
-    actionSelector: `${SONG_ROW_SELECTOR} .cat-actions button, ${FOLDER_ROW_SELECTOR} button`,
-    keyOf: libraryRowKey,
-    openRow: openLibraryRow,
-    preferredRow: preferredLibraryRow,
-  });
+  libraryRows = wireRovingRows(
+    list,
+    {
+      rowSelector: `${SONG_ROW_SELECTOR}, ${TRASH_ROW_SELECTOR}, ${FOLDER_ROW_SELECTOR}`,
+      actionSelector: `${SONG_ROW_SELECTOR} .cat-actions button, ${FOLDER_ROW_SELECTOR} button`,
+      keyOf: libraryRowKey,
+      openRow: openLibraryRow,
+      preferredRow: preferredLibraryRow,
+    },
+  );
 }
 
 /** The library song whose row holds keyboard focus, or null. */
@@ -2079,7 +2084,7 @@ function onLibraryDeleteKey(e) {
   if (e.key !== "Delete" && e.key !== "Backspace") return;
   if (isTextEditingTarget(e.target) || isModalOpen()) return;
   const trackId = focusedLibraryTrackId(e.target);
-  if (!trackId) return;
+  if (!trackId || !libraryRows?.isKeyboardFocus()) return;
   e.preventDefault();
   moveTrackToTrash(trackId);
 }
@@ -3842,7 +3847,6 @@ async function checkForUpdate() {
   }
 }
 
-/** A backdrop dialog that takes focus when shown and hands it back when hidden. */
 function wireBackdropDialog(dialog, closeButton) {
   let returnFocus = null;
   function hideDialog() {
@@ -3877,7 +3881,8 @@ function wireAboutDialog() {
 
   if (version) version.textContent = `v${currentVersion}`;
 
-  btn.addEventListener("click", wireBackdropDialog(dialog, close).show);
+  const aboutDialog = wireBackdropDialog(dialog, close);
+  btn.addEventListener("click", aboutDialog.show);
 }
 
 // Ground truth for "done" <-> "unavailable" is the server (it checks the

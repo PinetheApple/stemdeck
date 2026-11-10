@@ -1,15 +1,13 @@
-// The library works from the keyboard (#46): each list is one Tab stop, the
-// arrows move between its rows, Enter opens one, and Right/Left reach the row's
-// own buttons. Songs, Favourites, search results and Setlists all behave alike.
-//
-// Writes that would change the shared backend (favourites, trash) are stubbed;
-// the setlist made here is deleted after each test.
+// Every list in the library pane is one Tab stop with arrows inside it, so a
+// keyboard user gets past 16 songs in one press instead of 64.
 
 import { test, expect } from "@playwright/test";
+import { ROW_KEY } from "../../static/js/rovingRows.js";
 import {
   JOB_ID,
   SIBLING_JOB_ID,
   fixtureTrack,
+  openInspectorTab,
   readCatalogState,
   seedCatalogState,
   stubExportEndpoints,
@@ -18,9 +16,14 @@ import {
   stubUpdateCheck,
 } from "./helpers.mjs";
 
+const KEY = { TAB: "Tab", DELETE: "Delete" };
+const TRASH_HOLD_MS = 1000;
+const OPEN_TIMEOUT_MS = 20000;
 const SONG_ROW = "#catalogList .cat-item";
 const LIBRARY_ROWS = "#catalogList :is(.cat-item, .folder-head)";
 const SETLIST_ROWS = "#setlistsList :is(.setlist-head, .setlist-song)";
+const UPNEXT_ROWS = "#upNextList .upnext-row";
+const ACTIVE = /\bactive\b/;
 
 test.afterEach(async ({ request }) => {
   const res = await request.get("/api/setlists");
@@ -28,22 +31,24 @@ test.afterEach(async ({ request }) => {
 });
 
 const songRow = (page, id) => page.locator(`${SONG_ROW}[data-id="${id}"]`);
+const trashItems = async (page) => (await readCatalogState(page)).folders.find((f) => f.id === "trash").items;
 
-async function openLibrary(page, { favorite = false } = {}) {
+async function openLibrary(page, { favorite = false, trashed = [] } = {}) {
+  const ids = [JOB_ID, SIBLING_JOB_ID];
   const track = (id) => ({ ...fixtureTrack(id, id), favorite });
   await seedCatalogState(page, {
     folders: [
-      { id: "f-unsorted", name: "Unsorted", items: [JOB_ID, SIBLING_JOB_ID], color: null },
-      { id: "trash", name: "Trash", items: [], color: null },
+      { id: "f-unsorted", name: "Unsorted", items: ids.filter((id) => !trashed.includes(id)), color: null },
+      { id: "trash", name: "Trash", items: trashed, color: null },
     ],
-    tracks: { [JOB_ID]: track(JOB_ID), [SIBLING_JOB_ID]: track(SIBLING_JOB_ID) },
+    tracks: Object.fromEntries(ids.map((id) => [id, track(id)])),
   });
   await stubFavorites(page);
-  const trash = await stubServerTrash(page);
+  const trash = await stubServerTrash(page, { trashed });
   await stubExportEndpoints(page);
   await stubUpdateCheck(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(songRow(page, SIBLING_JOB_ID)).toBeVisible();
+  await expect(page.locator(LIBRARY_ROWS).first()).toBeAttached();
   return { trash };
 }
 
@@ -68,9 +73,9 @@ test.describe("song rows", () => {
     expect(await rowTabStops(page, LIBRARY_ROWS)).toBe(1);
 
     await page.locator("#newFolderBtn").focus();
-    await page.keyboard.press("Tab");
+    await page.keyboard.press(KEY.TAB);
     await expect(songRow(page, JOB_ID)).toBeFocused();
-    await page.keyboard.press("Tab");
+    await page.keyboard.press(KEY.TAB);
     expect(await focusedRowKey(page)).toBeNull();
   });
 
@@ -79,32 +84,32 @@ test.describe("song rows", () => {
     await songRow(page, JOB_ID).focus();
     const head = page.locator('#catalogList .folder[data-id="f-unsorted"] > .folder-head');
 
-    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press(ROW_KEY.NEXT);
     await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
-    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press(ROW_KEY.NEXT);
     await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
-    await page.keyboard.press("Home");
+    await page.keyboard.press(ROW_KEY.FIRST);
     await expect(head).toBeFocused();
-    await page.keyboard.press("End");
+    await page.keyboard.press(ROW_KEY.LAST);
     await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
-    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press(ROW_KEY.PREVIOUS);
     await expect(songRow(page, JOB_ID)).toBeFocused();
-    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press(ROW_KEY.PREVIOUS);
     await expect(head).toBeFocused();
 
-    await page.keyboard.press("Enter");
+    await page.keyboard.press(ROW_KEY.OPEN);
     await expect(head.locator("..")).toHaveClass(/collapsed/);
-    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press(ROW_KEY.NEXT);
     await expect(head).toBeFocused();
-    await page.keyboard.press("Enter");
+    await page.keyboard.press(ROW_KEY.OPEN);
     await expect(head.locator("..")).not.toHaveClass(/collapsed/);
   });
 
   test("Enter opens the focused song and the row keeps focus", async ({ page }) => {
     await openLibrary(page);
     await songRow(page, SIBLING_JOB_ID).focus();
-    await page.keyboard.press("Enter");
-    await expect(songRow(page, SIBLING_JOB_ID)).toHaveClass(/\bactive\b/, { timeout: 20000 });
+    await page.keyboard.press(ROW_KEY.OPEN);
+    await expect(songRow(page, SIBLING_JOB_ID)).toHaveClass(ACTIVE, { timeout: OPEN_TIMEOUT_MS });
     await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
   });
 
@@ -113,31 +118,42 @@ test.describe("song rows", () => {
     const row = songRow(page, JOB_ID);
     await row.focus();
 
-    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press(ROW_KEY.INTO);
     await expect(row.locator(".cat-upnext")).toBeFocused();
-    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press(ROW_KEY.INTO);
     await expect(row.locator(".cat-more")).toBeFocused();
-    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press(ROW_KEY.INTO);
     await expect(row.locator(".cat-fav")).toBeFocused();
-    await page.keyboard.press("Enter");
+    await page.keyboard.press(ROW_KEY.OPEN);
     await expect(row.locator(".cat-fav")).toHaveAttribute("aria-pressed", "true");
     await expect(row.locator(".cat-fav")).toBeFocused();
 
-    for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowLeft");
+    for (let i = 0; i < 3; i++) await page.keyboard.press(ROW_KEY.BACK);
     await expect(row).toBeFocused();
-    await page.keyboard.press("ArrowRight");
-    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press(ROW_KEY.INTO);
+    await page.keyboard.press(ROW_KEY.NEXT);
     await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
   });
 
   test("Delete bins the focused song and focus moves to the next one", async ({ page }) => {
     const { trash } = await openLibrary(page);
     await songRow(page, JOB_ID).focus();
-    await page.keyboard.press("Delete");
+    await page.keyboard.press(KEY.DELETE);
 
     await expect.poll(() => trash.calls).toEqual([{ id: JOB_ID, action: "trash" }]);
-    expect((await readCatalogState(page)).folders.find((f) => f.id === "trash").items).toEqual([JOB_ID]);
+    expect(await trashItems(page)).toEqual([JOB_ID]);
     await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
+  });
+
+  test("Delete after clicking a row bins nothing", async ({ page }) => {
+    const { trash } = await openLibrary(page);
+    await songRow(page, JOB_ID).click();
+    await expect(songRow(page, JOB_ID)).toBeFocused();
+    await page.keyboard.press(KEY.DELETE);
+
+    await page.waitForTimeout(300);
+    expect(trash.calls).toEqual([]);
+    expect(await trashItems(page)).toEqual([]);
   });
 });
 
@@ -149,10 +165,10 @@ test.describe("other song lists", () => {
     expect(await rowTabStops(page, LIBRARY_ROWS)).toBe(1);
 
     await page.locator(`${SONG_ROW}[tabindex="0"]`).focus();
-    await page.keyboard.press("End");
-    await page.keyboard.press("Home");
+    await page.keyboard.press(ROW_KEY.LAST);
+    await page.keyboard.press(ROW_KEY.FIRST);
     const first = await focusedRowKey(page);
-    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press(ROW_KEY.NEXT);
     expect(await focusedRowKey(page)).not.toBe(first);
     expect([JOB_ID, SIBLING_JOB_ID]).toContain(await focusedRowKey(page));
   });
@@ -164,8 +180,23 @@ test.describe("other song lists", () => {
     expect(await rowTabStops(page, LIBRARY_ROWS)).toBe(1);
 
     await songRow(page, JOB_ID).focus();
-    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press(ROW_KEY.NEXT);
     await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
+  });
+
+  test("the Trash is one Tab stop and a held Enter still restores", async ({ page }) => {
+    const { trash } = await openLibrary(page, { trashed: [JOB_ID, SIBLING_JOB_ID] });
+    await page.locator(".rail-trash").click();
+    await expect(songRow(page, SIBLING_JOB_ID)).toBeVisible();
+    expect(await rowTabStops(page, SONG_ROW)).toBe(1);
+
+    await songRow(page, JOB_ID).focus();
+    await page.keyboard.press(ROW_KEY.NEXT);
+    await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
+    await page.keyboard.down(ROW_KEY.OPEN);
+    await page.waitForTimeout(TRASH_HOLD_MS * 1.5);
+    await page.keyboard.up(ROW_KEY.OPEN);
+    await expect.poll(() => trash.calls).toEqual([{ id: SIBLING_JOB_ID, action: "restore" }]);
   });
 });
 
@@ -179,20 +210,59 @@ test.describe("setlists", () => {
     expect(await rowTabStops(page, SETLIST_ROWS)).toBe(1);
 
     await page.locator("#libTabSetlists").focus();
-    await page.keyboard.press("Tab");
+    await page.keyboard.press(KEY.TAB);
     await expect(songs.first()).toBeFocused();
-    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press(ROW_KEY.PREVIOUS);
     await expect(page.locator(".setlist-head")).toBeFocused();
-    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press(ROW_KEY.INTO);
     await expect(page.locator(".setlist-play")).toBeFocused();
 
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press(ROW_KEY.NEXT);
+    await page.keyboard.press(ROW_KEY.NEXT);
     await expect(songs.nth(1)).toBeFocused();
-    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press(ROW_KEY.INTO);
     await expect(songs.nth(1).locator(".setlist-song-up")).toBeFocused();
-    await page.keyboard.press("ArrowLeft");
-    await page.keyboard.press("Enter");
-    await expect(songRow(page, SIBLING_JOB_ID)).toHaveClass(/\bactive\b/, { timeout: 20000 });
+    await page.keyboard.press(ROW_KEY.BACK);
+    await page.keyboard.press(ROW_KEY.OPEN);
+    await expect(songRow(page, SIBLING_JOB_ID)).toHaveClass(ACTIVE, { timeout: OPEN_TIMEOUT_MS });
+  });
+
+  test("Delete on a setlist song bins nothing", async ({ page, request }) => {
+    await request.post("/api/setlists", { data: { name: "Keys", song_ids: [JOB_ID] } });
+    const { trash } = await openLibrary(page);
+    await page.locator("#libTabSetlists").click();
+    await page.locator(".setlist-song").focus();
+    await page.keyboard.press(KEY.DELETE);
+
+    await page.waitForTimeout(300);
+    expect(trash.calls).toEqual([]);
+    await expect(page.locator(".setlist-song")).toHaveCount(1);
+  });
+});
+
+test.describe("Up Next", () => {
+  test("Up Next is one Tab stop; Enter plays a row and Right reaches its buttons", async ({ page }) => {
+    await openLibrary(page);
+    await page.evaluate((ids) => {
+      for (const id of ids) document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id } }));
+    }, [JOB_ID, SIBLING_JOB_ID]);
+    await openInspectorTab(page, "upnext");
+    const rows = page.locator(UPNEXT_ROWS);
+    await expect(rows).toHaveCount(2);
+    expect(await rowTabStops(page, UPNEXT_ROWS)).toBe(1);
+
+    await rows.first().focus();
+    await page.keyboard.press(ROW_KEY.NEXT);
+    await expect(rows.nth(1)).toBeFocused();
+    await page.keyboard.press(ROW_KEY.INTO);
+    await expect(rows.nth(1).locator(".upnext-play")).toBeFocused();
+    await page.keyboard.press(ROW_KEY.INTO);
+    await expect(rows.nth(1).locator(".upnext-remove")).toBeFocused();
+    await page.keyboard.press(ROW_KEY.OPEN);
+    await expect(rows).toHaveCount(1);
+
+    await expect(rows.first()).toBeFocused();
+    await page.keyboard.press(ROW_KEY.OPEN);
+    await expect(songRow(page, JOB_ID)).toHaveClass(ACTIVE, { timeout: OPEN_TIMEOUT_MS });
   });
 });

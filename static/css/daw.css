@@ -864,6 +864,7 @@ input, textarea { font-family: inherit; }
 .queue-row:hover .queue-cancel { opacity: 1; }
 .queue-cancel:hover { background: color-mix(in srgb, var(--danger) 16%, transparent); color: #e06c68; }
 .queue-cancel:disabled { opacity: 0.3; cursor: default; }
+.queue-row .queue-cancel { width: var(--target-min); height: var(--target-min); }
 .queue-section .lib-section-head { margin-bottom: 6px; }
 
 /* Restored-from-last-session banner. Opening the app never starts separating
@@ -926,7 +927,8 @@ input, textarea { font-family: inherit; }
 .cat-item:focus-visible,
 .folder-head:focus-visible,
 .setlist-head:focus-visible,
-.setlist-song:focus-visible { outline-offset: -2px; }
+.setlist-song:focus-visible,
+.upnext-row:focus-visible { outline-offset: -2px; }
 .cat-item .cat-actions:has(.cat-upnext) { grid-template-columns: repeat(2, var(--target-min)); }
 .cat-item .cat-actions :is(.cat-upnext, .cat-more, .cat-fav, .cat-del) { width: var(--target-min); height: var(--target-min); }
 .cat-item .cat-extract { height: var(--target-min); }

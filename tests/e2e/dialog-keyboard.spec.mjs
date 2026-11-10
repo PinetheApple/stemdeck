@@ -8,6 +8,7 @@ import {
   seedLibrary,
   stubExportEndpoints,
   stubFavorites,
+  stubImportQueue,
   stubUpdateCheck,
 } from "./helpers.mjs";
 
@@ -179,6 +180,15 @@ test.describe("target sizes", () => {
 
     await page.locator("#aboutBtn").click();
     expect(await smallTargets(page, ["#aboutClose", ".about-social-btn"])).toEqual([]);
+  });
+
+  test("an import's cancel button is at least 24 px", async ({ page }) => {
+    const queue = await stubImportQueue(page, "e2e0feedbeef");
+    await openApp(page);
+    await queue.run();
+    await page.locator(".rail-queue").click();
+    await expect(page.locator(".queue-cancel").first()).toBeVisible();
+    expect(await smallTargets(page, [".queue-cancel"])).toEqual([]);
   });
 
   test("a lane's transpose arrows take a 24 px hit, reaching away from the K", async ({ page }) => {
