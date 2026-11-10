@@ -145,8 +145,8 @@ async function sendFields(forJob, entry) {
   }
 }
 
-// A later entry's fields win, and the mode change it carries is the newest.
-const mergeFields = (earlier, later) => ({
+// Merges two { fields, modeEditedAt } entries: the later one's fields and mode change win.
+const mergeUnconfirmedEntries = (earlier, later) => ({
   fields: { ...earlier?.fields, ...later?.fields },
   modeEditedAt: later?.modeEditedAt ?? earlier?.modeEditedAt,
 });
@@ -154,7 +154,7 @@ const mergeFields = (earlier, later) => ({
 // Noting when the mode changed: a grid edited after that drops the mode, as the server does.
 function addUnconfirmedFields(forJob, fields) {
   const edit = { fields, modeEditedAt: "mode" in fields ? performance.now() : undefined };
-  queuedFieldsByJob.set(forJob, mergeFields(queuedFieldsByJob.get(forJob), edit));
+  queuedFieldsByJob.set(forJob, mergeUnconfirmedEntries(queuedFieldsByJob.get(forJob), edit));
 }
 
 /** Optimistic: show, save, then reload the server's grid. */
@@ -231,7 +231,7 @@ export function takeUnconfirmedTempo() {
   tapTimer = null;
   const taken = new Map();
   for (const forJob of new Set([...sendingFieldsByJob.keys(), ...queuedFieldsByJob.keys()])) {
-    taken.set(forJob, mergeFields(sendingFieldsByJob.get(forJob), queuedFieldsByJob.get(forJob)));
+    taken.set(forJob, mergeUnconfirmedEntries(sendingFieldsByJob.get(forJob), queuedFieldsByJob.get(forJob)));
   }
   sendingFieldsByJob.clear();
   queuedFieldsByJob.clear();

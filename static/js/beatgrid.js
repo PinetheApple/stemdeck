@@ -309,9 +309,11 @@ function _save() {
   const payload = _gridPayload();
   _unconfirmed.set(jobId, { payload, editedAt: _lastEditAt });
   const seq = _editSeq;
-  _saveChain = _saveChain.then(() => (isPageClosing() ? undefined : _sendGrid(jobId, payload, seq)));
+  _saveChain = _saveChain.then(() => _sendQueuedGrid(jobId, payload, seq));
   return _saveChain;
 }
+
+const _sendQueuedGrid = (jobId, payload, seq) => (isPageClosing() ? undefined : _sendGrid(jobId, payload, seq));
 
 async function _sendGrid(jobId, payload, seq, fetchOptions) {
   let cutOff = false;
@@ -345,11 +347,7 @@ function _cancelSaveTimer() {
   return true;
 }
 
-/**
- * Take each song's unconfirmed grid and send it at once with keepalive, the open song
- * first, outside the queue, which never runs once the page is gone. `unconfirmedTempo`
- * maps a song to its unconfirmed { fields, modeEditedAt }, which ride in the same request.
- */
+/** Take each song's unconfirmed grid, open song first, with `unconfirmedTempo`'s fields for that song riding along. */
 export function saveBeatGridOnPageClose(unconfirmedTempo = new Map()) {
   if (_cancelSaveTimer() && _jobId && _dirty) {
     _unconfirmed.set(_jobId, { payload: _gridPayload(), editedAt: _lastEditAt });
