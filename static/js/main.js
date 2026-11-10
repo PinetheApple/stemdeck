@@ -28,7 +28,7 @@ import { initLibraryResize } from "./libraryResize.js";
 import { initUpNext, renderUpNext } from "./upNext.js";
 import { initStageMode } from "./stageMode.js";
 import { initSearchShortcut } from "./searchShortcut.js";
-import { initTempoTools, takeUnsentTempo } from "./tempoTools.js";
+import { initTempoTools, takeUnconfirmedTempo } from "./tempoTools.js";
 import { initSetlists } from "./setlists.js";
 import { initSongRename } from "./songRename.js";
 import { initTrackMenu } from "./trackMenu.js";
@@ -452,7 +452,7 @@ initSearch((item) => {
 // Edits still waiting out their save debounce go before the page does.
 function saveEditsOnPageClose() {
   saveSectionsOnPageClose();
-  saveBeatGridOnPageClose(takeUnsentTempo());
+  saveBeatGridOnPageClose(takeUnconfirmedTempo());
 }
 
 wireTransportButtons();
