@@ -109,8 +109,9 @@ test.describe("tempo", () => {
   });
 
   for (const [how, failure] of Object.entries(FAILED_SAVES)) {
-    test(`a ${how} tempo save is neither shown on reopen nor sent on close`, async ({ page }) => {
+    test(`a ${how} tempo save is neither shown on reopen nor sent on close`, async ({ page, request }) => {
       await openTempo(page);
+      const savedAnchor = (await savedTempo(request, JOB_ID)).anchor;
       const anchor = page.locator("#tempoAnchor");
       const detected = await anchor.textContent();
       const hold = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`, failure.answer);
@@ -122,7 +123,7 @@ test.describe("tempo", () => {
 
       await expect(anchor).toHaveText(detected);
       await closeAndSettle(page);
-      expect(hold.later).toEqual([]);
+      expect((await savedTempo(request, JOB_ID)).anchor).toEqual(savedAnchor);
     });
   }
 });

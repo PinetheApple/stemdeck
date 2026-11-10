@@ -20,6 +20,8 @@ import {
   FAILED_SAVES,
   failHeldSave,
   closeAndSettle,
+  noteCloseSaves,
+  notedCloseSaves,
   freezeTimers,
   clickFrozen,
   resetSongs,
@@ -67,7 +69,7 @@ test.describe("sections", () => {
   });
 
   for (const [how, failure] of Object.entries(FAILED_SAVES)) {
-    test(`a ${how} section save is neither shown on reopen nor sent on close`, async ({ page }) => {
+    test(`a ${how} section save is neither shown on reopen nor sent on close`, async ({ page, request }) => {
       await openStudio(page);
       const hold = await holdFirstPatch(page, `**${sectionsUrl(JOB_ID)}`, failure.answer);
       await page.locator("#sectionsAddBtn").click();
@@ -78,7 +80,7 @@ test.describe("sections", () => {
 
       await expect(page.locator(".section-block")).toHaveCount(0);
       await closeAndSettle(page);
-      expect(hold.later).toEqual([]);
+      expect(await savedSections(request, JOB_ID)).toEqual([]);
     });
   }
 
@@ -153,7 +155,8 @@ test.describe("beat grid", () => {
   });
 
   for (const [how, failure] of Object.entries(FAILED_SAVES)) {
-    test(`a ${how} grid save is neither shown on reopen nor sent on close`, async ({ page }) => {
+    test(`a ${how} grid save is neither shown on reopen nor sent on close`, async ({ page, request }) => {
+      const detected = await savedBarLength(request, JOB_ID);
       const hold = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`, failure.answer);
       await setGridBars(page, 3);
       await openSongTempo(page, SIBLING_JOB_ID);
@@ -163,21 +166,22 @@ test.describe("beat grid", () => {
 
       expect(await shownBarLength(page)).not.toBe(3);
       await closeAndSettle(page);
-      expect(hold.later).toEqual([]);
+      expect(await savedBarLength(request, JOB_ID)).toBe(detected);
     });
   }
 
-  test("the open song's grid goes first when the page closes", async ({ page }) => {
+  test("the open song's grid goes first when the page closes", async ({ page, request }) => {
     const { seen } = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`);
     await setGridBars(page, 3);
     await openSongTempo(page, SIBLING_JOB_ID);
     await seen;
     await setGridBars(page, 5);
-    const sent = [];
-    page.on("request", (r) => { if (r.method() === "PATCH" && r.url().endsWith("/beats")) sent.push(r.url()); });
+    await noteCloseSaves(page);
     await closeAndSettle(page);
 
-    expect(sent.map((url) => url.endsWith(beatsUrl(SIBLING_JOB_ID)))).toEqual([true, false]);
+    expect(await notedCloseSaves(page)).toEqual([beatsUrl(SIBLING_JOB_ID), beatsUrl(JOB_ID)]);
+    await expect.poll(() => savedBarLength(request, SIBLING_JOB_ID)).toBe(5);
+    await expect.poll(() => savedBarLength(request, JOB_ID)).toBe(3);
   });
 
   test("a grid save answered after a switch never puts its tempo on the new song", async ({ page }) => {

@@ -63,29 +63,21 @@ export async function openSongTempo(page, id) {
   await expect(page.locator("#tempoModeConstant")).toBeEnabled();
 }
 
-/**
- * Hold the first PATCH matching `pattern` until `release()`, then `answer` it.
- * `seen` resolves when it is sent; `later` collects every PATCH after it.
- */
+/** Hold the first PATCH matching `pattern` until `release()`, then `answer` it. `seen` resolves when it is sent. */
 export async function holdFirstPatch(page, pattern, answer = (route) => route.fallback()) {
   let release;
   const held = new Promise((resolve) => { release = resolve; });
   let markSeen;
   const seen = new Promise((resolve) => { markSeen = resolve; });
-  const later = [];
   let first = true;
   await page.route(pattern, async (route) => {
-    if (route.request().method() !== "PATCH") return route.fallback();
-    if (!first) {
-      later.push(route.request());
-      return route.fallback();
-    }
+    if (route.request().method() !== "PATCH" || !first) return route.fallback();
     first = false;
     markSeen(route.request());
     await held;
     await answer(route);
   });
-  return { seen, release, later };
+  return { seen, release };
 }
 
 // A save the server refuses, and one whose request is lost, with the event that settles each.
@@ -100,6 +92,27 @@ export async function failHeldSave(page, hold, { settles }, url) {
   hold.release();
   await settled;
 }
+
+// Playwright's routes and request events never see a keepalive request sent as the page
+// closes, so the page notes each one in session storage, which outlives a reload.
+const CLOSE_SAVES_KEY = "e2e-close-saves";
+
+/** From here, note the URL of every keepalive PATCH the page sends, in order. */
+export async function noteCloseSaves(page) {
+  await page.evaluate((key) => {
+    const send = window.fetch;
+    window.fetch = function noteCloseSave(url, options) {
+      if (options?.keepalive && options.method === "PATCH") {
+        const noted = JSON.parse(sessionStorage.getItem(key) ?? "[]");
+        sessionStorage.setItem(key, JSON.stringify([...noted, String(url)]));
+      }
+      return send(url, options);
+    };
+  }, CLOSE_SAVES_KEY);
+}
+
+export const notedCloseSaves = (page) =>
+  page.evaluate((key) => JSON.parse(sessionStorage.getItem(key) ?? "[]"), CLOSE_SAVES_KEY);
 
 /** Close the page and give any save it sends on the way out time to arrive. */
 export async function closeAndSettle(page) {
