@@ -16,6 +16,7 @@ import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
 import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
 import { isModalOpen } from "./stageMode.js";
+import { wireRovingRows } from "./rovingRows.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
@@ -76,6 +77,7 @@ let _trashAnchor = null;
 // How long a Trash row has to be held to restore it. daw.css reads it through
 // --hold-ms, so the fill and the timer cannot drift apart.
 const TRASH_HOLD_MS = 1000;
+const ESCAPE_KEY = "Escape";
 
 // ─── Persistence ───
 
@@ -1521,6 +1523,7 @@ function reparentFolder(childId, newParentId) {
 }
 
 let folderEditor = null;
+let folderEditorFolderId = null;
 
 function folderColorButtonsHtml(activeColor) {
   return FOLDER_COLORS.map((color, index) => `
@@ -1536,8 +1539,15 @@ function folderColorButtonsHtml(activeColor) {
 }
 
 function closeFolderEditor() {
-  folderEditor?.remove();
+  if (!folderEditor) return;
+  folderEditor.remove();
   folderEditor = null;
+  folderHeadEl(folderEditorFolderId)?.focus();
+  folderEditorFolderId = null;
+}
+
+function folderHeadEl(folderId) {
+  return folderId ? document.querySelector(`#catalogList .folder[data-id="${CSS.escape(folderId)}"] > .folder-head`) : null;
 }
 
 // Folder names accept letters (any language), digits, spaces, and a small safe
@@ -1639,6 +1649,7 @@ function openFolderEditor(folderId) {
 
   document.body.appendChild(overlay);
   folderEditor = overlay;
+  folderEditorFolderId = folder.id;
   input.focus();
   input.select();
 }
@@ -2016,7 +2027,45 @@ function isTextEditingTarget(target) {
   return Boolean(target?.closest?.("input, textarea, select, [contenteditable='true'], .folder-editor"));
 }
 
-const LIBRARY_ROW_SELECTOR = "#catalogList .cat-item:not(.in-trash):not(.queue-row)";
+const SONG_ROW_SELECTOR = ".cat-item:not(.in-trash):not(.queue-row)";
+const FOLDER_ROW_SELECTOR = ".folder-head";
+const LIBRARY_ROW_SELECTOR = `#catalogList ${SONG_ROW_SELECTOR}`;
+
+let libraryRows = null;
+
+function toggleFolderCollapsed(folderEl) {
+  const folder = folders.find((f) => f.id === folderEl.dataset.id);
+  if (!folder) return;
+  folder.collapsed = !folder.collapsed;
+  folderEl.classList.toggle("collapsed", folder.collapsed);
+  saveState();
+  libraryRows?.refresh();
+}
+
+function libraryRowKey(row) {
+  return row.matches(FOLDER_ROW_SELECTOR) ? `folder:${row.parentElement.dataset.id}` : row.dataset.id;
+}
+
+function openLibraryRow(row) {
+  if (row.matches(FOLDER_ROW_SELECTOR)) toggleFolderCollapsed(row.parentElement);
+  else loadTrackIntoStudio(row.dataset.id);
+}
+
+function preferredLibraryRow(rows) {
+  return rows.find((row) => row.matches(`${SONG_ROW_SELECTOR}.active`)) ?? rows.find((row) => row.matches(SONG_ROW_SELECTOR));
+}
+
+function wireLibraryRows() {
+  const list = document.getElementById("catalogList");
+  if (!list || libraryRows) return;
+  libraryRows = wireRovingRows(list, {
+    rowSelector: `${SONG_ROW_SELECTOR}, ${FOLDER_ROW_SELECTOR}`,
+    actionSelector: `${SONG_ROW_SELECTOR} .cat-actions button, ${FOLDER_ROW_SELECTOR} button`,
+    keyOf: libraryRowKey,
+    openRow: openLibraryRow,
+    preferredRow: preferredLibraryRow,
+  });
+}
 
 /** The library song whose row holds keyboard focus, or null. */
 function focusedLibraryTrackId(target) {
@@ -2355,11 +2404,7 @@ function renderFolder(folder) {
     if (e.target.closest(".f-del, .f-subfolder, .f-grip")) return;
     if (e.detail !== 1) return;
     window.clearTimeout(folderClickTimer);
-    folderClickTimer = window.setTimeout(() => {
-      folder.collapsed = !folder.collapsed;
-      el.classList.toggle("collapsed", folder.collapsed);
-      saveState();
-    }, 180);
+    folderClickTimer = window.setTimeout(() => toggleFolderCollapsed(el), 180);
   });
 
   if (!isTrash) {
@@ -2489,6 +2534,12 @@ function renderStrip(strip, nonTrash) {
 }
 
 function render() {
+  const saved = libraryRows?.remember();
+  drawCatalog();
+  libraryRows?.restore(saved);
+}
+
+function drawCatalog() {
   const list = document.getElementById("catalogList");
   const strip = document.getElementById("catalogStrip");
   const catalog = document.getElementById("catalogPanel");
@@ -3292,6 +3343,7 @@ const DISMISSED_UPDATE_KEY = "stemdeck.dismissed_update";
 // The full GitHub release object from the last successful update check, used to
 // populate the release dialog (notes + per-arch download link) on card click.
 let latestRelease = null;
+let releaseDialog = null;
 let cachedBuildTarget = null;
 
 function normalizeVersion(value) {
@@ -3715,21 +3767,13 @@ async function openReleaseDialog() {
     }
   }
 
-  dialog.classList.remove("hidden");
+  releaseDialog?.show();
 }
 
 function wireReleaseDialog() {
   const dialog = document.getElementById("releaseDialog");
-  const close = document.getElementById("releaseClose");
   if (!dialog) return;
-  const hide = () => dialog.classList.add("hidden");
-  close?.addEventListener("click", hide);
-  dialog.addEventListener("mousedown", (e) => {
-    if (e.target === dialog) hide();
-  });
-  dialog.addEventListener("keydown", (e) => {
-    if (e.code === "Escape") hide();
-  });
+  releaseDialog = wireBackdropDialog(dialog, document.getElementById("releaseClose"));
 }
 
 async function checkForUpdate() {
@@ -3798,6 +3842,32 @@ async function checkForUpdate() {
   }
 }
 
+/** A backdrop dialog that takes focus when shown and hands it back when hidden. */
+function wireBackdropDialog(dialog, closeButton) {
+  let returnFocus = null;
+  function hideDialog() {
+    if (dialog.classList.contains("hidden")) return;
+    dialog.classList.add("hidden");
+    returnFocus?.focus?.();
+    returnFocus = null;
+  }
+  function showDialog() {
+    returnFocus = document.activeElement;
+    dialog.classList.remove("hidden");
+    closeButton?.focus();
+  }
+  function onBackdropMousedown(e) {
+    if (e.target === dialog) hideDialog();
+  }
+  function onDialogKeydown(e) {
+    if (e.key === ESCAPE_KEY) hideDialog();
+  }
+  closeButton?.addEventListener("click", hideDialog);
+  dialog.addEventListener("mousedown", onBackdropMousedown);
+  dialog.addEventListener("keydown", onDialogKeydown);
+  return { show: showDialog, hide: hideDialog };
+}
+
 function wireAboutDialog() {
   const btn = document.getElementById("aboutBtn");
   const dialog = document.getElementById("aboutDialog");
@@ -3807,17 +3877,7 @@ function wireAboutDialog() {
 
   if (version) version.textContent = `v${currentVersion}`;
 
-  const open = () => dialog.classList.remove("hidden");
-  const hide = () => dialog.classList.add("hidden");
-
-  btn.addEventListener("click", open);
-  close?.addEventListener("click", hide);
-  dialog.addEventListener("mousedown", (e) => {
-    if (e.target === dialog) hide();
-  });
-  dialog.addEventListener("keydown", (e) => {
-    if (e.code === "Escape") hide();
-  });
+  btn.addEventListener("click", wireBackdropDialog(dialog, close).show);
 }
 
 // Ground truth for "done" <-> "unavailable" is the server (it checks the
@@ -3985,6 +4045,7 @@ function settleStaleProcessingTracks() {
 
 let libraryEditor = null;
 let libraryEditorOnKey = null;
+let libraryEditorOpener = null;
 
 // The settings modal has a lot of server-fetched, dynamically-computed text
 // (resolved device suffix, out-of-sync status, stems-location message, ...)
@@ -4039,6 +4100,8 @@ function closeLibraryEditor() {
   closeResetConfirm();
   libraryEditor?.remove();
   libraryEditor = null;
+  libraryEditorOpener?.focus?.();
+  libraryEditorOpener = null;
 }
 
 // Fill the editor's table body from `tracks` (skips Trash). Built via DOM +
@@ -4899,8 +4962,18 @@ async function exportLogs(btn) {
 let resetConfirmOverlay = null;
 
 function closeResetConfirm() {
-  resetConfirmOverlay?.remove();
+  if (!resetConfirmOverlay) return;
+  document.removeEventListener("keydown", onResetConfirmKeydown, true);
+  resetConfirmOverlay.remove();
   resetConfirmOverlay = null;
+  libraryEditor?.querySelector(".settings-reset-btn")?.focus();
+}
+
+// Captured, so it is heard before Settings' own Esc closes everything behind it.
+function onResetConfirmKeydown(e) {
+  if (e.key !== ESCAPE_KEY) return;
+  e.stopPropagation();
+  closeResetConfirm();
 }
 
 function openResetConfirm() {
@@ -4931,8 +5004,7 @@ function openResetConfirm() {
   });
   overlay.querySelector(".reset-confirm-cancel").addEventListener("click", closeResetConfirm);
   overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) closeResetConfirm(); });
-  const onKey = (e) => { if (e.code === "Escape") closeResetConfirm(); };
-  document.addEventListener("keydown", onKey, { once: true });
+  document.addEventListener("keydown", onResetConfirmKeydown, true);
 
   goBtn.addEventListener("click", async () => {
     goBtn.disabled = true;
@@ -4976,8 +5048,10 @@ function openResetConfirm() {
 }
 
 function openLibraryEditor() {
+  const opener = document.activeElement;
   closeFolderEditor();
   closeLibraryEditor();
+  libraryEditorOpener = opener;
 
   const overlay = document.createElement("div");
   overlay.className = "library-editor-backdrop";
@@ -5433,6 +5507,7 @@ export async function initCatalog() {
   wireRailTrashDrop();
   wireRailLibraryDrop();
   wireLibraryDeleteKeys();
+  wireLibraryRows();
   wireAboutDialog();
   wireReleaseDialog();
   wireSettingsMenu();
