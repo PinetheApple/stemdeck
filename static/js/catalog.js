@@ -3840,8 +3840,8 @@ function reconcileAvailability(jobs) {
 }
 
 /**
- * Push this device's Trash up once, so a bin the server never saw stops showing
- * on the phone. After it, every device follows the server's (followServerTrash).
+ * Push this device's Trash up once, so tracks binned only here leave the phone's
+ * list too. After it, every device follows the server's (followServerTrash).
  */
 function pushLocalTrashOnce(jobs) {
   for (const id of migrationTrashIds(jobs, new Set(getTrashFolder().items))) syncTrashToServer(id, true);

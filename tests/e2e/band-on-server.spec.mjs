@@ -89,8 +89,12 @@ const untilPageGone = (handler) => async (route) => {
 };
 
 /**
- * A server holding `bands` per job and listing `listed`, `trashed` ones trashed.
- * `server.patchStatus`, `listStatus` and `hold` fail a save, fail the list, or hold PATCHes.
+ * A server holding bands per job.
+ * - `bands`: { jobId: { artist, user_band } }.
+ * - `listed`: the jobs GET /api/jobs names.
+ * - `trashed`: the listed jobs it calls trashed.
+ * On the returned server, set `patchStatus` to fail a save, `listStatus` to fail
+ * the list, and `hold` to a promise to keep PATCH answers back.
  */
 async function stubServer(page, { bands = {}, listed = [JOB_ID], trashed = [] } = {}) {
   const server = { patches: [], patchStatus: 200, listStatus: 200, hold: null };

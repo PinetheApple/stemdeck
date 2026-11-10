@@ -314,6 +314,16 @@ const JOB_LIST = /\/api\/jobs\?trashed=include$/;
 /**
  * Stand in for the server's Trash, which the desktop follows on every sync, so a
  * real trash or restore would leak into every later spec on the shared backend.
+ *
+ * Options, each a list of job ids unless noted:
+ * - `trashed`: listed as trashed.
+ * - `unavailable`: listed with status "unavailable".
+ * - `hidden`: left out of the list.
+ * - `replaces`: { jobId: replacedJobId }, listed as each job's `replaces`.
+ *
+ * Returns the server: `trashed`, `unavailable` and `hidden` as Sets the test may
+ * change; `offline` makes trash and restore fail; `refuseWith` answers them with
+ * that status; `calls` records each as { id, action }.
  */
 export async function stubServerTrash(
   page,
