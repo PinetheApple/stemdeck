@@ -77,7 +77,7 @@ const enterStage = (page) => page.locator("#stageModeBtn").click();
 // Through the server, which outranks the library's copy when a track opens.
 async function saveSections(page, id, sections) {
   const res = await page.request.patch(`/api/jobs/${id}/sections`, { data: { sections } });
-  expect(res.ok(), "seeding sections").toBe(true);
+  expect(res.ok(), "saving sections").toBe(true);
 }
 
 test.afterEach(async ({ page }) => {
