@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import io
 import json
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import pytest
@@ -36,8 +37,8 @@ def _isolate_registry():
     _jobs.clear()
 
 
-@pytest.fixture
-def client():
+@contextmanager
+def _started_app():
     with (
         patch("app.api.jobs.jobqueue.enqueue", lambda job_id: None),
         patch("app.api.jobs._probe_duration", return_value=60.0),
@@ -46,6 +47,12 @@ def client():
 
         with TestClient(app) as c:
             yield c
+
+
+@pytest.fixture
+def client():
+    with _started_app() as c:
+        yield c
 
 
 def _old_job(*, status: str = "done", with_files: bool = True) -> Job:
@@ -177,6 +184,64 @@ async def test_a_failing_done_hook_is_logged_and_the_job_stays_done(monkeypatch,
     await _finish(new)
     assert new.status == "done"
     assert "hook blew up" in caplog.text
+
+
+@pytest.mark.parametrize("with_files", [True, False])
+async def test_replaces_is_cleared_once_settled(client, with_files):
+    _old_job(with_files=with_files)
+    await _finish(_new_job())
+    assert _jobs[NEW_ID].replaces is None
+    assert _persisted(NEW_ID)["replaces"] is None
+
+
+async def test_replaces_is_cleared_when_the_old_copy_is_left_as_it_is(client):
+    await _finish(_new_job())
+    assert _jobs[NEW_ID].replaces is None
+
+
+async def test_a_failing_done_hook_leaves_replaces_for_the_next_start(monkeypatch):
+    _old_job()
+    monkeypatch.setattr("app.api.jobs.setlists_replace_song", _fail)
+    await _finish(_new_job())
+    assert _jobs[NEW_ID].replaces == OLD_ID
+    assert _persisted(NEW_ID)["replaces"] == OLD_ID
+
+
+def test_a_replacement_left_pending_is_settled_at_startup():
+    _old_job()
+    registry.register(Job(id=NEW_ID, status="done", title="New copy", replaces=OLD_ID))
+    _restart()
+    with _started_app() as c:
+        states = {s["job_id"]: s for s in c.get("/api/jobs").json()}
+    assert _jobs[OLD_ID].trashed_at is not None
+    assert states[NEW_ID]["replaces"] is None
+    assert _persisted(NEW_ID)["replaces"] is None
+
+
+async def test_an_old_copy_restored_after_settling_stays_restored():
+    _old_job()
+    new = _new_job()
+    new.title = "New copy"
+    await _finish(new)
+    with _started_app() as c:
+        assert c.post(f"/api/jobs/{OLD_ID}/restore").status_code == 200
+    _restart()
+    with _started_app():
+        pass
+    assert _jobs[NEW_ID].status == "done"
+    assert _jobs[OLD_ID].trashed_at is None
+
+
+def _restart() -> None:
+    registry.persist(cfg.JOBS_DIR)
+    _jobs.clear()
+    registry.restore(cfg.JOBS_DIR)
+
+
+def _persisted(job_id: str) -> dict:
+    path = registry.registry_path(cfg.JOBS_DIR)
+    records = json.loads(path.read_text(encoding="utf-8"))["jobs"]
+    return next(record for record in records if record["id"] == job_id)
 
 
 def _fail(*args, **kwargs):

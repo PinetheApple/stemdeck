@@ -2215,9 +2215,20 @@ def _apply_replacement(job: Job) -> None:
     takes the old one's place in every setlist. An old copy the user trashed or
     deleted meanwhile is left as it is, and so is everything when the new job
     itself was trashed as it finished.
+
+    Settled, whatever the outcome, the job forgets ``replaces``, so an old copy
+    the user later restores from the Trash is never trashed again. A failure
+    leaves it set for settle_pending_replacements() on the next start.
     """
-    if job.replaces is None or job.trashed_at is not None:
+    if job.replaces is None:
         return
+    if job.trashed_at is None:
+        _settle_old_copy(job)
+    job.replaces = None
+    registry_persist(JOBS_DIR)
+
+
+def _settle_old_copy(job: Job) -> None:
     old = registry_get(job.replaces)
     if old is None or old.trashed_at is not None or old.status not in FINISHED_STATUSES:
         return
@@ -2230,7 +2241,21 @@ def _apply_replacement(job: Job) -> None:
         return
     logger.info("[%s] replaces %s: moving it to the Trash", job.id, old.id)
     registry_set_trashed(old.id, True)
-    registry_persist(JOBS_DIR)
+
+
+def settle_pending_replacements() -> None:
+    """Settle every replacement a done job still holds from the last run: the
+    process died, or the done hook failed, before the old copy was settled."""
+    pending = [
+        job
+        for job in registry_all_jobs().values()
+        if job.status == "done" and job.trashed_at is None and job.replaces is not None
+    ]
+    for job in pending:
+        try:
+            _apply_replacement(job)
+        except Exception:
+            logger.exception("[%s] could not settle the copy it replaces", job.id)
 
 
 set_on_done(_apply_replacement)

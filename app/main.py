@@ -22,6 +22,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api.jobs import settle_pending_replacements
 from app.api.router import router
 from app.core import tls_listener
 from app.core.compression import COMPRESS_LEVEL, MINIMUM_SIZE, TextGZipMiddleware
@@ -221,6 +222,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await asyncio.to_thread(sweep_orphaned_section_workspaces, JOBS_DIR)
     except Exception:
         _log.exception("could not sweep orphaned section workspaces")
+
+    await asyncio.to_thread(settle_pending_replacements)
 
     resumed = take_pending_resume()
     if resumed:
