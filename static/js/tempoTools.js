@@ -9,6 +9,7 @@ import { getCurrentTrackInfo } from "./catalog.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { t, getLanguage, onLanguageChange } from "./i18n.js";
 import { $ } from "./utils.js";
+import { isPageClosing } from "./pageClosing.js";
 
 const MODE_CONSTANT = "constant";
 const SOURCE_USER = "user";
@@ -120,13 +121,15 @@ async function sendUnsentFields(forJob) {
   let entry;
   while ((entry = unconfirmedFieldsByJob.get(forJob)) && !entry.sending) {
     entry.sending = true;
+    let cutOff = false;
     try {
       await saveBeatGridTempo(forJob, entry.fields);
     } catch (e) {
       console.warn("[tempoTools] could not save the tempo:", e);
       failed = true;
+      cutOff = isPageClosing();
     } finally {
-      if (unconfirmedFieldsByJob.get(forJob) === entry) unconfirmedFieldsByJob.delete(forJob);
+      if (!cutOff && unconfirmedFieldsByJob.get(forJob) === entry) unconfirmedFieldsByJob.delete(forJob);
     }
   }
   savesInFlight.delete(forJob);

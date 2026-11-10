@@ -20,6 +20,7 @@
 // scroll and resize.
 
 import { storeGet, storeSet, PAGE_CLOSE_FETCH } from "./utils.js";
+import { isPageClosing } from "./pageClosing.js";
 import { clickLines, thinLines } from "./beatgridShown.js";
 
 const MIN_GAP = 0.01;          // seconds; keeps the grid strictly increasing
@@ -312,15 +313,17 @@ function _save() {
 }
 
 async function _sendGrid(jobId, payload, seq, fetchOptions) {
+  let cutOff = false;
   try {
     const saved = await _patchBeats(jobId, payload, fetchOptions);
     // An edit made while this was in flight still has its own save to come.
     if (jobId === _jobId && seq === _editSeq) _dirty = false;
     _announceTempo(jobId, saved.tempo);
   } catch (e) {
+    cutOff = isPageClosing();
     console.warn("[beatgrid] failed to save edits:", e);
   } finally {
-    if (_unconfirmed.get(jobId)?.payload === payload) _unconfirmed.delete(jobId);
+    if (!cutOff && _unconfirmed.get(jobId)?.payload === payload) _unconfirmed.delete(jobId);
   }
 }
 

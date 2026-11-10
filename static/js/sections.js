@@ -2,6 +2,7 @@
 
 import { onLanguageChange, t } from "./i18n.js";
 import { PAGE_CLOSE_FETCH } from "./utils.js";
+import { isPageClosing } from "./pageClosing.js";
 
 const SECTION_COLORS = [
   "#4a7fff",
@@ -685,6 +686,7 @@ function _queueSaveSnapshot() {
 }
 
 async function _sendSave(id, body, fetchOptions = {}) {
+  let cutOff = false;
   try {
     const res = await fetch(`/api/jobs/${id}/sections`, {
       method: "PATCH",
@@ -702,10 +704,11 @@ async function _sendSave(id, body, fetchOptions = {}) {
       if (body === JSON.stringify({ sections: _sections }) && _saveTimer === null) _showSaved();
     }
   } catch (e) {
+    cutOff = isPageClosing();
     console.warn("[sections] save failed:", e);
     if (id === _trackId) _hideSaveIndicator();
   } finally {
-    if (_unconfirmed.get(id) === body) _unconfirmed.delete(id);
+    if (!cutOff && _unconfirmed.get(id) === body) _unconfirmed.delete(id);
   }
 }
 
