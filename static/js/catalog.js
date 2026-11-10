@@ -20,8 +20,13 @@ import { isModalOpen } from "./stageMode.js";
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
 import { HTTP_NOT_FOUND, fetchJson, isNotFound } from "./libraryControls.js";
+import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 import { lookupArtist } from "./artistLookup.js";
 import { HELD_DROP, HELD_SEND, HTTP_UNPROCESSABLE, heldBandAction, libraryArtist, mergedBand, sendHeldBand, uploadBands } from "./trackBand.js";
+import {
+  CANCELLED_STATUS, REINSTATE_REPLACED, RELEASE_REPLACED, isServerTrashed, migrationTrashIds, replacedJobIds,
+  replacementOutcome, serverTrashMoves, soleSourceMatch,
+} from "./librarySync.js";
 import { t as i18nT, plural as i18nPlural, LANGUAGES, getLanguage, setLanguage, onLanguageChange, applyTranslations } from "./i18n.js";
 
 // Escape user-supplied strings before inserting into innerHTML.
@@ -38,11 +43,18 @@ const STORAGE_VERSION = 2; // bump to wipe stale seeded data
 const DELETED_JOBS_KEY = "stemdeck.deleted_jobs";
 const BANDS_UPLOADED_KEY = "stemdeck.bands_uploaded";
 const HELD_BANDS_KEY = "stemdeck.held_bands";
+const TRASH_PUSHED_KEY = "stemdeck.trash_pushed";
+const TRASH_PENDING_KEY = "stemdeck.trash_pending";
+const HTTP_CLIENT_ERROR = 400;
+const HTTP_SERVER_ERROR = 500;
 
 let folders = [];
 let tracks = {};
 let _deletedJobIds = new Set();
 let _bandsUploaded = false;
+let _trashPushed = false;
+let _unconfirmedTrashState = {};
+const _trashChangedAt = new Map();
 // Bands the upload left unsent, by track: { band, tagName }. See trackBand.js.
 let _heldBands = {};
 const _heldBandSends = new Set();
@@ -127,16 +139,6 @@ function removeTrackFromFolders(trackId) {
   }
 }
 
-function normalizeSource(value) {
-  const s = String(value || "").trim();
-  if (!s) return s;
-  // Normalize YouTube URLs to the bare video ID so that youtu.be/xxx,
-  // youtube.com/watch?v=xxx, and variants with &t= / ?si= all match.
-  const yt = s.match(/(?:youtu\.be\/|[?&]v=)([a-zA-Z0-9_-]{11})/);
-  if (yt) return `yt:${yt[1]}`;
-  return s;
-}
-
 function normalizeSearch(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -157,16 +159,6 @@ function trackMatchesSearch(track) {
     ...(track?.stems || []),
     ...(track?.tags || []),
   ].some((value) => String(value || "").toLowerCase().includes(q));
-}
-
-function findTrackBySource(sourceUrl, exceptId) {
-  const source = normalizeSource(sourceUrl);
-  if (!source) return null;
-  for (const [id, track] of Object.entries(tracks)) {
-    if (id === exceptId) continue;
-    if (normalizeSource(track.sourceUrl) === source) return id;
-  }
-  return null;
 }
 
 function replaceTrackId(oldId, newId) {
@@ -237,6 +229,8 @@ async function loadState() {
   } catch (e) { console.warn("[catalog] failed to load deleted jobs", e); }
 
   _bandsUploaded = (await storeGet(BANDS_UPLOADED_KEY, false)) === true;
+  _trashPushed = (await storeGet(TRASH_PUSHED_KEY, false)) === true;
+  _unconfirmedTrashState = (await storeGet(TRASH_PENDING_KEY, {})) || {};
 
   ensureTrash();
   for (const folder of folders) {
@@ -338,30 +332,58 @@ export function libraryIdentity(identity) {
   };
 }
 
-export function addTrackToLibrary(track) {
-  // track: { id, title, thumb, stems, status, sourceUrl }
-  const existingId = findTrackBySource(track.sourceUrl, track.id);
-  // A match already in the Trash is left exactly where it is. It is a distinct
-  // job with its own files on disk, and the user is the only one who decides
-  // when those go. The new track is in no folder yet, so the placement below
-  // still lands it in the library; evicting the old one was never what put it
-  // there.
-  //
-  // Evicting it did real damage: it dropped the catalog entry without deleting
-  // the job, so the directory and its registry record outlived their only
-  // reference. syncWithServer then found a job with no track, no trash entry
-  // and no tombstone, and re-adopted it into the library on the next launch.
-  // One extra job sharing the source URL was enough to reach this, so trashing
-  // a track and restarting brought it back.
-  if (existingId && !getTrashFolder()?.items.includes(existingId)) {
-    const savedBand = tracks[existingId].bandSaved ? libraryArtist(tracks[existingId].artist) : null;
-    replaceTrackId(existingId, track.id);
-    if (savedBand) carrySavedBand(track.id, savedBand);
-    // The old track is gone, so any failure notification tied to it is moot
-    // now (#401). A trashed match keeps the dismissal moveTrackToTrash already
-    // did, and nothing here revives it.
-    dismissFailuresByJobId(existingId);
+/**
+ * Give a re-import the place of the track it replaces, keeping that track in
+ * `replaced` until the import settles (settleReplacement).
+ */
+function takeReplacedPlace(newId, oldId) {
+  if (!tracks[oldId] || getTrashFolder().items.includes(oldId)) return;
+  const previous = { ...tracks[oldId] };
+  delete previous.replaced;
+  const savedBand = previous.bandSaved ? libraryArtist(previous.artist) : null;
+  replaceTrackId(oldId, newId);
+  if (savedBand) carrySavedBand(newId, savedBand);
+  dismissFailuresByJobId(oldId);
+  tracks[newId].replaced = { id: oldId, track: previous };
+}
+
+/** Put the track a replacement stands in for back, just before the replacement. */
+function reinstateReplaced(trackId) {
+  const replaced = tracks[trackId]?.replaced;
+  if (!replaced) return;
+  delete tracks[trackId].replaced;
+  tracks[replaced.id] = replaced.track;
+  moveHeldBand(trackId, replaced.id);
+  for (const folder of folders) {
+    const at = folder.items.indexOf(trackId);
+    if (at !== -1) folder.items.splice(at, 0, replaced.id);
   }
+}
+
+function settleReplacement(trackId) {
+  if (!tracks[trackId]?.replaced) return;
+  const outcome = replacementOutcome(tracks[trackId].status);
+  if (outcome === RELEASE_REPLACED) delete tracks[trackId].replaced;
+  else if (outcome === REINSTATE_REPLACED) reinstateReplaced(trackId);
+}
+
+/** An import that made nothing: its row goes, and a song it was replacing comes back. */
+function dropEmptyImport(trackId) {
+  if (!tracks[trackId]) return;
+  reinstateReplaced(trackId);
+  delete tracks[trackId];
+  dropHeldBand(trackId);
+  removeTrackFromFolders(trackId);
+  saveState();
+  render();
+}
+
+export function addTrackToLibrary({ replaces, ...track }) {
+  if (track.status === CANCELLED_STATUS) {
+    dropEmptyImport(track.id);
+    return;
+  }
+  if (replaces && !tracks[track.id]) takeReplacedPlace(track.id, replaces);
   const existing = tracks[track.id] || {};
   tracks[track.id] = {
     ...existing,
@@ -383,6 +405,7 @@ export function addTrackToLibrary(track) {
     }
     target.items.unshift(track.id);
   }
+  settleReplacement(track.id);
   saveState();
   render();
 }
@@ -394,6 +417,11 @@ export function addTrackToLibrary(track) {
 /** A library track by id, or null. Read-only: the store is this module's. */
 export function getLibraryTrack(trackId) {
   return tracks[trackId] ?? null;
+}
+
+/** The library track an import of `url` would replace, or null. See soleSourceMatch. */
+export function replaceableTrackId(url) {
+  return soleSourceMatch(tracks, new Set(getTrashFolder().items), url);
 }
 
 /** A song's name in lists: the user's title when set, else the job's title. */
@@ -1086,13 +1114,41 @@ function applyTrackInfoToPanel(track) {
  * what makes the server agree with it.
  *
  * Deliberately not awaited by the callers. Binning a track must feel instant
- * and must not fail because the backend blinked; the reconcile on next load
- * catches anything that did not land.
+ * and must not fail because the backend blinked. The next sync resends it until
+ * the server answers, and leaves the track where the user put it meanwhile.
  */
 function syncTrashToServer(trackId, trashed) {
+  _unconfirmedTrashState[trackId] = trashed;
+  _trashChangedAt.set(trackId, Date.now());
+  persistUnconfirmedTrash();
+  return sendTrashChange(trackId, trashed);
+}
+
+async function sendTrashChange(trackId, trashed) {
   const action = trashed ? "trash" : "restore";
-  return fetch(`/api/jobs/${encodeURIComponent(trackId)}/${action}`, { method: "POST" })
-    .catch((e) => console.warn(`[catalog] could not ${action} ${trackId} on the server`, e));
+  try {
+    const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/${action}`, { method: "POST" });
+    // A refusal other than a conflict will not change on retry, so the server's answer stands.
+    if (!res.ok && !isFinalRefusal(res.status)) return;
+    if (_unconfirmedTrashState[trackId] !== trashed) return;
+    delete _unconfirmedTrashState[trackId];
+    persistUnconfirmedTrash();
+  } catch (e) {
+    console.warn(`[catalog] could not ${action} ${trackId} on the server`, e);
+  }
+}
+
+function isFinalRefusal(status) {
+  return status >= HTTP_CLIENT_ERROR && status < HTTP_SERVER_ERROR && status !== HTTP_CONFLICT;
+}
+
+function persistUnconfirmedTrash() {
+  storeSet(TRASH_PENDING_KEY, _unconfirmedTrashState)
+    .catch((e) => console.warn("[catalog] failed to save pending trash", e));
+}
+
+function resendUnconfirmedTrash() {
+  return Promise.all(Object.entries(_unconfirmedTrashState).map(([id, trashed]) => sendTrashChange(id, trashed)));
 }
 
 /**
@@ -1101,14 +1157,21 @@ function syncTrashToServer(trackId, trashed) {
  * The server holds the answer the phone reads, and the phone can change it, so
  * this side adopts the server's value on every sync (applyServerFavorite) and
  * only says something when the user presses a heart here. Not awaited, for the
- * same reason as the Trash: a heart must answer at once.
+ * same reason as the Trash: a heart must answer at once. Resolves to whether
+ * the server saved it.
  */
-function syncFavoriteToServer(trackId, favorite) {
-  fetch(`/api/jobs/${encodeURIComponent(trackId)}/favorite`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ favorite }),
-  }).catch((e) => console.warn(`[catalog] could not save the favourite for ${trackId}`, e));
+async function syncFavoriteToServer(trackId, favorite) {
+  try {
+    const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/favorite`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ favorite }),
+    });
+    return res.ok;
+  } catch (e) {
+    console.warn(`[catalog] could not save the favourite for ${trackId}`, e);
+    return false;
+  }
 }
 
 /**
@@ -1139,21 +1202,25 @@ function moveTrackToTrash(trackId) {
 
 /** moveTrackToTrash without the save and repaint, for binning several at once. */
 function binTrack(trackId) {
-  removeTrackFromFolders(trackId);
-  const trash = getTrashFolder();
-  if (trash && !trash.items.includes(trackId)) trash.items.unshift(trackId);
-  if (_currentTrackId === trackId) _currentTrackId = null;
-  // The user is done with this track — clear any failure tied to it (#401).
-  // purgeTrash() does the same on permanent delete, for a job that errors
-  // after being trashed but before it's purged.
-  dismissFailuresByJobId(trackId);
+  putInTrash(trackId);
   // The server stops a job that is still importing when it is trashed, its
-  // files kept (#748). Ask for the queue again once it has, so the row goes now rather
-  // than whenever the next frame happens to arrive.
+  // files kept. Ask for the queue again so the row goes now, not on the next frame.
   const wasInQueue = currentIds(getQueueSnapshot()).has(trackId);
   syncTrashToServer(trackId, true).then(() => {
     if (wasInQueue) refreshQueue();
   });
+}
+
+/** Move a track into the Trash here only. An import it was replacing is given up. */
+function putInTrash(trackId) {
+  reinstateReplaced(trackId);
+  removeTrackFromFolders(trackId);
+  const trash = getTrashFolder();
+  if (!trash.items.includes(trackId)) trash.items.unshift(trackId);
+  if (_currentTrackId === trackId) _currentTrackId = null;
+  // The user is done with it; purgeTrash() repeats this for a job that errors
+  // once trashed.
+  dismissFailuresByJobId(trackId);
 }
 
 function setCatalogView(view) {
@@ -1198,7 +1265,7 @@ function applyStoredStemSelection(track) {
 function reimportUnavailableTrack(trackId, track) {
   updateTrackStatus(trackId, "unavailable");
   if (isReimportableSource(track.sourceUrl)) {
-    importFromUrl(track.sourceUrl, { title: track.title, stems: track.selectedStems });
+    importFromUrl(track.sourceUrl, { title: track.title, stems: track.selectedStems, replaces: trackId });
     return;
   }
   showError(i18nT("track.audioUnavailableError"));
@@ -1641,11 +1708,28 @@ export function toggleFavorite(trackId) {
   const track = tracks[trackId];
   if (!track) return;
   track.favorite = !track.favorite;
-  syncFavoriteToServer(trackId, track.favorite);
+  const favorite = track.favorite;
+  syncFavoriteToServer(trackId, favorite).then((saved) => {
+    if (!saved) undoFavorite(trackId, favorite);
+  });
   saveState();
+  paintFavoriteHearts(trackId);
+}
+
+/** The server refused a heart: take it back, unless it was pressed again since. */
+function undoFavorite(trackId, favorite) {
+  const track = tracks[trackId];
+  if (!track || Boolean(track.favorite) !== favorite) return;
+  track.favorite = !favorite;
+  saveState();
+  paintFavoriteHearts(trackId);
+  notifyFailure({ kind: "favorite", message: i18nT("notif.favoriteSaveFailed") });
+}
+
+function paintFavoriteHearts(trackId) {
   if (trackId === _currentTrackId) {
     const favBtn = document.getElementById("fav-btn");
-    if (favBtn) paintFavButton(favBtn, track.favorite);
+    if (favBtn) paintFavButton(favBtn, Boolean(tracks[trackId].favorite));
   }
   // Rows show the state at rest, and the Favorites view lists by it.
   render();
@@ -1765,6 +1849,15 @@ function restoreTracksFromTrash(trackIds) {
   const trash = getTrashFolder();
   const ids = trackIds.filter((id) => tracks[id] && trash?.items.includes(id));
   if (!ids.length) return;
+  takeOutOfTrash(ids);
+  for (const id of ids) syncTrashToServer(id, false);
+  saveState();
+  render();
+}
+
+/** Move tracks out of the Trash here only, into the first folder. */
+function takeOutOfTrash(ids) {
+  const trash = getTrashFolder();
   trash.items = trash.items.filter((id) => !ids.includes(id));
   let target = folders.find((f) => f.id !== TRASH_ID);
   if (!target) {
@@ -1774,10 +1867,7 @@ function restoreTracksFromTrash(trackIds) {
   for (const id of ids) {
     _trashSelection.delete(id);
     if (!target.items.includes(id)) target.items.push(id);
-    syncTrashToServer(id, false);
   }
-  saveState();
-  render();
 }
 
 /** The rows a gesture on this one acts on: the whole selection when the row
@@ -2653,19 +2743,17 @@ async function completeSettledJob(jobId) {
     const res = await fetch(`/api/jobs/${jobId}`, { cache: "no-store" });
     if (!res.ok) {
       // 404 means the job is gone from the backend entirely.
-      if (res.status === 404) updateTrackStatus(jobId, "unavailable");
+      if (res.status !== HTTP_NOT_FOUND) return;
+      if (existing.replaced) dropEmptyImport(jobId);
+      else updateTrackStatus(jobId, "unavailable");
       return;
     }
     const state = await res.json();
-    if (state.status === "cancelled") {
+    if (state.status === CANCELLED_STATUS) {
       _autoOpenTokens.delete(jobId);
       // Nothing was produced; drop the placeholder row rather than leaving a
       // track that can never be loaded.
-      delete tracks[jobId];
-      dropHeldBand(jobId);
-      removeTrackFromFolders(jobId);
-      saveState();
-      render();
+      dropEmptyImport(jobId);
       return;
     }
     // A background job that failed used to say nothing at all: no banner (that
@@ -3752,23 +3840,59 @@ function reconcileAvailability(jobs) {
 }
 
 /**
- * Push this device's Trash up to the server.
- *
- * Every install that predates server-side Trash has a local bin the backend
- * knows nothing about, and those tracks are exactly the ones showing up on the
- * user's phone. One pass on load fixes them, and it doubles as the retry for
- * any syncTrashToServer call that failed while offline.
- *
- * One-way on purpose. Letting the server's answer win here would mean a failed
- * restore silently re-binning the track on the next load, and the desktop is
- * the only client with a Trash to be authoritative about.
+ * Push this device's Trash up once, so tracks binned only here leave the phone's
+ * list too. After it, every device follows the server's (followServerTrash).
  */
-function reconcileTrashWithServer(jobs, trashIds) {
-  for (const state of jobs) {
-    const shouldBeTrashed = trashIds.has(state.job_id);
-    if (shouldBeTrashed === (state.trashed_at != null)) continue;
-    syncTrashToServer(state.job_id, shouldBeTrashed);
+function pushLocalTrashOnce(jobs) {
+  for (const id of migrationTrashIds(jobs, new Set(getTrashFolder().items))) syncTrashToServer(id, true);
+  _trashPushed = true;
+  storeSet(TRASH_PUSHED_KEY, true).catch((e) => console.warn("[catalog] failed to save the trash flag", e));
+}
+
+/** Changes made here that a job list read from `startedAt` may not reflect yet. */
+function unconfirmedTrashIds(pendingAtRead, startedAt) {
+  const ids = new Set([...pendingAtRead, ...Object.keys(_unconfirmedTrashState)]);
+  for (const [id, at] of _trashChangedAt) {
+    if (at >= startedAt) ids.add(id);
+    else _trashChangedAt.delete(id);
   }
+  return ids;
+}
+
+/** Trash and restore done on another device: the server's Trash wins. */
+function followServerTrash(jobs, skipIds) {
+  const { toTrash, toRestore } = serverTrashMoves(jobs, {
+    knownIds: new Set(Object.keys(tracks)),
+    trashIds: new Set(getTrashFolder().items),
+    skipIds,
+  });
+  if (!toTrash.length && !toRestore.length) return;
+  toTrash.forEach(putInTrash);
+  takeOutOfTrash(toRestore);
+  saveState();
+  render();
+}
+
+/** The list holds only finished jobs, so a replacement in it is done. */
+function releaseListedReplacements(jobs) {
+  for (const state of jobs) {
+    if (tracks[state.job_id]?.replaced) delete tracks[state.job_id].replaced;
+  }
+}
+
+/** A server job this side has never seen: into the library, or the Trash when it is trashed there. */
+function adoptServerJob(state) {
+  const track = stateMetadataToTrack(state, { id: state.job_id, status: state.status });
+  track.id = state.job_id;
+  if (state.favorite) track.favorite = true;
+  if (!isServerTrashed(state)) {
+    addTrackToLibrary({ ...track, replaces: state.replaces });
+    return;
+  }
+  tracks[track.id] = { ...track, createdAt: track.createdAt ?? Date.now() / 1000, favorite: Boolean(track.favorite) };
+  putInTrash(track.id);
+  saveState();
+  render();
 }
 
 function afterServerBackfill() {
@@ -3788,12 +3912,18 @@ async function syncWithServer() {
     // trashed jobs out -- right for the phone, which has no Trash of its own,
     // and wrong here: reconcileAvailability would read every one of them as
     // "gone from the registry" and mark the user's binned tracks unavailable.
+    await resendUnconfirmedTrash();
+    const startedAt = Date.now();
+    const pendingAtRead = Object.keys(_unconfirmedTrashState);
     const res = await fetch("/api/jobs?trashed=include", { cache: "no-store" });
     if (!res.ok) return;
     const jobs = await res.json();
+    if (!_trashPushed) pushLocalTrashOnce(jobs);
+    followServerTrash(jobs, unconfirmedTrashIds(pendingAtRead, startedAt));
     const trashIds = new Set(getTrashFolder()?.items || []);
     const deletedIds = getDeletedJobIds();
-    reconcileTrashWithServer(jobs, trashIds);
+    releaseListedReplacements(jobs);
+    const replacedIds = replacedJobIds(tracks, jobs);
     let backfilled = false;
     for (const state of jobs) {
       const known = tracks[state.job_id];
@@ -3826,10 +3956,8 @@ async function syncWithServer() {
       }
       if (trashIds.has(state.job_id)) continue;   // soft-deleted, skip
       if (deletedIds.has(state.job_id)) continue; // hard-deleted, skip
-      const track = stateMetadataToTrack(state, { id: state.job_id, status: state.status });
-      track.id = state.job_id;
-      if (state.favorite) track.favorite = true;
-      addTrackToLibrary(track);
+      if (replacedIds.has(state.job_id)) continue;
+      adoptServerJob(state);
     }
     if (backfilled) afterServerBackfill();
     reconcileAvailability(jobs);
@@ -5256,19 +5384,19 @@ async function resyncLibrary() {
 
     // Collect what's still unavailable; auto-restore the ones with a URL source.
     const trashIds = new Set(getTrashFolder()?.items || []);
-    const unavailable = Object.entries(tracks)
+    const restorable = Object.entries(tracks)
       .filter(([id, t]) => !trashIds.has(id) && t.status === "unavailable")
-      .map(([, t]) => t);
-    const restorable = unavailable.filter((t) => t.sourceUrl && !t.sourceUrl.startsWith("local:"));
+      .filter(([, t]) => isReimportableSource(t.sourceUrl));
 
     if (restorable.length) {
       // Re-import each from its source. Close the editor so the studio overlay
       // shows progress; restore sequentially (single active studio job).
       closeLibraryEditor();
-      for (const t of restorable) {
+      for (const [id, t] of restorable) {
         const jobId = await importFromUrl(t.sourceUrl, {
           title: t.title,
           stems: t.selectedStems,
+          replaces: id,
         });
         if (jobId) await waitForJobTerminal(jobId);
       }

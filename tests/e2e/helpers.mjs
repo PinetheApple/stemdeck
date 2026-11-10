@@ -16,8 +16,7 @@ export const JOB_ID = "e2e0deadbeef";
 export const TRACK_TITLE = "E2E Fixture Track";
 
 // The second job seed.py writes, a re-extraction of the same source. Its
-// source_url is identical to the fixture track's, which is what makes the
-// catalog's dedup-by-source branch reachable (#542).
+// source_url is identical to the fixture track's.
 export const SIBLING_JOB_ID = "e2e0cafebabe";
 export const SIBLING_TITLE = "E2E Fixture Track (again)";
 export const SOURCE_URL = "local:e2e-fixture";
@@ -25,6 +24,8 @@ export const SOURCE_URL = "local:e2e-fixture";
 const STORAGE_KEY = "stemdeck.folders";
 const STORAGE_VERSION = 2;
 const BANDS_UPLOADED_KEY = "stemdeck.bands_uploaded";
+const TRASH_PUSHED_KEY = "stemdeck.trash_pushed";
+const seededFlagKey = "e2e.seeded";
 
 /** The library store's shape for one finished track. */
 export function fixtureTrack(id, title) {
@@ -47,16 +48,28 @@ export function fixtureTrack(id, title) {
  *
  * `bandsUploaded` defaults to true: a browser that has done its one-time band
  * upload, since a seeded band would otherwise PATCH the fixture job shared by the run.
+ * `trashPushed` likewise, for the one-time Trash push. `seedOnce` writes the
+ * store on the first load only, so a reload keeps what the app saved.
  */
-export async function seedCatalogState(page, { folders, tracks, bandsUploaded = true }) {
+export async function seedCatalogState(
+  page,
+  {
+    folders,
+    tracks,
+    bandsUploaded = true,
+    trashPushed = true,
+    seedOnce = false,
+  },
+) {
+  const flags = [bandsUploaded && BANDS_UPLOADED_KEY, trashPushed && TRASH_PUSHED_KEY].filter(Boolean);
   await page.addInitScript(
-    ([key, value]) => window.localStorage.setItem(key, JSON.stringify(value)),
-    [STORAGE_KEY, { v: STORAGE_VERSION, folders, tracks }],
-  );
-  if (!bandsUploaded) return;
-  await page.addInitScript(
-    (key) => window.localStorage.setItem(key, "true"),
-    BANDS_UPLOADED_KEY,
+    ({ key, value, flags, seedOnce, seededFlagKey }) => {
+      if (seedOnce && window.sessionStorage.getItem(seededFlagKey)) return;
+      window.sessionStorage.setItem(seededFlagKey, "1");
+      window.localStorage.setItem(key, JSON.stringify(value));
+      flags.forEach((flag) => window.localStorage.setItem(flag, "true"));
+    },
+    { key: STORAGE_KEY, value: { v: STORAGE_VERSION, folders, tracks }, flags, seedOnce, seededFlagKey },
   );
 }
 
@@ -69,11 +82,8 @@ export async function readCatalogState(page) {
  * Put both fixture tracks in the library so the sidebar renders them.
  *
  * Both, not just one. syncWithServer imports any server job the store does not
- * already know, and the sibling shares the fixture track's source_url, so
- * leaving it out would send every page load in the suite through
- * addTrackToLibrary's dedup branch. That branch renames the existing entry to
- * the incoming job's id, and `.cat-item[data-id="e2e0deadbeef"]` -- which most
- * specs here click -- would stop existing.
+ * already know, so leaving one out would add it as a row of its own on every
+ * page load in the suite.
  */
 export async function seedLibrary(page) {
   await seedCatalogState(page, {
@@ -296,6 +306,64 @@ export async function stubFavorites(page, serverFavorites = {}) {
     }
   });
   return writes;
+}
+
+const TRASH_ACTION = /\/api\/jobs\/([^/]+)\/(trash|restore)$/;
+const JOB_LIST = /\/api\/jobs\?trashed=include$/;
+
+/**
+ * Stand in for the server's Trash, which the desktop follows on every sync, so a
+ * real trash or restore would leak into every later spec on the shared backend.
+ *
+ * Options, each a list of job ids unless noted:
+ * - `trashed`: listed as trashed.
+ * - `unavailable`: listed with status "unavailable".
+ * - `hidden`: left out of the list.
+ * - `replaces`: { jobId: replacedJobId }, listed as each job's `replaces`.
+ *
+ * Returns the server: `trashed`, `unavailable` and `hidden` as Sets the test may
+ * change; `offline` makes trash and restore fail; `refuseWith` answers them with
+ * that status; `calls` records each as { id, action }.
+ */
+export async function stubServerTrash(
+  page,
+  {
+    trashed = [],
+    unavailable = [],
+    hidden = [],
+    replaces = {},
+  } = {},
+) {
+  const server = {
+    calls: [],
+    offline: false,
+    refuseWith: null,
+    trashed: new Set(trashed),
+    unavailable: new Set(unavailable),
+    hidden: new Set(hidden),
+  };
+  await page.route(TRASH_ACTION, (route) => {
+    if (server.offline) return route.abort();
+    const [, id, action] = new URL(route.request().url()).pathname.match(TRASH_ACTION);
+    server.calls.push({ id, action });
+    if (server.refuseWith) return route.fulfill({ status: server.refuseWith, json: { detail: "stubbed" } });
+    if (action === "trash") server.trashed.add(id);
+    else server.trashed.delete(id);
+    return route.fulfill({ json: { job_id: id, trashed_at: action === "trash" ? 1 : null } });
+  });
+  await page.route(JOB_LIST, async (route) => {
+    const jobs = await (await route.fetch()).json();
+    const listed = jobs
+      .filter((state) => !server.hidden.has(state.job_id))
+      .map((state) => ({
+        ...state,
+        trashed_at: server.trashed.has(state.job_id) ? 1 : null,
+        status: server.unavailable.has(state.job_id) ? "unavailable" : state.status,
+        replaces: replaces[state.job_id] ?? null,
+      }));
+    await route.fulfill({ json: listed });
+  });
+  return server;
 }
 
 export async function openStudio(page, { tauri = false, updateAvailable = false, serverFavorites = {} } = {}) {

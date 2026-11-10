@@ -35,10 +35,8 @@ async function open(page) {
   await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
 }
 
-// Both fixture jobs, as seedLibrary has them, with the first one changed.
-// Seeding only the first would not work: the startup sync adopts the second
-// from the server, and as they share a source the catalog's dedup (#542)
-// replaces the first with it.
+// Both fixture jobs, as seedLibrary has them, with the first one changed; the
+// startup sync would otherwise add the missing one as a row of its own.
 function withTracks(first) {
   const tracks = {
     [JOB_ID]: first,

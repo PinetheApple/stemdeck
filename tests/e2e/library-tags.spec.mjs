@@ -21,10 +21,8 @@ const chips = (page) => page.locator(".lib-tags-section .lib-tag-chip");
 const chipTags = (page) => chips(page).evaluateAll((els) => els.map((el) => el.dataset.tag));
 
 test.beforeEach(async ({ page }) => {
-  // Both fixture jobs, as seedLibrary has them, each with tags of its own.
-  // Seeding only one would not work: the startup sync adopts the other from
-  // the server, and as they share a source the catalog's dedup (#542)
-  // replaces the first with it.
+  // Both fixture jobs, as seedLibrary has them, each with tags of its own;
+  // the startup sync would otherwise add the missing one as a row of its own.
   await seedCatalogState(page, {
     folders: [
       { id: "f-unsorted", name: "Unsorted", items: [JOB_ID, SIBLING_JOB_ID], color: null },

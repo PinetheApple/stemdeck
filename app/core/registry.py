@@ -329,9 +329,10 @@ def _resume_or_recover(job: Job, job_dir: Path) -> Job | None:
     has, and its files stay until the Trash is emptied."""
     recovered = _recover_done_job(job_dir)
     if recovered is not None:
-        # Finished after all: keep it where the user put it, or a song they
-        # binned reappears in the library.
+        # Finished after all: keep its Trash state and pending replacement, or a
+        # binned song reappears and the copy it replaces is never settled.
         recovered.trashed_at = job.trashed_at
+        recovered.replaces = job.replaces
         return recovered
 
     if job.trashed_at is not None:

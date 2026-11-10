@@ -21,8 +21,7 @@ import {
 
 test.use({ viewport: { width: 1600, height: 900 } });
 
-// Only the sibling is in the store, so the import's own row is new and nothing
-// is dedup-folded into it (#542).
+// Only the sibling is in the store, so the import's own row is new.
 async function seedSibling(page) {
   await seedCatalogState(page, {
     folders: [

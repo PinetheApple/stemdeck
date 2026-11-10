@@ -22,6 +22,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api.jobs import settle_pending_replacements
 from app.api.router import router
 from app.core import tls_listener
 from app.core.compression import COMPRESS_LEVEL, MINIMUM_SIZE, TextGZipMiddleware
@@ -231,6 +232,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "restored %d interrupted job(s) from the previous session; queue is paused",
             len(resumed),
         )
+    await asyncio.to_thread(settle_pending_replacements)
+
     if os.environ.get("STEMDECK_DESKTOP") == "1":
         parent_pid = os.environ.get("STEMDECK_PARENT_PID")
         if parent_pid:

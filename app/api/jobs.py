@@ -65,6 +65,7 @@ from app.core.registry import requeue_if_capacity as registry_requeue_if_capacit
 from app.core.registry import set_favorite as registry_set_favorite
 from app.core.registry import set_trashed as registry_set_trashed
 from app.core.setlists import remove_songs as setlists_remove_songs
+from app.core.setlists import replace_song as setlists_replace_song
 from app.core.settings import get_auto_sections, get_discogs_token, get_max_duration_sec
 from app.core.stems_location import is_relocating
 from app.pipeline import discogs, jobqueue
@@ -110,7 +111,7 @@ from app.pipeline.lyrics_lookup import (
 )
 from app.pipeline.lyrics_retime import RETIME_RUNS, RetimeFailed, RetimeRun, lyric_pairs, retime_job
 from app.pipeline.lyrics_retime import saved_view as saved_retime_view
-from app.pipeline.runner import _pipeline_lock
+from app.pipeline.runner import _pipeline_lock, set_on_done
 from app.pipeline.runs import FAILED, run_behind_lock, start_run_task
 from app.pipeline.tempo import MODE_CONSTANT, MODE_FOLLOW
 from app.pipeline.tempo_grid import (
@@ -252,12 +253,41 @@ class JobRequest(BaseModel):
     # rejected, so a future model with extra stems doesn't break older
     # clients pinning the old set.
     stems: list[str] | None = None
+    replaces: str | None = None
+
+
+def _checked_replaces(old_id: object) -> str | None:
+    """The job a new import replaces, or None when it replaces nothing.
+
+    An id the server does not know is ignored rather than refused: the client
+    may hold a song this server has already forgotten, and the import is still
+    wanted. A job still waiting or running cannot be replaced, nor one another
+    import is already replacing; both are a 409 with nothing created.
+    """
+    if old_id is None:
+        return None
+    if not isinstance(old_id, str) or not JOB_ID_RE.match(old_id):
+        raise HTTPException(status_code=422, detail="replaces must be a job id")
+    old = registry_get(old_id)
+    if old is None:
+        return None
+    if old.status not in FINISHED_STATUSES:
+        raise HTTPException(status_code=409, detail="that song is still importing")
+    if any(
+        job.replaces == old_id and job.status not in FINISHED_STATUSES
+        for job in registry_all_jobs().values()
+    ):
+        raise HTTPException(status_code=409, detail="that song is already being imported again")
+    return old_id
 
 
 @router.post("")
 async def create_job(request: Request) -> dict[str, str]:
     """Submit a YouTube URL (JSON body) or upload an audio file (multipart/form-data)
-    to start a stem-separation job. Returns the new job ID."""
+    to start a stem-separation job. Returns the new job ID.
+
+    Either may carry ``replaces``, the id of the job it re-imports: once this
+    one is done, the old copy is settled by _apply_replacement."""
     if is_relocating():
         # The stems folder just moved. This process still writes to the old one,
         # so anything accepted now would be orphaned by the restart.
@@ -285,6 +315,7 @@ async def _create_youtube_job(request: Request) -> dict[str, str]:
         url = validate_youtube_url(payload.url)
     except InvalidYouTubeURL as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
+    replaces = _checked_replaces(payload.replaces)
 
     selected = [s for s in payload.stems if s in STEM_NAMES] if payload.stems else list(STEM_NAMES)
     if not selected:
@@ -298,6 +329,7 @@ async def _create_youtube_job(request: Request) -> dict[str, str]:
         # last thing the pipeline does, and the toggle clears itself as soon
         # as the user opens another song.
         auto_sections=get_auto_sections(),
+        replaces=replaces,
     )
     if not registry_register_if_capacity(job, MAX_PENDING_URL_JOBS):
         raise HTTPException(status_code=503, detail=_URL_QUEUE_FULL_DETAIL)
@@ -327,6 +359,7 @@ async def _create_local_job(request: Request) -> dict[str, str]:
     form = await request.form()
     upload = form.get("file")
     stems_raw = form.get("stems", "[]")
+    replaces = _checked_replaces(form.get("replaces"))
 
     if upload is None or not hasattr(upload, "filename"):
         raise HTTPException(status_code=422, detail="No file provided")
@@ -397,6 +430,7 @@ async def _create_local_job(request: Request) -> dict[str, str]:
         source_format=ext.removeprefix("."),
         audio_tags=audio_tags,
         auto_sections=get_auto_sections(),
+        replaces=replaces,
     )
     if not registry_register_if_capacity(job, MAX_PENDING_UPLOAD_JOBS):
         shutil.rmtree(job_dir, ignore_errors=True)
@@ -710,15 +744,8 @@ def _retained_source(job_id: str) -> Path | None:
 def _resplit_source_url(source_url: str | None, new_id: str) -> str:
     """A source that names the same file without colliding with it.
 
-    The library replaces any existing track that shares a sourceUrl -- that is
-    how re-importing a link supersedes its old entry -- so a re-split reusing
-    the original's source deleted the very track it came from. Worse than
-    losing the row: the job directory stayed on disk with nothing referencing
-    it, and syncWithServer re-adopted it on the next launch as a duplicate.
-
-    Reusing the row is not an option either. Two jobs that share a source are
-    collapsed again on every launch, so the pair has to differ on disk, not
-    just in this session.
+    A re-split stays a row beside the track it came from, and a later import
+    of the original link still finds exactly one track with that source to replace.
 
     The marker goes on the end. It once went before the last dot, to keep an
     extension that the client read the format from, but an upload's title has
@@ -810,8 +837,7 @@ async def resplit_job(job_id: str, body: ResplitBody) -> dict:
     jobqueue.enqueue(new_job.id)
     registry_persist(JOBS_DIR)
     # source_url comes back because the client cannot derive it: it is
-    # deliberately not the one it asked with, and the library keys its
-    # dedup on exactly this string.
+    # deliberately not the one it asked with.
     return {"job_id": new_job.id, "source_url": new_job.source_url}
 
 
@@ -2140,6 +2166,15 @@ def delete_job(job_id: str) -> dict[str, str]:
         return _retry_deleted_job_files(job_id)
     if job.status not in FINISHED_STATUSES:
         raise HTTPException(status_code=409, detail="job is still running")
+    if not _remove_job(job):
+        raise HTTPException(status_code=500, detail=_FILES_NOT_DELETED_DETAIL)
+    return {"job_id": job_id, "status": "deleted"}
+
+
+def _remove_job(job: Job) -> bool:
+    """Take a finished job out of the library and off the disk. False means
+    its record is gone but some of its files are still there."""
+    job_id = job.id
     # A lyrics run in flight stops rather than write into a directory being
     # removed (it also checks the job is still registered).
     if _cancel_lyrics_runs(job_id) and job.vocal_split != "running":
@@ -2157,9 +2192,7 @@ def delete_job(job_id: str) -> dict[str, str]:
     registry_remove(job_id)
     registry_persist(JOBS_DIR)
     setlists_remove_songs(JOBS_DIR, [job_id])
-    if not removed:
-        raise HTTPException(status_code=500, detail=_FILES_NOT_DELETED_DETAIL)
-    return {"job_id": job_id, "status": "deleted"}
+    return removed
 
 
 def _retry_deleted_job_files(job_id: str) -> dict[str, str]:
@@ -2171,3 +2204,58 @@ def _retry_deleted_job_files(job_id: str) -> dict[str, str]:
     if not _rmtree_job(job_id):
         raise HTTPException(status_code=500, detail=_FILES_NOT_DELETED_DETAIL)
     return {"job_id": job_id, "status": "deleted"}
+
+
+def _apply_replacement(job: Job) -> None:
+    """Settle the old copy a job re-imported, now that the job is done.
+
+    An old copy whose files are gone ("Sync again" on an unavailable song) is
+    deleted outright. One that still plays goes to the Trash instead: it may
+    carry the user's sections, lyrics and tempo edits. Either way the new copy
+    takes the old one's place in every setlist. An old copy the user trashed or
+    deleted meanwhile is left as it is, and so is everything when the new job
+    itself was trashed as it finished.
+
+    Settled, whatever the outcome, the job forgets ``replaces``, so an old copy
+    the user later restores from the Trash is never trashed again. A failure
+    leaves it set for settle_pending_replacements() on the next start.
+    """
+    if job.replaces is None:
+        return
+    if job.trashed_at is None:
+        _settle_old_copy(job)
+    job.replaces = None
+    registry_persist(JOBS_DIR)
+
+
+def _settle_old_copy(job: Job) -> None:
+    old = registry_get(job.replaces)
+    if old is None or old.trashed_at is not None or old.status not in FINISHED_STATUSES:
+        return
+    # Before the delete below, which would take the old copy out of its setlists.
+    setlists_replace_song(JOBS_DIR, old.id, job.id)
+    if _job_files_missing(old):
+        logger.info("[%s] replaces %s, whose files are gone: deleting it", job.id, old.id)
+        if not _remove_job(old):
+            logger.warning("[%s] replaced job %s left files behind", job.id, old.id)
+        return
+    logger.info("[%s] replaces %s: moving it to the Trash", job.id, old.id)
+    registry_set_trashed(old.id, True)
+
+
+def settle_pending_replacements() -> None:
+    """Settle every replacement a done job still holds from the last run: the
+    process died, or the done hook failed, before the old copy was settled."""
+    pending = [
+        job
+        for job in registry_all_jobs().values()
+        if job.status == STATUS_DONE and job.replaces is not None
+    ]
+    for job in pending:
+        try:
+            _apply_replacement(job)
+        except Exception:
+            logger.exception("[%s] could not settle the copy it replaces", job.id)
+
+
+set_on_done(_apply_replacement)

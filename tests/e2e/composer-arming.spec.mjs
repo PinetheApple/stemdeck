@@ -81,12 +81,8 @@ test.describe("composer arming", () => {
   });
 
   test("re-splitting does not swallow the track it came from", async ({ page }) => {
-    // addTrackToLibrary replaces any existing track that shares a sourceUrl,
-    // which is how re-importing a link supersedes its old entry. A re-split
-    // reuses the source of the track it came from, so it would trip the same
-    // branch -- and that branch drops the catalog entry without deleting the
-    // job, leaving a directory with no reference for syncWithServer to
-    // re-adopt on the next launch.
+    // A re-split gets a source of its own, so it stays a row beside the track
+    // it came from and a later import of the link still has one track to replace.
     await openStudio(page);
 
     await page.route("**/api/jobs/*/resplit", (route) =>

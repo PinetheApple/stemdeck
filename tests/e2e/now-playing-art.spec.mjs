@@ -17,8 +17,8 @@ import {
 const PIXEL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
-// Both fixture jobs, seeded together: seeding one lets the startup sync adopt
-// the other, and the catalog's dedup (#542) would fold them into one row.
+// Both fixture jobs, seeded together, or the startup sync adds the missing
+// one as a row of its own.
 function library() {
   const tracks = {
     [JOB_ID]: { ...fixtureTrack(JOB_ID, "With Cover"), thumb: PIXEL },

@@ -3,9 +3,8 @@
 // second restores the row, or the whole selection it belongs to. The Trash
 // icon carries a count, so a full Trash is visible from anywhere (#749).
 //
-// The server's trash and restore endpoints are stubbed and recorded. The real
-// ones would leave the shared fixture jobs trashed on the server, and the next
-// spec's startup sync would move them out of its library.
+// The server's Trash is stubbed (stubServerTrash): the real one would leave the
+// shared fixture jobs trashed for the next spec's startup sync.
 
 import { test, expect } from "@playwright/test";
 
@@ -16,6 +15,7 @@ import {
   fixtureTrack,
   readCatalogState,
   seedCatalogState,
+  stubServerTrash,
   stubUpdateCheck,
 } from "./helpers.mjs";
 
@@ -35,13 +35,7 @@ async function seedFullTrash(page) {
     },
   });
   await stubUpdateCheck(page);
-  const calls = [];
-  await page.route(/\/api\/jobs\/[^/]+\/(trash|restore)$/, (route) => {
-    const [, id, action] = route.request().url().match(/\/api\/jobs\/([^/]+)\/(trash|restore)$/);
-    calls.push({ id, action });
-    return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
-  });
-  return calls;
+  return (await stubServerTrash(page, { trashed: TRASHED })).calls;
 }
 
 async function openTrash(page) {

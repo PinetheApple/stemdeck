@@ -8,11 +8,12 @@ import {
 import { destroyPlayer, wireUpAudio, setWaveformLoading, updateFooterTrack } from "./player.js";
 import { notifyFailure, dismissFailuresByJobId } from "./notifications.js";
 import { getStagePhrases } from "./phrases.js";
-import { addTrackToLibrary, setCurrentTrack, updateTrackStatus, applyStemPresenceCards, libraryAudioTags, libraryArtist, libraryIdentity, libraryWork, paintFinishedTrackNames, armAutoOpen } from "./catalog.js";
+import { addTrackToLibrary, replaceableTrackId, setCurrentTrack, updateTrackStatus, applyStemPresenceCards, libraryAudioTags, libraryArtist, libraryIdentity, libraryWork, paintFinishedTrackNames, armAutoOpen } from "./catalog.js";
 import { initSections } from "./sections.js";
 import { importPlaylist, looksLikePlaylist } from "./playlist.js";
 import { t } from "./i18n.js";
 import { formatKey } from "./keyLabel.js";
+import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 
 // Playful stage label rotation (Claude-Code-style flair). The backend
 // emits truthful stage strings; we surface them in the small #job-detail
@@ -676,11 +677,22 @@ function sanitizeFilename(name) {
     .slice(0, 120);
 }
 
-// Programmatic URL import — re-uses the full studio/SSE pipeline (same as the
-// import form's URL path). Used by the library "Sync again" auto-restore to
-// re-download + re-separate a track whose backend audio was swept. Takes over
-// the studio like a normal import. Returns the new job id, or null on failure.
-export async function importFromUrl(url, { title, stems } = {}) {
+/** The song a re-import would replace is itself still importing. */
+class ReplaceBusyError extends Error {}
+
+const replacesField = (replaces) => (replaces ? { replaces } : {});
+
+function showImportError(err, failedKey) {
+  showError(
+    err instanceof ReplaceBusyError
+      ? t("job.reimportBusy")
+      : t(failedKey, { message: err.message }),
+  );
+}
+
+// Re-imports a track through the studio pipeline, standing in for job `replaces`
+// until the server retires it. Returns the new job id, or null on failure.
+export async function importFromUrl(url, { title, stems, replaces } = {}) {
   if (!url || url.startsWith("local:")) return null; // local files can't auto-restore
   reset();
   setSubmitProcessing(true);
@@ -692,13 +704,14 @@ export async function importFromUrl(url, { title, stems } = {}) {
     const res = await fetch("/api/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, stems: stemSel }),
+      body: JSON.stringify({ url, stems: stemSel, ...replacesField(replaces) }),
     });
     const data = await res.json();
+    if (res.status === HTTP_CONFLICT) throw new ReplaceBusyError();
     if (!res.ok) throw new Error(data.detail || res.statusText);
     jobId = data.job_id;
   } catch (err) {
-    showError(t("job.restoreFailed", { message: err.message }));
+    showImportError(err, "job.restoreFailed");
     setSubmitProcessing(false);
     return null;
   }
@@ -707,10 +720,9 @@ export async function importFromUrl(url, { title, stems } = {}) {
   setCurrentJobId(jobId);
   setForegroundJobId(jobId);
   jobSources.set(jobId, url);
-  // Merges into the existing library entry by sourceUrl (replaceTrackId),
-  // preserving its folder placement; status updates as SSE frames arrive.
   addTrackToLibrary({
     id: jobId,
+    replaces,
     title: title || url || t("job.processingTrackTitle"),
     thumb: "",
     stems: stemSel,
@@ -815,6 +827,7 @@ export function wireJobForm() {
 
     let endpoint = "/api/jobs";
     let fetchInit;
+    let replaces = null;
     if (resplitJob) {
       endpoint = `/api/jobs/${encodeURIComponent(resplitJob)}/resplit`;
       fetchInit = {
@@ -828,6 +841,7 @@ export function wireJobForm() {
       fd.append("stems", JSON.stringify([...selectedStems]));
       fetchInit = { method: "POST", body: fd };
     } else {
+      replaces = replaceableTrackId(urlInput.value);
       fetchInit = {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -836,24 +850,24 @@ export function wireJobForm() {
           // Backend uses this to decide whether to ffmpeg-amix a
           // "selected stems" track (mix.wav) at the end of the pipeline.
           stems: [...selectedStems],
+          ...replacesField(replaces),
         }),
       };
     }
 
     let jobId;
-    // A re-split's source is deliberately not the one it was asked with: the
-    // library replaces any existing track sharing a sourceUrl, so reusing it
-    // would delete the track this was made from. The server decides the new
-    // one and says so here, because nothing on this side can derive it.
+    // A re-split gets a source of its own from the server, so a later import of
+    // the original link still has exactly one track to replace.
     let newSourceUrl = sourceUrl;
     try {
       const res = await fetch(endpoint, fetchInit);
       const data = await res.json();
+      if (replaces && res.status === HTTP_CONFLICT) throw new ReplaceBusyError();
       if (!res.ok) throw new Error(data.detail || res.statusText);
       jobId = data.job_id;
       if (data.source_url) newSourceUrl = data.source_url;
     } catch (err) {
-      showError(t("job.startFailed", { message: err.message }));
+      showImportError(err, "job.startFailed");
       setSubmitProcessing(false);
       return;
     }
@@ -868,6 +882,7 @@ export function wireJobForm() {
     jobVocalSplitModes.set(jobId, selectedStems.has("vocals") ? vocalSplitMode : "all");
     addTrackToLibrary({
       id: jobId,
+      replaces,
       title: displayTitle,
       thumb: "",
       stems: [...selectedStems],
