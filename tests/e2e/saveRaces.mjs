@@ -8,7 +8,6 @@ export const STALE_BPM = 97;
 export const TAP_GAP_MS = 400;
 export const NUDGE_SEC = 0.01;
 const SIBLING_LENGTH_SEC = 2;
-const SETTLE_MS = 500;
 // The page's clock keeps running while the test asks to pause it, so it pauses a little ahead.
 const FREEZE_AHEAD_MS = 100;
 const TRACK_TIME = { [JOB_ID]: /\/\s*00:06\s*$/, [SIBLING_JOB_ID]: /\/\s*00:02\s*$/ };
@@ -94,41 +93,52 @@ export async function failHeldSave(page, hold, { settles }, url) {
 }
 
 // Playwright's routes and request events never see a keepalive request sent as the page
-// closes, so the page notes each one in session storage, which outlives a reload.
-const CLOSE_SAVES_KEY = "e2e-close-saves";
+// closes, so the page notes each save in session storage, which outlives a reload.
+const NOTED_SAVES_KEY = "e2e-noted-saves";
 
-/** From here, note the URL of every keepalive PATCH the page sends, in order. */
-export async function noteCloseSaves(page) {
+/** From here, note every PATCH the page sends, in order, as { url, keepalive }. */
+export async function noteSaves(page) {
   await page.evaluate((key) => {
     const send = window.fetch;
-    window.fetch = function noteCloseSave(url, options) {
-      if (options?.keepalive && options.method === "PATCH") {
+    window.fetch = function noteSave(url, options) {
+      if (options?.method === "PATCH") {
         const noted = JSON.parse(sessionStorage.getItem(key) ?? "[]");
-        sessionStorage.setItem(key, JSON.stringify([...noted, String(url)]));
+        sessionStorage.setItem(key, JSON.stringify([...noted, { url: String(url), keepalive: Boolean(options.keepalive) }]));
       }
       return send(url, options);
     };
-  }, CLOSE_SAVES_KEY);
+  }, NOTED_SAVES_KEY);
 }
 
-export const notedCloseSaves = (page) =>
-  page.evaluate((key) => JSON.parse(sessionStorage.getItem(key) ?? "[]"), CLOSE_SAVES_KEY);
+export const notedSaves = (page) =>
+  page.evaluate((key) => JSON.parse(sessionStorage.getItem(key) ?? "[]"), NOTED_SAVES_KEY);
+
+/** Noted saves sent as ordinary requests: one let out as the page closes can land after the close request. */
+export const liveSaves = async (page) => (await notedSaves(page)).filter((save) => !save.keepalive);
+
+/** Hold a save that is never answered, so only the page's close request can deliver its edit. */
+export async function leaveSaveForClose(page, url, edit) {
+  const hold = await holdFirstPatch(page, `**${url}`);
+  await edit();
+  await hold.seen;
+}
+
+// What each module logs once it has handled a failed save.
+const SAVE_FAILED_WARNING = /^\[(sections|beatgrid|tempoTools)\] .*sav/;
 
 /**
- * Close the page with its held save cut off between beforeunload and pagehide. The browser
- * picks that order only some of the time, so the test makes it every time.
+ * Close the page with its held save failing between beforeunload and pagehide. The browser
+ * cuts a save off in that window only some of the time, so the test makes it every time.
  */
-export async function closeCuttingOffHeldSave(page, hold, url) {
+export async function closeAsHeldSaveFails(page, hold, failure, url) {
   await page.evaluate(() => window.dispatchEvent(new Event("beforeunload")));
-  await failHeldSave(page, hold, FAILED_SAVES.lost, url);
+  const handled = page.waitForEvent("console", (m) => m.type() === "warning" && SAVE_FAILED_WARNING.test(m.text()));
+  await failHeldSave(page, hold, failure, url);
+  await handled;
   await page.reload({ waitUntil: "domcontentloaded" });
 }
 
-/** Close the page and give any save it sends on the way out time to arrive. */
-export async function closeAndSettle(page) {
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(SETTLE_MS);
-}
+export const closePage = (page) => page.reload({ waitUntil: "domcontentloaded" });
 
 /** Stop the page's clock: from here a debounce fires only when the test runs time on. */
 export async function freezeTimers(page) {

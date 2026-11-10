@@ -19,10 +19,12 @@ import {
   holdFirstPatch,
   FAILED_SAVES,
   failHeldSave,
-  closeAndSettle,
-  closeCuttingOffHeldSave,
-  noteCloseSaves,
-  notedCloseSaves,
+  closeAsHeldSaveFails,
+  closePage,
+  leaveSaveForClose,
+  noteSaves,
+  notedSaves,
+  liveSaves,
   freezeTimers,
   clickFrozen,
   resetSongs,
@@ -71,16 +73,19 @@ test.describe("sections", () => {
 
   for (const [how, failure] of Object.entries(FAILED_SAVES)) {
     test(`a ${how} section save is neither shown on reopen nor sent on close`, async ({ page, request }) => {
-      await openStudio(page);
+      await openTempo(page);
       const hold = await holdFirstPatch(page, `**${sectionsUrl(JOB_ID)}`, failure.answer);
       await page.locator("#sectionsAddBtn").click();
-      await openSong(page, SIBLING_JOB_ID);
+      await openSongTempo(page, SIBLING_JOB_ID);
       await hold.seen;
       await failHeldSave(page, hold, failure, sectionsUrl(JOB_ID));
-      await openSong(page, JOB_ID);
+      // The sibling is too short for a section; its grid goes out after the sections on close.
+      await leaveSaveForClose(page, beatsUrl(SIBLING_JOB_ID), () => setGridBars(page, 5));
+      await openSongTempo(page, JOB_ID);
 
       await expect(page.locator(".section-block")).toHaveCount(0);
-      await closeAndSettle(page);
+      await closePage(page);
+      await expect.poll(() => savedBarLength(request, SIBLING_JOB_ID)).toBe(5);
       expect(await savedSections(request, JOB_ID)).toEqual([]);
     });
   }
@@ -98,25 +103,25 @@ test.describe("sections", () => {
     const hold = await holdFirstPatch(page, `**${sectionsUrl(JOB_ID)}`, FAILED_SAVES.lost.answer);
     await page.locator("#sectionsAddBtn").click();
     await hold.seen;
-    await closeCuttingOffHeldSave(page, hold, sectionsUrl(JOB_ID));
+    await closeAsHeldSaveFails(page, hold, FAILED_SAVES.lost, sectionsUrl(JOB_ID));
 
     await expect.poll(() => savedSections(request, JOB_ID).then((s) => s.length)).toBe(1);
   });
 
   test("a section save queued behind one in flight is sent when the page closes", async ({ page, request }) => {
     await openStudio(page);
-    const { seen } = await holdFirstPatch(page, `**${sectionsUrl(JOB_ID)}`);
+    const hold = await holdFirstPatch(page, `**${sectionsUrl(JOB_ID)}`, FAILED_SAVES.lost.answer);
     await page.locator("#sectionsAddBtn").click();
     await queueSectionsSave(page);
-    await seen;
-    // Two queued behind it: a reload cancels the held save and the next one can
-    // still slip out before the page is gone, but never the last.
+    await hold.seen;
     for (let queued = 0; queued < 2; queued++) {
       await page.locator("#sectionsAddBtn").click();
       await queueSectionsSave(page);
     }
-    await page.reload({ waitUntil: "domcontentloaded" });
+    await noteSaves(page);
+    await closeAsHeldSaveFails(page, hold, FAILED_SAVES.lost, sectionsUrl(JOB_ID));
 
+    expect(await liveSaves(page)).toEqual([]);
     await expect.poll(() => savedSections(request, JOB_ID).then((s) => s.length)).toBe(3);
   });
 });
@@ -135,20 +140,36 @@ test.describe("beat grid", () => {
     const hold = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`, FAILED_SAVES.lost.answer);
     await setGridBars(page, 3);
     await hold.seen;
-    await closeCuttingOffHeldSave(page, hold, beatsUrl(JOB_ID));
+    await closeAsHeldSaveFails(page, hold, FAILED_SAVES.lost, beatsUrl(JOB_ID));
 
     await expect.poll(() => savedBarLength(request, JOB_ID)).toBe(3);
   });
 
+  test("a grid save refused while the page closes is not sent again", async ({ page, request }) => {
+    const detected = await savedBarLength(request, JOB_ID);
+    const hold = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`, FAILED_SAVES.refused.answer);
+    await setGridBars(page, 3);
+    await hold.seen;
+    await openSongTempo(page, SIBLING_JOB_ID);
+    await setGridBars(page, 5);
+    await openSongTempo(page, JOB_ID);
+    await closeAsHeldSaveFails(page, hold, FAILED_SAVES.refused, beatsUrl(JOB_ID));
+
+    await expect.poll(() => savedBarLength(request, SIBLING_JOB_ID)).toBe(5);
+    expect(await savedBarLength(request, JOB_ID)).toBe(detected);
+  });
+
   test("a grid save queued behind one in flight is sent when the page closes", async ({ page, request }) => {
-    const { seen } = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`);
+    const hold = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`, FAILED_SAVES.lost.answer);
     await setGridBars(page, 3);
     await queueGridSave(page);
-    await seen;
+    await hold.seen;
     await setGridBars(page, 5);
     await queueGridSave(page);
-    await page.reload({ waitUntil: "domcontentloaded" });
+    await noteSaves(page);
+    await closeAsHeldSaveFails(page, hold, FAILED_SAVES.lost, beatsUrl(JOB_ID));
 
+    expect(await liveSaves(page)).toEqual([]);
     await expect.poll(() => savedBarLength(request, JOB_ID)).toBe(5);
   });
 
@@ -182,24 +203,27 @@ test.describe("beat grid", () => {
       await openSongTempo(page, SIBLING_JOB_ID);
       await hold.seen;
       await failHeldSave(page, hold, failure, beatsUrl(JOB_ID));
+      await leaveSaveForClose(page, beatsUrl(SIBLING_JOB_ID), () => setGridBars(page, 5));
       await openSongTempo(page, JOB_ID);
 
       expect(await shownBarLength(page)).not.toBe(3);
-      await closeAndSettle(page);
+      await closePage(page);
+      await expect.poll(() => savedBarLength(request, SIBLING_JOB_ID)).toBe(5);
       expect(await savedBarLength(request, JOB_ID)).toBe(detected);
     });
   }
 
   test("the open song's grid goes first when the page closes", async ({ page, request }) => {
-    const { seen } = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`);
+    const hold = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`, FAILED_SAVES.lost.answer);
     await setGridBars(page, 3);
     await openSongTempo(page, SIBLING_JOB_ID);
-    await seen;
+    await hold.seen;
     await setGridBars(page, 5);
-    await noteCloseSaves(page);
-    await closeAndSettle(page);
+    await noteSaves(page);
+    await closeAsHeldSaveFails(page, hold, FAILED_SAVES.lost, beatsUrl(JOB_ID));
 
-    expect(await notedCloseSaves(page)).toEqual([beatsUrl(SIBLING_JOB_ID), beatsUrl(JOB_ID)]);
+    const closeSaves = (await notedSaves(page)).filter((save) => save.keepalive).map((save) => save.url);
+    expect(closeSaves).toEqual([beatsUrl(SIBLING_JOB_ID), beatsUrl(JOB_ID)]);
     await expect.poll(() => savedBarLength(request, SIBLING_JOB_ID)).toBe(5);
     await expect.poll(() => savedBarLength(request, JOB_ID)).toBe(3);
   });
