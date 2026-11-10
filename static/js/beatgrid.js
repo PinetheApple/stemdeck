@@ -346,20 +346,21 @@ function _cancelSaveTimer() {
 }
 
 /**
- * Send each song's unconfirmed grid at once with keepalive, the open song first,
- * outside the queue, which never runs once the page is gone. `unsentTempo` maps a
- * song to its unconfirmed { fields, modeEditedAt }, which ride in the same request.
+ * Take each song's unconfirmed grid and send it at once with keepalive, the open song
+ * first, outside the queue, which never runs once the page is gone. `unconfirmedTempo`
+ * maps a song to its unconfirmed { fields, modeEditedAt }, which ride in the same request.
  */
-export function saveBeatGridOnPageClose(unsentTempo = new Map()) {
+export function saveBeatGridOnPageClose(unconfirmedTempo = new Map()) {
   if (_cancelSaveTimer() && _jobId && _dirty) {
     _unconfirmed.set(_jobId, { payload: _gridPayload(), editedAt: _lastEditAt });
   }
-  const songs = new Set([_jobId, ..._unconfirmed.keys(), ...unsentTempo.keys()]);
+  const songs = new Set([_jobId, ..._unconfirmed.keys(), ...unconfirmedTempo.keys()]);
   for (const jobId of songs) {
-    const body = _closeBody(_unconfirmed.get(jobId), unsentTempo.get(jobId));
+    const body = _closeBody(_unconfirmed.get(jobId), unconfirmedTempo.get(jobId));
     if (!body) continue;
     _patchBeats(jobId, body, PAGE_CLOSE_FETCH).catch((e) => console.warn("[beatgrid] failed to save edits:", e));
   }
+  _unconfirmed.clear();
 }
 
 // The server applies a body's grid before its tempo, and any grid drops the
