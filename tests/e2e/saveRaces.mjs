@@ -114,6 +114,16 @@ export async function noteCloseSaves(page) {
 export const notedCloseSaves = (page) =>
   page.evaluate((key) => JSON.parse(sessionStorage.getItem(key) ?? "[]"), CLOSE_SAVES_KEY);
 
+/**
+ * Close the page with its held save cut off between beforeunload and pagehide. The browser
+ * picks that order only some of the time, so the test makes it every time.
+ */
+export async function closeCuttingOffHeldSave(page, hold, url) {
+  await page.evaluate(() => window.dispatchEvent(new Event("beforeunload")));
+  await failHeldSave(page, hold, FAILED_SAVES.lost, url);
+  await page.reload({ waitUntil: "domcontentloaded" });
+}
+
 /** Close the page and give any save it sends on the way out time to arrive. */
 export async function closeAndSettle(page) {
   await page.reload({ waitUntil: "domcontentloaded" });

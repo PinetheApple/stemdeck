@@ -12,6 +12,7 @@ import {
   FAILED_SAVES,
   failHeldSave,
   closeAndSettle,
+  closeCuttingOffHeldSave,
   freezeTimers,
   clickFrozen,
   TAP_GAP_MS,
@@ -100,10 +101,10 @@ test.describe("tempo", () => {
 
   test("a tempo save in flight when the page closes is sent again", async ({ page, request }) => {
     await openTempo(page);
-    const { seen } = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`);
+    const hold = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`, FAILED_SAVES.lost.answer);
     await page.locator("#tempoNudgeLater").click();
-    await seen;
-    await page.reload({ waitUntil: "domcontentloaded" });
+    await hold.seen;
+    await closeCuttingOffHeldSave(page, hold, beatsUrl(JOB_ID));
 
     await expect.poll(async () => (await savedTempo(request, JOB_ID)).anchor).toBeCloseTo(NUDGE_SEC, 5);
   });

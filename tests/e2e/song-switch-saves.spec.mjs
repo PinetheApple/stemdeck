@@ -20,6 +20,7 @@ import {
   FAILED_SAVES,
   failHeldSave,
   closeAndSettle,
+  closeCuttingOffHeldSave,
   noteCloseSaves,
   notedCloseSaves,
   freezeTimers,
@@ -92,6 +93,16 @@ test.describe("sections", () => {
     await expect.poll(() => savedSections(request, JOB_ID).then((s) => s.length)).toBe(1);
   });
 
+  test("a section save in flight when the page closes is sent again", async ({ page, request }) => {
+    await openStudio(page);
+    const hold = await holdFirstPatch(page, `**${sectionsUrl(JOB_ID)}`, FAILED_SAVES.lost.answer);
+    await page.locator("#sectionsAddBtn").click();
+    await hold.seen;
+    await closeCuttingOffHeldSave(page, hold, sectionsUrl(JOB_ID));
+
+    await expect.poll(() => savedSections(request, JOB_ID).then((s) => s.length)).toBe(1);
+  });
+
   test("a section save queued behind one in flight is sent when the page closes", async ({ page, request }) => {
     await openStudio(page);
     const { seen } = await holdFirstPatch(page, `**${sectionsUrl(JOB_ID)}`);
@@ -118,6 +129,15 @@ test.describe("beat grid", () => {
     await page.reload({ waitUntil: "domcontentloaded" });
 
     await expect.poll(async () => (await savedTempo(request, JOB_ID)).bars_edited).toBe(true);
+  });
+
+  test("a grid save in flight when the page closes is sent again", async ({ page, request }) => {
+    const hold = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`, FAILED_SAVES.lost.answer);
+    await setGridBars(page, 3);
+    await hold.seen;
+    await closeCuttingOffHeldSave(page, hold, beatsUrl(JOB_ID));
+
+    await expect.poll(() => savedBarLength(request, JOB_ID)).toBe(3);
   });
 
   test("a grid save queued behind one in flight is sent when the page closes", async ({ page, request }) => {
