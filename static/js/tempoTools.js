@@ -9,7 +9,7 @@ import { getCurrentTrackInfo } from "./catalog.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { t, getLanguage, onLanguageChange } from "./i18n.js";
 import { $ } from "./utils.js";
-import { wasCutOffByPageClose } from "./pageClosing.js";
+import { isPageClosing, wasCutOffByPageClose } from "./pageClosing.js";
 
 const MODE_CONSTANT = "constant";
 const SOURCE_USER = "user";
@@ -119,7 +119,7 @@ async function sendUnsentFields(forJob) {
   await flushBeatGrid();
   let failed = false;
   let entry;
-  while ((entry = unconfirmedFieldsByJob.get(forJob)) && !entry.sending) {
+  while (!isPageClosing() && (entry = unconfirmedFieldsByJob.get(forJob)) && !entry.sending) {
     entry.sending = true;
     let cutOff = false;
     try {
@@ -133,7 +133,7 @@ async function sendUnsentFields(forJob) {
     }
   }
   savesInFlight.delete(forJob);
-  if (forJob !== jobId) return;
+  if (forJob !== jobId || isPageClosing()) return;
   saveFailed = failed;
   await refreshGrid(forJob);
 }

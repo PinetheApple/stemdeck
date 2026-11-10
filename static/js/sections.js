@@ -2,7 +2,7 @@
 
 import { onLanguageChange, t } from "./i18n.js";
 import { PAGE_CLOSE_FETCH } from "./utils.js";
-import { wasCutOffByPageClose } from "./pageClosing.js";
+import { isPageClosing, wasCutOffByPageClose } from "./pageClosing.js";
 
 const SECTION_COLORS = [
   "#4a7fff",
@@ -681,9 +681,13 @@ function _queueSaveSnapshot() {
   if (!_trackId) return _saveChain;
   const id = _trackId;
   const body = _snapshot();
-  _saveChain = _saveChain.then(() => _sendSave(id, body));
+  _saveChain = _saveChain.then(() => _sendQueuedSave(id, body));
   return _saveChain;
 }
+
+// Once the page is closing its close request carries the newest snapshot, and an
+// older one let out now could land after it.
+const _sendQueuedSave = (id, body) => (isPageClosing() ? undefined : _sendSave(id, body));
 
 async function _sendSave(id, body, fetchOptions = {}) {
   let cutOff = false;

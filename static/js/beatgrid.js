@@ -20,7 +20,7 @@
 // scroll and resize.
 
 import { storeGet, storeSet, PAGE_CLOSE_FETCH } from "./utils.js";
-import { wasCutOffByPageClose } from "./pageClosing.js";
+import { isPageClosing, wasCutOffByPageClose } from "./pageClosing.js";
 import { clickLines, thinLines } from "./beatgridShown.js";
 
 const MIN_GAP = 0.01;          // seconds; keeps the grid strictly increasing
@@ -300,7 +300,8 @@ export async function loadBeatGrid(jobId) {
 
 const _gridPayload = () => ({ beats: _beats.map((t) => +t.toFixed(6)), bars: _bars.map((b) => ({ ...b })) });
 
-// Queued behind any save still in flight, so the newer grid always lands last.
+// Queued behind any save still in flight, so the newer grid always lands last. None
+// starts once the page is closing: the close request carries the newest grid.
 function _save() {
   _saveTimer = null;
   const jobId = _jobId;
@@ -308,7 +309,7 @@ function _save() {
   const payload = _gridPayload();
   _unconfirmed.set(jobId, { payload, editedAt: _lastEditAt });
   const seq = _editSeq;
-  _saveChain = _saveChain.then(() => _sendGrid(jobId, payload, seq));
+  _saveChain = _saveChain.then(() => (isPageClosing() ? undefined : _sendGrid(jobId, payload, seq)));
   return _saveChain;
 }
 
