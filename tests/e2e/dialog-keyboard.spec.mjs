@@ -1,8 +1,17 @@
 // Every dialog closes with Esc and gives focus back to what opened it, and the
-// library's controls are big enough to hit (#46).
+// library's controls are big enough to hit.
 
 import { test, expect } from "@playwright/test";
-import { JOB_ID, openStudio, seedLibrary, stubExportEndpoints, stubFavorites, stubUpdateCheck } from "./helpers.mjs";
+import {
+  JOB_ID,
+  openStudio,
+  seedLibrary,
+  stubExportEndpoints,
+  stubFavorites,
+  stubUpdateCheck,
+} from "./helpers.mjs";
+
+const KEY = { ENTER: "Enter", ESCAPE: "Escape" };
 
 const MIN_TARGET_PX = 24;
 
@@ -19,11 +28,11 @@ test.describe("dialogs and Esc", () => {
   test("About opens on Enter, closes on Esc and hands focus back", async ({ page }) => {
     await openApp(page);
     await page.locator("#aboutBtn").focus();
-    await page.keyboard.press("Enter");
+    await page.keyboard.press(KEY.ENTER);
     await expect(page.locator("#aboutDialog")).toBeVisible();
     await expect(page.locator("#aboutClose")).toBeFocused();
 
-    await page.keyboard.press("Escape");
+    await page.keyboard.press(KEY.ESCAPE);
     await expect(page.locator("#aboutDialog")).toBeHidden();
     await expect(page.locator("#aboutBtn")).toBeFocused();
   });
@@ -34,19 +43,19 @@ test.describe("dialogs and Esc", () => {
     await page.locator("#notifReleaseCard").click();
     await expect(page.locator("#releaseDialog")).toBeVisible();
 
-    await page.keyboard.press("Escape");
+    await page.keyboard.press(KEY.ESCAPE);
     await expect(page.locator("#releaseDialog")).toBeHidden();
   });
 
   test("Settings closes on Esc and hands focus back to its button", async ({ page }) => {
     await openApp(page);
     await page.locator("#settingsBtn").focus();
-    await page.keyboard.press("Enter");
+    await page.keyboard.press(KEY.ENTER);
     const close = page.locator(".library-editor-close");
     await expect(close).toBeVisible();
     await close.focus();
 
-    await page.keyboard.press("Escape");
+    await page.keyboard.press(KEY.ESCAPE);
     await expect(page.locator(".library-editor")).toHaveCount(0);
     await expect(page.locator("#settingsBtn")).toBeFocused();
   });
@@ -61,7 +70,7 @@ test.describe("dialogs and Esc", () => {
     await expect(input).toBeFocused();
     await input.type("R");
 
-    await page.keyboard.press("Escape");
+    await page.keyboard.press(KEY.ESCAPE);
     await expect(page.locator(".reset-confirm-card")).toHaveCount(0);
     await expect(page.locator(".library-editor")).toBeVisible();
     await expect(reset).toBeFocused();
@@ -73,9 +82,67 @@ test.describe("dialogs and Esc", () => {
     await head.dblclick();
     await expect(page.locator(".folder-editor-name")).toBeFocused();
 
-    await page.keyboard.press("Escape");
+    await page.keyboard.press(KEY.ESCAPE);
     await expect(page.locator(".folder-editor")).toHaveCount(0);
     await expect(page.locator('.folder[data-id="f-unsorted"] > .folder-head')).toBeFocused();
+  });
+});
+
+const PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLkeyboard46";
+const PLAYLIST_PREVIEW = {
+  playlist_title: "Keys",
+  will_queue: 2,
+  total_found: 2,
+  skipped_unavailable: 0,
+  skipped_too_long: 0,
+  truncated: false,
+  cap: 50,
+  capacity_left: 10,
+};
+
+async function openPlaylistConfirm(page) {
+  const url = page.locator("#url");
+  await url.fill(PLAYLIST_URL);
+  await url.press(KEY.ENTER);
+  await expect(page.locator(".playlist-confirm")).toBeVisible();
+}
+
+test.describe("more dialogs and Esc", () => {
+  test("a failure's details close on Esc and hand focus back to its card", async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() =>
+      import("/js/notifications.js").then((m) => m.notifyFailure({ kind: "export", message: "disk full" })),
+    );
+    await page.locator("#notifBtn").click();
+    const card = page.locator(".daw-notif-error").first();
+    await card.focus();
+    await page.keyboard.press(KEY.ENTER);
+    await expect(page.locator("#failureDialog")).toBeVisible();
+    await expect(page.locator("#failureClose")).toBeFocused();
+
+    await page.keyboard.press(KEY.ESCAPE);
+    await expect(page.locator("#failureDialog")).toBeHidden();
+    await expect(card).toBeFocused();
+  });
+
+  test("the playlist confirmation hands focus back on Esc, Cancel and Import", async ({ page }) => {
+    await page.route("**/api/playlist/preview", (route) => route.fulfill({ json: PLAYLIST_PREVIEW }));
+    await page.route("**/api/playlist", (route) =>
+      route.fulfill({ json: { playlist_title: "Keys", jobs: [], queued: 0 } }),
+    );
+    await openApp(page);
+
+    await openPlaylistConfirm(page);
+    await page.keyboard.press(KEY.ESCAPE);
+    await expect(page.locator(".playlist-confirm")).toHaveCount(0);
+    await expect(page.locator("#url")).toBeFocused();
+
+    for (const button of [".reset-confirm-cancel", ".playlist-confirm-go"]) {
+      await openPlaylistConfirm(page);
+      await page.locator(`.playlist-confirm ${button}`).click();
+      await expect(page.locator(".playlist-confirm")).toHaveCount(0);
+      await expect(page.locator("#url")).toBeFocused();
+    }
   });
 });
 

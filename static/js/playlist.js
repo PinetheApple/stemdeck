@@ -45,10 +45,13 @@ function countLine(preview) {
 }
 
 let openDialog = null;
+let dialogOpener = null;
 
 function closeDialog() {
   openDialog?.remove();
   openDialog = null;
+  if (dialogOpener?.isConnected) dialogOpener.focus();
+  dialogOpener = null;
 }
 
 function confirmImport(preview) {
@@ -84,6 +87,7 @@ function confirmImport(preview) {
       finish(false);
     });
 
+    dialogOpener = document.activeElement;
     document.body.appendChild(overlay);
     openDialog = overlay;
     overlay.querySelector(".playlist-confirm-go").focus();
