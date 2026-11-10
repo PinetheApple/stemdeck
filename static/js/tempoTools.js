@@ -145,7 +145,6 @@ async function sendFields(forJob, entry) {
   }
 }
 
-// Merges two { fields, modeEditedAt } entries: the later one's fields and mode change win.
 const mergeUnconfirmedEntries = (earlier, later) => ({
   fields: { ...earlier?.fields, ...later?.fields },
   modeEditedAt: later?.modeEditedAt ?? earlier?.modeEditedAt,

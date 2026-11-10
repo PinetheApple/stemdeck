@@ -260,6 +260,8 @@ test.describe("beat grid", () => {
 });
 
 test.describe("after a beforeunload that never closed the page", () => {
+  const EDITED_BAR_LENGTH = 3;
+
   test.beforeEach(async ({ page }) => {
     await openTempo(page);
     await page.evaluate(() => window.dispatchEvent(new Event("beforeunload")));
@@ -272,9 +274,9 @@ test.describe("after a beforeunload that never closed the page", () => {
 
   test("a grid edit is saved", async ({ page, request }) => {
     await page.locator("#t-metro-edit").click();
-    await page.locator("#bg-barlen").fill("3");
+    await page.locator("#bg-barlen").fill(String(EDITED_BAR_LENGTH));
     await page.locator("#bg-barlen").press("Enter");
-    await expect.poll(() => savedBarLength(request, JOB_ID)).toBe(3);
+    await expect.poll(() => savedBarLength(request, JOB_ID)).toBe(EDITED_BAR_LENGTH);
   });
 
   test("a tempo edit is saved", async ({ page, request }) => {

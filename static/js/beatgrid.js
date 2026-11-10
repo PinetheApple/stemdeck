@@ -300,8 +300,7 @@ export async function loadBeatGrid(jobId) {
 
 const _gridPayload = () => ({ beats: _beats.map((t) => +t.toFixed(6)), bars: _bars.map((b) => ({ ...b })) });
 
-// Queued behind any save still in flight, so the newer grid always lands last. None
-// starts once the page is closing: the close request carries the newest grid.
+// Queued behind any save still in flight, so the newer grid always lands last.
 function _save() {
   _saveTimer = null;
   const jobId = _jobId;
@@ -313,6 +312,8 @@ function _save() {
   return _saveChain;
 }
 
+// Once the page is closing its close request carries the newest grid, and an older
+// one let out now could land after it.
 const _sendQueuedGrid = (jobId, payload, seq) => (isPageClosing() ? undefined : _sendGrid(jobId, payload, seq));
 
 async function _sendGrid(jobId, payload, seq, fetchOptions) {
