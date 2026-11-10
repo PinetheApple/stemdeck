@@ -7,6 +7,7 @@ real endpoints, background task and pipeline lock."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import threading
 import time
@@ -33,6 +34,7 @@ from app.core.models import (
 )
 from app.core.registry import _jobs
 from app.pipeline import vocal_split as vs_mod
+from tests.test_jobs_replaces import _finish, _new_job
 from tests.test_lyrics_retime_api import _release, hold_the_lock
 
 JOB_ID = "abcdefabc275"
@@ -382,4 +384,29 @@ def test_deleting_the_song_stops_its_split(client, monkeypatch):
 
     assert r.status_code == 200
     assert not (jobs_mod.JOBS_DIR / JOB_ID).exists()
+    assert vs_mod.VOCAL_SPLIT_RUNS.current(JOB_ID) is None
+
+
+def test_replacing_the_song_stops_its_split_before_its_files_go(client, monkeypatch):
+    done_job()
+    split = Blocking()
+    monkeypatch.setattr(vs_mod, "split_vocals", split)
+    client.post(SPLIT)
+    assert split.started.wait(10)
+    run = vs_mod.VOCAL_SPLIT_RUNS.current(JOB_ID)
+    (stems_dir() / "vocals.wav").unlink()
+    split_ended_at_removal = []
+    remove = jobs_mod._rmtree_job
+
+    def recording_remove(job_id):
+        split_ended_at_removal.append(run.ended.is_set())
+        return remove(job_id)
+
+    monkeypatch.setattr(jobs_mod, "_rmtree_job", recording_remove)
+    # The stub split holds the real pipeline lock until it is stopped.
+    monkeypatch.setattr("app.pipeline.runner._pipeline_lock", asyncio.Semaphore(1))
+    client.portal.call(_finish, _new_job(replaces=JOB_ID))
+
+    assert JOB_ID not in _jobs
+    assert split_ended_at_removal == [True]
     assert vs_mod.VOCAL_SPLIT_RUNS.current(JOB_ID) is None
