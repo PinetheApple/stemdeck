@@ -233,6 +233,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             len(resumed),
         )
     await asyncio.to_thread(settle_pending_replacements)
+
     if os.environ.get("STEMDECK_DESKTOP") == "1":
         parent_pid = os.environ.get("STEMDECK_PARENT_PID")
         if parent_pid:
