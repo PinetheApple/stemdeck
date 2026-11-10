@@ -36,6 +36,8 @@ const heldPromise = () => {
   const held = new Promise((resolve) => { release = resolve; });
   return { held, release };
 };
+// The server refuses a section without a colour.
+const SECTION_COLOR = "#4a7fff";
 const LONG_LINE = "A line long enough that it has to wrap over several rows on any desktop window rather than run out past the sides of it";
 
 const ui = (page) => ({
@@ -71,6 +73,17 @@ async function openTrack(page, id) {
 }
 
 const enterStage = (page) => page.locator("#stageModeBtn").click();
+
+// Through the server, which outranks the library's copy when a track opens.
+async function saveSections(page, id, sections) {
+  const res = await page.request.patch(`/api/jobs/${id}/sections`, { data: { sections } });
+  expect(res.ok(), "saving sections").toBe(true);
+}
+
+test.afterEach(async ({ page }) => {
+  await saveSections(page, JOB_ID, []);
+  await saveSections(page, SIBLING_JOB_ID, []);
+});
 
 async function waitForGrid(page) {
   await page.waitForFunction(async () => (await import("/js/beatgrid.js")).getBeats().length > 0);
@@ -123,6 +136,8 @@ async function setUp(page, {
       await route.fulfill({ response, json: { ...state, audio_tags: { ...FIXTURE_TAGS, lyrics: embedded.lyrics } } });
     });
   }
+  await saveSections(page, JOB_ID, sections.map((s) => ({ color: SECTION_COLOR, ...s })));
+  await saveSections(page, SIBLING_JOB_ID, []);
   await seedCatalogState(page, {
     folders: [
       { id: "f-unsorted", name: "Unsorted", items: [JOB_ID, SIBLING_JOB_ID], color: null },
@@ -131,7 +146,6 @@ async function setUp(page, {
     tracks: {
       [JOB_ID]: {
         ...fixtureTrack(JOB_ID, "First"),
-        sections,
         ...(firstTrackTags ? { audioTags: firstTrackTags } : {}),
         // Stops the tag backfill, so the embedded read is the only read of this job once it is open.
         ...(embedded ? { workChecked: true } : {}),
