@@ -258,3 +258,28 @@ test.describe("beat grid", () => {
     expect((await next).postDataJSON().tempo.bpm).toBeCloseTo(Number(siblingBpm) + 0.1, 5);
   });
 });
+
+test.describe("after a beforeunload that never closed the page", () => {
+  test.beforeEach(async ({ page }) => {
+    await openTempo(page);
+    await page.evaluate(() => window.dispatchEvent(new Event("beforeunload")));
+  });
+
+  test("a section edit is saved", async ({ page, request }) => {
+    await page.locator("#sectionsAddBtn").click();
+    await expect.poll(() => savedSections(request, JOB_ID).then((s) => s.length)).toBe(1);
+  });
+
+  test("a grid edit is saved", async ({ page, request }) => {
+    await page.locator("#t-metro-edit").click();
+    await page.locator("#bg-barlen").fill("3");
+    await page.locator("#bg-barlen").press("Enter");
+    await expect.poll(() => savedBarLength(request, JOB_ID)).toBe(3);
+  });
+
+  test("a tempo edit is saved", async ({ page, request }) => {
+    await page.locator("#tempoBpmUp").click();
+    const bpm = Number(await page.locator("#tempoReadout").textContent());
+    await expect.poll(async () => (await savedTempo(request, JOB_ID)).bpm).toBeCloseTo(bpm, 5);
+  });
+});
