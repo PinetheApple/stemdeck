@@ -3,9 +3,8 @@
 // second restores the row, or the whole selection it belongs to. The Trash
 // icon carries a count, so a full Trash is visible from anywhere (#749).
 //
-// The server's Trash is stubbed (stubServerTrash) and its calls recorded. The
-// real one would leave the shared fixture jobs trashed on the server, and the
-// next spec's startup sync would move them into its Trash.
+// The server's Trash is stubbed (stubServerTrash): the real one would leave the
+// shared fixture jobs trashed for the next spec's startup sync.
 
 import { test, expect } from "@playwright/test";
 

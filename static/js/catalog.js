@@ -19,7 +19,8 @@ import { isModalOpen } from "./stageMode.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
-import { HTTP_CONFLICT, HTTP_NOT_FOUND, fetchJson, isNotFound } from "./libraryControls.js";
+import { HTTP_NOT_FOUND, fetchJson, isNotFound } from "./libraryControls.js";
+import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 import { lookupArtist } from "./artistLookup.js";
 import { HELD_DROP, HELD_SEND, HTTP_UNPROCESSABLE, heldBandAction, libraryArtist, mergedBand, sendHeldBand, uploadBands } from "./trackBand.js";
 import {
@@ -333,8 +334,7 @@ export function libraryIdentity(identity) {
 
 /**
  * Give a re-import the place of the track it replaces, keeping that track in
- * `replaced` until the import settles. Done, the record goes and the server
- * retires the old job; cancelled, failed or gone, the old track comes back.
+ * `replaced` until the import settles (settleReplacement).
  */
 function takeReplacedPlace(newId, oldId) {
   if (!tracks[oldId] || getTrashFolder().items.includes(oldId)) return;
@@ -343,7 +343,6 @@ function takeReplacedPlace(newId, oldId) {
   const savedBand = previous.bandSaved ? libraryArtist(previous.artist) : null;
   replaceTrackId(oldId, newId);
   if (savedBand) carrySavedBand(newId, savedBand);
-  // The old track is gone, so any failure notification tied to it is moot.
   dismissFailuresByJobId(oldId);
   tracks[newId].replaced = { id: oldId, track: previous };
 }
@@ -380,7 +379,6 @@ function dropEmptyImport(trackId) {
 }
 
 export function addTrackToLibrary({ replaces, ...track }) {
-  // track: { id, title, thumb, stems, status, sourceUrl }; replaces: the job a re-import stands in for
   if (track.status === CANCELLED_STATUS) {
     dropEmptyImport(track.id);
     return;
@@ -1116,9 +1114,8 @@ function applyTrackInfoToPanel(track) {
  * what makes the server agree with it.
  *
  * Deliberately not awaited by the callers. Binning a track must feel instant
- * and must not fail because the backend blinked. Until the server answers, the
- * change stays pending: the next sync sends it again and leaves the track where
- * the user put it.
+ * and must not fail because the backend blinked. The next sync resends it until
+ * the server answers, and leaves the track where the user put it meanwhile.
  */
 function syncTrashToServer(trackId, trashed) {
   _unconfirmedTrashState[trackId] = trashed;
@@ -1221,9 +1218,8 @@ function putInTrash(trackId) {
   const trash = getTrashFolder();
   if (!trash.items.includes(trackId)) trash.items.unshift(trackId);
   if (_currentTrackId === trackId) _currentTrackId = null;
-  // The user is done with this track — clear any failure tied to it.
-  // purgeTrash() does the same on permanent delete, for a job that errors
-  // after being trashed but before it's purged.
+  // The user is done with it; purgeTrash() repeats this for a job that errors
+  // once trashed.
   dismissFailuresByJobId(trackId);
 }
 
@@ -3844,12 +3840,8 @@ function reconcileAvailability(jobs) {
 }
 
 /**
- * Push this device's Trash up to the server, once.
- *
- * Every install that predates server-side Trash has a local bin the backend
- * knows nothing about, and those tracks are exactly the ones showing up on the
- * user's phone. After this pass the server's Trash is the one every device
- * follows (followServerTrash).
+ * Push this device's Trash up once, so a bin the server never saw stops showing
+ * on the phone. After it, every device follows the server's (followServerTrash).
  */
 function pushLocalTrashOnce(jobs) {
   for (const id of migrationTrashIds(jobs, new Set(getTrashFolder().items))) syncTrashToServer(id, true);
@@ -3931,7 +3923,7 @@ async function syncWithServer() {
     const trashIds = new Set(getTrashFolder()?.items || []);
     const deletedIds = getDeletedJobIds();
     releaseListedReplacements(jobs);
-    const replacedIds = replacedJobIds(tracks);
+    const replacedIds = replacedJobIds(tracks, jobs);
     let backfilled = false;
     for (const state of jobs) {
       const known = tracks[state.job_id];
@@ -5394,7 +5386,7 @@ async function resyncLibrary() {
     const trashIds = new Set(getTrashFolder()?.items || []);
     const restorable = Object.entries(tracks)
       .filter(([id, t]) => !trashIds.has(id) && t.status === "unavailable")
-      .filter(([, t]) => t.sourceUrl && !t.sourceUrl.startsWith("local:"));
+      .filter(([, t]) => isReimportableSource(t.sourceUrl));
 
     if (restorable.length) {
       // Re-import each from its source. Close the editor so the studio overlay

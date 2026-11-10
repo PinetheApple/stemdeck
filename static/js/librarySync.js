@@ -12,9 +12,8 @@ const REINSTATE_STATUSES = new Set([CANCELLED_STATUS, "error", "unavailable"]);
 export const isServerTrashed = (state) => state.trashed_at != null;
 
 /**
- * The local Trash entries the server lists as not trashed: what an install from
- * before the server kept a Trash pushes up, once. Never a restore, so a fresh
- * install cannot bring back what another device threw away.
+ * Local Trash entries the server lists as not trashed, to push up once. Never a
+ * restore, so a fresh install cannot bring back what another device threw away.
  */
 export function migrationTrashIds(jobs, trashIds) {
   return jobs
@@ -40,9 +39,8 @@ export function serverTrashMoves(jobs, { knownIds, trashIds, skipIds }) {
 }
 
 /**
- * What a re-import settling as `status` does with the track it replaced, or
- * null while it runs. Done releases it, since the server retires the old job;
- * anything that leaves no playable copy brings it back.
+ * What a re-import settling as `status` does with the track it replaced, or null
+ * while it runs. Done releases it to the server; no playable copy brings it back.
  */
 export function replacementOutcome(status) {
   if (status === DONE) return RELEASE_REPLACED;
@@ -59,8 +57,8 @@ export function normalizeSource(value) {
 }
 
 /**
- * The library track a new import of `url` replaces: the one track outside the
- * Trash with that source, or null when none or several have it. Uploads never.
+ * The one track outside the Trash with the source of `url`, which an import of it
+ * replaces; null when none or several have it, and for uploads.
  */
 export function soleSourceMatch(tracks, trashIds, url) {
   const source = normalizeSource(url);
@@ -71,7 +69,12 @@ export function soleSourceMatch(tracks, trashIds, url) {
   return matches.length === 1 ? matches[0] : null;
 }
 
-/** The jobs an unsettled re-import stands in for, which a sync must not adopt. */
-export function replacedJobIds(tracks) {
-  return new Set(Object.values(tracks).map((track) => track.replaced?.id).filter(Boolean));
+/**
+ * The jobs an unsettled re-import stands in for, here or on the server, which a
+ * sync must not adopt: the server retires one only after listing its replacement.
+ */
+export function replacedJobIds(tracks, jobs) {
+  const local = Object.values(tracks).map((track) => track.replaced?.id);
+  const listed = jobs.map((state) => state.replaces);
+  return new Set([...local, ...listed].filter(Boolean));
 }

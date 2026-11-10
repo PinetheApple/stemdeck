@@ -73,7 +73,14 @@ for (const status of ["queued", "downloading", "separating", "processing", "stop
 
 check(
   "replaced jobs are the ones still waiting on their replacement",
-  same([...replacedJobIds({ n1: { replaced: { id: "o1" } }, n2: {}, n3: { replaced: null } })], ["o1"]),
+  same([...replacedJobIds({ n1: { replaced: { id: "o1" } }, n2: {}, n3: { replaced: null } }, [])], ["o1"]),
+);
+check(
+  "a listed job still replacing another keeps the old one out of the library",
+  same(
+    [...replacedJobIds({}, [{ ...job("new"), status: "done", replaces: "old" }, job("old"), job("other")])],
+    ["old"],
+  ),
 );
 
 check("a short YouTube link matches the long one", normalizeSource("https://youtu.be/abcdefghijk?t=3") === "yt:abcdefghijk");

@@ -13,7 +13,7 @@ import { initSections } from "./sections.js";
 import { importPlaylist, looksLikePlaylist } from "./playlist.js";
 import { t } from "./i18n.js";
 import { formatKey } from "./keyLabel.js";
-import { HTTP_CONFLICT } from "./libraryControls.js";
+import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 
 // Playful stage label rotation (Claude-Code-style flair). The backend
 // emits truthful stage strings; we surface them in the small #job-detail
@@ -680,12 +680,18 @@ function sanitizeFilename(name) {
 /** The song a re-import would replace is itself still importing. */
 class ReplaceBusyError extends Error {}
 
-// Programmatic URL import — re-uses the full studio/SSE pipeline (same as the
-// import form's URL path). Used by the library "Sync again" auto-restore to
-// re-download + re-separate a track whose backend audio was swept. Takes over
-// the studio like a normal import. Returns the new job id, or null on failure.
-// `replaces` names the job this one stands in for; the server retires it once
-// the new one is done.
+const replacesField = (replaces) => (replaces ? { replaces } : {});
+
+function showImportError(err, failedKey) {
+  showError(
+    err instanceof ReplaceBusyError
+      ? t("job.reimportBusy")
+      : t(failedKey, { message: err.message }),
+  );
+}
+
+// Re-imports a track through the studio pipeline, standing in for job `replaces`
+// until the server retires it. Returns the new job id, or null on failure.
 export async function importFromUrl(url, { title, stems, replaces } = {}) {
   if (!url || url.startsWith("local:")) return null; // local files can't auto-restore
   reset();
@@ -698,18 +704,14 @@ export async function importFromUrl(url, { title, stems, replaces } = {}) {
     const res = await fetch("/api/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, stems: stemSel, ...(replaces ? { replaces } : {}) }),
+      body: JSON.stringify({ url, stems: stemSel, ...replacesField(replaces) }),
     });
     const data = await res.json();
     if (res.status === HTTP_CONFLICT) throw new ReplaceBusyError();
     if (!res.ok) throw new Error(data.detail || res.statusText);
     jobId = data.job_id;
   } catch (err) {
-    showError(
-      err instanceof ReplaceBusyError
-        ? t("job.reimportBusy")
-        : t("job.restoreFailed", { message: err.message }),
-    );
+    showImportError(err, "job.restoreFailed");
     setSubmitProcessing(false);
     return null;
   }
@@ -718,8 +720,6 @@ export async function importFromUrl(url, { title, stems, replaces } = {}) {
   setCurrentJobId(jobId);
   setForegroundJobId(jobId);
   jobSources.set(jobId, url);
-  // Takes the replaced track's place in its folder; status updates as SSE
-  // frames arrive.
   addTrackToLibrary({
     id: jobId,
     replaces,
@@ -850,7 +850,7 @@ export function wireJobForm() {
           // Backend uses this to decide whether to ffmpeg-amix a
           // "selected stems" track (mix.wav) at the end of the pipeline.
           stems: [...selectedStems],
-          ...(replaces ? { replaces } : {}),
+          ...replacesField(replaces),
         }),
       };
     }
@@ -867,11 +867,7 @@ export function wireJobForm() {
       jobId = data.job_id;
       if (data.source_url) newSourceUrl = data.source_url;
     } catch (err) {
-      showError(
-        err instanceof ReplaceBusyError
-          ? t("job.reimportBusy")
-          : t("job.startFailed", { message: err.message }),
-      );
+      showImportError(err, "job.startFailed");
       setSubmitProcessing(false);
       return;
     }

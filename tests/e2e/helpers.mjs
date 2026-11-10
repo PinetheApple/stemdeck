@@ -48,9 +48,8 @@ export function fixtureTrack(id, title) {
  *
  * `bandsUploaded` defaults to true: a browser that has done its one-time band
  * upload, since a seeded band would otherwise PATCH the fixture job shared by the run.
- * `trashPushed` likewise: a browser that has pushed its local Trash up once.
- * The store is written again on every load unless `seedOnce`, which leaves a
- * reload with whatever the app saved.
+ * `trashPushed` likewise, for the one-time Trash push. `seedOnce` writes the
+ * store on the first load only, so a reload keeps what the app saved.
  */
 export async function seedCatalogState(
   page,
@@ -313,13 +312,8 @@ const TRASH_ACTION = /\/api\/jobs\/([^/]+)\/(trash|restore)$/;
 const JOB_LIST = /\/api\/jobs\?trashed=include$/;
 
 /**
- * Stand in for the server's Trash. The desktop follows it on every sync,
- * so a real trash or restore would leak into every later spec on the shared
- * backend. `trashed` and `unavailable` say how the list reports a job, `hidden`
- * leaves it out; all three are Sets the test may change. `replaces` maps a job
- * to the one it was imported to replace. Set `offline` to make trash and
- * restore fail, or `refuseWith` to answer them with that status. `calls`
- * records { id, action }.
+ * Stand in for the server's Trash, which the desktop follows on every sync, so a
+ * real trash or restore would leak into every later spec on the shared backend.
  */
 export async function stubServerTrash(
   page,

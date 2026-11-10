@@ -7,7 +7,7 @@ import { fetchJobs, jobToCard } from "../js/shared/jobs.js";
 import { createChunkedAudioEngine } from "../js/chunkedAudioEngine.js";
 import { PITCH_MAX, PITCH_MIN, clampPitch } from "../js/pitchBus.js";
 import { createPlaybackContext } from "../js/audioContext.js";
-import { HTTP_CONFLICT } from "../js/libraryControls.js";
+import { HTTP_CONFLICT } from "../js/lyricsTranscribe.js";
 // Per-stem label + color, keyed by the backend stem name. Unknown names fall
 // back to a rotating palette so non-standard models still render sensibly.
 const STEM_META = {
