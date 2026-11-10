@@ -83,6 +83,7 @@
   --icon-sm:     14px;
   --icon:        16px;
   --icon-lg:     20px;
+  --target-min:  24px;
   --icon-stroke: 2;
   --disabled-opacity: 0.4;
 
