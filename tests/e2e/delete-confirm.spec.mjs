@@ -18,6 +18,7 @@ import {
   readCatalogState,
   seedCatalogState,
   stubImportQueue,
+  stubServerTrash,
   stubUpdateCheck,
   uiText,
 } from "./helpers.mjs";
@@ -115,6 +116,7 @@ test.describe("Empty trash", () => {
   test("asks first, and keeps a song whose delete failed in the Trash", async ({ page }) => {
     const failDelete = new Set([JOB_ID]);
     await seedFolders(page, [unsorted([]), trashFolder([JOB_ID, SIBLING_JOB_ID])]);
+    await stubServerTrash(page, { trashed: [JOB_ID, SIBLING_JOB_ID] });
     const calls = await stubLibraryWrites(page, { failDelete });
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.locator(".rail-trash").click();
@@ -146,6 +148,7 @@ test("Empty trash says so when the device cannot record what it deleted", async 
     };
   }, DELETED_JOBS_KEY);
   await seedFolders(page, [unsorted([]), trashFolder([SIBLING_JOB_ID])]);
+  await stubServerTrash(page, { trashed: [SIBLING_JOB_ID] });
   await stubLibraryWrites(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator(".rail-trash").click();
