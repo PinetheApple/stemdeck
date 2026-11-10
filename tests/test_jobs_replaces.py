@@ -218,6 +218,32 @@ def test_a_replacement_left_pending_is_settled_at_startup():
     assert _persisted(NEW_ID)["replaces"] is None
 
 
+def test_a_new_copy_trashed_before_the_restart_forgets_replaces():
+    _old_job()
+    registry.register(
+        Job(id=NEW_ID, status="done", title="New copy", replaces=OLD_ID, trashed_at=1.0)
+    )
+    _restart()
+    with _started_app():
+        pass
+    assert _jobs[NEW_ID].replaces is None
+    assert _jobs[OLD_ID].trashed_at is None
+
+
+def test_a_crash_before_the_done_persist_still_settles_the_old_copy():
+    _old_job()
+    _new_job()
+    stems = cfg.JOBS_DIR / NEW_ID / "stems"
+    stems.mkdir(parents=True)
+    (stems / "vocals.wav").write_bytes(b"RIFF")
+    _restart()
+    assert _jobs[NEW_ID].status == "done"
+    with _started_app():
+        pass
+    assert _jobs[OLD_ID].trashed_at is not None
+    assert _jobs[NEW_ID].replaces is None
+
+
 async def test_an_old_copy_restored_after_settling_stays_restored():
     _old_job()
     new = _new_job()

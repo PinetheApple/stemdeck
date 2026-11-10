@@ -223,8 +223,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception:
         _log.exception("could not sweep orphaned section workspaces")
 
-    await asyncio.to_thread(settle_pending_replacements)
-
     resumed = take_pending_resume()
     if resumed:
         jobqueue.pause()
@@ -234,6 +232,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "restored %d interrupted job(s) from the previous session; queue is paused",
             len(resumed),
         )
+    await asyncio.to_thread(settle_pending_replacements)
     if os.environ.get("STEMDECK_DESKTOP") == "1":
         parent_pid = os.environ.get("STEMDECK_PARENT_PID")
         if parent_pid:

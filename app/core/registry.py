@@ -330,8 +330,9 @@ def _resume_or_recover(job: Job, job_dir: Path) -> Job | None:
     recovered = _recover_done_job(job_dir)
     if recovered is not None:
         # Finished after all: keep it where the user put it, or a song they
-        # binned reappears in the library.
+        # binned reappears in the library, and the copy it replaces unsettled.
         recovered.trashed_at = job.trashed_at
+        recovered.replaces = job.replaces
         return recovered
 
     if job.trashed_at is not None:

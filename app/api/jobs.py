@@ -2249,7 +2249,7 @@ def settle_pending_replacements() -> None:
     pending = [
         job
         for job in registry_all_jobs().values()
-        if job.status == "done" and job.trashed_at is None and job.replaces is not None
+        if job.status == STATUS_DONE and job.replaces is not None
     ]
     for job in pending:
         try:
