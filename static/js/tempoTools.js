@@ -9,7 +9,7 @@ import { getCurrentTrackInfo } from "./catalog.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { t, getLanguage, onLanguageChange } from "./i18n.js";
 import { $ } from "./utils.js";
-import { isPageClosing } from "./pageClosing.js";
+import { wasCutOffByPageClose } from "./pageClosing.js";
 
 const MODE_CONSTANT = "constant";
 const SOURCE_USER = "user";
@@ -127,7 +127,7 @@ async function sendUnsentFields(forJob) {
     } catch (e) {
       console.warn("[tempoTools] could not save the tempo:", e);
       failed = true;
-      cutOff = isPageClosing();
+      cutOff = wasCutOffByPageClose(e);
     } finally {
       if (!cutOff && unconfirmedFieldsByJob.get(forJob) === entry) unconfirmedFieldsByJob.delete(forJob);
     }

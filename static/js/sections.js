@@ -2,7 +2,7 @@
 
 import { onLanguageChange, t } from "./i18n.js";
 import { PAGE_CLOSE_FETCH } from "./utils.js";
-import { isPageClosing } from "./pageClosing.js";
+import { wasCutOffByPageClose } from "./pageClosing.js";
 
 const SECTION_COLORS = [
   "#4a7fff",
@@ -704,7 +704,7 @@ async function _sendSave(id, body, fetchOptions = {}) {
       if (body === JSON.stringify({ sections: _sections }) && _saveTimer === null) _showSaved();
     }
   } catch (e) {
-    cutOff = isPageClosing();
+    cutOff = wasCutOffByPageClose(e);
     console.warn("[sections] save failed:", e);
     if (id === _trackId) _hideSaveIndicator();
   } finally {
