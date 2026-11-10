@@ -670,11 +670,12 @@ export function flushSectionsSave() {
   return _queueSaveSnapshot();
 }
 
-/** Send every unconfirmed save now, the open track's first, outside the queue: it dies with the page. */
+/** Take every unconfirmed save and send it now, the open track's first, outside the queue: it dies with the page. */
 export function saveSectionsOnPageClose() {
   if (_cancelSaveTimer() && _trackId) _snapshot();
   const ids = [...new Set([_trackId, ..._unconfirmed.keys()])].filter((id) => _unconfirmed.has(id));
   for (const id of ids) _sendSave(id, _unconfirmed.get(id), PAGE_CLOSE_FETCH);
+  _unconfirmed.clear();
 }
 
 function _queueSaveSnapshot() {
