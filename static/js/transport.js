@@ -183,11 +183,11 @@ export function updatePlayheadMarker(currentSec) {
 // string is the same, which re-lays out the whole footer control strip sixty
 // times a second to show a number that moves once a second (#633).
 export function updateFooterTimes(currentSec) {
-  if (!totalDuration) return;
-  const elapsed = fmtTime(currentSec);
+  const elapsed = fmtTime(totalDuration ? currentSec : 0);
   const total = fmtTime(totalDuration);
   if (footerTimeElapsed && footerTimeElapsed.textContent !== elapsed) footerTimeElapsed.textContent = elapsed;
   if (footerTimeTotal && footerTimeTotal.textContent !== total) footerTimeTotal.textContent = total;
+  if (!totalDuration) return;
   const pct = Math.max(0, Math.min(100, (currentSec / totalDuration) * 100));
   if (npScrubFill) npScrubFill.style.width = `${pct}%`;
   footerWaveDrawFn?.(pct / 100);
