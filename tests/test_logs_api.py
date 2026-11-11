@@ -159,16 +159,24 @@ def _zip_texts(resp) -> dict[str, bytes]:
         return {name: z.read(name) for name in z.namelist()}
 
 
-def test_zip_redacts_paths_sources_and_ips_in_every_file(client, logs_dir):
+def test_zip_redacts_paths_sources_and_ips_in_every_file(client, logs_dir, monkeypatch):
     # Imported here: the autouse fixture points JOBS_DIR at a temp dir per test.
+    from app.core import redact as redact_mod
     from app.core.config import JOBS_DIR
 
+    # A home inside a users folder, so its name is a user name on any runner.
+    monkeypatch.setattr(Path, "home", lambda: Path("/home/someone"))
     home = str(Path.home())
     lines = [
         f'{_stamp(1)} E stemdeck  File "{home}\\AppData\\x.py", line 3',
         f"{_stamp(1)} I stemdeck  home again {home.replace(chr(92), '/')}/x.py",
         *(f"{_stamp(1)} I stemdeck  path {p}" for p in _FOREIGN_PATHS),
+        f"{_stamp(1)} I stemdeck  repr 'C:\\\\Users\\\\Someone\\\\x.py'",
+        f"{_stamp(1)} I stemdeck  bare name D:\\Someone\\Music\\x.wav",
         f"{_stamp(1)} I stemdeck  job dir {JOBS_DIR / 'abc123def456'}",
+        f"{_stamp(1)} I stemdeck  cache {redact_mod.CACHE_DIR / 'waveforms' / 'x.bin'}",
+        f"{_stamp(1)} I stemdeck  models {redact_mod.MODELS_DIR / 'htdemucs.th'}",
+        f"{_stamp(1)} I stemdeck  data {redact_mod.DATA_DIR / 'settings.json'}",
         f"{_stamp(1)} I stemdeck.download download starting: https://youtu.be/dQw4w9WgXcQ",
         f'{_stamp(1)} I stemdeck  INFO: 192.168.1.14:52341 - "GET /api/jobs HTTP/1.1" 200',
     ]
@@ -182,7 +190,9 @@ def test_zip_redacts_paths_sources_and_ips_in_every_file(client, logs_dir):
         body = raw.decode("utf-8")
         for leak in (home, "Someone", "someone", "NAS-SOMEONE", str(JOBS_DIR), "youtu", "192.168"):
             assert leak.lower() not in body.lower(), (name, leak)
-        assert "<home>" in body and "<jobs>" in body and "<unc>" in body, name
+        for placeholder in ("<home>", "<user>", "<jobs>", "<cache>", "<models>", "<data>", "<unc>"):
+            assert placeholder in body, (name, placeholder)
+        assert "'<home>\\\\x.py'" in body, name
         # Same lines, same endings, same time stamps: still a log.
         assert body.count("\r\n") == len(lines), name
         assert [ln[:19] for ln in body.splitlines()] == [ln[:19] for ln in lines], name

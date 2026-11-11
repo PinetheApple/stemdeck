@@ -128,6 +128,26 @@ def test_strips_any_users_folder_on_any_os(text, expected):
     assert redact(text) == expected
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("C:\\Users\\John Smith\\Music\\x.wav", "<home>\\Music\\x.wav"),
+        ("/Users/Jane Doe/Music", "<home>/Music"),
+        ("open /home/Jane Q Doe/x.wav now", "open <home>/x.wav now"),
+        ("saved C:\\Users\\John Smith", "saved <home> Smith"),
+        (
+            "C:\\Users\\John Smith\\x.wav was saved. Next, open the stems.",
+            "<home>\\x.wav was saved. Next, open the stems.",
+        ),
+        ("/home/jane opened it, see /tmp/x", "<home> opened it, see /tmp/x"),
+    ],
+)
+def test_a_user_name_with_a_space_is_redacted_whole(text, expected):
+    """The home folder runs to the next separator, spaces included, when one
+    follows on the line; a name at the end of a line keeps today's match."""
+    assert redact(text) == expected
+
+
 @pytest.fixture
 def home_of(monkeypatch):
     """Pin the process's home, so a test does not depend on the runner's

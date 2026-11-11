@@ -66,7 +66,7 @@ _COOKIE_LINE_RE = re.compile(
 )
 
 # Patterns start on a plain character, lookbehinds and ignore-case after it:
-# leading ones stop the scan skipping ahead, about 4x slower on a 5 MB log.
+# leading ones stop the scan skipping ahead.
 _SEP = r"[\\/]+"
 # Not glued to a name before it: /data, but not the end of /srv/data.
 _AT_START = r"(?<![\w.~-].)"
@@ -75,15 +75,27 @@ _AT_END = r"(?![\w-]|\.\w)"
 # One path segment, not ending on a dot (Windows forbids that) so a full stop
 # stays. A name with a space keeps its second word unless it is our own home.
 _SEGMENT = r"[^\\/\s\"'<>|:*?]*[^\\/\s\"'<>|:*?.]"
+# A home folder's name (John Smith) keeps its spaces when a separator follows it.
+_HOME_SEGMENT = rf"(?:[^\\/\s\"'<>|:*?]+(?: [^\\/\s\"'<>|:*?]+)*(?=[\\/])|{_SEGMENT})"
 # Anyone's home, not only this process's. The drive letter must not end a
 # word, so https://users/... is not a drive.
 _WIN_HOME_RE = re.compile(
-    rf"[A-Za-z](?<!\w.):{_SEP}(?i:Users|Documents and Settings){_SEP}{_SEGMENT}"
+    rf"[A-Za-z](?<!\w.):{_SEP}(?i:Users|Documents and Settings){_SEP}{_HOME_SEGMENT}"
 )
 # Also the WSL, MSYS and Cygwin spellings of a Windows drive.
-_POSIX_HOME_RE = re.compile(rf"/{_AT_START}(?:(?:mnt/|cygdrive/)?[a-z]/)?(?:Users|home)/{_SEGMENT}")
+_POSIX_HOME_RE = re.compile(
+    rf"/{_AT_START}(?:(?:mnt/|cygdrive/)?[a-z]/)?(?:Users|home)/{_HOME_SEGMENT}"
+)
 # The lookbehind keeps a URL's // and a repr() path's doubled separator
 # (C:\\StemDeck\\jobs) from reading as a network share.
+_USERS_FOLDERS = frozenset({"users", "home", "documents and settings"})
+_HOME = "<home>"
+_USER = "<user>"
+_UNC = "<unc>"
+_IP = "<ip>"
+_SOURCE_URL = "<source-url-redacted>"
+_COOKIE_LINE = "<cookie-line-redacted>"
+
 _UNC_RE = re.compile(rf"[\\/](?<![\w:\\/].)[\\/]+(?:\?[\\/]+UNC[\\/]+)?{_SEGMENT}[\\/]+{_SEGMENT}")
 
 
@@ -105,27 +117,27 @@ def redact(text: str) -> str:
     """Strip the app's folders, any user's home folder and name, network
     shares, any YouTube/SoundCloud source URL, any IPv4 address and any
     cookies file line from `text`."""
-    text = _COOKIE_LINE_RE.sub(r"\1 <cookie-line-redacted>", text)
+    text = _COOKIE_LINE_RE.sub(rf"\1 {_COOKIE_LINE}", text)
     home = Path.home()
     folders = [
         (JOBS_DIR, "<jobs>"),
         (CACHE_DIR, "<cache>"),
         (MODELS_DIR, "<models>"),
         (DATA_DIR, "<data>"),
-        (home, "<home>"),
+        (home, _HOME),
     ]
     # Longest first, so a folder inside another (jobs inside data, anything
     # inside home) keeps its own name.
     for folder, placeholder in sorted(folders, key=lambda f: len(str(f[0])), reverse=True):
         if folder.name:
             text = _path_re(folder).sub(placeholder, text)
-    text = _WIN_HOME_RE.sub("<home>", text)
-    text = _POSIX_HOME_RE.sub("<home>", text)
-    text = _UNC_RE.sub("<unc>", text)
+    text = _WIN_HOME_RE.sub(_HOME, text)
+    text = _POSIX_HOME_RE.sub(_HOME, text)
+    text = _UNC_RE.sub(_UNC, text)
     # Only a home inside a users folder is named after the user; /root or
     # /github/home would turn every /home in the log into <user>.
-    if home.parent.name.lower() in ("users", "home", "documents and settings"):
-        text = re.sub(rf"([\\/])(?i:{re.escape(home.name)}){_AT_END}", r"\1<user>", text)
-    text = _SOURCE_URL_RE.sub("<source-url-redacted>", text)
-    text = _IPV4_RE.sub("<ip>", text)
+    if home.parent.name.lower() in _USERS_FOLDERS:
+        text = re.sub(rf"([\\/])(?i:{re.escape(home.name)}){_AT_END}", rf"\1{_USER}", text)
+    text = _SOURCE_URL_RE.sub(_SOURCE_URL, text)
+    text = _IPV4_RE.sub(_IP, text)
     return text

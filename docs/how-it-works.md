@@ -74,8 +74,8 @@ for the folder layout.
 - `setup.log` (desktop app only): first-run setup and the GPU runtime installation.
 
 **Export logs** puts every log file in one zip, to attach to a bug report. Like the Logs view,
-the zip has folder paths, user names, network shares, LAN addresses and source links replaced by
-placeholders such as `<home>` and `<ip>`. A log over 8 MB keeps only its newest part.
+the zip has folder paths, user names, network shares, LAN addresses, source links and the lines of a
+cookies file replaced by placeholders such as `<home>` and `<ip>`. A log over 8 MB keeps only its newest part.
 
 ## Reporting a failure
 
