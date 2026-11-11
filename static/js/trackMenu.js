@@ -59,18 +59,25 @@ function buildMenu(trackId) {
 
 const ROW_SELECTOR = ".cat-item";
 
+/** Under the row, or above it when the window has no room below. */
+function topOffRow(row, height) {
+  const below = row.bottom + MENU_GAP_PX;
+  const fitsBelow = below + height <= window.innerHeight - VIEWPORT_MARGIN_PX;
+  return fitsBelow ? below : row.top - height - MENU_GAP_PX;
+}
+
 /** Beside the row, top edges level, so the menu covers none of the list;
- *  under the row when the window has no room beside it. */
+ *  off the row's top or bottom when the window has no room beside it. */
 function placeMenu(el, anchor) {
   const row = (anchor.closest(ROW_SELECTOR) ?? anchor).getBoundingClientRect();
   const { width, height } = el.getBoundingClientRect();
   const besideLeft = row.right + MENU_GAP_PX;
   const fitsBeside = besideLeft + width <= window.innerWidth - VIEWPORT_MARGIN_PX;
   const left = fitsBeside ? besideLeft : Math.min(row.right - width, window.innerWidth - width - VIEWPORT_MARGIN_PX);
-  const top = fitsBeside ? row.top : row.bottom + MENU_GAP_PX;
   const lowest = window.innerHeight - height - VIEWPORT_MARGIN_PX;
+  const top = fitsBeside ? Math.min(row.top, lowest) : topOffRow(row, height);
   el.style.left = `${Math.max(VIEWPORT_MARGIN_PX, left)}px`;
-  el.style.top = `${Math.max(VIEWPORT_MARGIN_PX, Math.min(top, lowest))}px`;
+  el.style.top = `${Math.max(VIEWPORT_MARGIN_PX, top)}px`;
 }
 
 function focusableItems() {
