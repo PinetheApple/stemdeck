@@ -2,8 +2,7 @@
 
 Ported from upstream PR 1034. The persistent Demucs worker (separate.py, #309)
 and the beat_this model (beat_detect.py) load on first use and used to stay
-loaded until the server stopped. Upstream measured the idle CUDA worker at
-1.93 GB of RAM and 1.11 GB of VRAM, the idle CPU worker at 1.46 GB of RAM.
+loaded, holding GBs of memory, until the server stopped.
 
 Each is an IdleResource. A pipeline step holds `in_use()` around its use, and
 the timer here unloads a resource nobody has used for the configured minutes

@@ -351,10 +351,7 @@ def set_auto_delete_days(value: int) -> int:
 
 
 # ── idle_unload_minutes ──
-# Minutes with no separation or analysis before the separation worker and the
-# beat model unload (#90), 0 for never. Read on every look of the idle timer
-# (app/pipeline/idle_unload.py), so a change applies without a restart. The
-# stored value wins over STEMDECK_IDLE_UNLOAD_MINUTES, as auto_delete_days does.
+# Read on every look of the idle timer, so a change applies without a restart.
 def _clamp_idle_unload_minutes(value: int) -> int:
     return max(0, min(IDLE_UNLOAD_MINUTES_MAX, value))
 
