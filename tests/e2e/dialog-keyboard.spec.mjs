@@ -27,6 +27,14 @@ async function openApp(page, { updateAvailable = false, seed = seedLibrary } = {
   await expect(page.locator(`.cat-item[data-id="${JOB_ID}"]`)).toBeVisible();
 }
 
+async function openLongQueue(page) {
+  await stubLongQueue(page);
+  await openApp(page);
+  await page.evaluate(() => import("/js/queue.js").then((m) => m.refreshQueue()));
+  await page.locator(".rail-queue").click();
+  await expect(page.locator(".queue-top").first()).toBeAttached();
+}
+
 test.describe("dialogs and Esc", () => {
   test("About opens on Enter, closes on Esc and hands focus back", async ({ page }) => {
     await openApp(page);
@@ -211,11 +219,7 @@ test.describe("target sizes", () => {
   });
 
   test("an import's cancel and extract-next buttons are at least 24 px", async ({ page }) => {
-    await stubLongQueue(page);
-    await openApp(page);
-    await page.evaluate(() => import("/js/queue.js").then((m) => m.refreshQueue()));
-    await page.locator(".rail-queue").click();
-    await expect(page.locator(".queue-top").first()).toBeAttached();
+    await openLongQueue(page);
     expect(await smallTargets(page, [".queue-cancel", ".queue-top"])).toEqual(ALL_TARGETS_MET);
   });
 
@@ -234,7 +238,6 @@ test.describe("target sizes", () => {
 
 test.describe("import queue by keyboard", () => {
   const TAB_LIMIT = 60;
-  const SHOWN = "1";
 
   async function tabTo(page, selector) {
     for (let press = 0; press < TAB_LIMIT; press++) {
@@ -244,18 +247,49 @@ test.describe("import queue by keyboard", () => {
     throw new Error(`Tab never reached ${selector}`);
   }
 
-  const focusedOpacity = (page) => page.evaluate(() => getComputedStyle(document.activeElement).opacity);
+  const SHOWN = "1";
+  const ROW_SHOWN = "0.65";
+  const CANCEL_RESTING = "0.65";
+  const EXTRACT_RESTING = "0";
+
+  const FOCUSED_ROW = ".queue-row:has(:focus)";
+  const focused = (page) => page.locator(":focus");
+  const focusedRow = (page, selector) => page.locator(`${FOCUSED_ROW} ${selector}`);
+  const focusedRowId = (page) => page.locator(FOCUSED_ROW).getAttribute("data-id");
+  // A read mid-fade can already show the expected value, so wait the fade out.
+  const opacity = (locator) =>
+    locator.evaluate(async (el) => {
+      await Promise.all(el.getAnimations().map((fade) => fade.finished));
+      return getComputedStyle(el).opacity;
+    });
 
   test("an import's cancel and extract-next buttons show when Tab lands on them", async ({ page }) => {
-    await stubLongQueue(page);
-    await openApp(page);
-    await page.evaluate(() => import("/js/queue.js").then((m) => m.refreshQueue()));
-    await page.locator(".rail-queue").click();
-    await expect(page.locator(".queue-top").first()).toBeAttached();
+    await openLongQueue(page);
     await page.mouse.move(0, 0);
-    for (const selector of [".queue-cancel", ".queue-top"]) {
-      await tabTo(page, selector);
-      await expect.poll(() => focusedOpacity(page), { message: selector }).toBe(SHOWN);
-    }
+
+    await tabTo(page, ".queue-top");
+    await expect.poll(() => opacity(focused(page))).toBe(SHOWN);
+    await expect.poll(() => opacity(focusedRow(page, ".queue-cancel"))).toBe(SHOWN);
+
+    const extractRow = await focusedRowId(page);
+    await tabTo(page, ".queue-cancel");
+    expect(await focusedRowId(page)).toBe(extractRow);
+    await expect.poll(() => opacity(focused(page))).toBe(SHOWN);
+    await expect.poll(() => opacity(focusedRow(page, ".queue-top"))).toBe(ROW_SHOWN);
+  });
+
+  test("a mouse click leaves an import's buttons at rest once the pointer moves away", async ({ page }) => {
+    await openLongQueue(page);
+    const row = page.locator(".queue-row:has(.queue-top)").first();
+    // Keep the click's focus but not its action, which would re-render the row.
+    await page.evaluate(() =>
+      document.addEventListener("click", (e) => e.stopPropagation(), { capture: true, once: true }),
+    );
+    await row.locator(".queue-top").click();
+    await expect(row.locator(".queue-top")).toBeFocused();
+    await page.mouse.move(0, 0);
+
+    await expect.poll(() => opacity(row.locator(".queue-top"))).toBe(EXTRACT_RESTING);
+    await expect.poll(() => opacity(row.locator(".queue-cancel"))).toBe(CANCEL_RESTING);
   });
 });
