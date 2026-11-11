@@ -24,6 +24,9 @@ const EXPECTED = {
   storage: "Library not saved",
   trash: "Trash not emptied",
   cancel: "Cancel failed",
+  sections: "Sections not saved",
+  beatgrid: "Beat grid not saved",
+  tempo: "Tempo not saved",
 };
 
 for (const [kind, label] of Object.entries(EXPECTED)) {

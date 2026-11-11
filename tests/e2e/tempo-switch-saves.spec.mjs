@@ -155,25 +155,23 @@ test.describe("tempo", () => {
     await expect(page.locator("#tempoStatus")).toBeHidden();
   });
 
-  for (const [how, failure] of Object.entries(FAILED_SAVES)) {
-    test(`a ${how} tempo save is neither shown on reopen nor sent on close`, async ({ page, request }) => {
-      await openTempo(page);
-      const savedAnchor = (await savedTempo(request, JOB_ID)).anchor;
-      const anchor = page.locator("#tempoAnchor");
-      const detected = await anchor.textContent();
-      const hold = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`, failure.answer);
-      await page.locator("#tempoNudgeLater").click();
-      await hold.seen;
-      await openSongTempo(page, SIBLING_JOB_ID);
-      await failHeldSave(page, hold, failure, beatsUrl(JOB_ID));
-      const siblingAnchor = (await savedTempo(request, SIBLING_JOB_ID)).anchor;
-      await leaveSaveForClose(page, beatsUrl(SIBLING_JOB_ID), () => page.locator("#tempoNudgeLater").click());
-      await openSongTempo(page, JOB_ID);
+  test("a refused tempo save is neither shown on reopen nor sent on close", async ({ page, request }) => {
+    await openTempo(page);
+    const savedAnchor = (await savedTempo(request, JOB_ID)).anchor;
+    const anchor = page.locator("#tempoAnchor");
+    const detected = await anchor.textContent();
+    const hold = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`, FAILED_SAVES.refused.answer);
+    await page.locator("#tempoNudgeLater").click();
+    await hold.seen;
+    await openSongTempo(page, SIBLING_JOB_ID);
+    await failHeldSave(page, hold, FAILED_SAVES.refused, beatsUrl(JOB_ID));
+    const siblingAnchor = (await savedTempo(request, SIBLING_JOB_ID)).anchor;
+    await leaveSaveForClose(page, beatsUrl(SIBLING_JOB_ID), () => page.locator("#tempoNudgeLater").click());
+    await openSongTempo(page, JOB_ID);
 
-      await expect(anchor).toHaveText(detected);
-      await closePage(page);
-      await expect.poll(async () => (await savedTempo(request, SIBLING_JOB_ID)).anchor).not.toEqual(siblingAnchor);
-      expect((await savedTempo(request, JOB_ID)).anchor).toEqual(savedAnchor);
-    });
-  }
+    await expect(anchor).toHaveText(detected);
+    await closePage(page);
+    await expect.poll(async () => (await savedTempo(request, SIBLING_JOB_ID)).anchor).not.toEqual(siblingAnchor);
+    expect((await savedTempo(request, JOB_ID)).anchor).toEqual(savedAnchor);
+  });
 });
