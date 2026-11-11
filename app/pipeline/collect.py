@@ -3,13 +3,16 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import time
 import uuid
+from collections.abc import Iterable
 from pathlib import Path
 
 from app.core.config import (
+    CACHE_TEMP_MIN_AGE_SECONDS,
     DEMUCS_MODEL,
     FAILED_TTL_SECONDS,
     JOB_TTL_SECONDS,
@@ -23,6 +26,7 @@ from app.core.registry import persist as registry_persist
 from app.core.registry import remove as registry_remove
 from app.core.registry import set_proc
 from app.core.setlists import all_song_ids as setlists_all_song_ids
+from app.core.song_folder import holds_job_files, is_real_entry, job_dirs
 from app.pipeline.audio_stats import scan_stem
 from app.pipeline.lyrics_retime import RETIME_RUNS
 from app.pipeline.transcribe_on_demand import TRANSCRIBE_RUNS
@@ -459,3 +463,77 @@ def sweep_failed_jobs(jobs_dir: Path) -> None:
                 _rmtree(d)
         except OSError:
             logger.warning("failed-quarantine sweep could not stat %s", d, exc_info=True)
+
+
+# What a writer leaves when the process dies before its own cleanup runs: a
+# metadata.json write in the song folder (song_folder.write_json_atomic), and
+# in stems/ a mix (_write_wav), a cached MP3 (stems._ensure_cached_mp3), the
+# completion marker or the Lead + Backing work folder (vocal_split). Nothing a
+# song keeps has one of these names.
+_JOB_TEMP_FILE_RE = re.compile(r"\..+\.[0-9a-f]{32}\.tmp\Z")
+_STEMS_TEMP_RE = re.compile(r"\..+\.tmp\Z")
+# The same in the export caches: a render or a click written beside its cache
+# entry, a stems zip and the folder its stems are transcoded in.
+_CACHE_TEMP_DIR_RE = re.compile(r"\.zipwork-\w{8}\Z")
+_CACHE_TEMP_FILE_RE = re.compile(r"\..+\.[0-9a-f]{32}\.tmp(\.\w+)?\Z|\.stemdeck_zip_\w{8}\.zip\Z")
+
+
+def _matching(folder: Path, dir_re: re.Pattern[str], file_re: re.Pattern[str]) -> list[Path]:
+    if not folder.is_dir() or not is_real_entry(folder):
+        return []
+    return [
+        p
+        for p in folder.iterdir()
+        if (dir_re.match(p.name) and p.is_dir()) or (file_re.match(p.name) and p.is_file())
+    ]
+
+
+def _song_leftovers(jobs_dir: Path) -> list[Path]:
+    found: list[Path] = []
+    for job_dir in job_dirs(jobs_dir):
+        if not holds_job_files(job_dir):
+            continue
+        try:
+            found += [p for p in job_dir.iterdir() if _JOB_TEMP_FILE_RE.match(p.name)]
+            found += _matching(job_dir / "stems", _STEMS_TEMP_RE, _STEMS_TEMP_RE)
+        except OSError:
+            logger.warning("crash leftover sweep could not read %s", job_dir.name)
+    return found
+
+
+def _cache_leftovers(cache_dirs: Iterable[Path]) -> list[Path]:
+    cutoff = time.time() - CACHE_TEMP_MIN_AGE_SECONDS
+    found: list[Path] = []
+    for cache_dir in cache_dirs:
+        try:
+            found += [
+                p
+                for p in _matching(cache_dir, _CACHE_TEMP_DIR_RE, _CACHE_TEMP_FILE_RE)
+                if p.stat().st_mtime < cutoff
+            ]
+        except OSError:
+            logger.warning("crash leftover sweep could not read %s", cache_dir.name)
+    return found
+
+
+def sweep_crash_leftovers(jobs_dir: Path, cache_dirs: Iterable[Path]) -> int:
+    """Remove what a killed process left half-written in every song folder and
+    in the export caches (`cache_dirs`), upstream PR 900. Returns how many went.
+
+    Call this at startup only, before the queue runs anything: no writer is
+    alive then, so every temp found is dead. Only StemDeck's song folders are
+    looked in, and no link is followed or removed. A cache temp written in the
+    last CACHE_TEMP_MIN_AGE_SECONDS is left alone: it may be another server's."""
+    gone = 0
+    for path in _song_leftovers(jobs_dir) + _cache_leftovers(cache_dirs):
+        if not is_real_entry(path):
+            continue
+        try:
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+            gone += 1
+        except OSError:
+            logger.warning("crash leftover not removed: %s", path.name)
+    return gone

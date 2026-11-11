@@ -26,7 +26,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from app.core.config import STEM_NAMES, UPLOAD_EXTS
+from app.core.config import JOB_ID_RE, STEM_NAMES, UPLOAD_EXTS
 from app.core.models import Job
 
 logger = logging.getLogger("stemdeck.registry")
@@ -107,6 +107,29 @@ def is_real_entry(entry: Path) -> bool:
     junction to somewhere else. Removing or writing what is found by walking
     through one reaches whatever it points at."""
     return entry.resolve() == entry.parent.resolve() / entry.name
+
+
+def job_dirs(folder: Path) -> list[Path]:
+    """The job folders directly inside `folder` (the jobs folder, or its
+    failed/ quarantine): a job id for a name, and a real directory. The jobs
+    folder can be shared with other things, so nothing else in it is a job."""
+    if not folder.is_dir():
+        return []
+    return [
+        d for d in folder.iterdir() if JOB_ID_RE.match(d.name) and d.is_dir() and is_real_entry(d)
+    ]
+
+
+def holds_job_files(job_dir: Path) -> bool:
+    """Whether a job-id folder holds something StemDeck writes into a job. The
+    name alone does not make it ours: twelve hex characters is also a Docker
+    container's short id. A folder that cannot be read is not ours to remove."""
+    try:
+        return any((job_dir / name).exists() for name in ("stems", "metadata.json")) or any(
+            job_dir.glob("source.*")
+        )
+    except OSError:
+        return False
 
 
 def write_text_atomic(path: Path, text: str) -> None:

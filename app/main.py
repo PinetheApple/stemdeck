@@ -103,7 +103,7 @@ from app.core.stems_location import (
     remove_moved,
     validate_target,
 )
-from app.pipeline.collect import sweep_failed_jobs, sweep_old_jobs
+from app.pipeline.collect import sweep_crash_leftovers, sweep_failed_jobs, sweep_old_jobs
 from app.pipeline.sections import sweep_orphaned_workspaces as sweep_orphaned_section_workspaces
 
 # Set the stemdeck logger level (Python's default root level of WARNING would
@@ -233,6 +233,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await asyncio.to_thread(sweep_orphaned_section_workspaces, JOBS_DIR)
     except Exception:
         _log.exception("could not sweep orphaned section workspaces")
+    # The same for a mix, a split, a cached MP3, an export render and a zip.
+    try:
+        import app.api.stems as stems_api
+
+        caches = (stems_api._MIXDOWN_CACHE_DIR, stems_api._CLICK_CACHE_DIR)
+        await asyncio.to_thread(sweep_crash_leftovers, JOBS_DIR, caches)
+    except Exception:
+        _log.exception("could not sweep crash leftovers")
 
     resumed = take_pending_resume()
     if resumed:
