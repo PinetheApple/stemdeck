@@ -251,8 +251,8 @@ function songRow(setlist, trackId, index) {
   li.dataset.id = trackId;
   li.classList.toggle(OPEN_SONG_CLASS, trackId === getCurrentTrackInfo()?.id);
 
-  const open = document.createElement("span");
-  open.className = "setlist-song-open";
+  const body = document.createElement("span");
+  body.className = "setlist-song-open";
   const number = document.createElement("span");
   number.className = "setlist-song-index num";
   number.textContent = String(index + 1);
@@ -274,7 +274,7 @@ function songRow(setlist, trackId, index) {
   sub.className = "setlist-song-sub";
   sub.textContent = names?.artist || "";
   text.append(titleEl, sub);
-  open.append(number, thumb, text);
+  body.append(number, thumb, text);
 
   const actions = document.createElement("span");
   actions.className = "setlist-song-actions";
@@ -293,7 +293,7 @@ function songRow(setlist, trackId, index) {
     changeSongs(setlist.id, withSongRemoved(trackId));
   });
   actions.append(up, down, remove);
-  li.append(open, actions);
+  li.append(body, actions);
   return li;
 }
 

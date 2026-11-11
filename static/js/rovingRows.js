@@ -21,8 +21,8 @@ export const OUT_OF_TAB_ORDER = -1;
 export const ON_ROW = -1;
 const NOT_FOUND = -1;
 const KEYBOARD_FOCUS = ":focus-visible";
-const FIELD = "input, textarea, select, [contenteditable='true']";
-const NOT_THE_ROW = `button, form, ${FIELD}`;
+const TEXT_FIELD = "input, textarea, select, [contenteditable='true']";
+const NOT_THE_ROW = `button, form, ${TEXT_FIELD}`;
 const SECOND_CLICK = 2;
 const wiredLists = new WeakMap();
 
@@ -67,6 +67,61 @@ function hasModifier(e) {
 }
 
 /**
+ * Rows matching `selectableRow` wear SELECTED_ROW_CLASS while they are the row last
+ * focused, and open on a double-click or a click on their ROW_PLAY_CLASS button.
+ */
+function wireRowSelection(container, { selectableRow, rowOf, allRows, keyOf, openRow, focusRow }) {
+  let selectedKey = null;
+  const isSelectable = (row) => Boolean(selectableRow) && row.matches(selectableRow);
+
+  function selectableRowOf(target) {
+    const row = rowOf(target);
+    return row && isSelectable(row) ? row : null;
+  }
+
+  function paintSelection() {
+    if (!selectableRow) return;
+    for (const el of allRows()) {
+      el.classList.toggle(SELECTED_ROW_CLASS, isSelectable(el) && keyOf(el) === selectedKey);
+    }
+  }
+
+  function select(row) {
+    const key = keyOf(row);
+    if (key === selectedKey) return;
+    selectedKey = key;
+    paintSelection();
+  }
+
+  wireRowOpening(container, { selectableRowOf, openRow, focusRow });
+  return { select, paintSelection };
+}
+
+function wireRowOpening(container, { selectableRowOf, openRow, focusRow }) {
+  function onRowDoubleClick(e) {
+    const row = selectableRowOf(e.target);
+    if (row && !e.target.closest(NOT_THE_ROW)) openRow(row);
+  }
+
+  // The double-click opens; without this it would also select the title's text.
+  function onRowMousedown(e) {
+    if (e.detail >= SECOND_CLICK && selectableRowOf(e.target) && !e.target.closest(TEXT_FIELD)) e.preventDefault();
+  }
+
+  function onRowPlayClick(e) {
+    if (!e.target.closest(`.${ROW_PLAY_CLASS}`)) return;
+    const row = selectableRowOf(e.target);
+    if (!row) return;
+    focusRow(row, ON_ROW, { preventScroll: true, focusVisible: false });
+    openRow(row);
+  }
+
+  container.addEventListener("dblclick", onRowDoubleClick);
+  container.addEventListener("mousedown", onRowMousedown);
+  container.addEventListener("click", onRowPlayClick);
+}
+
+/**
  * Make `container` one Tab stop over the rows matching `rowSelector`.
  * `keyOf(row)` names a row across redraws; `openRow(row)` is what Enter does;
  * `preferredRow(rows)` picks the stop among `rows` when none was focused yet.
@@ -84,7 +139,6 @@ export function wireRovingRows(
   if (wiredLists.has(container)) return wiredLists.get(container);
   // Read as focus arrives: a key pressed later can make a clicked row match too.
   let arrivedByKeyboard = false;
-  let selectedKey = null;
 
   const rowOf = (el) => {
     const row = el?.closest?.(rowSelector);
@@ -98,26 +152,15 @@ export function wireRovingRows(
     for (const el of allRows()) el.tabIndex = el === row ? ROVING_STOP : OUT_OF_TAB_ORDER;
   }
 
-  const isSelectable = (row) => Boolean(selectableRow) && row.matches(selectableRow);
-
-  function paintSelection() {
-    if (!selectableRow) return;
-    for (const el of allRows()) {
-      el.classList.toggle(SELECTED_ROW_CLASS, isSelectable(el) && keyOf(el) === selectedKey);
-    }
-  }
-
-  function select(row) {
-    const key = keyOf(row);
-    if (key === selectedKey) return;
-    selectedKey = key;
-    paintSelection();
-  }
-
   function focusRow(row, actionIndex = ON_ROW, options = {}) {
     makeStop(row);
     (actionsOf(row)[actionIndex] ?? row).focus(options);
   }
+
+  const { select, paintSelection } = wireRowSelection(
+    container,
+    { selectableRow, rowOf, allRows, keyOf, openRow, focusRow },
+  );
 
   function onRowFocus(e) {
     arrivedByKeyboard = e.target.matches(KEYBOARD_FOCUS);
@@ -146,7 +189,7 @@ export function wireRovingRows(
   function onRowKeydown(e) {
     if (e.defaultPrevented || hasModifier(e)) return;
     const row = rowOf(e.target);
-    if (!row || e.target.closest(FIELD)) return;
+    if (!row || e.target.closest(TEXT_FIELD)) return;
     if (e.target === row && e.key === ROW_KEY.OPEN) {
       e.preventDefault();
       openRow(row);
@@ -155,33 +198,8 @@ export function wireRovingRows(
     if (moveBetweenRows(e, row) || moveWithinRow(e, row)) e.preventDefault();
   }
 
-  function selectableRowOf(target) {
-    const row = rowOf(target);
-    return row && isSelectable(row) ? row : null;
-  }
-
-  function onRowDoubleClick(e) {
-    const row = selectableRowOf(e.target);
-    if (row && !e.target.closest(NOT_THE_ROW)) openRow(row);
-  }
-
-  // The double-click opens; without this it would also select the title's text.
-  function onRowMousedown(e) {
-    if (e.detail >= SECOND_CLICK && selectableRowOf(e.target) && !e.target.closest(FIELD)) e.preventDefault();
-  }
-
-  function onRowPlayClick(e) {
-    const row = e.target.closest(`.${ROW_PLAY_CLASS}`) && selectableRowOf(e.target);
-    if (!row) return;
-    focusRow(row, ON_ROW, { preventScroll: true, focusVisible: false });
-    openRow(row);
-  }
-
   container.addEventListener("focusin", onRowFocus);
   container.addEventListener("keydown", onRowKeydown);
-  container.addEventListener("dblclick", onRowDoubleClick);
-  container.addEventListener("mousedown", onRowMousedown);
-  container.addEventListener("click", onRowPlayClick);
 
   function remember() {
     const active = document.activeElement;
