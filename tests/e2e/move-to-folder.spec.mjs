@@ -1,5 +1,5 @@
 // A song's … menu moves it to any folder, or to a new one, the way dragging
-// the row onto a folder does (#114).
+// the row onto a folder does.
 import { test, expect } from "@playwright/test";
 import {
   JOB_ID,
@@ -29,8 +29,9 @@ async function openLibrary(page) {
     folders: [
       { ...UNSORTED, items: [JOB_ID], color: null },
       { ...REHEARSAL, items: [SIBLING_JOB_ID], color: null },
-      { ...WARMUPS, items: [], color: null, parentId: REHEARSAL.id },
       { ...GIGS, items: [], color: null },
+      // After Gigs in storage, so only a tree walk lists it under Rehearsal.
+      { ...WARMUPS, items: [], color: null, parentId: REHEARSAL.id },
       { id: "trash", name: "Trash", items: [], color: null },
     ],
     tracks: {
@@ -162,6 +163,10 @@ test("the keyboard opens the menu, arrows to a folder, picks it with Enter, and 
   await page.keyboard.press(KEY.ENTER);
   await expect(menu).toBeHidden();
   await expectMoved(page, JOB_ID, UNSORTED, GIGS);
+  await expect(songIn(page, GIGS.id, JOB_ID)).toBeFocused();
+  // Focus put back by the move is not the keyboard's, so Delete stays unarmed.
+  await page.keyboard.press(KEY.DELETE);
+  await expect(songIn(page, GIGS.id, JOB_ID)).toBeVisible();
 
   const moreAgain = rowOf(page, JOB_ID).locator(".cat-more");
   await moreAgain.focus();
