@@ -658,7 +658,7 @@ function wireFooterControls() {
         // A cancelled dialog resolves false without ever entering the busy
         // state, so anything here is a real failure.
         const message = typeof err === "string" && err ? err : t("export.failed");
-        showError(message, null, { retry: false });
+        showError(message, null, { onRetry: null });
         notifyFailure({
           kind: "export",
           message,
@@ -681,7 +681,7 @@ function wireFooterControls() {
     const pending = start(enterBusy);
     if (!pending) {
       picking = false;
-      showError(emptyMessage, null, { retry: false });
+      showError(emptyMessage, null, { onRetry: null });
       return;
     }
     settleBusy(pending, jobId);
@@ -890,7 +890,7 @@ function wireFileDrop() {
     if (skipped > 0) {
       const reason = t(oversized > 0 ? "upload.reasonTooLarge" : "upload.reasonNotAudio");
       showError(plural("upload.skippedFiles", skipped, { reason }), null, {
-        retry: false,
+        onRetry: null,
       });
     }
   }

@@ -32,6 +32,16 @@ test.describe("the error box", () => {
     await expect(box).toBeHidden();
   });
 
+  test("the older retry: false still shows no Try again", async ({ page }) => {
+    await openStudio(page);
+    await page.evaluate(async () =>
+      (await import("/js/job.js")).showError("Something failed.", null, { retry: false }),
+    );
+    const box = page.locator("#error");
+    await expect(box).toBeVisible();
+    await expect(box.locator(".retry-btn")).toHaveCount(0);
+  });
+
   test("Escape closes it", async ({ page }) => {
     await openStudio(page, { tauri: true });
     await failAnExport(page);
@@ -45,7 +55,7 @@ test.describe("the error box", () => {
     await page.locator('.settings-tab[data-tab="details"]').click();
     const settings = page.locator(".set-acoustid-key");
     await expect(settings).toBeVisible();
-    await page.evaluate(async () => (await import("/js/job.js")).showError("Something failed.", null, { retry: false }));
+    await page.evaluate(async () => (await import("/js/job.js")).showError("Something failed.", null, { onRetry: null }));
     await expect(page.locator("#error")).toBeVisible();
 
     await page.keyboard.press("Escape");

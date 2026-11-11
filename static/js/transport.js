@@ -183,11 +183,11 @@ export function updatePlayheadMarker(currentSec) {
 // string is the same, which re-lays out the whole footer control strip sixty
 // times a second to show a number that moves once a second (#633).
 export function updateFooterTimes(currentSec) {
-  if (!totalDuration) return;
-  const elapsed = fmtTime(currentSec);
+  const elapsed = fmtTime(totalDuration ? currentSec : 0);
   const total = fmtTime(totalDuration);
   if (footerTimeElapsed && footerTimeElapsed.textContent !== elapsed) footerTimeElapsed.textContent = elapsed;
   if (footerTimeTotal && footerTimeTotal.textContent !== total) footerTimeTotal.textContent = total;
+  if (!totalDuration) return;
   const pct = Math.max(0, Math.min(100, (currentSec / totalDuration) * 100));
   if (npScrubFill) npScrubFill.style.width = `${pct}%`;
   footerWaveDrawFn?.(pct / 100);
@@ -678,6 +678,7 @@ function wireLoopDrag() {
   let dragStartTime = 0;
   let activePointerId = null;
   let moved = false;
+  let boundsBefore = null;
 
   const startDrag = (e, surface) => {
     // .loop-region covers the mix grip, which lives inside it. The lane
@@ -692,11 +693,7 @@ function wireLoopDrag() {
     activePointerId = e.pointerId;
     moved = false;
     dragStartTime = t;
-    setLoopStart(t);
-    setLoopEnd(t);
-    setLoopEnabled(true);
-    loopBtn.classList.add("active");
-    updateLoopRegionVisual();
+    boundsBefore = { start: loopStart, end: loopEnd };
     surface.setPointerCapture(e.pointerId);
     e.preventDefault();
   };
@@ -705,7 +702,12 @@ function wireLoopDrag() {
     if (!dragging || e.pointerId !== activePointerId) return;
     const t = timeFromClientX(e.clientX);
     if (t === null) return;
-    if (Math.abs(t - dragStartTime) >= MIN_LOOP_SEC) moved = true;
+    if (!moved) {
+      if (Math.abs(t - dragStartTime) < MIN_LOOP_SEC) return;
+      moved = true;
+      setLoopEnabled(true);
+      loopBtn.classList.add("active");
+    }
     if (t < dragStartTime) {
       setLoopStart(t);
       setLoopEnd(dragStartTime);
@@ -722,6 +724,8 @@ function wireLoopDrag() {
     activePointerId = null;
     const clicked = !moved || loopEnd - loopStart < MIN_LOOP_SEC;
     if (clicked) {
+      setLoopStart(boundsBefore.start);
+      setLoopEnd(boundsBefore.end);
       setLoopEnabled(false);
       loopBtn.classList.remove("active");
       updateLoopRegionVisual();

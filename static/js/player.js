@@ -1494,6 +1494,9 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
         // Retract a previous track's playback failure. Without this the box
         // stays up over a track that plays fine, since nothing else clears it.
         clearPlaybackError();
+        const retryEngine = () => {
+          if (token === visualRenderToken && multitrack === mt) startEngine(kind);
+        };
         const eng = kind === "chunked"
           ? createChunkedAudioEngine(playbackStems, { onTime: driveTransportUi, onEnded })
           : createAudioEngine(fullDecodeStems, { onTime: driveTransportUi, onEnded });
@@ -1530,6 +1533,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
               reason || t("player.audioCouldNotLoad"),
               t("player.playbackDisabledFull"),
               { jobId, engine: kind, stage: "Loading stems" },
+              { onRetry: retryEngine },
             );
             return;
           }
@@ -1648,6 +1652,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
             t("player.audioCouldNotLoad"),
             String(e?.message || e) || t("player.playbackDisabled"),
             { jobId, engine: kind, stage: "Starting the audio engine" },
+            { onRetry: retryEngine },
           );
         });
       };

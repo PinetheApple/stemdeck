@@ -26,7 +26,7 @@ test.describe("the error box, narrow and wide", () => {
   test("fits a narrow window, close button included", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 800 });
     await openStudio(page);
-    await showError(page, "Export failed", "x".repeat(300), { retry: false });
+    await showError(page, "Export failed", "x".repeat(300), { onRetry: null });
     const view = page.viewportSize();
     const box = await page.locator("#error").boundingBox();
     expect(box.x).toBeGreaterThanOrEqual(0);
@@ -40,7 +40,7 @@ test.describe("the error box, narrow and wide", () => {
 
   test("an import failure offers Try again, which goes back to the link field", async ({ page }) => {
     await openStudio(page);
-    await showError(page, "Could not start", "bad link", { retry: true });
+    await showError(page, "Could not start", "bad link", {});
     const box = page.locator("#error");
     await expect(box.locator(".retry-btn")).toBeVisible();
     await expect(box.locator(".error-close")).toBeVisible();
@@ -51,8 +51,8 @@ test.describe("the error box, narrow and wide", () => {
 
   test("a second failure replaces the first, never stacks under it", async ({ page }) => {
     await openStudio(page);
-    await showError(page, "First failure", "", { retry: true });
-    await showError(page, "Second failure", "", { retry: false });
+    await showError(page, "First failure", "", {});
+    await showError(page, "Second failure", "", { onRetry: null });
     const box = page.locator("#error");
     await expect(box).toContainText("Second failure");
     await expect(box).not.toContainText("First failure");
@@ -63,7 +63,7 @@ test.describe("the error box, narrow and wide", () => {
 
   test("the close button says what it does to a screen reader", async ({ page }) => {
     await openStudio(page);
-    await showError(page, "Export failed", "", { retry: false });
+    await showError(page, "Export failed", "", { onRetry: null });
     await expect(page.locator("#error").getByRole("button", { name: "Dismiss" })).toBeVisible();
   });
 

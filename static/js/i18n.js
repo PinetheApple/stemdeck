@@ -715,7 +715,7 @@ const en = {
   "position.loopTitle": "Loop the selected position (L)",
   "position.loopLabel": "Loop",
   "position.loopExactTitle": "Exact loop start / end (mm:ss.mmm or seconds)",
-  "position.loopScrollHint": "Scroll up/down to adjust",
+  "position.loopScrollHint": "Loop start/end · scroll",
   "position.loopStartAria": "Loop start",
   "position.loopEndAria": "Loop end",
 
@@ -1285,6 +1285,8 @@ const en = {
   "notif.tempoSavePending": "The tempo change isn't saved yet. It'll save when StemDeck reconnects.",
   "sections.notSaved": "Not saved",
   "tempo.savePending": "Not saved yet",
+  "sections.noRoom": "No room left. Shorten or delete a section.",
+  "sections.loopTooShort": "Loop too short for a section",
 };
 
 const pl = {
@@ -1783,7 +1785,7 @@ const pl = {
   "position.loopTitle": "Zapętl zaznaczoną pozycję (L)",
   "position.loopLabel": "Pętla",
   "position.loopExactTitle": "Dokładny początek / koniec pętli (mm:ss.mmm lub sekundy)",
-  "position.loopScrollHint": "Przewiń, aby dostosować",
+  "position.loopScrollHint": "Zakres pętli · przewiń",
   "position.loopStartAria": "Początek pętli",
   "position.loopEndAria": "Koniec pętli",
 
@@ -2346,6 +2348,8 @@ const pl = {
   "notif.tempoSavePending": "Zmiana tempa nie jest jeszcze zapisana. Zapisze się po ponownym połączeniu ze StemDeck.",
   "sections.notSaved": "Nie zapisano",
   "tempo.savePending": "Jeszcze nie zapisano",
+  "sections.noRoom": "Brak miejsca. Skróć lub usuń sekcję.",
+  "sections.loopTooShort": "Pętla za krótka na sekcję",
 };
 
 const ja = {
@@ -2843,7 +2847,7 @@ const ja = {
   "position.loopTitle": "選択した位置をループ (L)",
   "position.loopLabel": "ループ",
   "position.loopExactTitle": "正確なループ開始/終了 (mm:ss.mmm または秒)",
-  "position.loopScrollHint": "スクロールで調整",
+  "position.loopScrollHint": "ループ範囲・スクロール",
   "position.loopStartAria": "ループ開始",
   "position.loopEndAria": "ループ終了",
 
@@ -3380,6 +3384,8 @@ const ja = {
   "notif.tempoSavePending": "テンポの変更はまだ保存されていません。StemDeck に再接続すると保存されます。",
   "sections.notSaved": "未保存",
   "tempo.savePending": "まだ保存されていません",
+  "sections.noRoom": "空きがありません。セクションを短くするか削除してください。",
+  "sections.loopTooShort": "ループが短すぎてセクションにできません",
 };
 
 const zhHans = {
@@ -3877,7 +3883,7 @@ const zhHans = {
   "position.loopTitle": "循环所选位置 (L)",
   "position.loopLabel": "循环",
   "position.loopExactTitle": "精确循环起止点 (mm:ss.mmm 或秒)",
-  "position.loopScrollHint": "滚动进行调整",
+  "position.loopScrollHint": "循环起点/终点 · 滚动",
   "position.loopStartAria": "循环起点",
   "position.loopEndAria": "循环终点",
 
@@ -4414,6 +4420,8 @@ const zhHans = {
   "notif.tempoSavePending": "速度更改尚未保存，StemDeck 重新连接后会自动保存。",
   "sections.notSaved": "未保存",
   "tempo.savePending": "尚未保存",
+  "sections.noRoom": "没有空间了。请缩短或删除一个段落。",
+  "sections.loopTooShort": "循环区域太短，无法设为段落",
 };
 
 const de = {
@@ -4912,7 +4920,7 @@ const de = {
   "position.loopTitle": "Ausgewählte Position loopen (L)",
   "position.loopLabel": "Loop",
   "position.loopExactTitle": "Genauer Loop-Start/-Ende (mm:ss.mmm oder Sekunden)",
-  "position.loopScrollHint": "Zum Anpassen scrollen",
+  "position.loopScrollHint": "Loopbereich · scrollen",
   "position.loopStartAria": "Loop-Start",
   "position.loopEndAria": "Loop-Ende",
 
@@ -5460,6 +5468,8 @@ const de = {
   "notif.tempoSavePending": "Die Tempoänderung ist noch nicht gespeichert. Sie wird gespeichert, sobald StemDeck wieder verbunden ist.",
   "sections.notSaved": "Nicht gespeichert",
   "tempo.savePending": "Noch nicht gespeichert",
+  "sections.noRoom": "Kein Platz mehr. Kürze oder lösche einen Abschnitt.",
+  "sections.loopTooShort": "Loop zu kurz für einen Abschnitt",
 };
 
 const pt = {
@@ -5958,7 +5968,7 @@ const pt = {
   "position.loopTitle": "Repetir a posição selecionada (L)",
   "position.loopLabel": "Loop",
   "position.loopExactTitle": "Início/fim exato do loop (mm:ss.mmm ou segundos)",
-  "position.loopScrollHint": "Role para ajustar",
+  "position.loopScrollHint": "Início/fim do loop · role",
   "position.loopStartAria": "Início do loop",
   "position.loopEndAria": "Fim do loop",
 
@@ -6508,6 +6518,8 @@ const pt = {
   "notif.tempoSavePending": "A alteração de andamento ainda não foi salva. Ela será salva quando o StemDeck se reconectar.",
   "sections.notSaved": "Não salvo",
   "tempo.savePending": "Ainda não salvo",
+  "sections.noRoom": "Sem espaço. Encurte ou exclua uma seção.",
+  "sections.loopTooShort": "Loop curto demais para uma seção",
 };
 
 const id = {
@@ -7005,7 +7017,7 @@ const id = {
   "position.loopTitle": "Loop posisi yang dipilih (L)",
   "position.loopLabel": "Loop",
   "position.loopExactTitle": "Awal/akhir loop yang tepat (mm:ss.mmm atau detik)",
-  "position.loopScrollHint": "Gulir untuk menyesuaikan",
+  "position.loopScrollHint": "Awal/akhir loop · gulir",
   "position.loopStartAria": "Awal loop",
   "position.loopEndAria": "Akhir loop",
 
@@ -7542,6 +7554,8 @@ const id = {
   "notif.tempoSavePending": "Perubahan tempo belum tersimpan. Akan tersimpan saat StemDeck terhubung kembali.",
   "sections.notSaved": "Tidak tersimpan",
   "tempo.savePending": "Belum tersimpan",
+  "sections.noRoom": "Tidak ada ruang. Perpendek atau hapus sebuah bagian.",
+  "sections.loopTooShort": "Loop terlalu pendek untuk bagian",
 };
 
 const fr = {
@@ -8040,7 +8054,7 @@ const fr = {
   "position.loopTitle": "Boucler la position sélectionnée (L)",
   "position.loopLabel": "Boucle",
   "position.loopExactTitle": "Début / fin exacts de la boucle (mm:ss.mmm ou secondes)",
-  "position.loopScrollHint": "Faites défiler pour régler",
+  "position.loopScrollHint": "Début/fin · défiler",
   "position.loopStartAria": "Début de la boucle",
   "position.loopEndAria": "Fin de la boucle",
 
@@ -8590,6 +8604,8 @@ const fr = {
   "notif.tempoSavePending": "La modification du tempo n'est pas encore enregistrée. Elle le sera quand StemDeck sera reconnecté.",
   "sections.notSaved": "Non enregistré",
   "tempo.savePending": "Pas encore enregistré",
+  "sections.noRoom": "Plus de place. Raccourcissez ou supprimez une section.",
+  "sections.loopTooShort": "Boucle trop courte pour une section",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -8619,7 +8635,7 @@ const ptPT = {
   "lyrics.align.doneTitle": "Fechar o painel. As alterações já estão guardadas.",
   "settings.transcribe.desc": "Quando não é encontrada nenhuma letra, esta é transcrita localmente a partir das vozes. Da primeira vez, é transferido um modelo de fala (1,6 GB para GPU NVIDIA, 0,5 GB nos restantes casos). Aplica-se à próxima faixa.",
   "pitch.insecureOrigin": "A transposição não está disponível através de uma ligação de rede",
-  "position.loopScrollHint": "Desloque para ajustar",
+  "position.loopScrollHint": "Início/fim · deslocar",
   "settings.autoDelete.title": "Eliminar automaticamente as faixas concluídas",
   "pitch.resetTitle": "Repor todas as faixas no tom original",
   "settings.autoDelete.desc": "Elimina as faixas concluídas após os dias definidos abaixo. A eliminação não pode ser anulada.",
@@ -8831,6 +8847,8 @@ const ptPT = {
   "vocalSplit.failed.unsupportedDevice": "A placa gráfica deste computador não consegue fazer a separação de voz.",
   "vocalSplit.failed.diskFull": "O disco está cheio. Liberte espaço e tente novamente.",
   "vocalSplit.failed.noVocals": "Falta a voz desta música. Extraia as faixas de novo e tente novamente.",
+  "sections.noRoom": "Sem espaço. Encurte ou elimine uma secção.",
+  "sections.loopTooShort": "Loop demasiado curto para uma secção",
 };
 
 const es = {
@@ -9329,7 +9347,7 @@ const es = {
   "position.loopTitle": "Repetir en loop la posición seleccionada (L)",
   "position.loopLabel": "Bucle",
   "position.loopExactTitle": "Inicio / fin exacto del loop (mm:ss.mmm o segundos)",
-  "position.loopScrollHint": "Desplaza para ajustar",
+  "position.loopScrollHint": "Inicio/fin · desplaza",
   "position.loopStartAria": "Inicio del loop",
   "position.loopEndAria": "Fin del loop",
 
@@ -9891,6 +9909,8 @@ const es = {
   "notif.tempoSavePending": "El cambio de tempo aún no se ha guardado. Se guardará cuando StemDeck se vuelva a conectar.",
   "sections.notSaved": "No guardado",
   "tempo.savePending": "Aún no guardado",
+  "sections.noRoom": "No queda espacio. Acorta o elimina una sección.",
+  "sections.loopTooShort": "Bucle demasiado corto para una sección",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -10397,7 +10417,7 @@ const ko = {
   "position.loopTitle": "선택한 구간을 반복해요 (L)",
   "position.loopLabel": "반복",
   "position.loopExactTitle": "반복 시작과 끝을 정확히 (mm:ss.mmm 또는 초)",
-  "position.loopScrollHint": "스크롤로 조절",
+  "position.loopScrollHint": "루프 시작/끝 · 스크롤",
   "position.loopStartAria": "반복 시작",
   "position.loopEndAria": "반복 끝",
 
@@ -10934,6 +10954,8 @@ const ko = {
   "notif.tempoSavePending": "템포 변경 사항이 아직 저장되지 않았어요. StemDeck에 다시 연결되면 저장돼요.",
   "sections.notSaved": "저장 안 됨",
   "tempo.savePending": "아직 저장 안 됨",
+  "sections.noRoom": "남은 공간이 없어요. 구간을 줄이거나 삭제하세요.",
+  "sections.loopTooShort": "루프가 너무 짧아 구간을 만들 수 없습니다",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };

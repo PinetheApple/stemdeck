@@ -147,10 +147,9 @@ window.addEventListener(
   true,
 );
 
-// `retry` adds "Try again", which sends the user back to the URL field to start
-// a fresh import: right for an import failure and wrong for anything else. The
-// close button is always there, so no failure can leave the box stuck open.
-export function showError(message, detail, { retry = true } = {}) {
+// "Try again" defaults to a fresh import from the URL field; pass `onRetry: null`
+// where that is wrong. Close is always there, so the box never sticks open.
+export function showError(message, detail, { onRetry = returnToUrlField, retry = true } = {}) {
   delete errorEl.dataset.kind; // see showPlaybackError
   errorEl.textContent = "";
   const msg = document.createElement("div");
@@ -166,18 +165,9 @@ export function showError(message, detail, { retry = true } = {}) {
   }
   const actions = document.createElement("div");
   actions.className = "error-actions";
-  if (retry) {
-    const btn = document.createElement("button");
-    btn.className = "retry-btn";
-    btn.type = "button";
-    btn.textContent = t("job.tryAgain");
-    btn.addEventListener("click", () => {
-      hideError();
-      urlInput.focus();
-      urlInput.select();
-    });
-    actions.append(btn);
-  }
+  // Some callers still pass the older `retry: false`, which means no button.
+  const retryAction = retry === false ? null : onRetry;
+  if (retryAction) actions.append(retryButton(retryAction));
   const close = document.createElement("button");
   close.className = "error-close";
   close.type = "button";
@@ -190,22 +180,34 @@ export function showError(message, detail, { retry = true } = {}) {
   errorEl.classList.remove("hidden");
 }
 
+function returnToUrlField() {
+  urlInput.focus();
+  urlInput.select();
+}
+
+function retryButton(onRetry) {
+  const btn = document.createElement("button");
+  btn.className = "retry-btn";
+  btn.type = "button";
+  btn.textContent = t("job.tryAgain");
+  btn.addEventListener("click", function retryFailed() {
+    hideError();
+    onRetry();
+  });
+  return btn;
+}
+
 function clearImportError() {
   delete errorEl.dataset.kind;
   errorEl.classList.add("hidden");
   errorEl.textContent = "";
 }
 
-// Playback failures reuse the import error box, which is the only alert surface
-// the studio has. They are tagged so the player can retract its own message when
-// the user loads a different track, without wiping an import failure the user
-// has not read yet. Always retry:false -- "Try again" sends the user to the URL
-// field, which is not what a broken stem file calls for.
-export function showPlaybackError(message, detail, context = {}) {
-  showError(message, detail, { retry: false });
+// Tagged so a track switch retracts only its own message, not an unread import
+// failure. The URL-field retry is wrong for a broken stem, so none by default.
+export function showPlaybackError(message, detail, context = {}, { onRetry = null } = {}) {
+  showError(message, detail, { onRetry });
   errorEl.dataset.kind = "playback";
-  // The class of failure #359 was written about: a track that loads and then
-  // does nothing. Recording it is what makes it reportable.
   notifyFailure({ kind: "playback", message, detail, context });
 }
 
@@ -745,7 +747,7 @@ export function wireJobForm() {
         showError(
           `Queued ${queued} of ${batch.length} files: ${failure.message}`,
           null,
-          { retry: false },
+          { onRetry: null },
         );
       }
       return;
