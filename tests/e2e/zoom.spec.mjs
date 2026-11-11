@@ -239,7 +239,7 @@ test.describe("waveform zoom", () => {
   // first zoom step can widen the content by less than its own factor, or not at
   // all. Deriving the scroll correction from the zoom ratio rather than the
   // measured width slides the anchor out from under the pointer exactly here.
-  // 1150px leaves the wave area 532px wide, where the floor is active.
+  // 1150px leaves the wave area narrower than that floor.
   test("the anchor holds where the minimum wave width floors the growth", async ({ page }) => {
     await page.setViewportSize({ width: 1150, height: 800 });
     await openStudio(page, { tauri: true });

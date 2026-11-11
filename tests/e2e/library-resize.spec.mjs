@@ -1,14 +1,11 @@
 import { test, expect } from "@playwright/test";
-import { openStudio } from "./helpers.mjs";
+import { MIN_TIMELINE_WIDTH, openStudio } from "./helpers.mjs";
 
 const STORE_KEY = "stemdeck.library.width";
 const INSPECTOR_HIDDEN_KEY = "stemdeck.inspector.hidden";
 const INSPECTOR_HIDDEN = "1";
 const MIN_WIDTH = 232;
 const MAX_WIDTH = 560;
-const TRACK_LABELS_WIDTH = 288;
-const MIN_TIMELINE_WIDTH = 360;
-const MIN_TRACKS_WIDTH = TRACK_LABELS_WIDTH + MIN_TIMELINE_WIDTH;
 const KEYBOARD_STEP = 16;
 const CUSTOM_WIDTH = 400;
 const DRAG_WIDER = 100;
@@ -31,10 +28,14 @@ const widthOf = (page, selector) =>
 
 const railWidth = (page) => widthOf(page, ".sidebar-rail");
 
+const minTracksWidth = async (page) =>
+  MIN_TIMELINE_WIDTH +
+  (await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--daw-col-w"))));
+
 const libraryWidth = async (page) => (await widthOf(page, ".sidebar")) - (await railWidth(page));
 
 const smallWindowMax = async (page) =>
-  SMALL_WINDOW.width - (await railWidth(page)) - SMALL_WINDOW_INSPECTOR - MIN_TRACKS_WIDTH;
+  SMALL_WINDOW.width - (await railWidth(page)) - SMALL_WINDOW_INSPECTOR - (await minTracksWidth(page));
 
 const savedWidth = (page) =>
   page.evaluate((key) => JSON.parse(localStorage.getItem(key)), STORE_KEY);
@@ -148,7 +149,7 @@ test.describe("library pane width", () => {
     await page.setViewportSize(SMALL_WINDOW);
     await expect.poll(() => libraryWidth(page)).toBe(smallMax);
     await expect(handleOf(page)).toHaveAttribute("aria-valuemax", String(smallMax));
-    expect(await widthOf(page, ".daw-main-col")).toBeGreaterThanOrEqual(MIN_TRACKS_WIDTH);
+    expect(await widthOf(page, ".daw-main-col")).toBeGreaterThanOrEqual(await minTracksWidth(page));
     expect(await widthOf(page, "#inspector")).toBe(SMALL_WINDOW_INSPECTOR);
     expect(await savedWidth(page)).toBe(MAX_WIDTH);
 
@@ -261,7 +262,7 @@ test.describe("library pane width", () => {
     await page.keyboard.press("Escape");
     await expect(handleOf(page)).toBeVisible();
     await expect.poll(() => libraryWidth(page)).toBe(smallMax);
-    expect(await widthOf(page, ".daw-main-col")).toBeGreaterThanOrEqual(MIN_TRACKS_WIDTH);
+    expect(await widthOf(page, ".daw-main-col")).toBeGreaterThanOrEqual(await minTracksWidth(page));
   });
 
   test("leaving Stage mode re-fits a window that shrank during it", async ({ page }) => {

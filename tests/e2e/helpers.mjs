@@ -21,6 +21,9 @@ export const SIBLING_JOB_ID = "e2e0cafebabe";
 export const SIBLING_TITLE = "E2E Fixture Track (again)";
 export const SOURCE_URL = "local:e2e-fixture";
 
+// libraryResize.js keeps at least this much waveform beside the stem labels.
+export const MIN_TIMELINE_WIDTH = 360;
+
 const STORAGE_KEY = "stemdeck.folders";
 const STORAGE_VERSION = 2;
 const BANDS_UPLOADED_KEY = "stemdeck.bands_uploaded";
