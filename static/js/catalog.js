@@ -16,7 +16,7 @@ import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
 import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
 import { isModalOpen } from "./stageMode.js";
-import { ON_ROW, OUT_OF_TAB_ORDER, ROW_PLAY_CLASS, isShown, wireRovingRows } from "./rovingRows.js";
+import { ON_ROW, OUT_OF_TAB_ORDER, ROW_KEY, ROW_PLAY_CLASS, isShown, wireRovingRows } from "./rovingRows.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
@@ -4233,8 +4233,11 @@ function renderLibraryRows(tbody) {
     .filter(([id, t]) => !trashIds.has(id) && t.status === "unavailable")
     .sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
 
-  const tableWrap = tbody.closest(".library-editor-table-wrap");
+  const pane = tbody.closest(".settings-pane");
+  const tableWrap = pane?.querySelector(".library-editor-table-wrap");
+  const syncBtn = pane?.querySelector(".library-editor-sync");
   if (tableWrap) tableWrap.hidden = !entries.length;
+  if (syncBtn) syncBtn.hidden = !entries.length;
   if (!entries.length) return;
 
   for (const [id, t] of entries) {
@@ -4703,13 +4706,12 @@ async function wireGeneralSettings(overlay) {
       }
     }
     if (deviceDesc) {
-      const resolved = d.demucs_device_resolved ? i18nT("settings.device.currently", { device: d.demucs_device_resolved }) : "";
       // torch installed but unloadable stops separation on every device, CPU
       // included, so this replaces the usual line rather than sitting under a
       // device list that looks healthy (#730).
       deviceDesc.textContent = d.torch_error
         ? i18nT("settings.device.torchBroken")
-        : i18nT("settings.device.desc", { resolved });
+        : i18nT("settings.device.desc");
       deviceDesc.classList.toggle("is-broken", !!d.torch_error);
     }
   };
@@ -4859,6 +4861,21 @@ async function wireGeneralSettings(overlay) {
   });
 }
 
+const QR_SIZE_PROPERTY = "--settings-qr-size";
+
+/** The host and port, which is what a person compares; the raw text if it is not a URL. */
+function addressCaption(url) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
+function onQrCardClick(e) {
+  e.currentTarget.classList.toggle("qr-blurred");
+}
+
 async function wireNetworkSetting(overlay) {
   const input = overlay.querySelector(".net-access-input");
   const netWrap = overlay.querySelector(".settings-net");
@@ -4902,6 +4919,7 @@ async function wireNetworkSetting(overlay) {
   }
 
   if (qrWrap) {
+    const qrSize = parseFloat(getComputedStyle(qrWrap).getPropertyValue(QR_SIZE_PROPERTY));
     qrWrap.textContent = "";
     if (addresses.length) {
       const hint = document.createElement("p");
@@ -4915,15 +4933,15 @@ async function wireNetworkSetting(overlay) {
         const card = document.createElement("div");
         card.className = "qr-card qr-blurred";
         card.title = i18nT("settings.network.tapToUnblur");
-        card.addEventListener("click", () => card.classList.toggle("qr-blurred"));
+        card.addEventListener("click", onQrCardClick);
         const img = document.createElement("img");
         img.src = `/api/qr?url=${encodeURIComponent(mobileUrl)}`;
         img.alt = i18nT("settings.network.qrCodeFor", { url: mobileUrl });
-        img.width = 130;
-        img.height = 130;
+        img.width = qrSize;
+        img.height = qrSize;
         const label = document.createElement("div");
         label.className = "qr-label";
-        label.textContent = new URL(mobileUrl).host;
+        label.textContent = addressCaption(mobileUrl);
         label.title = mobileUrl;
         const imgWrap = document.createElement("div");
         imgWrap.className = "qr-img-wrap";
@@ -5200,8 +5218,6 @@ function openResetConfirm() {
 }
 
 const TAB_KEY_STEP = { ArrowRight: 1, ArrowLeft: -1 };
-const FIRST_TAB_KEY = "Home";
-const LAST_TAB_KEY = "End";
 // Scroll positions this close to an end count as the end (fractional pixels).
 const SCROLL_END_SLACK = 1;
 
@@ -5215,8 +5231,8 @@ function selectSettingsTab(tab) {
 
 /** The tab an arrow, Home or End leads to, wrapping like the inspector's; null for other keys. */
 function tabKeyTarget(key, index, count) {
-  if (key === FIRST_TAB_KEY) return 0;
-  if (key === LAST_TAB_KEY) return count - 1;
+  if (key === ROW_KEY.FIRST) return 0;
+  if (key === ROW_KEY.LAST) return count - 1;
   const step = TAB_KEY_STEP[key];
   return step ? (index + step + count) % count : null;
 }
@@ -5258,6 +5274,18 @@ function onLogsSubtabClick(e) {
   }
   if (name === "location") loadLogsView(overlay);
   else loadLogTail(overlay, name);
+}
+
+function onLogsRefreshClick(e) {
+  loadLogsView(settingsOverlayOf(e.currentTarget));
+}
+
+function onLogTailRefreshClick(e) {
+  loadLogTail(settingsOverlayOf(e.currentTarget), e.currentTarget.dataset.view);
+}
+
+function onExportLogsClick(e) {
+  exportLogs(e.currentTarget);
 }
 
 function onRegistryDownloadClick(e) {
@@ -5610,10 +5638,9 @@ function openLibraryEditor() {
     bar.addEventListener("keydown", onSettingsTablistKeydown);
   });
   overlay.querySelector(".settings-registry-download")?.addEventListener("click", onRegistryDownloadClick);
-  overlay.querySelector(".settings-logs-refresh")?.addEventListener("click", () => loadLogsView(overlay));
-  overlay.querySelectorAll(".settings-logtail-refresh").forEach((b) =>
-    b.addEventListener("click", () => loadLogTail(overlay, b.dataset.view)));
-  overlay.querySelector(".settings-export-logs")?.addEventListener("click", (e) => exportLogs(e.currentTarget));
+  overlay.querySelector(".settings-logs-refresh")?.addEventListener("click", onLogsRefreshClick);
+  overlay.querySelectorAll(".settings-logtail-refresh").forEach((b) => b.addEventListener("click", onLogTailRefreshClick));
+  overlay.querySelector(".settings-export-logs")?.addEventListener("click", onExportLogsClick);
 
   overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) closeLibraryEditor(); });
   // (status summary is filled in after the overlay is in the DOM, below)

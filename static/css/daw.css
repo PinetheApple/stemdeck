@@ -1106,8 +1106,9 @@ input, textarea { font-family: inherit; }
   --settings-loc-col-w: 200px;
   --settings-log-min-h: 260px;
   --settings-switch-w: 42px;
-  --settings-switch-h: 24px;
-  --settings-thumb: 18px;
+  --settings-switch-h: var(--s-5);
+  /* The thumb sits inside the track's 1px border with an inset on each side. */
+  --settings-thumb: calc(var(--settings-switch-h) - 2 * (var(--seg-inset) + 1px));
   width: var(--settings-min-w);
   min-width: var(--settings-min-w);
   /* Fixed height (not max-height) so the dialog stays one size across all tabs
@@ -1158,7 +1159,10 @@ input, textarea { font-family: inherit; }
   --fade-top: 0px;
   --fade-bottom: 0px;
   mask-image: linear-gradient(
-    transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent
+    transparent,
+    #000 var(--fade-top),
+    #000 calc(100% - var(--fade-bottom)),
+    transparent
   );
 }
 .settings-pane.more-above { --fade-top: var(--settings-fade-h); }
@@ -1281,7 +1285,6 @@ input, textarea { font-family: inherit; }
 }
 .settings-help.hidden { display: none; }
 
-/* A value on one line with its buttons: a folder path, a key or a token. */
 .stems-location, .acoustid-key, .discogs-token {
   display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-2);
 }
@@ -1344,7 +1347,6 @@ input, textarea { font-family: inherit; }
   background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger);
   font-size: var(--fs-2xs);
 }
-.library-editor-table-wrap[hidden] { display: none; }
 .library-editor-foot {
   display: flex; align-items: center; justify-content: space-between; gap: var(--s-3);
   padding: var(--s-3) 0; border-bottom: 1px solid var(--line);
