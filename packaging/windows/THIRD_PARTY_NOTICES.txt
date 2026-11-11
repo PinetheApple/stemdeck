@@ -1,6 +1,11 @@
 THIRD-PARTY NOTICES
 ===================
 
+StemDeck itself is licensed under the GNU Affero General Public License,
+version 3 only (AGPL-3.0-only). The full text is in LICENSE.txt beside
+this file, and the source code is at
+https://github.com/PinetheApple/stemdeck
+
 StemDeck includes third-party open-source software. Each component is
 copyrighted by its respective authors and distributed under its own license.
 
@@ -104,5 +109,5 @@ build is:
     https://github.com/BtbN/FFmpeg-Builds
 
 If either link stops resolving, open an issue at
-https://github.com/stemdeckapp/stemdeck/issues and the source will be
+https://github.com/PinetheApple/stemdeck/issues and the source will be
 provided by another means.
