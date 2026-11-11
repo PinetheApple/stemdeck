@@ -753,6 +753,11 @@ def _unlink_later(path: Path) -> None:
         logger.debug("could not remove rendered export %s", path, exc_info=True)
 
 
+# The two sides that must both let go of a stems zip before it is removed.
+_ZIP_BUILD = "build"
+_ZIP_REQUEST = "request"
+
+
 class _ZipTemp:
     """The file a stems zip is built in. It goes once the request has given it
     up (a failed build, or a cancel: the client or the server going away) and
@@ -768,7 +773,7 @@ class _ZipTemp:
     def end(self, side: str) -> None:
         with self._lock:
             self._ended.add(side)
-            both = self._ended == {"build", "request"}
+            both = self._ended == {_ZIP_BUILD, _ZIP_REQUEST}
         if both:
             _unlink_later(self.path)
 
@@ -1521,15 +1526,15 @@ async def get_all_stems_zip(
             logger.exception("failed to build stems zip for job %s", job_id)
             raise
         finally:
-            temp.end("build")
+            temp.end(_ZIP_BUILD)
 
     try:
         await asyncio.to_thread(build)
     except Exception:
-        temp.end("request")
+        temp.end(_ZIP_REQUEST)
         raise HTTPException(status_code=500, detail="failed to build archive") from None
     except BaseException:
-        temp.end("request")
+        temp.end(_ZIP_REQUEST)
         raise
 
     filename = f"{_safe_title(job.display_title)}_stems.zip"

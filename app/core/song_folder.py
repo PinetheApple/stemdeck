@@ -121,13 +121,18 @@ def job_dirs(folder: Path) -> list[Path]:
     ]
 
 
+# What StemDeck writes into every job folder it makes: one of these is there.
+_JOB_ENTRIES = ("stems", "metadata.json")
+_SOURCE_GLOB = "source.*"
+
+
 def holds_job_files(job_dir: Path) -> bool:
     """Whether a job-id folder holds something StemDeck writes into a job. The
     name alone does not make it ours: twelve hex characters is also a Docker
     container's short id. A folder that cannot be read is not ours to remove."""
     try:
-        return any((job_dir / name).exists() for name in ("stems", "metadata.json")) or any(
-            job_dir.glob("source.*")
+        return any((job_dir / name).exists() for name in _JOB_ENTRIES) or any(
+            job_dir.glob(_SOURCE_GLOB)
         )
     except OSError:
         return False
