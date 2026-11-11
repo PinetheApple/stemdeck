@@ -9,6 +9,7 @@ import { getCurrentTrackInfo } from "./catalog.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { t, getLanguage, onLanguageChange } from "./i18n.js";
 import { $ } from "./utils.js";
+import { isPageClosing, wasCutOffByPageClose } from "./pageClosing.js";
 
 const MODE_CONSTANT = "constant";
 const SOURCE_USER = "user";
@@ -34,8 +35,11 @@ const RESET_FIELDS = { mode: null, bpm: null, anchor: null, beats_per_bar: null 
 let jobId = null;
 let grid = null;
 let tempo = null;
-let unsentFields = null;
-let saveInFlight = null;
+// Per song, as { fields, modeEditedAt }: the save in flight, kept until it is answered,
+// and the edits made since, which go in the next save.
+const sendingFieldsByJob = new Map();
+const queuedFieldsByJob = new Map();
+const savesInFlight = new Map();
 let refreshSeq = 0;
 let taps = [];
 let tapTimer = null;
@@ -111,32 +115,54 @@ async function refreshGrid(forJob) {
   }
 }
 
-async function sendUnsentFields(forJob) {
+// Keyed by song, so a switch mid-save neither drops one song's edits nor sends them to the
+// next. Once the page is closing, its close request sends what is left, grid edits included.
+async function sendUnconfirmedFields(forJob) {
   await flushBeatGrid();
+  let failed = false;
+  let entry;
+  while (!isPageClosing() && (entry = queuedFieldsByJob.get(forJob))) {
+    queuedFieldsByJob.delete(forJob);
+    sendingFieldsByJob.set(forJob, entry);
+    failed = !(await sendFields(forJob, entry));
+  }
+  savesInFlight.delete(forJob);
+  if (forJob !== jobId || isPageClosing()) return;
+  saveFailed = failed;
+  await refreshGrid(forJob);
+}
+
+/** True when the server took the save. One the closing page cut off stays for its close request. */
+async function sendFields(forJob, entry) {
   try {
-    while (unsentFields && forJob === jobId) {
-      const fields = unsentFields;
-      unsentFields = null;
-      await saveBeatGridTempo(forJob, fields);
-    }
-    saveFailed = false;
+    await saveBeatGridTempo(forJob, entry.fields);
+    sendingFieldsByJob.delete(forJob);
+    return true;
   } catch (e) {
     console.warn("[tempoTools] could not save the tempo:", e);
-    unsentFields = null;
-    saveFailed = true;
-  } finally {
-    if (forJob === jobId) saveInFlight = null;
+    if (!wasCutOffByPageClose(e)) sendingFieldsByJob.delete(forJob);
+    return false;
   }
-  await refreshGrid(forJob);
+}
+
+const mergeUnconfirmedEntries = (earlier, later) => ({
+  fields: { ...earlier?.fields, ...later?.fields },
+  modeEditedAt: later?.modeEditedAt ?? earlier?.modeEditedAt,
+});
+
+// Noting when the mode changed: a grid edited after that drops the mode, as the server does.
+function addUnconfirmedFields(forJob, fields) {
+  const edit = { fields, modeEditedAt: "mode" in fields ? performance.now() : undefined };
+  queuedFieldsByJob.set(forJob, mergeUnconfirmedEntries(queuedFieldsByJob.get(forJob), edit));
 }
 
 /** Optimistic: show, save, then reload the server's grid. */
 function patchTempo(fields) {
   if (!jobId || !tempo) return;
   tempo = withFields(tempo, fields);
-  unsentFields = { ...unsentFields, ...fields };
+  addUnconfirmedFields(jobId, fields);
   render();
-  saveInFlight ??= sendUnsentFields(jobId);
+  if (!savesInFlight.has(jobId)) savesInFlight.set(jobId, sendUnconfirmedFields(jobId));
 }
 
 function applyGrid(next) {
@@ -155,10 +181,8 @@ function announce() {
 
 export function setTempoGrid(nextJobId, nextGrid) {
   if (nextJobId !== jobId) {
-    unsentFields = null;
-    saveInFlight = null;
+    commitPendingTaps();
     taps = [];
-    clearTimeout(tapTimer);
     saveFailed = false;
   }
   jobId = nextGrid ? nextJobId : null;
@@ -195,7 +219,28 @@ function onBpmStepClick(e) {
 }
 
 function commitTaps() {
+  tapTimer = null;
   if (tempo) patchTempo({ bpm: tempo.bpm });
+}
+
+/** Hand over every song's unconfirmed { fields, modeEditedAt }, a tap still waiting to commit included, and forget them. */
+export function takeUnconfirmedTempo() {
+  if (tapTimer !== null && jobId && tempo) addUnconfirmedFields(jobId, { bpm: tempo.bpm });
+  clearTimeout(tapTimer);
+  tapTimer = null;
+  const taken = new Map();
+  for (const forJob of new Set([...sendingFieldsByJob.keys(), ...queuedFieldsByJob.keys()])) {
+    taken.set(forJob, mergeUnconfirmedEntries(sendingFieldsByJob.get(forJob), queuedFieldsByJob.get(forJob)));
+  }
+  sendingFieldsByJob.clear();
+  queuedFieldsByJob.clear();
+  return taken;
+}
+
+function commitPendingTaps() {
+  if (tapTimer === null) return;
+  clearTimeout(tapTimer);
+  commitTaps();
 }
 
 function onTapClick() {

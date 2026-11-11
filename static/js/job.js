@@ -388,6 +388,8 @@ async function finishDoneJob(state) {
   // The card names the song and its band now, as it does when the track is
   // opened from the library, rather than only after it is reopened (#699).
   paintFinishedTrackNames(finalState.job_id);
+  // Same signal catalog.js sends when it opens a track.
+  document.dispatchEvent(new CustomEvent("trackopen", { detail: { id: finalState.job_id } }));
 }
 
 function applyState(state) {

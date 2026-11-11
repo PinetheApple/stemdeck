@@ -12,7 +12,8 @@ import { initSearch } from "./search.js";
 import { wireTransportButtons } from "./transport.js";
 import { wireBeatGridUi } from "./beatgridUi.js";
 import { togglePlayPause, updateLoopRegionVisual, toggleMetronome, transport, setPlayheadTime, setLoopRange } from "./transport.js";
-import { setSectionsLoopBridge } from "./sections.js";
+import { setSectionsLoopBridge, saveSectionsOnPageClose } from "./sections.js";
+import { saveBeatGridOnPageClose } from "./beatgrid.js";
 import { wireStemListControls, wireMixerToolbar, laneDragIcon } from "./mixer.js";
 import { initCatalog, collectDiagnostics } from "./catalog.js";
 import { initNotifications, notifyFailure, dismissFailuresByJobId } from "./notifications.js";
@@ -27,7 +28,7 @@ import { initLibraryResize } from "./libraryResize.js";
 import { initUpNext, renderUpNext } from "./upNext.js";
 import { initStageMode } from "./stageMode.js";
 import { initSearchShortcut } from "./searchShortcut.js";
-import { initTempoTools } from "./tempoTools.js";
+import { initTempoTools, takeUnconfirmedTempo } from "./tempoTools.js";
 import { initSetlists } from "./setlists.js";
 import { initSongRename } from "./songRename.js";
 import { initTrackMenu } from "./trackMenu.js";
@@ -448,6 +449,12 @@ initSearch((item) => {
   urlInput.focus();
   urlInput.setSelectionRange(urlInput.value.length, urlInput.value.length);
 });
+// Edits still waiting out their save debounce go before the page does.
+function saveEditsOnPageClose() {
+  saveSectionsOnPageClose();
+  saveBeatGridOnPageClose(takeUnconfirmedTempo());
+}
+
 wireTransportButtons();
 // Sections deliberately does not import the transport, so that it stays
 // loadable without a DOM. This is the one place that owns both.
@@ -456,6 +463,7 @@ setSectionsLoopBridge({
   setLoopRange,
 });
 wireBeatGridUi();
+window.addEventListener("pagehide", saveEditsOnPageClose);
 wireFooterControls();
 requestAnimationFrame(drawFooterPlaceholder);
 wireStemListControls();

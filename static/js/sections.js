@@ -1,6 +1,8 @@
 // sections.js — interactive sections bar above the waveform
 
 import { onLanguageChange, t } from "./i18n.js";
+import { PAGE_CLOSE_FETCH } from "./utils.js";
+import { isPageClosing, wasCutOffByPageClose } from "./pageClosing.js";
 
 const SECTION_COLORS = [
   "#4a7fff",
@@ -25,6 +27,9 @@ let _sections = [];
 let _container = null;
 let _saveTimer = null;
 let _saveChain = Promise.resolve();
+// Each track's newest save still waiting for an answer, as its request body: what
+// the track shows if it is reopened first, and what goes out if the page closes.
+const _unconfirmed = new Map();
 
 // The loop lives in transport.js, which reaches the DOM at import time through
 // state.js. Importing it here would drag a document into every Node test that
@@ -51,9 +56,11 @@ onLanguageChange(() => _render());
 // ─── Public API ───────────────────────────────────────────
 
 export function initSections(trackId, sections, duration) {
+  _queuePendingSave();
   _trackId = trackId;
   _duration = Math.max(1, duration || 0);
-  _sections = (sections || []).map((s) => ({ ...s }));
+  const unconfirmed = _unconfirmed.get(trackId);
+  _sections = (unconfirmed ? JSON.parse(unconfirmed).sections : sections || []).map((s) => ({ ...s }));
   // Clear lives in the header rather than the ribbon, so it has to be correct
   // even when the ribbon is absent and the render below never runs.
   _refreshClearVisibility();
@@ -80,15 +87,7 @@ export function getSections() {
 }
 
 export function destroySections() {
-  // Flush any pending debounced save before clearing state so switching tracks
-  // never drops unsaved sections. _save() serializes _sections synchronously
-  // (JSON.stringify runs before the first await) so it's safe to clear state
-  // after calling it.
-  if (_saveTimer !== null) {
-    clearTimeout(_saveTimer);
-    _saveTimer = null;
-    _queueSaveSnapshot();
-  }
+  _queuePendingSave();
   _hideSaveIndicator();
   _trackId = null;
   _sections = [];
@@ -644,28 +643,61 @@ function _scheduleSave() {
   }, 600);
 }
 
+/** Stop the debounce. True when an edit was waiting on it. */
+function _cancelSaveTimer() {
+  if (_saveTimer === null) return false;
+  clearTimeout(_saveTimer);
+  _saveTimer = null;
+  return true;
+}
+
+// Taken now, so the open track's id and sections go together even when the
+// caller is about to replace them.
+function _snapshot() {
+  const body = JSON.stringify({ sections: _sections });
+  _unconfirmed.set(_trackId, body);
+  return body;
+}
+
+/** Queue a save only when an edit is waiting out the debounce. */
+function _queuePendingSave() {
+  if (_cancelSaveTimer()) _queueSaveSnapshot();
+}
+
+/** Queue a save of the open track's sections now, whether or not an edit is waiting. */
 export function flushSectionsSave() {
-  if (_saveTimer !== null) {
-    clearTimeout(_saveTimer);
-    _saveTimer = null;
-  }
+  _cancelSaveTimer();
   return _queueSaveSnapshot();
+}
+
+/** Take every unconfirmed save and send it now, the open track's first, outside the queue: it dies with the page. */
+export function saveSectionsOnPageClose() {
+  if (_cancelSaveTimer() && _trackId) _snapshot();
+  const ids = [...new Set([_trackId, ..._unconfirmed.keys()])].filter((id) => _unconfirmed.has(id));
+  for (const id of ids) _sendSave(id, _unconfirmed.get(id), PAGE_CLOSE_FETCH);
+  _unconfirmed.clear();
 }
 
 function _queueSaveSnapshot() {
   if (!_trackId) return _saveChain;
   const id = _trackId;
-  const body = JSON.stringify({ sections: _sections });
-  _saveChain = _saveChain.then(() => _sendSave(id, body));
+  const body = _snapshot();
+  _saveChain = _saveChain.then(() => _sendQueuedSave(id, body));
   return _saveChain;
 }
 
-async function _sendSave(id, body) {
+// Once the page is closing its close request carries the newest snapshot, and an
+// older one let out now could land after it.
+const _sendQueuedSave = (id, body) => (isPageClosing() ? undefined : _sendSave(id, body));
+
+async function _sendSave(id, body, fetchOptions = {}) {
+  let cutOff = false;
   try {
     const res = await fetch(`/api/jobs/${id}/sections`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body,
+      ...fetchOptions,
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => String(res.status));
@@ -677,8 +709,11 @@ async function _sendSave(id, body) {
       if (body === JSON.stringify({ sections: _sections }) && _saveTimer === null) _showSaved();
     }
   } catch (e) {
+    cutOff = wasCutOffByPageClose(e);
     console.warn("[sections] save failed:", e);
     if (id === _trackId) _hideSaveIndicator();
+  } finally {
+    if (!cutOff && _unconfirmed.get(id) === body) _unconfirmed.delete(id);
   }
 }
 

@@ -154,3 +154,6 @@ export function isReimportableSource(sourceUrl) {
 }
 
 export const $ = (id) => document.getElementById(id);
+
+/** For a save sent as the page closes: keepalive lets it finish after the page is gone. */
+export const PAGE_CLOSE_FETCH = Object.freeze({ keepalive: true });
