@@ -250,6 +250,41 @@ def settle_cancelled(job: Job) -> bool:
     return True
 
 
+# Where the lead/backing vocal split of a done job stands.
+VocalSplitState = Literal["none", "running", "done", "error", "cancelled"]
+VOCAL_SPLIT_NONE: VocalSplitState = "none"
+VOCAL_SPLIT_RUNNING: VocalSplitState = "running"
+VOCAL_SPLIT_DONE: VocalSplitState = "done"
+VOCAL_SPLIT_ERROR: VocalSplitState = "error"
+VOCAL_SPLIT_CANCELLED: VocalSplitState = "cancelled"
+
+# How the user asked for this song's vocals: one track, or lead and backing.
+VocalSplitChoice = Literal["combined", "split"]
+VOCAL_SPLIT_CHOICE_COMBINED: VocalSplitChoice = "combined"
+VOCAL_SPLIT_CHOICE_SPLIT: VocalSplitChoice = "split"
+
+# Why a split ended in "error": the code the UI shows a message for. The
+# worker's own words stay in stems/vocal_split_error.txt and the log.
+VocalSplitFailure = Literal[
+    "model_missing",
+    "out_of_memory",
+    "unsupported_device",
+    "disk_full",
+    "stalled",
+    "no_vocals",
+    "no_output",
+    "worker_failed",
+]
+VOCAL_SPLIT_FAILED_MODEL_MISSING: VocalSplitFailure = "model_missing"
+VOCAL_SPLIT_FAILED_OUT_OF_MEMORY: VocalSplitFailure = "out_of_memory"
+VOCAL_SPLIT_FAILED_UNSUPPORTED_DEVICE: VocalSplitFailure = "unsupported_device"
+VOCAL_SPLIT_FAILED_DISK_FULL: VocalSplitFailure = "disk_full"
+VOCAL_SPLIT_FAILED_STALLED: VocalSplitFailure = "stalled"
+VOCAL_SPLIT_FAILED_NO_VOCALS: VocalSplitFailure = "no_vocals"
+VOCAL_SPLIT_FAILED_NO_OUTPUT: VocalSplitFailure = "no_output"
+VOCAL_SPLIT_FAILED_WORKER: VocalSplitFailure = "worker_failed"
+
+
 @dataclass
 class Job:
     id: str
@@ -355,7 +390,13 @@ class Job:
     # asks for it; "error" leaves the job's base stems untouched (see
     # app/pipeline/vocal_split.py) and is recorded in stems/vocal_split_error.txt,
     # not job.error_detail, since the job itself did not fail.
-    vocal_split: Literal["none", "running", "done", "error"] = "none"
+    vocal_split: VocalSplitState = VOCAL_SPLIT_NONE
+    # The user's Combined / Lead + Backing pick for this song. Kept on the
+    # job so it outlives the browser tab that made it.
+    vocal_split_choice: VocalSplitChoice = VOCAL_SPLIT_CHOICE_COMBINED
+    # Why the last split failed, a VOCAL_SPLIT_FAILED_* code set with
+    # vocal_split "error"; the full record is stems/vocal_split_error.txt.
+    vocal_split_error: VocalSplitFailure | None = None
     # When the user put this job in the Trash, or None if they have not.
     #
     # Server-side on purpose. The Trash used to live only in the browser's
@@ -497,6 +538,8 @@ class Job:
             "gpu_fallback": self.gpu_fallback,
             "stage_timings": self.stage_timings,
             "vocal_split": self.vocal_split,
+            "vocal_split_choice": self.vocal_split_choice,
+            "vocal_split_error": self.vocal_split_error,
             "trashed_at": self.trashed_at,
             "favorite": self.favorite,
             "replaces": self.replaces,
@@ -541,6 +584,15 @@ class Job:
             job.replaces = None
         job.cancel_requested = False
         job.stop_requested = False
+        # No split outlives the process that ran it.
+        if job.vocal_split == VOCAL_SPLIT_RUNNING:
+            job.vocal_split = VOCAL_SPLIT_NONE
+        # Songs split before the choice was stored had asked for it.
+        if "vocal_split_choice" not in data and job.vocal_split in (
+            VOCAL_SPLIT_DONE,
+            VOCAL_SPLIT_ERROR,
+        ):
+            job.vocal_split_choice = VOCAL_SPLIT_CHOICE_SPLIT
         return job
 
 

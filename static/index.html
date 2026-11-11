@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="/css/inspector.css" />
     <link rel="stylesheet" href="/css/library.css" />
     <link rel="stylesheet" href="/css/stage-mode.css" />
+    <link rel="stylesheet" href="/css/vocal-split.css" />
   </head>
   <body>
 
@@ -988,6 +989,16 @@
             <!-- Hidden compat -->
             <div style="display:none" aria-hidden="true"><div id="loudness-card"></div></div>
           </div>
+            <div class="inspector-card vocal-split-card" id="vocalSplitCard" hidden>
+              <span class="inspector-label" data-i18n="vocalSplit.title">Lead and backing vocals</span>
+              <p class="vocal-split-message" id="vocalSplitMessage" aria-live="polite"></p>
+              <div class="vocal-split-progress" id="vocalSplitProgress" hidden>
+                <progress id="vocalSplitBar" max="1" aria-labelledby="vocalSplitMessage"></progress>
+                <span class="vocal-split-percent" id="vocalSplitPercent"></span>
+                <button class="inspector-quiet-btn" id="vocalSplitCancel" type="button" data-i18n="job.cancel">Cancel</button>
+              </div>
+              <button class="vocal-split-start" id="vocalSplitStart" type="button">Split lead/backing</button>
+            </div>
             <div class="inspector-card details-song">
               <span class="inspector-label" data-i18n="inspector.songFile">File</span>
           <div class="daw-track-meta-line">
@@ -1348,5 +1359,6 @@
     <script type="module" src="/js/boot-diagnostics.js"></script>
     <script type="module" src="/js/main.js"></script>
     <script type="module" src="/js/ui-chrome.js"></script>
+    <script type="module" src="/js/vocalSplitPanel.js"></script>
   </body>
 </html>

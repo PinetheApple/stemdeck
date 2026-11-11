@@ -11,7 +11,15 @@ from pathlib import Path
 
 from app.core.config import DEMUCS_MODEL, EXTRA_STEM_NAMES, JOB_ID_RE, LYRICS_FILE, STEM_NAMES
 from app.core.models import (
+    VOCAL_SPLIT_CHOICE_COMBINED,
+    VOCAL_SPLIT_CHOICE_SPLIT,
+    VOCAL_SPLIT_DONE,
+    VOCAL_SPLIT_ERROR,
+    VOCAL_SPLIT_NONE,
     Job,
+    VocalSplitChoice,
+    VocalSplitFailure,
+    VocalSplitState,
     clean_artist,
     clean_audio_tags,
     clean_identity,
@@ -397,8 +405,7 @@ def _recover_done_job(job_dir: Path) -> Job | None:
     # would otherwise report the job as never split -- derive from disk the
     # same way `stems` above does, so the recovered library entry doesn't
     # regress (#275).
-    has_split = all((stems_dir / f"{name}.wav").is_file() for name in EXTRA_STEM_NAMES)
-    vocal_split = "done" if has_split else "none"
+    vocal_split, vocal_split_choice, vocal_split_error = _recovered_vocal_split(stems_dir)
     meta_path = job_dir / "metadata.json"
     meta: dict = {}
     if meta_path.is_file():
@@ -451,7 +458,25 @@ def _recover_done_job(job_dir: Path) -> Job | None:
         # The file is the record: metadata.json predates it for most jobs.
         has_lyrics=(job_dir / LYRICS_FILE).is_file(),
         vocal_split=vocal_split,
+        vocal_split_choice=vocal_split_choice,
+        vocal_split_error=vocal_split_error,
     )
+
+
+def _recovered_vocal_split(
+    stems_dir: Path,
+) -> tuple[VocalSplitState, VocalSplitChoice, VocalSplitFailure | None]:
+    """The split state, choice and failure code a job's stems folder shows:
+    both split stems, a failed split's error file, or neither."""
+    if all((stems_dir / f"{name}.wav").is_file() for name in EXTRA_STEM_NAMES):
+        return VOCAL_SPLIT_DONE, VOCAL_SPLIT_CHOICE_SPLIT, None
+    # Imported here: app.pipeline imports this module.
+    from app.pipeline.vocal_split import read_error_code
+
+    code = read_error_code(stems_dir)
+    if code is not None:
+        return VOCAL_SPLIT_ERROR, VOCAL_SPLIT_CHOICE_SPLIT, code
+    return VOCAL_SPLIT_NONE, VOCAL_SPLIT_CHOICE_COMBINED, None
 
 
 def set_proc(job_id: str, proc: subprocess.Popen | None) -> None:

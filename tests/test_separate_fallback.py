@@ -16,7 +16,7 @@ import pytest
 
 from app.core.models import Job, JobCancelled
 from app.pipeline import separate as sep_mod
-from app.pipeline.errors import SeparationError
+from app.pipeline.errors import CAUSE_OUT_OF_MEMORY, SeparationError
 
 # A persistent worker stub: reads one JSON job request per line for as long
 # as stdin stays open, always succeeding (writes a stem WAV where the real
@@ -89,7 +89,7 @@ def test_gpu_failure_falls_back_to_cpu(job, tmp_path, monkeypatch, caplog):
     assert job.compute_device == "cpu (fallback from cuda)"
     # Loud, never silent: the warning names device, cause, and stderr.
     warning = next(r.message for r in caplog.records if "retrying on CPU" in r.message)
-    assert "cause=out-of-memory" in warning
+    assert f"cause={CAUSE_OUT_OF_MEMORY}" in warning
     assert "CUDA out of memory" in warning
 
 

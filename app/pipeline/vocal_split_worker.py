@@ -15,6 +15,8 @@ Protocol, matching demucs_worker.py's contract so the parent's stderr reader
 can be reused: writes progress/log lines to stderr, then exactly one of:
   "@@DONE@@"                        -- success, both files written
   "@@ERROR@@<json-encoded message>" -- failure; process exits(1)
+  "@@ERROR@@<json {"message", "code"}>" -- a failure with a VOCAL_SPLIT_FAILED_*
+                                    code, when the worker knows which it is
 """
 
 from __future__ import annotations
@@ -24,7 +26,39 @@ import os
 import sys
 
 from app.core.config import VOCAL_SPLIT_MODEL
+from app.core.models import VOCAL_SPLIT_FAILED_MODEL_MISSING
 from app.core.process import arm_parent_watchdog
+
+
+class _ModelUnavailable(Exception):
+    """The karaoke model could not be loaded: not installed, not downloaded,
+    or broken on disk past what load_or_heal can repair."""
+
+
+def _load_separator(out_dir: str):
+    try:
+        from audio_separator.separator import Separator
+
+        from app.core.config import MODELS_DIR
+        from app.core.model_cache import load_or_heal, vocal_split_artifacts
+
+        separator = Separator(
+            log_level=40,  # logging.ERROR -- only the lines we emit ourselves matter
+            model_file_dir=str(MODELS_DIR / "audio-separator"),
+            output_dir=out_dir,
+            output_format="WAV",
+        )
+        # This is the only path Docker ever takes: there is no warmup step there, so
+        # the model is fetched here on first use. A download cut short leaves a file
+        # that audio-separator will keep accepting as present and keep failing to
+        # load, which is #502 with no setup step to have caught it earlier.
+        load_or_heal(
+            lambda: separator.load_model(model_filename=VOCAL_SPLIT_MODEL),
+            lambda: vocal_split_artifacts(MODELS_DIR, VOCAL_SPLIT_MODEL),
+        )
+    except Exception as e:
+        raise _ModelUnavailable(str(e)) from e
+    return separator
 
 
 def _run(device: str, vocals_path: str, out_dir: str) -> None:
@@ -35,25 +69,7 @@ def _run(device: str, vocals_path: str, out_dir: str) -> None:
         # separation stage's own device policy in app.core.settings).
         os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
-    from audio_separator.separator import Separator
-
-    from app.core.config import MODELS_DIR
-    from app.core.model_cache import load_or_heal, vocal_split_artifacts
-
-    separator = Separator(
-        log_level=40,  # logging.ERROR -- only the lines we emit ourselves matter
-        model_file_dir=str(MODELS_DIR / "audio-separator"),
-        output_dir=out_dir,
-        output_format="WAV",
-    )
-    # This is the only path Docker ever takes: there is no warmup step there, so
-    # the model is fetched here on first use. A download cut short leaves a file
-    # that audio-separator will keep accepting as present and keep failing to
-    # load, which is #502 with no setup step to have caught it earlier.
-    load_or_heal(
-        lambda: separator.load_model(model_filename=VOCAL_SPLIT_MODEL),
-        lambda: vocal_split_artifacts(MODELS_DIR, VOCAL_SPLIT_MODEL),
-    )
+    separator = _load_separator(out_dir)
     # Karaoke-family models label their two outputs "Vocals" (the lead vocal
     # that survived a second isolation pass) and "Instrumental" (everything in
     # the input that wasn't lead vocal -- since the input here is already an
@@ -63,6 +79,12 @@ def _run(device: str, vocals_path: str, out_dir: str) -> None:
         vocals_path,
         {"Vocals": "lead_vocals", "Instrumental": "backing_vocals"},
     )
+
+
+def _fail(payload: str) -> None:
+    sys.stderr.write(f"@@ERROR@@{payload}\n")
+    sys.stderr.flush()
+    sys.exit(1)
 
 
 def main() -> None:
@@ -77,10 +99,10 @@ def main() -> None:
     device, vocals_path, out_dir = sys.argv[1], sys.argv[2], sys.argv[3]
     try:
         _run(device, vocals_path, out_dir)
+    except _ModelUnavailable as e:
+        _fail(json.dumps({"message": str(e), "code": VOCAL_SPLIT_FAILED_MODEL_MISSING}))
     except Exception as e:
-        sys.stderr.write(f"@@ERROR@@{json.dumps(str(e))}\n")
-        sys.stderr.flush()
-        sys.exit(1)
+        _fail(json.dumps(str(e)))
     sys.stderr.write("@@DONE@@\n")
     sys.stderr.flush()
 

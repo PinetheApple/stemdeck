@@ -12,6 +12,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from app.pipeline.errors import CAUSE_OUT_OF_MEMORY
+
 JOB = "abcdefabcdef"
 
 TITLE = "Someone's Private Demo Take 3"
@@ -57,7 +59,7 @@ def test_serves_the_technical_fields(client, quarantined):
     assert r.status_code == 200
     body = r.json()
     assert body["job_id"] == JOB
-    assert body["cause"] == "out-of-memory"
+    assert body["cause"] == CAUSE_OUT_OF_MEMORY
     assert body["device"] == "cuda, then cpu"
     assert body["model"] == "htdemucs_6s"
     # "stage: Error: Processing failed" must keep everything after the first

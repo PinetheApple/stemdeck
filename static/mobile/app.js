@@ -8,6 +8,16 @@ import { createChunkedAudioEngine } from "../js/chunkedAudioEngine.js";
 import { PITCH_MAX, PITCH_MIN, clampPitch } from "../js/pitchBus.js";
 import { createPlaybackContext } from "../js/audioContext.js";
 import { HTTP_CONFLICT } from "../js/lyricsTranscribe.js";
+import {
+  SPLIT_STATE,
+  SPLIT_CHOICE,
+  failureKey,
+  startSplit,
+  followSplit,
+  storeSplitChoice,
+} from "../js/vocalSplit.js";
+// The phone never calls initI18n, so translate() answers in English, like the rest of its UI.
+import { t as translate } from "../js/i18n.js";
 // Per-stem label + color, keyed by the backend stem name. Unknown names fall
 // back to a rotating palette so non-standard models still render sensibly.
 const STEM_META = {
@@ -35,6 +45,9 @@ const EXTRACT_STEMS = EXTRACT_BASE_STEMS.map((id) => ({ id, name: STEM_META[id].
 
 const DEFAULT_GRADIENT = "linear-gradient(150deg,#3a3a42,#202026)";
 const FILTERS = ["All", "Favorites"];
+// The base job is already done; the card says the split is still going.
+const SPLITTING_STATUS = "splitting";
+const EXTRACT_DONE_STATUS = "done";
 
 // ─── Web Audio engine (reused from desktop: ../js/audioEngine.js) ───
 let engine = null;
@@ -367,8 +380,10 @@ function exportMix(kind) {
   triggerDownload(`/api/jobs/${id}/${path}?${q}`);
 }
 
+const TOAST_MS = 2400;
+const READING_TOAST_MS = 6000;
 let _toastTimer = null;
-function toast(msg) {
+function toast(msg, durationMs = TOAST_MS) {
   let el = document.getElementById("m-toast");
   if (!el) {
     el = document.createElement("div");
@@ -379,7 +394,7 @@ function toast(msg) {
   el.textContent = msg;
   el.classList.add("show");
   clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => el.classList.remove("show"), 2400);
+  _toastTimer = setTimeout(() => el.classList.remove("show"), durationMs);
 }
 
 function mainWaveform() {
@@ -677,6 +692,8 @@ async function startExtraction() {
   }
 
   state.extractJob.id = jobId;
+  // Kept with the job, so a reload during the import still splits it.
+  if (vocalSplitMode === SPLIT_CHOICE.SPLIT) storeSplitChoice(jobId, SPLIT_CHOICE.SPLIT);
   state.extractFile = null;
   state.extractUrl = "";
   state.vocalSplitMode = "all";
@@ -699,20 +716,40 @@ function _finishExtractJob(jobId) {
 // from their perspective this is one action, even though the backend keeps
 // it a separate, best-effort pass over the already-done job.
 async function _runVocalSplitThenFinish(jobId) {
-  state.extractJob.stage = "Splitting lead/backing vocals…";
-  if (state.tab === "extract") render();
+  const showProgress = (view) => _showVocalSplitProgress(jobId, view);
+  showProgress({ progress: 0 });
+  let final = null;
   try {
-    const res = await fetch(`/api/jobs/${jobId}/vocal-split`, { method: "POST" });
-    if (!res.ok && res.status !== 202) throw new Error(String(res.status));
-    toast("Stems ready!");
+    await startSplit(jobId);
+    final = await followSplit(jobId, { onView: showProgress });
   } catch (e) {
     console.warn("[mobile] vocal split failed:", e);
-    // The base separation still succeeded -- the split is a best-effort
-    // extra, so this is a lesser notice, not a failure of the whole import.
-    toast("Stems ready (lead/backing split didn't work this time).");
   }
+  // The base separation still succeeded -- the split is a best-effort
+  // extra, so this is a lesser notice, not a failure of the whole import.
+  if (final?.state === SPLIT_STATE.DONE) toast("Stems ready!");
+  else {
+    toast(
+      `Stems ready, without the lead/backing split. ${translate(failureKey(final?.error))}`,
+      READING_TOAST_MS,
+    );
+  }
+  _showExtractStatus(jobId, EXTRACT_DONE_STATUS, 1);
   loadLibrary();
   _finishExtractJob(jobId);
+}
+
+function _showVocalSplitProgress(jobId, view) {
+  if (state.extractJob?.id !== jobId) return;
+  state.extractJob.stage = "Splitting lead/backing vocals";
+  _showExtractStatus(jobId, SPLITTING_STATUS, Number(view.progress) || 0);
+}
+
+function _showExtractStatus(jobId, status, progress) {
+  if (state.extractJob?.id !== jobId) return;
+  state.extractJob.status = status;
+  state.extractJob.progress = progress;
+  if (state.tab === "extract") render();
 }
 
 function _onExtractState(jobId, s) {
