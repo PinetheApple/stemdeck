@@ -132,6 +132,16 @@ def holds_job_files(job_dir: Path) -> bool:
         return False
 
 
+def quarantine_dirs(jobs_dir: Path) -> list[Path]:
+    """The job folders in failed/ that are StemDeck's quarantine: the runner
+    writes error.txt into each before moving it there. Empty when failed/ is a
+    link, or holds only someone else's folders."""
+    failed_root = jobs_dir / "failed"
+    if not failed_root.exists() or not is_real_entry(failed_root):
+        return []
+    return [d for d in job_dirs(failed_root) if (d / "error.txt").is_file()]
+
+
 def write_text_atomic(path: Path, text: str) -> None:
     """Durably replace a file without exposing a partial write."""
     temp = path.parent / f".{path.name}.{uuid.uuid4().hex}.tmp"

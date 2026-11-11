@@ -724,7 +724,8 @@ async def set_stems_location(request: Request) -> dict[str, object]:
 @app.post("/api/reset", tags=["settings"])
 def reset_app_data() -> dict[str, object]:
     """Factory reset (Settings -> General -> "Reset app data"): delete every
-    job directory and the registry, so no old work session can resurface
+    job directory and the registry (only StemDeck's own entries: see
+    registry.reset_all), so no old work session can resurface
     across package reinstalls -- on desktop, the runtime state that actually
     persists (~/Documents/StemDeck, not the extracted package's own bundled
     data/ folder) survives a fresh install otherwise. The browser-side

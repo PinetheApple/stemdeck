@@ -402,6 +402,9 @@ def test_sweep_failed_jobs_expires_old_keeps_fresh(tmp_path: Path):
 
     old_dir = _mkdir(tmp_path / "failed", "abcdefabcde1")
     fresh_dir = _mkdir(tmp_path / "failed", "abcdefabcde2")
+    # The runner writes error.txt into every quarantine it makes.
+    for d in (old_dir, fresh_dir):
+        (d / "error.txt").write_text("evidence", encoding="utf-8")
     old = time.time() - 999_999
     import os
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import re
 import shutil
 import subprocess
 import threading
@@ -40,8 +41,11 @@ from app.core.song_folder import (
     STEMS_COMPLETE,
     backfill_stems_complete,
     copy_saved_fields,
+    holds_job_files,
     is_real_entry,
     is_started_only,
+    job_dirs,
+    quarantine_dirs,
     read_metadata,
     saved_from_meta,
     write_json_atomic,
@@ -688,21 +692,47 @@ def set_proc(job_id: str, proc: subprocess.Popen | None) -> None:
             _procs[job_id] = proc
 
 
+# The files reset removes beside the job folders: the registry, its temp and
+# set-aside copies (persist, _keep_bad_records), the setlists and the desktop
+# shell's store (#403), each with the temp name of an atomic write.
+_OWN_FILE_RE = re.compile(
+    r"(registry\.json(\.bad-[\w-]+)?|user-data\.json|setlists\.json)\Z"
+    r"|\.(registry|registry\.json|setlists\.json)\.[0-9a-f]{32}\.tmp\Z"
+)
+
+
+def _own_entries(jobs_dir: Path, known: set[str]) -> list[Path]:
+    """What reset removes: job folders the registry knows or that hold job
+    files, StemDeck's quarantined failures, and its own files. The jobs folder
+    can be shared with other things (upstream PR 886), so nothing else, and
+    nothing behind a link."""
+    targets = [d for d in job_dirs(jobs_dir) if d.name in known or holds_job_files(d)]
+    targets += quarantine_dirs(jobs_dir)
+    targets += [
+        f
+        for f in jobs_dir.iterdir()
+        if _OWN_FILE_RE.match(f.name) and f.is_file() and is_real_entry(f)
+    ]
+    return targets
+
+
 def reset_all(jobs_dir: Path) -> list[str]:
-    """Delete every job directory and the registry file, clearing the
-    in-memory registry too. Desktop-only factory reset (Settings -> General
-    -> "Reset app data") -- the caller is responsible for checking no job is
-    actively running first (deleting a running job's directory out from
-    under it would corrupt that job, not just reset the library)."""
+    """Delete StemDeck's entries in the jobs folder (_own_entries), clearing
+    the in-memory registry too. Factory reset (Settings -> General -> "Reset
+    app data") -- the caller is responsible for checking no job is actively
+    running first (deleting a running job's directory out from under it would
+    corrupt that job, not just reset the library). Returns the names it could
+    not remove."""
     # A save still writing its snapshot finishes first: replacing the file
     # after the loop below removed it brought the old library back.
     with _write_lock, _lock:
+        known = set(_jobs) | _deleted
         _jobs.clear()
         _procs.clear()
     if not jobs_dir.is_dir():
         return []
     failed: list[str] = []
-    for entry in jobs_dir.iterdir():
+    for entry in _own_entries(jobs_dir, known):
         try:
             if entry.is_dir():
                 shutil.rmtree(entry)
@@ -711,16 +741,34 @@ def reset_all(jobs_dir: Path) -> list[str]:
         except OSError:
             logger.warning("reset: could not remove %s", entry, exc_info=True)
             failed.append(entry.name)
+    _remove_empty_failed_root(jobs_dir, failed)
+    skipped = [e.name for e in jobs_dir.iterdir() if e.name not in failed]
+    if skipped:
+        logger.info("reset left %d entries that are not StemDeck's", len(skipped))
     # Anything that survived is still a job-shaped directory on disk, so the
     # next start would adopt it and the "reset" library would refill itself.
     # Record it as deleted and persist that, which also recreates the registry
-    # file this loop just removed.
+    # file this loop just removed. A known job left alone because it is a
+    # link is one of these too.
     surviving = [name for name in failed if JOB_ID_RE.match(name)]
+    surviving += [name for name in skipped if name in known]
     if surviving:
         with _lock:
             _deleted.update(surviving)
         persist(jobs_dir)
     return failed
+
+
+def _remove_empty_failed_root(jobs_dir: Path, failed: list[str]) -> None:
+    """failed/ goes only once empty: anything still in it is not ours."""
+    failed_root = jobs_dir / "failed"
+    if not failed_root.is_dir() or not is_real_entry(failed_root) or any(failed_root.iterdir()):
+        return
+    try:
+        failed_root.rmdir()
+    except OSError:
+        logger.warning("reset: could not remove %s", failed_root, exc_info=True)
+        failed.append(failed_root.name)
 
 
 def get_proc(job_id: str) -> subprocess.Popen | None:

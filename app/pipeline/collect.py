@@ -26,7 +26,7 @@ from app.core.registry import persist as registry_persist
 from app.core.registry import remove as registry_remove
 from app.core.registry import set_proc
 from app.core.setlists import all_song_ids as setlists_all_song_ids
-from app.core.song_folder import holds_job_files, is_real_entry, job_dirs
+from app.core.song_folder import holds_job_files, is_real_entry, job_dirs, quarantine_dirs
 from app.pipeline.audio_stats import scan_stem
 from app.pipeline.lyrics_retime import RETIME_RUNS
 from app.pipeline.transcribe_on_demand import TRANSCRIBE_RUNS
@@ -453,13 +453,11 @@ def sweep_failed_jobs(jobs_dir: Path) -> None:
     FAILED_TTL_SECONDS. Runs unconditionally from the hourly sweep loop --
     unlike the job TTL sweep, which persistent-library deployments disable,
     failure evidence must never accumulate forever (#277)."""
-    failed_root = jobs_dir / "failed"
-    if not failed_root.is_dir():
-        return
     cutoff = time.time() - FAILED_TTL_SECONDS
-    for d in failed_root.iterdir():
+    # Only StemDeck's quarantines: failed/ may hold someone else's folders.
+    for d in quarantine_dirs(jobs_dir):
         try:
-            if d.is_dir() and d.stat().st_mtime < cutoff:
+            if d.stat().st_mtime < cutoff:
                 _rmtree(d)
         except OSError:
             logger.warning("failed-quarantine sweep could not stat %s", d, exc_info=True)
