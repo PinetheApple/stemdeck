@@ -1208,11 +1208,15 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
       })()
     : Promise.resolve({}));
 
-  // Beat grid for the click track, fetched alongside peaks for the first engine.
-  // A later engine (the swap to full decode) reads it again, so edits saved since load carry over.
   const _loadTimeBeats = jobId ? _fetchBeatGrid(jobId) : Promise.resolve(null);
-  let _enginesGivenBeats = 0;
-  const _beatsForEngine = () => (_enginesGivenBeats++ === 0 || !jobId ? _loadTimeBeats : _fetchBeatGrid(jobId));
+  let _firstEngineBeats = _loadTimeBeats;
+  // A later engine re-reads the grid so edits saved since load carry over.
+  const _beatsForEngine = () => {
+    const firstEngineBeats = _firstEngineBeats;
+    _firstEngineBeats = null;
+    if (firstEngineBeats || !jobId) return _loadTimeBeats;
+    return _fetchBeatGrid(jobId).then((fresh) => fresh ?? _loadTimeBeats);
+  };
 
   for (const stem of stems) {
     const row = mixerEl.querySelector(`.lane-header[data-stem="${stem.name}"]`);
