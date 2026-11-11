@@ -16,7 +16,7 @@ import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
 import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
 import { isModalOpen } from "./stageMode.js";
-import { OUT_OF_TAB_ORDER, ROW_PLAY_CLASS, wireRovingRows } from "./rovingRows.js";
+import { ON_ROW, OUT_OF_TAB_ORDER, ROW_PLAY_CLASS, isShown, wireRovingRows } from "./rovingRows.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
@@ -1495,6 +1495,15 @@ export function addPlaylistToLibrary(playlistTitle, jobs) {
   return folder.id;
 }
 
+/** The folders at the top of the tree, the Trash left out. */
+function topLevelFolders() {
+  return folders.filter((f) => f.id !== TRASH_ID && !f.parentId);
+}
+
+function childFoldersOf(folderId) {
+  return folders.filter((f) => f.parentId === folderId);
+}
+
 /** The folder and every folder nested under it, at any depth. */
 function folderWithDescendants(folderId) {
   const ids = new Set([folderId]);
@@ -1734,7 +1743,18 @@ function dropOnFolder(folderId, trackId) {
 
 /** The row menu's move: the same as dragging the song onto the folder. */
 export function moveTrackToFolder(trackId, folderId) {
-  dropOnFolder(folderId, trackId);
+  placeTrackInFolder(folderId, trackId);
+  saveState();
+  render();
+  focusMovedSong(trackId, folderId);
+}
+
+// Not as the keyboard's focus, so Delete is not armed on the song just moved;
+// a song in a collapsed folder leaves focus on that folder's row.
+function focusMovedSong(trackId, folderId) {
+  const row = document.querySelector(`${LIBRARY_ROW_SELECTOR}[data-id="${CSS.escape(trackId)}"]`);
+  const target = row && isShown(row) ? row : folderHeadEl(folderId);
+  if (target) libraryRows?.focusRow(target, ON_ROW, { preventScroll: true, focusVisible: false });
 }
 
 export function moveTrackToNewFolder(trackId) {
@@ -1747,9 +1767,9 @@ export function folderChoices(trackId) {
   const choices = [];
   const visit = (folder, depth) => {
     choices.push({ id: folder.id, name: folder.name, depth, current: folder.items.includes(trackId) });
-    for (const child of folders.filter((f) => f.parentId === folder.id)) visit(child, depth + 1);
+    for (const child of childFoldersOf(folder.id)) visit(child, depth + 1);
   };
-  for (const top of folders.filter((f) => f.id !== TRASH_ID && !f.parentId)) visit(top, 0);
+  for (const top of topLevelFolders()) visit(top, 0);
   return choices;
 }
 
@@ -2463,7 +2483,7 @@ function renderFolder(folder) {
   const body = document.createElement("div");
   body.className = "folder-body";
 
-  const childFolders = folders.filter((f) => f.parentId === folder.id);
+  const childFolders = childFoldersOf(folder.id);
 
   if (catalogSearchQuery && visibleItems.length === 0 && childFolders.length === 0) {
     return null;
@@ -2681,12 +2701,12 @@ function drawCatalog() {
   // backend is actually working on, in the order it will work on it.
   if (isQueueView) {
     renderQueueList(list);
-    renderStrip(strip, folders.filter((f) => f.id !== TRASH_ID && !f.parentId));
+    renderStrip(strip, topLevelFolders());
     updateQueueBadge();
     return;
   }
 
-  const nonTrash = folders.filter((f) => f.id !== TRASH_ID && !f.parentId);
+  const nonTrash = topLevelFolders();
 
   // ── Trash view ──
   if (isTrashView) {
