@@ -12,6 +12,7 @@ import {
   seedLibrary,
   stubExportEndpoints,
   stubFavorites,
+  stubLongQueue,
   stubUpdateCheck,
 } from "./helpers.mjs";
 
@@ -169,28 +170,6 @@ function smallTargets(page, selectors) {
 }
 
 const ALL_TARGETS_MET = { missing: [], small: [] };
-const QUEUED_IDS = ["e2e0feed0001", "e2e0feed0002", "e2e0feed0003"];
-
-/** A running import and three waiting ones, so the last two waiting rows offer "extract next". */
-async function stubLongQueue(page) {
-  const job = (id) => ({ job_id: id, status: "queued", title: id, source_url: `https://example.invalid/${id}` });
-  await page.route(
-    "**/api/queue",
-    (route) => route.fulfill({
-      json: {
-        running: { ...job("e2e0feed0000"), status: "separating", stage: "Separating 40%", progress: 0.4 },
-        queued: QUEUED_IDS.map(job),
-        paused: false,
-        max_pending_uploads: 5,
-        max_pending_urls: 50,
-        capacity_left_uploads: 5,
-        capacity_left_urls: 50,
-      },
-    }),
-  );
-  await page.route("**/api/queue/events", (route) => route.abort());
-}
-
 /** A user folder, for its head's buttons, and a stopped song, for its Extract button. */
 function seedFolderAndStoppedSong(page) {
   return seedCatalogState(page, {
