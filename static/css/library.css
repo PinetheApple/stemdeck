@@ -404,3 +404,5 @@
 /* Kept in place, not dropped, so a restore brings it back where it was. */
 .setlist-song.in-trash .setlist-song-open { opacity: var(--disabled-opacity); cursor: default; }
 .setlist-song.in-trash:is(:hover, .is-selected) .row-play { display: none; }
+
+.daw-search.has-query .search-kbd { display: none; }

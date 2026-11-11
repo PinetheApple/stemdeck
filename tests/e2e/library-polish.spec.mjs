@@ -212,3 +212,58 @@ test("with no song open the main area says how to start", async ({ page }) => {
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).dblclick();
   await expect(start).toBeHidden();
 });
+
+const CHIP_TAG = "rock";
+const searchBox = (page) => page.locator("#catalogToggle");
+
+/**
+ * The ⌘K hint and the field's native clear button never show together. The
+ * clear button shows exactly when the field has text, and `has-query` pins the
+ * state the hint's rule keys on, which WebKit does not refresh from
+ * `:placeholder-shown` when code sets the value.
+ */
+async function expectSearchState(page, hasText) {
+  const hint = page.locator(".search-kbd");
+  if (hasText) await expect(searchBox(page)).toHaveClass(/\bhas-query\b/);
+  else await expect(searchBox(page)).not.toHaveClass(/\bhas-query\b/);
+  await expect(hint).toBeVisible({ visible: !hasText });
+  const value = await page.locator("#catalogSearch").inputValue();
+  expect(value !== "", "the clear button shows when the field has text").toBe(hasText);
+}
+
+test("typing hides the ⌘K hint and clearing brings it back", async ({ page }) => {
+  await openLibrary(page);
+  await expectSearchState(page, false);
+
+  await search(page, TRACK_TITLE);
+  await expectSearchState(page, true);
+  await search(page, "");
+  await expectSearchState(page, false);
+
+  await page.locator("#catalogSearch").pressSequentially("Fix");
+  await expectSearchState(page, true);
+  await page.locator("#catalogSearch").press("Escape");
+  await expectSearchState(page, false);
+});
+
+test("a tag chip that sets or clears the search moves the ⌘K hint with it", async ({ page }) => {
+  await seedCatalogState(page, {
+    folders: [
+      { id: "f-unsorted", name: "Unsorted", items: [JOB_ID], color: null },
+      { id: "trash", name: "Trash", items: [], color: null },
+    ],
+    tracks: { [JOB_ID]: { ...fixtureTrack(JOB_ID, TRACK_TITLE), tags: [CHIP_TAG] } },
+  });
+  await stubFavorites(page);
+  await stubUpdateCheck(page);
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
+  const chip = page.locator(`.lib-tag-chip[data-tag="${CHIP_TAG}"]`);
+  await expect(chip).toBeVisible({ timeout: 20000 });
+
+  await chip.click();
+  await expect(page.locator("#catalogSearch")).toHaveValue(`#${CHIP_TAG}`);
+  await expectSearchState(page, true);
+  await page.locator(`.lib-tag-chip[data-tag="${CHIP_TAG}"]`).click();
+  await expectSearchState(page, false);
+});

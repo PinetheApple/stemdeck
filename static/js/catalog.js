@@ -70,6 +70,12 @@ let _loadTrackToken = 0;
 const _autoOpenTokens = new Map();
 let catalogView = "library";
 let catalogSearchQuery = "";
+const SEARCH_HAS_QUERY_CLASS = "has-query";
+
+/** WebKit does not refresh `:placeholder-shown` when code sets the value, so the ⌘K hint keys on a class. */
+function syncSearchHasQuery(input) {
+  input.closest(".daw-search")?.classList.toggle(SEARCH_HAS_QUERY_CLASS, input.value !== "");
+}
 // Rows picked in the Trash with a click, Ctrl or Shift. A hold on one of them
 // restores them all. The anchor is where the next Shift+click range starts.
 const _trashSelection = new Set();
@@ -2757,6 +2763,7 @@ function drawCatalog() {
           catalogSearchQuery = `#${tag}`;
           if (input) input.value = `#${tag}`;
         }
+        if (input) syncSearchHasQuery(input);
         render();
       });
       row.appendChild(chip);
@@ -3298,6 +3305,7 @@ function wireCatalogSearch() {
         e.preventDefault();
         input.value = `#${tag}`;
         catalogSearchQuery = `#${tag}`;
+        syncSearchHasQuery(input);
         hideSuggest();
         render();
       });
@@ -3307,6 +3315,7 @@ function wireCatalogSearch() {
 
   input.addEventListener("input", () => {
     catalogSearchQuery = normalizeSearch(input.value);
+    syncSearchHasQuery(input);
     render();
     const val = input.value;
     if (val.startsWith("#")) {
