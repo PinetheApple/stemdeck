@@ -22,6 +22,8 @@ for (const width of [1024, 1280, 1366, 1600]) {
     expect(box.x + box.width).toBeLessThanOrEqual(bar.x + bar.width + 0.5);
     await button.click();
     await expect(page.locator("#artistDialog")).toBeVisible();
+    await expect(page.locator("#artistDialog")).toHaveAttribute("aria-labelledby", "artistTitle");
+    await expect(page.locator("#artistTitle")).toHaveText("About the song");
   });
 }
 
