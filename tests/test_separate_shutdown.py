@@ -1,12 +1,4 @@
-"""A clean shutdown during a separation interrupts the job; it does not fail it.
-
-The lifespan's teardown kills the demucs worker, and the worker's EOF reads
-exactly like a crash. Taken as a failure, the job was quarantined with its
-upload deleted, and "error" is not persisted, so after a docker stop the song
-was gone. Here the real lifespan runs a real job through the queue on a stub
-worker, so the teardown, the worker kill, the EOF and the runner's handling are
-the production ones; only demucs itself is a stand-in.
-"""
+"""A clean shutdown during a separation interrupts the job; it does not fail it."""
 
 from __future__ import annotations
 
@@ -22,14 +14,21 @@ from app.core.models import Job
 from app.pipeline import jobqueue, runner
 from app.pipeline import separate as sep_mod
 
+_SEPARATION_SECONDS = 60
+_POLL_TRIES = 200
+_POLL_INTERVAL_S = 0.05
+_WORKER_EXIT_TIMEOUT_S = 10
+
 # Reports some progress, then separates until it is killed.
-_SLOW_WORKER = """
+_SLOW_WORKER = f"""
 import sys, time
 sys.stdin.readline()
 sys.stderr.write("5%\\n")
 sys.stderr.flush()
-time.sleep(60)
+time.sleep({_SEPARATION_SECONDS})
 """
+# A CPU fallback that ends at once, so starting one fails the test on its assert.
+_FAILING_WORKER = "import sys; sys.exit(1)"
 
 
 async def _no_sweep():
@@ -48,10 +47,10 @@ def _isolated(monkeypatch):
 
 
 async def _until(condition, what: str) -> None:
-    for _ in range(200):
+    for _ in range(_POLL_TRIES):
         if condition():
             return
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(_POLL_INTERVAL_S)
     raise AssertionError(f"timed out waiting for {what}")
 
 
@@ -62,7 +61,7 @@ async def test_shutdown_during_separation_keeps_the_upload_and_resumes(monkeypat
 
     def spawn(dev: str) -> list[str]:
         spawned.append(dev)
-        return [sys.executable, "-c", _SLOW_WORKER]
+        return [sys.executable, "-c", _SLOW_WORKER if dev == device else _FAILING_WORKER]
 
     monkeypatch.setattr(sep_mod, "_spawn_worker_cmd", spawn)
     monkeypatch.setattr(sep_mod, "get_demucs_device", lambda: device)
@@ -84,7 +83,7 @@ async def test_shutdown_during_separation_keeps_the_upload_and_resumes(monkeypat
         jobqueue.enqueue(job.id)
         await _until(lambda: job.progress > 0, "the separation to start")
     # The teardown killed the worker; let the runner handle what that did.
-    await asyncio.wait_for(jobqueue._worker_task, 10)
+    await asyncio.wait_for(jobqueue._worker_task, _WORKER_EXIT_TIMEOUT_S)
 
     assert spawned == [device], "a shutdown never starts a CPU fallback"
     assert source.read_bytes() == original
