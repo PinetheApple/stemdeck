@@ -1,47 +1,21 @@
-// Keeps the footer control strip inside the width it actually has.
-//
-// .footer-clusters is `overflow-x: auto` with `flex: none` children, so it
-// never reflows on its own: past a certain width it scrolls instead, and
-// controls sit off the right-hand edge with nothing to say so (#586).
-//
-// Measured rather than written as a media query because the row's width is not
-// a function of the viewport: it moves with the language, the fonts and Stage
-// mode. The strip itself spans the window, so the library pane does not move it.
-//
-// Every pass re-measures from the uncollapsed state, so the strip opens back up
-// as room returns; reopening takes REOPEN_SLACK to spare, though (#633).
+// .footer-clusters scrolls sideways rather than reflowing, hiding controls past its edge.
+// Measured, not a media query: the row's width moves with language, fonts and Stage mode.
 
-// Least destructive first, and each step costs more than the last.
-//
-// "rows" moves Speed and Global key onto a second row at full size: the footer
-// grows taller, but every control keeps its label and size.
-//
-// "tight" closes up the spacing between clusters and drops the Loop label.
-//
-// "compact" drops the remaining labels and shrinks the controls.
-const LEVELS = ["rows", "tight", "compact"];
+// The one level: clusters wrap at full size, Speed and Global key first, so no label is hidden.
+const ROWS_LEVEL = "rows";
+const ROWS_CLASS = `collapse-${ROWS_LEVEL}`;
 
-// Room a less collapsed level must have to spare before the strip goes back to
-// it. Collapsing still happens the moment the row is short by any amount.
-//
-// With one threshold, a strip sitting on it flips on any sub-pixel wobble or a
-// scrollbar coming and going, and every flip re-triggers the observer (#633).
-// 24px is wider than a classic Windows scrollbar at any scale (17px), the
-// largest width change anything in the footer can make on its own.
+// Spare room the single row needs before leaving "rows"; wider than a 17px
+// Windows scrollbar, so a scrollbar or sub-pixel wobble cannot flip it.
 const REOPEN_SLACK = 24;
 
 let strip = null;
-let level = 0; // count of LEVELS applied, in order; 0 is fully inline
+let rows = false;
 let queued = false;
 let observedWidth = -1; // strip content width the observer last reported
 
-/**
- * How far the widest row runs past the strip's right edge: positive when it
- * overflows, negative by the room it has to spare.
- *
- * Rect edges rather than scrollWidth - clientWidth: those never go below zero
- * and are rounded, so a row at a 2.5 device pixel ratio could read either way.
- */
+// Widest row past the strip's edge, negative when there is room. Rect edges, because
+// scrollWidth never goes below zero and rounds, so it cannot measure spare room.
 function overrun() {
   const box = strip.getBoundingClientRect();
   let left = Infinity;
@@ -56,12 +30,8 @@ function overrun() {
   return right > left ? right - left - box.width : -box.width;
 }
 
-function clearLevels() {
-  while (level > 0) strip.classList.remove(`collapse-${LEVELS[--level]}`);
-}
-
-function fitsAt(was) {
-  const slack = level < was ? REOPEN_SLACK : 0;
+function singleRowFitsFrom(wasRows) {
+  const slack = wasRows ? REOPEN_SLACK : 0;
   return overrun() + slack <= 0;
 }
 
@@ -69,29 +39,24 @@ function apply() {
   queued = false;
   if (!strip || !strip.isConnected) return;
 
-  const was = level;
-  clearLevels();
+  const wasRows = rows;
+  strip.classList.remove(ROWS_CLASS);
+  rows = false;
 
   // A hidden strip has no width to fit anything into.
   if (!strip.clientWidth) return;
 
-  while (level < LEVELS.length && !fitsAt(was)) {
-    strip.classList.add(`collapse-${LEVELS[level++]}`);
-  }
+  rows = !singleRowFitsFrom(wasRows);
+  strip.classList.toggle(ROWS_CLASS, rows);
 
   // Footer popovers anchor to controls this may have just moved.
-  if (level !== was) {
-    window.dispatchEvent(new CustomEvent("footerfit", { detail: { level: LEVELS[level - 1] ?? null } }));
+  if (rows !== wasRows) {
+    window.dispatchEvent(new CustomEvent("footerfit", { detail: { level: rows ? ROWS_LEVEL : null } }));
   }
 }
 
-/**
- * Re-fit on the next frame.
- *
- * Coalesced because the things that call it arrive in bursts: a drag on the
- * window edge fires the observer per frame, and a language switch rewrites
- * every label in one go.
- */
+// Coalesced to one pass per frame: a window drag fires the observer every frame,
+// and a language switch rewrites every label at once.
 export function refitFooter() {
   if (queued) return;
   queued = true;
@@ -102,9 +67,8 @@ export function initFooterFit() {
   strip = document.querySelector(".footer-clusters");
   if (!strip) return;
 
-  // Width changes only. The strip's height is an output of the fit ("rows"
-  // makes it taller), so re-fitting on it would loop (#633). Content changes
-  // that matter call refitFooter() themselves.
+  // Width changes only: "rows" changes the strip's height, so re-fitting on it
+  // would loop. Content changes that matter call refitFooter() themselves.
   if (typeof ResizeObserver === "function") {
     new ResizeObserver((entries) => {
       const width = entries[entries.length - 1].contentRect.width;

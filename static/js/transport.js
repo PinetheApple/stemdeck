@@ -1526,9 +1526,8 @@ export function updateMetronomeAvailability(grid, reason = "") {
 
 // ── Footer popovers ──────────────────────────────────────────────────────
 //
-// Two of them, side by side in the click-track cluster: the options panel,
-// which only exists once footerFit decides the options do not fit inline, and
-// the volume fader, which is there at every width.
+// Two of them in the click-track cluster: the options panel behind
+// #t-metro-more, and the volume fader.
 //
 // Both are position:fixed. .footer-clusters scrolls sideways and clips
 // vertically (overflow-y: hidden), so an absolutely positioned panel would be
