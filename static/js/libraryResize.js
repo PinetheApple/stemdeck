@@ -2,7 +2,8 @@ import { $, storeGet, storeSet, storeSetDebounced } from "./utils.js";
 import { isSidebarCollapsed, setSidebarCollapsed } from "./catalog.js";
 
 const WIDTH_STORE_KEY = "stemdeck.library.width";
-// Beside the catalog's own collapsed flag, in the same storage, so the two cannot diverge.
+// localStorage like the catalog's collapsed flag: both are read synchronously at startup,
+// where storeGet would answer later over the desktop's IPC.
 const AUTO_COLLAPSED_KEY = "stemdeck.library.autoCollapsed";
 const AUTO_COLLAPSED_STORED = "1";
 const COLLAPSED_CLASS = "cat-collapsed";
