@@ -63,7 +63,8 @@ stay put.
 kept until you delete them. When it is on, it still keeps favourites, songs in a setlist, stopped
 songs, and any song with a vocal split, lyrics timing or transcription running.
 
-**Registry.** The library is one file, `registry.json`: the list of finished jobs on disk.
+**Registry.** The library is one file, `registry.json`: every finished song on disk, plus the
+queue, the stopped songs and the songs in the Trash.
 Settings, Registry shows it read-only. See [Troubleshooting](troubleshooting.md#layout-on-disk)
 for the folder layout.
 
