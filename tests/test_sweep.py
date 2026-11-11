@@ -99,6 +99,116 @@ def test_an_unreadable_setlists_file_stops_the_sweep(tmp_path: Path, caplog):
     assert any(r.name == "stemdeck.collect" for r in caplog.records)
 
 
+# ── a stopped song and a song with work running are never swept (upstream PR 862, 998) ──
+
+
+def _old_stopped_upload(jobs_dir: Path, job_id: str, **fields) -> tuple[Job, Path]:
+    d = _mkdir(jobs_dir, job_id)
+    source = d / "source.mp3"
+    source.write_bytes(b"ID3")
+    job = Job(id=job_id, status="stopped", source_url="local:Song", **fields)
+    job.created_at = time.time() - 999_999
+    _jobs[job.id] = job
+    return job, source
+
+
+@pytest.mark.parametrize("trashed_at", [None, 1.0], ids=["library", "trash"])
+def test_old_stopped_song_survives_the_sweep(tmp_path: Path, trashed_at):
+    job, source = _old_stopped_upload(tmp_path, "cccccccccc01", trashed_at=trashed_at)
+
+    sweep_old_jobs(tmp_path, ttl_seconds=60)
+
+    assert source.is_file()
+    assert job.id in _jobs
+
+
+def test_trashed_in_flight_upload_comes_back_stopped_and_is_kept(tmp_path: Path):
+    """A restart turns a job trashed mid-separation into a stopped song (#748);
+    the first sweep after that start must not take it."""
+    from app.core.registry import persist, restore, take_pending_resume
+
+    job_id = "cccccccccc02"
+    job = Job(id=job_id, status="separating", source_url="local:Song", trashed_at=1.0)
+    job.created_at = time.time() - 999_999
+    _jobs[job_id] = job
+    persist(tmp_path)
+    source = tmp_path / job_id / "source.mp3"
+    source.parent.mkdir()
+    source.write_bytes(b"ID3")
+    _jobs.clear()
+
+    restore(tmp_path)
+    assert _jobs[job_id].status == "stopped"
+    assert take_pending_resume() == []
+
+    sweep_old_jobs(tmp_path, ttl_seconds=60)
+
+    assert source.is_file()
+    assert job_id in _jobs
+
+
+def test_old_song_with_a_vocal_split_running_survives(tmp_path: Path):
+    d, job = _old_done_job(tmp_path, "cccccccccc03")
+    job.vocal_split = "running"
+
+    sweep_old_jobs(tmp_path, ttl_seconds=60)
+
+    assert d.is_dir()
+    assert job.id in _jobs
+
+
+def _lyrics_boards():
+    from app.pipeline.lyrics_retime import RETIME_RUNS
+    from app.pipeline.transcribe_on_demand import TRANSCRIBE_RUNS
+
+    return {"timing": RETIME_RUNS, "transcription": TRANSCRIBE_RUNS}
+
+
+@pytest.mark.parametrize("kind", ["timing", "transcription"])
+def test_old_song_with_a_lyrics_run_running_survives(tmp_path: Path, kind: str):
+    board = _lyrics_boards()[kind]
+    d, job = _old_done_job(tmp_path, "cccccccccc04")
+    assert board.claim(job.id) is not None
+    try:
+        sweep_old_jobs(tmp_path, ttl_seconds=60)
+    finally:
+        board.forget(job.id)
+
+    assert d.is_dir()
+    assert job.id in _jobs
+
+
+@pytest.mark.parametrize("kind", ["timing", "transcription"])
+def test_old_song_goes_once_its_work_has_ended(tmp_path: Path, kind: str):
+    """The keep holds only while the work runs: an ended split or lyrics run
+    leaves an ordinary old song."""
+    board = _lyrics_boards()[kind]
+    d, job = _old_done_job(tmp_path, "cccccccccc05")
+    job.vocal_split = "done"
+    run = board.claim(job.id)
+    assert run is not None
+    run.state = "done"
+    try:
+        sweep_old_jobs(tmp_path, ttl_seconds=60)
+    finally:
+        board.forget(job.id)
+
+    assert not d.exists()
+    assert job.id not in _jobs
+
+
+def test_each_kept_and_removed_song_is_logged_with_its_reason(tmp_path: Path, caplog):
+    _old_stopped_upload(tmp_path, "cccccccccc06")
+    _old_done_job(tmp_path, "cccccccccc07")
+
+    with caplog.at_level(logging.DEBUG, logger="stemdeck.collect"):
+        sweep_old_jobs(tmp_path, ttl_seconds=60)
+
+    messages = [r.getMessage() for r in caplog.records if r.name == "stemdeck.collect"]
+    assert "auto-delete kept cccccccccc06: stopped song" in messages
+    assert "auto-delete removed cccccccccc07: finished and older than the cutoff" in messages
+
+
 def test_deletion_is_off_unless_asked_for(monkeypatch):
     """The default has to be "keep". Deleting a finished separation destroys
     work that cannot be recovered, so an install nobody configured must not do

@@ -15,13 +15,15 @@ from app.core.config import (
     TIMEOUT_FFMPEG,
     ffmpeg_executable,
 )
-from app.core.models import FINISHED_STATUSES, Job
+from app.core.models import FINISHED_STATUSES, STATUS_STOPPED, VOCAL_SPLIT_RUNNING, Job
 from app.core.registry import all_jobs as registry_all
 from app.core.registry import persist as registry_persist
 from app.core.registry import remove as registry_remove
 from app.core.registry import set_proc
 from app.core.setlists import all_song_ids as setlists_all_song_ids
 from app.pipeline.audio_stats import scan_stem
+from app.pipeline.lyrics_retime import RETIME_RUNS
+from app.pipeline.transcribe_on_demand import TRANSCRIBE_RUNS
 
 logger = logging.getLogger("stemdeck.collect")
 
@@ -325,6 +327,42 @@ def presence_for_split(
     }
 
 
+def _work_running(job: Job) -> bool:
+    """Whether a vocal split, lyrics timing or transcription is running on a
+    finished song: the runs delete stops before it removes the folder."""
+    return (
+        job.vocal_split == VOCAL_SPLIT_RUNNING
+        or RETIME_RUNS.running(job.id)
+        or TRANSCRIBE_RUNS.running(job.id)
+    )
+
+
+def _keep_reason(
+    job: Job | None,
+    job_dir: Path,
+    cutoff: float,
+    in_setlists: set[str],
+) -> str | None:
+    """Why the sweep must leave `job_dir` alone, or None to remove it."""
+    if job_dir.name in in_setlists:
+        return "in a setlist"
+    if job is None:
+        # The registry is rebuilt at start, so a leftover dir goes by its mtime.
+        return "newer than the cutoff" if job_dir.stat().st_mtime >= cutoff else None
+    if job.status not in _TERMINAL:
+        return "still active"
+    if _work_running(job):
+        return "work is running on it"
+    if job.status == STATUS_STOPPED:
+        # Never separated, and an upload's kept source is its only copy.
+        return "stopped song"
+    if job.favorite:
+        return "favourite"
+    if job.created_at >= cutoff:
+        return "newer than the cutoff"
+    return None
+
+
 def sweep_old_jobs(jobs_dir: Path, ttl_seconds: int | None = None) -> None:
     """Delete job directories older than `ttl_seconds` (JOB_TTL_SECONDS when
     not given) and remove them from the in-memory registry. Called hourly from
@@ -340,7 +378,10 @@ def sweep_old_jobs(jobs_dir: Path, ttl_seconds: int | None = None) -> None:
 
     Favourites and songs in any setlist are kept however old they are: the
     user has said they want them, which outranks a retention limit. When the
-    setlists cannot be read, nothing is swept."""
+    setlists cannot be read, nothing is swept. A stopped song is never swept
+    either, nor a song with a vocal split, lyrics timing or transcription
+    running (upstream PR 862 and 998): only the user deletes those. Every song
+    kept or removed is logged with the reason (_keep_reason)."""
     cutoff = time.time() - (JOB_TTL_SECONDS if ttl_seconds is None else ttl_seconds)
     if not jobs_dir.is_dir():
         return
@@ -351,20 +392,15 @@ def sweep_old_jobs(jobs_dir: Path, ttl_seconds: int | None = None) -> None:
     jobs = registry_all()
     removed = False
     for d in jobs_dir.iterdir():
-        if not d.is_dir():
-            continue
-        if d.name == "failed":
+        if not d.is_dir() or d.name == "failed":
             continue  # the failure quarantine has its own TTL (sweep_failed_jobs)
-        if d.name in in_setlists:
-            continue
         job = jobs.get(d.name)
-        if job is not None:
-            if job.status not in _TERMINAL:
-                continue  # never delete an active job's working dir
-            if job.favorite or job.created_at >= cutoff:
-                continue
-        elif d.stat().st_mtime >= cutoff:
+        reason = _keep_reason(job, d, cutoff, in_setlists)
+        if reason is not None:
+            logger.debug("auto-delete kept %s: %s", d.name, reason)
             continue
+        state = "finished" if job is not None else "unregistered"
+        logger.info("auto-delete removed %s: %s and older than the cutoff", d.name, state)
         _rmtree(d)
         registry_remove(d.name)
         removed = True
