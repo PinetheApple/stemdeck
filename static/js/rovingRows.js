@@ -1,5 +1,7 @@
 // One Tab stop per list (roving tabindex). Up/Down/Home/End move between rows, Enter
-// opens one, Right/Left walk into and back out of the row's own buttons.
+// opens one, Right/Left walk into and back out of the row's own buttons. In a list with
+// selectable rows, the row holding focus is the selected one: a click selects, and a
+// double-click or the row's Play button opens.
 
 export const ROW_KEY = Object.freeze({
   PREVIOUS: "ArrowUp",
@@ -11,11 +13,17 @@ export const ROW_KEY = Object.freeze({
   OPEN: "Enter",
 });
 
+export const SELECTED_ROW_CLASS = "is-selected";
+export const ROW_PLAY_CLASS = "row-play";
+
 const ROVING_STOP = 0;
 export const OUT_OF_TAB_ORDER = -1;
 export const ON_ROW = -1;
 const NOT_FOUND = -1;
 const KEYBOARD_FOCUS = ":focus-visible";
+const FIELD = "input, textarea, select, [contenteditable='true']";
+const NOT_THE_ROW = `button, form, ${FIELD}`;
+const SECOND_CLICK = 2;
 const wiredLists = new WeakMap();
 
 /** The row index a movement key leads to, or null for any other key. */
@@ -62,6 +70,8 @@ function hasModifier(e) {
  * Make `container` one Tab stop over the rows matching `rowSelector`.
  * `keyOf(row)` names a row across redraws; `openRow(row)` is what Enter does;
  * `preferredRow(rows)` picks the stop among `rows` when none was focused yet.
+ * Rows matching `selectableRow` wear SELECTED_ROW_CLASS while they are the row
+ * last focused, and open on a double-click or a click on their ROW_PLAY_CLASS button.
  * Call `remember()` before a redraw and `restore(saved)` after it, or `refresh()`
  * when rows were shown or hidden without one. `isKeyboardFocus()` says whether the
  * focus in the list is the keyboard's rather than a click's or a tap's.
@@ -69,11 +79,12 @@ function hasModifier(e) {
  */
 export function wireRovingRows(
   container,
-  { rowSelector, actionSelector, keyOf, openRow, preferredRow = () => null },
+  { rowSelector, actionSelector, keyOf, openRow, preferredRow = () => null, selectableRow = null },
 ) {
   if (wiredLists.has(container)) return wiredLists.get(container);
   // Read as focus arrives: a key pressed later can make a clicked row match too.
   let arrivedByKeyboard = false;
+  let selectedKey = null;
 
   const rowOf = (el) => {
     const row = el?.closest?.(rowSelector);
@@ -87,6 +98,22 @@ export function wireRovingRows(
     for (const el of allRows()) el.tabIndex = el === row ? ROVING_STOP : OUT_OF_TAB_ORDER;
   }
 
+  const isSelectable = (row) => Boolean(selectableRow) && row.matches(selectableRow);
+
+  function paintSelection() {
+    if (!selectableRow) return;
+    for (const el of allRows()) {
+      el.classList.toggle(SELECTED_ROW_CLASS, isSelectable(el) && keyOf(el) === selectedKey);
+    }
+  }
+
+  function select(row) {
+    const key = keyOf(row);
+    if (key === selectedKey) return;
+    selectedKey = key;
+    paintSelection();
+  }
+
   function focusRow(row, actionIndex = ON_ROW, options = {}) {
     makeStop(row);
     (actionsOf(row)[actionIndex] ?? row).focus(options);
@@ -95,7 +122,9 @@ export function wireRovingRows(
   function onRowFocus(e) {
     arrivedByKeyboard = e.target.matches(KEYBOARD_FOCUS);
     const row = rowOf(e.target);
-    if (row && row.tabIndex !== ROVING_STOP) makeStop(row);
+    if (!row) return;
+    if (row.tabIndex !== ROVING_STOP) makeStop(row);
+    select(row);
   }
 
   function moveBetweenRows(e, row) {
@@ -117,7 +146,7 @@ export function wireRovingRows(
   function onRowKeydown(e) {
     if (e.defaultPrevented || hasModifier(e)) return;
     const row = rowOf(e.target);
-    if (!row || e.target.closest("input, textarea, select, [contenteditable='true']")) return;
+    if (!row || e.target.closest(FIELD)) return;
     if (e.target === row && e.key === ROW_KEY.OPEN) {
       e.preventDefault();
       openRow(row);
@@ -126,8 +155,33 @@ export function wireRovingRows(
     if (moveBetweenRows(e, row) || moveWithinRow(e, row)) e.preventDefault();
   }
 
+  function selectableRowOf(target) {
+    const row = rowOf(target);
+    return row && isSelectable(row) ? row : null;
+  }
+
+  function onRowDoubleClick(e) {
+    const row = selectableRowOf(e.target);
+    if (row && !e.target.closest(NOT_THE_ROW)) openRow(row);
+  }
+
+  // The double-click opens; without this it would also select the title's text.
+  function onRowMousedown(e) {
+    if (e.detail >= SECOND_CLICK && selectableRowOf(e.target) && !e.target.closest(FIELD)) e.preventDefault();
+  }
+
+  function onRowPlayClick(e) {
+    const row = e.target.closest(`.${ROW_PLAY_CLASS}`) && selectableRowOf(e.target);
+    if (!row) return;
+    focusRow(row, ON_ROW, { preventScroll: true, focusVisible: false });
+    openRow(row);
+  }
+
   container.addEventListener("focusin", onRowFocus);
   container.addEventListener("keydown", onRowKeydown);
+  container.addEventListener("dblclick", onRowDoubleClick);
+  container.addEventListener("mousedown", onRowMousedown);
+  container.addEventListener("click", onRowPlayClick);
 
   function remember() {
     const active = document.activeElement;
@@ -149,6 +203,7 @@ export function wireRovingRows(
     const rows = shown.length ? shown : allRows();
     const at = landingIndex(rows.map(keyOf), saved);
     const row = at === null ? preferredRow(rows) ?? rows[0] : rows[at];
+    paintSelection();
     if (!row) return;
     if (!saved?.hadFocus) {
       makeStop(row);

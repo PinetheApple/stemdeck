@@ -1,7 +1,7 @@
 // Setlists: named, ordered lists of library songs kept on the server
 // (/api/setlists), shown in the library pane's Setlists tab. Up Next stays client-side.
 
-import { getLibraryTrack, getTrackNames, loadTrackIntoStudio, showLibraryView } from "./catalog.js";
+import { getCurrentTrackInfo, getLibraryTrack, getTrackNames, loadTrackIntoStudio, showLibraryView } from "./catalog.js";
 import { getNowAndUpNextIds, playSongs } from "./upNext.js";
 import { t, plural, onLanguageChange } from "./i18n.js";
 import {
@@ -16,13 +16,14 @@ import {
 } from "./libraryControls.js";
 import { $ } from "./utils.js";
 import { ARM_MS } from "./armConfirm.js";
-import { OUT_OF_TAB_ORDER, wireRovingRows } from "./rovingRows.js";
+import { OUT_OF_TAB_ORDER, ROW_PLAY_CLASS, wireRovingRows } from "./rovingRows.js";
 
 const SETLISTS_URL = "/api/setlists";
 const SETLIST_SELECTOR = ".setlist";
 const SETLIST_HEAD = ".setlist-head";
 const SETLIST_SONG = ".setlist-song";
 const SETLIST_SONG_ACTIONS = ".setlist-song-actions button";
+const OPEN_SONG_CLASS = "active";
 
 let setlists = [];
 let tab = "songs";
@@ -248,27 +249,22 @@ function songRow(setlist, trackId, index) {
   const li = document.createElement("li");
   li.className = "setlist-song";
   li.dataset.id = trackId;
+  li.classList.toggle(OPEN_SONG_CLASS, trackId === getCurrentTrackInfo()?.id);
 
-  const open = document.createElement("button");
-  open.type = "button";
+  const open = document.createElement("span");
   open.className = "setlist-song-open";
-  open.title = t("setlists.openSong");
-  open.tabIndex = OUT_OF_TAB_ORDER;
   const number = document.createElement("span");
   number.className = "setlist-song-index num";
   number.textContent = String(index + 1);
   const thumb = document.createElement("span");
   thumb.className = "setlist-song-thumb";
-  thumb.setAttribute("aria-hidden", "true");
-  if (track?.thumb) {
-    const img = document.createElement("img");
-    img.src = track.thumb;
-    img.alt = "";
-    img.loading = "lazy";
-    thumb.append(img);
-  } else {
-    thumb.textContent = title.charAt(0).toUpperCase();
-  }
+  const cover = document.createElement(track?.thumb ? "img" : "span");
+  if (track?.thumb) Object.assign(cover, { src: track.thumb, alt: "", loading: "lazy" });
+  else cover.textContent = title.charAt(0).toUpperCase();
+  cover.setAttribute("aria-hidden", "true");
+  const play = iconButton(ROW_PLAY_CLASS, "play", { label: t("track.playTitle", { title }), filled: true });
+  play.tabIndex = OUT_OF_TAB_ORDER;
+  thumb.append(cover, play);
   const text = document.createElement("span");
   text.className = "setlist-song-text";
   const titleEl = document.createElement("span");
@@ -279,9 +275,6 @@ function songRow(setlist, trackId, index) {
   sub.textContent = names?.artist || "";
   text.append(titleEl, sub);
   open.append(number, thumb, text);
-  open.addEventListener("click", function onOpenSetlistSong() {
-    loadTrackIntoStudio(trackId);
-  });
 
   const actions = document.createElement("span");
   actions.className = "setlist-song-actions";
@@ -438,6 +431,12 @@ function openSetlistRow(row) {
   if (row.matches(SETLIST_SONG)) loadTrackIntoStudio(row.dataset.id);
 }
 
+function paintOpenSong(e) {
+  for (const row of $("setlistsList")?.querySelectorAll(SETLIST_SONG) ?? []) {
+    row.classList.toggle(OPEN_SONG_CLASS, row.dataset.id === e.detail?.id);
+  }
+}
+
 function firstSetlistSong(rows) {
   return rows.find((row) => row.matches(SETLIST_SONG));
 }
@@ -479,6 +478,7 @@ export function initSetlists() {
         keyOf: setlistRowKey,
         openRow: openSetlistRow,
         preferredRow: firstSetlistSong,
+        selectableRow: SETLIST_SONG,
       },
     );
   }
@@ -492,6 +492,7 @@ export function initSetlists() {
   document.addEventListener("tracknames", render);
   document.addEventListener("upnext:change", renderSaveUpNext);
   document.addEventListener("trackopen", renderSaveUpNext);
+  document.addEventListener("trackopen", paintOpenSong);
   onLanguageChange(render);
   renderSaveUpNext();
   loadSetlists();
