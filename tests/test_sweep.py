@@ -171,6 +171,24 @@ def test_old_song_with_a_run_claimed_survives(tmp_path: Path, kind: str):
     assert job.id in _jobs
 
 
+def test_old_song_with_a_failed_split_not_yet_recorded_survives(tmp_path: Path):
+    """A failed split leaves its board before _record_failure clears the
+    job's "running": the song is still being written to."""
+    d, job = _old_done_job(tmp_path, "cccccccccc09")
+    job.vocal_split = "running"
+
+    sweep_old_jobs(tmp_path, ttl_seconds=60)
+
+    assert d.is_dir()
+    assert job.id in _jobs
+
+
+def test_a_folder_gone_mid_sweep_is_skipped(tmp_path: Path):
+    from app.pipeline.collect import _keep_reason
+
+    assert _keep_reason(None, tmp_path / "abcdefabcd09", time.time(), set()) is not None
+
+
 @pytest.mark.parametrize("kind", ["split", "timing", "transcription"])
 def test_old_song_goes_once_its_work_has_ended(tmp_path: Path, kind: str):
     """The keep holds only while the work runs: an ended split or lyrics run

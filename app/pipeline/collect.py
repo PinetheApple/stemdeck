@@ -15,7 +15,7 @@ from app.core.config import (
     TIMEOUT_FFMPEG,
     ffmpeg_executable,
 )
-from app.core.models import FINISHED_STATUSES, STATUS_STOPPED, Job
+from app.core.models import FINISHED_STATUSES, STATUS_STOPPED, VOCAL_SPLIT_RUNNING, Job
 from app.core.registry import all_jobs as registry_all
 from app.core.registry import persist as registry_persist
 from app.core.registry import remove as registry_remove
@@ -330,13 +330,16 @@ def presence_for_split(
 _NEWER_THAN_CUTOFF = "newer than the cutoff"
 
 
-def _work_running(job_id: str) -> bool:
+def _work_running(job: Job) -> bool:
     """Whether a vocal split, lyrics timing or transcription is running on a
     finished song: the run boards delete stops before it removes the folder."""
     # Imported here: vocal_split imports this module.
     from app.pipeline.vocal_split import VOCAL_SPLIT_RUNS
 
-    return any(board.running(job_id) for board in (VOCAL_SPLIT_RUNS, RETIME_RUNS, TRANSCRIBE_RUNS))
+    # A failed split leaves its board before its error is recorded on the job.
+    if job.vocal_split == VOCAL_SPLIT_RUNNING:
+        return True
+    return any(board.running(job.id) for board in (VOCAL_SPLIT_RUNS, RETIME_RUNS, TRANSCRIBE_RUNS))
 
 
 def _keep_reason(
@@ -348,7 +351,10 @@ def _keep_reason(
     """Why the sweep must leave `job_dir` alone, or None to remove it. Age is
     asked first, so any other reason is one that kept a song past the cutoff."""
     # The registry is rebuilt at start, so a leftover dir goes by its mtime.
-    stamp = job_dir.stat().st_mtime if job is None else job.created_at
+    try:
+        stamp = job_dir.stat().st_mtime if job is None else job.created_at
+    except OSError:
+        return "folder cannot be read"
     if stamp >= cutoff:
         return _NEWER_THAN_CUTOFF
     if job_dir.name in in_setlists:
@@ -357,7 +363,7 @@ def _keep_reason(
         return None
     if job.status not in _TERMINAL:
         return "still active"
-    if _work_running(job.id):
+    if _work_running(job):
         return "work is running on it"
     if job.status == STATUS_STOPPED:
         # Never separated, and an upload's kept source is its only copy.
