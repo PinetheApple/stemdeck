@@ -24,6 +24,7 @@ from app.pipeline.artist_lookup import (
     artist_matches_name,
     find_band,
     lookup_band,
+    main_artist_name,
     pick_artist,
     search_language,
     tagged_artist_name,
@@ -288,6 +289,72 @@ def test_a_featured_artist_is_not_searched_for():
     wikidata = Wikidata()
     assert find_band("Dream Theater feat. Someone", fetch_json=wikidata) == DT
     assert wikidata.asked[0]["search"] == "Dream Theater"
+
+
+@pytest.mark.parametrize(
+    ("credit", "main"),
+    [
+        ("SEU Worship, Abbie Gamboa, Caylie Bryant", "SEU Worship"),
+        ("Simon & Garfunkel", "Simon"),
+        ("Hillsong and Friends", "Hillsong"),
+        ("Skrillex x Diplo", "Skrillex"),
+        ("Queen Feat. David Bowie", "Queen"),
+        ("Queen FT. Bowie", "Queen"),
+        ("Queen featuring Bowie", "Queen"),
+        ("Queen With Bowie", "Queen"),
+        ("Queen; Bowie", "Queen"),
+        ("Queen/Bowie", "Queen"),
+        ("  Dream Theater  ", "Dream Theater"),
+        ("Dream Theater", "Dream Theater"),
+        ("Andrew Bird", "Andrew Bird"),
+        ("Xandria", "Xandria"),
+        ("Within Temptation", "Within Temptation"),
+    ],
+)
+def test_the_main_artist_is_the_first_of_a_credit(credit, main):
+    assert main_artist_name(credit) == main
+
+
+def _only_dream_theater(wikidata):
+    def fetch_json(params):
+        if params["action"] == "wbsearchentities" and params["search"] != "Dream Theater":
+            wikidata.asked.append(dict(params))
+            return {"search": []}
+        return wikidata(params)
+
+    return fetch_json
+
+
+def test_a_credit_that_is_no_band_falls_back_to_its_main_artist():
+    wikidata = Wikidata()
+    band = find_band("Dream Theater, Someone & Another", fetch_json=_only_dream_theater(wikidata))
+    assert band == DT
+    searched = [p["search"] for p in wikidata.asked if p["action"] == "wbsearchentities"]
+    assert searched == ["Dream Theater, Someone & Another", "Dream Theater"]
+
+
+def test_a_credit_that_is_a_band_is_not_searched_again():
+    duo = {
+        "id": "Q484918",
+        "labels": {"en": {"value": "Simon & Garfunkel"}},
+        "claims": {"P434": [{}]},
+    }
+    wikidata = Wikidata(
+        search={"search": [{"id": "Q484918"}]}, entities={"entities": {"Q484918": duo}}
+    )
+    band = find_band("Simon & Garfunkel", fetch_json=wikidata)
+    assert band == {
+        "id": "Q484918",
+        "name": "Simon & Garfunkel",
+        "englishName": "Simon & Garfunkel",
+    }
+    assert [p["action"] for p in wikidata.asked] == ["wbsearchentities", "wbgetentities"]
+
+
+def test_a_single_artist_that_is_no_band_is_searched_once():
+    wikidata = Wikidata(search={"search": []})
+    assert find_band("Nobody Known", fetch_json=wikidata) is None
+    assert len(wikidata.asked) == 1
 
 
 def test_a_cancel_between_requests_stops_the_second():

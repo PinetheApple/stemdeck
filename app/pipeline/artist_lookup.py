@@ -49,6 +49,13 @@ _SEARCH_LIMIT = "10"
 # "Artist feat. Someone", "Artist (ft. Someone)": no band is called that.
 _FEATURING_RE = re.compile(r"\s+[(\[]?(?:feat\.?|ft\.?|featuring)\s+", re.IGNORECASE)
 
+# Between the artists of a credit ("SEU Worship, Abbie Gamboa & Caylie Bryant").
+# mainArtistName in artistLookup.js splits on the same list.
+CREDIT_SEPARATOR_RE = re.compile(
+    r"\s*[,&;/]\s*|\s+(?:and|x|feat\.|ft\.|featuring|with)\s+",
+    re.IGNORECASE,
+)
+
 FetchJson = Callable[[dict[str, str]], Any]
 
 
@@ -69,6 +76,12 @@ def artist_name_key(name: Any) -> str:
 def tagged_artist_name(tag: Any) -> str:
     """The name to look up from an artist tag, less any featured artist."""
     return _FEATURING_RE.split(str(tag or ""), maxsplit=1)[0].strip()
+
+
+def main_artist_name(credit: str) -> str:
+    """The first artist of a multi-artist credit, or the whole credit when it
+    names only one."""
+    return CREDIT_SEPARATOR_RE.split(credit.strip(), maxsplit=1)[0].strip()
 
 
 def artist_matches_name(artist: dict[str, str] | None, name: str) -> bool:
@@ -340,13 +353,18 @@ def find_band(
     fetch_json: FetchJson | None = None,
     cancelled: Callable[[], bool] = lambda: False,
 ) -> dict[str, str] | None:
-    """lookup_band for an artist tag, featured artists left off. Never raises:
-    any failure is logged and gives None."""
+    """lookup_band for an artist tag, featured artists left off, then for its
+    main artist alone when the whole credit is no band. Never raises: any
+    failure is logged and gives None."""
     name = tagged_artist_name(artist_tag)
     if not name:
         return None
     try:
-        return lookup_band(name, fetch_json=fetch_json, cancelled=cancelled)
+        band = lookup_band(name, fetch_json=fetch_json, cancelled=cancelled)
+        main = main_artist_name(name)
+        if band or main == name:
+            return band
+        return lookup_band(main, fetch_json=fetch_json, cancelled=cancelled)
     except Exception:
         # Offline, a timeout, Wikidata down or answering something else. The
         # page tries again itself when the track is opened.
