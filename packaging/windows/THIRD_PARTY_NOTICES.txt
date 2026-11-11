@@ -109,5 +109,5 @@ build is:
     https://github.com/BtbN/FFmpeg-Builds
 
 If either link stops resolving, open an issue at
-https://github.com/stemdeckapp/stemdeck/issues and the source will be
+https://github.com/PinetheApple/stemdeck/issues and the source will be
 provided by another means.

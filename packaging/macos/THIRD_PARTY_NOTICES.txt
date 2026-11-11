@@ -44,7 +44,7 @@ Written offer of source. The complete corresponding source is:
     https://evermeet.cx/ffmpeg/
 
 If either link stops resolving, open an issue at
-https://github.com/stemdeckapp/stemdeck/issues and the source will be
+https://github.com/PinetheApple/stemdeck/issues and the source will be
 provided by another means.
 
 Chromaprint fpcalc
