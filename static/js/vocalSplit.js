@@ -56,6 +56,11 @@ export function wantsAutoSplit(job) {
     && hasVocalsStem(job);
 }
 
+/** The choice a new import stores, or null for Combined, which every song has unless told otherwise. */
+export function choiceToStore(selectedStems, vocalMode) {
+  return selectedStems.has(VOCALS_STEM) && vocalMode === SPLIT_CHOICE.SPLIT ? SPLIT_CHOICE.SPLIT : null;
+}
+
 /** Store Combined or Lead + Backing with the song. True once the server has it. */
 export async function storeSplitChoice(jobId, choice, io = DEFAULT_IO) {
   try {

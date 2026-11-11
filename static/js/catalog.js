@@ -6,7 +6,7 @@ import { audioEngine, bpmChip, foregroundJobId, keyChip, multitrack, saveSelecte
 import { refreshStemChoiceVisuals } from "./stemChoice.js";
 import { trackFormat, formatIconSvg, paintNowPlayingArt } from "./formatIcon.js";
 import { formatKey } from "./keyLabel.js";
-import { showError, importFromUrl, detachForegroundJob, runVocalSplitIfWanted } from "./job.js";
+import { showError, importFromUrl, detachForegroundJob } from "./job.js";
 import {
   cancelQueuedJob, currentIds, getQueueSnapshot, isPaused, onJobSettled, onQueueChange,
   queueCount, queueRowStates, refreshQueue, reorderQueuedJob, runningLabel, startQueue,
@@ -2832,20 +2832,15 @@ async function completeSettledJob(jobId) {
       });
     }
 
-    // Background jobs have no per-job stream (see the comment above), so this
-    // is the only place a background import's on-demand vocal split (#275)
-    // can be triggered -- runVocalSplitIfWanted no-ops if it wasn't requested.
-    const finalState = state.status === "done" ? await runVocalSplitIfWanted(state) : state;
-    settleHeldBand(jobId, finalState);
-    const track = stateMetadataToTrack(finalState, { ...existing, id: jobId });
+    settleHeldBand(jobId, state);
+    const track = stateMetadataToTrack(state, { ...existing, id: jobId });
     track.id = jobId;
     // A server that sends "work" looked for it while the job ran, so the track
     // that opens next never needs to ask again (#747: every import lands here).
-    if (finalState.status === "done" && "work" in finalState) track.workChecked = true;
+    if (state.status === "done" && "work" in state) track.workChecked = true;
     addTrackToLibrary(track);
-    // Checked after the split so the stems it makes are there when it opens,
-    // and through the library's own loader so it behaves like a click on the row.
-    if (finalState.status === "done" && shouldAutoOpen(jobId)) loadTrackIntoStudio(jobId);
+    // Through the library's own loader, so it behaves like a click on the row.
+    if (state.status === "done" && shouldAutoOpen(jobId)) loadTrackIntoStudio(jobId);
     else _autoOpenTokens.delete(jobId);
   } catch (e) {
     console.warn("[catalog] could not finish background job", jobId, e);

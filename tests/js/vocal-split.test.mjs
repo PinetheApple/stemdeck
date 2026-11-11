@@ -9,6 +9,7 @@ import {
   MAX_FAILED_POLLS,
   failureKey,
   wantsAutoSplit,
+  choiceToStore,
   storeSplitChoice,
   startSplit,
   fetchSplitView,
@@ -80,6 +81,13 @@ const doneJob = (overrides = {}) => ({
   check("a failed split waits for Retry", !wantsAutoSplit(doneJob({ vocal_split: SPLIT_STATE.ERROR })));
   check("a cancelled split stays cancelled", !wantsAutoSplit(doneJob({ vocal_split: SPLIT_STATE.CANCELLED })));
   check("a song with no vocals stem does not", !wantsAutoSplit(doneJob({ stems: [{ name: "drums" }] })));
+}
+
+{
+  const withVocals = new Set(["vocals", "drums"]);
+  check("Lead + Backing with vocals is stored", choiceToStore(withVocals, SPLIT_CHOICE.SPLIT) === SPLIT_CHOICE.SPLIT);
+  check("Combined stores nothing", choiceToStore(withVocals, "all") === null);
+  check("Lead + Backing without vocals stores nothing", choiceToStore(new Set(["drums"]), SPLIT_CHOICE.SPLIT) === null);
 }
 
 {
