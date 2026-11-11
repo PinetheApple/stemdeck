@@ -13,11 +13,14 @@ bookkeeping.
 
 from __future__ import annotations
 
+import filecmp
 import logging
 import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
+
+from app.core.config import SETLISTS_FILE
 
 logger = logging.getLogger("stemdeck.stems_location")
 
@@ -108,11 +111,13 @@ def validate_target(target: Path, current: Path) -> Path:
         # the jobs folder too (see desktop/src-tauri/src/main.rs's
         # documents_store_path), so re-selecting a folder StemDeck already
         # used must recognize it as "ours", same as registry.json.
-        from app.core.config import SETLISTS_FILE
-
         ours = {"registry.json", "failed", "user-data.json", SETLISTS_FILE}
         if entries and not all(e.name in ours or _looks_like_job_dir(e) for e in entries):
             raise StemsLocationError("Pick an empty folder, or one StemDeck already uses.")
+        if _holds_another_library(target, current):
+            raise StemsLocationError(
+                "That folder already holds another StemDeck library. Pick an empty folder instead."
+            )
     else:
         try:
             target.mkdir(parents=True, exist_ok=True)
@@ -122,6 +127,37 @@ def validate_target(target: Path, current: Path) -> Path:
     if not os.access(target, os.W_OK):
         raise StemsLocationError("That folder is not writable.")
     return target
+
+
+# move_library skips an entry already at the target, so with one of these in
+# both folders ours would stay behind, and its favourites, tags or setlists with it.
+_LIBRARY_RECORDS = ("registry.json", "user-data.json", SETLISTS_FILE)
+
+
+def _holds_another_library(target: Path, current: Path) -> bool:
+    """Whether the target has library records of its own that the move would
+    leave ours behind for.
+
+    A half-finished move of this same library is not another library: an entry
+    shutil.move has finished with no longer exists in the source, so a records
+    file present in only one place is our own progress. The one case where both
+    exist is a cross-device move interrupted after the copy and before the
+    unlink, and then the two files are identical.
+    """
+    for name in _LIBRARY_RECORDS:
+        theirs = target / name
+        mine = current / name
+        if not os.path.lexists(theirs) or not mine.is_file():
+            continue
+        # A link in the target could point anywhere; never treat it as ours.
+        if theirs.is_symlink() or not theirs.is_file():
+            return True
+        try:
+            if not filecmp.cmp(mine, theirs, shallow=False):
+                return True
+        except OSError:
+            return True
+    return False
 
 
 def _looks_like_job_dir(entry: Path) -> bool:
