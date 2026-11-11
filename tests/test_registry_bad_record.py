@@ -143,3 +143,15 @@ def test_one_folder_that_cannot_be_rebuilt_costs_only_itself(tmp_path: Path, mon
     assert OTHER in _registry.all_jobs()
     saved = json.loads(registry_path(tmp_path).read_text(encoding="utf-8"))["jobs"]
     assert [r["id"] for r in saved] == [OTHER]
+
+
+@pytest.mark.parametrize("field", ["created_at", "queue_position", "resume_attempts"])
+def test_a_negative_order_value_still_loads(tmp_path: Path, field):
+    """Only a non-number or a non-finite one breaks the load or a save."""
+    _write_registry(tmp_path, [{**_record(GOOD, favorite=True), field: -1}])
+
+    _registry.restore(tmp_path)
+
+    assert _registry.get(GOOD).favorite is True
+    assert getattr(_registry.get(GOOD), field) == -1
+    assert _set_aside(tmp_path) == []

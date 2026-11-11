@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import time
 import uuid
 from pathlib import Path
 
 from app.core.config import JOB_ID_RE
 from app.core.models import Job
-from app.core.song_folder import is_non_negative_number
 
 logger = logging.getLogger("stemdeck.registry")
 
@@ -36,8 +36,11 @@ def read_record(record: object, rid: str | None, seen: dict[str, Job]) -> Job:
         raise ValueError("repeated")
     job = Job.from_record(record)  # type: ignore[arg-type]
     for name in _ORDER_FIELDS:
-        if not is_non_negative_number(getattr(job, name)):
-            raise ValueError(f"{name} is not a finite, non-negative number")
+        value = getattr(job, name)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f"{name} is not a number")
+        if not math.isfinite(value):
+            raise ValueError(f"{name} is not finite")
     return job
 
 

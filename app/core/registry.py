@@ -458,7 +458,7 @@ def reset_all(jobs_dir: Path) -> list[str]:
     if skipped:
         logger.info("reset left %d entries that are not StemDeck's", len(skipped))
     # A job folder still on disk (one that failed to go, or a known one left
-    # alone as a link) would be adopted again on the next start (#521).
+    # alone as a link) would be adopted again on the next start (upstream issue 521).
     surviving = [name for name in failed if JOB_ID_RE.match(name)]
     surviving += [name for name in skipped if name in known]
     if surviving:

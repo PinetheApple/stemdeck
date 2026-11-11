@@ -135,7 +135,7 @@ def quarantine_dirs(jobs_dir: Path) -> list[Path]:
 
 
 # The files reset removes beside the job folders: the registry, its temp and
-# set-aside copies (persist, _keep_bad_records), the setlists and the desktop
+# set-aside copies (persist, keep_bad_records), the setlists and the desktop
 # shell's store (upstream issue 403), each with the temp name of an atomic write.
 _OWN_FILE_RE = re.compile(
     r"(registry\.json(\.bad-[\w-]+)?|user-data\.json|setlists\.json)\Z"
