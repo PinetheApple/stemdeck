@@ -333,10 +333,8 @@ def _run_with_band_lookup(job: Job, source: Path, job_dir: Path) -> None:
 
 
 def _mark_stems_complete(job: Job, job_dir: Path) -> None:
-    """Last: nothing writes into stems/ after it. A failure costs the marker,
-    not the song, whose stems are whole: failing the job would delete them.
-    A song without the marker is rebuilt by the metadata.json it gets once
-    done, as a song made before the marker is."""
+    """After the separation's last write. A failure costs the marker, not the
+    song: its metadata.json, written once done, still lets it be rebuilt."""
     try:
         mark_stems_complete(job_dir)
     except OSError:

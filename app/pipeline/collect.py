@@ -480,11 +480,8 @@ def sweep_failed_jobs(jobs_dir: Path) -> None:
             logger.warning("failed-quarantine sweep could not stat %s", d, exc_info=True)
 
 
-# What a writer leaves when the process dies before its own cleanup runs: a
-# metadata.json write in the song folder (song_folder.write_json_atomic), and
-# in stems/ a mix (_write_wav), a cached MP3 (stems._ensure_cached_mp3), the
-# completion marker or the Lead + Backing work folder (vocal_split). Nothing a
-# song keeps has one of these names.
+# The dot temps a writer leaves when the process dies before its cleanup runs.
+# Nothing a song keeps has one of these names.
 _JOB_TEMP_FILE_RE = re.compile(r"\..+\.[0-9a-f]{32}\.tmp\Z")
 _STEMS_TEMP_RE = re.compile(r"\..+\.tmp\Z")
 # The same in the export caches: a render or a click written beside its cache

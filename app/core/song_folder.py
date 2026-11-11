@@ -1,19 +1,5 @@
-"""What a song's folder keeps so the library can be rebuilt without registry.json.
-
-registry.json is the library's record, and restore() (app/core/registry.py)
-rebuilds a song from its folder when the registry has no entry for it: the
-file was lost, cut off or set aside as corrupt. The folder then has to say
-everything the song needs. Stems, peaks and lyrics are files already, and
-metadata.json carries what the analysis found. This module covers the rest:
-
-- SAVED_FIELDS: what the user chose for a song, or its import recorded, that
-  nothing in the folder can be derived from (the favourite, the Trash, the stem
-  selection, the source, the date added). metadata.json keeps a copy, written
-  when the song finishes and by every request that changes one after that
-  (upstream PR 883). Read back through saved_from_meta, which checks each value
-  the way a registry record is checked: the file is on disk, anything can be in
-  it.
-"""
+"""What a song's folder keeps so restore() can rebuild it without registry.json:
+the fields only the registry held, the completion marker, the add time."""
 
 from __future__ import annotations
 
@@ -214,11 +200,8 @@ def _fsync_dir(folder: Path) -> None:
 
 
 def mark_stems_complete(job_dir: Path) -> None:
-    """Record that a separation wrote every stem file it makes in stems/.
-    Called last, so a kill at any point before leaves a folder without the
-    marker. The stems and the folder reach the disk before the marker does: a
-    power cut could otherwise keep the marker and lose a stem's bytes.
-    Raises OSError."""
+    """Record that the separation wrote every stem it makes: a kill before this
+    leaves no marker. Stems are fsynced first so the marker never outlives them."""
     stems_dir = job_dir / "stems"
     for path in sorted(stems_dir.glob("*.wav")):
         # Opened for writing: Windows only flushes a handle that can write.

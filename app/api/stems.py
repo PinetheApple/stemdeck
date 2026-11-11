@@ -759,11 +759,8 @@ _ZIP_REQUEST = "request"
 
 
 class _ZipTemp:
-    """The file a stems zip is built in. It goes once the request has given it
-    up (a failed build, or a cancel: the client or the server going away) and
-    the build thread has stopped writing it, whichever comes second. A cancel
-    does not stop the thread, so the request alone cannot tell when the file
-    is free, and on Windows removing it sooner fails."""
+    """A stems zip, removed once both the request and the build thread let go:
+    a cancel does not stop the thread, and Windows cannot remove an open file."""
 
     def __init__(self, path: Path) -> None:
         self.path = path
