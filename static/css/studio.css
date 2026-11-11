@@ -403,17 +403,6 @@
 }
 .pitch-value.active { background: none; color: var(--accent); }
 
-.footer-clusters.collapse-tight .footer-elapsed { font-size: var(--fs-xl); }
-.footer-clusters.collapse-tight .loop-btn-label { display: none; }
-.footer-clusters.collapse-tight .daw-iconbtn.btn-transport.loop { width: var(--ctl-h); padding: 0; }
-.footer-clusters.collapse-compact .footer-group-label { display: none; }
-.footer-clusters.collapse-compact .footer-elapsed { font-size: var(--fs-lg); }
-.footer-clusters.collapse-compact .daw-play-btn { width: var(--ctl-h); height: var(--ctl-h); }
-.footer-clusters.collapse-compact .daw-play-btn .ic { width: var(--icon); height: var(--icon); }
-.footer-clusters.collapse-compact .loop-time-input { padding-inline: var(--s-1); }
-.footer-clusters.collapse-compact .footer-seg > button { padding: 0 var(--s-1); }
-.footer-clusters.collapse-compact .footer-group-key .daw-iconbtn { width: var(--ctl-h-sm); height: var(--ctl-h-sm); }
-
 .footer-track-actions { margin-top: 0; }
 .footer-track-actions .track-chip {
   height: var(--ctl-h);
