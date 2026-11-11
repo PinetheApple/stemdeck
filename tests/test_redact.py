@@ -133,18 +133,39 @@ def test_strips_any_users_folder_on_any_os(text, expected):
     [
         ("C:\\Users\\John Smith\\Music\\x.wav", "<home>\\Music\\x.wav"),
         ("/Users/Jane Doe/Music", "<home>/Music"),
-        ("open /home/Jane Q Doe/x.wav now", "open <home>/x.wav now"),
-        ("saved C:\\Users\\John Smith", "saved <home> Smith"),
+        ("open /Users/Jane Q Doe/x.wav now", "open <home>/x.wav now"),
+        ("open /home/Jane Q Doe/x.wav now", "open <home> Q Doe/x.wav now"),
+        ("saved C:\\Users\\John Smith", "saved <home>"),
+        ("saved C:\\Users\\John Smith.", "saved <home>."),
+        ("saved 'C:\\Users\\John Smith' ok", "saved '<home>' ok"),
+        ('File "/Users/Jane Doe", line 3', 'File "<home>", line 3'),
+        ("C:\\Users\\John Smith; retrying", "<home>; retrying"),
+        ("C:\\Users\\John  Smith\\x.wav", "<home>\\x.wav"),
+        ("C:\\Users\\John  Smith", "<home>"),
         (
             "C:\\Users\\John Smith\\x.wav was saved. Next, open the stems.",
             "<home>\\x.wav was saved. Next, open the stems.",
         ),
         ("/home/jane opened it, see /tmp/x", "<home> opened it, see /tmp/x"),
+        ("/Users/Mary Ann Lee/Music", "<home>/Music"),
+        (
+            "/home/bob importing AC/DC - Back In Black",
+            "<home> importing AC/DC - Back In Black",
+        ),
+        (
+            "/home/bob saved My Song - Live at Foo/Bar mix",
+            "<home> saved My Song - Live at Foo/Bar mix",
+        ),
+        (
+            "C:\\Users\\bob saved My Song - Live at Foo\\Bar mix",
+            "<home> saved My Song - Live at Foo\\Bar mix",
+        ),
     ],
 )
 def test_a_user_name_with_a_space_is_redacted_whole(text, expected):
-    """The home folder runs to the next separator, spaces included, when one
-    follows on the line; a name at the end of a line keeps today's match."""
+    """Under a Windows or macOS Users folder, a name of up to three words runs
+    to the next separator. Linux names hold no spaces, and longer runs are a
+    song title after the name, so they keep the first-word match."""
     assert redact(text) == expected
 
 

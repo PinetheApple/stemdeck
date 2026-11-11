@@ -73,29 +73,40 @@ _AT_START = r"(?<![\w.~-].)"
 # The segment ends here: jobs and "jobs." ending a sentence, not jobs2 or jobs.json.
 _AT_END = r"(?![\w-]|\.\w)"
 # One path segment, not ending on a dot (Windows forbids that) so a full stop
-# stays. A name with a space keeps its second word unless it is our own home.
+# stays. It stops at a space; _USERS_NAME is the spaced form.
 _SEGMENT = r"[^\\/\s\"'<>|:*?]*[^\\/\s\"'<>|:*?.]"
-# A home folder's name (John Smith) keeps its spaces when a separator follows it.
-_HOME_SEGMENT = rf"(?:[^\\/\s\"'<>|:*?]+(?: [^\\/\s\"'<>|:*?]+)*(?=[\\/])|{_SEGMENT})"
+_NAME_WORD = r"[^\\/\s\"'<>|:*?;]*[^\\/\s\"'<>|:*?;.]"
+# Names longer than this many extra words are rare: a longer run is message text.
+_MAX_EXTRA_NAME_WORDS = 2
+# A Windows or macOS user name (John Smith) up to where a path, a quote, a ";"
+# or the line ends; otherwise its first word, as Linux names hold no spaces.
+_USERS_NAME = (
+    rf"(?:{_NAME_WORD}(?: +{_NAME_WORD}){{0,{_MAX_EXTRA_NAME_WORDS}}}"
+    rf"(?=\.?(?:[\\/\"';\r\n]|$))|{_SEGMENT})"
+)
 # Anyone's home, not only this process's. The drive letter must not end a
 # word, so https://users/... is not a drive.
 _WIN_HOME_RE = re.compile(
-    rf"[A-Za-z](?<!\w.):{_SEP}(?i:Users|Documents and Settings){_SEP}{_HOME_SEGMENT}"
+    rf"[A-Za-z](?<!\w.):{_SEP}(?i:Users|Documents and Settings){_SEP}{_USERS_NAME}"
 )
 # Also the WSL, MSYS and Cygwin spellings of a Windows drive.
 _POSIX_HOME_RE = re.compile(
-    rf"/{_AT_START}(?:(?:mnt/|cygdrive/)?[a-z]/)?(?:Users|home)/{_HOME_SEGMENT}"
+    rf"/{_AT_START}(?:(?:mnt/|cygdrive/)?[a-z]/)?(?:Users/{_USERS_NAME}|home/{_SEGMENT})"
 )
-# The lookbehind keeps a URL's // and a repr() path's doubled separator
-# (C:\\StemDeck\\jobs) from reading as a network share.
 _USERS_FOLDERS = frozenset({"users", "home", "documents and settings"})
 _HOME = "<home>"
+_JOBS = "<jobs>"
+_CACHE = "<cache>"
+_MODELS = "<models>"
+_DATA = "<data>"
 _USER = "<user>"
 _UNC = "<unc>"
 _IP = "<ip>"
 _SOURCE_URL = "<source-url-redacted>"
 _COOKIE_LINE = "<cookie-line-redacted>"
 
+# The lookbehind keeps a URL's // and a repr() path's doubled separator
+# (C:\\StemDeck\\jobs) from reading as a network share.
 _UNC_RE = re.compile(rf"[\\/](?<![\w:\\/].)[\\/]+(?:\?[\\/]+UNC[\\/]+)?{_SEGMENT}[\\/]+{_SEGMENT}")
 
 
@@ -120,10 +131,10 @@ def redact(text: str) -> str:
     text = _COOKIE_LINE_RE.sub(rf"\1 {_COOKIE_LINE}", text)
     home = Path.home()
     folders = [
-        (JOBS_DIR, "<jobs>"),
-        (CACHE_DIR, "<cache>"),
-        (MODELS_DIR, "<models>"),
-        (DATA_DIR, "<data>"),
+        (JOBS_DIR, _JOBS),
+        (CACHE_DIR, _CACHE),
+        (MODELS_DIR, _MODELS),
+        (DATA_DIR, _DATA),
         (home, _HOME),
     ]
     # Longest first, so a folder inside another (jobs inside data, anything

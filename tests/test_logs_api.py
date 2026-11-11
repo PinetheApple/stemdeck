@@ -190,7 +190,17 @@ def test_zip_redacts_paths_sources_and_ips_in_every_file(client, logs_dir, monke
         body = raw.decode("utf-8")
         for leak in (home, "Someone", "someone", "NAS-SOMEONE", str(JOBS_DIR), "youtu", "192.168"):
             assert leak.lower() not in body.lower(), (name, leak)
-        for placeholder in ("<home>", "<user>", "<jobs>", "<cache>", "<models>", "<data>", "<unc>"):
+        for placeholder in (
+            "<home>",
+            "<user>",
+            "<jobs>",
+            "<cache>",
+            "<models>",
+            "<data>",
+            "<unc>",
+            "<ip>",
+            "<source-url-redacted>",
+        ):
             assert placeholder in body, (name, placeholder)
         assert "'<home>\\\\x.py'" in body, name
         # Same lines, same endings, same time stamps: still a log.
