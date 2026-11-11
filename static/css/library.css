@@ -370,3 +370,6 @@
   border-color: color-mix(in srgb, var(--danger) 50%, transparent);
 }
 .settings-row:has(.auto-delete-input[data-armed="1"]) .auto-delete-desc { color: var(--danger); }
+/* A trashed song in a setlist: greyed and not openable, its move and remove still at hand. */
+.setlist-song.unavailable .setlist-song-open { opacity: var(--disabled-opacity); cursor: default; }
+.setlist-song.unavailable:is(:hover, .is-selected) .row-play { display: none; }

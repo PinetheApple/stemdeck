@@ -82,6 +82,8 @@ const ESCAPE_KEY = "Escape";
 // ─── Persistence ───
 
 const TRASH_ID = "trash";
+/** Fired on document with { ids } when songs go into or come out of the Trash. */
+export const TRASH_CHANGE_EVENT = "tracktrash";
 // The default landing folder for unorganized tracks — protected from deletion.
 const UNSORTED_ID = "f-unsorted";
 const PROCESSING_STATUSES = new Set(["queued", "downloading", "analyzing", "separating", "processing"]);
@@ -419,6 +421,20 @@ export function addTrackToLibrary({ replaces, ...track }) {
 /** A library track by id, or null. Read-only: the store is this module's. */
 export function getLibraryTrack(trackId) {
   return tracks[trackId] ?? null;
+}
+
+export function isInTrash(trackId) {
+  return Boolean(folders.find((f) => f.id === TRASH_ID)?.items.includes(trackId));
+}
+
+/** Finished and out of the Trash: what Up Next and setlists may play. */
+export function isPlayableTrack(trackId) {
+  return tracks[trackId]?.status === "done" && !isInTrash(trackId);
+}
+
+/** Tell Up Next and setlists that songs went into or came out of the Trash. */
+function announceTrashChange(ids) {
+  document.dispatchEvent(new CustomEvent(TRASH_CHANGE_EVENT, { detail: { ids } }));
 }
 
 /** The library track an import of `url` would replace, or null. See soleSourceMatch. */
@@ -1223,6 +1239,7 @@ function putInTrash(trackId) {
   // The user is done with it; purgeTrash() repeats this for a job that errors
   // once trashed.
   dismissFailuresByJobId(trackId);
+  announceTrashChange([trackId]);
 }
 
 function setCatalogView(view) {
@@ -1275,7 +1292,7 @@ function reimportUnavailableTrack(trackId, track) {
 
 export async function loadTrackIntoStudio(trackId) {
   let track = tracks[trackId];
-  if (!track) return;
+  if (!track || isInTrash(trackId)) return;
   if (track.status === "unavailable") {
     reimportUnavailableTrack(trackId, track);
     return;
@@ -1887,6 +1904,7 @@ function takeOutOfTrash(ids) {
     _trashSelection.delete(id);
     if (!target.items.includes(id)) target.items.push(id);
   }
+  if (ids.length) announceTrashChange(ids);
 }
 
 /** The rows a gesture on this one acts on: the whole selection when the row

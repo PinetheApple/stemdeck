@@ -1,7 +1,7 @@
 // Setlists: named, ordered lists of library songs kept on the server
 // (/api/setlists), shown in the library pane's Setlists tab. Up Next stays client-side.
 
-import { getCurrentTrackInfo, getLibraryTrack, getTrackNames, loadTrackIntoStudio, showLibraryView } from "./catalog.js";
+import { TRASH_CHANGE_EVENT, getCurrentTrackInfo, getLibraryTrack, getTrackNames, isInTrash, isPlayableTrack, loadTrackIntoStudio, showLibraryView } from "./catalog.js";
 import { getNowAndUpNextIds, playSongs } from "./upNext.js";
 import { t, plural, onLanguageChange } from "./i18n.js";
 import {
@@ -24,6 +24,7 @@ const SETLIST_HEAD = ".setlist-head";
 const SETLIST_SONG = ".setlist-song";
 const SETLIST_SONG_ACTIONS = ".setlist-song-actions button";
 const OPEN_SONG_CLASS = "active";
+const TRASHED_SONG_CLASS = "unavailable";
 
 let setlists = [];
 let tab = "songs";
@@ -242,15 +243,8 @@ function nameField(value, onSave, onCancel) {
   return input;
 }
 
-function songRow(setlist, trackId, index) {
-  const names = getTrackNames(trackId);
+function songBody(trackId, index, { names, title, trashed }) {
   const track = getLibraryTrack(trackId);
-  const title = names?.title || t("track.unknown");
-  const li = document.createElement("li");
-  li.className = "setlist-song";
-  li.dataset.id = trackId;
-  li.classList.toggle(OPEN_SONG_CLASS, trackId === getCurrentTrackInfo()?.id);
-
   const body = document.createElement("span");
   body.className = "setlist-song-open";
   const number = document.createElement("span");
@@ -272,10 +266,13 @@ function songRow(setlist, trackId, index) {
   titleEl.textContent = title;
   const sub = document.createElement("span");
   sub.className = "setlist-song-sub";
-  sub.textContent = names?.artist || "";
+  sub.textContent = trashed ? t("setlists.inTrash") : names?.artist || "";
   text.append(titleEl, sub);
   body.append(number, thumb, text);
+  return body;
+}
 
+function songActions(setlist, trackId, index, title) {
   const actions = document.createElement("span");
   actions.className = "setlist-song-actions";
   const up = iconButton("setlist-icon-btn setlist-song-up", "up", { label: t("setlists.moveUp", { title }) });
@@ -293,7 +290,20 @@ function songRow(setlist, trackId, index) {
     changeSongs(setlist.id, withSongRemoved(trackId));
   });
   actions.append(up, down, remove);
-  li.append(body, actions);
+  return actions;
+}
+
+/** A trashed song keeps its place, greyed, until the Trash is emptied. */
+function songRow(setlist, trackId, index) {
+  const names = getTrackNames(trackId);
+  const title = names?.title || t("track.unknown");
+  const trashed = isInTrash(trackId);
+  const li = document.createElement("li");
+  li.className = "setlist-song";
+  li.dataset.id = trackId;
+  li.classList.toggle(OPEN_SONG_CLASS, trackId === getCurrentTrackInfo()?.id);
+  li.classList.toggle(TRASHED_SONG_CLASS, trashed);
+  li.append(songBody(trackId, index, { names, title, trashed }), songActions(setlist, trackId, index, title));
   return li;
 }
 
@@ -362,7 +372,7 @@ function setlistHead(setlist) {
     text: t("setlists.play"),
     filled: true,
   });
-  play.disabled = !setlist.song_ids.length;
+  play.disabled = !setlist.song_ids.some(isPlayableTrack);
   play.addEventListener("click", async function onPlaySetlist() {
     const started = await playSongs(setlist.song_ids);
     if (!started) showError(t("setlists.nothingToPlay"));
@@ -490,6 +500,7 @@ export function initSetlists() {
   $("catalogSearch")?.addEventListener("input", onLibrarySearch);
   document.addEventListener("catalogviewchange", onCatalogViewChange);
   document.addEventListener("tracknames", render);
+  document.addEventListener(TRASH_CHANGE_EVENT, render);
   document.addEventListener("upnext:change", renderSaveUpNext);
   document.addEventListener("trackopen", renderSaveUpNext);
   document.addEventListener("trackopen", paintOpenSong);
