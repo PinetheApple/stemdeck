@@ -1,5 +1,5 @@
-// A click on the waveform seeks; only a drag selects a loop. A click used to
-// write the loop fields as "t - t", an empty loop nobody asked for.
+// A click on the waveform seeks and turns the loop off, keeping its bounds;
+// only a drag selects a new loop.
 import { test, expect } from "@playwright/test";
 import { openStudio } from "./helpers.mjs";
 
@@ -41,6 +41,20 @@ test.describe("waveform click and the loop", () => {
     const { x, y } = await waveformPoint(page, CLICK_FRAC);
     await page.mouse.click(x, y);
 
+    expect(await loopFields(page)).toEqual([LOOP_START, LOOP_END]);
+  });
+
+  test("a click turns the loop off and L brings back the same loop", async ({ page }) => {
+    await openStudio(page);
+    await armLoop(page);
+
+    const { x, y } = await waveformPoint(page, CLICK_FRAC);
+    await page.mouse.click(x, y);
+    await expect(page.locator("#t-loop")).not.toHaveClass(/active/);
+
+    await page.keyboard.press("l");
+
+    await expect(page.locator("#t-loop")).toHaveClass(/active/);
     expect(await loopFields(page)).toEqual([LOOP_START, LOOP_END]);
   });
 

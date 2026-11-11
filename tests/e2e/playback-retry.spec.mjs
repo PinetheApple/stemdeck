@@ -1,5 +1,5 @@
-// "Audio could not load" offered only close, so recovering meant reopening the
-// song. Its Try again reloads the open song's audio in place.
+// A playback error offers Try again, which reloads the open song's audio in
+// place.
 import { test, expect } from "@playwright/test";
 import { openStudio } from "./helpers.mjs";
 
