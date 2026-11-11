@@ -248,7 +248,8 @@ test.describe("import queue by keyboard", () => {
   }
 
   const SHOWN = "1";
-  const ROW_SHOWN = "0.65";
+  // Opacity of the unfocused extract-next button inside a row that has keyboard focus.
+  const SIBLING_IN_FOCUSED_ROW = "0.65";
   const CANCEL_RESTING = "0.65";
   const EXTRACT_RESTING = "0";
 
@@ -275,16 +276,19 @@ test.describe("import queue by keyboard", () => {
     await tabTo(page, ".queue-cancel");
     expect(await focusedRowId(page)).toBe(extractRow);
     await expect.poll(() => opacity(focused(page))).toBe(SHOWN);
-    await expect.poll(() => opacity(focusedRow(page, ".queue-top"))).toBe(ROW_SHOWN);
+    await expect.poll(() => opacity(focusedRow(page, ".queue-top"))).toBe(SIBLING_IN_FOCUSED_ROW);
   });
 
   test("a mouse click leaves an import's buttons at rest once the pointer moves away", async ({ page }) => {
     await openLongQueue(page);
     const row = page.locator(".queue-row:has(.queue-top)").first();
-    // Keep the click's focus but not its action, which would re-render the row.
-    await page.evaluate(() =>
-      document.addEventListener("click", (e) => e.stopPropagation(), { capture: true, once: true }),
-    );
+    // The real handler disables the button first, which drops its focus, then reorders.
+    await page.evaluate(() => {
+      function swallowClick(e) {
+        e.stopPropagation();
+      }
+      document.addEventListener("click", swallowClick, { capture: true, once: true });
+    });
     await row.locator(".queue-top").click();
     await expect(row.locator(".queue-top")).toBeFocused();
     await page.mouse.move(0, 0);
