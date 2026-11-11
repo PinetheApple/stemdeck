@@ -41,6 +41,19 @@ async function openApp(page) {
 
 const fruitChanges = (page) => page.evaluate(() => window.fruitChanges);
 const focused = (page) => page.evaluate(() => document.activeElement?.id);
+/** The select's text box (its content edge) against the caret's left edge,
+ * which sits --caret-inset + --caret-w in from the padding box's right. */
+const textClearOfCaret = (select) => select.evaluate((el) => {
+  const style = getComputedStyle(el);
+  const probe = document.createElement("div");
+  probe.style.width = "calc(var(--caret-inset) + var(--caret-w))";
+  document.body.append(probe);
+  const caretReach = probe.getBoundingClientRect().width;
+  probe.remove();
+  const paddingBoxRight = el.getBoundingClientRect().right - parseFloat(style.borderRightWidth);
+  const textRight = paddingBoxRight - parseFloat(style.paddingRight);
+  return caretReach > 0 && textRight <= paddingBoxRight - caretReach;
+});
 const isPlaying = (page) => page.evaluate(async () => (await import("/js/state.js")).audioEngine.isPlaying());
 
 test.describe("select lists", () => {
@@ -219,6 +232,17 @@ test.describe("select lists", () => {
     const field = await quality.evaluate((el) => [getComputedStyle(el).fontFamily, getComputedStyle(el).fontSize]);
     await expect(list(page)).toHaveCSS("font-family", field[0]);
     await expect(list(page)).toHaveCSS("font-size", field[1]);
+  });
+
+  test("in Settings the option text ends before the caret", async ({ page }) => {
+    await openApp(page);
+    await page.locator("#settingsBtn").click();
+    const general = [".set-language", ".set-demucs-device", ".set-separation-quality"];
+    for (const selector of general) expect(await textClearOfCaret(page.locator(selector))).toBe(true);
+    await page.locator('.settings-tab[data-tab="export"]').click();
+    for (const selector of [".set-export-samplerate", ".set-video-height"]) {
+      expect(await textClearOfCaret(page.locator(selector))).toBe(true);
+    }
   });
 
   test("Escape closes only the list, not Settings around it", async ({ page }) => {

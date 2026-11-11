@@ -5,6 +5,8 @@
   --caret-w: calc(2 * var(--caret-h));
   --caret-h: 5px;
   --caret-stroke: 0.75px;
+  --caret-inset: var(--s-3);
+  --select-caret-space: calc(var(--caret-inset) + var(--caret-w) + var(--s-2));
   --check-size: var(--icon);
   --check-mark: 10px;
   --radio-dot: 6px;
@@ -13,22 +15,22 @@
   --z-select-menu: 1000;
 }
 
-/* A stroked chevron drawn with gradients, so its colour follows the tokens. */
 :where(select:not([multiple]):not(.metro-select)) {
   appearance: none;
   -webkit-appearance: none;
-  padding-right: calc(var(--s-3) + var(--caret-w) + var(--s-2));
   cursor: pointer;
 }
-/* Outweighs a component's `background` shorthand, which would wipe the caret. */
+/* A gradient chevron that follows the tokens, weighted past a component's
+   `background` and `padding` shorthands, which would wipe it or overlap it. */
 select:not([multiple]):not(.metro-select) {
+  padding-right: var(--select-caret-space);
   background-image:
     linear-gradient(45deg, transparent calc(50% - var(--caret-stroke)), var(--text-3) calc(50% - var(--caret-stroke)), var(--text-3) calc(50% + var(--caret-stroke)), transparent calc(50% + var(--caret-stroke))),
     linear-gradient(-45deg, transparent calc(50% - var(--caret-stroke)), var(--text-3) calc(50% - var(--caret-stroke)), var(--text-3) calc(50% + var(--caret-stroke)), transparent calc(50% + var(--caret-stroke)));
   background-size: var(--caret-h) var(--caret-h);
   background-position:
-    right calc(var(--s-3) + var(--caret-h)) center,
-    right var(--s-3) center;
+    right calc(var(--caret-inset) + var(--caret-h)) center,
+    right var(--caret-inset) center;
   background-repeat: no-repeat;
 }
 :where(select:not([multiple]):disabled) { cursor: not-allowed; }
