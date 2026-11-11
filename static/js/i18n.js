@@ -1021,6 +1021,13 @@ const en = {
   "settings.logs.noFilesYet": "No log files yet{folderNote}. Logging starts on the first message after launch.",
   "settings.logs.folderNotCreated": " (the folder has not been created)",
   "settings.logs.failedToLoad": "Failed to load log information.",
+  "settings.tab.library": "Library",
+  "settings.library.songs": "Saved songs",
+  "settings.library.loadFailed": "Could not load the library.",
+  "settings.library.file.title": "Library file",
+  "settings.library.file.desc": "The list of saved songs, to attach to a bug report.",
+  "settings.library.file.download": "Download",
+  "settings.library.file.failed": "Could not download the library file.",
 
   "settings.done": "Done",
 
@@ -2115,6 +2122,13 @@ const pl = {
   "settings.logs.noFilesYet": "Brak plików logów{folderNote}. Rejestrowanie zaczyna się od pierwszej wiadomości po uruchomieniu.",
   "settings.logs.folderNotCreated": " (folder nie został jeszcze utworzony)",
   "settings.logs.failedToLoad": "Nie udało się wczytać informacji o logach.",
+  "settings.tab.library": "Biblioteka",
+  "settings.library.songs": "Zapisane utwory",
+  "settings.library.loadFailed": "Nie udało się wczytać biblioteki.",
+  "settings.library.file.title": "Plik biblioteki",
+  "settings.library.file.desc": "Lista zapisanych utworów do dołączenia do zgłoszenia błędu.",
+  "settings.library.file.download": "Pobierz",
+  "settings.library.file.failed": "Nie udało się pobrać pliku biblioteki.",
 
   "settings.done": "Gotowe",
 
@@ -3190,6 +3204,13 @@ const ja = {
   "settings.logs.noFilesYet": "まだログファイルがありません{folderNote}。起動後の最初のメッセージからログが記録されます。",
   "settings.logs.folderNotCreated": "(フォルダはまだ作成されていません)",
   "settings.logs.failedToLoad": "ログ情報の読み込みに失敗しました。",
+  "settings.tab.library": "ライブラリ",
+  "settings.library.songs": "保存済みの曲",
+  "settings.library.loadFailed": "ライブラリを読み込めませんでした。",
+  "settings.library.file.title": "ライブラリファイル",
+  "settings.library.file.desc": "保存済みの曲の一覧です。不具合の報告に添付できます。",
+  "settings.library.file.download": "ダウンロード",
+  "settings.library.file.failed": "ライブラリファイルをダウンロードできませんでした。",
 
   "settings.done": "完了",
 
@@ -4247,6 +4268,13 @@ const zhHans = {
   "settings.logs.noFilesYet": "暂无日志文件{folderNote}。启动后的第一条消息开始才会记录日志。",
   "settings.logs.folderNotCreated": "(该文件夹尚未创建)",
   "settings.logs.failedToLoad": "无法加载日志信息。",
+  "settings.tab.library": "资料库",
+  "settings.library.songs": "已保存的歌曲",
+  "settings.library.loadFailed": "无法加载资料库。",
+  "settings.library.file.title": "资料库文件",
+  "settings.library.file.desc": "已保存歌曲的列表，可附在问题报告中。",
+  "settings.library.file.download": "下载",
+  "settings.library.file.failed": "无法下载资料库文件。",
 
   "settings.done": "完成",
 
@@ -5309,6 +5337,13 @@ const de = {
   "settings.logs.noFilesYet": "Noch keine Log-Dateien{folderNote}. Die Protokollierung beginnt mit der ersten Meldung nach dem Start.",
   "settings.logs.folderNotCreated": " (der Ordner wurde noch nicht erstellt)",
   "settings.logs.failedToLoad": "Log-Informationen konnten nicht geladen werden.",
+  "settings.tab.library": "Bibliothek",
+  "settings.library.songs": "Gespeicherte Songs",
+  "settings.library.loadFailed": "Die Bibliothek konnte nicht geladen werden.",
+  "settings.library.file.title": "Bibliotheksdatei",
+  "settings.library.file.desc": "Die Liste der gespeicherten Songs, zum Anhängen an einen Fehlerbericht.",
+  "settings.library.file.download": "Herunterladen",
+  "settings.library.file.failed": "Die Bibliotheksdatei konnte nicht heruntergeladen werden.",
 
   "settings.done": "Fertig",
 
@@ -6378,6 +6413,13 @@ const pt = {
   "settings.logs.noFilesYet": "Ainda não há arquivos de log{folderNote}. O registro começa na primeira mensagem após a inicialização.",
   "settings.logs.folderNotCreated": " (a pasta ainda não foi criada)",
   "settings.logs.failedToLoad": "Falha ao carregar informações de log.",
+  "settings.tab.library": "Biblioteca",
+  "settings.library.songs": "Músicas salvas",
+  "settings.library.loadFailed": "Não foi possível carregar a biblioteca.",
+  "settings.library.file.title": "Arquivo da biblioteca",
+  "settings.library.file.desc": "A lista de músicas salvas, para anexar a um relatório de erro.",
+  "settings.library.file.download": "Baixar",
+  "settings.library.file.failed": "Não foi possível baixar o arquivo da biblioteca.",
 
   "settings.done": "Concluído",
 
@@ -7444,6 +7486,13 @@ const id = {
   "settings.logs.noFilesYet": "Belum ada file log{folderNote}. Pencatatan log dimulai pada pesan pertama setelah diluncurkan.",
   "settings.logs.folderNotCreated": " (folder belum dibuat)",
   "settings.logs.failedToLoad": "Gagal memuat informasi log.",
+  "settings.tab.library": "Pustaka",
+  "settings.library.songs": "Lagu tersimpan",
+  "settings.library.loadFailed": "Pustaka tidak dapat dimuat.",
+  "settings.library.file.title": "File pustaka",
+  "settings.library.file.desc": "Daftar lagu tersimpan, untuk dilampirkan ke laporan bug.",
+  "settings.library.file.download": "Unduh",
+  "settings.library.file.failed": "File pustaka tidak dapat diunduh.",
 
   "settings.done": "Selesai",
 
@@ -8506,6 +8555,13 @@ const fr = {
   "settings.logs.noFilesYet": "Aucun fichier journal pour l'instant{folderNote}. La journalisation démarre au premier message après le lancement.",
   "settings.logs.folderNotCreated": " (le dossier n'a pas été créé)",
   "settings.logs.failedToLoad": "Impossible de charger les informations de journalisation.",
+  "settings.tab.library": "Bibliothèque",
+  "settings.library.songs": "Morceaux enregistrés",
+  "settings.library.loadFailed": "Impossible de charger la bibliothèque.",
+  "settings.library.file.title": "Fichier de la bibliothèque",
+  "settings.library.file.desc": "La liste des morceaux enregistrés, à joindre à un rapport de bug.",
+  "settings.library.file.download": "Télécharger",
+  "settings.library.file.failed": "Impossible de télécharger le fichier de la bibliothèque.",
 
   "settings.done": "Terminé",
 
@@ -8834,6 +8890,11 @@ const ptPT = {
   "settings.stemsLocation.syncing": "A sincronizar…",
   "playlist.skippingPrefix": "A ignorar: {list}.",
   "settings.tab.registry": "Registo",
+  "settings.library.songs": "Músicas guardadas",
+  "settings.library.file.title": "Ficheiro da biblioteca",
+  "settings.library.file.desc": "A lista de músicas guardadas, para anexar a um relatório de erro.",
+  "settings.library.file.download": "Transferir",
+  "settings.library.file.failed": "Não foi possível transferir o ficheiro da biblioteca.",
   "settings.registry.title": "Registo de tarefas",
   "settings.registry.aria": "Registo de tarefas (só de leitura)",
   "settings.logs.application.title": "Log da aplicação",
@@ -9829,6 +9890,13 @@ const es = {
   "settings.logs.noFilesYet": "Todavía no hay archivos de registro{folderNote}. El registro empieza con el primer mensaje tras el arranque.",
   "settings.logs.folderNotCreated": " (la carpeta no se ha creado)",
   "settings.logs.failedToLoad": "No se pudo cargar la información de los registros.",
+  "settings.tab.library": "Biblioteca",
+  "settings.library.songs": "Canciones guardadas",
+  "settings.library.loadFailed": "No se pudo cargar la biblioteca.",
+  "settings.library.file.title": "Archivo de la biblioteca",
+  "settings.library.file.desc": "La lista de canciones guardadas, para adjuntar a un informe de error.",
+  "settings.library.file.download": "Descargar",
+  "settings.library.file.failed": "No se pudo descargar el archivo de la biblioteca.",
 
   "settings.done": "Listo",
 
@@ -10915,6 +10983,13 @@ const ko = {
   "settings.logs.noFilesYet": "아직 로그 파일이 없어요{folderNote}. 실행 후 첫 메시지부터 기록이 시작돼요.",
   "settings.logs.folderNotCreated": " (폴더가 아직 만들어지지 않았어요)",
   "settings.logs.failedToLoad": "로그 정보를 불러오지 못했어요.",
+  "settings.tab.library": "라이브러리",
+  "settings.library.songs": "저장된 곡",
+  "settings.library.loadFailed": "라이브러리를 불러오지 못했어요.",
+  "settings.library.file.title": "라이브러리 파일",
+  "settings.library.file.desc": "저장된 곡 목록이에요. 버그 신고에 첨부할 수 있어요.",
+  "settings.library.file.download": "다운로드",
+  "settings.library.file.failed": "라이브러리 파일을 내려받지 못했어요.",
 
   "settings.done": "완료",
 
