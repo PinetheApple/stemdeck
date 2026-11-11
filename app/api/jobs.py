@@ -486,6 +486,8 @@ def trash_job(job_id: str) -> dict:
     if job.status not in FINISHED_STATUSES:
         job.stop_requested = True
         _cancel_pipeline(job)
+    else:
+        _stop_runs(job, with_lyrics=False)
     registry_persist(JOBS_DIR)
     return {"job_id": job.id, "trashed_at": job.trashed_at}
 
@@ -2190,16 +2192,7 @@ def _remove_job(job: Job) -> bool:
     job_id = job.id
     # A lyrics run or a split in flight stops rather than write into a
     # directory being removed (each also checks the job is still registered).
-    lyrics_run = _cancel_lyrics_runs(job_id)
-    splitting = cancel_split(job)
-    if lyrics_run or splitting:
-        _terminate_worker(job_id)
-        deadline = time.monotonic() + RETIME_DELETE_WAIT_SEC
-        _wait_lyrics_runs_ended(job_id, deadline)
-        _wait_vocal_split_ended(job_id, deadline)
-    RETIME_RUNS.forget(job_id)
-    TRANSCRIBE_RUNS.forget(job_id)
-    VOCAL_SPLIT_RUNS.forget(job_id)
+    _stop_runs(job, with_lyrics=True)
     # A fingerprint of its audio may still have a file open (Windows).
     release_source(job_id)
     removed = _rmtree_job(job_id)
@@ -2211,6 +2204,24 @@ def _remove_job(job: Job) -> bool:
     registry_persist(JOBS_DIR)
     setlists_remove_songs(JOBS_DIR, [job_id])
     return removed
+
+
+def _stop_runs(job: Job, *, with_lyrics: bool) -> None:
+    """Stop a finished job's vocal split, and its lyrics runs too when
+    ``with_lyrics``, wait on one deadline for them to end, then forget them."""
+    job_id = job.id
+    lyrics_run = with_lyrics and _cancel_lyrics_runs(job_id)
+    splitting = cancel_split(job)
+    if lyrics_run or splitting:
+        _terminate_worker(job_id)
+        deadline = time.monotonic() + RETIME_DELETE_WAIT_SEC
+        if with_lyrics:
+            _wait_lyrics_runs_ended(job_id, deadline)
+        _wait_vocal_split_ended(job_id, deadline)
+    if with_lyrics:
+        RETIME_RUNS.forget(job_id)
+        TRANSCRIBE_RUNS.forget(job_id)
+    VOCAL_SPLIT_RUNS.forget(job_id)
 
 
 def _retry_deleted_job_files(job_id: str) -> dict[str, str]:
@@ -2259,6 +2270,7 @@ def _settle_old_copy(job: Job) -> None:
         return
     logger.info("[%s] replaces %s: moving it to the Trash", job.id, old.id)
     registry_set_trashed(old.id, True)
+    _stop_runs(old, with_lyrics=False)
 
 
 def settle_pending_replacements() -> None:

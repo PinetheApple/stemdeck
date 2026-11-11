@@ -411,6 +411,43 @@ def test_replacing_the_song_stops_its_split_before_its_files_go(client, monkeypa
     assert vs_mod.VOCAL_SPLIT_RUNS.current(JOB_ID) is None
 
 
+def _start_blocking_split(client, monkeypatch) -> tuple[Blocking, vs_mod.VocalSplitRun]:
+    done_job()
+    split = Blocking()
+    monkeypatch.setattr(vs_mod, "split_vocals", split)
+    client.post(SPLIT)
+    assert split.started.wait(10)
+    return split, vs_mod.VOCAL_SPLIT_RUNS.current(JOB_ID)
+
+
+def test_trashing_the_song_stops_its_split_before_returning(client, monkeypatch):
+    split, run = _start_blocking_split(client, monkeypatch)
+
+    r = client.post(f"/api/jobs/{JOB_ID}/trash")
+    # Read before the release, which would let a split nobody stopped end too.
+    split_ended = run.ended.is_set()
+    split.release.set()
+
+    assert r.status_code == 200
+    assert split_ended
+    assert vs_mod.VOCAL_SPLIT_RUNS.current(JOB_ID) is None
+    assert (stems_dir() / "vocals.wav").is_file()
+
+
+def test_a_replacement_that_trashes_the_song_stops_its_split(client, monkeypatch):
+    split, run = _start_blocking_split(client, monkeypatch)
+    # The stub split holds the real pipeline lock until it is stopped.
+    monkeypatch.setattr("app.pipeline.runner._pipeline_lock", asyncio.Semaphore(1))
+
+    client.portal.call(_finish, _new_job(replaces=JOB_ID))
+    split_ended = run.ended.is_set()
+    split.release.set()
+
+    assert _jobs[JOB_ID].trashed_at is not None
+    assert split_ended
+    assert vs_mod.VOCAL_SPLIT_RUNS.current(JOB_ID) is None
+
+
 DELETE_WAIT_BUDGET_SEC = 0.4
 # Room for scheduling jitter, well short of a second full budget.
 DELETE_WAIT_SLACK = 1.5
