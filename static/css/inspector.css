@@ -20,10 +20,13 @@
   border-left: 1px solid var(--line);
 }
 .inspector-tabs {
+  position: relative;
+  z-index: 1;
   display: flex;
   gap: 2px;
   padding: var(--s-2);
   border-bottom: 1px solid var(--line);
+  background: var(--surface-1);
 }
 .inspector-tab {
   flex: 1 1 auto;
@@ -57,6 +60,10 @@
   .inspector-tab .ic { display: none; }
 }
 .inspector-tab[aria-selected="true"] .inspector-count { background: var(--accent); color: var(--accent-ink); }
+@property --inspector-pane-fade { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes inspector-pane-fade-in { from { --inspector-pane-fade: 0px; } to { --inspector-pane-fade: var(--s-4); } }
+/* Scrolled content fades out in the top padding instead of being sliced at the tab bar.
+   The fade follows the scroll position, so at the top nothing is masked. */
 .inspector-pane {
   flex: 1;
   min-height: 0;
@@ -65,6 +72,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
+  mask-image: linear-gradient(to bottom, transparent, black var(--inspector-pane-fade));
+  animation: inspector-pane-fade-in linear both;
+  animation-range: 0 var(--s-4);
+  animation-timeline: scroll(self);
 }
 .inspector-pane[hidden] { display: none; }
 .inspector-card {
