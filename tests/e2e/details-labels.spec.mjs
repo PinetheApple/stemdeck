@@ -12,8 +12,9 @@ import {
 
 const KEY_CONFIDENCE = 72;
 const YOUTUBE_URL = "https://www.youtube.com/watch?v=e2e";
-const NEW_KEYS = ["inspector.fileSource", "inspector.fileFormat", "meta.keyConfidence", "presence.explain"];
-const FIGURE_CARDS ={ key: "help.meta.key", lufs: "help.meta.lufs", dr: "help.meta.dr", stability: "help.meta.stability" };
+const SOUNDCLOUD_URL = "https://soundcloud.com/e2e/song";
+const NEW_KEYS = ["inspector.fileSource", "inspector.fileFormat", "meta.keyConfidence"];
+const FIGURE_CARDS = { key: "help.meta.key", lufs: "help.meta.lufs", dr: "help.meta.dr", stability: "help.meta.stability" };
 
 // The server's record wins over the store once the page syncs, so a source is
 // rewritten on the way in.
@@ -71,6 +72,13 @@ test("a YouTube song shows no made-up format", async ({ page }) => {
   await expect(fileCard(page)).not.toContainText(await uiText(page, "track.qualityHigh"));
 });
 
+test("a SoundCloud song shows no guessed MP3", async ({ page }) => {
+  await openDetails(page, { sourceUrl: SOUNDCLOUD_URL });
+  await expect(page.locator("#track-source")).toHaveText("SoundCloud");
+  await expect(fact(page, "track-quality")).toBeHidden();
+  await expect(fileCard(page)).not.toContainText("MP3");
+});
+
 test("the key confidence says what it measures", async ({ page }) => {
   await openDetails(page);
   const ring = page.locator("#summary-confidence");
@@ -85,10 +93,30 @@ test("each figure card and stem card explains its number on hover", async ({ pag
   for (const [meta, key] of Object.entries(FIGURE_CARDS)) {
     await expect(page.locator(`.daw-meta-card[data-meta="${meta}"]`)).toHaveAttribute("title", await uiText(page, key));
   }
-  const explain = await uiText(page, "presence.explain");
   for (const card of await page.locator(".stem-presence-panel .stem-card").all()) {
-    await expect(card).toHaveAttribute("title", explain);
+    const name = await uiText(page, `stem.${await card.getAttribute("data-stem")}`);
+    await expect(card).toHaveAttribute("title", await uiText(page, "help.presence", { name }));
   }
+});
+
+test("a keyboard reaches each figure card and hears what it measures", async ({ page }) => {
+  await openDetails(page);
+  await page.locator("#inspectorTabDetails").focus();
+  await page.keyboard.press("Tab");
+  const focused = page.locator(":focus");
+  await expect(focused).toHaveAttribute("data-meta", "key");
+  await expect(focused).toHaveAccessibleName(new RegExp(`${await uiText(page, "meta.key")}.+major`, "i"));
+  await expect(focused).toHaveAccessibleDescription(await uiText(page, "help.meta.key"));
+  await page.keyboard.press("Tab");
+  await expect(focused).toHaveAttribute("data-meta", "lufs");
+  await expect(focused).toHaveAccessibleDescription(await uiText(page, "help.meta.lufs"));
+
+  const drums = page.locator('.stem-card[data-stem="drums"]');
+  await drums.focus();
+  await expect(drums).toBeFocused();
+  await expect(drums).toHaveAccessibleName(new RegExp(`${await uiText(page, "presence.drum")}.+80%`, "i"));
+  const name = await uiText(page, "stem.drums");
+  await expect(drums).toHaveAccessibleDescription(await uiText(page, "help.presence", { name }));
 });
 
 test("the labels and explanations follow the language", async ({ page }) => {
