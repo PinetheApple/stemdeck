@@ -45,7 +45,7 @@ test.describe("the error box", () => {
     await page.locator('.settings-tab[data-tab="details"]').click();
     const settings = page.locator(".set-acoustid-key");
     await expect(settings).toBeVisible();
-    await page.evaluate(async () => (await import("/js/job.js")).showError("Something failed.", null, { retry: false }));
+    await page.evaluate(async () => (await import("/js/job.js")).showError("Something failed.", null, { onRetry: null }));
     await expect(page.locator("#error")).toBeVisible();
 
     await page.keyboard.press("Escape");

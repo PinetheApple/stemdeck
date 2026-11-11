@@ -117,7 +117,7 @@ export async function importPlaylist(url, stems) {
         ? t("playlist.queueFull")
         : t("playlist.nothingImportable"),
       countLine(preview) || null,
-      { retry: false },
+      { onRetry: null },
     );
     return 0;
   }

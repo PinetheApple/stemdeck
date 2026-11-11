@@ -4956,7 +4956,7 @@ async function exportLogs(btn) {
     dismissFailuresByKind("export");
   } catch (e) {
     console.warn("[settings] log export failed:", e);
-    showError(i18nT("settings.exportLogs.error"), null, { retry: false });
+    showError(i18nT("settings.exportLogs.error"), null, { onRetry: null });
     notifyFailure({
       kind: "export",
       message: i18nT("settings.exportLogs.error"),
