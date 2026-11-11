@@ -309,7 +309,8 @@ export async function stubFavorites(page, serverFavorites = {}) {
 }
 
 const TRASH_ACTION = /\/api\/jobs\/([^/]+)\/(trash|restore)$/;
-const JOB_LIST = /\/api\/jobs\?trashed=include$/;
+/** The job list the library sync reads, Trash included. */
+export const JOB_LIST_URL = /\/api\/jobs\?trashed=include$/;
 
 /**
  * Stand in for the server's Trash, which the desktop follows on every sync, so a
@@ -351,7 +352,7 @@ export async function stubServerTrash(
     else server.trashed.delete(id);
     return route.fulfill({ json: { job_id: id, trashed_at: action === "trash" ? 1 : null } });
   });
-  await page.route(JOB_LIST, async (route) => {
+  await page.route(JOB_LIST_URL, async (route) => {
     const jobs = await (await route.fetch()).json();
     const listed = jobs
       .filter((state) => !server.hidden.has(state.job_id))

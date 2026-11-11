@@ -5,6 +5,7 @@ import { test, expect } from "@playwright/test";
 import { ROW_KEY } from "../../static/js/rovingRows.js";
 import {
   JOB_ID,
+  JOB_LIST_URL,
   KEY,
   SIBLING_JOB_ID,
   fixtureTrack,
@@ -25,7 +26,6 @@ const LIBRARY_ROWS = "#catalogList :is(.cat-item, .folder-head)";
 const SETLIST_ROWS = "#setlistsList :is(.setlist-head, .setlist-song)";
 const UPNEXT_ROWS = "#upNextList .upnext-row";
 const ACTIVE = /\bactive\b/;
-const JOB_LIST_URL = /\/api\/jobs\?trashed=include$/;
 
 test.afterEach(async ({ request }) => {
   const res = await request.get("/api/setlists");
