@@ -751,7 +751,7 @@ export function artistMatchesCredit(artist, credit) {
 export async function lookupCredit(credit, find) {
   const found = await find(credit);
   const main = mainArtistName(credit);
-  if (!main || main === String(credit).trim() || artistMatchesName(found, credit)) return found;
+  if (!main || main === String(credit || "").trim() || artistMatchesName(found, credit)) return found;
   return (await find(main)) || found;
 }
 

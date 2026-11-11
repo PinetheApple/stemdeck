@@ -729,7 +729,7 @@ async function loadWork(work, lang, signal) {
 }
 
 // The band by id or name, from the answers already had or from Wikidata.
-async function cachedBand(query, id, lang, signal) {
+async function bandAnswer(query, id, lang, signal) {
   const key = id ? `${lang}|#${id}` : `${lang}|${query.toLowerCase()}`;
   if (answers.has(key)) return answers.get(key);
   if (signal.aborted) return null;
@@ -739,12 +739,6 @@ async function cachedBand(query, id, lang, signal) {
   // Also by id, so a band found by name and then saved opens from the cache.
   if (artist) answers.set(`${lang}|#${artist.id}`, artist);
   return artist;
-}
-
-// By name, the main artist of a multi-artist credit is asked for too.
-function bandAnswer(query, id, lang, signal) {
-  if (id) return cachedBand(query, id, lang, signal);
-  return lookupCredit(query, (name) => cachedBand(name, "", lang, signal));
 }
 
 // The Discogs profile of the open track's band, from the server, or null:
@@ -981,8 +975,10 @@ async function runFindBandFromTags(trackId) {
   autoController = controller;
   autoTrackId = trackId;
   try {
-    // Kept for the box either way, under the keys search() looks for.
-    const artist = await bandAnswer(name, "", getLanguage(), controller.signal);
+    // Kept for the box either way, under the keys search() looks for. A tag
+    // may credit several artists, so the main one is asked for too.
+    const lang = getLanguage();
+    const artist = await lookupCredit(name, (credit) => bandAnswer(credit, "", lang, controller.signal));
     if (!artistMatchesCredit(artist, name)) return;
     // Still the open track, and nobody saved a band on it in the meantime.
     if (getCurrentTrackInfo()?.id !== trackId || getCurrentTrackArtist()) return;
