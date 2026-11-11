@@ -12,7 +12,6 @@ import {
   seedLibrary,
   stubExportEndpoints,
   stubFavorites,
-  stubImportQueue,
   stubUpdateCheck,
 } from "./helpers.mjs";
 
@@ -150,19 +149,46 @@ test.describe("more dialogs and Esc", () => {
   });
 });
 
-/** Rendered sizes of every visible match, as "selector WxH" for the ones under the minimum. */
+/** Selectors with nothing on screen, and "selector WxH" for each match under the minimum. */
 function smallTargets(page, selectors) {
   return page.evaluate(
-    ({ list, min }) =>
-      list.flatMap((selector) =>
-        [...document.querySelectorAll(selector)]
-          .filter((el) => el.getClientRects().length)
-          .map((el) => el.getBoundingClientRect())
-          .filter((box) => box.width < min || box.height < min)
-          .map((box) => `${selector} ${Math.round(box.width)}x${Math.round(box.height)}`),
-      ),
+    ({ list, min }) => {
+      const shown = (selector) => [...document.querySelectorAll(selector)].filter((el) => el.getClientRects().length);
+      return {
+        missing: list.filter((selector) => !shown(selector).length),
+        small: list.flatMap((selector) =>
+          shown(selector)
+            .map((el) => el.getBoundingClientRect())
+            .filter((box) => box.width < min || box.height < min)
+            .map((box) => `${selector} ${Math.round(box.width)}x${Math.round(box.height)}`),
+        ),
+      };
+    },
     { list: selectors, min: MIN_TARGET_PX },
   );
+}
+
+const ALL_TARGETS_MET = { missing: [], small: [] };
+const QUEUED_IDS = ["e2e0feed0001", "e2e0feed0002", "e2e0feed0003"];
+
+/** A running import and three waiting ones, so the last two waiting rows offer "extract next". */
+async function stubLongQueue(page) {
+  const job = (id) => ({ job_id: id, status: "queued", title: id, source_url: `https://example.invalid/${id}` });
+  await page.route(
+    "**/api/queue",
+    (route) => route.fulfill({
+      json: {
+        running: { ...job("e2e0feed0000"), status: "separating", stage: "Separating 40%", progress: 0.4 },
+        queued: QUEUED_IDS.map(job),
+        paused: false,
+        max_pending_uploads: 5,
+        max_pending_urls: 50,
+        capacity_left_uploads: 5,
+        capacity_left_urls: 50,
+      },
+    }),
+  );
+  await page.route("**/api/queue/events", (route) => route.abort());
 }
 
 /** A user folder, for its head's buttons, and a stopped song, for its Extract button. */
@@ -199,19 +225,19 @@ test.describe("target sizes", () => {
         "#t-pitch-up",
         "#t-pitch-reset",
       ]),
-    ).toEqual([]);
+    ).toEqual(ALL_TARGETS_MET);
 
     await page.locator("#aboutBtn").click();
-    expect(await smallTargets(page, ["#aboutClose", ".about-social-btn"])).toEqual([]);
+    expect(await smallTargets(page, ["#aboutClose", ".about-social-btn"])).toEqual(ALL_TARGETS_MET);
   });
 
-  test("an import's cancel button is at least 24 px", async ({ page }) => {
-    const queue = await stubImportQueue(page, "e2e0feedbeef");
+  test("an import's cancel and extract-next buttons are at least 24 px", async ({ page }) => {
+    await stubLongQueue(page);
     await openApp(page);
-    await queue.run();
+    await page.evaluate(() => import("/js/queue.js").then((m) => m.refreshQueue()));
     await page.locator(".rail-queue").click();
-    await expect(page.locator(".queue-cancel").first()).toBeVisible();
-    expect(await smallTargets(page, [".queue-cancel"])).toEqual([]);
+    await expect(page.locator(".queue-top").first()).toBeAttached();
+    expect(await smallTargets(page, [".queue-cancel", ".queue-top"])).toEqual(ALL_TARGETS_MET);
   });
 
   test("a lane's transpose arrows take a 24 px hit, reaching away from the K", async ({ page }) => {

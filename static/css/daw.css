@@ -910,6 +910,7 @@ input, textarea { font-family: inherit; }
 .queue-row:hover .queue-top { opacity: 0.65; }
 .queue-top:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); opacity: 1; }
 .queue-top:disabled { opacity: 0.3; cursor: default; }
+.queue-row .queue-top { width: var(--target-min); height: var(--target-min); }
 /* A row's actions float over its right edge and show on hover or keyboard
    focus (#724). In the flow they cost the title their width on every row at
    rest, which is where titles were being cut short, and a second button in
