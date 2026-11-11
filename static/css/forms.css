@@ -1,6 +1,5 @@
-/* ── Form controls in StemDeck's own look ──
-   :where() keeps these base rules at zero specificity, so any component rule
-   for a control (a switch, a pill select) still wins. */
+/* Base rules sit in :where() so a component's own rule for a control wins;
+   only the select caret needs more weight (see below). */
 
 :root {
   --caret-w: calc(2 * var(--caret-h));
@@ -9,13 +8,20 @@
   --check-size: var(--icon);
   --check-mark: 10px;
   --radio-dot: 6px;
+  --select-menu-margin: var(--s-2);
+  --select-menu-line-height: 1.2;
+  --z-select-menu: 1000;
 }
 
 /* A stroked chevron drawn with gradients, so its colour follows the tokens. */
-select:not([multiple]):not(.metro-select) {
+:where(select:not([multiple]):not(.metro-select)) {
   appearance: none;
   -webkit-appearance: none;
   padding-right: calc(var(--s-3) + var(--caret-w) + var(--s-2));
+  cursor: pointer;
+}
+/* Outweighs a component's `background` shorthand, which would wipe the caret. */
+select:not([multiple]):not(.metro-select) {
   background-image:
     linear-gradient(45deg, transparent calc(50% - var(--caret-stroke)), var(--text-3) calc(50% - var(--caret-stroke)), var(--text-3) calc(50% + var(--caret-stroke)), transparent calc(50% + var(--caret-stroke))),
     linear-gradient(-45deg, transparent calc(50% - var(--caret-stroke)), var(--text-3) calc(50% - var(--caret-stroke)), var(--text-3) calc(50% + var(--caret-stroke)), transparent calc(50% + var(--caret-stroke)));
@@ -24,19 +30,18 @@ select:not([multiple]):not(.metro-select) {
     right calc(var(--s-3) + var(--caret-h)) center,
     right var(--s-3) center;
   background-repeat: no-repeat;
-  cursor: pointer;
 }
-select:not([multiple]):disabled { cursor: not-allowed; }
+:where(select:not([multiple]):disabled) { cursor: not-allowed; }
+select[aria-expanded="true"]:not([multiple]) { border-color: var(--accent); }
 
-/* The list a select opens (static/js/selectMenu.js). */
 .select-menu {
   position: fixed;
   inset: auto;
-  z-index: 1000;
+  z-index: var(--z-select-menu);
   margin: 0;
   box-sizing: border-box;
   width: max-content;
-  max-width: calc(100vw - 2 * var(--s-2));
+  max-width: calc(100vw - 2 * var(--select-menu-margin));
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--s-1);
@@ -45,9 +50,10 @@ select:not([multiple]):disabled { cursor: not-allowed; }
   background: var(--surface-2);
   box-shadow: var(--shadow-panel);
   color: var(--text);
-  font: var(--fw-medium) var(--fs-sm) / 1.2 var(--font-sans);
+  font: var(--fw-medium) var(--fs-sm) / var(--select-menu-line-height) var(--font-sans);
   text-align: left;
 }
+.select-menu:focus-visible { outline: none; }
 .select-menu-option {
   display: flex;
   align-items: center;
@@ -65,7 +71,6 @@ select:not([multiple]):disabled { cursor: not-allowed; }
   cursor: not-allowed;
 }
 
-/* Checkboxes and radios */
 :where(input[type="checkbox"], input[type="radio"]) {
   appearance: none;
   -webkit-appearance: none;
@@ -81,7 +86,8 @@ select:not([multiple]):disabled { cursor: not-allowed; }
   cursor: pointer;
   transition: background var(--t-fast), border-color var(--t-fast);
 }
-:where(input[type="radio"]) { border-radius: 50%; }
+/* Above base.css's :focus-visible radius, so a focused radio stays round. */
+input[type="radio"] { border-radius: 50%; }
 :where(input[type="checkbox"], input[type="radio"])::before {
   content: "";
   background: var(--accent-ink);
@@ -104,10 +110,6 @@ select:not([multiple]):disabled { cursor: not-allowed; }
   background: var(--accent);
 }
 :where(input[type="checkbox"], input[type="radio"]):checked::before { transform: scale(1); }
-:where(input[type="checkbox"], input[type="radio"]):focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
 :where(input[type="checkbox"], input[type="radio"]):disabled {
   opacity: var(--disabled-opacity);
   cursor: not-allowed;
