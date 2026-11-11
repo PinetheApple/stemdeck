@@ -392,53 +392,52 @@ function _rightNeighborStart(id) {
 
 // ─── CRUD ─────────────────────────────────────────────────
 
-// Where a new section goes.
-//
-// With a loop armed, Add means "make this selection a section", which is the
-// direct route from hearing a part to naming it (#573, and #474 asked for the
-// same thing). Without one it falls back to the first gap that fits.
-//
-// Returns null when a loop is armed but cannot become a section, so the caller
-// can say why rather than silently building one somewhere else. That silent
-// fallback is the whole complaint: you select a region, press Add, and a
-// section appears at the start of the track instead.
+// Where a new section goes: on the armed loop if there is one, otherwise in the
+// first gap that fits. A refusal carries the string key that says why.
 function _newSectionBounds() {
   const loop = _armedLoop();
-  if (loop && loop.end - loop.start >= MIN_SEC) {
-    const start = Math.max(0, loop.start);
-    const end = Math.min(_duration, loop.end);
-    if (end - start < MIN_SEC) return null;
-    // Sections cannot overlap, so a loop drawn across one cannot become a
-    // section without moving something the user did not ask to move.
-    if (_sections.some((s) => start < s.end && end > s.start)) return null;
-    return { start, end };
-  }
+  if (loop) return _loopSectionBounds(loop);
+  const bounds = _gapSectionBounds();
+  return bounds ? { bounds } : { refusal: "sections.noRoom" };
+}
 
+// Sections cannot overlap, so a loop across one would move something the user
+// did not ask to move.
+function _loopSectionBounds(loop) {
+  const start = Math.max(0, loop.start);
+  const end = Math.min(_duration, loop.end);
+  if (end - start < MIN_SEC) return { refusal: "sections.loopTooShort" };
+  if (_overlapsSection(start, end)) return { refusal: "sections.loopOverlaps" };
+  return { bounds: { start, end } };
+}
+
+function _gapSectionBounds() {
   const defW = _duration * DEFAULT_WIDTH_FRAC;
   const sorted = [..._sections].sort((a, b) => a.start - b.start);
 
-  // Find first gap ≥ defW
   let start = 0;
   for (const s of sorted) {
     if (s.start - start >= defW) break;
     start = Math.max(start, s.end);
   }
 
-  // Clamp and verify room
   start = Math.min(start, _duration - MIN_SEC);
   if (start < 0) return null;
   const end = Math.min(start + defW, _duration);
   if (end - start < MIN_SEC) return null;
-
-  // Verify no overlap
-  if (_sections.some((s) => start < s.end && end > s.start)) return null;
+  if (_overlapsSection(start, end)) return null;
   return { start, end };
 }
 
+function _overlapsSection(start, end) {
+  return _sections.some((s) => start < s.end && end > s.start);
+}
+
 function _addSection() {
-  const bounds = _newSectionBounds();
-  if (!bounds) {
-    _showNotice(t(_armedLoop() ? "sections.loopOverlaps" : "sections.noRoom"));
+  if (!_trackId) return;
+  const { bounds, refusal } = _newSectionBounds();
+  if (refusal) {
+    _showNotice(t(refusal));
     return;
   }
   const { start, end } = bounds;

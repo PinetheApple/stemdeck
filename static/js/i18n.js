@@ -1286,6 +1286,7 @@ const en = {
   "sections.notSaved": "Not saved",
   "tempo.savePending": "Not saved yet",
   "sections.noRoom": "No room left. Shorten or delete a section.",
+  "sections.loopTooShort": "Loop too short for a section",
 };
 
 const pl = {
@@ -2348,6 +2349,7 @@ const pl = {
   "sections.notSaved": "Nie zapisano",
   "tempo.savePending": "Jeszcze nie zapisano",
   "sections.noRoom": "Brak miejsca. Skróć lub usuń sekcję.",
+  "sections.loopTooShort": "Pętla za krótka na sekcję",
 };
 
 const ja = {
@@ -3383,6 +3385,7 @@ const ja = {
   "sections.notSaved": "未保存",
   "tempo.savePending": "まだ保存されていません",
   "sections.noRoom": "空きがありません。セクションを短くするか削除してください。",
+  "sections.loopTooShort": "ループが短すぎてセクションにできません",
 };
 
 const zhHans = {
@@ -4418,6 +4421,7 @@ const zhHans = {
   "sections.notSaved": "未保存",
   "tempo.savePending": "尚未保存",
   "sections.noRoom": "没有空间了。请缩短或删除一个段落。",
+  "sections.loopTooShort": "循环区域太短，无法设为段落",
 };
 
 const de = {
@@ -5465,6 +5469,7 @@ const de = {
   "sections.notSaved": "Nicht gespeichert",
   "tempo.savePending": "Noch nicht gespeichert",
   "sections.noRoom": "Kein Platz mehr. Kürze oder lösche einen Abschnitt.",
+  "sections.loopTooShort": "Loop zu kurz für einen Abschnitt",
 };
 
 const pt = {
@@ -6514,6 +6519,7 @@ const pt = {
   "sections.notSaved": "Não salvo",
   "tempo.savePending": "Ainda não salvo",
   "sections.noRoom": "Sem espaço. Encurte ou exclua uma seção.",
+  "sections.loopTooShort": "Loop curto demais para uma seção",
 };
 
 const id = {
@@ -7549,6 +7555,7 @@ const id = {
   "sections.notSaved": "Tidak tersimpan",
   "tempo.savePending": "Belum tersimpan",
   "sections.noRoom": "Tidak ada ruang. Perpendek atau hapus sebuah bagian.",
+  "sections.loopTooShort": "Loop terlalu pendek untuk bagian",
 };
 
 const fr = {
@@ -8598,6 +8605,7 @@ const fr = {
   "sections.notSaved": "Non enregistré",
   "tempo.savePending": "Pas encore enregistré",
   "sections.noRoom": "Plus de place. Raccourcissez ou supprimez une section.",
+  "sections.loopTooShort": "Boucle trop courte pour une section",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -8840,6 +8848,7 @@ const ptPT = {
   "vocalSplit.failed.diskFull": "O disco está cheio. Liberte espaço e tente novamente.",
   "vocalSplit.failed.noVocals": "Falta a voz desta música. Extraia as faixas de novo e tente novamente.",
   "sections.noRoom": "Sem espaço. Encurte ou elimine uma secção.",
+  "sections.loopTooShort": "Loop demasiado curto para uma secção",
 };
 
 const es = {
@@ -9901,6 +9910,7 @@ const es = {
   "sections.notSaved": "No guardado",
   "tempo.savePending": "Aún no guardado",
   "sections.noRoom": "No queda espacio. Acorta o elimina una sección.",
+  "sections.loopTooShort": "Bucle demasiado corto para una sección",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -10945,6 +10955,7 @@ const ko = {
   "sections.notSaved": "저장 안 됨",
   "tempo.savePending": "아직 저장 안 됨",
   "sections.noRoom": "남은 공간이 없어요. 구간을 줄이거나 삭제하세요.",
+  "sections.loopTooShort": "루프가 너무 짧아 구간을 만들 수 없습니다",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };
