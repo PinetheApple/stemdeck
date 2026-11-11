@@ -468,16 +468,19 @@ def get_settings(request: Request) -> dict[str, object]:
     }
 
 
-def _network_addresses(scheme: str, port: int) -> list[dict[str, str]]:
+def _network_addresses(scheme: str, port: int) -> list[lan_interfaces.NetworkAddress]:
     """What another device can open, by URL and kind; a configured public URL replaces
     the detected addresses."""
     if PUBLIC_URL is not None:
-        return [{"url": PUBLIC_URL, "kind": lan_interfaces.KIND_PUBLIC}]
+        return [lan_interfaces.NetworkAddress(url=PUBLIC_URL, kind=lan_interfaces.KIND_PUBLIC)]
     interfaces = lan_interfaces.read_interfaces()
     unreachable = lan_interfaces.unreachable_ipv4s(interfaces)
     vpn = lan_interfaces.vpn_ipv4s(interfaces)
     entries = [
-        {"url": f"{scheme}://{ip}:{port}", "kind": lan_interfaces.address_kind(ip, vpn)}
+        lan_interfaces.NetworkAddress(
+            url=f"{scheme}://{ip}:{port}",
+            kind=lan_interfaces.address_kind(ip, vpn),
+        )
         for ip in _local_ips()
         if _is_lan_ipv4(ip) and ip not in unreachable
     ]

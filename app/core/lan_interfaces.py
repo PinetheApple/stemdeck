@@ -9,7 +9,7 @@ An address is left out when its interface is not up and running, when it is a
 Linux bridge with no hardware anywhere behind it (docker0, br-*, virbr0 and
 cni0 all look like this in sysfs), or when its name belongs to a container or
 VM host network. The name list is the fallback for macOS, which has no sysfs.
-VPN interfaces (tailscale0, wg0, utun*, tun*) stay listed, since a phone on the
+VPN interfaces (tailscale0, wg0, utun3, tun0) stay listed, since a phone on the
 same VPN reaches them, but are marked as VPN so the phone's owner knows which
 address needs the VPN on. Tailscale's 100.64.0.0/10 range counts as VPN even
 where no interface could be read.
@@ -30,7 +30,7 @@ import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, TypedDict
 
 _log = logging.getLogger("stemdeck.network")
 
@@ -63,13 +63,17 @@ _HOST_ONLY_NAME = re.compile(
     r"^(docker|br-|veth|virbr|cni|flannel|cali|podman|vboxnet|vmnet|bridge1\d\d)"
 )
 
-_VPN_NAME = re.compile(r"^(tailscale|wg|utun|tun)")
+_VPN_NAME = re.compile(r"^(tailscale\d*|wg\d+|utun\d+|tun\d+)$")
 _CGNAT_NETWORK = ipaddress.IPv4Network("100.64.0.0/10")
 
 KIND_LAN = "lan"
 KIND_VPN = "vpn"
-# An address the operator configured rather than one read off an interface.
 KIND_PUBLIC = "public"
+
+
+class NetworkAddress(TypedDict):
+    url: str
+    kind: str
 
 
 @dataclass(frozen=True)

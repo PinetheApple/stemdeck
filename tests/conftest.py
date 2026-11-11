@@ -182,6 +182,10 @@ def _isolate_network_settings(tmp_path, monkeypatch):
     # STEMDECK_AUTO_SECTIONS=0 in their shell must not change what the pipeline
     # tests assert; the tests that care set it themselves.
     monkeypatch.delenv("STEMDECK_AUTO_SECTIONS", raising=False)
+    # Likewise an exported STEMDECK_PUBLIC_URL must not replace the detected addresses.
+    import app.main as _main
+
+    monkeypatch.setattr(_main, "PUBLIC_URL", None)
     _settings._state = None  # force a fresh load from the isolated path
     yield
     _settings._state = None

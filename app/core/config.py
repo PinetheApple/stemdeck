@@ -5,7 +5,7 @@ import re
 import shutil
 import sys
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 logger = logging.getLogger("stemdeck.config")
 
@@ -227,30 +227,6 @@ SSL_KEYFILE = _env_path_opt("STEMDECK_SSL_KEY")
 # listener alongside the first; when it is not, there is only ever one server
 # and TLS (if configured at all) belongs to whoever launched uvicorn.
 HTTPS_PORT = _env_int("STEMDECK_HTTPS_PORT", 0) or None
-_PUBLIC_URL_SCHEMES = ("http", "https")
-
-
-def parse_public_url(raw: str) -> str | None:
-    """An http(s) URL with a host, without its trailing slash; anything else is None."""
-    raw = raw.strip()
-    if not raw:
-        return None
-    try:
-        parts = urlsplit(raw)
-        valid = parts.scheme in _PUBLIC_URL_SCHEMES and bool(parts.hostname)
-        parts.port  # noqa: B018 -- raises on a port that is not a number in range
-    except ValueError:
-        valid = False
-    if not valid:
-        logger.warning("ignoring STEMDECK_PUBLIC_URL %r: not an http(s) URL with a host", raw)
-        return None
-    return raw.rstrip("/")
-
-
-# The address Settings > Network hands to other devices instead of the detected
-# LAN ones, for deployments where the server cannot see its own reachable address
-# (a container on a bridge network, a reverse proxy, a tunnel).
-PUBLIC_URL = parse_public_url(os.environ.get("STEMDECK_PUBLIC_URL", ""))
 FFMPEG_BIN = _env_path(
     "STEMDECK_FFMPEG",
     FFMPEG_DIR / ("ffmpeg.exe" if sys.platform.startswith("win") else "ffmpeg"),
@@ -333,6 +309,38 @@ def js_solver_available() -> bool:
     if bundled_js_runtime() is not None:
         return True
     return any(shutil.which(exe) for _, exe in _JS_RUNTIME_BINARIES)
+
+
+# ── The address other devices are shown ──────────────────────────────────────
+# Replaces the detected LAN addresses where the server cannot see its reachable
+# one (a container on a bridge network, a reverse proxy, a tunnel).
+_PUBLIC_URL_SCHEMES = ("http", "https")
+_MIN_PORT = 1
+
+
+def parse_public_url(raw: str) -> str | None:
+    """A plain http(s) URL with a host, normalised; anything else is None."""
+    raw = raw.strip()
+    if not raw:
+        return None
+    try:
+        parts = urlsplit(raw)
+        scheme = parts.scheme.lower()
+        valid = (
+            scheme in _PUBLIC_URL_SCHEMES
+            and bool(parts.hostname)
+            and not (parts.query or parts.fragment or parts.username or parts.password)
+            and (parts.port is None or parts.port >= _MIN_PORT)
+        )
+    except ValueError:  # a port that is not a number in range, or a malformed host
+        valid = False
+    if not valid:
+        logger.warning("ignoring STEMDECK_PUBLIC_URL %r: not a plain http(s) URL with a host", raw)
+        return None
+    return urlunsplit((scheme, parts.netloc, parts.path.rstrip("/"), "", ""))
+
+
+PUBLIC_URL = parse_public_url(os.environ.get("STEMDECK_PUBLIC_URL", ""))
 
 
 DEMUCS_MODEL = os.environ.get("STEMDECK_DEMUCS_MODEL", "htdemucs_6s").strip() or "htdemucs_6s"

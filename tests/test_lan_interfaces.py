@@ -37,11 +37,6 @@ FAKE_HOST = {
 }
 
 
-@pytest.fixture(autouse=True)
-def _no_public_url(monkeypatch) -> None:
-    monkeypatch.setattr(main, "PUBLIC_URL", None)
-
-
 async def _listed(monkeypatch, local_ips: set[str], interfaces: list[NetInterface]) -> list[str]:
     monkeypatch.setattr(lan_interfaces, "read_interfaces", lambda: interfaces)
     return await _settings_addresses(monkeypatch, local_ips)
@@ -219,6 +214,7 @@ async def test_a_public_url_replaces_the_detected_addresses(monkeypatch) -> None
         ("https://stemdeck.example.net/", "https://stemdeck.example.net"),
         (" http://192.168.1.20:8000 ", "http://192.168.1.20:8000"),
         ("https://proxy.example.net/stemdeck/", "https://proxy.example.net/stemdeck"),
+        ("HTTPS://stemdeck.example.net", "https://stemdeck.example.net"),
         ("", None),
     ],
 )
@@ -228,12 +224,33 @@ def test_a_public_url_is_read_without_its_trailing_slash(raw: str, parsed: str |
 
 @pytest.mark.parametrize(
     "raw",
-    ["stemdeck.example.net", "ftp://stemdeck.example.net", "https://", "http://host:port"],
+    [
+        "stemdeck.example.net",
+        "ftp://stemdeck.example.net",
+        "https://",
+        "http://host:port",
+        "https://stemdeck.example.net/?x=1",
+        "https://stemdeck.example.net/#a",
+        "https://user:pass@stemdeck.example.net",
+        "http://stemdeck.example.net:0",
+        "http://stemdeck.example.net:99999",
+    ],
 )
 def test_an_invalid_public_url_is_ignored_with_a_warning(caplog, raw: str) -> None:
     with caplog.at_level(logging.WARNING, logger="stemdeck.config"):
         assert config.parse_public_url(raw) is None
     assert "STEMDECK_PUBLIC_URL" in caplog.text
+
+
+@pytest.mark.parametrize("name", ["tunl0", "tunnel0"])
+async def test_an_ip_tunnel_is_not_marked_vpn(monkeypatch, name: str) -> None:
+    monkeypatch.setattr(
+        lan_interfaces,
+        "read_interfaces",
+        lambda: [NetInterface(name=name, ipv4="10.8.0.2", running=True)],
+    )
+    settings = await _settings(monkeypatch, {"10.8.0.2"})
+    assert settings["network_addresses"] == [{"url": "http://10.8.0.2:8000", "kind": "lan"}]
 
 
 async def test_without_an_interface_table_every_address_is_kept(monkeypatch) -> None:
