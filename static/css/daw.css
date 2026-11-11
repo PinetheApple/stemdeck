@@ -1895,12 +1895,12 @@ input, textarea { font-family: inherit; }
 .daw-analysis-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
 .daw-analysis-divider { width: 1px; background: var(--border); align-self: stretch; }
 .daw-camelot-ring {
-  width: 20px; height: 20px; border-radius: 50%;
+  min-width: 20px; height: 20px; padding: 0 var(--s-1); border-radius: var(--r-pill);
   border: 1.5px solid var(--accent);
   display: flex; align-items: center; justify-content: center;
   align-self: center;
   flex-shrink: 0;
-  font-size: 9px; font-weight: 700; color: var(--accent);
+  font-size: var(--fs-2xs); font-weight: 700; color: var(--accent);
   background: color-mix(in srgb, var(--accent) 8%, transparent);
   font-family: var(--font-mono);
 }

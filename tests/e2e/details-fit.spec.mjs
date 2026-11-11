@@ -103,15 +103,48 @@ test(`at ${NARROW_WIDTH}px the File card lines its labels up beside their values
     [...el.querySelectorAll(".details-fact")].map((fact) => {
       const label = fact.querySelector(".details-fact-label").getBoundingClientRect();
       const value = fact.lastElementChild.getBoundingClientRect();
-      return { labelLeft: label.left, labelRight: label.right, labelTop: label.top, valueLeft: value.left, valueTop: value.top };
+      const labelStyle = getComputedStyle(fact.firstElementChild);
+      const valueStyle = getComputedStyle(fact.lastElementChild);
+      return {
+        labelLeft: label.left,
+        labelRight: label.right,
+        labelTop: label.top,
+        labelBottom: label.bottom,
+        valueLeft: value.left,
+        valueTop: value.top,
+        valueBottom: value.bottom,
+        labelSmaller: parseFloat(labelStyle.fontSize) < parseFloat(valueStyle.fontSize),
+        labelMuted: labelStyle.color !== valueStyle.color,
+      };
     }),
   );
   expect(facts).toHaveLength(3);
   for (const fact of facts) {
-    expect(fact.valueTop).toBeCloseTo(fact.labelTop, 0);
+    expect(fact.valueTop).toBeLessThan(fact.labelBottom);
+    expect(fact.labelTop).toBeLessThan(fact.valueBottom);
     expect(fact.valueLeft).toBeGreaterThan(fact.labelRight);
+    expect(fact.labelSmaller).toBe(true);
+    expect(fact.labelMuted).toBe(true);
   }
   expect(new Set(facts.map((fact) => Math.round(fact.labelLeft))).size).toBe(1);
   expect(new Set(facts.map((fact) => Math.round(fact.valueLeft))).size).toBe(1);
   expect(new Set(facts.map((fact) => Math.round(fact.labelTop))).size).toBe(facts.length);
+});
+
+test(`at ${NARROW_WIDTH}px the key's confidence figure fits inside its ring`, async ({ page }) => {
+  await page.setViewportSize({ width: NARROW_WIDTH, height: HEIGHT });
+  await openStudio(page);
+  await openInspectorTab(page, "details");
+  const ring = page.locator("#summary-confidence");
+  await ring.evaluate((el) => {
+    el.innerHTML = "<span>100%</span>";
+    el.classList.remove("hidden");
+  });
+
+  const fit = await ring.evaluate((el) => {
+    const outer = el.getBoundingClientRect();
+    const figure = el.firstElementChild.getBoundingClientRect();
+    return { left: figure.left >= outer.left, right: figure.right <= outer.right, overflow: el.scrollWidth > el.clientWidth };
+  });
+  expect(fit).toEqual({ left: true, right: true, overflow: false });
 });
