@@ -353,16 +353,20 @@ export async function stubServerTrash(
     return route.fulfill({ json: { job_id: id, trashed_at: action === "trash" ? 1 : null } });
   });
   await page.route(JOB_LIST_URL, async (route) => {
-    const jobs = await (await route.fetch()).json();
-    const listed = jobs
-      .filter((state) => !server.hidden.has(state.job_id))
-      .map((state) => ({
-        ...state,
-        trashed_at: server.trashed.has(state.job_id) ? 1 : null,
-        status: server.unavailable.has(state.job_id) ? "unavailable" : state.status,
-        replaces: replaces[state.job_id] ?? null,
-      }));
-    await route.fulfill({ json: listed });
+    try {
+      const jobs = await (await route.fetch()).json();
+      const listed = jobs
+        .filter((state) => !server.hidden.has(state.job_id))
+        .map((state) => ({
+          ...state,
+          trashed_at: server.trashed.has(state.job_id) ? 1 : null,
+          status: server.unavailable.has(state.job_id) ? "unavailable" : state.status,
+          replaces: replaces[state.job_id] ?? null,
+        }));
+      await route.fulfill({ json: listed });
+    } catch (err) {
+      if (!TEARDOWN_ERROR.test(String(err?.message))) throw err;
+    }
   });
   return server;
 }
