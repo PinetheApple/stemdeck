@@ -1,7 +1,4 @@
 // The ruler and the Tempo tab stay readable while the song plays and scrolls.
-//
-// The ruler check compares pixels: a label painted with the playhead sitting
-// inside it must look exactly like the same label with the playhead elsewhere.
 
 import { test, expect } from "@playwright/test";
 import { openStudio, openInspectorTab } from "./helpers.mjs";
@@ -12,11 +9,12 @@ const VIEWPORTS = [
 ];
 const PLAYHEAD_TOLERANCE_PX = 2;
 const FAR_FROM_LABEL_FRAC = 0.9;
-const TEMPO_SCROLL_PX = 24;
+const RULER_CLICK_INSET_PX = 2;
+const TEMPO_SCROLL_PX = 40;
 
 async function seekOnRuler(page, x) {
   const ruler = await page.locator("#ruler-time").boundingBox();
-  await page.mouse.click(x, ruler.y + ruler.height - 2);
+  await page.mouse.click(x, ruler.y + ruler.height - RULER_CLICK_INSET_PX);
   await page.mouse.move(0, 0);
   await expect.poll(
     async () => {
@@ -47,33 +45,28 @@ for (const viewport of VIEWPORTS) {
       expect(withPlayhead.equals(withoutPlayhead)).toBe(true);
     });
 
-    test("scrolled Tempo content stays clear of the tab bar", async ({ page }) => {
+    test("scrolled Tempo content is not sliced under the tab bar", async ({ page }) => {
       await openStudio(page);
       await openInspectorTab(page, "tempo");
       const pane = page.locator('.inspector-pane[data-pane="tempo"]');
+      const band = await pane.evaluate((el) => {
+        const rect = el.getBoundingClientRect();
+        const padding = parseFloat(getComputedStyle(el).paddingTop);
+        return { x: rect.left, y: rect.top, width: el.clientWidth, height: padding };
+      });
+      const atRest = await page.screenshot({ clip: band });
+
       await pane.hover();
       await page.mouse.wheel(0, TEMPO_SCROLL_PX);
-      await expect.poll(() => pane.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
-
-      const layout = await pane.evaluate((el) => {
-        const tabs = document.querySelector(".inspector-tabs");
+      await expect.poll(() => pane.evaluate((el) => {
         const paneTop = el.getBoundingClientRect().top;
-        const firstVisible = [...el.children]
-          .map((child) => child.getBoundingClientRect())
-          .find((rect) => rect.bottom > paneTop);
-        const opaque = new OffscreenCanvas(1, 1).getContext("2d");
-        opaque.fillStyle = getComputedStyle(tabs).backgroundColor;
-        opaque.fillRect(0, 0, 1, 1);
-        return {
-          contentTop: Math.max(firstVisible.top, paneTop),
-          tabsBottom: tabs.getBoundingClientRect().bottom,
-          tabsAlpha: opaque.getImageData(0, 0, 1, 1).data[3],
-          edgeMask: getComputedStyle(el).maskImage,
-        };
-      });
-      expect(layout.contentTop).toBeGreaterThanOrEqual(layout.tabsBottom);
-      expect(layout.tabsAlpha).toBe(255);
-      expect(layout.edgeMask).toContain("gradient");
+        return [...el.children].some((child) => {
+          const rect = child.getBoundingClientRect();
+          return rect.top < paneTop && rect.bottom > paneTop;
+        });
+      })).toBe(true);
+
+      await expect.poll(async () => (await page.screenshot({ clip: band })).equals(atRest)).toBe(true);
     });
   });
 }
