@@ -1,8 +1,5 @@
-// Settings > Logs shows each file's description in the app language (#70).
-//
-// The server sends an English `description` plus a `description_key`. The
-// client renders the translation of the key and keeps the English text only for
-// a file whose key it has no translation for.
+// A log file with no translation for its key keeps the server's English text,
+// so a file added server-side never renders as a raw key.
 
 import { test, expect } from "@playwright/test";
 import { seedLibrary } from "./helpers.mjs";

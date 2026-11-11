@@ -8908,7 +8908,7 @@ const fr = {
   "settings.logs.file.stemdeck.log.3": "Plus ancien journal de l'application conservé.",
   "settings.logs.file.backend.log": "Bureau uniquement : sortie brute du processus backend Python intégré.",
   "settings.logs.file.backend.log.1": "Bureau uniquement : sortie plus ancienne du backend.",
-  "settings.logs.file.backend.log.2": "Bureau uniquement : plus ancienne sortie du backend conservée.",
+  "settings.logs.file.backend.log.2": "Bureau uniquement : sortie du backend la plus ancienne conservée.",
   "settings.logs.file.setup.log": "Bureau uniquement : configuration au premier lancement et installation du runtime GPU.",
 };
 
@@ -9170,7 +9170,7 @@ const ptPT = {
   "settings.idleUnload.desc": "Minutos sem nenhuma faixa a ser separada ou analisada antes de o StemDeck libertar da memória os modelos de separação, no máximo {max}. A próxima faixa carrega-os de novo e começa alguns segundos depois. 0 mantém-nos carregados.",
   "settings.idleUnload.saveFailed": "Não foi possível guardar esta definição. O campo mostra o valor que continua em uso.",
   "settings.idleUnload.clamped": "O máximo é {max} minutos, por isso foi guardado {max}.",
-  "settings.logs.file.stemdeck.log": "Registo da aplicação: atividade do pipeline, da API e das tarefas. Roda aos 5 MB, mantêm-se 3.",
+  "settings.logs.file.stemdeck.log": "Registo da aplicação: atividade do pipeline, da API e das tarefas. Rotação aos 5 MB, com 3 mantidos.",
   "settings.logs.file.stemdeck.log.1": "Registo mais antigo da aplicação.",
   "settings.logs.file.stemdeck.log.2": "Registo mais antigo da aplicação.",
   "settings.logs.file.stemdeck.log.3": "Registo mais antigo mantido da aplicação.",

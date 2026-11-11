@@ -759,7 +759,6 @@ def get_registry_raw() -> PlainTextResponse:
     return PlainTextResponse(path.read_text(encoding="utf-8"), media_type="application/json")
 
 
-# i18n key prefix for each file's description; the frontend appends the file name.
 LOG_DESCRIPTION_KEY_PREFIX = "settings.logs.file."
 
 # Every log this deployment can produce, with what writes each one. The desktop

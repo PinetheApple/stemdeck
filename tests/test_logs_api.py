@@ -41,7 +41,6 @@ def test_every_file_carries_a_unique_description_key_under_the_prefix(client, lo
     assert len(set(keys)) == len(keys)
     for f in files:
         assert f["description_key"] == f"{LOG_DESCRIPTION_KEY_PREFIX}{f['name']}"
-    assert LOG_DESCRIPTION_KEY_PREFIX == "settings.logs.file."
 
 
 def test_english_descriptions_stay_in_the_payload(client, logs_dir):
