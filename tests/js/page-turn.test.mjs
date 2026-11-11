@@ -1,11 +1,11 @@
-// Auto-scroll's page-turn and pause decisions (static/js/followPlayhead.js).
+// Auto-scroll's page-turn and pause decisions (static/js/pageTurn.js).
 //
-// Run:  node tests/js/follow-playhead.test.mjs
+// Run:  node tests/js/page-turn.test.mjs
 
 import {
-  pageTurnTarget, isBackwardJump, isManualScroll, followStep,
-  TURN_AT, LAND_AT, BACKWARD_JUMP_SEC,
-} from '../../static/js/followPlayhead.js';
+  pageTurnTarget, isBackwardJump, isUserScroll, followStep,
+  TURN_AT, LAND_AT, BACKWARD_JUMP_SEC, USER_INTENT_MS,
+} from '../../static/js/pageTurn.js';
 
 let passed = 0;
 let failed = 0;
@@ -54,8 +54,16 @@ check('nothing to do before layout',
 check('a loop wrap back to the start is a jump', isBackwardJump(12, 4));
 check('forward playback is not a jump', !isBackwardJump(4, 4.02));
 check('clock jitter is not a jump', !isBackwardJump(4, 4 - BACKWARD_JUMP_SEC / 2));
-check('a scroll to where auto-scroll put the view is not manual', !isManualScroll(840, 840.4));
-check('a sideways scroll the code did not make is manual', isManualScroll(840, 600));
+const scroll = (moreProps) => ({
+  knownScrollLeft: 840, scrollLeft: 600, sinceIntentMs: Infinity, pointerHeld: false, ...moreProps,
+});
+check('a scroll right after a pan, press or key is the user', isUserScroll(scroll({ sinceIntentMs: 50 })));
+check('a scrollbar drag is the user for as long as the pointer is held', isUserScroll(scroll({ pointerHeld: true })));
+check('a scroll with no gesture on the timeline (zoom, song switch, resize) is not',
+  !isUserScroll(scroll({})));
+check('a smooth scroll that ends long after the gesture is not',
+  !isUserScroll(scroll({ sinceIntentMs: USER_INTENT_MS + 1 })));
+check('a vertical scroll that leaves scrollLeft alone is not', !isUserScroll(scroll({ scrollLeft: 840.4, sinceIntentMs: 0 })));
 
 // ─── Following and its pause ───
 
@@ -69,8 +77,8 @@ check('paused: resumes once the playhead is back in view',
   followStep({ ...on, paused: true }, view(4000, 4100)).paused === false);
 check('paused: a seek or Play resumes and turns at once',
   followStep({ ...on, paused: true, resumed: true }, view(4000, 950)).target === 850);
-check('paused: a playhead at the right edge after a look behind is not fought',
-  followStep({ ...on, paused: true }, view(4000, 4950)).target === null);
+check('paused: back in view anywhere on the page resumes, edge included',
+  followStep({ ...on, paused: true }, view(4000, 4950)).paused === false);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
