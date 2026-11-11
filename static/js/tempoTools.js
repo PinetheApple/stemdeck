@@ -47,6 +47,8 @@ const STATUS_KEYS = { [SAVE_REFUSED]: "tempo.saveFailed", [SAVE_LOST]: "tempo.sa
 let jobId = null;
 let grid = null;
 let tempo = null;
+// The open song's tempo as the server has it, to go back to when it refuses a save.
+let confirmedTempo = null;
 // Per song, as { fields, modeEditedAt }: the save in flight, kept until it is answered,
 // and the edits made since, which go in the next save.
 const sendingFieldsByJob = new Map();
@@ -135,21 +137,24 @@ async function sendUnconfirmedFields(forJob) {
   lostFieldsJobs.delete(forJob);
   await flushBeatGrid();
   let outcome = SAVED;
+  let refused = false;
   let entry;
   while (outcome !== SAVE_LOST && !isPageClosing() && (entry = queuedFieldsByJob.get(forJob))) {
     queuedFieldsByJob.delete(forJob);
     sendingFieldsByJob.set(forJob, entry);
     outcome = await sendFields(forJob, entry);
+    refused ||= outcome === SAVE_REFUSED;
   }
   savesInFlight.delete(forJob);
   if (isPageClosing()) return;
-  await reportOutcome(forJob, outcome);
+  await reportOutcome(forJob, outcome, refused);
 }
 
 /** How the server took the save. One the closing page cut off stays for its close request. */
 async function sendFields(forJob, entry) {
   try {
-    await saveBeatGridTempo(forJob, entry.fields);
+    const saved = await saveBeatGridTempo(forJob, entry.fields);
+    if (forJob === jobId && saved?.tempo) confirmedTempo = saved.tempo;
     sendingFieldsByJob.delete(forJob);
     clearSaveFailure(SAVE_KIND.tempo, forJob);
     return SAVED;
@@ -163,14 +168,24 @@ async function sendFields(forJob, entry) {
   }
 }
 
-// A lost save keeps showing its edit; any other answer shows the server's grid.
-async function reportOutcome(forJob, outcome) {
-  if (outcome === SAVE_LOST) lostFieldsJobs.add(forJob);
-  if (outcome === SAVE_LOST || outcome === SAVE_REFUSED) notifySaveFailure(SAVE_KIND.tempo, outcome, forJob);
+async function reportOutcome(forJob, outcome, refused) {
+  if (refused) notifySaveFailure(SAVE_KIND.tempo, SAVE_REFUSED, forJob);
+  if (outcome === SAVE_LOST) {
+    lostFieldsJobs.add(forJob);
+    notifySaveFailure(SAVE_KIND.tempo, SAVE_LOST, forJob);
+  }
   if (forJob !== jobId) return;
-  saveStatus = outcome === SAVED ? null : outcome;
-  if (outcome === SAVE_LOST) render();
-  else await refreshGrid(forJob);
+  saveStatus = outcome in STATUS_KEYS ? outcome : null;
+  if (outcome === SAVE_LOST) {
+    tempo = shownTempo(forJob, tempo);
+    render();
+    return;
+  }
+  if (outcome === SAVE_REFUSED && confirmedTempo) {
+    tempo = confirmedTempo;
+    render();
+  }
+  await refreshGrid(forJob);
 }
 
 function retryLostFields() {
@@ -209,6 +224,7 @@ function patchTempo(fields) {
 function applyGrid(next) {
   grid = next;
   tempo = next?.tempo ?? null;
+  confirmedTempo = tempo;
   if (isConstant()) setClickRate(CLICK_RATE_NORMAL);
   replaceBeatGrid(next);
   updateMetronomeAvailability(next);
@@ -228,7 +244,8 @@ export function setTempoGrid(nextJobId, nextGrid) {
   }
   jobId = nextGrid ? nextJobId : null;
   grid = nextGrid ?? null;
-  tempo = shownTempo(nextJobId, nextGrid?.tempo);
+  confirmedTempo = nextGrid?.tempo ?? null;
+  tempo = shownTempo(nextJobId, confirmedTempo);
   renderAccentState();
   render();
   announce();
@@ -425,6 +442,7 @@ function onLanguageSwitch() {
 function onBeatGridSave(e) {
   if (e.detail?.jobId !== jobId || !e.detail.tempo) return;
   tempo = e.detail.tempo;
+  confirmedTempo = tempo;
   if (grid) {
     grid = { ...grid, tempo, beats: getBeats(), bars: getBars() };
     updateMetronomeAvailability(grid);

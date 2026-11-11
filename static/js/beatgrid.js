@@ -25,12 +25,9 @@ import { clickLines, thinLines } from "./beatgridShown.js";
 import {
   RESET_FAILED,
   SAVE_KIND,
-  SAVE_LOST,
-  SAVE_REFUSED,
   SaveRefusedError,
-  clearSaveFailure,
+  UnconfirmedSaves,
   notifySaveFailure,
-  onConnectionRestored,
 } from "./saveFailures.js";
 
 const MIN_GAP = 0.01;          // seconds; keeps the grid strictly increasing
@@ -88,11 +85,14 @@ let _dirty = false;
 let _editSeq = 0;
 let _lastEditAt = 0;
 let _saveChain = Promise.resolve();
-// Each song's newest grid save still waiting for an answer, as { payload, editedAt, seq }:
-// what the song shows if it is reopened first, and what goes out if the page closes.
-const _unconfirmed = new Map();
-// Songs whose unconfirmed grid got no answer: sent again once the server answers.
-const _lostGrids = new Set();
+// Each song's newest grid save still waiting for an answer, as { payload, editedAt, seq }.
+const _unconfirmed = new UnconfirmedSaves({
+  kind: SAVE_KIND.beatgrid,
+  resend: _resendLostGrid,
+  sentOf: (entry) => entry.payload,
+});
+// The open song's grid as the server has it, to go back to when it refuses a save.
+let _confirmedGrid = null;
 
 // ─── geometry ───────────────────────────────────────────────
 
@@ -335,53 +335,26 @@ async function _sendGrid(jobId, payload, seq, fetchOptions) {
   } catch (e) {
     console.warn("[beatgrid] failed to save edits:", e);
     if (e instanceof SaveRefusedError) _onGridRefused(jobId, payload, seq);
-    else if (!wasCutOffByPageClose(e)) _onGridLost(jobId, payload);
+    else if (!wasCutOffByPageClose(e)) _unconfirmed.lose(jobId, payload);
     return;
   }
-  if (_settleNewest(jobId, payload)) clearSaveFailure(SAVE_KIND.beatgrid, jobId);
+  _unconfirmed.confirm(jobId, payload);
+  if (jobId === _jobId) _confirmedGrid = payload;
   // An edit made while this was in flight still has its own save to come.
   if (jobId === _jobId && seq === _editSeq) _dirty = false;
   _announceTempo(jobId, saved.tempo);
 }
 
-/** Forget the song's unconfirmed grid when `payload` is still its newest. True when it was. */
-function _settleNewest(jobId, payload) {
-  if (_unconfirmed.get(jobId)?.payload !== payload) return false;
-  _unconfirmed.delete(jobId);
-  _lostGrids.delete(jobId);
-  return true;
-}
-
 const _isLatestEdit = (jobId, seq) => jobId === _jobId && seq === _editSeq && _saveTimer === null;
 
-async function _onGridRefused(jobId, payload, seq) {
-  const newest = _settleNewest(jobId, payload);
-  notifySaveFailure(SAVE_KIND.beatgrid, SAVE_REFUSED, jobId);
-  if (!newest || !_isLatestEdit(jobId, seq)) return;
-  try {
-    const grid = await loadBeatGrid(jobId);
-    if (_isLatestEdit(jobId, seq)) _showServerGrid(jobId, grid);
-  } catch (e) {
-    console.warn("[beatgrid] could not reload the saved grid:", e);
-  }
+function _onGridRefused(jobId, payload, seq) {
+  const newest = _unconfirmed.refuse(jobId, payload);
+  if (newest && _isLatestEdit(jobId, seq) && _confirmedGrid) _showServerGrid(jobId, _confirmedGrid);
 }
 
-// A newer save already on its way carries this edit too, and reports for itself.
-function _onGridLost(jobId, payload) {
-  if (_unconfirmed.get(jobId)?.payload !== payload) return;
-  _lostGrids.add(jobId);
-  notifySaveFailure(SAVE_KIND.beatgrid, SAVE_LOST, jobId);
+function _resendLostGrid(jobId, entry) {
+  _saveChain = _saveChain.then(() => _sendQueuedGrid(jobId, entry.payload, entry.seq));
 }
-
-function _retryLostGrids() {
-  for (const jobId of [..._lostGrids]) {
-    _lostGrids.delete(jobId);
-    const entry = _unconfirmed.get(jobId);
-    if (entry) _saveChain = _saveChain.then(() => _sendQueuedGrid(jobId, entry.payload, entry.seq));
-  }
-}
-
-onConnectionRestored(_retryLostGrids);
 
 function _announceTempo(jobId, tempo) {
   document.dispatchEvent(new CustomEvent("beatgridsave", { detail: { jobId, tempo } }));
@@ -412,7 +385,6 @@ export function saveBeatGridOnPageClose(unconfirmedTempo = new Map()) {
     _patchBeats(jobId, body, PAGE_CLOSE_FETCH).catch((e) => console.warn("[beatgrid] failed to save edits:", e));
   }
   _unconfirmed.clear();
-  _lostGrids.clear();
 }
 
 // The server applies a body's grid before its tempo, and any grid drops the
@@ -427,8 +399,8 @@ function _closeBody(grid, tempo) {
 /** Take a grid the server rebuilt (a tempo change) as the new starting point, with no undo across it. */
 export function replaceBeatGrid(grid) {
   flushBeatGrid();
-  _unconfirmed.delete(_jobId);
-  _lostGrids.delete(_jobId);
+  _unconfirmed.drop(_jobId);
+  _confirmedGrid = grid ?? null;
   _beats = Array.isArray(grid?.beats) ? grid.beats.slice() : [];
   _bars = Array.isArray(grid?.bars) ? grid.bars.slice() : [];
   _anchors = new Set();
@@ -448,8 +420,7 @@ export async function resetBeatGrid() {
     notifySaveFailure(SAVE_KIND.beatgrid, RESET_FAILED, jobId);
     return null;
   }
-  _unconfirmed.delete(jobId);
-  _lostGrids.delete(jobId);
+  _unconfirmed.drop(jobId);
   try {
     const grid = await loadBeatGrid(jobId);
     if (jobId !== _jobId) return null;
@@ -463,9 +434,10 @@ export async function resetBeatGrid() {
 
 /** Show the grid the server has, with the grid it replaces one undo away. */
 function _showServerGrid(jobId, grid) {
+  _confirmedGrid = grid;
   _pushUndo();
   _beats = (grid.beats || []).slice();
-  _bars = (grid.bars || []).slice();
+  _bars = (grid.bars || []).map((b) => ({ ...b }));
   _anchors = new Set();
   _dirty = false;
   _onChange?.(_beats.slice(), _bars.slice());
@@ -701,6 +673,7 @@ export function initBeatGrid({ jobId, grid, duration, onChange }) {
   _jobId = jobId;
   _duration = Math.max(0, duration || 0);
   const unconfirmed = _unconfirmed.get(jobId)?.payload;
+  _confirmedGrid = grid ?? null;
   const shown = unconfirmed ?? grid;
   _beats = Array.isArray(shown?.beats) ? shown.beats.slice() : [];
   _bars = Array.isArray(shown?.bars) ? shown.bars.map((b) => ({ ...b })) : [];

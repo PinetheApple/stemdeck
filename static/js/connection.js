@@ -26,12 +26,15 @@ const isAbort = (error) => error?.name === "AbortError";
 /**
  * Count consecutive unanswered API requests over `baseFetch`. After the first
  * one it probes HEALTH_URL until something answers, so both going offline and
- * coming back are noticed without the user having to act.
+ * coming back are noticed without the user having to act. `onRestored` runs on
+ * the first answer after the server was unreachable: offline, or its health
+ * check unanswered. A single request failing while the rest answer is not that.
  */
 export function createConnectionMonitor({ baseFetch, origin, onChange, onRestored, schedule }) {
   let failures = 0;
   let offline = false;
   let probeScheduled = false;
+  let unreachable = false;
 
   function setOffline(next) {
     if (next === offline) return;
@@ -40,7 +43,8 @@ export function createConnectionMonitor({ baseFetch, origin, onChange, onRestore
   }
 
   function recordAnswer() {
-    const restored = failures > 0;
+    const restored = unreachable;
+    unreachable = false;
     failures = 0;
     setOffline(false);
     if (restored) onRestored();
@@ -49,7 +53,10 @@ export function createConnectionMonitor({ baseFetch, origin, onChange, onRestore
   function recordFailure(error) {
     if (isAbort(error)) return;
     failures += 1;
-    if (failures >= FAILURES_BEFORE_OFFLINE) setOffline(true);
+    if (failures >= FAILURES_BEFORE_OFFLINE) {
+      unreachable = true;
+      setOffline(true);
+    }
     scheduleProbe();
   }
 
@@ -62,7 +69,12 @@ export function createConnectionMonitor({ baseFetch, origin, onChange, onRestore
   function runProbe() {
     probeScheduled = false;
     if (failures === 0) return;
-    monitoredFetch(HEALTH_URL, { cache: "no-store" }).catch(ignoreProbeError);
+    monitoredFetch(HEALTH_URL, { cache: "no-store" }).catch(markUnreachable);
+  }
+
+  // The probe's failure is already counted by monitoredFetch.
+  function markUnreachable(error) {
+    if (!isAbort(error)) unreachable = true;
   }
 
   function monitoredFetch(input, init) {
@@ -73,9 +85,6 @@ export function createConnectionMonitor({ baseFetch, origin, onChange, onRestore
 
   return { fetch: monitoredFetch, isOffline: () => offline };
 }
-
-// The probe's outcome is already counted by monitoredFetch.
-function ignoreProbeError() {}
 
 function showConnectionState(offline) {
   document.getElementById(INDICATOR_ID)?.classList.toggle("hidden", !offline);

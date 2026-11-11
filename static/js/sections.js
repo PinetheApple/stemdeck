@@ -3,14 +3,7 @@
 import { onLanguageChange, t } from "./i18n.js";
 import { PAGE_CLOSE_FETCH } from "./utils.js";
 import { isPageClosing, wasCutOffByPageClose } from "./pageClosing.js";
-import {
-  SAVE_KIND,
-  SAVE_LOST,
-  SAVE_REFUSED,
-  clearSaveFailure,
-  notifySaveFailure,
-  onConnectionRestored,
-} from "./saveFailures.js";
+import { SAVE_KIND, UnconfirmedSaves } from "./saveFailures.js";
 
 const SECTION_COLORS = [
   "#4a7fff",
@@ -35,11 +28,8 @@ let _sections = [];
 let _container = null;
 let _saveTimer = null;
 let _saveChain = Promise.resolve();
-// Each track's newest save still waiting for an answer, as its request body: what
-// the track shows if it is reopened first, and what goes out if the page closes.
-const _unconfirmed = new Map();
-// Tracks whose unconfirmed save got no answer: sent again once the server answers.
-const _lost = new Set();
+// Each track's newest save still waiting for an answer, as its request body.
+const _unconfirmed = new UnconfirmedSaves({ kind: SAVE_KIND.sections, resend: _resendLostSave });
 // The open track's sections as the server has them, to go back to when it refuses a save.
 let _confirmed = "";
 
@@ -72,9 +62,10 @@ export function initSections(trackId, sections, duration) {
   _trackId = trackId;
   _duration = Math.max(1, duration || 0);
   const unconfirmed = _unconfirmed.get(trackId);
-  _confirmed = JSON.stringify({ sections: sections || [] });
+  _confirmed = _bodyOf(sections || []);
   _sections = JSON.parse(unconfirmed ?? _confirmed).sections;
-  if (_lost.has(trackId)) _showNotSaved();
+  if (_unconfirmed.isLost(trackId)) _showNotSaved();
+  else _hideSaveIndicator();
   // Clear lives in the header rather than the ribbon, so it has to be correct
   // even when the ribbon is absent and the render below never runs.
   _refreshClearVisibility();
@@ -679,7 +670,7 @@ function _cancelSaveTimer() {
 // Taken now, so the open track's id and sections go together even when the
 // caller is about to replace them.
 function _snapshot() {
-  const body = JSON.stringify({ sections: _sections });
+  const body = _bodyOf(_sections);
   _unconfirmed.set(_trackId, body);
   return body;
 }
@@ -701,7 +692,6 @@ export function saveSectionsOnPageClose() {
   const ids = [...new Set([_trackId, ..._unconfirmed.keys()])].filter((id) => _unconfirmed.has(id));
   for (const id of ids) _sendSave(id, _unconfirmed.get(id), PAGE_CLOSE_FETCH);
   _unconfirmed.clear();
-  _lost.clear();
 }
 
 function _queueSaveSnapshot() {
@@ -739,35 +729,22 @@ async function _sendSave(id, body, fetchOptions = {}) {
   _onSaved(id, body);
 }
 
-/** Forget the track's unconfirmed save when `body` is still its newest. True when it was. */
-function _settleNewest(id, body) {
-  if (_unconfirmed.get(id) !== body) return false;
-  _unconfirmed.delete(id);
-  _lost.delete(id);
-  return true;
-}
-
 function _onSaved(id, body) {
-  if (_settleNewest(id, body)) clearSaveFailure(SAVE_KIND.sections, id);
+  _unconfirmed.confirm(id, body);
   if (id !== _trackId) return;
   _confirmed = body;
-  if (body === JSON.stringify({ sections: _sections }) && _saveTimer === null) _showSaved();
+  if (body === _bodyOf(_sections) && _saveTimer === null) _showSaved();
 }
 
 function _onSaveRefused(id, body) {
-  const newest = _settleNewest(id, body);
-  notifySaveFailure(SAVE_KIND.sections, SAVE_REFUSED, id);
+  const newest = _unconfirmed.refuse(id, body);
   if (id !== _trackId) return;
   if (newest && _saveTimer === null) _showConfirmed();
   _showNotice(t("sections.notSaved"));
 }
 
-// A newer save already on its way carries this edit too, and reports for itself.
 function _onSaveLost(id, body) {
-  if (_unconfirmed.get(id) !== body) return;
-  _lost.add(id);
-  notifySaveFailure(SAVE_KIND.sections, SAVE_LOST, id);
-  if (id === _trackId) _showNotSaved();
+  if (_unconfirmed.lose(id, body) && id === _trackId) _showNotSaved();
 }
 
 function _showConfirmed() {
@@ -776,15 +753,13 @@ function _showConfirmed() {
   if (_container) _render();
 }
 
-function _retryLostSaves() {
-  for (const id of [..._lost]) {
-    _lost.delete(id);
-    const body = _unconfirmed.get(id);
-    if (body) _saveChain = _saveChain.then(() => _sendQueuedSave(id, body));
-  }
+function _resendLostSave(id, body) {
+  _saveChain = _saveChain.then(() => _sendQueuedSave(id, body));
 }
 
-onConnectionRestored(_retryLostSaves);
+function _bodyOf(sections) {
+  return JSON.stringify({ sections });
+}
 
 function _timesChanged(beforeStart, beforeEnd, afterStart, afterEnd) {
   return Math.abs(beforeStart - afterStart) > 1e-6 || Math.abs(beforeEnd - afterEnd) > 1e-6;
