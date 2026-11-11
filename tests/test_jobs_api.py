@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import MAX_PENDING_UPLOAD_JOBS, MAX_PENDING_URL_JOBS, STEM_NAMES
-from app.core.models import Job
+from app.core.models import VOCAL_SPLIT_CHOICE_SPLIT, Job
 from app.core.registry import _jobs
 
 
@@ -778,6 +778,15 @@ def test_resplit_starts_a_new_job_from_the_retained_source(resplit_client, tmp_p
     # The original is untouched: its stems, sections and beat grid survive.
     assert (tmp_path / job.id / "source.mp3").is_file()
     assert (tmp_path / job.id / "stems").is_dir()
+
+
+def test_resplit_keeps_the_lead_and_backing_choice(resplit_client, tmp_path):
+    job = _finished_upload(tmp_path)
+    job.vocal_split_choice = VOCAL_SPLIT_CHOICE_SPLIT
+
+    r = resplit_client.post(f"/api/jobs/{job.id}/resplit", json={"stems": []})
+
+    assert _jobs[r.json()["job_id"]].vocal_split_choice == VOCAL_SPLIT_CHOICE_SPLIT
 
 
 @pytest.mark.parametrize(

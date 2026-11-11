@@ -823,6 +823,7 @@ async def resplit_job(job_id: str, body: ResplitBody) -> dict:
         work=job.work,
         has_lyrics=has_lyrics,
         auto_sections=get_auto_sections(),
+        vocal_split_choice=job.vocal_split_choice,
     )
     if not registry_register_if_capacity(new_job, MAX_PENDING_UPLOAD_JOBS):
         shutil.rmtree(new_dir, ignore_errors=True)
