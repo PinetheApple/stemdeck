@@ -26,6 +26,7 @@ import { initHelpMode } from "./helpMode.js";
 import { initInspector } from "./inspector.js";
 import { initLibraryResize } from "./libraryResize.js";
 import { initUpNext, renderUpNext } from "./upNext.js";
+import { initMediaSession } from "./mediaSession.js";
 import { initStageMode } from "./stageMode.js";
 import { initSearchShortcut } from "./searchShortcut.js";
 import { initTempoTools, takeUnconfirmedTempo } from "./tempoTools.js";
@@ -481,6 +482,8 @@ initLyrics();
 initHelpMode();
 initInspector();
 initLibraryResize();
+// Before Up Next, which reports its first count as it starts.
+initMediaSession();
 initUpNext();
 initSetlists();
 initSongRename();
