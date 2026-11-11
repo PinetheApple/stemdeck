@@ -11,6 +11,7 @@ from app.core.models import Job
 from app.core.registry import _jobs
 from app.core.registry import persist as persist_registry
 from app.core.registry import restore as restore_registry
+from app.core.song_folder import STEMS_COMPLETE
 
 
 @pytest.fixture(autouse=True)
@@ -30,6 +31,8 @@ def _stems_dir(tmp_path: Path, job_id: str, names=("vocals", "drums")) -> None:
     d.mkdir(parents=True, exist_ok=True)
     for n in names:
         (d / f"{n}.wav").write_bytes(b"RIFF")
+    # The separation finished: the marker is what it writes last.
+    (d / STEMS_COMPLETE).write_text("", encoding="utf-8")
 
 
 def test_a_queued_job_survives_a_restart(tmp_path: Path):
@@ -238,6 +241,7 @@ def test_restore_recovers_orphan_without_metadata(tmp_path: Path):
     stems_dir = job_dir / "stems"
     stems_dir.mkdir(parents=True)
     (stems_dir / "vocals.wav").write_bytes(b"RIFF")
+    (stems_dir / STEMS_COMPLETE).write_text("", encoding="utf-8")
 
     restore_registry(tmp_path)
 

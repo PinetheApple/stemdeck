@@ -35,7 +35,14 @@ from app.core.models import (
     clean_user_name,
     clean_work,
 )
-from app.core.song_folder import SAVED_FIELDS, copy_saved_fields, is_real_entry, saved_from_meta
+from app.core.song_folder import (
+    SAVED_FIELDS,
+    STEMS_COMPLETE,
+    backfill_stems_complete,
+    copy_saved_fields,
+    is_real_entry,
+    saved_from_meta,
+)
 
 logger = logging.getLogger("stemdeck.registry")
 
@@ -386,6 +393,8 @@ def _place(job: Job, jobs_dir: Path, to_add: dict[str, Job], resume: list[Job]) 
     # finished still has files and a place in the Trash.
     if (job.status in _TERMINAL and job.title) or job.status in _STOPPED:
         to_add[job.id] = job
+        if job.status in _TERMINAL:
+            backfill_stems_complete(jobs_dir / job.id)
         return False
     if job.status not in _RESUMABLE:
         return False
@@ -550,15 +559,27 @@ def _stopped_from_source(job_dir: Path) -> Job | None:
 
 
 def _recover_done_job(job_dir: Path) -> Job | None:
+    """A finished song rebuilt from its folder, or None for a folder whose
+    separation did not finish (upstream PR 901)."""
     stems_dir = job_dir / "stems"
     if not stems_dir.is_dir():
         return None
+    # Lead + Backing both or neither: the worker writes the pair one file at a
+    # time, and a kill between them leaves a lead alone.
+    has_split = all((stems_dir / f"{name}.wav").is_file() for name in EXTRA_STEM_NAMES)
     stems = [
         {"name": name, "url": f"/api/jobs/{job_dir.name}/stems/{name}.wav"}
-        for name in ("original", *STEM_NAMES, *EXTRA_STEM_NAMES)
+        for name in ("original", *STEM_NAMES, *(EXTRA_STEM_NAMES if has_split else ()))
         if (stems_dir / f"{name}.wav").is_file()
     ]
     if not stems:
+        return None
+    meta_path = job_dir / "metadata.json"
+    # A song made before the marker gets it while the registry holds it
+    # (backfill_stems_complete). One whose record was already gone has the
+    # metadata.json written once a song is done, after the marker.
+    if not (stems_dir / STEMS_COMPLETE).is_file() and not meta_path.is_file():
+        logger.warning("%s holds stems of a separation that did not finish", job_dir.name)
         return None
     mix_url = None
     if (stems_dir / "mix.wav").is_file():
@@ -569,7 +590,6 @@ def _recover_done_job(job_dir: Path) -> Job | None:
     # same way `stems` above does, so the recovered library entry doesn't
     # regress (#275).
     vocal_split, vocal_split_choice, vocal_split_error = _recovered_vocal_split(stems_dir)
-    meta_path = job_dir / "metadata.json"
     meta: dict = {}
     if meta_path.is_file():
         try:

@@ -31,6 +31,10 @@ from app.core.models import Job
 
 logger = logging.getLogger("stemdeck.registry")
 
+# The last file a separation writes into stems/ (mark_stems_complete): a folder
+# without it was cut off part way (upstream PR 901).
+STEMS_COMPLETE = ".complete"
+
 # Held by every read-modify-write of a song's metadata.json (app/api/jobs.py and
 # the copy restore() makes), so neither replaces the other's change. Reentrant:
 # a caller that reads the job's fields under it then writes through a helper
@@ -105,17 +109,61 @@ def is_real_entry(entry: Path) -> bool:
     return entry.resolve() == entry.parent.resolve() / entry.name
 
 
-def write_json_atomic(path: Path, data: dict) -> None:
-    """Durably replace a JSON file without exposing a partial write."""
+def write_text_atomic(path: Path, text: str) -> None:
+    """Durably replace a file without exposing a partial write."""
     temp = path.parent / f".{path.name}.{uuid.uuid4().hex}.tmp"
     try:
         with temp.open("w", encoding="utf-8", newline="\n") as handle:
-            handle.write(json.dumps(data, indent=2) + "\n")
+            handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temp, path)
     finally:
         temp.unlink(missing_ok=True)
+
+
+def write_json_atomic(path: Path, data: dict) -> None:
+    """Durably replace a JSON file without exposing a partial write."""
+    write_text_atomic(path, json.dumps(data, indent=2) + "\n")
+
+
+def _fsync_dir(folder: Path) -> None:
+    # Windows cannot open a folder to fsync it; NTFS journals the rename.
+    if os.name == "nt":
+        return
+    fd = os.open(folder, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def mark_stems_complete(job_dir: Path) -> None:
+    """Record that a separation wrote every stem file it makes in stems/.
+    Called last, so a kill at any point before leaves a folder without the
+    marker. The stems and the folder reach the disk before the marker does: a
+    power cut could otherwise keep the marker and lose a stem's bytes.
+    Raises OSError."""
+    stems_dir = job_dir / "stems"
+    for path in sorted(stems_dir.glob("*.wav")):
+        # Opened for writing: Windows only flushes a handle that can write.
+        with open(path, "r+b") as handle:
+            os.fsync(handle.fileno())
+    _fsync_dir(stems_dir)
+    write_text_atomic(stems_dir / STEMS_COMPLETE, "")
+
+
+def backfill_stems_complete(job_dir: Path) -> None:
+    """The marker for a song made before it, which the registry holds as done,
+    so a registry lost later still brings it back. Never fatal: restore()
+    runs at import time."""
+    stems_dir = job_dir / "stems"
+    try:
+        if (stems_dir / STEMS_COMPLETE).is_file() or not any(stems_dir.glob("*.wav")):
+            return
+        write_text_atomic(stems_dir / STEMS_COMPLETE, "")
+    except OSError:
+        logger.warning("could not mark the stems of %s complete", job_dir.name, exc_info=True)
 
 
 def copy_saved_fields(job: Job, job_dir: Path) -> bool:

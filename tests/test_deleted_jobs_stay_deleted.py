@@ -16,6 +16,7 @@ import pytest
 import app.api.jobs as jobs_mod
 from app.core import registry as _registry
 from app.core.registry import registry_path
+from app.core.song_folder import STEMS_COMPLETE
 
 
 @pytest.fixture(autouse=True)
@@ -48,6 +49,7 @@ def _done_job_dir(jobs_dir, job_id="a1b2c3d4e5f6"):
     stems = jobs_dir / job_id / "stems"
     stems.mkdir(parents=True)
     (stems / "vocals.wav").write_bytes(b"RIFF")
+    (stems / STEMS_COMPLETE).write_text("", encoding="utf-8")
     return jobs_dir / job_id
 
 
