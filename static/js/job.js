@@ -149,7 +149,7 @@ window.addEventListener(
 
 // "Try again" defaults to a fresh import from the URL field; pass `onRetry: null`
 // where that is wrong. Close is always there, so the box never sticks open.
-export function showError(message, detail, { onRetry = returnToUrlField } = {}) {
+export function showError(message, detail, { onRetry = returnToUrlField, retry = true } = {}) {
   delete errorEl.dataset.kind; // see showPlaybackError
   errorEl.textContent = "";
   const msg = document.createElement("div");
@@ -165,7 +165,9 @@ export function showError(message, detail, { onRetry = returnToUrlField } = {}) 
   }
   const actions = document.createElement("div");
   actions.className = "error-actions";
-  if (onRetry) actions.append(retryButton(onRetry));
+  // Some callers still pass the older `retry: false`, which means no button.
+  const retryAction = retry === false ? null : onRetry;
+  if (retryAction) actions.append(retryButton(retryAction));
   const close = document.createElement("button");
   close.className = "error-close";
   close.type = "button";
