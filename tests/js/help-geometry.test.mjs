@@ -18,21 +18,28 @@ globalThis.document = {
   createRange: () => ({ selectNodeContents() {}, getBoundingClientRect: () => drawing }),
 };
 
-const { hoverRect } = await import("../../static/js/helpGeometry.js");
+const { BOX_RING_PAD_PX, DRAWING_RING_PAD_PX, hoverRect } = await import("../../static/js/helpGeometry.js");
 
-const PANEL = node(rect(0, 0, 100, 400), BODY, CLIPPING);
+const PANEL_RIGHT = 100;
+const PANEL = node(rect(0, 0, PANEL_RIGHT, 400), BODY, CLIPPING);
 const BUTTON_ACROSS_EDGE = rect(80, 50, 140, 90);
+const ICON_IN_VIEW = rect(84, 64, 96, 76);
+const ICON_OUT_OF_VIEW = rect(120, 64, 132, 76);
+const BUTTON_IN_VIEW = rect(BUTTON_ACROSS_EDGE.left, BUTTON_ACROSS_EDGE.top, PANEL_RIGHT, BUTTON_ACROSS_EDGE.bottom);
+
+const grown = (r, pad) => ({ left: r.left - pad, top: r.top - pad, right: r.right + pad, bottom: r.bottom + pad });
+const sameEdges = (got, want) => ["left", "top", "right", "bottom"].every((k) => got[k] === want[k]);
 
 const CASES = [
   {
     name: "an icon inside the panel takes the icon's ring",
-    icon: rect(84, 64, 96, 76),
-    check: (r) => r.left === 78 && r.right === 102 && r.top === 58 && r.bottom === 82,
+    icon: ICON_IN_VIEW,
+    check: (r) => sameEdges(r, grown(ICON_IN_VIEW, DRAWING_RING_PAD_PX)),
   },
   {
     name: "an icon clipped out of view rings what is in view of its button",
-    icon: rect(120, 64, 132, 76),
-    check: (r) => r.width > 0 && r.height > 0 && r.left === 77 && r.right === 103 && r.top === 47 && r.bottom === 93,
+    icon: ICON_OUT_OF_VIEW,
+    check: (r) => r.width > 0 && r.height > 0 && sameEdges(r, grown(BUTTON_IN_VIEW, BOX_RING_PAD_PX)),
   },
 ];
 

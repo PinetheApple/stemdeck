@@ -16,8 +16,8 @@ const EDGES = ["left", "top", "right", "bottom"];
 export const clipsOverflow = (overflow) => overflow !== "visible";
 // When what a control draws is clearly smaller than its box, the ring hugs the drawing.
 const CONTENT_FIT_SHARE = 0.6;
-const DRAWING_RING_PAD_PX = 6;
-const BOX_RING_PAD_PX = 3;
+export const DRAWING_RING_PAD_PX = 6;
+export const BOX_RING_PAD_PX = 3;
 
 function intersect(a, b) {
   const left = Math.max(a.left, b.left), top = Math.max(a.top, b.top);

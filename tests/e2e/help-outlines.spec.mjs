@@ -165,11 +165,14 @@ function measurePill({ transport, areaShare, trackArea }) {
 
 const pillCentre = ({ pill }) => (pill.left + pill.right) / 2;
 const coveredBy = ({ pill, controls }) => controls.filter(({ rect }) => crossing(pill, rect)).map((c) => c.target);
-const measurePillNow = (page) => page.evaluate(measurePill, {
-  transport: TRANSPORT_CONTROLS,
-  areaShare: BIG_AREA_SHARE,
-  trackArea: TRACK_AREA,
-});
+const measurePillNow = (page) => page.evaluate(
+  measurePill,
+  {
+    transport: TRANSPORT_CONTROLS,
+    areaShare: BIG_AREA_SHARE,
+    trackArea: TRACK_AREA,
+  },
+);
 
 function crossing(a, b) {
   return a.right > b.left + RECT_TOLERANCE_PX
