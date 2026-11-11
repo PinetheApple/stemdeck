@@ -1,0 +1,7 @@
+/* footerFit.js "rows" level: Speed and Global key wrap onto a second row at full size. */
+.footer-clusters.collapse-rows { flex-wrap: wrap; row-gap: var(--s-2); }
+/* The divider after Position becomes the line break; zero height tells footerFit to skip it. */
+.footer-clusters.collapse-rows > .footer-group-position + .footer-divider {
+  flex-basis: 100%;
+  height: 0;
+}
