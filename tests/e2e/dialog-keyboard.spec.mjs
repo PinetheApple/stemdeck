@@ -231,3 +231,31 @@ test.describe("target sizes", () => {
     expect(hits).toEqual([true, true]);
   });
 });
+
+test.describe("import queue by keyboard", () => {
+  const TAB_LIMIT = 60;
+  const SHOWN = "1";
+
+  async function tabTo(page, selector) {
+    for (let press = 0; press < TAB_LIMIT; press++) {
+      await page.keyboard.press(KEY.TAB);
+      if (await page.evaluate((s) => document.activeElement?.matches(s), selector)) return;
+    }
+    throw new Error(`Tab never reached ${selector}`);
+  }
+
+  const focusedOpacity = (page) => page.evaluate(() => getComputedStyle(document.activeElement).opacity);
+
+  test("an import's cancel and extract-next buttons show when Tab lands on them", async ({ page }) => {
+    await stubLongQueue(page);
+    await openApp(page);
+    await page.evaluate(() => import("/js/queue.js").then((m) => m.refreshQueue()));
+    await page.locator(".rail-queue").click();
+    await expect(page.locator(".queue-top").first()).toBeAttached();
+    await page.mouse.move(0, 0);
+    for (const selector of [".queue-cancel", ".queue-top"]) {
+      await tabTo(page, selector);
+      await expect.poll(() => focusedOpacity(page), { message: selector }).toBe(SHOWN);
+    }
+  });
+});

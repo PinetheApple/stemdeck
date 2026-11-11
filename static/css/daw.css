@@ -911,6 +911,11 @@ input, textarea { font-family: inherit; }
 .queue-top:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); opacity: 1; }
 .queue-top:disabled { opacity: 0.3; cursor: default; }
 .queue-row .queue-top { width: var(--target-min); height: var(--target-min); }
+/* Keyboard focus shows a row's buttons as hover does, and the focused one in full. */
+.queue-row:focus-within .queue-cancel,
+.queue-cancel:focus-visible,
+.queue-top:focus-visible { opacity: 1; }
+.queue-row:focus-within .queue-top:not(:focus-visible) { opacity: 0.65; }
 /* A row's actions float over its right edge and show on hover or keyboard
    focus (#724). In the flow they cost the title their width on every row at
    rest, which is where titles were being cut short, and a second button in
