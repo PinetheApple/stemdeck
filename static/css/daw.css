@@ -5670,16 +5670,18 @@ input, textarea { font-family: inherit; }
 .help-ring {
   position: fixed; z-index: 9998; pointer-events: none;
   border: 2px solid var(--accent); border-radius: var(--radius-sm);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: var(--help-ring-halo), 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 /* The glow when Guide turns on: every explainable control at once, fading in
    and out over --intro-ms (set from INTRO_MS in helpMode.js). With reduced
    motion it simply shows, still, for the same time. */
 .help-intro { position: fixed; inset: 0; z-index: 9997; pointer-events: none; }
+/* A line of ink inside each ring keeps it apart from a coral control's own fill. */
+.help-ring, .help-intro-ring { --help-ring-halo: inset 0 0 0 2px var(--bg); }
 .help-intro-ring {
   position: absolute;
   border: 2px solid var(--accent); border-radius: var(--radius-sm);
-  box-shadow: 0 0 10px 2px color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: var(--help-ring-halo), 0 0 10px 2px color-mix(in srgb, var(--accent) 35%, transparent);
   opacity: 0;
   animation: help-intro-glow var(--intro-ms, 1600ms) ease-in-out forwards;
 }
