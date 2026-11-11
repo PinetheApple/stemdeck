@@ -408,6 +408,10 @@ def _keep(job: Job, stems_dir: Path, new_names: list[str]) -> None:
     _set(job, vocal_split=VOCAL_SPLIT_DONE, vocal_split_error=None, stage=_STAGE_DONE)
 
 
+def _mark_cancelled(job: Job) -> None:
+    _set(job, vocal_split=VOCAL_SPLIT_CANCELLED, stage=_STAGE_DONE)
+
+
 def split_now(
     job: Job,
     stems_dir: Path,
@@ -422,7 +426,7 @@ def split_now(
         new_names = split_vocals(job, stems_dir, cancelled=cancelled, report=report)
     except JobCancelled:
         _discard_partial(stems_dir)
-        _set(job, vocal_split=VOCAL_SPLIT_CANCELLED, stage=_STAGE_DONE)
+        _mark_cancelled(job)
         raise
     except Exception as exc:
         _discard_partial(stems_dir)
@@ -454,7 +458,7 @@ async def run_split(job: Job, stems_dir: Path, run: VocalSplitRun) -> None:
     await run_behind_lock(job, run, work, "vocal split")
     if job.vocal_split == VOCAL_SPLIT_RUNNING:
         if run.state == VOCAL_SPLIT_CANCELLED:
-            _set(job, vocal_split=VOCAL_SPLIT_CANCELLED, stage=_STAGE_DONE)
+            _mark_cancelled(job)
         else:
             _record_failure(job, stems_dir, RuntimeError("vocal split failed"))
     registry_persist(JOBS_DIR)
@@ -467,7 +471,7 @@ def cancel_split(job: Job) -> bool:
         return False
     run = VOCAL_SPLIT_RUNS.current(job.id)
     if run is not None and run.state == VOCAL_SPLIT_CANCELLED:
-        _set(job, vocal_split=VOCAL_SPLIT_CANCELLED, stage=_STAGE_DONE)
+        _mark_cancelled(job)
     return True
 
 
