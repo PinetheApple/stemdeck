@@ -26,6 +26,7 @@ const PAST_FOCUS_SYNC_WAIT_MS = 16_000;
 const LOAD_TIMEOUT_MS = 15_000;
 const SETLISTS_PATH = "/api/setlists";
 const SIBLING_JOB_URL = new RegExp(`/api/jobs/${SIBLING_JOB_ID}$`);
+const TRASH_CHANGE_EVENT = "tracktrash";
 
 test.afterEach(async ({ request }) => {
   const res = await request.get(SETLISTS_PATH);
@@ -96,6 +97,16 @@ async function recordOpens(page) {
 }
 
 const opened = (page) => page.evaluate(() => window.__opened);
+
+/** Start listening for the app's next trash change; the returned call waits until it lands. */
+async function nextTrashChange(page) {
+  await page.evaluate((type) => {
+    window.__trashChanged = new Promise(function onTrashChangeForTest(resolve) {
+      document.addEventListener(type, resolve, { once: true });
+    });
+  }, TRASH_CHANGE_EVENT);
+  return () => page.evaluate(() => window.__trashChanged.then(() => true));
+}
 
 /** Bring the window back into view past the focus-sync wait, and return once the list was read. */
 async function syncOnFocus(page) {
@@ -168,7 +179,9 @@ test("a trash from another device keeps a setlist name being typed, and greys th
   await name.fill("Encore");
 
   server.trashed.add(SIBLING_JOB_ID);
+  const trashLanded = await nextTrashChange(page);
   await syncOnFocus(page);
+  await trashLanded();
   await expect(name).toHaveValue("Encore");
   await name.press("Enter");
   await expect(page.locator(".setlist-name")).toHaveText("Encore");
