@@ -58,6 +58,25 @@ const singleRowFit = (page) =>
     return Math.ceil(row + window.innerWidth - strip.getBoundingClientRect().width);
   });
 
+// Below the desktop app's 1024 minimum width, so only a browser window gets here.
+const BELOW_DESKTOP_MIN_WIDTH = 820;
+
+const stripReports = (page) => page.evaluate(() => window.stripWidths.length);
+
+// Every footerfit event with the window width it fired at, and every strip width change.
+function recordFits(page) {
+  return page.evaluate(() => {
+    window.fitEvents = [];
+    window.stripWidths = [];
+    window.addEventListener("footerfit", function onFooterFit(e) {
+      window.fitEvents.push({ level: e.detail.level, width: window.innerWidth });
+    });
+    new ResizeObserver(function onStripResize(entries) {
+      window.stripWidths.push(entries[0].contentRect.width);
+    }).observe(document.querySelector(".footer-clusters"));
+  });
+}
+
 const groupTop = (page, selector) =>
   page.locator(selector).evaluate((el) => el.getBoundingClientRect().top);
 
@@ -176,17 +195,32 @@ test.describe("footer fit", () => {
     await openStudio(page, { tauri: true });
     await waitForClickTrack(page, { revealOptions: false });
     const fitPoint = await singleRowFit(page);
+    await recordFits(page);
 
     await page.setViewportSize(NARROW_WINDOW);
     await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toEqual([ROWS_LEVEL]);
-    await page.setViewportSize({ width: fitPoint + REOPEN_SLACK / 2, height: WINDOW_HEIGHT });
-    // Nothing to wait for when it holds; a frame lets a wrong reopen show.
-    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
-    expect(await collapseLevels(page)).toEqual([ROWS_LEVEL]);
+    const holdWidth = fitPoint + REOPEN_SLACK / 2;
+    const reports = await stripReports(page);
+    await page.setViewportSize({ width: holdWidth, height: WINDOW_HEIGHT });
+    // footerFit's observer was registered first, so ours reporting means its pass is queued.
+    await expect.poll(() => stripReports(page), { timeout: 5000 }).toBeGreaterThan(reports);
+    await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toEqual([ROWS_LEVEL]);
 
-    await page.setViewportSize({ width: fitPoint + REOPEN_SLACK * 2, height: WINDOW_HEIGHT });
+    const reopenWidth = fitPoint + REOPEN_SLACK * 2;
+    await page.setViewportSize({ width: reopenWidth, height: WINDOW_HEIGHT });
     await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toEqual([]);
     expect(await stripFits(page)).toBe(true);
+    const reopens = await page.evaluate(() => window.fitEvents.filter((e) => e.level === null));
+    expect(reopens).toEqual([{ level: null, width: reopenWidth }]);
+  });
+
+  test("at 820 every label stays visible and nothing overflows", async ({ page }) => {
+    await page.setViewportSize({ width: BELOW_DESKTOP_MIN_WIDTH, height: WINDOW_HEIGHT });
+    await openStudio(page, { tauri: true });
+    await waitForClickTrack(page, { revealOptions: false });
+
+    await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toEqual([ROWS_LEVEL]);
+    await expectLabelsReadable(page);
   });
 
   // Deleted: "the page itself never scrolls sideways".
