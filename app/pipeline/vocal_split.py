@@ -28,10 +28,12 @@ import json
 import logging
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
 import time
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -283,13 +285,14 @@ def _run_worker(
     job: Job,
     device: str,
     vocals_path: Path,
+    out_dir: Path,
     cancelled: Callable[[], bool],
     report: Callable[[int], None],
 ) -> tuple[bool, list[str], VocalSplitFailure | None]:
-    """Run the worker to its end under the watchdog: whether it succeeded,
-    its last lines, and its failure code (VOCAL_SPLIT_FAILED_STALLED when the
-    watchdog stopped it for silence)."""
-    proc = _spawn(device, vocals_path, vocals_path.parent)
+    """Run the worker to its end under the watchdog, writing into `out_dir`:
+    whether it succeeded, its last lines, and its failure code
+    (VOCAL_SPLIT_FAILED_STALLED when the watchdog stopped it for silence)."""
+    proc = _spawn(device, vocals_path, out_dir)
     set_proc(job.id, proc)
     last_output = [time.monotonic()]
     done_evt = threading.Event()
@@ -345,19 +348,58 @@ def split_vocals(
             "vocals.wav not found -- job has no vocals stem to split",
             code=VOCAL_SPLIT_FAILED_NO_VOCALS,
         )
+    # The worker writes into the dot temp folder `.vocal_split.<hex>.tmp`, and
+    # the pair moves in only once both are whole: a kill never leaves a
+    # half-written lead_vocals.wav that reads as a stem (upstream PR 898).
+    work = stems_dir / f".vocal_split.{uuid.uuid4().hex}.tmp"
+    try:
+        work.mkdir()
+        _split_into(job, vocals_path, work, cancelled=cancelled, report=report)
+        return _move_in(work, stems_dir)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def _split_into(
+    job: Job,
+    vocals_path: Path,
+    work: Path,
+    *,
+    cancelled: Callable[[], bool],
+    report: Callable[[int], None],
+) -> None:
+    """Run the worker into `work` and check it made the pair."""
     device = get_demucs_device()
-    job_ok, tail, code = _run_worker(job, device, vocals_path, cancelled, report)
+    job_ok, tail, code = _run_worker(job, device, vocals_path, work, cancelled, report)
     if cancelled():
         raise JobCancelled()
     if not job_ok:
         raise _worker_failed(job, tail, code, device)
     for name in EXTRA_STEM_NAMES:
-        if not (stems_dir / f"{name}.wav").is_file():
+        if not (work / f"{name}.wav").is_file():
             raise VocalSplitFailed(
                 f"vocal split did not produce {name}.wav",
                 code=VOCAL_SPLIT_FAILED_NO_OUTPUT,
                 device=device,
             )
+
+
+def _move_in(work: Path, stems_dir: Path) -> list[str]:
+    """Move the pair from `work` into the stems. A move that fails takes back
+    the one already made; a kill between the two renames leaves a lead alone,
+    which a song rebuilt from its folder does not count as split."""
+    placed: list[Path] = []
+    try:
+        for name in EXTRA_STEM_NAMES:
+            final = stems_dir / f"{name}.wav"
+            os.replace(work / f"{name}.wav", final)
+            placed.append(final)
+    except OSError as exc:
+        for final in placed:
+            final.unlink(missing_ok=True)
+        raise VocalSplitFailed(
+            "could not move the split stems in", code=VOCAL_SPLIT_FAILED_WORKER
+        ) from exc
     return list(EXTRA_STEM_NAMES)
 
 
