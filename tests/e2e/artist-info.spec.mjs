@@ -18,6 +18,7 @@ import {
   stubAudioTags,
   stubBandSave,
   stubExportEndpoints,
+  stubFavorites,
   stubUpdateCheck,
 } from "./helpers.mjs";
 
@@ -95,6 +96,7 @@ async function stubWikimedia(page, { offline = false, nothing = false } = {}) {
 
 async function openStudio(page) {
   await seedLibrary(page);
+  await stubFavorites(page);
   await stubExportEndpoints(page);
   await stubUpdateCheck(page);
   // The untagged fixture asks for its tags when opened; it has none, so the
