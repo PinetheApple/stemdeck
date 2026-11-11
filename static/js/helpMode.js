@@ -8,7 +8,16 @@
 // already translates, and its text comes from the help.* keys in i18n.js.
 
 import { t } from "./i18n.js";
-import { clipsOverflow, hoverRect, inViewRect, isInView, isRendered, isWhollyShown } from "./helpGeometry.js";
+import {
+  BIG_AREA_SHARE,
+  TRACK_AREA,
+  clipsOverflow,
+  hoverRect,
+  inViewRect,
+  isInView,
+  isRendered,
+  isWhollyShown,
+} from "./helpGeometry.js";
 
 /** Lane controls name their instrument in the text ("Silences the Drums"). */
 const laneName = (el) => el.closest(".mx-row, .lane-header")?.querySelector(".mx-name")?.textContent.trim() || "";
@@ -135,8 +144,6 @@ let dockObserver = null;
 // How long the glow on every explainable control lasts when Guide turns on.
 // daw.css reads it through --intro-ms, so the fade and the cleanup agree.
 const INTRO_MS = 1600;
-// A control taking more of the window than this is an area, not a place to point.
-const BIG_AREA_SHARE = 0.04;
 // Below this, a control is too small to keep its glyph clear under the full ring and halo.
 const TINY_CONTROL_PX = 16;
 let current = null;
@@ -304,7 +311,6 @@ function stopIntro() {
   introEl.replaceChildren();
 }
 
-const TRACK_AREA = ".waves-column";
 const TRANSPORT = ".daw-footer";
 const DOCK_CENTRE = "--dock-centre";
 const DOCK_BOTTOM = "--dock-bottom";
@@ -312,7 +318,7 @@ const DOCK_WIDTH = "--dock-width";
 
 function setDock(prop, px) {
   if (px === null) pillEl.style.removeProperty(prop);
-  else pillEl.style.setProperty(prop, `${Math.round(px)}px`);
+  else pillEl.style.setProperty(prop, `${px}px`);
 }
 
 /** Just above the transport and over the waveforms, where it covers no control. */
@@ -322,9 +328,9 @@ function dockPill() {
   const docked = Boolean(transport) && isInView(transport);
   const area = docked && track ? inViewRect(track) : null;
   const overTrack = area !== null && area.width > 0;
-  setDock(DOCK_BOTTOM, docked ? window.innerHeight - transport.getBoundingClientRect().top : null);
-  setDock(DOCK_CENTRE, overTrack ? area.left + area.width / 2 : null);
-  setDock(DOCK_WIDTH, overTrack ? area.width : null);
+  setDock(DOCK_BOTTOM, docked ? Math.round(window.innerHeight - transport.getBoundingClientRect().top) : null);
+  setDock(DOCK_CENTRE, overTrack ? Math.round(area.left + area.width / 2) : null);
+  setDock(DOCK_WIDTH, overTrack ? Math.floor(area.width) : null);
 }
 
 /** The panel the waveforms scroll in: it, not the waveforms, changes size when the layout does. */
@@ -410,7 +416,6 @@ export function setHelpMode(next) {
   document.getElementById("helpModeBtn")?.setAttribute("aria-pressed", String(on));
   listen(on);
   if (on) {
-    dockPill();
     watchDock();
     markTargets();
     playIntro();

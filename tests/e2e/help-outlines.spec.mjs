@@ -9,6 +9,7 @@ import { test, expect } from "@playwright/test";
 
 import { JOB_ID, SIBLING_JOB_ID, SIBLING_TITLE, TRACK_TITLE, fixtureTrack, openStudio } from "./helpers.mjs";
 import { clickFrozen, freezeTimers } from "./saveRaces.mjs";
+import { BIG_AREA_SHARE, TRACK_AREA } from "../../static/js/helpGeometry.js";
 
 const VIEWPORTS = [
   { width: 1024, height: 768 },
@@ -29,10 +30,10 @@ const HIDDEN_CONTROLS_CSS = `
   :has(> #t-pitch-reset) { opacity: 0; }
 `;
 const TRANSPORT_CONTROLS = '.daw-footer :is(button, input, select, [role="slider"])';
-// Guide treats anything bigger than this share of the window as an area to point into, not a control.
-const AREA_SHARE = 0.04;
-const NO_TRACK_AREA_CSS = ".waves-column { display: none !important; }";
+const NO_TRACK_AREA_CSS = `${TRACK_AREA} { display: none !important; }`;
 const PROBE = "__guideProbe";
+// Set on the pill once it is docked above the transport.
+const DOCKED = "--dock-bottom";
 // Half a library row: the top row goes partly out of view, the rest stay whole.
 const LIBRARY_SCROLL_PX = 28;
 // Enough page time for the frame in which the rings follow a scroll, well short of the intro's end.
@@ -137,7 +138,7 @@ function followedRings(probe) {
  * and each explainable one that is not an area and is not covered); and the
  * middle of the waveforms' visible part, if they are shown.
  */
-function measurePill({ transport, areaShare }) {
+function measurePill({ transport, areaShare, trackArea }) {
   const edges = (el) => {
     const r = el.getBoundingClientRect();
     return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
@@ -151,7 +152,7 @@ function measurePill({ transport, areaShare }) {
   const controls = [...document.querySelectorAll(`${transport}, .help-target`)]
     .filter((el) => getComputedStyle(el).visibility === "visible" && seen(el))
     .map((el) => ({ target: el.id || el.className, rect: edges(el) }));
-  const track = document.querySelector(".waves-column");
+  const track = document.querySelector(trackArea);
   let area = track?.getClientRects().length ? edges(track) : null;
   for (let p = track?.parentElement; area && p && p !== document.body; p = p.parentElement) {
     const { overflowX } = getComputedStyle(p);
@@ -164,7 +165,11 @@ function measurePill({ transport, areaShare }) {
 
 const pillCentre = ({ pill }) => (pill.left + pill.right) / 2;
 const coveredBy = ({ pill, controls }) => controls.filter(({ rect }) => crossing(pill, rect)).map((c) => c.target);
-const measurePillNow = (page) => page.evaluate(measurePill, { transport: TRANSPORT_CONTROLS, areaShare: AREA_SHARE });
+const measurePillNow = (page) => page.evaluate(measurePill, {
+  transport: TRANSPORT_CONTROLS,
+  areaShare: BIG_AREA_SHARE,
+  trackArea: TRACK_AREA,
+});
 
 function crossing(a, b) {
   return a.right > b.left + RECT_TOLERANCE_PX
@@ -197,6 +202,8 @@ async function guideOn(page, viewport, { native, hold = false, css = HIDDEN_CONT
     await page.locator("#helpModeBtn").click();
   }
   await expect(page.locator(".help-pill")).toBeVisible();
+  const pill = page.locator(".help-pill");
+  await expect.poll(() => pill.evaluate((el, prop) => el.style.getPropertyValue(prop), DOCKED)).not.toBe("");
 }
 
 const ENGINES = [

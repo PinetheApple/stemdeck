@@ -5697,8 +5697,7 @@ input, textarea { font-family: inherit; }
   .help-intro-ring { animation: none; opacity: 0.8; }
 }
 /* helpMode.js docks the pill over the waveforms, just above the transport,
-   through the --dock-* properties. With no waveforms in view it centres on the
-   window above the transport, and with no transport it sits at the window's foot. */
+   through the --dock-* properties. */
 .help-pill {
   --help-pill-gap: var(--s-2);
   position: fixed; z-index: 9999; transform: translateX(-50%);
