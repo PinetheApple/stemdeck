@@ -395,6 +395,15 @@ export async function openStudio(
 }
 
 /**
+ * Wait for the library pane to finish sliding open or shut. A narrow window
+ * collapses it once a song opens, and its width animates, so anything measured
+ * beside it mid-slide is measured at a width that is about to change.
+ */
+export async function waitForPanesSettled(page) {
+  await page.waitForFunction(() => document.querySelector(".sidebar").getAnimations().length === 0);
+}
+
+/**
  * Wait until the click track is live.
  *
  * openStudio returns once the transport reports a duration, but the metronome

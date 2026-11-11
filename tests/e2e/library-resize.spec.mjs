@@ -6,7 +6,9 @@ const INSPECTOR_HIDDEN_KEY = "stemdeck.inspector.hidden";
 const INSPECTOR_HIDDEN = "1";
 const MIN_WIDTH = 232;
 const MAX_WIDTH = 560;
-const MIN_TRACKS_WIDTH = 480;
+const TRACK_LABELS_WIDTH = 288;
+const MIN_TIMELINE_WIDTH = 360;
+const MIN_TRACKS_WIDTH = TRACK_LABELS_WIDTH + MIN_TIMELINE_WIDTH;
 const KEYBOARD_STEP = 16;
 const CUSTOM_WIDTH = 400;
 const DRAG_WIDER = 100;
@@ -51,6 +53,16 @@ async function dragHandle(page, dx) {
   await page.mouse.down();
   await page.mouse.move(x + dx, y, { steps: 5 });
   await page.mouse.up();
+}
+
+// A window this small collapses the library once a song opens; reopening it is the user's call.
+async function openWithNoRoom(page) {
+  await page.setViewportSize(NO_ROOM_WINDOW);
+  await openStudio(page);
+  await expect(page.locator(".app")).toHaveClass(/cat-collapsed/);
+  await collapseButton(page).click();
+  await expect(handleOf(page)).toBeVisible();
+  await expect.poll(() => libraryWidth(page)).toBe(MIN_WIDTH);
 }
 
 async function openWide(page) {
@@ -105,9 +117,7 @@ test.describe("library pane width", () => {
   });
 
   test("a drag that can't change the width saves nothing", async ({ page }) => {
-    await page.setViewportSize(NO_ROOM_WINDOW);
-    await openStudio(page);
-    await expect(handleOf(page)).toBeVisible();
+    await openWithNoRoom(page);
     expect(await libraryWidth(page)).toBe(MIN_WIDTH);
 
     await dragHandle(page, DRAG_WIDER);
@@ -119,8 +129,7 @@ test.describe("library pane width", () => {
   });
 
   test("an arrow key that can't change the width saves nothing", async ({ page }) => {
-    await page.setViewportSize(NO_ROOM_WINDOW);
-    await openStudio(page);
+    await openWithNoRoom(page);
     await handleOf(page).focus();
 
     await page.keyboard.press("ArrowRight");

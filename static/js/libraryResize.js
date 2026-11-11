@@ -1,15 +1,18 @@
 import { $, storeGet, storeSet, storeSetDebounced } from "./utils.js";
+import { isSidebarCollapsed, setSidebarCollapsed } from "./catalog.js";
 
 const WIDTH_STORE_KEY = "stemdeck.library.width";
+const AUTO_COLLAPSED_STORE_KEY = "stemdeck.library.autoCollapsed";
 const WIDTH_VAR = "--library-w";
+const TRACK_LABELS_WIDTH_VAR = "--daw-col-w";
 const SIZING_CLASS = "is-sizing";
 const DRAGGING_CLASS = "is-dragging";
 
 // The floor of --library-w, so a pane on its default width can always go back to it.
 const MIN_WIDTH_PX = 232;
 const MAX_WIDTH_PX = 560;
-// The stem tracks' label column plus a readable stretch of waveform.
-const MIN_TRACKS_WIDTH_PX = 480;
+// A readable stretch of waveform beside the stem tracks' label column.
+const MIN_TIMELINE_WIDTH_PX = 360;
 const KEYBOARD_STEP_PX = 16;
 
 let handle = null;
@@ -26,10 +29,22 @@ let dragStartX = 0;
 let dragStartWidth = 0;
 let dragStartPreferred = null;
 let dragMoved = false;
+// Collapsing is only weighed once a song is open, so the library's own saved state lands first.
+let watchingRoom = false;
+let hadRoom = true;
+let autoCollapsed = false;
+
+function minTracksWidth() {
+  const labels = getComputedStyle(document.documentElement).getPropertyValue(TRACK_LABELS_WIDTH_VAR);
+  return parseFloat(labels) + MIN_TIMELINE_WIDTH_PX;
+}
+
+function roomForLibrary() {
+  return panes.clientWidth - rail.offsetWidth - inspector.offsetWidth - minTracksWidth();
+}
 
 function maxWidth() {
-  const room = panes.clientWidth - rail.offsetWidth - inspector.offsetWidth - MIN_TRACKS_WIDTH_PX;
-  return Math.max(MIN_WIDTH_PX, Math.min(MAX_WIDTH_PX, room));
+  return Math.max(MIN_WIDTH_PX, Math.min(MAX_WIDTH_PX, roomForLibrary()));
 }
 
 function clampWidth(px) {
@@ -57,11 +72,39 @@ function syncAria() {
   if (handleShown) handle.setAttribute("aria-valuenow", String(measuredWidth()));
 }
 
+function hasRoomForLibrary() {
+  return roomForLibrary() >= MIN_WIDTH_PX;
+}
+
+function setAutoCollapsed(collapsed) {
+  setSidebarCollapsed(collapsed);
+  autoCollapsed = collapsed;
+  storeSet(AUTO_COLLAPSED_STORE_KEY, collapsed);
+}
+
+// Shown again only if this collapsed it, and only until the user opens or closes it themselves.
+function fitLibraryToRoom() {
+  if (autoCollapsed && !isSidebarCollapsed()) {
+    autoCollapsed = false;
+    storeSet(AUTO_COLLAPSED_STORE_KEY, false);
+  }
+  const hasRoom = hasRoomForLibrary();
+  if (!hasRoom && hadRoom && !isSidebarCollapsed()) setAutoCollapsed(true);
+  else if (hasRoom && autoCollapsed) setAutoCollapsed(false);
+  hadRoom = hasRoom;
+}
+
 function fitWidth() {
   // Stage mode hides the rail and inspector, which would inflate maxWidth().
   if (!rail.offsetWidth) return;
+  if (watchingRoom) fitLibraryToRoom();
   renderWidth();
   syncAria();
+}
+
+function onFirstTrackOpen() {
+  watchingRoom = true;
+  fitWidth();
 }
 
 function queueFit() {
@@ -139,6 +182,13 @@ async function restoreWidth() {
   fitWidth();
 }
 
+// A library collapsed for a narrow window opens again in a wide one, even across a reload.
+async function restoreAutoCollapsed() {
+  if (!(await storeGet(AUTO_COLLAPSED_STORE_KEY, false))) return;
+  autoCollapsed = true;
+  if (rail.offsetWidth && hasRoomForLibrary()) setAutoCollapsed(false);
+}
+
 export function initLibraryResize() {
   handle = $("libraryResizer");
   panes = document.querySelector(".daw-panes");
@@ -150,6 +200,7 @@ export function initLibraryResize() {
   handle.addEventListener("pointerdown", onHandlePointerDown);
   handle.addEventListener("dblclick", resetWidth);
   handle.addEventListener("keydown", onHandleKeydown);
+  document.addEventListener("trackopen", onFirstTrackOpen, { once: true });
 
   // The sidebar reports reopening and leaving Stage mode.
   const observer = new ResizeObserver(queueFit);
@@ -159,4 +210,5 @@ export function initLibraryResize() {
 
   fitWidth();
   restoreWidth().catch(console.error);
+  restoreAutoCollapsed().catch(console.error);
 }
