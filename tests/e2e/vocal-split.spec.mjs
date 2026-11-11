@@ -52,7 +52,7 @@ async function openDetails(page, options) {
 
 async function reopen(page) {
   await page.reload({ waitUntil: "domcontentloaded" });
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await openInspectorTab(page, "details");
 }
 

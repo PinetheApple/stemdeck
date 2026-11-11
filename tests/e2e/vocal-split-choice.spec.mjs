@@ -65,7 +65,7 @@ test("Lead + Backing chosen at import still splits the song after a reload", asy
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await queue.settle();
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await openInspectorTab(page, "details");
 
   await expect(page.locator("#vocalSplitMessage")).toHaveText(SPLITTING);

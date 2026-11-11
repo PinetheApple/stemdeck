@@ -107,14 +107,14 @@ async function setUp(page, { server = found(), original = found(), onPut = null,
 async function openLyrics(page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
   await page.locator(".rail-lyrics").click();
 }
 
 async function openTrackFromLibrary(page, id) {
   await page.locator(".rail-library").click();
-  await page.locator(`.cat-item[data-id="${id}"]`).first().click();
+  await page.locator(`.cat-item[data-id="${id}"]`).first().dblclick();
   await page.locator(".rail-lyrics").click();
 }
 
@@ -493,7 +493,7 @@ test.describe("the user's lyrics come first", () => {
     await pasteAndSave(page, "Mine one\nMine two");
     await expect(shownText(page)).toHaveText(["Mine one", "Mine two"]);
     await page.reload({ waitUntil: "domcontentloaded" });
-    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
     await page.locator(".rail-lyrics").click();
     await expect(shownText(page)).toHaveText(["Mine one", "Mine two"]);
     expect(await stored(page)).toBeNull();

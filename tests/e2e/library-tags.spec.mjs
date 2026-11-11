@@ -45,18 +45,18 @@ test("no track open, no Tags section", async ({ page }) => {
 });
 
 test("only the open track's tags show, and they follow the open track", async ({ page }) => {
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await expect.poll(() => chipTags(page), { timeout: 20000 }).toEqual(FIRST_TAGS);
   // A tag on both tracks counts both, since that is what its filter finds.
   await expect(chips(page).nth(2).locator(".lib-tag-count")).toHaveText("2");
   await expect(chips(page).first().locator(".lib-tag-count")).toHaveText("1");
 
-  await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().click();
+  await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().dblclick();
   await expect.poll(() => chipTags(page), { timeout: 20000 }).toEqual(SIBLING_TAGS);
 });
 
 test("a chip still filters the library by its tag", async ({ page }) => {
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await expect.poll(() => chipTags(page), { timeout: 20000 }).toEqual(FIRST_TAGS);
 
   await chips(page).first().click();

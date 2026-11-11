@@ -116,7 +116,7 @@ async function openPage(page, tracks, { audioTags = null } = {}) {
 }
 
 async function openTrack(page, id = JOB_ID) {
-  await page.locator(`.cat-item[data-id="${id}"]`).first().click();
+  await page.locator(`.cat-item[data-id="${id}"]`).first().dblclick();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
 }
 

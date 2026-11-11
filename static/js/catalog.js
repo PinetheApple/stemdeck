@@ -16,7 +16,7 @@ import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
 import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
 import { isModalOpen } from "./stageMode.js";
-import { wireRovingRows } from "./rovingRows.js";
+import { OUT_OF_TAB_ORDER, ROW_PLAY_CLASS, wireRovingRows } from "./rovingRows.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
@@ -1761,7 +1761,6 @@ function favButtonHtml(track) {
 
 function wireFavButton(el, trackId) {
   el.querySelector(".cat-fav")?.addEventListener("click", (e) => {
-    // The row itself loads the track on click.
     e.stopPropagation();
     toggleFavorite(trackId);
   });
@@ -1795,14 +1794,23 @@ function wireMoreButton(el, trackId) {
   });
 }
 
-function wireTrackDragAndLoad(el, trackId) {
+function playButtonHtml(track) {
+  const label = esc(i18nT("track.playTitle", { title: displayTitle(libraryTitle(track)) }));
+  return `<button class="${ROW_PLAY_CLASS}" type="button" tabindex="${OUT_OF_TAB_ORDER}" title="${label}" aria-label="${label}">${icon("play", { filled: true })}</button>`;
+}
+
+function wireTrackDrag(el, trackId) {
   el.draggable = true;
   el.addEventListener("dragstart", (e) => {
     startDrag(trackId, el, e);
   });
   el.addEventListener("dragend", () => endDrag(el));
-  el.addEventListener("click", (e) => {
-    if (e.target.closest(".cat-del, .cat-fav, .cat-upnext, .cat-more, .rename-form")) return;
+}
+
+// The collapsed strip has no selection to make, so a click there opens the song.
+function wireStripTrack(el, trackId) {
+  wireTrackDrag(el, trackId);
+  el.addEventListener("click", function onOpenStripTrack() {
     loadTrackIntoStudio(trackId);
   });
 }
@@ -2068,6 +2076,7 @@ function wireLibraryRows() {
       keyOf: libraryRowKey,
       openRow: openLibraryRow,
       preferredRow: preferredLibraryRow,
+      selectableRow: SONG_ROW_SELECTOR,
     },
   );
 }
@@ -2191,7 +2200,7 @@ function renderRecentItem(trackId) {
   el.className = `cat-item${trackId === _currentTrackId ? " active" : ""}${isUnavailable ? " unavailable" : ""}${track.favorite ? " is-fav" : ""}`;
   el.dataset.id = trackId;
   el.innerHTML = `
-    <div class="cat-thumb">${thumbHtml(track)}</div>
+    <div class="cat-thumb">${thumbHtml(track)}${playButtonHtml(track)}</div>
     <div class="cat-meta">
       <div class="cat-title">${esc(displayTitle(libraryTitle(track)))}</div>
       <div class="cat-sub">${trackSublineHtml(track)}</div>
@@ -2202,7 +2211,7 @@ function renderRecentItem(trackId) {
   wireFavButton(el, trackId);
   wireUpNextButton(el, trackId);
   wireMoreButton(el, trackId);
-  wireTrackDragAndLoad(el, trackId);
+  wireTrackDrag(el, trackId);
   return el;
 }
 
@@ -2249,7 +2258,7 @@ function makeStripItem({ className = "", id, title, html, color, trackId }) {
   item.title = title;
   item.innerHTML = html;
   if (color) item.style.setProperty("--folder-color", color);
-  if (trackId) wireTrackDragAndLoad(item, trackId);
+  if (trackId) wireStripTrack(item, trackId);
   return item;
 }
 
@@ -2293,7 +2302,7 @@ function renderTrackItem(trackId, { inTrash = false } = {}) {
   el.dataset.id = trackId;
 
   el.innerHTML = `
-    <div class="cat-thumb">${thumbHtml(track)}</div>
+    <div class="cat-thumb">${thumbHtml(track)}${inTrash ? "" : playButtonHtml(track)}</div>
     <div class="cat-meta">
       <div class="cat-title">${esc(displayTitle(libraryTitle(track)))}</div>
       <div class="cat-sub">${trackSublineHtml(track, { inTrash })}</div>${inTrash ? `<div class="cat-sub trash-hint">${esc(i18nT("trash.holdToRestore"))}</div>` : ""}
@@ -2323,7 +2332,7 @@ function renderTrackItem(trackId, { inTrash = false } = {}) {
     el.setAttribute("aria-selected", String(_trashSelection.has(trackId)));
     wireTrashRow(el, trackId);
   } else {
-    wireTrackDragAndLoad(el, trackId);
+    wireTrackDrag(el, trackId);
   }
 
   return el;

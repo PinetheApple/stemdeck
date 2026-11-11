@@ -40,7 +40,7 @@ export const queueSectionsSave = (page) => queueSave(page, "/js/sections.js", "f
 export const queueGridSave = (page) => queueSave(page, "/js/beatgrid.js", "flushBeatGrid");
 
 export async function openSong(page, id) {
-  await page.locator(`.cat-item[data-id="${id}"]`).first().click();
+  await page.locator(`.cat-item[data-id="${id}"]`).first().dblclick();
   await expect(page.locator("#t-time")).toHaveText(TRACK_TIME[id], { timeout: 20000 });
 }
 
@@ -147,3 +147,4 @@ export async function freezeTimers(page) {
 
 // Clicks without Playwright's actionability wait, which needs the frozen clock to move.
 export const clickFrozen = (page, selector) => page.locator(selector).first().dispatchEvent("click");
+export const dblclickFrozen = (page, selector) => page.locator(selector).first().dispatchEvent("dblclick");

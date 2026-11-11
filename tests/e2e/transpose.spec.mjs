@@ -183,7 +183,7 @@ test.describe("transpose", () => {
     await up(page).click();
     await expect(value(page)).toHaveText("+2");
 
-    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
     await expect(value(page)).toHaveText("0");
     await expect(value(page)).not.toHaveClass(/active/);
   });

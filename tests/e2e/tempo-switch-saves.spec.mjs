@@ -18,6 +18,7 @@ import {
   liveSaves,
   freezeTimers,
   clickFrozen,
+  dblclickFrozen,
   TAP_GAP_MS,
   NUDGE_SEC,
   resetSongs,
@@ -34,7 +35,7 @@ test.describe("tempo", () => {
     await page.clock.runFor(TAP_GAP_MS);
     await clickFrozen(page, "#tempoTap");
     const tapped = Number(await page.locator("#tempoReadout").textContent());
-    await clickFrozen(page, `.cat-item[data-id="${SIBLING_JOB_ID}"]`);
+    await dblclickFrozen(page, `.cat-item[data-id="${SIBLING_JOB_ID}"]`);
 
     await expect.poll(async () => (await savedTempo(request, JOB_ID)).bpm).toBeCloseTo(tapped, 5);
     expect((await savedTempo(request, SIBLING_JOB_ID)).user_keys ?? []).toEqual([]);

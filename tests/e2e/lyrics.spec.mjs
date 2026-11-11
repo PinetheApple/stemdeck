@@ -102,7 +102,7 @@ async function open(page) {
 }
 
 async function openTrack(page) {
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
 }
 

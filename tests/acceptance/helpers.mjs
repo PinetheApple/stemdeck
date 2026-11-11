@@ -366,7 +366,7 @@ export async function openTrack(page, id) {
   const row = page.locator(`.cat-item[data-id="${id}"]`).first();
   await row.waitFor({ timeout: 60_000 });
   await row.scrollIntoViewIfNeeded();
-  await row.click();
+  await row.dblclick();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 30_000 });
   await page.waitForFunction(
     async ([want, length]) => {

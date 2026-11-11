@@ -344,7 +344,7 @@ test.describe("waveform zoom", () => {
     for (let i = 0; i < 10; i++) await wheel(page, -240);
     expect((await zoomState(page)).zoomVar).toBeGreaterThan(1);
 
-    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
     await page.waitForTimeout(1500);
     const reopened = await zoomState(page);
     expect(reopened.zoomVar).toBeCloseTo(1, 2);

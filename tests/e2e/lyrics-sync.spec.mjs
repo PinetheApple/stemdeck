@@ -131,7 +131,7 @@ async function setUp(page, { server = version(), retime = [], retimed = null, en
 async function openLyrics(page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
   await page.locator(".rail-lyrics").click();
   await expect(page.locator(".lyrics-line, .lyrics-text").first()).toBeVisible();
