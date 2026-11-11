@@ -23,13 +23,8 @@ export function isApiRequest(input, origin) {
 
 const isAbort = (error) => error?.name === "AbortError";
 
-/**
- * Count consecutive unanswered API requests over `baseFetch`. After the first
- * one it probes HEALTH_URL until something answers, so both going offline and
- * coming back are noticed without the user having to act. `onRestored` runs on
- * the first answer after the server was unreachable: offline, or its health
- * check unanswered. A single request failing while the rest answer is not that.
- */
+/** Count unanswered API requests and probe HEALTH_URL until one answers. `onRestored` runs on
+ * the first answer after the server was unreachable: offline, or its health check unanswered. */
 export function createConnectionMonitor({ baseFetch, origin, onChange, onRestored, schedule }) {
   let failures = 0;
   let offline = false;
@@ -83,8 +78,20 @@ export function createConnectionMonitor({ baseFetch, origin, onChange, onRestore
     return pending;
   }
 
-  return { fetch: monitoredFetch, isOffline: () => offline };
+  /** One health check now: true when the server answered it. */
+  function checkNow() {
+    return monitoredFetch(HEALTH_URL, { cache: "no-store" }).then(wasAnswered, wasNotAnswered);
+  }
+
+  return { fetch: monitoredFetch, isOffline: () => offline, checkNow };
 }
+
+const wasAnswered = () => true;
+const wasNotAnswered = () => false;
+let activeMonitor = null;
+
+/** One health check now, through the app's monitor: true when the server answered it. */
+export const checkConnectionNow = () => activeMonitor?.checkNow() ?? Promise.resolve(false);
 
 function showConnectionState(offline) {
   document.getElementById(INDICATOR_ID)?.classList.toggle("hidden", !offline);
@@ -107,5 +114,6 @@ export function initConnection() {
     onRestored: announceRestored,
     schedule: scheduleOnWindow,
   });
+  activeMonitor = monitor;
   window.fetch = monitor.fetch;
 }

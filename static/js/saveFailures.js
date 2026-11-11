@@ -1,7 +1,7 @@
 // How a section, beat-grid or tempo save that failed is told apart and reported.
 import { t } from "./i18n.js";
 import { notifyFailure, dismissFailuresByJobId, getFailures } from "./notifications.js";
-import { CONNECTION_RESTORED_EVENT } from "./connection.js";
+import { CONNECTION_RESTORED_EVENT, checkConnectionNow } from "./connection.js";
 
 export const SAVE_KIND = { sections: "sections", beatgrid: "beatgrid", tempo: "tempo" };
 export const SAVE_REFUSED = "refused";
@@ -28,13 +28,12 @@ export class SaveRefusedError extends Error {
 
 /** One card per song and kind: a different failure of the same save replaces it, the same one leaves it be. */
 export function notifySaveFailure(kind, how, jobId) {
-  const message = t(MESSAGE_KEYS[kind][how]);
-  const shown = getFailures().some((f) => f.kind === kind && f.context?.jobId === jobId && f.message === message);
+  const shown = getFailures().some((f) => f.kind === kind && f.context?.jobId === jobId && f.context?.how === how);
   if (shown) return;
   notifyFailure({
     kind,
-    message,
-    context: { jobId },
+    message: t(MESSAGE_KEYS[kind][how]),
+    context: { jobId, how },
   });
 }
 
@@ -46,11 +45,21 @@ export function onConnectionRestored(retry) {
   globalThis.document?.addEventListener?.(CONNECTION_RESTORED_EVENT, retry);
 }
 
-/**
- * Each song's newest save still waiting for an answer, and which of them got none: what a
- * reopened song shows, what goes out on close, and what `resend` sends once the server is back.
- * `sentOf(entry)` is what a request carried, so an answer to an older save is told apart.
- */
+// Per kind and song, the last lost save that already went again on its own.
+const resentOnItsOwn = new Map();
+
+/** Send a lost save (`sent`) again once, on its own, when the server answers a health check now. */
+export function resendOnceIfAnswered(kind, id, sent, resend) {
+  const key = `${kind}:${id}`;
+  if (resentOnItsOwn.get(key) === sent) return;
+  resentOnItsOwn.set(key, sent);
+  checkConnectionNow().then(function resendIfAnswered(answered) {
+    if (answered) resend();
+  });
+}
+
+/** Each song's newest unconfirmed save, and which got no answer. `sentOf(entry)` is what its
+ * request carried, so an answer to an older save is told apart. */
 export class UnconfirmedSaves {
   #pending = new Map();
   #lost = new Set();
@@ -100,7 +109,14 @@ export class UnconfirmedSaves {
     if (!this.#isNewest(id, sent)) return false;
     this.#lost.add(id);
     notifySaveFailure(this.kind, SAVE_LOST, id);
+    resendOnceIfAnswered(this.kind, id, sent, () => this.#resendLost(id, sent));
     return true;
+  }
+
+  #resendLost(id, sent) {
+    if (!this.#lost.has(id) || !this.#isNewest(id, sent)) return;
+    this.#lost.delete(id);
+    this.resend(id, this.#pending.get(id));
   }
 
   /** A newer edit replaced the song's unsaved one, so it will not save and its card says nothing true. */

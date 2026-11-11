@@ -91,8 +91,9 @@ const _unconfirmed = new UnconfirmedSaves({
   resend: _resendLostGrid,
   sentOf: (entry) => entry.payload,
 });
-// The open song's grid as the server has it, to go back to when it refuses a save.
+// A song's grid and tempo as the server has them, to go back to when it refuses a save.
 let _confirmedGrid = null;
+let _confirmedJobId = null;
 
 // ─── geometry ───────────────────────────────────────────────
 
@@ -334,22 +335,22 @@ async function _sendGrid(jobId, payload, seq, fetchOptions) {
     saved = await _patchBeats(jobId, payload, fetchOptions);
   } catch (e) {
     console.warn("[beatgrid] failed to save edits:", e);
-    if (e instanceof SaveRefusedError) _onGridRefused(jobId, payload, seq);
+    if (e instanceof SaveRefusedError) _onGridRefused(jobId, payload);
     else if (!wasCutOffByPageClose(e)) _unconfirmed.lose(jobId, payload);
     return;
   }
   _unconfirmed.confirm(jobId, payload);
-  if (jobId === _jobId) _confirmedGrid = payload;
+  if (jobId === _confirmedJobId) _confirmedGrid = { ...payload, tempo: saved.tempo };
   // An edit made while this was in flight still has its own save to come.
   if (jobId === _jobId && seq === _editSeq) _dirty = false;
   _announceTempo(jobId, saved.tempo);
 }
 
-const _isLatestEdit = (jobId, seq) => jobId === _jobId && seq === _editSeq && _saveTimer === null;
-
-function _onGridRefused(jobId, payload, seq) {
+// The newest unconfirmed save is the song's last edit unless one is still waiting out the debounce.
+function _onGridRefused(jobId, payload) {
   const newest = _unconfirmed.refuse(jobId, payload);
-  if (newest && _isLatestEdit(jobId, seq) && _confirmedGrid) _showServerGrid(jobId, _confirmedGrid);
+  const settled = jobId === _jobId && _saveTimer === null;
+  if (newest && settled && _confirmedGrid) _showServerGrid(jobId, _confirmedGrid);
 }
 
 function _resendLostGrid(jobId, entry) {
@@ -396,11 +397,13 @@ function _closeBody(grid, tempo) {
   return { ...grid?.payload, tempo: gridAfterMode ? withoutMode : tempo.fields };
 }
 
-/** Take a grid the server rebuilt (a tempo change) as the new starting point, with no undo across it. */
-export function replaceBeatGrid(grid) {
+/** Take a grid the server rebuilt (a tempo change) as the new starting point, with no undo across it.
+ * Unless `superseding` (the tempo change was refused), an unsaved grid edit stays shown and kept. */
+export function replaceBeatGrid(grid, { superseding = true } = {}) {
   flushBeatGrid();
-  _unconfirmed.drop(_jobId);
   _confirmedGrid = grid ?? null;
+  if (!superseding && _unconfirmed.has(_jobId)) return;
+  _unconfirmed.drop(_jobId);
   _beats = Array.isArray(grid?.beats) ? grid.beats.slice() : [];
   _bars = Array.isArray(grid?.bars) ? grid.bars.slice() : [];
   _anchors = new Set();
@@ -673,8 +676,12 @@ export function initBeatGrid({ jobId, grid, duration, onChange }) {
   _jobId = jobId;
   _duration = Math.max(0, duration || 0);
   const unconfirmed = _unconfirmed.get(jobId)?.payload;
-  _confirmedGrid = grid ?? null;
-  const shown = unconfirmed ?? grid;
+  // A song set up again (an engine swap) keeps the saves confirmed since it was loaded.
+  if (jobId !== _confirmedJobId || !_confirmedGrid) {
+    _confirmedGrid = grid ?? null;
+    _confirmedJobId = jobId;
+  }
+  const shown = unconfirmed ?? _confirmedGrid;
   _beats = Array.isArray(shown?.beats) ? shown.beats.slice() : [];
   _bars = Array.isArray(shown?.bars) ? shown.bars.map((b) => ({ ...b })) : [];
   _onsets = Array.isArray(grid?.onsets) ? grid.onsets.slice() : [];

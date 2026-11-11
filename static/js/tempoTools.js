@@ -18,6 +18,7 @@ import {
   clearSaveFailure,
   notifySaveFailure,
   onConnectionRestored,
+  resendOnceIfAnswered,
 } from "./saveFailures.js";
 
 const MODE_CONSTANT = "constant";
@@ -119,13 +120,13 @@ function setClickRate(rate) {
 
 // ─── server round trip ──────────────────────────────────────
 
-async function refreshGrid(forJob) {
+async function refreshGrid(forJob, { superseding = true } = {}) {
   const seq = ++refreshSeq;
   try {
     await flushBeatGrid();
     const next = await loadBeatGrid(forJob);
     if (seq !== refreshSeq || forJob !== jobId) return;
-    applyGrid(next);
+    applyGrid(next, { superseding });
   } catch (e) {
     console.warn("[tempoTools] could not reload the beat grid:", e);
   }
@@ -173,6 +174,8 @@ async function reportOutcome(forJob, outcome, refused) {
   if (outcome === SAVE_LOST) {
     lostFieldsJobs.add(forJob);
     notifySaveFailure(SAVE_KIND.tempo, SAVE_LOST, forJob);
+    const sent = JSON.stringify(queuedFieldsByJob.get(forJob)?.fields);
+    resendOnceIfAnswered(SAVE_KIND.tempo, forJob, sent, () => resendLostFields(forJob));
   }
   if (forJob !== jobId) return;
   saveStatus = outcome in STATUS_KEYS ? outcome : null;
@@ -185,12 +188,16 @@ async function reportOutcome(forJob, outcome, refused) {
     tempo = confirmedTempo;
     render();
   }
-  await refreshGrid(forJob);
+  await refreshGrid(forJob, { superseding: outcome === SAVED });
 }
 
 function retryLostFields() {
-  for (const forJob of lostFieldsJobs) {
-    if (!savesInFlight.has(forJob)) savesInFlight.set(forJob, sendUnconfirmedFields(forJob));
+  for (const forJob of lostFieldsJobs) resendLostFields(forJob);
+}
+
+function resendLostFields(forJob) {
+  if (lostFieldsJobs.has(forJob) && !savesInFlight.has(forJob)) {
+    savesInFlight.set(forJob, sendUnconfirmedFields(forJob));
   }
 }
 
@@ -221,12 +228,12 @@ function patchTempo(fields) {
   if (!savesInFlight.has(jobId)) savesInFlight.set(jobId, sendUnconfirmedFields(jobId));
 }
 
-function applyGrid(next) {
+function applyGrid(next, { superseding = true } = {}) {
   grid = next;
   tempo = next?.tempo ?? null;
   confirmedTempo = tempo;
   if (isConstant()) setClickRate(CLICK_RATE_NORMAL);
-  replaceBeatGrid(next);
+  replaceBeatGrid(next, { superseding });
   updateMetronomeAvailability(next);
   render();
   announce();
@@ -237,14 +244,16 @@ function announce() {
 }
 
 export function setTempoGrid(nextJobId, nextGrid) {
-  if (nextJobId !== jobId) {
+  const sameSong = nextJobId === jobId;
+  if (!sameSong) {
     commitPendingTaps();
     taps = [];
     saveStatus = lostFieldsJobs.has(nextJobId) ? SAVE_LOST : null;
   }
   jobId = nextGrid ? nextJobId : null;
   grid = nextGrid ?? null;
-  confirmedTempo = nextGrid?.tempo ?? null;
+  // The same song set up again (an engine swap) keeps the saves confirmed since it was loaded.
+  if (!sameSong || !nextGrid || !confirmedTempo) confirmedTempo = nextGrid?.tempo ?? null;
   tempo = shownTempo(nextJobId, confirmedTempo);
   renderAccentState();
   render();
