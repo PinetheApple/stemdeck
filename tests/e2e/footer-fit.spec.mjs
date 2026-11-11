@@ -26,6 +26,37 @@ const collapseLevels = (page) =>
     ),
   );
 
+const WINDOW_HEIGHT = 800;
+const NARROW_WINDOW = { width: 1024, height: WINDOW_HEIGHT };
+const WIDE_WIDTH = 1440;
+const ROOMY_WIDTHS = [1280, WIDE_WIDTH];
+const LIBRARY_STATES = ["open", "collapsed"];
+const COLLAPSED_CLASS = "cat-collapsed";
+const TRANSPORT_LABELS = [
+  ".loop-btn-label",
+  ".footer-group-speed > .footer-group-label",
+  "#t-pitch-label",
+];
+
+const loopButtonWidth = (page) =>
+  page.locator("#t-loop").evaluate((el) => el.getBoundingClientRect().width);
+
+async function setLibrary(page, state) {
+  const app = page.locator(".app");
+  const collapsed = await app.evaluate(
+    (el, cls) => el.classList.contains(cls),
+    COLLAPSED_CLASS,
+  );
+  if (collapsed !== (state === "collapsed")) await page.locator("#sidebarCollapseBtn").click();
+  if (state === "collapsed") await expect(app).toHaveClass(new RegExp(COLLAPSED_CLASS));
+  else await expect(app).not.toHaveClass(new RegExp(COLLAPSED_CLASS));
+}
+
+async function expectLabelsReadable(page) {
+  for (const selector of TRANSPORT_LABELS) await expect(page.locator(selector)).toBeVisible();
+  await expect.poll(() => stripFits(page), { timeout: 5000 }).toBe(true);
+}
+
 test.describe("footer fit", () => {
   test("a wide window leaves the strip exactly as it was", async ({ page }) => {
     await page.setViewportSize({ width: 2200, height: 900 });
@@ -73,13 +104,38 @@ test.describe("footer fit", () => {
     expect(await stripFits(page)).toBe(true);
   });
 
-  test("a 1024 window keeps every transport control on screen", async ({ page }) => {
-    await page.setViewportSize({ width: 1024, height: 800 });
+  for (const library of LIBRARY_STATES) {
+    test(`at 1024 with the library ${library} the transport keeps its labels and fits`, async ({ page }) => {
+      await page.setViewportSize(NARROW_WINDOW);
+      await openStudio(page, { tauri: true });
+      await waitForClickTrack(page, { revealOptions: false });
+      await setLibrary(page, library);
+
+      await expectLabelsReadable(page);
+    });
+  }
+
+  for (const width of ROOMY_WIDTHS) {
+    test(`at ${width} the transport is left fully inline`, async ({ page }) => {
+      await page.setViewportSize({ width, height: WINDOW_HEIGHT });
+      await openStudio(page, { tauri: true });
+      await waitForClickTrack(page, { revealOptions: false });
+
+      await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toEqual([]);
+      await expectLabelsReadable(page);
+    });
+  }
+
+  test("the Loop button is the same size at 1024 as at 1440", async ({ page }) => {
+    await page.setViewportSize({ width: WIDE_WIDTH, height: WINDOW_HEIGHT });
     await openStudio(page, { tauri: true });
     await waitForClickTrack(page, { revealOptions: false });
+    const wide = await loopButtonWidth(page);
 
-    await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toContain("collapse-compact");
-    expect(await stripFits(page)).toBe(true);
+    await page.setViewportSize(NARROW_WINDOW);
+    // The full row overflows at 1024, so fitting again is the sign the fit has run.
+    await expect.poll(() => stripFits(page), { timeout: 5000 }).toBe(true);
+    expect(await loopButtonWidth(page)).toBe(wide);
   });
 
   // Deleted: "the page itself never scrolls sideways".
