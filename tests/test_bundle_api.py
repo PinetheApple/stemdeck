@@ -266,3 +266,29 @@ def test_bundle_carries_the_saved_band_in_the_manifest(client, tmp_path):
     manifest = json.loads(_bundle(client, job_id).read("manifest.json"))
     assert (manifest["band"], manifest["artist"]) == (saved, "Picked")
     assert manifest["version"] == 1
+
+
+def test_bundle_metadata_leaves_out_what_only_the_library_rebuild_keeps(client, tmp_path):
+    """metadata.json keeps a copy of the registry-only fields so a lost
+    registry can be rebuilt (#88). A shared bundle must not carry them: the
+    source link or upload name, the favourite, the Trash."""
+    skip_without_ffmpeg()
+    from app.core.song_folder import SAVED_FIELDS
+
+    job_id = "abcdef000899"
+    _done_job(job_id)
+    _write_stem(tmp_path, job_id, "vocals")
+    saved = {
+        "favorite": True,
+        "trashed_at": 1_700_000_000.0,
+        "selected_stems": ["vocals"],
+        "source_url": "local:my private demo.wav",
+        "source_format": "wav",
+        "created_at": 1_700_000_000.0,
+    }
+    assert set(saved) == set(SAVED_FIELDS)
+    _write_json(tmp_path / job_id / "metadata.json", {"title": "My Song", "bpm": 120, **saved})
+
+    metadata = json.loads(_bundle(client, job_id).read("metadata.json"))
+
+    assert metadata == {"title": "My Song", "bpm": 120}
