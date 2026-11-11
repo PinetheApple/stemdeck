@@ -3117,7 +3117,6 @@ input, textarea { font-family: inherit; }
      show options for. */
   display: contents;
 }
-.footer-metro-panel.hidden { display: none; }
 
 /* The footer row shows the click options inline, so it has no popover for
    the count-in caption or the options disclosure. */
