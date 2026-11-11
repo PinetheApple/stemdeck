@@ -497,10 +497,14 @@ async def _run_async(
                 logger.info("[%s] interrupted by shutdown: %s", job.id, e)
                 return
             logger.exception("pipeline failed for job %s: %s", job.id, e)
-            _set(job, status="error", stage="Error: Processing failed", error=error_msg)
             # A fingerprint may still have the source open (Windows).
             release_source(job.id)
-            _quarantine_failed_job(job, job_dir, jobs_dir, e)
+            # Off the loop: stripping and moving a big folder on a NAS stalled
+            # every stream and request. The status changes after it, so the
+            # first "error" a page sees already carries error_detail and nothing
+            # can delete the folder mid-move.
+            await asyncio.to_thread(_quarantine_failed_job, job, job_dir, jobs_dir, e)
+            _set(job, status="error", stage="Error: Processing failed", error=error_msg)
             persist_registry(jobs_dir)
             return
         logger.info(
@@ -516,7 +520,7 @@ async def _run_async(
         # removal: right after the cancel terminated ffmpeg or the demucs
         # worker, Windows can still hold one of its files, and a single attempt
         # left the folder behind for good.
-        if remove_files and not remove_job_dir(job_dir):
+        if remove_files and not await asyncio.to_thread(remove_job_dir, job_dir):
             logger.warning("[%s] cancelled job's folder could not be removed", job.id)
         return
     # A cancel or a trash that arrived after the last stage checked for it lost
