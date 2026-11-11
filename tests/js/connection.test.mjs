@@ -28,6 +28,7 @@ function harness() {
   const outcomes = [];
   const calls = [];
   const changes = [];
+  const restored = [];
   const timers = [];
   const baseFetch = (input) => {
     calls.push(String(input?.url ?? input));
@@ -38,6 +39,7 @@ function harness() {
     baseFetch,
     origin: ORIGIN,
     onChange: (offline) => changes.push(offline),
+    onRestored: () => restored.push(true),
     schedule: (fn, ms) => timers.push({ fn, ms }),
   });
   const failTimes = async (n, error = networkError) => {
@@ -47,7 +49,7 @@ function harness() {
     }
     await settle();
   };
-  return { outcomes, calls, changes, timers, monitor, failTimes };
+  return { outcomes, calls, changes, restored, timers, monitor, failTimes };
 }
 
 // --------------------------------------------------------------------------
@@ -177,6 +179,77 @@ check("an unparseable URL does not count", !isApiRequest("http://[bad", ORIGIN))
   h.timers.shift().fn();
   await settle();
   check("a probe due after recovery does not fire", h.calls.length === before);
+}
+
+// --------------------------------------------------------------------------
+// Restored: the server answers again after it was unreachable, so lost saves can go again
+// --------------------------------------------------------------------------
+
+const answer = async (h) => {
+  await h.monitor.fetch("/api/jobs");
+  await settle();
+};
+
+{
+  const h = harness();
+  await answer(h);
+  check("an answer with nothing unanswered before it restores nothing", h.restored.length === 0);
+  await h.failTimes(1);
+  await answer(h);
+  check("an answer after a failure the health check never saw restores nothing", h.restored.length === 0);
+}
+
+{
+  const h = harness();
+  await h.failTimes(1);
+  h.outcomes.push(networkError());
+  h.timers.shift().fn();
+  await settle();
+  check("a failed health check restores nothing yet", h.restored.length === 0);
+  await answer(h);
+  check("the first answer after a failed health check is a restored connection", h.restored.length === 1);
+  await answer(h);
+  check("later answers restore nothing more", h.restored.length === 1);
+}
+
+{
+  const h = harness();
+  await h.failTimes(FAILURES_BEFORE_OFFLINE);
+  await answer(h);
+  check("coming back online is a restored connection", h.restored.length === 1);
+}
+
+{
+  const h = harness();
+  for (let round = 0; round < FAILURES_BEFORE_OFFLINE; round++) {
+    await h.failTimes(1);
+    h.timers.shift().fn();
+    await settle();
+  }
+  check("a request that keeps failing while the health check answers restores nothing", h.restored.length === 0);
+}
+
+// --------------------------------------------------------------------------
+// A health check on demand, for a save that just went unanswered
+// --------------------------------------------------------------------------
+
+{
+  const h = harness();
+  const answered = await h.monitor.checkNow();
+  check("a check on demand asks the health endpoint", h.calls.at(-1) === HEALTH_URL, h.calls.at(-1));
+  check("an answered check on demand says so", answered === true);
+  h.outcomes.push(networkError());
+  check("an unanswered check on demand says so", (await h.monitor.checkNow()) === false);
+}
+
+{
+  const h = harness();
+  await h.failTimes(1);
+  h.outcomes.push(networkError());
+  await h.monitor.checkNow();
+  h.timers.shift().fn();
+  await settle();
+  check("the first answer after an unanswered check on demand is a restored connection", h.restored.length === 1);
 }
 
 console.log(`\n${pass}/${pass + fail} checks passed`);

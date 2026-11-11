@@ -43,6 +43,9 @@ const KIND_KEYS = {
   trash: "notifKind.trashFailed",
   cancel: "notifKind.cancelFailed",
   lyrics: "notifKind.lyricsSaveFailed",
+  sections: "notifKind.sectionsSaveFailed",
+  beatgrid: "notifKind.beatGridSaveFailed",
+  tempo: "notifKind.tempoSaveFailed",
 };
 // Stored for a kind with no label of its own, which reads as "Something failed".
 const UNLABELLED_KIND = "other";

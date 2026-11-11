@@ -71,24 +71,22 @@ test.describe("sections", () => {
     await expect.poll(() => savedSections(request, JOB_ID).then((s) => s.length)).toBe(1);
   });
 
-  for (const [how, failure] of Object.entries(FAILED_SAVES)) {
-    test(`a ${how} section save is neither shown on reopen nor sent on close`, async ({ page, request }) => {
-      await openTempo(page);
-      const hold = await holdFirstPatch(page, `**${sectionsUrl(JOB_ID)}`, failure.answer);
-      await page.locator("#sectionsAddBtn").click();
-      await openSongTempo(page, SIBLING_JOB_ID);
-      await hold.seen;
-      await failHeldSave(page, hold, failure, sectionsUrl(JOB_ID));
-      // The sibling is too short for a section; its grid goes out after the sections on close.
-      await leaveSaveForClose(page, beatsUrl(SIBLING_JOB_ID), () => setGridBars(page, 5));
-      await openSongTempo(page, JOB_ID);
+  test("a refused section save is neither shown on reopen nor sent on close", async ({ page, request }) => {
+    await openTempo(page);
+    const hold = await holdFirstPatch(page, `**${sectionsUrl(JOB_ID)}`, FAILED_SAVES.refused.answer);
+    await page.locator("#sectionsAddBtn").click();
+    await openSongTempo(page, SIBLING_JOB_ID);
+    await hold.seen;
+    await failHeldSave(page, hold, FAILED_SAVES.refused, sectionsUrl(JOB_ID));
+    // The sibling is too short for a section; its grid goes out after the sections on close.
+    await leaveSaveForClose(page, beatsUrl(SIBLING_JOB_ID), () => setGridBars(page, 5));
+    await openSongTempo(page, JOB_ID);
 
-      await expect(page.locator(".section-block")).toHaveCount(0);
-      await closePage(page);
-      await expect.poll(() => savedBarLength(request, SIBLING_JOB_ID)).toBe(5);
-      expect(await savedSections(request, JOB_ID)).toEqual([]);
-    });
-  }
+    await expect(page.locator(".section-block")).toHaveCount(0);
+    await closePage(page);
+    await expect.poll(() => savedBarLength(request, SIBLING_JOB_ID)).toBe(5);
+    expect(await savedSections(request, JOB_ID)).toEqual([]);
+  });
 
   test("a section added just before the page closes is saved", async ({ page, request }) => {
     await openStudio(page);
@@ -195,23 +193,21 @@ test.describe("beat grid", () => {
     await expect.poll(() => savedBarLength(request, JOB_ID)).toBe(3);
   });
 
-  for (const [how, failure] of Object.entries(FAILED_SAVES)) {
-    test(`a ${how} grid save is neither shown on reopen nor sent on close`, async ({ page, request }) => {
-      const detected = await savedBarLength(request, JOB_ID);
-      const hold = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`, failure.answer);
-      await setGridBars(page, 3);
-      await openSongTempo(page, SIBLING_JOB_ID);
-      await hold.seen;
-      await failHeldSave(page, hold, failure, beatsUrl(JOB_ID));
-      await leaveSaveForClose(page, beatsUrl(SIBLING_JOB_ID), () => setGridBars(page, 5));
-      await openSongTempo(page, JOB_ID);
+  test("a refused grid save is neither shown on reopen nor sent on close", async ({ page, request }) => {
+    const detected = await savedBarLength(request, JOB_ID);
+    const hold = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`, FAILED_SAVES.refused.answer);
+    await setGridBars(page, 3);
+    await openSongTempo(page, SIBLING_JOB_ID);
+    await hold.seen;
+    await failHeldSave(page, hold, FAILED_SAVES.refused, beatsUrl(JOB_ID));
+    await leaveSaveForClose(page, beatsUrl(SIBLING_JOB_ID), () => setGridBars(page, 5));
+    await openSongTempo(page, JOB_ID);
 
-      expect(await shownBarLength(page)).not.toBe(3);
-      await closePage(page);
-      await expect.poll(() => savedBarLength(request, SIBLING_JOB_ID)).toBe(5);
-      expect(await savedBarLength(request, JOB_ID)).toBe(detected);
-    });
-  }
+    expect(await shownBarLength(page)).not.toBe(3);
+    await closePage(page);
+    await expect.poll(() => savedBarLength(request, SIBLING_JOB_ID)).toBe(5);
+    expect(await savedBarLength(request, JOB_ID)).toBe(detected);
+  });
 
   test("the open song's grid goes first when the page closes", async ({ page, request }) => {
     const hold = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`, FAILED_SAVES.lost.answer);
