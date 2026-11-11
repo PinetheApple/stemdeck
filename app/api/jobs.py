@@ -650,7 +650,7 @@ def cancel_job(job_id: str) -> dict:
         # lyrics as they were; one queued behind a split stops too.
         lyrics_run = _cancel_lyrics_runs(job_id)
         # A vocal split only ever runs on a done job, so it is stopped here too:
-        # it holds _pipeline_lock and would stall the import queue (#519).
+        # it holds _pipeline_lock and would stall the import queue.
         if cancel_split(job) or lyrics_run:
             _terminate_worker(job_id)
         return job.to_state()
@@ -854,9 +854,9 @@ class VocalSplitChoiceBody(BaseModel):
 
 @router.put("/{job_id}/vocal-split/choice")
 def set_vocal_split_choice(job_id: str, body: VocalSplitChoiceBody) -> dict:
-    """Store how the user wants this song's vocals, Combined or Lead + Backing
-    (#43), at import or later: kept with the job, so it outlives the browser
-    tab that made it. Stores only; POST .../vocal-split is what splits."""
+    """Store how the user wants this song's vocals, Combined or Lead + Backing,
+    at import or later: kept with the job, so it outlives the browser tab that
+    made it. Stores only; POST .../vocal-split is what splits."""
     job = _vocal_split_job(job_id)
     _set(job, vocal_split_choice=body.choice)
     registry_persist(JOBS_DIR)
@@ -874,7 +874,7 @@ def get_vocal_split(job_id: str) -> dict:
 
 @router.post("/{job_id}/vocal-split")
 async def start_vocal_split(job_id: str) -> JSONResponse:
-    """Split a finished song's vocals into lead and backing (#275), in the
+    """Split a finished song's vocals into lead and backing, in the
     background: a second model pass over the existing vocals.wav, producing
     lead_vocals.wav + backing_vocals.wav. 202 with the split's state, which
     GET .../vocal-split then follows; the job's POST .../cancel stops it. Also

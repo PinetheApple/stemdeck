@@ -250,7 +250,7 @@ def settle_cancelled(job: Job) -> bool:
     return True
 
 
-# Where the lead/backing vocal split of a done job stands (#275, #43).
+# Where the lead/backing vocal split of a done job stands.
 VocalSplitState = Literal["none", "running", "done", "error", "cancelled"]
 VOCAL_SPLIT_NONE: VocalSplitState = "none"
 VOCAL_SPLIT_RUNNING: VocalSplitState = "running"
@@ -391,7 +391,7 @@ class Job:
     # app/pipeline/vocal_split.py) and is recorded in stems/vocal_split_error.txt,
     # not job.error_detail, since the job itself did not fail.
     vocal_split: VocalSplitState = VOCAL_SPLIT_NONE
-    # The user's Combined / Lead + Backing pick for this song (#43). Kept on the
+    # The user's Combined / Lead + Backing pick for this song. Kept on the
     # job so it outlives the browser tab that made it.
     vocal_split_choice: VocalSplitChoice = VOCAL_SPLIT_CHOICE_COMBINED
     # Why the last split failed, a VOCAL_SPLIT_FAILED_* code set with

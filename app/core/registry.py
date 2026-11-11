@@ -466,8 +466,8 @@ def _recover_done_job(job_dir: Path) -> Job | None:
 def _recovered_vocal_split(
     stems_dir: Path,
 ) -> tuple[VocalSplitState, VocalSplitChoice, VocalSplitFailure | None]:
-    """The split state, choice and failure code a job's stems folder shows
-    (#43): both split stems, a failed split's error file, or neither."""
+    """The split state, choice and failure code a job's stems folder shows:
+    both split stems, a failed split's error file, or neither."""
     if all((stems_dir / f"{name}.wav").is_file() for name in EXTRA_STEM_NAMES):
         return VOCAL_SPLIT_DONE, VOCAL_SPLIT_CHOICE_SPLIT, None
     # Imported here: app.pipeline imports this module.

@@ -1,6 +1,5 @@
-"""The lead/backing vocal split through the API (#275, #43): the stored
-choice, the on-demand run with progress, cancel and retry, and what survives
-a restart.
+"""The lead/backing vocal split through the API: the stored choice, the
+on-demand run with progress, cancel and retry, and what survives a restart.
 
 split_vocals is stubbed, so no model runs; the run itself goes through the
 real endpoints, background task and pipeline lock."""

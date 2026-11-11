@@ -1,4 +1,4 @@
-"""Tests for the on-demand lead/backing vocal split (#275, #43).
+"""Tests for the on-demand lead/backing vocal split (#275).
 
 Mirrors test_separate_fallback.py's approach: the real subprocess machinery
 (Popen, stderr streaming, watchdog, cleanup) runs end-to-end against a stub

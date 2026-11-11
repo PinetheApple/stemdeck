@@ -1,4 +1,4 @@
-"""On-demand lead/backing vocal split (#275, #43).
+"""On-demand lead/backing vocal split (#275).
 
 A post-hoc action on an already-"done" job (POST /api/jobs/{id}/vocal-split
 in app/api/jobs.py), not part of the main separate/collect pipeline. Runs
