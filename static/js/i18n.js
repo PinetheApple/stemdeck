@@ -502,12 +502,12 @@ const en = {
   "help.stemChip": "Click to include or leave out {name} when you extract.",
   "help.vocalCombined": "Keeps all the singing in one Vocals lane.",
   "help.vocalSplit": "Splits the singing into the lead voice and the backing voices.",
-  // Lead/backing vocal split (#43)
+  // ── Lead/backing vocal split (static/js/vocalSplitPanel.js) ──
   "vocalSplit.title": "Lead and backing vocals",
   "vocalSplit.start": "Split lead/backing",
   "vocalSplit.queued": "Waiting for an import to finish…",
   "vocalSplit.running": "Splitting lead and backing vocals…",
-  "vocalSplit.failed.modelMissing": "The vocal split model could not be loaded. Check your internet connection, then try again.",
+  "vocalSplit.failed.modelMissing": "The vocal split model couldn't be loaded. Try again.",
   "vocalSplit.failed.outOfMemory": "There was not enough memory to split the vocals. Close other apps, then try again.",
   "vocalSplit.failed.unsupportedDevice": "This computer's graphics chip cannot run the vocal split.",
   "vocalSplit.failed.diskFull": "The disk is full. Free up some space, then try again.",
@@ -1571,12 +1571,12 @@ const pl = {
   "help.stemChip": "Kliknij, aby uwzględnić lub pominąć {name} przy wyodrębnianiu.",
   "help.vocalCombined": "Zostawia cały śpiew na jednej ścieżce wokalu.",
   "help.vocalSplit": "Dzieli śpiew na wokal główny i chórki.",
-  // Lead/backing vocal split (#43)
+  // ── Lead/backing vocal split (static/js/vocalSplitPanel.js) ──
   "vocalSplit.title": "Wokal główny i chórki",
   "vocalSplit.start": "Rozdziel wokal główny i chórki",
   "vocalSplit.queued": "Czekam na zakończenie importu…",
   "vocalSplit.running": "Rozdzielanie wokalu głównego i chórków…",
-  "vocalSplit.failed.modelMissing": "Nie udało się wczytać modelu rozdzielania wokalu. Sprawdź połączenie z internetem i spróbuj ponownie.",
+  "vocalSplit.failed.modelMissing": "Nie udało się wczytać modelu rozdzielania wokalu. Spróbuj ponownie.",
   "vocalSplit.failed.outOfMemory": "Za mało pamięci, by rozdzielić wokal. Zamknij inne aplikacje i spróbuj ponownie.",
   "vocalSplit.failed.unsupportedDevice": "Karta graficzna tego komputera nie obsługuje rozdzielania wokalu.",
   "vocalSplit.failed.diskFull": "Dysk jest pełny. Zwolnij trochę miejsca i spróbuj ponownie.",
@@ -2631,12 +2631,12 @@ const ja = {
   "help.stemChip": "クリックすると、抽出に{name}を含めるか外すかを切り替えます。",
   "help.vocalCombined": "歌声をすべて 1 つのボーカルレーンにまとめます。",
   "help.vocalSplit": "歌声をリードボーカルとバックボーカルに分けます。",
-  // Lead/backing vocal split (#43)
+  // ── Lead/backing vocal split (static/js/vocalSplitPanel.js) ──
   "vocalSplit.title": "リードボーカルとコーラス",
   "vocalSplit.start": "リードとコーラスに分ける",
   "vocalSplit.queued": "インポートの完了を待っています…",
   "vocalSplit.running": "リードボーカルとコーラスに分けています…",
-  "vocalSplit.failed.modelMissing": "ボーカル分離モデルを読み込めませんでした。インターネット接続を確認して、もう一度お試しください。",
+  "vocalSplit.failed.modelMissing": "ボーカル分離モデルを読み込めませんでした。もう一度お試しください。",
   "vocalSplit.failed.outOfMemory": "ボーカルを分けるためのメモリが足りません。ほかのアプリを閉じて、もう一度お試しください。",
   "vocalSplit.failed.unsupportedDevice": "このコンピューターのグラフィックスではボーカル分離を実行できません。",
   "vocalSplit.failed.diskFull": "ディスクがいっぱいです。空き容量を増やして、もう一度お試しください。",
@@ -3664,12 +3664,12 @@ const zhHans = {
   "help.stemChip": "点击以在提取时包含或排除{name}。",
   "help.vocalCombined": "把所有歌声保留在一条人声音轨中。",
   "help.vocalSplit": "把歌声分成主唱和和声。",
-  // Lead/backing vocal split (#43)
+  // ── Lead/backing vocal split (static/js/vocalSplitPanel.js) ──
   "vocalSplit.title": "主唱与和声",
   "vocalSplit.start": "分离主唱与和声",
   "vocalSplit.queued": "正在等待导入完成…",
   "vocalSplit.running": "正在分离主唱与和声…",
-  "vocalSplit.failed.modelMissing": "无法加载人声分离模型。请检查网络连接后重试。",
+  "vocalSplit.failed.modelMissing": "无法加载人声分离模型。请重试。",
   "vocalSplit.failed.outOfMemory": "内存不足，无法分离人声。请关闭其他应用后重试。",
   "vocalSplit.failed.unsupportedDevice": "这台电脑的显卡无法运行人声分离。",
   "vocalSplit.failed.diskFull": "磁盘已满。请释放一些空间后重试。",
@@ -4697,12 +4697,12 @@ const de = {
   "help.stemChip": "Klick, um {name} beim Extrahieren mitzunehmen oder wegzulassen.",
   "help.vocalCombined": "Behält den ganzen Gesang in einer Vocals-Spur.",
   "help.vocalSplit": "Teilt den Gesang in Leadstimme und Begleitstimmen.",
-  // Lead/backing vocal split (#43)
+  // ── Lead/backing vocal split (static/js/vocalSplitPanel.js) ──
   "vocalSplit.title": "Lead- und Backing-Gesang",
   "vocalSplit.start": "Lead/Backing trennen",
   "vocalSplit.queued": "Warte, bis ein Import fertig ist…",
   "vocalSplit.running": "Lead- und Backing-Gesang werden getrennt…",
-  "vocalSplit.failed.modelMissing": "Das Modell für die Gesangstrennung konnte nicht geladen werden. Prüfe deine Internetverbindung und versuche es dann erneut.",
+  "vocalSplit.failed.modelMissing": "Das Modell für die Gesangstrennung konnte nicht geladen werden. Versuche es erneut.",
   "vocalSplit.failed.outOfMemory": "Der Arbeitsspeicher reicht nicht, um den Gesang zu trennen. Schließe andere Apps und versuche es dann erneut.",
   "vocalSplit.failed.unsupportedDevice": "Der Grafikchip dieses Computers kann die Gesangstrennung nicht ausführen.",
   "vocalSplit.failed.diskFull": "Die Festplatte ist voll. Gib etwas Speicherplatz frei und versuche es dann erneut.",
@@ -5742,12 +5742,12 @@ const pt = {
   "help.stemChip": "Clique para incluir ou deixar de fora {name} na extração.",
   "help.vocalCombined": "Mantém todo o canto em uma única faixa de Vocais.",
   "help.vocalSplit": "Separa o canto na voz principal e nos backing vocals.",
-  // Lead/backing vocal split (#43)
+  // ── Lead/backing vocal split (static/js/vocalSplitPanel.js) ──
   "vocalSplit.title": "Voz principal e vocais de apoio",
   "vocalSplit.start": "Separar voz principal/apoio",
   "vocalSplit.queued": "Aguardando o fim de uma importação…",
   "vocalSplit.running": "Separando a voz principal e os vocais de apoio…",
-  "vocalSplit.failed.modelMissing": "Não foi possível carregar o modelo de separação de voz. Verifique sua conexão com a internet e tente novamente.",
+  "vocalSplit.failed.modelMissing": "Não foi possível carregar o modelo de separação de voz. Tente novamente.",
   "vocalSplit.failed.outOfMemory": "Não houve memória suficiente para separar a voz. Feche outros apps e tente novamente.",
   "vocalSplit.failed.unsupportedDevice": "A placa de vídeo deste computador não consegue fazer a separação de voz.",
   "vocalSplit.failed.diskFull": "O disco está cheio. Libere espaço e tente novamente.",
@@ -6789,12 +6789,12 @@ const id = {
   "help.stemChip": "Klik untuk menyertakan atau melewatkan {name} saat mengekstrak.",
   "help.vocalCombined": "Menyimpan semua nyanyian dalam satu jalur Vokal.",
   "help.vocalSplit": "Memisahkan nyanyian menjadi vokal utama dan vokal latar.",
-  // Lead/backing vocal split (#43)
+  // ── Lead/backing vocal split (static/js/vocalSplitPanel.js) ──
   "vocalSplit.title": "Vokal utama dan vokal latar",
   "vocalSplit.start": "Pisahkan vokal utama/latar",
   "vocalSplit.queued": "Menunggu impor selesai…",
   "vocalSplit.running": "Memisahkan vokal utama dan vokal latar…",
-  "vocalSplit.failed.modelMissing": "Model pemisah vokal tidak dapat dimuat. Periksa koneksi internet, lalu coba lagi.",
+  "vocalSplit.failed.modelMissing": "Model pemisah vokal tidak dapat dimuat. Coba lagi.",
   "vocalSplit.failed.outOfMemory": "Memori tidak cukup untuk memisahkan vokal. Tutup aplikasi lain, lalu coba lagi.",
   "vocalSplit.failed.unsupportedDevice": "Chip grafis komputer ini tidak dapat menjalankan pemisahan vokal.",
   "vocalSplit.failed.diskFull": "Disk penuh. Kosongkan sebagian ruang, lalu coba lagi.",
@@ -7822,12 +7822,12 @@ const fr = {
   "help.stemChip": "Cliquez pour inclure ou exclure {name} lors de l'extraction.",
   "help.vocalCombined": "Garde tout le chant dans une seule piste Voix.",
   "help.vocalSplit": "Sépare le chant en voix principale et chœurs.",
-  // Lead/backing vocal split (#43)
+  // ── Lead/backing vocal split (static/js/vocalSplitPanel.js) ──
   "vocalSplit.title": "Voix principale et chœurs",
   "vocalSplit.start": "Séparer voix principale/chœurs",
   "vocalSplit.queued": "En attente de la fin d’une importation…",
   "vocalSplit.running": "Séparation de la voix principale et des chœurs…",
-  "vocalSplit.failed.modelMissing": "Le modèle de séparation des voix n’a pas pu être chargé. Vérifiez votre connexion Internet, puis réessayez.",
+  "vocalSplit.failed.modelMissing": "Le modèle de séparation des voix n’a pas pu être chargé. Réessayez.",
   "vocalSplit.failed.outOfMemory": "La mémoire est insuffisante pour séparer les voix. Fermez d’autres applications, puis réessayez.",
   "vocalSplit.failed.unsupportedDevice": "La puce graphique de cet ordinateur ne peut pas effectuer la séparation des voix.",
   "vocalSplit.failed.diskFull": "Le disque est plein. Libérez de l’espace, puis réessayez.",
@@ -8816,10 +8816,9 @@ const ptPT = {
   "notif.tempoSavePending": "A alteração de andamento ainda não foi guardada. Será guardada quando a ligação ao StemDeck voltar.",
   "sections.notSaved": "Não guardado",
   "tempo.savePending": "Ainda não guardado",
-  // Lead/backing vocal split (#43)
+  // ── Lead/backing vocal split (static/js/vocalSplitPanel.js) ──
   "vocalSplit.queued": "À espera do fim de uma importação…",
   "vocalSplit.running": "A separar a voz principal e os vocais de apoio…",
-  "vocalSplit.failed.modelMissing": "Não foi possível carregar o modelo de separação de voz. Verifique a sua ligação à internet e tente novamente.",
   "vocalSplit.failed.outOfMemory": "Não houve memória suficiente para separar a voz. Feche outras aplicações e tente novamente.",
   "vocalSplit.failed.unsupportedDevice": "A placa gráfica deste computador não consegue fazer a separação de voz.",
   "vocalSplit.failed.diskFull": "O disco está cheio. Liberte espaço e tente novamente.",
@@ -9111,12 +9110,12 @@ const es = {
   "help.stemChip": "Haz clic para incluir o dejar fuera {name} al extraer.",
   "help.vocalCombined": "Mantiene todo el canto en una sola pista de Voces.",
   "help.vocalSplit": "Separa el canto en la voz principal y los coros.",
-  // Lead/backing vocal split (#43)
+  // ── Lead/backing vocal split (static/js/vocalSplitPanel.js) ──
   "vocalSplit.title": "Voz principal y coros",
   "vocalSplit.start": "Separar voz principal/coros",
   "vocalSplit.queued": "Esperando a que termine una importación…",
   "vocalSplit.running": "Separando la voz principal y los coros…",
-  "vocalSplit.failed.modelMissing": "No se pudo cargar el modelo de separación de voces. Revisa tu conexión a internet y vuelve a intentarlo.",
+  "vocalSplit.failed.modelMissing": "No se pudo cargar el modelo de separación de voces. Vuelve a intentarlo.",
   "vocalSplit.failed.outOfMemory": "No hay memoria suficiente para separar las voces. Cierra otras apps y vuelve a intentarlo.",
   "vocalSplit.failed.unsupportedDevice": "El chip gráfico de este equipo no puede hacer la separación de voces.",
   "vocalSplit.failed.diskFull": "El disco está lleno. Libera espacio y vuelve a intentarlo.",
@@ -10179,12 +10178,12 @@ const ko = {
   "help.stemChip": "클릭해서 추출할 때 {name}을(를) 넣거나 뺄 수 있어요.",
   "help.vocalCombined": "모든 노래를 보컬 레인 하나에 담아요.",
   "help.vocalSplit": "노래를 리드 보컬과 백 보컬로 나눠요.",
-  // Lead/backing vocal split (#43)
+  // ── Lead/backing vocal split (static/js/vocalSplitPanel.js) ──
   "vocalSplit.title": "리드 보컬과 백 보컬",
   "vocalSplit.start": "리드/백 보컬 나누기",
   "vocalSplit.queued": "가져오기가 끝나기를 기다리는 중…",
   "vocalSplit.running": "리드 보컬과 백 보컬을 나누는 중…",
-  "vocalSplit.failed.modelMissing": "보컬 분리 모델을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도하세요.",
+  "vocalSplit.failed.modelMissing": "보컬 분리 모델을 불러오지 못했어요. 다시 시도하세요.",
   "vocalSplit.failed.outOfMemory": "보컬을 나눌 메모리가 부족해요. 다른 앱을 닫은 뒤 다시 시도하세요.",
   "vocalSplit.failed.unsupportedDevice": "이 컴퓨터의 그래픽 칩으로는 보컬을 나눌 수 없어요.",
   "vocalSplit.failed.diskFull": "디스크가 가득 찼어요. 공간을 확보한 뒤 다시 시도하세요.",
