@@ -2151,22 +2151,21 @@ def reset_beats(job_id: str) -> dict:
     return {"job_id": job_id, "edited": keep is not None}
 
 
+def _seconds_left(deadline: float) -> float:
+    return max(0.0, deadline - time.monotonic())
+
+
 def _wait_vocal_split_ended(job_id: str, deadline: float) -> None:
-    """Wait for a stopped split until ``deadline``, the one the lyrics runs
-    were waited on against, so a delete waits RETIME_DELETE_WAIT_SEC in all."""
-    left = max(0.0, deadline - time.monotonic())
-    if not VOCAL_SPLIT_RUNS.wait_ended(job_id, left):
+    """Wait until ``deadline`` for a stopped split to let go of the vocals."""
+    if not VOCAL_SPLIT_RUNS.wait_ended(job_id, _seconds_left(deadline)):
         logger.warning("[%s] vocal split still stopping; removing files anyway", job_id)
 
 
-def _wait_lyrics_runs_ended(job_id: str) -> None:
-    """Wait, at most RETIME_DELETE_WAIT_SEC for both together, for the
-    worker of a stopped lyrics run to let go of the vocals."""
-    deadline = time.monotonic() + RETIME_DELETE_WAIT_SEC
-    if not RETIME_RUNS.wait_ended(job_id, RETIME_DELETE_WAIT_SEC):
+def _wait_lyrics_runs_ended(job_id: str, deadline: float) -> None:
+    """Wait until ``deadline`` for stopped lyrics runs to let go of the vocals."""
+    if not RETIME_RUNS.wait_ended(job_id, _seconds_left(deadline)):
         logger.warning("[%s] lyrics timing still stopping; removing files anyway", job_id)
-    left = max(0.0, deadline - time.monotonic())
-    if not TRANSCRIBE_RUNS.wait_ended(job_id, left):
+    if not TRANSCRIBE_RUNS.wait_ended(job_id, _seconds_left(deadline)):
         logger.warning("[%s] lyrics transcription still stopping; removing files anyway", job_id)
 
 
@@ -2195,9 +2194,9 @@ def _remove_job(job: Job) -> bool:
     splitting = cancel_split(job)
     if lyrics_run or splitting:
         _terminate_worker(job_id)
-        split_deadline = time.monotonic() + RETIME_DELETE_WAIT_SEC
-        _wait_lyrics_runs_ended(job_id)
-        _wait_vocal_split_ended(job_id, split_deadline)
+        deadline = time.monotonic() + RETIME_DELETE_WAIT_SEC
+        _wait_lyrics_runs_ended(job_id, deadline)
+        _wait_vocal_split_ended(job_id, deadline)
     RETIME_RUNS.forget(job_id)
     TRANSCRIBE_RUNS.forget(job_id)
     VOCAL_SPLIT_RUNS.forget(job_id)
