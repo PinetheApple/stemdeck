@@ -601,7 +601,8 @@ const en = {
   "help.set.sampleRate": "The sample rate of the audio files you export.",
   "help.set.videoQuality": "The quality of the videos you export.",
   "help.set.logs": "Where the logs are, and the application, backend and setup logs.",
-  "help.set.registry": "The list of finished songs StemDeck keeps on disk. Read only.",
+  "help.set.library": "How many songs are saved, and the library file to attach to a bug report.",
+  "help.set.resync": "Songs whose audio is missing. Resync downloads again the ones that came from a link.",
 
   "search.ariaLabel": "Search library",
   "search.placeholder": "Search or #tag…",
@@ -832,8 +833,7 @@ const en = {
   "settings.tab.network": "Network",
   "settings.tab.export": "Export",
   "settings.tab.logs": "Logs",
-  "settings.tab.registry": "Registry",
-  "settings.readOnlyServer": "These settings are read-only in server mode. To change them, update your server configuration (e.g. docker-compose.yml) and restart.",
+  "settings.readOnlyServer": "These settings come from how StemDeck was set up on this server. To change them, change that setup and restart StemDeck.",
 
   "settings.language.title": "Language",
 
@@ -883,7 +883,6 @@ const en = {
   "settings.stemsLocation.resetFailed": "Reset failed — check your connection.",
   "settings.stemsLocation.syncing": "Syncing…",
   "settings.stemsLocation.syncFailed": "Sync failed — check your connection.",
-  "settings.stemsLocation.inSync": "All tracks are in sync.",
   "settings.stemsLocation.unavailable": "unavailable",
   "settings.stemsLocation.persistFailed": "Location updated but not saved — it will reset to the previous folder after a restart.",
   "settings.stemsLocation.restartNote": "Restart StemDeck to finish switching over.",
@@ -1016,8 +1015,6 @@ const en = {
   "settings.logs.setup.title": "Setup log",
   "settings.logs.setupAria": "Setup log (read only)",
 
-  "settings.registry.title": "Job registry",
-  "settings.registry.aria": "Job registry (read only)",
   "settings.logs.noFilesYet": "No log files yet{folderNote}. Logging starts on the first message after launch.",
   "settings.logs.folderNotCreated": " (the folder has not been created)",
   "settings.logs.failedToLoad": "Failed to load log information.",
@@ -1701,7 +1698,8 @@ const pl = {
   "help.set.sampleRate": "Częstotliwość próbkowania eksportowanych plików audio.",
   "help.set.videoQuality": "Jakość eksportowanych filmów.",
   "help.set.logs": "Gdzie są logi oraz logi aplikacji, serwera i instalacji.",
-  "help.set.registry": "Lista ukończonych utworów, którą StemDeck trzyma na dysku. Tylko do odczytu.",
+  "help.set.library": "Ile utworów jest zapisanych oraz plik biblioteki do dołączenia do zgłoszenia błędu.",
+  "help.set.resync": "Utwory, których dźwięku brakuje. Ponowna synchronizacja pobiera ponownie te dodane z linku.",
 
   "search.ariaLabel": "Szukaj w bibliotece",
   "search.placeholder": "Szukaj lub #tag…",
@@ -1929,8 +1927,7 @@ const pl = {
   "settings.tab.network": "Sieć",
   "settings.tab.export": "Eksport",
   "settings.tab.logs": "Logi",
-  "settings.tab.registry": "Rejestr",
-  "settings.readOnlyServer": "Te ustawienia są tylko do odczytu w trybie serwera. Aby je zmienić, zaktualizuj konfigurację serwera (np. docker-compose.yml) i uruchom ponownie.",
+  "settings.readOnlyServer": "Te ustawienia wynikają z tego, jak StemDeck został skonfigurowany na tym serwerze. Aby je zmienić, zmień tę konfigurację i uruchom StemDeck ponownie.",
 
   "settings.language.title": "Język",
 
@@ -1980,7 +1977,6 @@ const pl = {
   "settings.stemsLocation.resetFailed": "Resetowanie nie powiodło się — sprawdź połączenie.",
   "settings.stemsLocation.syncing": "Synchronizowanie…",
   "settings.stemsLocation.syncFailed": "Synchronizacja nie powiodła się — sprawdź połączenie.",
-  "settings.stemsLocation.inSync": "Wszystkie utwory są zsynchronizowane.",
   "settings.stemsLocation.unavailable": "niedostępne",
   "settings.stemsLocation.persistFailed": "Lokalizacja zaktualizowana, ale nie zapisana — po restarcie wróci do poprzedniego folderu.",
   "settings.stemsLocation.restartNote": "Uruchom ponownie StemDeck, aby dokończyć zmianę.",
@@ -2117,8 +2113,6 @@ const pl = {
   "settings.logs.setup.title": "Log instalacji",
   "settings.logs.setupAria": "Log instalacji (tylko do odczytu)",
 
-  "settings.registry.title": "Rejestr zadań",
-  "settings.registry.aria": "Rejestr zadań (tylko do odczytu)",
   "settings.logs.noFilesYet": "Brak plików logów{folderNote}. Rejestrowanie zaczyna się od pierwszej wiadomości po uruchomieniu.",
   "settings.logs.folderNotCreated": " (folder nie został jeszcze utworzony)",
   "settings.logs.failedToLoad": "Nie udało się wczytać informacji o logach.",
@@ -2792,7 +2786,8 @@ const ja = {
   "help.set.sampleRate": "書き出す音声ファイルのサンプルレートです。",
   "help.set.videoQuality": "書き出す動画の画質です。",
   "help.set.logs": "ログの保存場所と、アプリ、バックエンド、セットアップのログです。",
-  "help.set.registry": "StemDeck がディスクに保存している完了した曲の一覧です。読み取り専用です。",
+  "help.set.library": "保存済みの曲の数と、不具合の報告に添付できるライブラリファイルです。",
+  "help.set.resync": "音声が見つからない曲です。再同期すると、リンクから追加した曲をもう一度ダウンロードします。",
 
   "search.ariaLabel": "ライブラリを検索",
   "search.placeholder": "検索または#タグ…",
@@ -3019,8 +3014,7 @@ const ja = {
   "settings.tab.network": "ネットワーク",
   "settings.tab.export": "エクスポート",
   "settings.tab.logs": "ログ",
-  "settings.tab.registry": "レジストリ",
-  "settings.readOnlyServer": "サーバーモードではこれらの設定は読み取り専用です。変更するには、サーバー設定(例: docker-compose.yml)を更新して再起動してください。",
+  "settings.readOnlyServer": "これらの設定は、このサーバーで StemDeck をセットアップした方法で決まります。変更するには、そのセットアップを変更して StemDeck を再起動してください。",
 
   "settings.language.title": "言語",
 
@@ -3070,7 +3064,6 @@ const ja = {
   "settings.stemsLocation.resetFailed": "リセットに失敗しました — 接続を確認してください。",
   "settings.stemsLocation.syncing": "同期中…",
   "settings.stemsLocation.syncFailed": "同期に失敗しました — 接続を確認してください。",
-  "settings.stemsLocation.inSync": "すべてのトラックが同期されています。",
   "settings.stemsLocation.unavailable": "利用不可",
   "settings.stemsLocation.persistFailed": "場所は更新されましたが保存されませんでした — 再起動すると以前のフォルダに戻ります。",
   "settings.stemsLocation.restartNote": "切り替えを完了するにはStemDeckを再起動してください。",
@@ -3199,8 +3192,6 @@ const ja = {
   "settings.logs.setup.title": "セットアップログ",
   "settings.logs.setupAria": "セットアップログ(読み取り専用)",
 
-  "settings.registry.title": "ジョブレジストリ",
-  "settings.registry.aria": "ジョブレジストリ(読み取り専用)",
   "settings.logs.noFilesYet": "まだログファイルがありません{folderNote}。起動後の最初のメッセージからログが記録されます。",
   "settings.logs.folderNotCreated": "(フォルダはまだ作成されていません)",
   "settings.logs.failedToLoad": "ログ情報の読み込みに失敗しました。",
@@ -3856,7 +3847,8 @@ const zhHans = {
   "help.set.sampleRate": "导出音频文件的采样率。",
   "help.set.videoQuality": "导出视频的画质。",
   "help.set.logs": "日志的位置，以及应用、后端和安装日志。",
-  "help.set.registry": "StemDeck 保存在磁盘上的已完成歌曲列表。只读。",
+  "help.set.library": "已保存的歌曲数量，以及可附在问题报告中的资料库文件。",
+  "help.set.resync": "音频缺失的歌曲。重新同步会再次下载通过链接添加的歌曲。",
 
   "search.ariaLabel": "搜索资料库",
   "search.placeholder": "搜索或 #标签…",
@@ -4083,8 +4075,7 @@ const zhHans = {
   "settings.tab.network": "网络",
   "settings.tab.export": "导出",
   "settings.tab.logs": "日志",
-  "settings.tab.registry": "注册表",
-  "settings.readOnlyServer": "在服务器模式下,这些设置为只读。如需更改,请更新服务器配置(例如 docker-compose.yml)并重启。",
+  "settings.readOnlyServer": "这些设置由 StemDeck 在此服务器上的安装方式决定。如需更改，请修改该安装设置并重启 StemDeck。",
 
   "settings.language.title": "语言",
 
@@ -4134,7 +4125,6 @@ const zhHans = {
   "settings.stemsLocation.resetFailed": "重置失败 — 请检查你的网络连接。",
   "settings.stemsLocation.syncing": "正在同步…",
   "settings.stemsLocation.syncFailed": "同步失败 — 请检查你的网络连接。",
-  "settings.stemsLocation.inSync": "所有曲目均已同步。",
   "settings.stemsLocation.unavailable": "不可用",
   "settings.stemsLocation.persistFailed": "位置已更新但未保存 — 重启后将恢复为之前的文件夹。",
   "settings.stemsLocation.restartNote": "重启 StemDeck 以完成切换。",
@@ -4263,8 +4253,6 @@ const zhHans = {
   "settings.logs.setup.title": "安装日志",
   "settings.logs.setupAria": "安装日志(只读)",
 
-  "settings.registry.title": "任务注册表",
-  "settings.registry.aria": "任务注册表(只读)",
   "settings.logs.noFilesYet": "暂无日志文件{folderNote}。启动后的第一条消息开始才会记录日志。",
   "settings.logs.folderNotCreated": "(该文件夹尚未创建)",
   "settings.logs.failedToLoad": "无法加载日志信息。",
@@ -4920,7 +4908,8 @@ const de = {
   "help.set.sampleRate": "Die Abtastrate der Audiodateien, die du exportierst.",
   "help.set.videoQuality": "Die Qualität der Videos, die du exportierst.",
   "help.set.logs": "Wo die Logs liegen, und das Anwendungs-, Backend- und Setup-Log.",
-  "help.set.registry": "Die Liste der fertigen Songs, die StemDeck auf der Festplatte führt. Nur lesbar.",
+  "help.set.library": "Wie viele Songs gespeichert sind, und die Bibliotheksdatei für einen Fehlerbericht.",
+  "help.set.resync": "Songs, deren Audio fehlt. Neu synchronisieren lädt die per Link hinzugefügten erneut herunter.",
 
   "search.ariaLabel": "Bibliothek durchsuchen",
   "search.placeholder": "Suchen oder #Tag…",
@@ -5148,8 +5137,7 @@ const de = {
   "settings.tab.network": "Netzwerk",
   "settings.tab.export": "Export",
   "settings.tab.logs": "Logs",
-  "settings.tab.registry": "Registry",
-  "settings.readOnlyServer": "Diese Einstellungen sind im Servermodus schreibgeschützt. Um sie zu ändern, aktualisiere deine Serverkonfiguration (z. B. docker-compose.yml) und starte neu.",
+  "settings.readOnlyServer": "Diese Einstellungen ergeben sich daraus, wie StemDeck auf diesem Server eingerichtet wurde. Um sie zu ändern, passe diese Einrichtung an und starte StemDeck neu.",
 
   "settings.language.title": "Sprache",
 
@@ -5199,7 +5187,6 @@ const de = {
   "settings.stemsLocation.resetFailed": "Zurücksetzen fehlgeschlagen — Verbindung prüfen.",
   "settings.stemsLocation.syncing": "Wird synchronisiert…",
   "settings.stemsLocation.syncFailed": "Synchronisierung fehlgeschlagen — Verbindung prüfen.",
-  "settings.stemsLocation.inSync": "Alle Tracks sind synchron.",
   "settings.stemsLocation.unavailable": "nicht verfügbar",
   "settings.stemsLocation.persistFailed": "Speicherort aktualisiert, aber nicht gespeichert — er wird nach einem Neustart auf den vorherigen Ordner zurückgesetzt.",
   "settings.stemsLocation.restartNote": "StemDeck neu starten, um den Wechsel abzuschließen.",
@@ -5332,8 +5319,6 @@ const de = {
   "settings.logs.setup.title": "Setup-Log",
   "settings.logs.setupAria": "Setup-Log (schreibgeschützt)",
 
-  "settings.registry.title": "Auftragsregistrierung",
-  "settings.registry.aria": "Auftragsregistrierung (schreibgeschützt)",
   "settings.logs.noFilesYet": "Noch keine Log-Dateien{folderNote}. Die Protokollierung beginnt mit der ersten Meldung nach dem Start.",
   "settings.logs.folderNotCreated": " (der Ordner wurde noch nicht erstellt)",
   "settings.logs.failedToLoad": "Log-Informationen konnten nicht geladen werden.",
@@ -5996,7 +5981,8 @@ const pt = {
   "help.set.sampleRate": "A taxa de amostragem dos arquivos de áudio que você exporta.",
   "help.set.videoQuality": "A qualidade dos vídeos que você exporta.",
   "help.set.logs": "Onde ficam os logs, e os logs do aplicativo, do servidor e da instalação.",
-  "help.set.registry": "A lista de músicas prontas que o StemDeck guarda no disco. Só leitura.",
+  "help.set.library": "Quantas músicas estão salvas e o arquivo da biblioteca para anexar a um relatório de erro.",
+  "help.set.resync": "Músicas cujo áudio está faltando. Ressincronizar baixa de novo as que vieram de um link.",
 
   "search.ariaLabel": "Pesquisar biblioteca",
   "search.placeholder": "Pesquisar ou #tag…",
@@ -6224,8 +6210,7 @@ const pt = {
   "settings.tab.network": "Rede",
   "settings.tab.export": "Exportar",
   "settings.tab.logs": "Logs",
-  "settings.tab.registry": "Registro",
-  "settings.readOnlyServer": "Essas configurações são somente leitura no modo servidor. Para alterá-las, atualize a configuração do servidor (ex.: docker-compose.yml) e reinicie.",
+  "settings.readOnlyServer": "Essas configurações vêm de como o StemDeck foi instalado neste servidor. Para alterá-las, mude essa instalação e reinicie o StemDeck.",
 
   "settings.language.title": "Idioma",
 
@@ -6275,7 +6260,6 @@ const pt = {
   "settings.stemsLocation.resetFailed": "Falha ao redefinir — verifique sua conexão.",
   "settings.stemsLocation.syncing": "Sincronizando…",
   "settings.stemsLocation.syncFailed": "Falha na sincronização — verifique sua conexão.",
-  "settings.stemsLocation.inSync": "Todas as faixas estão sincronizadas.",
   "settings.stemsLocation.unavailable": "indisponível",
   "settings.stemsLocation.persistFailed": "Local atualizado, mas não salvo — voltará à pasta anterior após reiniciar.",
   "settings.stemsLocation.restartNote": "Reinicie o StemDeck para concluir a troca.",
@@ -6408,8 +6392,6 @@ const pt = {
   "settings.logs.setup.title": "Log de configuração",
   "settings.logs.setupAria": "Log de configuração (somente leitura)",
 
-  "settings.registry.title": "Registro de tarefas",
-  "settings.registry.aria": "Registro de tarefas (somente leitura)",
   "settings.logs.noFilesYet": "Ainda não há arquivos de log{folderNote}. O registro começa na primeira mensagem após a inicialização.",
   "settings.logs.folderNotCreated": " (a pasta ainda não foi criada)",
   "settings.logs.failedToLoad": "Falha ao carregar informações de log.",
@@ -7074,7 +7056,8 @@ const id = {
   "help.set.sampleRate": "Sample rate file audio yang Anda ekspor.",
   "help.set.videoQuality": "Kualitas video yang Anda ekspor.",
   "help.set.logs": "Lokasi log, serta log aplikasi, backend, dan penyiapan.",
-  "help.set.registry": "Daftar lagu selesai yang disimpan StemDeck di disk. Hanya baca.",
+  "help.set.library": "Jumlah lagu tersimpan, dan file pustaka untuk dilampirkan ke laporan bug.",
+  "help.set.resync": "Lagu yang audionya hilang. Sinkronkan ulang mengunduh lagi lagu yang berasal dari tautan.",
 
   "search.ariaLabel": "Cari pustaka",
   "search.placeholder": "Cari atau #tag…",
@@ -7301,8 +7284,7 @@ const id = {
   "settings.tab.network": "Jaringan",
   "settings.tab.export": "Ekspor",
   "settings.tab.logs": "Log",
-  "settings.tab.registry": "Registry",
-  "settings.readOnlyServer": "Pengaturan ini hanya-baca dalam mode server. Untuk mengubahnya, perbarui konfigurasi server Anda (mis. docker-compose.yml) lalu mulai ulang.",
+  "settings.readOnlyServer": "Pengaturan ini ditentukan oleh cara StemDeck dipasang di server ini. Untuk mengubahnya, ubah pemasangan tersebut lalu mulai ulang StemDeck.",
 
   "settings.language.title": "Bahasa",
 
@@ -7352,7 +7334,6 @@ const id = {
   "settings.stemsLocation.resetFailed": "Gagal mengatur ulang — periksa koneksi Anda.",
   "settings.stemsLocation.syncing": "Menyinkronkan…",
   "settings.stemsLocation.syncFailed": "Sinkronisasi gagal — periksa koneksi Anda.",
-  "settings.stemsLocation.inSync": "Semua trek tersinkron.",
   "settings.stemsLocation.unavailable": "tidak tersedia",
   "settings.stemsLocation.persistFailed": "Lokasi diperbarui tetapi tidak disimpan — akan kembali ke folder sebelumnya setelah mulai ulang.",
   "settings.stemsLocation.restartNote": "Mulai ulang StemDeck untuk menyelesaikan perpindahan.",
@@ -7481,8 +7462,6 @@ const id = {
   "settings.logs.setup.title": "Log penyiapan",
   "settings.logs.setupAria": "Log penyiapan (hanya-baca)",
 
-  "settings.registry.title": "Registry tugas",
-  "settings.registry.aria": "Registry tugas (hanya-baca)",
   "settings.logs.noFilesYet": "Belum ada file log{folderNote}. Pencatatan log dimulai pada pesan pertama setelah diluncurkan.",
   "settings.logs.folderNotCreated": " (folder belum dibuat)",
   "settings.logs.failedToLoad": "Gagal memuat informasi log.",
@@ -8138,7 +8117,8 @@ const fr = {
   "help.set.sampleRate": "La fréquence d'échantillonnage des fichiers audio exportés.",
   "help.set.videoQuality": "La qualité des vidéos exportées.",
   "help.set.logs": "Où sont les journaux, et les journaux de l'application, du serveur et de l'installation.",
-  "help.set.registry": "La liste des morceaux terminés que StemDeck garde sur le disque. Lecture seule.",
+  "help.set.library": "Le nombre de morceaux enregistrés, et le fichier de la bibliothèque à joindre à un rapport de bug.",
+  "help.set.resync": "Les morceaux dont l'audio manque. Resynchroniser retélécharge ceux qui viennent d'un lien.",
 
   "search.ariaLabel": "Rechercher dans la bibliothèque",
   "search.placeholder": "Rechercher ou #tag…",
@@ -8367,8 +8347,7 @@ const fr = {
   "settings.tab.network": "Réseau",
   "settings.tab.export": "Export",
   "settings.tab.logs": "Journaux",
-  "settings.tab.registry": "Registre",
-  "settings.readOnlyServer": "Ces paramètres sont en lecture seule en mode serveur. Pour les modifier, mettez à jour la configuration de votre serveur (par ex. docker-compose.yml) puis redémarrez.",
+  "settings.readOnlyServer": "Ces paramètres dépendent de la façon dont StemDeck a été installé sur ce serveur. Pour les modifier, modifiez cette installation puis redémarrez StemDeck.",
 
   "settings.language.title": "Langue",
 
@@ -8418,7 +8397,6 @@ const fr = {
   "settings.stemsLocation.resetFailed": "Échec de la réinitialisation — vérifiez votre connexion.",
   "settings.stemsLocation.syncing": "Synchronisation…",
   "settings.stemsLocation.syncFailed": "Échec de la synchronisation — vérifiez votre connexion.",
-  "settings.stemsLocation.inSync": "Tous les morceaux sont synchronisés.",
   "settings.stemsLocation.unavailable": "indisponible",
   "settings.stemsLocation.persistFailed": "Emplacement mis à jour mais non enregistré — il reviendra au dossier précédent après un redémarrage.",
   "settings.stemsLocation.restartNote": "Redémarrez StemDeck pour terminer le changement.",
@@ -8550,8 +8528,6 @@ const fr = {
   "settings.logs.setup.title": "Journal d'installation",
   "settings.logs.setupAria": "Journal d'installation (lecture seule)",
 
-  "settings.registry.title": "Registre des tâches",
-  "settings.registry.aria": "Registre des tâches (lecture seule)",
   "settings.logs.noFilesYet": "Aucun fichier journal pour l'instant{folderNote}. La journalisation démarre au premier message après le lancement.",
   "settings.logs.folderNotCreated": " (le dossier n'a pas été créé)",
   "settings.logs.failedToLoad": "Impossible de charger les informations de journalisation.",
@@ -8889,14 +8865,13 @@ const ptPT = {
   "settings.exportsLocation.desc": "Onde vão os stems e loops que arrasta para fora do StemDeck. Nada aqui é apagado automaticamente.",
   "settings.stemsLocation.syncing": "A sincronizar…",
   "playlist.skippingPrefix": "A ignorar: {list}.",
-  "settings.tab.registry": "Registo",
+  "help.set.library": "Quantas músicas estão guardadas e o ficheiro da biblioteca para anexar a um relatório de erro.",
+  "help.set.resync": "Músicas cujo áudio está em falta. Voltar a sincronizar transfere de novo as que vieram de uma ligação.",
   "settings.library.songs": "Músicas guardadas",
   "settings.library.file.title": "Ficheiro da biblioteca",
   "settings.library.file.desc": "A lista de músicas guardadas, para anexar a um relatório de erro.",
   "settings.library.file.download": "Transferir",
   "settings.library.file.failed": "Não foi possível transferir o ficheiro da biblioteca.",
-  "settings.registry.title": "Registo de tarefas",
-  "settings.registry.aria": "Registo de tarefas (só de leitura)",
   "settings.logs.application.title": "Log da aplicação",
   "settings.logs.applicationTab": "Log da aplicação",
   "settings.logs.applicationAria": "Log da aplicação (só de leitura)",
@@ -9003,7 +8978,7 @@ const ptPT = {
   "nav.settings": "Definições",
   "settings.title": "Definições",
   "settings.closeAria": "Fechar definições",
-  "settings.readOnlyServer": "Estas definições são só de leitura no modo servidor. Para as alterar, atualize a configuração do servidor (ex.: docker-compose.yml) e reinicie.",
+  "settings.readOnlyServer": "Estas definições vêm da forma como o StemDeck foi instalado neste servidor. Para as alterar, mude essa instalação e reinicie o StemDeck.",
   "search.tooLongHint": "Maior que o seu limite de {mins} minutos. Altere nas Definições.",
   "settings.folder.save": "Guardar",
   "folderEditor.save": "Guardar",
@@ -9472,7 +9447,8 @@ const es = {
   "help.set.sampleRate": "La frecuencia de muestreo de los archivos de audio que exportas.",
   "help.set.videoQuality": "La calidad de los vídeos que exportas.",
   "help.set.logs": "Dónde están los registros, y los registros de la aplicación, del servidor y de la instalación.",
-  "help.set.registry": "La lista de canciones terminadas que StemDeck guarda en el disco. Solo lectura.",
+  "help.set.library": "Cuántas canciones hay guardadas y el archivo de la biblioteca para adjuntar a un informe de error.",
+  "help.set.resync": "Canciones cuyo audio falta. Resincronizar vuelve a descargar las que vinieron de un enlace.",
 
   "search.ariaLabel": "Buscar en la biblioteca",
   "search.placeholder": "Busca o #etiqueta…",
@@ -9701,8 +9677,7 @@ const es = {
   "settings.tab.network": "Red",
   "settings.tab.export": "Exportación",
   "settings.tab.logs": "Registros",
-  "settings.tab.registry": "Tareas",
-  "settings.readOnlyServer": "Estos ajustes son de solo lectura en modo servidor. Para cambiarlos, actualiza la configuración de tu servidor (por ejemplo docker-compose.yml) y reinicia.",
+  "settings.readOnlyServer": "Estos ajustes dependen de cómo se instaló StemDeck en este servidor. Para cambiarlos, cambia esa instalación y reinicia StemDeck.",
 
   "settings.language.title": "Idioma",
 
@@ -9752,7 +9727,6 @@ const es = {
   "settings.stemsLocation.resetFailed": "No se pudo restablecer — revisa tu conexión.",
   "settings.stemsLocation.syncing": "Sincronizando…",
   "settings.stemsLocation.syncFailed": "La sincronización falló — revisa tu conexión.",
-  "settings.stemsLocation.inSync": "Todas las pistas están sincronizadas.",
   "settings.stemsLocation.unavailable": "no disponible",
   "settings.stemsLocation.persistFailed": "La ubicación se actualizó pero no se guardó: volverá a la carpeta anterior tras reiniciar.",
   "settings.stemsLocation.restartNote": "Reinicia StemDeck para terminar el cambio.",
@@ -9885,8 +9859,6 @@ const es = {
   "settings.logs.setup.title": "Registro de instalación",
   "settings.logs.setupAria": "Registro de instalación (solo lectura)",
 
-  "settings.registry.title": "Registro de tareas",
-  "settings.registry.aria": "Registro de tareas (solo lectura)",
   "settings.logs.noFilesYet": "Todavía no hay archivos de registro{folderNote}. El registro empieza con el primer mensaje tras el arranque.",
   "settings.logs.folderNotCreated": " (la carpeta no se ha creado)",
   "settings.logs.failedToLoad": "No se pudo cargar la información de los registros.",
@@ -10571,7 +10543,8 @@ const ko = {
   "help.set.sampleRate": "내보내는 오디오 파일의 샘플 레이트예요.",
   "help.set.videoQuality": "내보내는 동영상의 화질이에요.",
   "help.set.logs": "로그 위치와 앱, 백엔드, 설치 로그예요.",
-  "help.set.registry": "StemDeck이 디스크에 보관하는 완료된 곡 목록이에요. 읽기 전용이에요.",
+  "help.set.library": "저장된 곡 수와 버그 신고에 첨부할 라이브러리 파일이에요.",
+  "help.set.resync": "오디오가 없는 곡이에요. 다시 동기화하면 링크로 추가한 곡을 다시 내려받아요.",
 
   "search.ariaLabel": "라이브러리 검색",
   "search.placeholder": "검색 또는 #태그…",
@@ -10798,8 +10771,7 @@ const ko = {
   "settings.tab.network": "네트워크",
   "settings.tab.export": "내보내기",
   "settings.tab.logs": "로그",
-  "settings.tab.registry": "레지스트리",
-  "settings.readOnlyServer": "서버 모드에서는 이 설정을 바꿀 수 없어요. 바꾸려면 서버 설정(예: docker-compose.yml)을 수정하고 다시 시작하세요.",
+  "settings.readOnlyServer": "이 설정은 이 서버에 StemDeck을 설치한 방식에 따라 정해져요. 바꾸려면 그 설치 설정을 바꾸고 StemDeck을 다시 시작하세요.",
 
   "settings.language.title": "언어",
 
@@ -10849,7 +10821,6 @@ const ko = {
   "settings.stemsLocation.resetFailed": "되돌리지 못했어요. 연결을 확인해 주세요.",
   "settings.stemsLocation.syncing": "동기화 중…",
   "settings.stemsLocation.syncFailed": "동기화하지 못했어요. 연결을 확인해 주세요.",
-  "settings.stemsLocation.inSync": "모든 트랙이 동기화됐어요.",
   "settings.stemsLocation.unavailable": "사용할 수 없음",
   "settings.stemsLocation.persistFailed": "위치는 바뀌었지만 저장되지 않았어요. 다시 시작하면 이전 폴더로 돌아가요.",
   "settings.stemsLocation.restartNote": "StemDeck을 다시 시작하면 전환이 끝나요.",
@@ -10978,8 +10949,6 @@ const ko = {
   "settings.logs.setup.title": "설치 로그",
   "settings.logs.setupAria": "설치 로그 (읽기 전용)",
 
-  "settings.registry.title": "작업 레지스트리",
-  "settings.registry.aria": "작업 레지스트리 (읽기 전용)",
   "settings.logs.noFilesYet": "아직 로그 파일이 없어요{folderNote}. 실행 후 첫 메시지부터 기록이 시작돼요.",
   "settings.logs.folderNotCreated": " (폴더가 아직 만들어지지 않았어요)",
   "settings.logs.failedToLoad": "로그 정보를 불러오지 못했어요.",

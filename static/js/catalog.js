@@ -4160,6 +4160,7 @@ function settleStaleProcessingTracks() {
 
 let libraryEditor = null;
 let libraryEditorOnKey = null;
+let settingsResizeObserver = null;
 let libraryEditorOpener = null;
 
 // The settings modal has a lot of server-fetched, dynamically-computed text
@@ -4213,6 +4214,8 @@ function closeLibraryEditor() {
     libraryEditorOnKey = null;
   }
   closeResetConfirm();
+  settingsResizeObserver?.disconnect();
+  settingsResizeObserver = null;
   libraryEditor?.remove();
   libraryEditor = null;
   libraryEditorOpener?.focus?.();
@@ -4230,16 +4233,9 @@ function renderLibraryRows(tbody) {
     .filter(([id, t]) => !trashIds.has(id) && t.status === "unavailable")
     .sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
 
-  if (!entries.length) {
-    const tr = document.createElement("tr");
-    const td = document.createElement("td");
-    td.colSpan = 3;
-    td.className = "library-editor-empty";
-    td.textContent = i18nT("settings.stemsLocation.inSync");
-    tr.appendChild(td);
-    tbody.appendChild(tr);
-    return;
-  }
+  const tableWrap = tbody.closest(".library-editor-table-wrap");
+  if (tableWrap) tableWrap.hidden = !entries.length;
+  if (!entries.length) return;
 
   for (const [id, t] of entries) {
     const tr = document.createElement("tr");
@@ -4863,18 +4859,6 @@ async function wireGeneralSettings(overlay) {
   });
 }
 
-// Docker's default bridge pools, 172.17.x to 172.31.x: the host's side of a
-// container network, which a phone on the LAN cannot reach.
-const DOCKER_BRIDGE_OCTETS = { first: 17, last: 31 };
-const PRIVATE_172_ADDRESS = /^https?:\/\/172\.(\d+)\./;
-
-function isPhoneReachable(address) {
-  const match = PRIVATE_172_ADDRESS.exec(address);
-  if (!match) return true;
-  const octet = Number(match[1]);
-  return octet < DOCKER_BRIDGE_OCTETS.first || octet > DOCKER_BRIDGE_OCTETS.last;
-}
-
 async function wireNetworkSetting(overlay) {
   const input = overlay.querySelector(".net-access-input");
   const netWrap = overlay.querySelector(".settings-net");
@@ -4894,7 +4878,7 @@ async function wireNetworkSetting(overlay) {
     if (r.ok) {
       const data = await r.json();
       enabled = data.allow_network === true;
-      addresses = Array.isArray(data.lan_addresses) ? data.lan_addresses.filter(isPhoneReachable) : [];
+      addresses = Array.isArray(data.lan_addresses) ? data.lan_addresses : [];
     }
   } catch { /* leave defaults */ }
   if (serverMode) enabled = true;
@@ -4939,7 +4923,8 @@ async function wireNetworkSetting(overlay) {
         img.height = 130;
         const label = document.createElement("div");
         label.className = "qr-label";
-        label.textContent = mobileUrl;
+        label.textContent = new URL(mobileUrl).host;
+        label.title = mobileUrl;
         const imgWrap = document.createElement("div");
         imgWrap.className = "qr-img-wrap";
         imgWrap.appendChild(img);
@@ -4978,6 +4963,10 @@ async function wireNetworkSetting(overlay) {
   });
 }
 
+const JSON_MEDIA_TYPE = "application/json";
+const LIBRARY_FILE_PREFIX = "stemdeck-library-";
+const LOGS_FILE_PREFIX = "stemdeck-logs-";
+
 async function fetchRegistry() {
   const r = await fetch("/api/registry", { cache: "no-store" });
   if (!r.ok) throw new Error(`status ${r.status}`);
@@ -5007,8 +4996,8 @@ async function downloadRegistry(overlay, btn) {
   btn.disabled = true;
   if (msg) msg.textContent = "";
   try {
-    const blob = new Blob([await fetchRegistry()], { type: "application/json" });
-    downloadBlob(blob, `stemdeck-library-${fileStamp()}.json`);
+    const blob = new Blob([await fetchRegistry()], { type: JSON_MEDIA_TYPE });
+    downloadBlob(blob, `${LIBRARY_FILE_PREFIX}${fileStamp()}.json`);
   } catch (e) {
     console.warn("[settings] library download failed:", e);
     if (msg) msg.textContent = i18nT("settings.library.file.failed");
@@ -5104,7 +5093,7 @@ async function exportLogs(btn) {
   try {
     const r = await fetch("/api/logs.zip", { cache: "no-store" });
     if (!r.ok) throw new Error(`status ${r.status}`);
-    downloadBlob(await r.blob(), `stemdeck-logs-${fileStamp()}.zip`);
+    downloadBlob(await r.blob(), `${LOGS_FILE_PREFIX}${fileStamp()}.zip`);
     // Log export isn't tied to a track/job, so a plain by-kind dismiss is the
     // right granularity — it never touches a per-track export failure (#401).
     dismissFailuresByKind("export");
@@ -5210,10 +5199,94 @@ function openResetConfirm() {
   input.focus();
 }
 
-function selectSettingsTab(overlay, tab, selector) {
-  for (const t of overlay.querySelectorAll(selector)) {
-    t.classList.toggle("active", t === tab);
+const TAB_KEY_STEP = { ArrowRight: 1, ArrowLeft: -1 };
+const FIRST_TAB_KEY = "Home";
+const LAST_TAB_KEY = "End";
+// Scroll positions this close to an end count as the end (fractional pixels).
+const SCROLL_END_SLACK = 1;
+
+/** Select one tab of a tab bar; the selected tab is the bar's only Tab stop. */
+function selectSettingsTab(tab) {
+  for (const t of tab.parentElement.querySelectorAll('[role="tab"]')) {
     t.setAttribute("aria-selected", String(t === tab));
+    t.tabIndex = t === tab ? 0 : -1;
+  }
+}
+
+/** The tab an arrow, Home or End leads to, wrapping like the inspector's; null for other keys. */
+function tabKeyTarget(key, index, count) {
+  if (key === FIRST_TAB_KEY) return 0;
+  if (key === LAST_TAB_KEY) return count - 1;
+  const step = TAB_KEY_STEP[key];
+  return step ? (index + step + count) % count : null;
+}
+
+function onSettingsTablistKeydown(e) {
+  const tabs = [...e.currentTarget.querySelectorAll('[role="tab"]')];
+  const at = tabs.indexOf(document.activeElement);
+  const target = at < 0 ? null : tabKeyTarget(e.key, at, tabs.length);
+  if (target === null) return;
+  e.preventDefault();
+  tabs[target].click();
+  tabs[target].focus();
+}
+
+function settingsOverlayOf(el) {
+  return el.closest(".library-editor-backdrop");
+}
+
+function onSettingsTabClick(e) {
+  const tab = e.currentTarget;
+  const overlay = settingsOverlayOf(tab);
+  const name = tab.dataset.tab;
+  selectSettingsTab(tab);
+  for (const pane of overlay.querySelectorAll(".settings-pane")) {
+    pane.classList.toggle("hidden", pane.dataset.pane !== name);
+    updateScrollCue(pane);
+  }
+  if (name === "registry") loadRegistryView(overlay);
+  if (name === "logs") loadLogsView(overlay);
+}
+
+function onLogsSubtabClick(e) {
+  const tab = e.currentTarget;
+  const overlay = settingsOverlayOf(tab);
+  const name = tab.dataset.sub;
+  selectSettingsTab(tab);
+  for (const pane of overlay.querySelectorAll(".settings-subpane")) {
+    pane.classList.toggle("hidden", pane.dataset.subpane !== name);
+  }
+  if (name === "location") loadLogsView(overlay);
+  else loadLogTail(overlay, name);
+}
+
+function onRegistryDownloadClick(e) {
+  downloadRegistry(settingsOverlayOf(e.currentTarget), e.currentTarget);
+}
+
+/** Mark which edges of a pane have more content past them, for the fade. */
+function updateScrollCue(pane) {
+  const below = pane.scrollHeight - pane.clientHeight - pane.scrollTop;
+  pane.classList.toggle("more-above", pane.scrollTop > SCROLL_END_SLACK);
+  pane.classList.toggle("more-below", below > SCROLL_END_SLACK);
+}
+
+function onSettingsPaneScroll(e) {
+  updateScrollCue(e.currentTarget);
+}
+
+function onSettingsContentResize(entries) {
+  const panes = new Set(entries.map((entry) => entry.target.closest(".settings-pane")));
+  panes.forEach((pane) => pane && updateScrollCue(pane));
+}
+
+/** Keep each pane's fade right as it scrolls and as its content loads or resizes. */
+function wireScrollCues(overlay) {
+  settingsResizeObserver = new ResizeObserver(onSettingsContentResize);
+  for (const pane of overlay.querySelectorAll(".settings-pane")) {
+    pane.addEventListener("scroll", onSettingsPaneScroll);
+    settingsResizeObserver.observe(pane);
+    for (const child of pane.children) settingsResizeObserver.observe(child);
   }
 }
 
@@ -5234,12 +5307,12 @@ function openLibraryEditor() {
         </button>
       </div>
       <div class="settings-tabs" role="tablist">
-        <button class="settings-tab active" type="button" data-tab="general" role="tab" aria-selected="true" data-i18n="settings.tab.general">General</button>
-        <button class="settings-tab" type="button" data-tab="details" role="tab" aria-selected="false" data-i18n="settings.tab.songDetails">Song details</button>
-        <button class="settings-tab" type="button" data-tab="network" role="tab" aria-selected="false" data-i18n="settings.tab.network">Network</button>
-        <button class="settings-tab" type="button" data-tab="export" role="tab" aria-selected="false" data-i18n="settings.tab.export">Export</button>
-        <button class="settings-tab" type="button" data-tab="logs" role="tab" aria-selected="false" data-i18n="settings.tab.logs">Logs</button>
-        <button class="settings-tab" type="button" data-tab="registry" role="tab" aria-selected="false" data-i18n="settings.tab.library">Library</button>
+        <button class="settings-tab" type="button" data-tab="general" role="tab" aria-selected="true" data-i18n="settings.tab.general">General</button>
+        <button class="settings-tab" type="button" data-tab="details" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.songDetails">Song details</button>
+        <button class="settings-tab" type="button" data-tab="network" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.network">Network</button>
+        <button class="settings-tab" type="button" data-tab="export" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.export">Export</button>
+        <button class="settings-tab" type="button" data-tab="logs" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.logs">Logs</button>
+        <button class="settings-tab" type="button" data-tab="registry" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.library">Library</button>
       </div>
       <div class="settings-pane" data-pane="general">
         <div class="settings-section">
@@ -5439,10 +5512,10 @@ function openLibraryEditor() {
       </div>
       <div class="settings-pane hidden" data-pane="logs">
         <div class="settings-subtabs" role="tablist">
-          <button class="settings-subtab active" type="button" data-sub="location" role="tab" aria-selected="true" data-i18n="settings.logs.locationTab">Location</button>
-          <button class="settings-subtab" type="button" data-sub="application" role="tab" aria-selected="false" data-i18n="settings.logs.applicationTab">Application log</button>
-          <button class="settings-subtab" type="button" data-sub="backend" role="tab" aria-selected="false" data-i18n="settings.logs.backendTab">Backend log</button>
-          <button class="settings-subtab" type="button" data-sub="setup" role="tab" aria-selected="false" data-i18n="settings.logs.setupTab">Setup log</button>
+          <button class="settings-subtab" type="button" data-sub="location" role="tab" aria-selected="true" data-i18n="settings.logs.locationTab">Location</button>
+          <button class="settings-subtab" type="button" data-sub="application" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.logs.applicationTab">Application log</button>
+          <button class="settings-subtab" type="button" data-sub="backend" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.logs.backendTab">Backend log</button>
+          <button class="settings-subtab" type="button" data-sub="setup" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.logs.setupTab">Setup log</button>
         </div>
         <div class="settings-subpane" data-subpane="location">
           <div class="settings-row">
@@ -5531,28 +5604,13 @@ function openLibraryEditor() {
 
   renderLibraryRows(overlay.querySelector(".library-editor-body"));
 
-  overlay.querySelectorAll(".settings-tab").forEach((tab) => {
-    tab.addEventListener("click", function onSettingsTabClick() {
-      const name = tab.dataset.tab;
-      selectSettingsTab(overlay, tab, ".settings-tab");
-      overlay.querySelectorAll(".settings-pane").forEach((p) => p.classList.toggle("hidden", p.dataset.pane !== name));
-      if (name === "registry") loadRegistryView(overlay);
-      if (name === "logs") loadLogsView(overlay);
-    });
+  overlay.querySelectorAll(".settings-tab").forEach((tab) => tab.addEventListener("click", onSettingsTabClick));
+  overlay.querySelectorAll(".settings-subtab").forEach((tab) => tab.addEventListener("click", onLogsSubtabClick));
+  overlay.querySelectorAll(".settings-tabs, .settings-subtabs").forEach((bar) => {
+    bar.addEventListener("keydown", onSettingsTablistKeydown);
   });
-  overlay.querySelector(".settings-registry-download")?.addEventListener("click", function onRegistryDownloadClick(e) {
-    downloadRegistry(overlay, e.currentTarget);
-  });
+  overlay.querySelector(".settings-registry-download")?.addEventListener("click", onRegistryDownloadClick);
   overlay.querySelector(".settings-logs-refresh")?.addEventListener("click", () => loadLogsView(overlay));
-  overlay.querySelectorAll(".settings-subtab").forEach((tab) => {
-    tab.addEventListener("click", function onLogsSubtabClick() {
-      const name = tab.dataset.sub;
-      selectSettingsTab(overlay, tab, ".settings-subtab");
-      overlay.querySelectorAll(".settings-subpane").forEach((p) => p.classList.toggle("hidden", p.dataset.subpane !== name));
-      if (name === "location") loadLogsView(overlay);
-      else loadLogTail(overlay, name);
-    });
-  });
   overlay.querySelectorAll(".settings-logtail-refresh").forEach((b) =>
     b.addEventListener("click", () => loadLogTail(overlay, b.dataset.view)));
   overlay.querySelector(".settings-export-logs")?.addEventListener("click", (e) => exportLogs(e.currentTarget));
@@ -5586,6 +5644,7 @@ function openLibraryEditor() {
     note.textContent = i18nT("settings.readOnlyServer");
     overlay.querySelector("[data-pane='network']")?.prepend(note);
   }
+  wireScrollCues(overlay);
   // Reset app data (#312): originally a "session keeps coming back across
   // desktop reinstalls" fix (the real persisted state lives in
   // ~/Documents/StemDeck, not the extracted package's own bundled data/

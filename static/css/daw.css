@@ -1093,14 +1093,27 @@ input, textarea { font-family: inherit; }
   background: color-mix(in srgb, var(--bg) 60%, transparent); backdrop-filter: blur(6px);
 }
 .library-editor {
+  /* The minimum is what the desktop app's smallest window (1024 x 720) holds. */
+  --settings-min-w: 600px;
+  --settings-min-h: 540px;
+  --settings-max-h: 600px;
   --settings-select-w: 240px;
   --settings-num-w: 96px;
-  --settings-fade-h: var(--s-3);
+  --settings-fade-h: var(--s-5);
   --settings-qr-size: 130px;
-  width: min(600px, calc(100vw - var(--s-6)));
+  --settings-table-max-h: 240px;
+  --settings-name-col-w: 220px;
+  --settings-loc-col-w: 200px;
+  --settings-log-min-h: 260px;
+  --settings-switch-w: 42px;
+  --settings-switch-h: 24px;
+  --settings-thumb: 18px;
+  width: var(--settings-min-w);
+  min-width: var(--settings-min-w);
   /* Fixed height (not max-height) so the dialog stays one size across all tabs
      -- each pane fills it via flex:1, so switching tabs never resizes it. */
-  height: min(76vh, 600px);
+  height: clamp(var(--settings-min-h), 76vh, var(--settings-max-h));
+  min-height: var(--settings-min-h);
   display: flex; flex-direction: column;
   border: 1px solid var(--line-strong);
   border-radius: var(--r-3);
@@ -1140,16 +1153,16 @@ input, textarea { font-family: inherit; }
      negative margin lets it sit in the card's own padding. */
   scrollbar-gutter: stable;
   padding-right: var(--s-3); margin-right: calc(-1 * var(--s-3));
-  /* Scroll cue: a shadow at each edge with more content, hidden by covers that scroll
-     with it. Browsers size the two attachments differently, so the covers overshoot. */
-  --settings-cover: calc(100% + var(--s-5)) calc(2 * var(--settings-fade-h));
-  --settings-shadow: calc(100% - var(--s-5)) var(--settings-fade-h);
-  background:
-    linear-gradient(var(--surface-2) 40%, transparent) left top / var(--settings-cover) no-repeat local,
-    linear-gradient(transparent, var(--surface-2) 60%) left bottom / var(--settings-cover) no-repeat local,
-    linear-gradient(var(--scrim), transparent) left top / var(--settings-shadow) no-repeat scroll,
-    linear-gradient(transparent, var(--scrim)) left bottom / var(--settings-shadow) no-repeat scroll;
+  /* Scroll cue: content fades out at an edge that has more past it (catalog.js
+     sets more-above / more-below as the pane scrolls). */
+  --fade-top: 0px;
+  --fade-bottom: 0px;
+  mask-image: linear-gradient(
+    transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent
+  );
 }
+.settings-pane.more-above { --fade-top: var(--settings-fade-h); }
+.settings-pane.more-below { --fade-bottom: var(--settings-fade-h); }
 .settings-pane.hidden { display: none; }
 
 /* flex-shrink: 0 so a tall pane squeezes itself, never the footer. */
@@ -1166,7 +1179,6 @@ input, textarea { font-family: inherit; }
 }
 .settings-done:hover { filter: brightness(var(--hover-brightness)); }
 
-/* Rows: what the setting is on the left, its control on the right. */
 .settings-row {
   display: flex; align-items: center; justify-content: space-between; gap: var(--s-4);
   padding: var(--s-3) 0;
@@ -1190,7 +1202,6 @@ input, textarea { font-family: inherit; }
   font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: 0.02em; color: var(--text-3);
 }
 
-/* Controls: one height, one look, one width per kind. */
 .settings-select, .settings-num-input, .settings-text-input {
   box-sizing: border-box; height: var(--ctl-h-sm); padding: 0 var(--s-2);
   border: 1px solid var(--line-strong); border-radius: var(--r-2);
@@ -1226,7 +1237,10 @@ input, textarea { font-family: inherit; }
 }
 .settings-btn-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 20%, transparent); color: var(--danger); }
 
-.settings-switch { position: relative; flex-shrink: 0; width: 42px; height: var(--s-5); cursor: pointer; }
+.settings-switch {
+  position: relative; flex-shrink: 0; cursor: pointer;
+  width: var(--settings-switch-w); height: var(--settings-switch-h);
+}
 .settings-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
 .settings-switch-track {
   position: absolute; inset: 0; border-radius: var(--r-pill);
@@ -1234,11 +1248,12 @@ input, textarea { font-family: inherit; }
   transition: background var(--t-fast);
 }
 .settings-switch-thumb {
-  position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+  position: absolute; top: var(--seg-inset); left: var(--seg-inset);
+  width: var(--settings-thumb); height: var(--settings-thumb); border-radius: 50%;
   background: var(--text); transition: transform var(--t-fast);
 }
 .settings-switch input:checked + .settings-switch-track { background: var(--accent-soft); border-color: var(--accent-line); }
-.settings-switch input:checked + .settings-switch-track .settings-switch-thumb { transform: translateX(18px); background: var(--accent); }
+.settings-switch input:checked + .settings-switch-track .settings-switch-thumb { transform: translateX(calc(var(--settings-switch-w) - var(--settings-switch-h))); background: var(--accent); }
 /* Read-only: no accent and no pointer, so it reads as a status, not a control. */
 .settings-switch:has(input:disabled) { cursor: not-allowed; }
 .settings-switch input:disabled { cursor: not-allowed; }
@@ -1266,7 +1281,7 @@ input, textarea { font-family: inherit; }
 }
 .settings-help.hidden { display: none; }
 
-/* A path with its size and a Change button beside it. */
+/* A value on one line with its buttons: a folder path, a key or a token. */
 .stems-location, .acoustid-key, .discogs-token {
   display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-2);
 }
@@ -1300,12 +1315,16 @@ input, textarea { font-family: inherit; }
 }
 .qr-card img { width: 100%; height: 100%; display: block; transition: filter var(--t-base), scale var(--t-base); }
 .qr-card.qr-blurred img { filter: blur(10px); scale: 1.12; }
-.qr-label { max-width: var(--settings-qr-size); font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-3); text-align: center; word-break: break-all; }
+.qr-label {
+  max-width: var(--settings-qr-size);
+  font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--text-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 /* Library: counts, the songs whose audio is gone, and the raw file behind a download. */
 .settings-stat { flex-shrink: 0; font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--text); font-variant-numeric: tabular-nums; }
 .library-editor-table-wrap {
-  flex: none; max-height: 240px; overflow-y: auto;
+  flex: none; max-height: var(--settings-table-max-h); overflow-y: auto;
   border: 1px solid var(--line); border-radius: var(--r-2); background: var(--surface-1);
 }
 .library-editor-table { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); }
@@ -1317,15 +1336,15 @@ input, textarea { font-family: inherit; }
 }
 .library-editor-table tbody td { padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--line); color: var(--text-2); vertical-align: middle; }
 .library-editor-table tbody tr:last-child td { border-bottom: none; }
-.library-editor-table .le-name { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
-.library-editor-table .le-loc { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.library-editor-table .le-name { max-width: var(--settings-name-col-w); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.library-editor-table .le-loc { max-width: var(--settings-loc-col-w); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .library-editor-table tr.unavailable .le-name { color: var(--danger); }
 .le-badge {
   margin-left: var(--s-2); padding: 1px var(--s-1); border-radius: var(--r-1);
   background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger);
   font-size: var(--fs-2xs);
 }
-.library-editor-empty { padding: var(--s-5) var(--s-3) !important; color: var(--text-3); text-align: center; }
+.library-editor-table-wrap[hidden] { display: none; }
 .library-editor-foot {
   display: flex; align-items: center; justify-content: space-between; gap: var(--s-3);
   padding: var(--s-3) 0; border-bottom: 1px solid var(--line);
@@ -1349,7 +1368,7 @@ input, textarea { font-family: inherit; }
 .settings-log-desc { margin-top: var(--s-1); font-size: var(--fs-xs); line-height: 1.4; color: var(--text-3); }
 .settings-logs-empty { padding: var(--s-1) 0; font-size: var(--fs-xs); color: var(--text-3); }
 .settings-logtail-view {
-  flex: 1; min-height: 260px; box-sizing: border-box; width: 100%; margin-top: var(--s-2); resize: none;
+  flex: 1; min-height: var(--settings-log-min-h); box-sizing: border-box; width: 100%; margin-top: var(--s-2); resize: none;
   padding: var(--s-2) var(--s-3);
   border: 1px solid var(--line); border-radius: var(--r-2); background: var(--surface-1); color: var(--text-2);
   font-family: var(--font-mono); font-size: var(--fs-2xs); line-height: 1.5;
