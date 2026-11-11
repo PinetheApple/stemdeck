@@ -670,6 +670,7 @@ input, textarea { font-family: inherit; }
   white-space: nowrap;
   transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
 }
+.lib-section-head .new-folder-btn { min-height: var(--target-min); }
 .new-folder-btn:hover {
   background: var(--panel);
   color: var(--fg-2);
@@ -927,7 +928,7 @@ input, textarea { font-family: inherit; }
 .cat-item:focus-visible,
 .folder-head:focus-visible,
 .setlist-head:focus-visible,
-.setlist-song:focus-visible,
+.setlist-song:focus-visible { outline-offset: -2px; }
 .upnext-row:focus-visible { outline-offset: -2px; }
 .cat-item .cat-actions:has(.cat-upnext) { grid-template-columns: repeat(2, var(--target-min)); }
 .cat-item .cat-actions :is(.cat-upnext, .cat-more, .cat-fav, .cat-del) { width: var(--target-min); height: var(--target-min); }

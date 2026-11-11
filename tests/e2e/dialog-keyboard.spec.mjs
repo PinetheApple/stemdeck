@@ -4,7 +4,11 @@
 import { test, expect } from "@playwright/test";
 import {
   JOB_ID,
+  KEY,
+  SIBLING_JOB_ID,
+  fixtureTrack,
   openStudio,
+  seedCatalogState,
   seedLibrary,
   stubExportEndpoints,
   stubFavorites,
@@ -12,12 +16,10 @@ import {
   stubUpdateCheck,
 } from "./helpers.mjs";
 
-const KEY = { ENTER: "Enter", ESCAPE: "Escape" };
-
 const MIN_TARGET_PX = 24;
 
-async function openApp(page, { updateAvailable = false } = {}) {
-  await seedLibrary(page);
+async function openApp(page, { updateAvailable = false, seed = seedLibrary } = {}) {
+  await seed(page);
   await stubFavorites(page);
   await stubExportEndpoints(page);
   await stubUpdateCheck(page, { available: updateAvailable });
@@ -89,7 +91,7 @@ test.describe("dialogs and Esc", () => {
   });
 });
 
-const PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLkeyboard46";
+const PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLkeyboardnav";
 const PLAYLIST_PREVIEW = {
   playlist_title: "Keys",
   will_queue: 2,
@@ -128,8 +130,9 @@ test.describe("more dialogs and Esc", () => {
 
   test("the playlist confirmation hands focus back on Esc, Cancel and Import", async ({ page }) => {
     await page.route("**/api/playlist/preview", (route) => route.fulfill({ json: PLAYLIST_PREVIEW }));
-    await page.route("**/api/playlist", (route) =>
-      route.fulfill({ json: { playlist_title: "Keys", jobs: [], queued: 0 } }),
+    await page.route(
+      "**/api/playlist",
+      (route) => route.fulfill({ json: { playlist_title: "Keys", jobs: [], queued: 0 } }),
     );
     await openApp(page);
 
@@ -162,12 +165,32 @@ function smallTargets(page, selectors) {
   );
 }
 
+/** A user folder, for its head's buttons, and a stopped song, for its Extract button. */
+function seedFolderAndStoppedSong(page) {
+  return seedCatalogState(page, {
+    folders: [
+      { id: "f-unsorted", name: "Unsorted", items: [JOB_ID], color: null },
+      { id: "f-live", name: "Live", items: [SIBLING_JOB_ID], color: null },
+      { id: "trash", name: "Trash", items: [], color: null },
+    ],
+    tracks: {
+      [JOB_ID]: { ...fixtureTrack(JOB_ID, JOB_ID), status: "stopped" },
+      [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, SIBLING_JOB_ID),
+    },
+  });
+}
+
 test.describe("target sizes", () => {
   test("row, folder, transpose and About buttons are at least 24 px", async ({ page }) => {
-    await openApp(page);
-    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).hover();
+    await openApp(page, { seed: seedFolderAndStoppedSong });
+    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).hover();
+    await expect(page.locator(".cat-item .cat-extract")).toBeVisible();
     expect(
       await smallTargets(page, [
+        "#newFolderBtn",
+        ".folder-head .f-subfolder",
+        ".folder-head .f-del",
+        ".cat-item .cat-extract",
         ".cat-item .cat-upnext",
         ".cat-item .cat-more",
         ".cat-item .cat-fav",
