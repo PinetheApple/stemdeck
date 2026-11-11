@@ -14,6 +14,7 @@ The endpoints the web app itself uses. They are not a stable public interface an
 | GET | `/api/jobs/{id}/events` | SSE stream of job state |
 | POST | `/api/jobs/{id}/cancel` | Terminate active subprocess and cancel job |
 | PATCH | `/api/jobs/{id}/sections` | Save waveform section markers for a job |
+| POST | `/api/jobs/{id}/audio-tags` | Look up what a finished song is missing (tags, band, identity, work, lyrics) → `{audio_tags, artist, has_lyrics, identity, work}`. Stores only what it newly found, so a repeat call that finds nothing new writes nothing; a failed lookup is a 200 with what is stored. The first call that finds no lyrics writes a not-found stamp (`lyrics_candidates.json` with `searched_at`), rewritten by a call after the retry window; a repeat call inside the window writes nothing. 404 for an unknown job, 409 for a job that is not done or while a lookup for it is under way |
 | POST | `/api/jobs/{id}/vocal-split` | Split a done song's vocals into `lead_vocals` and `backing_vocals` in the background → 202 with the split state (the existing result once done); 409 without a vocals stem or while a split runs. The job's cancel stops it |
 | GET | `/api/jobs/{id}/vocal-split` | Split state `{state, choice, error}`: `state` is `none`, `running`, `done`, `error` or `cancelled`, `error` a failure code; adds `phase` (`queued` or `splitting`) and `progress` (0 to 1) while running |
 | PUT | `/api/jobs/{id}/vocal-split/choice` | `{choice: "combined" or "split"}` → job state; stores the song's Combined / Lead + Backing pick without splitting |
