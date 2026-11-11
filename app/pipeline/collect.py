@@ -382,7 +382,7 @@ def _keep_reason(
     if job_dir.name in in_setlists:
         return "in a setlist"
     if job is None:
-        return None
+        return _unregistered_keep_reason(job_dir)
     if job.status not in _TERMINAL:
         return "still active"
     if _work_running(job):
@@ -392,6 +392,21 @@ def _keep_reason(
         return "stopped song"
     if job.favorite:
         return "favourite"
+    return None
+
+
+def _unregistered_keep_reason(job_dir: Path) -> str | None:
+    """A folder restore() did not adopt goes only when it is StemDeck's and holds
+    no audio: one with a source or stems may be the only copy of an upload."""
+    if not holds_job_files(job_dir):
+        return "holds nothing StemDeck writes"
+    try:
+        if any(p.is_file() for p in job_dir.glob("source.*")):
+            return "unregistered folder holds a source file"
+        if any((job_dir / "stems").glob("*.wav")):
+            return "unregistered folder holds stems"
+    except OSError:
+        return "folder cannot be read"
     return None
 
 
@@ -418,7 +433,9 @@ def sweep_old_jobs(jobs_dir: Path, ttl_seconds: int | None = None) -> None:
     user has said they want them, which outranks a retention limit. When the
     setlists cannot be read, nothing is swept. A stopped song is never swept
     either, nor a song with a vocal split, lyrics timing or transcription
-    running (upstream PR 862 and 998): only the user deletes those. Every song
+    running (upstream PR 862 and 998): only the user deletes those. Only StemDeck's own job
+    folders are looked at, and one with no registry entry is kept while it holds a
+    source or stems (upstream PR 886 and 889). Every song
     kept or removed is logged with the reason (_keep_reason)."""
     cutoff = time.time() - (JOB_TTL_SECONDS if ttl_seconds is None else ttl_seconds)
     if not jobs_dir.is_dir():
@@ -429,9 +446,9 @@ def sweep_old_jobs(jobs_dir: Path, ttl_seconds: int | None = None) -> None:
         return
     jobs = registry_all()
     removed = False
-    for d in jobs_dir.iterdir():
-        if not d.is_dir() or d.name == "failed":
-            continue  # the failure quarantine has its own TTL (sweep_failed_jobs)
+    # Only StemDeck's own folders: the jobs folder may be shared. Not failed/,
+    # whose quarantine has its own TTL (sweep_failed_jobs).
+    for d in job_dirs(jobs_dir):
         job = jobs.get(d.name)
         reason = _keep_reason(job, d, cutoff, in_setlists)
         if reason is not None:

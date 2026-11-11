@@ -98,3 +98,23 @@ def test_a_folder_holding_a_link_is_not_adopted(tmp_path: Path):
     _registry.restore(jobs)
 
     assert _registry.get(JOB) is None
+
+
+@pytest.mark.parametrize("name", ["source.mp3", "source.webm.part", "stems/vocals.wav"])
+def test_auto_delete_keeps_an_unregistered_folder_holding_audio(tmp_path: Path, name):
+    """One restore() could not adopt (a link's download cut off, a separation
+    cut off) may still hold the only copy of an upload."""
+    from unittest.mock import patch
+
+    from app.pipeline.collect import sweep_old_jobs
+
+    job_dir = tmp_path / JOB
+    (job_dir / name).parent.mkdir(parents=True, exist_ok=True)
+    (job_dir / name).write_bytes(b"audio")
+    old = 1_000_000.0
+    os.utime(job_dir, (old, old))
+
+    with patch("app.pipeline.collect.JOB_TTL_SECONDS", 60):
+        sweep_old_jobs(tmp_path)
+
+    assert (job_dir / name).is_file()

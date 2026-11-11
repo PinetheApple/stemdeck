@@ -116,3 +116,36 @@ def test_the_section_workspace_sweep_never_follows_a_linked_song(tmp_path: Path)
     sweep_orphaned_workspaces(jobs)
 
     assert workspace.is_dir()
+
+
+def _old(path: Path) -> Path:
+    os.utime(path, (OLD, OLD))
+    return path
+
+
+def _auto_delete(jobs: Path) -> None:
+    from app.pipeline.collect import sweep_old_jobs
+
+    with patch("app.pipeline.collect.JOB_TTL_SECONDS", 60):
+        sweep_old_jobs(jobs)
+
+
+def test_auto_delete_leaves_folders_that_are_not_stemdecks(tmp_path: Path):
+    photos = _old(_put(tmp_path / "My Photos" / "beach.jpg").parent)
+    container = _old(_put(tmp_path / "0123456789ab" / "config.v2.json").parent)
+    # Not a job id, whatever it holds.
+    exports = _old(_put(tmp_path / "Old Exports" / "metadata.json").parent)
+
+    _auto_delete(tmp_path)
+
+    assert photos.is_dir()
+    assert container.is_dir()
+    assert exports.is_dir()
+
+
+def test_auto_delete_still_removes_an_abandoned_job_folder(tmp_path: Path):
+    abandoned = _old(_put(tmp_path / SONG / "metadata.json").parent)
+
+    _auto_delete(tmp_path)
+
+    assert not abandoned.exists()
