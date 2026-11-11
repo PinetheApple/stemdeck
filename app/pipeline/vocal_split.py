@@ -24,6 +24,7 @@ vocals.wav or the job's status.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -461,7 +462,7 @@ async def run_split(job: Job, stems_dir: Path, run: VocalSplitRun) -> None:
             _mark_cancelled(job)
         else:
             _record_failure(job, stems_dir, RuntimeError("vocal split failed"))
-    registry_persist(JOBS_DIR)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
 
 
 def cancel_split(job: Job) -> bool:
