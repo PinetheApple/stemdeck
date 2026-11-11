@@ -236,23 +236,30 @@ def backfill_stems_complete(job_dir: Path) -> None:
         logger.warning("could not mark the stems of %s complete", job_dir.name, exc_info=True)
 
 
-def copy_saved_fields(job: Job, job_dir: Path) -> bool:
-    """Put the job's SAVED_FIELDS into its metadata.json, changing nothing
-    else in it. False when the song has no usable metadata.json."""
+def update_metadata(job_dir: Path, fields: dict[str, Any]) -> bool:
+    """Put `fields` into the song's metadata.json, changing nothing else in it.
+    False when the song has no usable metadata.json."""
     meta_path = job_dir / "metadata.json"
     with metadata_lock:
         try:
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
             if not isinstance(meta, dict):
                 return False
-            meta.update(saved_fields(job))
+            meta.update(fields)
             write_json_atomic(meta_path, meta)
         except FileNotFoundError:
             return False
         except (OSError, RecursionError, ValueError):
-            logger.warning("could not copy saved fields into %s", job_dir.name, exc_info=True)
+            logger.warning("could not update metadata.json in %s", job_dir.name, exc_info=True)
             return False
     return True
+
+
+def copy_saved_fields(job: Job, job_dir: Path) -> bool:
+    """Put the job's SAVED_FIELDS into its metadata.json. Read under the lock,
+    so of two quick changes the later one is what stays."""
+    with metadata_lock:
+        return update_metadata(job_dir, saved_fields(job))
 
 
 def read_metadata(meta_path: Path) -> Any:

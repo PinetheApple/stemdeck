@@ -69,7 +69,7 @@ from app.core.registry import set_trashed as registry_set_trashed
 from app.core.setlists import remove_songs as setlists_remove_songs
 from app.core.setlists import replace_song as setlists_replace_song
 from app.core.settings import get_auto_sections, get_discogs_token, get_max_duration_sec
-from app.core.song_folder import keep_added_time, metadata_lock, saved_fields
+from app.core.song_folder import copy_saved_fields, keep_added_time, metadata_lock, update_metadata
 from app.core.song_folder import write_json_atomic as _write_json_atomic
 from app.core.stems_location import is_relocating
 from app.pipeline import discogs, jobqueue
@@ -493,7 +493,7 @@ def trash_job(job_id: str) -> dict:
     else:
         _stop_runs(job, with_lyrics=False)
     registry_persist(JOBS_DIR)
-    _keep_saved_fields(job)
+    copy_saved_fields(job, JOBS_DIR / job.id)
     return {"job_id": job.id, "trashed_at": job.trashed_at}
 
 
@@ -506,7 +506,7 @@ def restore_job(job_id: str) -> dict:
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
     registry_persist(JOBS_DIR)
-    _keep_saved_fields(job)
+    copy_saved_fields(job, JOBS_DIR / job.id)
     return {"job_id": job.id, "trashed_at": job.trashed_at}
 
 
@@ -555,7 +555,7 @@ def set_favorite(job_id: str, body: FavoriteBody) -> dict:
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
     registry_persist(JOBS_DIR)
-    _keep_saved_fields(job)
+    copy_saved_fields(job, JOBS_DIR / job.id)
     return {"job_id": job.id, "favorite": job.favorite}
 
 
@@ -1033,31 +1033,10 @@ def _lookup_audio_tags(job: Job) -> dict[str, str] | None:
 
 def _write_metadata_fields(job_id: str, fields: dict[str, object]) -> None:
     """Put ``fields`` (the tags, the band) into metadata.json, if the job has
-    one, and change nothing else in it: restore() rebuilds a lost registry
-    entry from this file."""
-    meta_path = (JOBS_DIR / job_id / "metadata.json").resolve()
-    if not meta_path.is_relative_to(JOBS_DIR.resolve()):
-        return
-    # The same lock as the sections editor, the other read-modify-write here.
-    with metadata_lock:
-        try:
-            if not meta_path.is_file():
-                return
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            if not isinstance(meta, dict):
-                return
-            meta.update(fields)
-            _write_json_atomic(meta_path, meta)
-        except (OSError, ValueError):
-            logger.warning("could not update metadata.json for %s", job_id, exc_info=True)
-
-
-def _keep_saved_fields(job: Job) -> None:
-    """Copy what the user set on a song (favourite, Trash) into its
-    metadata.json, so a registry rebuilt from the folders keeps it. Read under
-    the lock, so of two quick changes the later one is what stays."""
-    with metadata_lock:
-        _write_metadata_fields(job.id, saved_fields(job))
+    one: restore() rebuilds a lost registry entry from this file."""
+    job_dir = (JOBS_DIR / job_id).resolve()
+    if job_dir.is_relative_to(JOBS_DIR.resolve()):
+        update_metadata(job_dir, fields)
 
 
 @router.post("/{job_id}/audio-tags")
