@@ -22,7 +22,13 @@ from app.core.models import Job, JobCancelled, _set, settle_cancelled
 from app.core.redact import redact
 from app.core.registry import is_upload
 from app.core.registry import persist as persist_registry
-from app.core.song_folder import keep_added_time, mark_stems_complete, saved_fields
+from app.core.song_folder import (
+    keep_added_time,
+    mark_stems_complete,
+    metadata_lock,
+    saved_fields,
+    write_json_atomic,
+)
 from app.pipeline import jobqueue
 from app.pipeline.analyze import analyze, refine_key_from_stems
 from app.pipeline.beatgrid import compute_beat_grid
@@ -356,7 +362,17 @@ def _run_local_blocking(job: Job, source_path: Path, job_dir: Path) -> None:
 
 
 def _write_metadata(job: Job, job_dir: Path) -> None:
-    meta = {
+    """Blocking. Under metadata_lock, and the job's fields read inside it: a
+    favourite or a Trash set as the song finishes must not be overwritten."""
+    with metadata_lock:
+        try:
+            write_json_atomic(job_dir / "metadata.json", _metadata(job))
+        except OSError:
+            logger.warning("could not write metadata.json for job %s", job.id, exc_info=True)
+
+
+def _metadata(job: Job) -> dict:
+    return {
         "title": job.title,
         "user_title": job.user_title,
         "user_artist": job.user_artist,
@@ -386,10 +402,6 @@ def _write_metadata(job: Job, job_dir: Path) -> None:
         "stage_timings": job.stage_timings,
         **saved_fields(job),
     }
-    try:
-        (job_dir / "metadata.json").write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
-    except OSError:
-        logger.warning("could not write metadata.json for job %s", job.id, exc_info=True)
 
 
 # Files worth keeping in a quarantined failure dir. Everything else (source
@@ -529,7 +541,7 @@ async def _run_async(
     job.cancel_requested = False
     job.stop_requested = False
     _set(job, status="done", progress=1.0, stage="Done")
-    _write_metadata(job, job_dir)
+    await asyncio.to_thread(_write_metadata, job, job_dir)
     await asyncio.to_thread(persist_registry, jobs_dir)
     # One-line per-job summary: the timing telemetry that makes performance
     # regressions (and the CPU-vs-GPU question) answerable from logs (#293).

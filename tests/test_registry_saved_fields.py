@@ -195,3 +195,22 @@ def test_a_song_finished_as_the_process_died_keeps_the_registry_fields(tmp_path:
     assert job.favorite is True
     assert job.selected_stems == ["drums"]
     assert job.created_at == ADDED
+
+
+def test_a_favourite_set_as_the_song_finishes_is_not_overwritten(tmp_path: Path):
+    """The route changes metadata.json under metadata_lock. The finishing
+    run's write must wait for it and take the job's fields then, not before."""
+    import threading
+
+    from app.core.song_folder import metadata_lock
+
+    job = Job(id=JOB, status="done", title="Song", created_at=ADDED)
+    _stems(tmp_path / JOB)
+    with metadata_lock:
+        writer = threading.Thread(target=_write_metadata, args=(job, tmp_path / JOB))
+        writer.start()
+        writer.join(0.2)
+        job.favorite = True
+    writer.join(5)
+
+    assert _meta(tmp_path)["favorite"] is True

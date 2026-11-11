@@ -250,3 +250,23 @@ async def test_the_pipeline_saving_the_registry_leaves_the_loop_free(
     ticks = await _ticks_while(writing, _runner._run_async(job, tmp_path / JOB, tmp_path, run))
 
     assert ticks > 0, "the registry write blocked the event loop"
+
+
+async def test_the_finished_songs_metadata_is_written_off_the_loop(tmp_path: Path, monkeypatch):
+    job = _registry.register(Job(id=JOB, title="Song"))
+    (tmp_path / JOB).mkdir()
+    finished = threading.Event()
+    writing = _slow(
+        monkeypatch,
+        os,
+        "replace",
+        lambda src, dst: finished.is_set() and Path(dst).name == "metadata.json",
+    )
+
+    def run(_job, _job_dir):
+        finished.set()  # only the finished run's write is slow
+
+    ticks = await _ticks_while(writing, _runner._run_async(job, tmp_path / JOB, tmp_path, run))
+
+    assert ticks > 0, "the metadata write blocked the event loop"
+    assert job.status == "done"
