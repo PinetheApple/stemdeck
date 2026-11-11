@@ -38,8 +38,28 @@ const TRANSPORT_LABELS = [
   "#t-pitch-label",
 ];
 
-const loopButtonWidth = (page) =>
-  page.locator("#t-loop").evaluate((el) => el.getBoundingClientRect().width);
+// footerFit's REOPEN_SLACK: a level only lets go with this much room to spare.
+const REOPEN_SLACK = 24;
+const ROWS_LEVEL = "collapse-rows";
+
+const controlSizes = (page) =>
+  page.evaluate(() => ({
+    loop: document.querySelector("#t-loop").getBoundingClientRect().width,
+    play: document.querySelector("#t-play").getBoundingClientRect().width,
+    readout: getComputedStyle(document.querySelector("#footer-time-elapsed")).fontSize,
+  }));
+
+// The single row's width, and the window width it needs to sit on one line.
+const singleRowFit = (page) =>
+  page.evaluate(() => {
+    const strip = document.querySelector(".footer-clusters");
+    const rects = [...strip.children].map((el) => el.getBoundingClientRect()).filter((r) => r.width);
+    const row = Math.max(...rects.map((r) => r.right)) - Math.min(...rects.map((r) => r.left));
+    return Math.ceil(row + window.innerWidth - strip.getBoundingClientRect().width);
+  });
+
+const groupTop = (page, selector) =>
+  page.locator(selector).evaluate((el) => el.getBoundingClientRect().top);
 
 async function setLibrary(page, state) {
   const app = page.locator(".app");
@@ -97,7 +117,7 @@ test.describe("footer fit", () => {
     await page.setViewportSize({ width: 820, height: 800 });
     await openStudio(page, { tauri: true });
     await waitForClickTrack(page, { revealOptions: false });
-    await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toContain("collapse-tight");
+    await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toContain(ROWS_LEVEL);
 
     await page.setViewportSize({ width: 2200, height: 900 });
     await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toEqual([]);
@@ -126,16 +146,47 @@ test.describe("footer fit", () => {
     });
   }
 
-  test("the Loop button is the same size at 1024 as at 1440", async ({ page }) => {
+  test("Loop, play and the readout are the same size at 1024 as at 1440", async ({ page }) => {
     await page.setViewportSize({ width: WIDE_WIDTH, height: WINDOW_HEIGHT });
     await openStudio(page, { tauri: true });
     await waitForClickTrack(page, { revealOptions: false });
-    const wide = await loopButtonWidth(page);
+    const wide = await controlSizes(page);
 
     await page.setViewportSize(NARROW_WINDOW);
     // The full row overflows at 1024, so fitting again is the sign the fit has run.
     await expect.poll(() => stripFits(page), { timeout: 5000 }).toBe(true);
-    expect(await loopButtonWidth(page)).toBe(wide);
+    expect(await controlSizes(page)).toEqual(wide);
+  });
+
+  test("at 1024 Speed and Global key sit on a second row and nothing overflows", async ({ page }) => {
+    await page.setViewportSize(NARROW_WINDOW);
+    await openStudio(page, { tauri: true });
+    await waitForClickTrack(page, { revealOptions: false });
+
+    await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toEqual([ROWS_LEVEL]);
+    expect(await stripFits(page)).toBe(true);
+    const positionTop = await groupTop(page, ".footer-group-position");
+    const speedTop = await groupTop(page, ".footer-group-speed");
+    expect(speedTop).toBeGreaterThan(positionTop);
+    expect(await groupTop(page, ".footer-group-key")).toBe(speedTop);
+  });
+
+  test("widening past the fit point returns to one row only with room to spare", async ({ page }) => {
+    await page.setViewportSize({ width: WIDE_WIDTH, height: WINDOW_HEIGHT });
+    await openStudio(page, { tauri: true });
+    await waitForClickTrack(page, { revealOptions: false });
+    const fitPoint = await singleRowFit(page);
+
+    await page.setViewportSize(NARROW_WINDOW);
+    await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toEqual([ROWS_LEVEL]);
+    await page.setViewportSize({ width: fitPoint + REOPEN_SLACK / 2, height: WINDOW_HEIGHT });
+    // Nothing to wait for when it holds; a frame lets a wrong reopen show.
+    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+    expect(await collapseLevels(page)).toEqual([ROWS_LEVEL]);
+
+    await page.setViewportSize({ width: fitPoint + REOPEN_SLACK * 2, height: WINDOW_HEIGHT });
+    await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toEqual([]);
+    expect(await stripFits(page)).toBe(true);
   });
 
   // Deleted: "the page itself never scrolls sideways".
