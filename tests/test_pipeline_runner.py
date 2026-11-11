@@ -7,6 +7,7 @@ import pytest
 
 from app.core.models import Job, JobCancelled
 from app.core.registry import _jobs
+from app.pipeline.errors import CAUSE_OUT_OF_MEMORY
 from app.pipeline.runner import (
     _extract_video_track,
     _presence_from_rms,
@@ -243,13 +244,13 @@ async def test_pipeline_error_quarantines_evidence(tmp_path: Path):
 
     assert job.status == "error"
     assert job.error_detail is not None
-    assert job.error_detail.startswith("out-of-memory")
+    assert job.error_detail.startswith(CAUSE_OUT_OF_MEMORY)
     # Original dir gone; quarantine holds error.txt but no audio payloads.
     assert not job_dir.exists()
     quarantined = tmp_path / "failed" / job.id
     report = (quarantined / "error.txt").read_text(encoding="utf-8")
     assert "device: mps" in report
-    assert "cause: out-of-memory" in report
+    assert f"cause: {CAUSE_OUT_OF_MEMORY}" in report
     assert "MPS backend out of memory" in report
     assert '"download": 1.2' in report
     assert not (quarantined / "source.wav").exists()

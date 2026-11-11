@@ -29,12 +29,16 @@ class SeparationError(RuntimeError):
         self.device = device
 
 
+CAUSE_OUT_OF_MEMORY = "out-of-memory"
+CAUSE_UNSUPPORTED_DEVICE = "unsupported-device"
+CAUSE_DISK_FULL = "disk-full"
+
 # Ordered, first match wins. Substring match against lowercased text.
 # Deliberately coarse: these route a user (or a bug report) to the right
 # next step, they don't diagnose. "unknown" is the honest default.
 _CAUSE_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
-        "out-of-memory",
+        CAUSE_OUT_OF_MEMORY,
         (
             "cuda out of memory",
             "mps backend out of memory",
@@ -45,7 +49,7 @@ _CAUSE_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
         ),
     ),
     (
-        "unsupported-device",
+        CAUSE_UNSUPPORTED_DEVICE,
         (
             "no kernel image is available",
             "invalid device",
@@ -56,7 +60,7 @@ _CAUSE_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
         ),
     ),
     (
-        "disk-full",
+        CAUSE_DISK_FULL,
         (
             "no space left on device",
             "errno 28",

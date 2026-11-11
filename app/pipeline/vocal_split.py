@@ -65,7 +65,13 @@ from app.core.registry import persist as registry_persist
 from app.core.registry import set_proc
 from app.core.settings import get_demucs_device
 from app.pipeline.collect import merge_stem_peaks, presence_for_split
-from app.pipeline.errors import SeparationError, classify_failure
+from app.pipeline.errors import (
+    CAUSE_DISK_FULL,
+    CAUSE_OUT_OF_MEMORY,
+    CAUSE_UNSUPPORTED_DEVICE,
+    SeparationError,
+    classify_failure,
+)
 from app.pipeline.runs import Run, RunBoard, run_behind_lock
 
 logger = logging.getLogger("stemdeck.pipeline")
@@ -93,9 +99,9 @@ _FAILURE_CODES: frozenset[str] = frozenset(get_args(VocalSplitFailure))
 # classify_failure's causes that name a failure of their own; any other is the
 # worker's code, or VOCAL_SPLIT_FAILED_WORKER.
 _CAUSE_CODES: dict[str, VocalSplitFailure] = {
-    "out-of-memory": VOCAL_SPLIT_FAILED_OUT_OF_MEMORY,
-    "unsupported-device": VOCAL_SPLIT_FAILED_UNSUPPORTED_DEVICE,
-    "disk-full": VOCAL_SPLIT_FAILED_DISK_FULL,
+    CAUSE_OUT_OF_MEMORY: VOCAL_SPLIT_FAILED_OUT_OF_MEMORY,
+    CAUSE_UNSUPPORTED_DEVICE: VOCAL_SPLIT_FAILED_UNSUPPORTED_DEVICE,
+    CAUSE_DISK_FULL: VOCAL_SPLIT_FAILED_DISK_FULL,
 }
 _STAGE_SPLITTING = "Splitting lead/backing vocals..."
 _STAGE_DONE = "Done"
