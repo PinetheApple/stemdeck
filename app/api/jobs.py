@@ -1066,9 +1066,10 @@ async def refresh_audio_tags(job_id: str) -> dict:
     Answers {"audio_tags": {...} | null, "artist": {...} | null,
     "has_lyrics": bool}. A lookup that fails or times out is "nothing found",
     not an error, and the reason is in the server log. The page asks when it
-    opens a finished track missing any of this, once per page load; after a
-    409 (the job is not done, or a lookup for it is under way) it asks again
-    on the next open. The band is looked up when the tags name an
+    opens a finished track it has no tags or work answer for, and stops once
+    a call has been answered. A refused or failed call is asked again on the
+    next page load; a 409 (the job is not done, or a lookup for it is under
+    way) on the next open. The band is looked up when the tags name an
     artist and the job has no band yet, whether the tags were found just now
     or were there already, and the lyrics (lyrics.json, GET .../lyrics) when
     the job has none and anything is known to look them up by.
