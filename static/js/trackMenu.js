@@ -1,8 +1,9 @@
-// A library row's … menu: add the song to a setlist, or rename it.
+// A library row's … menu: rename the song, add it to a setlist, or move it to a folder.
 // catalog.js asks for it with a "trackmenu" event, since this module imports it.
 
 import { addSongToSetlist, createSetlistFrom, getSetlists } from "./setlists.js";
 import { startRowRename } from "./songRename.js";
+import { folderChoices, moveTrackToFolder, moveTrackToNewFolder } from "./catalog.js";
 import { t } from "./i18n.js";
 import { iconButton } from "./libraryControls.js";
 
@@ -38,6 +39,29 @@ function setlistItem(setlist, trackId) {
   }, { disabled: has });
 }
 
+// Indents a subfolder under its parent, as the folder tree does.
+const DEPTH_PROPERTY = "--menu-depth";
+
+function folderItem(folder, trackId) {
+  const item = menuItem(folder.name, folder.current ? "check" : "folder", function onMoveToFolder() {
+    moveTrackToFolder(trackId, folder.id);
+  }, { disabled: folder.current });
+  item.classList.add("lib-menu-folder");
+  item.style.setProperty(DEPTH_PROPERTY, String(folder.depth));
+  if (folder.current) item.setAttribute("aria-current", "true");
+  return item;
+}
+
+function folderSection(trackId) {
+  return [
+    menuLabel(t("trackMenu.moveToFolder")),
+    ...folderChoices(trackId).map((folder) => folderItem(folder, trackId)),
+    menuItem(t("trackMenu.newFolder"), "plus", function onNewFolderWithSong() {
+      moveTrackToNewFolder(trackId);
+    }),
+  ];
+}
+
 function buildMenu(trackId) {
   const el = document.createElement("div");
   el.className = "lib-menu";
@@ -52,6 +76,7 @@ function buildMenu(trackId) {
     menuItem(t("trackMenu.newSetlist"), "plus", function onNewSetlistWithSong() {
       createSetlistFrom([trackId]);
     }),
+    ...folderSection(trackId),
   );
   el.addEventListener("keydown", onMenuKeydown);
   return el;

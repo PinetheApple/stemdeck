@@ -1445,9 +1445,11 @@ export function setCurrentTrack(trackId) {
 
 // ─── Folder operations ───
 
-function createFolder() {
+/** A new folder, opened for naming; `trackId` moves that song into it first. */
+function createFolder({ trackId = null } = {}) {
   const folder = makeFolder();
   folders.push(folder);
+  if (trackId) placeTrackInFolder(folder.id, trackId);
   saveState();
   render();
   openFolderEditor(folder.id, "library.newFolder");
@@ -1712,19 +1714,43 @@ function endDrag(itemEl) {
   document.getElementById("lanes")?.classList.remove("library-drop-target");
 }
 
-function dropOnFolder(folderId, trackId) {
-  const id = trackId ?? dragId;
-  if (!id) return;
-  // Remove from current folder
+/** Take the song out of its current folder and into `folderId`. */
+function placeTrackInFolder(folderId, id) {
   for (const f of folders) {
     const idx = f.items.indexOf(id);
     if (idx !== -1) { f.items.splice(idx, 1); break; }
   }
-  // Add to target folder
   const target = folders.find((f) => f.id === folderId);
   if (target && !target.items.includes(id)) target.items.push(id);
+}
+
+function dropOnFolder(folderId, trackId) {
+  const id = trackId ?? dragId;
+  if (!id) return;
+  placeTrackInFolder(folderId, id);
   saveState();
   render();
+}
+
+/** The row menu's move: the same as dragging the song onto the folder. */
+export function moveTrackToFolder(trackId, folderId) {
+  dropOnFolder(folderId, trackId);
+}
+
+export function moveTrackToNewFolder(trackId) {
+  createFolder({ trackId });
+}
+
+/** Every folder but the Trash, in the tree's order, with its nesting depth
+ *  and whether it holds `trackId`. */
+export function folderChoices(trackId) {
+  const choices = [];
+  const visit = (folder, depth) => {
+    choices.push({ id: folder.id, name: folder.name, depth, current: folder.items.includes(trackId) });
+    for (const child of folders.filter((f) => f.parentId === folder.id)) visit(child, depth + 1);
+  };
+  for (const top of folders.filter((f) => f.id !== TRASH_ID && !f.parentId)) visit(top, 0);
+  return choices;
 }
 
 function paintFavButton(btn, on) {
@@ -2714,7 +2740,7 @@ function drawCatalog() {
   newFolderBtn.type = "button";
   newFolderBtn.setAttribute("aria-label", i18nT("library.newFolder"));
   newFolderBtn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v6 M9 14h6"/></svg>${esc(i18nT("library.newFolder"))}`;
-  newFolderBtn.addEventListener("click", createFolder);
+  newFolderBtn.addEventListener("click", function onNewFolderClick() { createFolder(); });
   collectionsSection.querySelector(".lib-section-head").appendChild(newFolderBtn);
   let hasCollections = false;
   for (const folder of nonTrash) {
