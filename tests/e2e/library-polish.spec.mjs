@@ -73,6 +73,10 @@ const boxOf = (locator) => locator.evaluate((el) => {
   return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
 });
 
+const setLanguage = (page, code) => page.evaluate(async (c) => (await import("/js/i18n.js")).setLanguage(c), code);
+
+const startsWithText = (text) => new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+
 const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
 test("the Songs count is the number of songs the search leaves", async ({ page }) => {
@@ -90,6 +94,26 @@ test("the Songs count is the number of songs the search leaves", async ({ page }
 
   await search(page, "");
   await expect(count).toHaveText("2");
+});
+
+const SETLISTS = [
+  { id: "sl-gig", name: "Gig", song_ids: [JOB_ID] },
+  { id: "sl-practice", name: "Practice", song_ids: [SIBLING_JOB_ID] },
+];
+
+test("the Setlists count stays the number of setlists while a search runs", async ({ page }) => {
+  await page.route("**/api/setlists", (route) => route.fulfill({ json: SETLISTS }));
+  await openLibrary(page);
+  const count = page.locator("#setlistsCount");
+  await expect(count).toHaveText(String(SETLISTS.length));
+
+  await search(page, "again");
+  await expect(page.locator("#libSongsCount")).toHaveText("1");
+  await expect(count).toHaveText(String(SETLISTS.length));
+
+  await search(page, NO_MATCH_QUERY);
+  await expect(page.locator("#libSongsCount")).toHaveText("0");
+  await expect(count).toHaveText(String(SETLISTS.length));
 });
 
 test("Trash, Favorites and a search with no match share one empty state", async ({ page }) => {
@@ -125,7 +149,7 @@ test("an empty folder says so in the app's language", async ({ page }) => {
 test("every rail label fits its button, in every language", async ({ page }) => {
   await openLibrary(page);
   for (const code of LANGUAGES) {
-    await page.evaluate(async (c) => (await import("/js/i18n.js")).setLanguage(c), code);
+    await setLanguage(page, code);
     const cut = await page.evaluate(() => [...document.querySelectorAll(".sidebar-rail .rail-btn > span[data-i18n]")]
       .filter((label) => label.offsetParent)
       .filter((label) => {
@@ -138,13 +162,27 @@ test("every rail label fits its button, in every language", async ({ page }) => 
   }
 });
 
+const RAIL_BUTTONS_NAMED_BY_LABEL = ["#helpModeBtn", "#notifBtn", "#settingsBtn", "#aboutBtn"];
+
+test("a rail button's name starts with the word it shows, in every language", async ({ page }) => {
+  await openLibrary(page);
+  for (const code of LANGUAGES) {
+    await setLanguage(page, code);
+    for (const selector of RAIL_BUTTONS_NAMED_BY_LABEL) {
+      const button = page.locator(selector);
+      const label = (await button.locator("span[data-i18n]").textContent()).trim();
+      await expect(button, `${selector} in ${code}`).toHaveAccessibleName(startsWithText(label));
+    }
+  }
+});
+
 test("Guide and About are told apart by label and tooltip, and do different things", async ({ page }) => {
   await openLibrary(page);
   const guide = page.locator("#helpModeBtn");
   const about = page.locator("#aboutBtn");
   await expect(about.locator("span")).toHaveText(await uiText(page, "nav.about"));
   await expect(about).toHaveAttribute("title", await uiText(page, "nav.aboutTitle"));
-  await expect(about).toHaveAccessibleName(await uiText(page, "nav.aboutTitle"));
+  await expect(about).toHaveAccessibleName(await uiText(page, "nav.about"));
   expect(await guide.locator("span").textContent()).not.toBe(await about.locator("span").textContent());
   expect(await guide.getAttribute("title")).not.toBe(await about.getAttribute("title"));
 
@@ -183,6 +221,23 @@ test("the row menu opens beside the row and covers none of the list", async ({ p
   expect(Math.abs(menuBox.top - rowBox.top)).toBeLessThanOrEqual(1);
 });
 
+// Too narrow beside the first row and too short under it, with room above.
+const CRAMPED_WINDOW = { width: 480, height: 440 };
+
+test("with no room beside or below its row, the row menu opens above it", async ({ page }) => {
+  await page.setViewportSize(CRAMPED_WINDOW);
+  await openLibrary(page);
+  const rows = page.locator("#catalogList .cat-item");
+  const row = rows.first();
+  await row.hover();
+  await row.locator(".cat-more").click();
+  const menu = page.locator(".lib-menu");
+  await expect(menu).toBeVisible();
+  const menuBox = await boxOf(menu);
+  expect(overlaps(menuBox, await boxOf(row)), "menu covers its own row").toBe(false);
+  expect(overlaps(menuBox, await boxOf(rows.nth(1))), "menu covers the next row").toBe(false);
+});
+
 test("the open song's actions leave its title and artist uncovered", async ({ page }) => {
   await openStudio(page);
   const row = page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`);
@@ -216,12 +271,8 @@ test("with no song open the main area says how to start", async ({ page }) => {
 const CHIP_TAG = "rock";
 const searchBox = (page) => page.locator("#catalogToggle");
 
-/**
- * The ⌘K hint and the field's native clear button never show together. The
- * clear button shows exactly when the field has text, and `has-query` pins the
- * state the hint's rule keys on, which WebKit does not refresh from
- * `:placeholder-shown` when code sets the value.
- */
+// `has-query` pins the hint's state because WebKit does not refresh
+// `:placeholder-shown` when code sets the value.
 async function expectSearchState(page, hasText) {
   const hint = page.locator(".search-kbd");
   if (hasText) await expect(searchBox(page)).toHaveClass(/\bhas-query\b/);
