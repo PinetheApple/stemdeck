@@ -59,15 +59,16 @@ function buildMenu(trackId) {
 
 const ROW_SELECTOR = ".cat-item";
 
-/** Under the row, or above it when the window has no room below. */
+/** Above the row, or under it when the window has no room above; held inside the window when neither fits. */
 function topOffRow(row, height) {
+  const above = row.top - MENU_GAP_PX - height;
+  if (above >= VIEWPORT_MARGIN_PX) return above;
   const below = row.bottom + MENU_GAP_PX;
-  const fitsBelow = below + height <= window.innerHeight - VIEWPORT_MARGIN_PX;
-  return fitsBelow ? below : row.top - height - MENU_GAP_PX;
+  return Math.min(below, window.innerHeight - height - VIEWPORT_MARGIN_PX);
 }
 
 /** Beside the row, top edges level, so the menu covers none of the list;
- *  off the row's top or bottom when the window has no room beside it. */
+ *  above or below the row when the window has no room beside it. */
 function placeMenu(el, anchor) {
   const row = (anchor.closest(ROW_SELECTOR) ?? anchor).getBoundingClientRect();
   const { width, height } = el.getBoundingClientRect();
