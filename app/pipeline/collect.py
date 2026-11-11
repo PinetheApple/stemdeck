@@ -15,7 +15,7 @@ from app.core.config import (
     TIMEOUT_FFMPEG,
     ffmpeg_executable,
 )
-from app.core.models import FINISHED_STATUSES, STATUS_STOPPED, VOCAL_SPLIT_RUNNING, Job
+from app.core.models import FINISHED_STATUSES, STATUS_STOPPED, Job
 from app.core.registry import all_jobs as registry_all
 from app.core.registry import persist as registry_persist
 from app.core.registry import remove as registry_remove
@@ -327,14 +327,16 @@ def presence_for_split(
     }
 
 
-def _work_running(job: Job) -> bool:
+_NEWER_THAN_CUTOFF = "newer than the cutoff"
+
+
+def _work_running(job_id: str) -> bool:
     """Whether a vocal split, lyrics timing or transcription is running on a
-    finished song: the runs delete stops before it removes the folder."""
-    return (
-        job.vocal_split == VOCAL_SPLIT_RUNNING
-        or RETIME_RUNS.running(job.id)
-        or TRANSCRIBE_RUNS.running(job.id)
-    )
+    finished song: the run boards delete stops before it removes the folder."""
+    # Imported here: vocal_split imports this module.
+    from app.pipeline.vocal_split import VOCAL_SPLIT_RUNS
+
+    return any(board.running(job_id) for board in (VOCAL_SPLIT_RUNS, RETIME_RUNS, TRANSCRIBE_RUNS))
 
 
 def _keep_reason(
@@ -343,24 +345,32 @@ def _keep_reason(
     cutoff: float,
     in_setlists: set[str],
 ) -> str | None:
-    """Why the sweep must leave `job_dir` alone, or None to remove it."""
+    """Why the sweep must leave `job_dir` alone, or None to remove it. Age is
+    asked first, so any other reason is one that kept a song past the cutoff."""
+    # The registry is rebuilt at start, so a leftover dir goes by its mtime.
+    stamp = job_dir.stat().st_mtime if job is None else job.created_at
+    if stamp >= cutoff:
+        return _NEWER_THAN_CUTOFF
     if job_dir.name in in_setlists:
         return "in a setlist"
     if job is None:
-        # The registry is rebuilt at start, so a leftover dir goes by its mtime.
-        return "newer than the cutoff" if job_dir.stat().st_mtime >= cutoff else None
+        return None
     if job.status not in _TERMINAL:
         return "still active"
-    if _work_running(job):
+    if _work_running(job.id):
         return "work is running on it"
     if job.status == STATUS_STOPPED:
         # Never separated, and an upload's kept source is its only copy.
         return "stopped song"
     if job.favorite:
         return "favourite"
-    if job.created_at >= cutoff:
-        return "newer than the cutoff"
     return None
+
+
+def _log_kept(job_id: str, reason: str) -> None:
+    """Every keep, at INFO when it held back a song past the cutoff."""
+    level = logging.DEBUG if reason == _NEWER_THAN_CUTOFF else logging.INFO
+    logger.log(level, "auto-delete kept %s: %s", job_id, reason)
 
 
 def sweep_old_jobs(jobs_dir: Path, ttl_seconds: int | None = None) -> None:
@@ -397,10 +407,12 @@ def sweep_old_jobs(jobs_dir: Path, ttl_seconds: int | None = None) -> None:
         job = jobs.get(d.name)
         reason = _keep_reason(job, d, cutoff, in_setlists)
         if reason is not None:
-            logger.debug("auto-delete kept %s: %s", d.name, reason)
+            _log_kept(d.name, reason)
             continue
-        state = "finished" if job is not None else "unregistered"
-        logger.info("auto-delete removed %s: %s and older than the cutoff", d.name, state)
+        status = job.status if job is not None else "unregistered"
+        logger.info(
+            "auto-delete removed %s (%s): older than the cutoff, nothing keeps it", d.name, status
+        )
         _rmtree(d)
         registry_remove(d.name)
         removed = True

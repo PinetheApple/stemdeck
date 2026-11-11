@@ -123,7 +123,7 @@ def test_old_stopped_song_survives_the_sweep(tmp_path: Path, trashed_at):
 
 
 def test_trashed_in_flight_upload_comes_back_stopped_and_is_kept(tmp_path: Path):
-    """A restart turns a job trashed mid-separation into a stopped song (#748);
+    """A restart turns a job trashed mid-separation into a stopped song (upstream issue 748);
     the first sweep after that start must not take it."""
     from app.core.registry import persist, restore, take_pending_resume
 
@@ -147,26 +147,19 @@ def test_trashed_in_flight_upload_comes_back_stopped_and_is_kept(tmp_path: Path)
     assert job_id in _jobs
 
 
-def test_old_song_with_a_vocal_split_running_survives(tmp_path: Path):
-    d, job = _old_done_job(tmp_path, "cccccccccc03")
-    job.vocal_split = "running"
-
-    sweep_old_jobs(tmp_path, ttl_seconds=60)
-
-    assert d.is_dir()
-    assert job.id in _jobs
-
-
-def _lyrics_boards():
+def _run_boards():
     from app.pipeline.lyrics_retime import RETIME_RUNS
     from app.pipeline.transcribe_on_demand import TRANSCRIBE_RUNS
+    from app.pipeline.vocal_split import VOCAL_SPLIT_RUNS
 
-    return {"timing": RETIME_RUNS, "transcription": TRANSCRIBE_RUNS}
+    return {"split": VOCAL_SPLIT_RUNS, "timing": RETIME_RUNS, "transcription": TRANSCRIBE_RUNS}
 
 
-@pytest.mark.parametrize("kind", ["timing", "transcription"])
-def test_old_song_with_a_lyrics_run_running_survives(tmp_path: Path, kind: str):
-    board = _lyrics_boards()[kind]
+@pytest.mark.parametrize("kind", ["split", "timing", "transcription"])
+def test_old_song_with_a_run_claimed_survives(tmp_path: Path, kind: str):
+    """Claimed on its board is running: a split is claimed before begin_split
+    marks the job, the order POST .../vocal-split takes."""
+    board = _run_boards()[kind]
     d, job = _old_done_job(tmp_path, "cccccccccc04")
     assert board.claim(job.id) is not None
     try:
@@ -178,13 +171,12 @@ def test_old_song_with_a_lyrics_run_running_survives(tmp_path: Path, kind: str):
     assert job.id in _jobs
 
 
-@pytest.mark.parametrize("kind", ["timing", "transcription"])
+@pytest.mark.parametrize("kind", ["split", "timing", "transcription"])
 def test_old_song_goes_once_its_work_has_ended(tmp_path: Path, kind: str):
     """The keep holds only while the work runs: an ended split or lyrics run
     leaves an ordinary old song."""
-    board = _lyrics_boards()[kind]
+    board = _run_boards()[kind]
     d, job = _old_done_job(tmp_path, "cccccccccc05")
-    job.vocal_split = "done"
     run = board.claim(job.id)
     assert run is not None
     run.state = "done"
@@ -197,16 +189,27 @@ def test_old_song_goes_once_its_work_has_ended(tmp_path: Path, kind: str):
     assert job.id not in _jobs
 
 
-def test_each_kept_and_removed_song_is_logged_with_its_reason(tmp_path: Path, caplog):
+def _info_with(caplog, *parts: str) -> bool:
+    return any(
+        r.levelno == logging.INFO and all(p in r.getMessage() for p in parts)
+        for r in caplog.records
+        if r.name == "stemdeck.collect"
+    )
+
+
+def test_each_old_song_kept_or_removed_is_logged_at_info_with_its_reason(tmp_path: Path, caplog):
     _old_stopped_upload(tmp_path, "cccccccccc06")
     _old_done_job(tmp_path, "cccccccccc07")
+    fresh = Job(id="cccccccccc08", status="done", created_at=time.time())
+    _mkdir(tmp_path, fresh.id)
+    _jobs[fresh.id] = fresh
 
-    with caplog.at_level(logging.DEBUG, logger="stemdeck.collect"):
+    with caplog.at_level(logging.INFO, logger="stemdeck.collect"):
         sweep_old_jobs(tmp_path, ttl_seconds=60)
 
-    messages = [r.getMessage() for r in caplog.records if r.name == "stemdeck.collect"]
-    assert "auto-delete kept cccccccccc06: stopped song" in messages
-    assert "auto-delete removed cccccccccc07: finished and older than the cutoff" in messages
+    assert _info_with(caplog, "cccccccccc06", "stopped song")
+    assert _info_with(caplog, "cccccccccc07", "older than the cutoff")
+    assert not _info_with(caplog, "cccccccccc08")
 
 
 def test_deletion_is_off_unless_asked_for(monkeypatch):
