@@ -2980,7 +2980,7 @@ function queueRowHtml({ job, running }, place, { paused = false } = {}) {
   // rows drag, and only they offer "play next".
   const handle = running
     ? ""
-    : `<span class="queue-grip" title="Drag to reorder" aria-hidden="true">
+    : `<span class="queue-grip" title="${esc(i18nT("folder.dragToReorder"))}" aria-hidden="true">
          <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
            <circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/>
            <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
