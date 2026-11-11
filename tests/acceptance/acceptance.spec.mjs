@@ -872,24 +872,25 @@ test(title("L5"), async ({ app }, testInfo) => {
 
 // ─── Local files ────────────────────────────────────────────────────────────
 
-// Steps: upload a local MP3 and open it; narrow the window until the card's
-// info line fills. Expect: the date moves to a second line whole; the format
-// chip reads just MP3, the source reads Local, and Local appears once.
+// Steps: upload a local MP3, open it and show the Details tab; narrow the window
+// until the File card's info line fills. Expect: the date moves to a second line
+// whole; the format chip reads just MP3, the source reads Local, and Local appears once.
 test(title("V1"), async ({ app }, testInfo) => {
   const { page } = app;
   await wideWindow(page);
   const id = await trackFor(page, "localMp3");
   await openTrack(page, id);
+  await page.locator("#inspectorTabDetails").click();
   await expect(page.locator("#track-quality")).toHaveText("MP3");
   await expect(page.locator("#track-source")).toHaveText("Local");
-  const line = page.locator("#nowPlayingPanel .daw-track-meta-line");
+  const line = page.locator("#inspector .details-song .daw-track-meta-line");
+  await expect(line).toBeVisible();
   expect((await line.innerText()).match(/\bLocal\b/g)?.length, "Local once").toBe(1);
   const measure = () => page.evaluate(() => {
-    const lineEl = document.querySelector("#nowPlayingPanel .daw-track-meta-line");
-    const first = lineEl.querySelector("#t-meta-duration").getBoundingClientRect();
+    const first = document.getElementById("t-stems-chip").getBoundingClientRect();
     const date = document.getElementById("track-extracted").parentElement;
     const rects = [...date.getClientRects()];
-    const card = document.getElementById("nowPlayingPanel").getBoundingClientRect();
+    const card = document.querySelector("#inspector .details-song").getBoundingClientRect();
     const r = date.getBoundingClientRect();
     return {
       wrapped: r.top > first.bottom - 2,
@@ -905,10 +906,10 @@ test(title("V1"), async ({ app }, testInfo) => {
     m = await measure();
   }
   note(testInfo, `Info line "${(await line.innerText()).replace(/\s+/g, " ")}"; the date wrapped at a ${m.width}px page: ${m.wrapped}.`);
-  expect(m.wrapped, "the date moved to a second line before the card was hidden").toBe(true);
+  expect(m.wrapped, "the date moved to a second line").toBe(true);
   expect(m.whole, "the date is whole on its line").toBe(true);
   expect(m.inside, "the date is inside the card, not cut off").toBe(true);
-  await shot(page, testInfo, "wrapped", { locator: page.locator("#nowPlayingPanel") });
+  await shot(page, testInfo, "wrapped", { locator: page.locator("#inspector .details-song") });
   await wideWindow(page);
 });
 
