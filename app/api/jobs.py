@@ -2161,7 +2161,7 @@ def _seconds_left(deadline: float) -> float:
 def _wait_vocal_split_ended(job_id: str, deadline: float) -> None:
     """Wait until ``deadline`` for a stopped split to let go of the vocals."""
     if not VOCAL_SPLIT_RUNS.wait_ended(job_id, _seconds_left(deadline)):
-        logger.warning("[%s] vocal split still stopping; removing files anyway", job_id)
+        logger.warning("[%s] vocal split still stopping; carrying on", job_id)
 
 
 def _wait_lyrics_runs_ended(job_id: str, deadline: float) -> None:
