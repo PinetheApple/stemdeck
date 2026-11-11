@@ -73,5 +73,7 @@ export const PROGRESS_COLOR = "#3a3a3a";
 
 export const LOOP_DEFAULT_START_FRAC = 0.25;
 export const LOOP_DEFAULT_END_FRAC = 0.5;
+// How far the [ and ] keys and the OS seek buttons move the playhead.
+export const SEEK_STEP_SEC = 5;
 
 export const LANE_VOLUME_MAX = 2;

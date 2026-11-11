@@ -4,7 +4,7 @@ import {
   currentJobId, vocalSplitMode, vocalSplitModeReady, setVocalSplitMode,
   setAutoSectionsResetFn,
 } from "./state.js";
-import { STEM_NAMES, syncStemNamesFromAPI } from "./constants.js";
+import { STEM_NAMES, SEEK_STEP_SEC, syncStemNamesFromAPI } from "./constants.js";
 import { refreshStemChoiceVisuals } from "./stemChoice.js";
 import { renderEmptyShell, buildStripStems, downloadCurrentMix, downloadCurrentVideo, downloadAllStemsZip, downloadSongBundle, downloadRegionMix, drawFooterPlaceholder, regionDragPayload, stemRegionDragPayload, prewarmRegionMix } from "./player.js";
 import { wireJobForm, showError } from "./job.js";
@@ -26,6 +26,7 @@ import { initHelpMode } from "./helpMode.js";
 import { initInspector } from "./inspector.js";
 import { initLibraryResize } from "./libraryResize.js";
 import { initUpNext, renderUpNext } from "./upNext.js";
+import { initMediaSession } from "./mediaSession.js";
 import { initStageMode } from "./stageMode.js";
 import { initSearchShortcut } from "./searchShortcut.js";
 import { initTempoTools, takeUnconfirmedTempo } from "./tempoTools.js";
@@ -481,6 +482,8 @@ initLyrics();
 initHelpMode();
 initInspector();
 initLibraryResize();
+// Before Up Next, which reports its first count as it starts.
+initMediaSession();
 initUpNext();
 initSetlists();
 initSongRename();
@@ -1074,10 +1077,10 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     // setPlayheadTime clamps to [0, totalDuration] itself, so the Math.max /
     // Math.min the multitrack version needed are gone with it.
-    setPlayheadTime(transport().getCurrentTime() - 5);
+    setPlayheadTime(transport().getCurrentTime() - SEEK_STEP_SEC);
   } else if (e.code === "BracketRight") {
     e.preventDefault();
-    setPlayheadTime(transport().getCurrentTime() + 5);
+    setPlayheadTime(transport().getCurrentTime() + SEEK_STEP_SEC);
   } else if (e.code === "KeyL") {
     e.preventDefault();
     loopBtn.click();

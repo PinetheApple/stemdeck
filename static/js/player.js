@@ -55,6 +55,7 @@ import { stopVuLoop } from "./audio.js";
 import { destroySections } from "./sections.js";
 import { t, plural, onLanguageChange } from "./i18n.js";
 import { paintNowPlayingArt } from "./formatIcon.js";
+import { noteMediaPosition, clearMediaSession } from "./mediaSession.js";
 
 // Playback-engine selection. All engines play decoded AudioBuffers off a single
 // AudioContext clock (no N streaming <audio> elements — that was the source of
@@ -845,6 +846,7 @@ export function destroyPlayer() {
   teardownMetronome();
   updateMetronomeAvailability(null, t("click.reason.loadTrack"));
   setExportClickAvailable(false);
+  clearMediaSession();
   if (audioEngine) {
     audioEngine.destroy();
     setAudioEngine(null);
@@ -1441,6 +1443,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
       updateFooterTimes(t);
       updatePresencePlayhead(t);
       updateStopVisual();
+      noteMediaPosition();
       if (loopEnabled && totalDuration > 0 && t >= loopEnd) {
         if (!loopWrapLogged) {
           loopWrapLogged = true;
@@ -1476,6 +1479,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
         updateFooterTimes(t);
         updatePresencePlayhead(t);
         updateStopVisual();
+        noteMediaPosition();
       };
       teardownMetronome();
       if (audioEngine) { audioEngine.destroy(); setAudioEngine(null); }
