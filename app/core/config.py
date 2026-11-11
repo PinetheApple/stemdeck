@@ -93,7 +93,8 @@ STEM_NAMES: tuple[str, ...] = ("vocals", "drums", "bass", "guitar", "piano", "ot
 # GET /api/config contract all assume "the 6 Demucs stems" and must not change
 # just because a job happened to request this extra pass.
 EXTRA_STEM_NAMES: tuple[str, ...] = ("lead_vocals", "backing_vocals")
-JOB_ID_RE = re.compile(r"^[a-f0-9]{12}$")
+# \Z, not $: $ also accepts a trailing newline.
+JOB_ID_RE = re.compile(r"^[a-f0-9]{12}\Z")
 
 
 def _packaged_data_dir() -> Path | None:

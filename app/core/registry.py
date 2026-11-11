@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import shutil
 import subprocess
 import threading
@@ -53,6 +54,13 @@ _PERSISTED = _TERMINAL | _RESUMABLE | _STOPPED
 # the backend down with it) would otherwise be re-queued on every start,
 # wedging the queue forever.
 _MAX_RESUME_ATTEMPTS = 1
+
+# Hex digits after the time in a registry.json.bad-<time>-<hex> name, so two
+# loads in one second do not overwrite each other's copy.
+_BAD_SUFFIX_HEX = 6
+# Compared and sorted by every load and save: a record holding anything but a
+# number in one of these broke the load, or every persist after it.
+_ORDER_FIELDS = ("created_at", "queue_position", "resume_attempts")
 
 # Ids restore() wants re-queued, drained once by the app lifespan.
 _pending_resume: list[str] = []
@@ -162,6 +170,9 @@ def _migrate(data: dict) -> dict:
     """Upgrade registry JSON to REGISTRY_VERSION incrementally.
     Each block transforms v(n) → v(n+1) so older snapshots always catch up."""
     version = data.get("version", 0)
+    if not isinstance(version, int):
+        # Read as the oldest, so every step runs and the records still load.
+        version = 0
     if version < 1:
         # v0 → v1: version field was absent; no structural change needed.
         data["version"] = 1
@@ -249,43 +260,7 @@ def restore(jobs_dir: Path) -> None:
     changed = False
     if path.is_file():
         try:
-            data = _migrate(json.loads(path.read_text(encoding="utf-8")))
-            recorded = data.get("deleted")
-            if isinstance(recorded, list):
-                with _lock:
-                    _deleted.update(str(job_id) for job_id in recorded)
-            to_add = {}
-            resume: list[Job] = []
-            for record in data.get("jobs", []):
-                job = Job.from_record(record)
-                if not JOB_ID_RE.match(job.id):
-                    continue
-                # A stopped job may have no title yet: one trashed before its
-                # download finished still has files and a place in the Trash.
-                if (job.status in _TERMINAL and job.title) or job.status in _STOPPED:
-                    to_add[job.id] = job
-                elif job.status in _RESUMABLE:
-                    recovered = _resume_or_recover(job, jobs_dir / job.id)
-                    if recovered is not None:
-                        to_add[recovered.id] = recovered
-                        # The bumped resume_attempts has to reach disk here. The
-                        # next persist is whenever the job finishes, so without
-                        # this a job that kills the process every time is read
-                        # back with the same count on every start and retried
-                        # forever -- the exact loop the cap exists to stop.
-                        changed = True
-                        if recovered.status in _RESUMABLE:
-                            resume.append(recovered)
-            with _lock:
-                _jobs.update(to_add)
-            # The user's order first, then oldest first. queue_position is
-            # rewritten whenever the queue changes, so a queue the user
-            # reordered comes back in that order rather than submission order.
-            # Records written before that field existed all default to 0, where
-            # created_at decides exactly as it used to.
-            _pending_resume.extend(
-                j.id for j in sorted(resume, key=lambda j: (j.queue_position, j.created_at))
-            )
+            changed = _load_registry(path, jobs_dir)
         except Exception:
             # Broad on purpose. restore() runs at import time, so anything that
             # escapes here stops the backend booting with no way for a user to
@@ -299,25 +274,142 @@ def restore(jobs_dir: Path) -> None:
     # above -- an unreadable jobs_dir or a failed write was fatal at startup for
     # the same reason.
     try:
-        with _lock:
-            known = set(_jobs)
-            deleted = set(_deleted)
-        for job_dir in jobs_dir.iterdir():
-            if not job_dir.is_dir() or not JOB_ID_RE.match(job_dir.name) or job_dir.name in known:
-                continue
-            if job_dir.name in deleted:
-                # The user deleted this and its files outlived the delete.
-                # Adopting it here is what brought songs back (#521).
-                continue
-            recovered = _recover_done_job(job_dir)
-            if recovered is not None:
-                with _lock:
-                    _jobs[recovered.id] = recovered
-                changed = True
-        if changed:
+        if _adopt_orphans(jobs_dir) or changed:
             persist(jobs_dir)
     except Exception:
         logger.warning("failed to recover jobs from %s", jobs_dir, exc_info=True)
+
+
+def _load_registry(path: Path, jobs_dir: Path) -> bool:
+    """Read registry.json into the registry, one record at a time. True when
+    the file on disk must be rewritten."""
+    data = _migrate(json.loads(path.read_text(encoding="utf-8")))
+    recorded = data.get("deleted")
+    if isinstance(recorded, list):
+        with _lock:
+            _deleted.update(str(job_id) for job_id in recorded)
+    records = data.get("jobs", [])
+    bad: list = []
+    if not isinstance(records, list):
+        bad, records = [records], []
+    to_add: dict[str, Job] = {}
+    resume: list[Job] = []
+    changed = False
+    for record in records:
+        rid = _record_id(record)
+        try:
+            job = _read_record(record, rid, to_add)
+            changed = _place(job, jobs_dir, to_add, resume) or changed
+        except Exception as exc:
+            # Only a well-formed id reaches the log: nothing from a damaged
+            # file can forge a log line.
+            logger.warning("skipping registry record %s: %s", rid or "?", exc)
+            bad.append(record)
+    # Kept aside first: only then is registry.json rewritten without them, so
+    # the next start does not set them aside again.
+    if bad and _keep_bad_records(path, bad):
+        changed = True
+    with _lock:
+        _jobs.update(to_add)
+    # The user's order first, then oldest first. queue_position is rewritten
+    # whenever the queue changes, so a queue the user reordered comes back in
+    # that order rather than submission order. Records written before that
+    # field existed all default to 0, where created_at decides exactly as it
+    # used to.
+    _pending_resume.extend(
+        j.id for j in sorted(resume, key=lambda j: (j.queue_position, j.created_at))
+    )
+    return changed
+
+
+def _record_id(record: object) -> str | None:
+    rid = record.get("id") if isinstance(record, dict) else None
+    return rid if isinstance(rid, str) and JOB_ID_RE.match(rid) else None
+
+
+def _read_record(record: object, rid: str | None, seen: dict[str, Job]) -> Job:
+    """One registry record as a Job. Raises ValueError for a bad one, which
+    then costs only itself: a single bad record used to abort the whole load,
+    and the persist after orphan recovery wrote the survivors over favourites,
+    the Trash, the queue and the delete tombstones (upstream PR 888)."""
+    if rid is None:
+        raise ValueError("no valid job id")
+    if rid in seen:
+        raise ValueError("repeated")
+    job = Job.from_record(record)  # type: ignore[arg-type]
+    for name in _ORDER_FIELDS:
+        value = getattr(job, name)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f"{name} is not a number")
+        if not math.isfinite(value):
+            raise ValueError(f"{name} is not finite")
+    return job
+
+
+def _place(job: Job, jobs_dir: Path, to_add: dict[str, Job], resume: list[Job]) -> bool:
+    """Put a loaded job where restore() wants it. True when it changed in a
+    way that has to reach disk."""
+    # A stopped job may have no title yet: one trashed before its download
+    # finished still has files and a place in the Trash.
+    if (job.status in _TERMINAL and job.title) or job.status in _STOPPED:
+        to_add[job.id] = job
+        return False
+    if job.status not in _RESUMABLE:
+        return False
+    recovered = _resume_or_recover(job, jobs_dir / job.id)
+    if recovered is None:
+        return False
+    to_add[recovered.id] = recovered
+    if recovered.status in _RESUMABLE:
+        resume.append(recovered)
+    # The bumped resume_attempts has to reach disk here. The next persist is
+    # whenever the job finishes, so without this a job that kills the process
+    # every time is read back with the same count on every start and retried
+    # forever -- the exact loop the cap exists to stop.
+    return True
+
+
+def _keep_bad_records(path: Path, records: list) -> bool:
+    """Save the raw records the load skipped beside the registry, as
+    registry.json.bad-<time>, so dropping them is never silent. True when
+    they were kept."""
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    target = path.with_name(f"{path.name}.bad-{stamp}-{uuid.uuid4().hex[:_BAD_SUFFIX_HEX]}")
+    try:
+        target.write_text(json.dumps({"records": records}, indent=2) + "\n", encoding="utf-8")
+    except (OSError, TypeError, ValueError):
+        logger.warning("could not keep bad registry records aside", exc_info=True)
+        return False
+    logger.warning("kept %d registry record(s) aside in %s", len(records), target.name)
+    return True
+
+
+def _adopt_orphans(jobs_dir: Path) -> bool:
+    """Rebuild the jobs registry.json has no entry for from their folders.
+    True when any was adopted."""
+    with _lock:
+        known = set(_jobs)
+        deleted = set(_deleted)
+    adopted = False
+    for job_dir in jobs_dir.iterdir():
+        if not job_dir.is_dir() or not JOB_ID_RE.match(job_dir.name) or job_dir.name in known:
+            continue
+        if job_dir.name in deleted:
+            # The user deleted this and its files outlived the delete.
+            # Adopting it here is what brought songs back (#521).
+            continue
+        try:
+            recovered = _recover_done_job(job_dir)
+        except Exception:
+            # One folder that cannot be read costs that song, not every folder
+            # after it and the save that follows.
+            logger.warning("could not rebuild %s from its folder", job_dir.name, exc_info=True)
+            continue
+        if recovered is not None:
+            with _lock:
+                _jobs[recovered.id] = recovered
+            adopted = True
+    return adopted
 
 
 def _resume_or_recover(job: Job, job_dir: Path) -> Job | None:
