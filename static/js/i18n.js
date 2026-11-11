@@ -637,6 +637,7 @@ const en = {
   "meta.duration": "Duration",
   "meta.dynamicRange": "Dynamic Range",
   "meta.tempoStability": "Tempo Stability",
+  "meta.keyConfidence": "How sure the analysis is of this key: {value}%",
 
   "presence.vocalGlobal": "Global Vocals",
   "presence.drum": "Drum Intensity",
@@ -644,6 +645,7 @@ const en = {
   "presence.guitar": "Guitar Presence",
   "presence.piano": "Piano Presence",
   "presence.other": "Other",
+  "presence.explain": "How loud this part is next to the loudest part of the song. 100% is the loudest; a dash means it is not in the song.",
 
   "sections.title": "Sections",
   "sections.add": "Add",
@@ -1179,6 +1181,8 @@ const en = {
   "inspector.upNext": "Up Next",
   "inspector.details": "Details",
   "inspector.songFile": "File",
+  "inspector.fileSource": "Source",
+  "inspector.fileFormat": "Format",
   "upNext.nowPlaying": "Now playing",
   "upNext.nothingPlaying": "Nothing is open",
   "upNext.heading": "Up next",
@@ -1730,6 +1734,7 @@ const pl = {
   "meta.duration": "Czas",
   "meta.dynamicRange": "Zakres dynamiki",
   "meta.tempoStability": "Stabilność tempa",
+  "meta.keyConfidence": "Jak pewna jest analiza tej tonacji: {value}%",
 
   "presence.vocalGlobal": "Wokal ogólny",
   "presence.drum": "Intensywność perkusji",
@@ -1737,6 +1742,7 @@ const pl = {
   "presence.guitar": "Obecność gitary",
   "presence.piano": "Obecność pianina",
   "presence.other": "Inne",
+  "presence.explain": "Jak głośna jest ta ścieżka w porównaniu z najgłośniejszą w utworze. 100% to najgłośniejsza; kreska oznacza, że jej nie ma.",
 
   "sections.title": "Sekcje",
   "sections.add": "Dodaj",
@@ -2262,6 +2268,8 @@ const pl = {
   "inspector.upNext": "Następne",
   "inspector.details": "Szczegóły",
   "inspector.songFile": "Plik",
+  "inspector.fileSource": "Źródło",
+  "inspector.fileFormat": "Format",
   "upNext.nowPlaying": "Teraz odtwarzane",
   "upNext.nothingPlaying": "Nic nie jest otwarte",
   "upNext.heading": "Następne w kolejce",
@@ -2814,6 +2822,7 @@ const ja = {
   "meta.duration": "長さ",
   "meta.dynamicRange": "ダイナミックレンジ",
   "meta.tempoStability": "テンポ安定性",
+  "meta.keyConfidence": "このキー判定の確かさ: {value}%",
 
   "presence.vocalGlobal": "ボーカル全体",
   "presence.drum": "ドラムの強さ",
@@ -2821,6 +2830,7 @@ const ja = {
   "presence.guitar": "ギターの存在感",
   "presence.piano": "ピアノの存在感",
   "presence.other": "その他",
+  "presence.explain": "曲の中で最も大きいパートと比べたこのパートの音量です。100% が最大、ダッシュはそのパートが入っていないことを示します。",
 
   "sections.title": "セクション",
   "sections.add": "追加",
@@ -3321,6 +3331,8 @@ const ja = {
   "inspector.upNext": "次に再生",
   "inspector.details": "詳細",
   "inspector.songFile": "ファイル",
+  "inspector.fileSource": "ソース",
+  "inspector.fileFormat": "形式",
   "upNext.nowPlaying": "再生中",
   "upNext.nothingPlaying": "何も開いていません",
   "upNext.heading": "次に再生",
@@ -3871,6 +3883,7 @@ const zhHans = {
   "meta.duration": "时长",
   "meta.dynamicRange": "动态范围",
   "meta.tempoStability": "速度稳定性",
+  "meta.keyConfidence": "该调性判断的可靠程度：{value}%",
 
   "presence.vocalGlobal": "整体人声",
   "presence.drum": "鼓组强度",
@@ -3878,6 +3891,7 @@ const zhHans = {
   "presence.guitar": "吉他强度",
   "presence.piano": "钢琴强度",
   "presence.other": "其他",
+  "presence.explain": "这一声部与歌曲中最响的声部相比有多响。100% 为最响；横线表示歌曲中没有它。",
 
   "sections.title": "段落",
   "sections.add": "添加",
@@ -4378,6 +4392,8 @@ const zhHans = {
   "inspector.upNext": "待播",
   "inspector.details": "详情",
   "inspector.songFile": "文件",
+  "inspector.fileSource": "来源",
+  "inspector.fileFormat": "格式",
   "upNext.nowPlaying": "正在播放",
   "upNext.nothingPlaying": "尚未打开歌曲",
   "upNext.heading": "待播",
@@ -4928,6 +4944,7 @@ const de = {
   "meta.duration": "Dauer",
   "meta.dynamicRange": "Dynamikumfang",
   "meta.tempoStability": "Tempostabilität",
+  "meta.keyConfidence": "Wie sicher die Analyse bei dieser Tonart ist: {value} %",
 
   "presence.vocalGlobal": "Gesang gesamt",
   "presence.drum": "Schlagzeugintensität",
@@ -4935,6 +4952,7 @@ const de = {
   "presence.guitar": "Gitarrenpräsenz",
   "presence.piano": "Klavierpräsenz",
   "presence.other": "Sonstiges",
+  "presence.explain": "Wie laut dieser Part im Vergleich zum lautesten Part im Song ist. 100 % ist der lauteste; ein Strich heißt, er kommt nicht vor.",
 
   "sections.title": "Abschnitte",
   "sections.add": "Hinzufügen",
@@ -5446,6 +5464,8 @@ const de = {
   "inspector.upNext": "Als Nächstes",
   "inspector.details": "Details",
   "inspector.songFile": "Datei",
+  "inspector.fileSource": "Quelle",
+  "inspector.fileFormat": "Format",
   "upNext.nowPlaying": "Läuft gerade",
   "upNext.nothingPlaying": "Nichts geöffnet",
   "upNext.heading": "Als Nächstes",
@@ -5997,6 +6017,7 @@ const pt = {
   "meta.duration": "Duração",
   "meta.dynamicRange": "Faixa dinâmica",
   "meta.tempoStability": "Estabilidade de tempo",
+  "meta.keyConfidence": "O quão certa a análise está deste tom: {value}%",
 
   "presence.vocalGlobal": "Vocais globais",
   "presence.drum": "Intensidade da bateria",
@@ -6004,6 +6025,7 @@ const pt = {
   "presence.guitar": "Presença da guitarra",
   "presence.piano": "Presença do piano",
   "presence.other": "Outros",
+  "presence.explain": "O quão alta esta parte está em relação à parte mais alta da música. 100% é a mais alta; um traço significa que não está na música.",
 
   "sections.title": "Seções",
   "sections.add": "Adicionar",
@@ -6517,6 +6539,8 @@ const pt = {
   "inspector.upNext": "A seguir",
   "inspector.details": "Detalhes",
   "inspector.songFile": "Arquivo",
+  "inspector.fileSource": "Origem",
+  "inspector.fileFormat": "Formato",
   "upNext.nowPlaying": "Tocando agora",
   "upNext.nothingPlaying": "Nada aberto",
   "upNext.heading": "A seguir",
@@ -7068,6 +7092,7 @@ const id = {
   "meta.duration": "Durasi",
   "meta.dynamicRange": "Rentang Dinamis",
   "meta.tempoStability": "Stabilitas Tempo",
+  "meta.keyConfidence": "Seberapa yakin analisis terhadap kunci nada ini: {value}%",
 
   "presence.vocalGlobal": "Vokal Global",
   "presence.drum": "Intensitas Drum",
@@ -7075,6 +7100,7 @@ const id = {
   "presence.guitar": "Kehadiran Gitar",
   "presence.piano": "Kehadiran Piano",
   "presence.other": "Lainnya",
+  "presence.explain": "Seberapa keras bagian ini dibanding bagian paling keras di lagu. 100% adalah yang paling keras; tanda strip berarti tidak ada di lagu.",
 
   "sections.title": "Bagian",
   "sections.add": "Tambah",
@@ -7575,6 +7601,8 @@ const id = {
   "inspector.upNext": "Berikutnya",
   "inspector.details": "Detail",
   "inspector.songFile": "File",
+  "inspector.fileSource": "Sumber",
+  "inspector.fileFormat": "Format",
   "upNext.nowPlaying": "Sedang diputar",
   "upNext.nothingPlaying": "Belum ada yang dibuka",
   "upNext.heading": "Berikutnya",
@@ -8125,6 +8153,7 @@ const fr = {
   "meta.duration": "Durée",
   "meta.dynamicRange": "Plage dynamique",
   "meta.tempoStability": "Stabilité du tempo",
+  "meta.keyConfidence": "Certitude de l'analyse pour cette tonalité : {value} %",
 
   "presence.vocalGlobal": "Voix globales",
   "presence.drum": "Intensité de la batterie",
@@ -8132,6 +8161,7 @@ const fr = {
   "presence.guitar": "Présence de la guitare",
   "presence.piano": "Présence du piano",
   "presence.other": "Autre",
+  "presence.explain": "Le volume de cette partie par rapport à la partie la plus forte du morceau. 100 % est la plus forte ; un tiret signifie qu'elle n'est pas dans le morceau.",
 
   "sections.title": "Sections",
   "sections.add": "Ajouter",
@@ -8645,6 +8675,8 @@ const fr = {
   "inspector.upNext": "À suivre",
   "inspector.details": "Détails",
   "inspector.songFile": "Fichier",
+  "inspector.fileSource": "Source",
+  "inspector.fileFormat": "Format",
   "upNext.nowPlaying": "En cours",
   "upNext.nothingPlaying": "Aucun morceau ouvert",
   "upNext.heading": "À suivre",
@@ -9447,6 +9479,7 @@ const es = {
   "meta.duration": "Duración",
   "meta.dynamicRange": "Rango dinámico",
   "meta.tempoStability": "Estabilidad del tempo",
+  "meta.keyConfidence": "Qué tan seguro es el análisis de esta tonalidad: {value}%",
 
   "presence.vocalGlobal": "Voces globales",
   "presence.drum": "Intensidad de batería",
@@ -9454,6 +9487,7 @@ const es = {
   "presence.guitar": "Presencia de guitarra",
   "presence.piano": "Presencia de piano",
   "presence.other": "Otros",
+  "presence.explain": "Qué tan fuerte suena esta parte frente a la parte más fuerte de la canción. 100% es la más fuerte; un guion significa que no está en la canción.",
 
   "sections.title": "Secciones",
   "sections.add": "Añadir",
@@ -9979,6 +10013,8 @@ const es = {
   "inspector.upNext": "A continuación",
   "inspector.details": "Detalles",
   "inspector.songFile": "Archivo",
+  "inspector.fileSource": "Origen",
+  "inspector.fileFormat": "Formato",
   "upNext.nowPlaying": "Sonando",
   "upNext.nothingPlaying": "No hay nada abierto",
   "upNext.heading": "A continuación",
@@ -10539,6 +10575,7 @@ const ko = {
   "meta.duration": "길이",
   "meta.dynamicRange": "다이내믹 레인지",
   "meta.tempoStability": "템포 안정성",
+  "meta.keyConfidence": "이 키 판단이 얼마나 확실한지: {value}%",
 
   "presence.vocalGlobal": "전체 보컬",
   "presence.drum": "드럼 강도",
@@ -10546,6 +10583,7 @@ const ko = {
   "presence.guitar": "기타 비중",
   "presence.piano": "피아노 비중",
   "presence.other": "기타 소리",
+  "presence.explain": "곡에서 가장 큰 파트와 비교한 이 파트의 음량이에요. 100%가 가장 크고, 대시는 곡에 없다는 뜻이에요.",
 
   "sections.title": "구간",
   "sections.add": "추가",
@@ -11046,6 +11084,8 @@ const ko = {
   "inspector.upNext": "다음 곡",
   "inspector.details": "세부 정보",
   "inspector.songFile": "파일",
+  "inspector.fileSource": "출처",
+  "inspector.fileFormat": "형식",
   "upNext.nowPlaying": "지금 재생 중",
   "upNext.nothingPlaying": "열린 곡이 없어요",
   "upNext.heading": "다음 곡",

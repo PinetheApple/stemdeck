@@ -917,11 +917,11 @@
             <!-- Row 1: track card + metadata cards -->
             <div class="daw-info-row">
 
-              <div class="daw-meta-card" data-meta="key">
+              <div class="daw-meta-card" data-meta="key" data-i18n-title="help.meta.key">
                 <span class="meta-card-label" data-i18n="meta.key">KEY</span>
                 <div class="meta-card-main">
                   <span class="meta-card-value" id="summary-key">—</span>
-                  <div class="daw-camelot-ring hidden" id="summary-confidence"></div>
+                  <div class="daw-camelot-ring hidden" id="summary-confidence" role="img"></div>
                 </div>
               </div>
 
@@ -932,7 +932,7 @@
                 </div>
               </div>
 
-              <div class="daw-meta-card" data-meta="lufs">
+              <div class="daw-meta-card" data-meta="lufs" data-i18n-title="help.meta.lufs">
                 <span class="meta-card-label" data-i18n="meta.lufs">LUFS</span>
                 <div class="meta-card-main">
                   <span class="meta-card-value" id="summary-lufs">—</span>
@@ -947,7 +947,7 @@
                 </div>
               </div>
 
-              <div class="daw-meta-card" data-meta="dr">
+              <div class="daw-meta-card" data-meta="dr" data-i18n-title="help.meta.dr">
                 <span class="meta-card-label" data-i18n="meta.dynamicRange">DYNAMIC RANGE</span>
                 <div class="meta-card-main">
                   <span class="meta-card-value" id="summary-dr">—</span>
@@ -955,7 +955,7 @@
                 </div>
               </div>
 
-              <div class="daw-meta-card" data-meta="stability">
+              <div class="daw-meta-card" data-meta="stability" data-i18n-title="help.meta.stability">
                 <span class="meta-card-label" data-i18n="meta.tempoStability">TEMPO STABILITY</span>
                 <div class="meta-card-main">
                   <span class="meta-card-value" id="summary-stability">—</span>
@@ -966,7 +966,7 @@
 
             <!-- Row 2: stem presence cards -->
             <div class="stem-presence-panel">
-              <div class="stem-card inactive" data-stem="vocals">
+              <div class="stem-card inactive" data-stem="vocals" data-i18n-title="presence.explain">
                 <span class="stem-card-label" data-i18n="presence.vocalGlobal">GLOBAL VOCALS</span>
                 <span class="stem-card-pct">—</span>
               </div>
@@ -974,31 +974,31 @@
                    the on-demand split (#275) has run, so this row keeps the
                    same seven columns as the metadata row above it. Hidden
                    until then, by applyStemSelectionFilter. -->
-              <div class="stem-card inactive hidden" data-stem="lead_vocals">
+              <div class="stem-card inactive hidden" data-stem="lead_vocals" data-i18n-title="presence.explain">
                 <span class="stem-card-label" data-i18n="stem.lead_vocals">LEAD VOCALS</span>
                 <span class="stem-card-pct">—</span>
               </div>
-              <div class="stem-card inactive hidden" data-stem="backing_vocals">
+              <div class="stem-card inactive hidden" data-stem="backing_vocals" data-i18n-title="presence.explain">
                 <span class="stem-card-label" data-i18n="stem.backing_vocals">BACKING VOCALS</span>
                 <span class="stem-card-pct">—</span>
               </div>
-              <div class="stem-card inactive" data-stem="drums">
+              <div class="stem-card inactive" data-stem="drums" data-i18n-title="presence.explain">
                 <span class="stem-card-label" data-i18n="presence.drum">DRUM INTENSITY</span>
                 <span class="stem-card-pct">—</span>
               </div>
-              <div class="stem-card inactive" data-stem="bass">
+              <div class="stem-card inactive" data-stem="bass" data-i18n-title="presence.explain">
                 <span class="stem-card-label" data-i18n="presence.bass">BASS DEPTH</span>
                 <span class="stem-card-pct">—</span>
               </div>
-              <div class="stem-card inactive" data-stem="guitar">
+              <div class="stem-card inactive" data-stem="guitar" data-i18n-title="presence.explain">
                 <span class="stem-card-label" data-i18n="presence.guitar">GUITAR PRESENCE</span>
                 <span class="stem-card-pct">—</span>
               </div>
-              <div class="stem-card inactive" data-stem="piano">
+              <div class="stem-card inactive" data-stem="piano" data-i18n-title="presence.explain">
                 <span class="stem-card-label" data-i18n="presence.piano">PIANO PRESENCE</span>
                 <span class="stem-card-pct">—</span>
               </div>
-              <div class="stem-card inactive" data-stem="other">
+              <div class="stem-card inactive" data-stem="other" data-i18n-title="presence.explain">
                 <span class="stem-card-label" data-i18n="presence.other">OTHER</span>
                 <span class="stem-card-pct">—</span>
               </div>
@@ -1020,15 +1020,15 @@
             <div class="inspector-card details-song">
               <span class="inspector-label" data-i18n="inspector.songFile">File</span>
           <div class="daw-track-meta-line">
-            <span class="num" id="t-meta-duration">—</span>
-            <span class="daw-track-sep" aria-hidden="true">·</span>
+            <span class="num" id="t-meta-duration" hidden>—</span>
+            <span class="daw-track-sep" aria-hidden="true" hidden>·</span>
             <span id="t-stems-chip">— stems</span>
             <span class="daw-track-sep" aria-hidden="true">·</span>
-            <span id="track-source">—</span>
+            <span class="details-fact"><span class="details-fact-label" data-i18n="inspector.fileSource">Source</span> <span id="track-source">—</span></span>
             <span class="daw-track-sep" aria-hidden="true">·</span>
-            <span id="track-quality">—</span>
+            <span class="details-fact"><span class="details-fact-label" data-i18n="inspector.fileFormat">Format</span> <span id="track-quality">—</span></span>
             <span class="daw-track-sep" aria-hidden="true">·</span>
-            <span><span data-i18n="footer.extractedLabel">Extracted</span> <span id="track-extracted">—</span></span>
+            <span class="details-fact"><span class="details-fact-label" data-i18n="footer.extractedLabel">Extracted</span> <span id="track-extracted">—</span></span>
           </div>
             </div>
           </section>

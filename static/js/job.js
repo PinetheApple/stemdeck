@@ -8,7 +8,7 @@ import {
 import { destroyPlayer, wireUpAudio, setWaveformLoading, updateFooterTrack } from "./player.js";
 import { notifyFailure, dismissFailuresByJobId } from "./notifications.js";
 import { getStagePhrases } from "./phrases.js";
-import { addTrackToLibrary, replaceableTrackId, setCurrentTrack, updateTrackStatus, applyStemPresenceCards, libraryAudioTags, libraryArtist, libraryIdentity, libraryWork, paintFinishedTrackNames, armAutoOpen } from "./catalog.js";
+import { addTrackToLibrary, replaceableTrackId, setCurrentTrack, updateTrackStatus, applyStemPresenceCards, paintKeyConfidence, libraryAudioTags, libraryArtist, libraryIdentity, libraryWork, paintFinishedTrackNames, armAutoOpen } from "./catalog.js";
 import { initSections } from "./sections.js";
 import { importPlaylist, looksLikePlaylist } from "./playlist.js";
 import { t } from "./i18n.js";
@@ -284,15 +284,7 @@ function applyStudioSummary(state) {
     const s = Math.floor(state.duration % 60).toString().padStart(2, "0");
     summaryDuration.textContent = `${m.toString().padStart(2, "0")}:${s}`;
   }
-  if (summaryConfidence && state.key_confidence != null) {
-    const confidence = Math.max(0, Math.min(100, Number(state.key_confidence)));
-    const confSpan = document.createElement("span");
-    confSpan.textContent = `${confidence}%`;
-    summaryConfidence.textContent = "";
-    summaryConfidence.appendChild(confSpan);
-    summaryConfidence.style.setProperty("--confidence-pct", confidence);
-    summaryConfidence.classList.remove("hidden");
-  }
+  if (summaryConfidence && state.key_confidence != null) paintKeyConfidence(summaryConfidence, state.key_confidence);
   const summaryDr = document.getElementById("summary-dr");
   const summaryDrLabel = document.getElementById("summary-dr-label");
   const summaryStability = document.getElementById("summary-stability");

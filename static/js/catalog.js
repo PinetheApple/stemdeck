@@ -970,25 +970,6 @@ function deriveSource(sourceUrl) {
   return i18nT("track.web");
 }
 
-function deriveQuality(track) {
-  const sourceUrl = track?.sourceUrl;
-  if (!sourceUrl) return "—";
-  if (sourceUrl.startsWith("local:")) {
-    // From the format the server reports, not from sourceUrl: that is
-    // "local:<title>" with the extension removed, so "Lossless (WAV)" never
-    // appeared for a real upload, and a title with a dot in it was misread
-    // (#690).
-    // Just the format ("MP3", "FLAC"): the line is short and ends in the date,
-    // which a longer label pushed out of the card (#698). No format known, as
-    // for a track from before #690, returns "" and the chip is hidden: it used
-    // to fall back to "Local file", repeating the source chip beside it.
-    return trackFormat(track).toUpperCase();
-  }
-  if (sourceUrl.includes("youtube.com") || sourceUrl.includes("youtu.be")) return i18nT("track.qualityHigh");
-  if (sourceUrl.includes("soundcloud.com")) return "MP3";
-  return "—";
-}
-
 // Same buckets as job.js's dr.*/stability.* labels (duplicated here rather
 // than imported: this file renders a saved track's stats after reload, job.js
 // renders a job actively in progress -- same thresholds, different data path).
@@ -1004,6 +985,26 @@ function stabilityLabel(pct) {
   if (pct >= 70) return i18nT("job.stability.stable");
   if (pct >= 50) return i18nT("job.stability.moderate");
   return i18nT("job.stability.variable");
+}
+
+const PERCENT_MAX = 100;
+
+/** The key's confidence ring, or nothing when it is unknown. The figure alone
+ *  said nothing, so its title and accessible name say what it measures. */
+export function paintKeyConfidence(ring, keyConfidence) {
+  ring.textContent = "";
+  ring.style.removeProperty("--confidence-pct");
+  ring.classList.add("hidden");
+  if (keyConfidence == null) return;
+  const confidence = Math.max(0, Math.min(PERCENT_MAX, Number(keyConfidence)));
+  const meaning = i18nT("meta.keyConfidence", { value: confidence });
+  const confSpan = document.createElement("span");
+  confSpan.textContent = `${confidence}%`;
+  ring.appendChild(confSpan);
+  ring.title = meaning;
+  ring.setAttribute("aria-label", meaning);
+  ring.style.setProperty("--confidence-pct", confidence);
+  ring.classList.remove("hidden");
 }
 
 export function applyStemPresenceCards(stemPresence) {
@@ -1073,25 +1074,8 @@ function applyTrackInfoToPanel(track) {
   if (summaryPeak) summaryPeak.textContent = track.peakDb != null ? i18nT("job.peakDb", { value: Number(track.peakDb).toFixed(1) }) : "";
   if (summaryDuration) summaryDuration.textContent = track.duration ? fmtTime(track.duration) : "—";
 
-  const trackExtracted = document.getElementById("track-extracted");
-  const trackSource = document.getElementById("track-source");
-  const trackQuality = document.getElementById("track-quality");
+  paintFileFacts(track);
   const favBtn = document.getElementById("fav-btn");
-  // Static duration for the footer's compact meta line -- deliberately not
-  // #t-time, which live-updates during playback and would duplicate the
-  // Position group in the transport row below it.
-  const metaDuration = document.getElementById("t-meta-duration");
-  if (metaDuration) metaDuration.textContent = track.duration ? fmtTime(track.duration) : "—";
-  if (trackExtracted) trackExtracted.textContent = fmtExtracted(track.createdAt);
-  if (trackSource) trackSource.textContent = deriveSource(track.sourceUrl);
-  if (trackQuality) {
-    const quality = deriveQuality(track);
-    trackQuality.textContent = quality;
-    // Hidden with the separator in front of it, so there is no empty "· ·".
-    trackQuality.hidden = !quality;
-    const sep = trackQuality.previousElementSibling;
-    if (sep?.classList.contains("daw-track-sep")) sep.hidden = !quality;
-  }
   // The now-playing square shows the same format icon the library row does.
   paintNowPlayingArt(trackFormat(track));
   if (favBtn) {
@@ -1113,19 +1097,27 @@ function applyTrackInfoToPanel(track) {
   }
   if (summaryStabilityLabel) summaryStabilityLabel.textContent = track.tempoStability != null ? stabilityLabel(track.tempoStability) : "";
 
-  if (summaryConfidence) {
-    summaryConfidence.textContent = "";
-    summaryConfidence.style.removeProperty("--confidence-pct");
-    summaryConfidence.classList.add("hidden");
-    if (track.keyConfidence != null) {
-      const confidence = Math.max(0, Math.min(100, Number(track.keyConfidence)));
-      const confSpan = document.createElement("span");
-      confSpan.textContent = `${confidence}%`;
-      summaryConfidence.appendChild(confSpan);
-      summaryConfidence.style.setProperty("--confidence-pct", confidence);
-      summaryConfidence.classList.remove("hidden");
-    }
-  }
+  if (summaryConfidence) paintKeyConfidence(summaryConfidence, track.keyConfidence);
+}
+
+// The Details tab's File card. Its duration is not painted: the Duration card
+// above it already shows it.
+function paintFileFacts(track) {
+  const trackExtracted = document.getElementById("track-extracted");
+  const trackSource = document.getElementById("track-source");
+  const trackFormatEl = document.getElementById("track-quality");
+  if (trackExtracted) trackExtracted.textContent = fmtExtracted(track.createdAt);
+  if (trackSource) trackSource.textContent = deriveSource(track.sourceUrl);
+  if (!trackFormatEl) return;
+  // Only a format read from the file: YouTube's "High" and SoundCloud's "MP3"
+  // were the same guess for every song (#50).
+  const format = trackFormat(track).toUpperCase();
+  trackFormatEl.textContent = format;
+  // Hidden with its label and the separator in front, so there is no empty "· ·".
+  const formatFact = trackFormatEl.closest(".details-fact");
+  formatFact.hidden = !format;
+  const sep = formatFact.previousElementSibling;
+  if (sep?.classList.contains("daw-track-sep")) sep.hidden = !format;
 }
 
 /**
