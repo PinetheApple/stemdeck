@@ -432,4 +432,4 @@ def test_a_delete_waits_one_budget_for_a_hung_split_and_lyrics_run(monkeypatch):
     jobs_mod._remove_job(job)
     elapsed = time.monotonic() - started
 
-    assert elapsed < DELETE_WAIT_BUDGET_SEC * DELETE_WAIT_SLACK
+    assert DELETE_WAIT_BUDGET_SEC <= elapsed < DELETE_WAIT_BUDGET_SEC * DELETE_WAIT_SLACK
