@@ -284,10 +284,10 @@ def restore(jobs_dir: Path) -> None:
     """Load persisted jobs and recover completed orphan jobs from disk."""
     jobs_dir.mkdir(parents=True, exist_ok=True)
     path = registry_path(jobs_dir)
-    changed = False
+    changed = legacy = False
     if path.is_file():
         try:
-            changed = _load_registry(path, jobs_dir)
+            changed, legacy = _load_registry(path, jobs_dir)
         except Exception:
             # Broad on purpose. restore() runs at import time, so anything that
             # escapes here stops the backend booting with no way for a user to
@@ -301,18 +301,18 @@ def restore(jobs_dir: Path) -> None:
     # above -- an unreadable jobs_dir or a failed write was fatal at startup for
     # the same reason.
     try:
-        if _adopt_orphans(jobs_dir) or changed:
+        if _adopt_orphans(jobs_dir, legacy) or changed:
             persist(jobs_dir)
     except Exception:
         logger.warning("failed to recover jobs from %s", jobs_dir, exc_info=True)
 
 
-def _load_registry(path: Path, jobs_dir: Path) -> bool:
-    """Read registry.json into the registry, one record at a time. True when
-    the file on disk must be rewritten."""
+def _load_registry(path: Path, jobs_dir: Path) -> tuple[bool, bool]:
+    """Read registry.json into the registry, one record at a time. Whether the
+    file on disk must be rewritten, and whether it was a version 1 library."""
     data = json.loads(path.read_text(encoding="utf-8"))
     version = data.get("version") if isinstance(data, dict) else None
-    copy_saved = not isinstance(version, int) or version < 2
+    legacy = not isinstance(version, int) or version < 2
     data = _migrate(data)
     recorded = data.get("deleted")
     if isinstance(recorded, list):
@@ -329,7 +329,7 @@ def _load_registry(path: Path, jobs_dir: Path) -> bool:
         rid = _record_id(record)
         try:
             job = _read_record(record, rid, to_add)
-            changed = _place(job, jobs_dir, to_add, resume) or changed
+            changed = _place(job, jobs_dir, to_add, resume, legacy) or changed
         except Exception as exc:
             # Only a well-formed id reaches the log: nothing from a damaged
             # file can forge a log line.
@@ -339,7 +339,7 @@ def _load_registry(path: Path, jobs_dir: Path) -> bool:
     # the next start does not set them aside again.
     if bad and _keep_bad_records(path, bad):
         changed = True
-    if copy_saved and _copy_saved_fields(to_add.values(), jobs_dir):
+    if legacy and _migrate_song_folders(to_add.values(), jobs_dir):
         changed = True
     with _lock:
         _jobs.update(to_add)
@@ -351,16 +351,17 @@ def _load_registry(path: Path, jobs_dir: Path) -> bool:
     _pending_resume.extend(
         j.id for j in sorted(resume, key=lambda j: (j.queue_position, j.created_at))
     )
-    return changed
+    return changed, legacy
 
 
-def _copy_saved_fields(jobs: Iterable[Job], jobs_dir: Path) -> bool:
-    """Give each finished song's metadata.json the SAVED_FIELDS, once, on the
-    first start after they were kept there: a registry lost later would still
-    reset them for songs finished before. True when any was copied."""
-    copied = sum(
-        copy_saved_fields(job, jobs_dir / job.id) for job in jobs if job.status in _TERMINAL
-    )
+def _migrate_song_folders(jobs: Iterable[Job], jobs_dir: Path) -> bool:
+    """Once, on the first start after a version 1 library: give each finished
+    song the completion marker and its SAVED_FIELDS in metadata.json, or a
+    registry lost later would not bring it back whole. True when any changed."""
+    done = [job for job in jobs if job.status in _TERMINAL]
+    for job in done:
+        backfill_stems_complete(jobs_dir / job.id)
+    copied = sum(copy_saved_fields(job, jobs_dir / job.id) for job in done)
     if copied:
         logger.info("copied saved fields into %d song folder(s)", copied)
     return copied > 0
@@ -390,19 +391,19 @@ def _read_record(record: object, rid: str | None, seen: dict[str, Job]) -> Job:
     return job
 
 
-def _place(job: Job, jobs_dir: Path, to_add: dict[str, Job], resume: list[Job]) -> bool:
+def _place(
+    job: Job, jobs_dir: Path, to_add: dict[str, Job], resume: list[Job], legacy: bool
+) -> bool:
     """Put a loaded job where restore() wants it. True when it changed in a
     way that has to reach disk."""
     # A stopped job may have no title yet: one trashed before its download
     # finished still has files and a place in the Trash.
     if (job.status in _TERMINAL and job.title) or job.status in _STOPPED:
         to_add[job.id] = job
-        if job.status in _TERMINAL:
-            backfill_stems_complete(jobs_dir / job.id)
         return False
     if job.status not in _RESUMABLE:
         return False
-    recovered = _resume_or_recover(job, jobs_dir / job.id)
+    recovered = _resume_or_recover(job, jobs_dir / job.id, legacy)
     if recovered is None:
         return False
     to_add[recovered.id] = recovered
@@ -430,7 +431,7 @@ def _keep_bad_records(path: Path, records: list) -> bool:
     return True
 
 
-def _adopt_orphans(jobs_dir: Path) -> bool:
+def _adopt_orphans(jobs_dir: Path, legacy: bool) -> bool:
     """Rebuild the jobs registry.json has no entry for from their folders.
     True when any was adopted."""
     with _lock:
@@ -445,7 +446,7 @@ def _adopt_orphans(jobs_dir: Path) -> bool:
             # Adopting it here is what brought songs back (#521).
             continue
         try:
-            recovered = _recover_done_job(job_dir) or _stopped_from_source(job_dir)
+            recovered = _recover_done_job(job_dir, legacy) or _stopped_from_source(job_dir)
         except Exception:
             # One folder that cannot be read costs that song, not every folder
             # after it and the save that follows.
@@ -458,7 +459,7 @@ def _adopt_orphans(jobs_dir: Path) -> bool:
     return adopted
 
 
-def _resume_or_recover(job: Job, job_dir: Path) -> Job | None:
+def _resume_or_recover(job: Job, job_dir: Path, legacy: bool = False) -> Job | None:
     """Decide what a job that was in flight when the process died becomes.
 
     Three states of the same directory need telling apart. If the stems are all
@@ -473,7 +474,7 @@ def _resume_or_recover(job: Job, job_dir: Path) -> Job | None:
     back as a Paused row in the queue, offered to Start a song that was in the
     Trash. It is stopped instead, the same end a trash before the restart now
     has, and its files stay until the Trash is emptied."""
-    recovered = _recover_done_job(job_dir)
+    recovered = _recover_done_job(job_dir, legacy)
     if recovered is not None:
         # Finished after all: keep what the registry says the user chose (its
         # Trash above all, or a binned song reappears) and its pending
@@ -577,7 +578,7 @@ def _disk_stems(job_dir: Path) -> list[dict[str, str]]:
     ]
 
 
-def _finished_meta(job_dir: Path) -> dict | None:
+def _finished_meta(job_dir: Path, legacy: bool) -> dict | None:
     """The metadata.json of a folder whose separation finished, or None.
 
     A song made before the marker gets it while the registry holds it
@@ -588,7 +589,9 @@ def _finished_meta(job_dir: Path) -> dict | None:
     meta_path = job_dir / "metadata.json"
     meta = read_metadata(meta_path)
     finished = meta_path.is_file() and not is_started_only(meta)
-    if not (job_dir / "stems" / STEMS_COMPLETE).is_file() and not finished:
+    # A version 1 library predates the marker: its stems alone meant done.
+    marked = legacy or (job_dir / "stems" / STEMS_COMPLETE).is_file()
+    if not marked and not finished:
         logger.warning("%s holds stems of a separation that did not finish", job_dir.name)
         return None
     if not isinstance(meta, dict):
@@ -605,7 +608,7 @@ def _finished_meta(job_dir: Path) -> dict | None:
     return meta
 
 
-def _recover_done_job(job_dir: Path) -> Job | None:
+def _recover_done_job(job_dir: Path, legacy: bool = False) -> Job | None:
     """A finished song rebuilt from its folder, or None for a folder whose
     separation did not finish (upstream PR 901)."""
     stems_dir = job_dir / "stems"
@@ -614,7 +617,7 @@ def _recover_done_job(job_dir: Path) -> Job | None:
     stems = _disk_stems(job_dir)
     if not stems:
         return None
-    meta = _finished_meta(job_dir)
+    meta = _finished_meta(job_dir, legacy)
     if meta is None:
         return None
     mix_url = None

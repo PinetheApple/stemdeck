@@ -131,10 +131,10 @@ def test_one_folder_that_cannot_be_rebuilt_costs_only_itself(tmp_path: Path, mon
     _song_folder(tmp_path, OTHER)
     real = _registry._recover_done_job
 
-    def broken_for_one(job_dir: Path):
+    def broken_for_one(job_dir: Path, *args):
         if job_dir.name == GOOD:
             raise RecursionError("nested too deep")
-        return real(job_dir)
+        return real(job_dir, *args)
 
     monkeypatch.setattr(_registry, "_recover_done_job", broken_for_one)
 

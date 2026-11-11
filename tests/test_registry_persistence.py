@@ -254,6 +254,34 @@ def test_restore_recovers_orphan_without_metadata(tmp_path: Path):
     assert meta["title"] == "Recovered track abcdef"
 
 
+@pytest.mark.parametrize("record_status", [None, "separating"])
+def test_an_older_library_recovers_a_song_whose_metadata_never_landed(
+    tmp_path: Path, record_status
+):
+    """#284 for a library written before the completion marker (registry
+    version 1): stems and nothing else still come back as done, as they did,
+    whether the registry lost the job or still held it as running."""
+    job_dir = tmp_path / "abcdefabcde0"
+    stems_dir = job_dir / "stems"
+    stems_dir.mkdir(parents=True)
+    (stems_dir / "vocals.wav").write_bytes(b"RIFF")
+    records = (
+        []
+        if record_status is None
+        else [Job(id="abcdefabcde0", status=record_status, title="Old").to_record()]
+    )
+    (tmp_path / "registry.json").write_text(json.dumps({"version": 1, "jobs": records}))
+
+    restore_registry(tmp_path)
+
+    restored = _jobs["abcdefabcde0"]
+    assert restored.status == "done"
+    assert {stem["name"] for stem in restored.stems} == {"vocals"}
+    meta = json.loads((job_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert meta["title"] == "Recovered track abcdef"
+    assert _registry.take_pending_resume() == []
+
+
 def test_restore_recovers_lead_backing_vocals_and_marks_split_done(tmp_path: Path):
     """#275: a job whose on-demand vocal split finished must not regress to
     "never split" just because the process restarted before its next
