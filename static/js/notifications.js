@@ -442,7 +442,7 @@ async function openFailureDialog(record) {
     logsBtn.textContent = t("failure.includeLogs");
   }
 
-  failureOpener = document.activeElement;
+  if (dialog.classList.contains("hidden")) failureOpener = document.activeElement;
   dialog.classList.remove("hidden");
   document.getElementById("failureClose")?.focus();
 
