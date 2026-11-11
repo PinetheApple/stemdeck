@@ -95,6 +95,8 @@
 .rail-btn.active { background: var(--accent-soft); color: var(--accent); }
 .rail-badge { color: var(--accent-ink); }
 .rail-btn .ic { width: var(--icon-lg); height: var(--icon-lg); }
+.sidebar-rail .rail-btn { width: calc(var(--rail-w) - var(--s-1)); padding-inline: 0; }
+.sidebar-rail .rail-btn > span { max-width: 100%; }
 .sidebar-body { padding: var(--s-3); gap: var(--s-3); }
 .daw-search {
   height: var(--ctl-h);

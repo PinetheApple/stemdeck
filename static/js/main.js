@@ -475,6 +475,7 @@ wireVocalModeToggle();
 wireStemChipsPopover();
 wireAutoSectionsToggle();
 wireFileDrop();
+wireEmptyStart();
 wireAppShellControls();
 initFooterFit();
 initArtistInfo();
@@ -779,6 +780,17 @@ function closeAllChipPanels() {
   document.querySelectorAll(".track-chip-panel:not(.hidden)").forEach((p) => {
     p.classList.add("hidden");
     p.previousElementSibling?.setAttribute("aria-expanded", "false");
+  });
+}
+
+// ─── What to do first, while no song is open ───
+
+function wireEmptyStart() {
+  document.getElementById("emptyStartUpload")?.addEventListener("click", function onEmptyStartUpload() {
+    document.getElementById("uploadFileBtn")?.click();
+  });
+  document.getElementById("emptyStartLink")?.addEventListener("click", function onEmptyStartLink() {
+    document.getElementById("url")?.focus();
   });
 }
 

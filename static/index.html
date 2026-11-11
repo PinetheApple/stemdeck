@@ -223,8 +223,8 @@
             </button>
             <!-- Help mode: the screen explains itself while this is pressed. -->
             <button class="rail-btn rail-guide" type="button" id="helpModeBtn" aria-pressed="false"
-                    title="Explain the screen" aria-label="Explain the screen"
-                    data-i18n-title="help.button" data-i18n-aria-label="help.button">
+                    title="Explain the screen" aria-label="Guide"
+                    data-i18n-title="help.button" data-i18n-aria-label="help.railLabel">
               <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14" /> <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></svg>
               <span data-i18n="help.railLabel">Guide</span>
             </button>
@@ -240,9 +240,9 @@
                  here is app-wide rather than track-wide, which is what a
                  notification is. -->
             <div class="daw-notif-wrap">
-              <button class="rail-btn" id="notifBtn" title="Notifications" type="button" aria-label="Notifications" aria-expanded="false" data-i18n-title="notif.bell" data-i18n-aria-label="notif.bell">
+              <button class="rail-btn" id="notifBtn" title="Alerts: failures and new releases" type="button" aria-label="Alerts" aria-expanded="false" data-i18n-title="notif.railTitle" data-i18n-aria-label="notif.railLabel">
                 <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0" /> <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" /></svg>
-                <span data-i18n="notif.title">Notifications</span>
+                <span data-i18n="notif.railLabel">Alerts</span>
                 <span class="daw-notif-badge hidden" id="notifBadge" aria-hidden="true"></span>
               </button>
               <div class="daw-notif-panel" role="menu" aria-label="Notifications" data-i18n-aria-label="notif.title">
@@ -270,13 +270,13 @@
                 </div>
               </div>
             </div>
-            <button class="rail-btn" id="settingsBtn" type="button" aria-label="Settings" aria-haspopup="dialog" data-i18n-aria-label="nav.settings">
+            <button class="rail-btn" id="settingsBtn" type="button" aria-label="Settings" aria-haspopup="dialog" data-i18n-aria-label="nav.settingsRail">
               <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /> <circle cx="12" cy="12" r="3" /></svg>
-              <span data-i18n="nav.settings">Settings</span>
+              <span data-i18n="nav.settingsRail">Settings</span>
             </button>
-            <button class="rail-btn" id="aboutBtn" type="button" title="Help" aria-label="Help" data-i18n-title="nav.help" data-i18n-aria-label="nav.help">
+            <button class="rail-btn" id="aboutBtn" type="button" title="About StemDeck: website, community and credits" aria-label="About" data-i18n-title="nav.aboutTitle" data-i18n-aria-label="nav.about">
               <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /> <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /> <path d="M12 17h.01" /></svg>
-              <span data-i18n="nav.help">Help</span>
+              <span data-i18n="nav.about">About</span>
             </button>
           </nav>
 
@@ -334,10 +334,10 @@
 
             <section class="lib-setlists" id="setlistsPanel" role="tabpanel" aria-labelledby="libTabSetlists">
               <div class="setlists-list" id="setlistsList"></div>
-              <div class="lib-setlists-empty" id="setlistsEmpty">
+              <div class="lib-setlists-empty lib-empty" id="setlistsEmpty">
                 <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/></svg>
                 <strong data-i18n="setlists.empty">No setlists yet.</strong>
-                <span data-i18n="setlists.emptyHint">Make one here, or add a song to one from its … menu in Songs.</span>
+                <span class="lib-empty-hint" data-i18n="setlists.emptyHint">Make one here, or add a song to one from its … menu in Songs.</span>
               </div>
               <p class="setlists-error" id="setlistsError" role="alert" hidden></p>
               <button class="setlist-new-btn" id="setlistNewBtn" type="button">
@@ -477,6 +477,23 @@
               </div>
             </div>
           </div>
+
+          <!-- What to do first, shown while no song is open. -->
+          <section class="empty-start" id="emptyStart" aria-labelledby="emptyStartTitle">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            <strong id="emptyStartTitle" data-i18n="start.title">Start with a song</strong>
+            <span data-i18n="start.hint">Paste a link or drop an audio file in the bar above, or pick a song from your library.</span>
+            <div class="empty-start-actions">
+              <button class="empty-start-btn" id="emptyStartUpload" type="button">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /> <path d="m17 8-5-5-5 5" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /></svg>
+                <span data-i18n="start.upload">Choose a file</span>
+              </button>
+              <button class="empty-start-btn" id="emptyStartLink" type="button">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                <span data-i18n="start.link">Paste a link</span>
+              </button>
+            </div>
+          </section>
 
           <!-- Content area: stems + waveform -->
           <div class="daw-content">

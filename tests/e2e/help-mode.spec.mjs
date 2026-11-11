@@ -95,13 +95,13 @@ test.describe("help mode", () => {
     expect(ring.height).toBeLessThan(box.height);
   });
 
-  test("pointing at a rail button rings its label too, where the label is wider than the button", async ({ page }) => {
+  test("pointing at a rail button rings it and its label, which fits inside it", async ({ page }) => {
     await openStudio(page);
     await helpOn(page);
     await page.locator("#notifBtn").hover();
     await expect(page.locator(".help-ring")).toBeVisible();
     const { ring, box, drawn } = await page.evaluate(measureHoverRing, "#notifBtn");
-    expect(drawn.right - drawn.left).toBeGreaterThan(box.right - box.left);
+    expect(contains(box, drawn)).toBe(true);
     expect(contains(ring, drawn)).toBe(true);
   });
 
