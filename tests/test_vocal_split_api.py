@@ -410,3 +410,27 @@ def test_replacing_the_song_stops_its_split_before_its_files_go(client, monkeypa
     assert JOB_ID not in _jobs
     assert split_ended_at_removal == [True]
     assert vs_mod.VOCAL_SPLIT_RUNS.current(JOB_ID) is None
+
+
+DELETE_WAIT_BUDGET_SEC = 0.4
+# Room for scheduling jitter, well short of a second full budget.
+DELETE_WAIT_SLACK = 1.5
+
+
+def _hung_run(board):
+    run = board.claim(JOB_ID)
+    run.started = True
+    return run
+
+
+def test_a_delete_waits_one_budget_for_a_hung_split_and_lyrics_run(monkeypatch):
+    job = done_job()
+    monkeypatch.setattr(jobs_mod, "RETIME_DELETE_WAIT_SEC", DELETE_WAIT_BUDGET_SEC)
+    _hung_run(jobs_mod.RETIME_RUNS)
+    _hung_run(vs_mod.VOCAL_SPLIT_RUNS)
+
+    started = time.monotonic()
+    jobs_mod._remove_job(job)
+    elapsed = time.monotonic() - started
+
+    assert elapsed < DELETE_WAIT_BUDGET_SEC * DELETE_WAIT_SLACK

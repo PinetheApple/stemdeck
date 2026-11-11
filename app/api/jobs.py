@@ -2151,8 +2151,11 @@ def reset_beats(job_id: str) -> dict:
     return {"job_id": job_id, "edited": keep is not None}
 
 
-def _wait_vocal_split_ended(job_id: str) -> None:
-    if not VOCAL_SPLIT_RUNS.wait_ended(job_id, RETIME_DELETE_WAIT_SEC):
+def _wait_vocal_split_ended(job_id: str, deadline: float) -> None:
+    """Wait for a stopped split until ``deadline``, the one the lyrics runs
+    were waited on against, so a delete waits RETIME_DELETE_WAIT_SEC in all."""
+    left = max(0.0, deadline - time.monotonic())
+    if not VOCAL_SPLIT_RUNS.wait_ended(job_id, left):
         logger.warning("[%s] vocal split still stopping; removing files anyway", job_id)
 
 
@@ -2192,8 +2195,9 @@ def _remove_job(job: Job) -> bool:
     splitting = cancel_split(job)
     if lyrics_run or splitting:
         _terminate_worker(job_id)
+        split_deadline = time.monotonic() + RETIME_DELETE_WAIT_SEC
         _wait_lyrics_runs_ended(job_id)
-        _wait_vocal_split_ended(job_id)
+        _wait_vocal_split_ended(job_id, split_deadline)
     RETIME_RUNS.forget(job_id)
     TRANSCRIBE_RUNS.forget(job_id)
     VOCAL_SPLIT_RUNS.forget(job_id)
