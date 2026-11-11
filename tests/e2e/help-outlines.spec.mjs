@@ -32,6 +32,11 @@ const TRANSPORT_CONTROLS = '.daw-footer :is(button, input, select, [role="slider
 // Guide treats anything bigger than this share of the window as an area to point into, not a control.
 const AREA_SHARE = 0.04;
 const NO_TRACK_AREA_CSS = ".waves-column { display: none !important; }";
+const PROBE = "__guideProbe";
+// Half a library row: the top row goes partly out of view, the rest stay whole.
+const LIBRARY_SCROLL_PX = 28;
+// Enough page time for the frame in which the rings follow a scroll, well short of the intro's end.
+const FOLLOW_FRAMES_MS = 50;
 
 function crowdedLibrary() {
   const extra = Array.from({ length: EXTRA_SONGS }, (_, i) => `e2e0long${String(i).padStart(4, "0")}`);
@@ -57,39 +62,74 @@ async function withoutCheckVisibility(page) {
   }, NATIVE_CHECK);
 }
 
+/**
+ * Rect checks the measurements below share, installed in the page as window[name].
+ * `pairs` remembers which control each intro ring was matched to.
+ */
+async function installProbe(page) {
+  await page.addInitScript(({ name, tolerance }) => {
+    const box = (el) => el.getBoundingClientRect();
+    const close = (a, b) => ["left", "top", "right", "bottom"].every((k) => Math.abs(a[k] - b[k]) <= tolerance);
+    const inside = (r, frame) => r.left >= frame.left - tolerance && r.right <= frame.right + tolerance
+      && r.top >= frame.top - tolerance && r.bottom <= frame.bottom + tolerance;
+    const whollyInView = (el) => {
+      const r = box(el);
+      const frame = { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+      for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+        const { overflowX, overflowY } = getComputedStyle(p);
+        if ((overflowX !== "visible" || overflowY !== "visible") && !inside(r, box(p))) return false;
+      }
+      return inside(r, frame);
+    };
+    window[name] = { box, close, whollyInView, pairs: new Map() };
+  }, { name: PROBE, tolerance: RECT_TOLERANCE_PX });
+}
+
 /** Every intro outline, the control it matches, and whether a user can see all of that control. */
-function measureOutlines({ tolerance, stash }) {
+function measureOutlines({ probe, stash }) {
+  const { box, close, whollyInView, pairs } = window[probe];
   const checkVisibility = Element.prototype.checkVisibility ?? window[stash];
-  const box = (el) => el.getBoundingClientRect();
-  const close = (a, b) => ["left", "top", "right", "bottom"].every((k) => Math.abs(a[k] - b[k]) <= tolerance);
   const describe = (el) => `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}.${[...el.classList].join(".")}`;
-  const inside = (r, frame) => r.left >= frame.left - tolerance && r.right <= frame.right + tolerance
-    && r.top >= frame.top - tolerance && r.bottom <= frame.bottom + tolerance;
-  const clippingPanels = (el) => {
-    const panels = [];
-    for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
-      const { overflowX, overflowY } = getComputedStyle(p);
-      if (overflowX !== "visible" || overflowY !== "visible") panels.push(p);
-    }
-    return panels;
-  };
   const onTop = (el, r) => {
     const hit = document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2);
     return Boolean(hit) && el.contains(hit);
   };
-  const seen = (el) => {
-    const r = box(el);
-    return checkVisibility.call(el, { opacityProperty: true, visibilityProperty: true })
-      && clippingPanels(el).every((p) => inside(r, box(p)))
-      && onTop(el, r);
-  };
+  const seen = (el) => checkVisibility.call(el, { opacityProperty: true, visibilityProperty: true })
+    && whollyInView(el) && onTop(el, box(el));
   const targets = [...document.querySelectorAll(".help-target")];
   return [...document.querySelectorAll(".help-intro-ring")].map((ring) => {
     const r = box(ring);
     const rect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
     const target = targets.find((el) => close(box(el), r));
+    if (target) pairs.set(ring, target);
     return { rect, target: target ? describe(target) : null, seen: target ? seen(target) : false };
   });
+}
+
+/** Scroll the library list by `by` pixels and wait for the scroll to reach the page's listeners. */
+function scrollLibrary(by) {
+  const row = document.querySelector("#catalogList .cat-item");
+  let list = row.parentElement;
+  while (list && list.scrollHeight <= list.clientHeight) list = list.parentElement;
+  const scrolled = new Promise((resolve) => list.addEventListener("scroll", resolve, { once: true }));
+  list.scrollTop += by;
+  return scrolled;
+}
+
+/** For each ring paired before the scroll: shown where its control now is, or hidden while the control is cut off. */
+function followedRings(probe) {
+  const { box, close, whollyInView, pairs } = window[probe];
+  const rings = [...document.querySelectorAll(".help-intro-ring")];
+  const result = { rings: rings.length, moved: 0, hidden: 0, wrong: [] };
+  for (const [ring, target] of pairs) {
+    const shouldShow = whollyInView(target);
+    if (ring.hidden) result.hidden += 1;
+    else if (target.closest("#catalogList") && close(box(ring), box(target))) result.moved += 1;
+    if (ring.hidden === shouldShow || (!ring.hidden && !close(box(ring), box(target)))) {
+      result.wrong.push(`${target.className} shown=${!ring.hidden} inView=${shouldShow}`);
+    }
+  }
+  return result;
 }
 
 /**
@@ -145,6 +185,7 @@ function overlapping(outlines) {
 async function guideOn(page, viewport, { native, hold = false, css = HIDDEN_CONTROLS_CSS }) {
   await page.setViewportSize(viewport);
   if (!native) await withoutCheckVisibility(page);
+  await installProbe(page);
   if (hold) await page.clock.install();
   await openStudio(page, { catalog: crowdedLibrary() });
   await page.addStyleTag({ content: css });
@@ -167,7 +208,7 @@ test.describe("Guide outlines", () => {
   for (const viewport of VIEWPORTS) for (const engine of ENGINES) {
     test(`each outline fits a visible control at ${viewport.width} px${engine.label}`, async ({ page }) => {
       await guideOn(page, viewport, { ...engine, hold: true });
-      const outlines = await page.evaluate(measureOutlines, { tolerance: RECT_TOLERANCE_PX, stash: NATIVE_CHECK });
+      const outlines = await page.evaluate(measureOutlines, { probe: PROBE, stash: NATIVE_CHECK });
 
       expect(outlines.length).toBeGreaterThan(MIN_OUTLINES);
       const outside = outlines.filter(({ rect }) => rect.left < 0 || rect.top < 0
@@ -191,6 +232,19 @@ test.describe("Guide outlines", () => {
       expect(Math.abs(pillCentre(measured) - measured.trackCentre)).toBeLessThanOrEqual(RECT_TOLERANCE_PX);
     });
   }
+
+  test("scrolling the library keeps the glow, moves each row's ring with it and hides a row's ring as it leaves view", async ({ page }) => {
+    await guideOn(page, VIEWPORTS[0], { native: true, hold: true });
+    const before = await page.evaluate(measureOutlines, { probe: PROBE, stash: NATIVE_CHECK });
+    await page.evaluate(scrollLibrary, LIBRARY_SCROLL_PX);
+    await page.clock.runFor(FOLLOW_FRAMES_MS);
+    const after = await page.evaluate(followedRings, PROBE);
+
+    expect(after.rings).toBe(before.length);
+    expect(after.moved).toBeGreaterThan(0);
+    expect(after.hidden).toBeGreaterThan(0);
+    expect(after.wrong).toEqual([]);
+  });
 
   test("the help pill follows the waveforms when the library is put away", async ({ page }) => {
     await guideOn(page, VIEWPORTS[0], { native: true });
