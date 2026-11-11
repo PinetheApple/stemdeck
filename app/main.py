@@ -640,11 +640,11 @@ async def set_stems_location(request: Request) -> dict[str, object]:
         _log.exception("moving the stems library failed")
         raise HTTPException(status_code=500, detail="Could not move the stems folder") from None
 
-    _, persisted = set_jobs_dir(str(target))
+    _, persisted = await asyncio.to_thread(set_jobs_dir, str(target))
     if persisted:
         # Not before: until the new location is saved, a restart reads the old
         # folder, so it has to stay whole.
-        await asyncio.to_thread(remove_moved, JOBS_DIR, result.copied)
+        await asyncio.to_thread(remove_moved, result)
     _log.info(
         "stems library moved to %s (%d entries, %d bytes, persisted=%s)",
         target,

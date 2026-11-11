@@ -147,8 +147,11 @@ def _holds_another_library(target: Path, current: Path) -> bool:
     A half-finished move of this same library is not another library: a renamed
     entry no longer exists in the source, so a records file present in only one
     place is our own progress. Both exist when a move across drives copied it
-    and has not removed the original yet, and then the two files are identical.
+    and has not removed the original yet: identical, or ours anyway when the
+    target's move marker names `current`.
     """
+    if _moving_from(target) == str(current):
+        return False
     for name in _LIBRARY_RECORDS:
         theirs = target / name
         mine = current / name
@@ -165,7 +168,10 @@ def _holds_another_library(target: Path, current: Path) -> bool:
     return False
 
 
-_OURS = frozenset({"registry.json", "failed", "user-data.json", SETLISTS_FILE})
+# Written in the target when a move starts and removed once the new location is
+# saved, so the records an unfinished move copied there still read as ours.
+_MOVE_MARKER = ".stemdeck-move-from"
+_OURS = frozenset({"registry.json", "failed", "user-data.json", SETLISTS_FILE, _MOVE_MARKER})
 # What Finder and Explorer write into any folder they show.
 _OS_FILES = frozenset({".ds_store", "desktop.ini", "thumbs.db"})
 
@@ -184,6 +190,20 @@ def _looks_like_job_dir(entry: Path) -> bool:
     from app.core.config import JOB_ID_RE
 
     return entry.is_dir() and bool(JOB_ID_RE.match(entry.name))
+
+
+def _moving_from(target: Path) -> str | None:
+    try:
+        return (target / _MOVE_MARKER).read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+def _mark_move(target: Path, current: Path) -> None:
+    marker = target / _MOVE_MARKER
+    marker.write_text(str(current), encoding="utf-8")
+    fsync_file(marker)
+    fsync_dir(target)
 
 
 def _holds_songs(folder: Path) -> bool:
@@ -220,11 +240,14 @@ def move_library(current: Path, target: Path) -> MoveResult:
         not _holds_songs(current) and _holds_another_library(target, current)
     ):
         return MoveResult(str(current), str(target), 0, 0, same_fs)
+    # Records already in the target came from this move only under its marker.
+    resumed = _moving_from(target) == str(current)
+    _mark_move(target, current)
     _clear_partial_copies(target, current)
     moved, moved_bytes, copied = 0, 0, []
     for entry in sorted(current.iterdir()):
         size = directory_size(entry) if entry.is_dir() else entry.stat().st_size
-        outcome = _move_entry(entry, target / entry.name)
+        outcome = _move_entry(entry, target / entry.name, resumed)
         if outcome in (_Moved.COPIED, _Moved.ALREADY_THERE):
             copied.append(entry.name)
         if outcome in (_Moved.RENAMED, _Moved.COPIED):
@@ -240,12 +263,15 @@ class _Moved(enum.Enum):
     LEFT = "left where it is"
 
 
-def _move_entry(entry: Path, destination: Path) -> _Moved:
+def _move_entry(entry: Path, destination: Path, resumed: bool) -> _Moved:
+    """`resumed`: records at the destination are an earlier copy of ours, which
+    the app may have written to since, so they are copied again."""
     try:
         if os.path.lexists(destination):
             if _holds_all_of(destination, entry):
                 return _Moved.ALREADY_THERE
-            if _is_link(entry) or not _looks_like_job_dir(entry):
+            ours = _looks_like_job_dir(entry) or (resumed and entry.name in _LIBRARY_RECORDS)
+            if _is_link(entry) or not ours:
                 # Such as the target's own .DS_Store: never written over.
                 logger.info("stems move: a different %s is at the target", entry.name)
                 return _Moved.LEFT
@@ -262,16 +288,21 @@ def _move_entry(entry: Path, destination: Path) -> _Moved:
     return _Moved.COPIED
 
 
-def remove_moved(current: Path, names: tuple[str, ...]) -> None:
-    """Delete the originals of the entries move_library copied, once the new
-    location is saved. The records go first, so an old folder this stops
-    partway through holds no registry that could later read as another
+def remove_moved(result: MoveResult) -> None:
+    """Delete the originals of the entries move_library copied, and its marker,
+    once the new location is saved. The records go first, so an old folder this
+    stops partway through holds no registry that could later read as another
     library. One that cannot be deleted is only a leftover copy: logged."""
-    for name in sorted(names, key=lambda n: n not in _LIBRARY_RECORDS):
+    current = Path(result.source)
+    for name in sorted(result.copied, key=lambda n: n not in _LIBRARY_RECORDS):
         try:
             _remove(current / name)
         except OSError:
             logger.warning("stems move: could not remove the original of %s", name, exc_info=True)
+    try:
+        (Path(result.target) / _MOVE_MARKER).unlink(missing_ok=True)
+    except OSError:
+        logger.warning("stems move: could not remove the move marker", exc_info=True)
 
 
 # Windows' reparse tag for a junction, as shutil.rmtree checks it; only Windows'
@@ -398,7 +429,7 @@ def _copy_verified(entry: Path, destination: Path) -> None:
             matches = filecmp.cmp(entry, partial, shallow=False)
         if not matches:
             raise OSError(errno.EIO, "the copy does not match the original")
-        if os.path.lexists(destination):
+        if destination.is_dir() and not _is_link(destination):
             shutil.rmtree(destination)
         os.replace(partial, destination)
     except OSError:

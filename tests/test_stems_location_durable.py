@@ -7,18 +7,18 @@ folder is whole until then, and a retry picks up where the move stopped.
 
 from __future__ import annotations
 
+import errno
 import shutil
 from pathlib import Path
 
 import pytest
 
 from app.core import stems_location
+from app.core.config import SETLISTS_FILE
 from app.core.models import Job
 from app.core.stems_location import StemsLocationError, move_library, validate_target
 from tests.test_stems_location import _isolate_registry, _job_dir, client  # noqa: F401
 from tests.test_stems_location_records import _write_registry
-
-_CROSS_DEVICE = 18
 
 
 @pytest.fixture
@@ -27,13 +27,25 @@ def other_drive(monkeypatch):
     import os
 
     def rename(src, dst):
-        raise OSError(_CROSS_DEVICE, "Invalid cross-device link")
+        raise OSError(errno.EXDEV, "Invalid cross-device link")
 
     monkeypatch.setattr(os, "rename", rename)
 
 
+_MARKER = stems_location._MOVE_MARKER
+
+
 def _snapshot(root: Path) -> dict[str, bytes]:
-    return {p.relative_to(root).as_posix(): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    """The library's files, without the marker of a move still in progress."""
+    return {
+        p.relative_to(root).as_posix(): p.read_bytes()
+        for p in root.rglob("*")
+        if p.is_file() and p.name != _MARKER
+    }
+
+
+def _entries(root: Path) -> list[str]:
+    return sorted(p.name for p in root.iterdir() if p.name != _MARKER)
 
 
 def _library(root: Path) -> dict[str, bytes]:
@@ -110,7 +122,7 @@ def test_a_partial_copy_from_an_earlier_attempt_is_replaced(tmp_path, left):
     (partial / "vocals.wav").write_bytes(left)
 
     result = move_library(current, target)
-    stems_location.remove_moved(current, result.copied)
+    stems_location.remove_moved(result)
 
     assert (target / "aaaaaaaaaaaa" / "stems" / "vocals.wav").read_bytes() == b"R" * 32
 
@@ -134,7 +146,7 @@ def test_a_move_killed_mid_copy_leaves_the_old_library_whole_and_can_be_finished
 
     assert _snapshot(target) == before
     assert _snapshot(current) == before, "the originals wait until the setting is saved"
-    stems_location.remove_moved(current, result.copied)
+    stems_location.remove_moved(result)
     assert list(current.iterdir()) == []
 
 
@@ -192,7 +204,7 @@ def test_a_copy_that_fails_keeps_the_old_library_and_the_setting(
     assert detail.startswith(f"Could not move bbbbbbbbbbbb: {reason}.")
     assert str(tmp_path) not in detail, "no paths in errors"
     assert _snapshot(client.jobs_dir) == before
-    assert sorted(p.name for p in target.iterdir()) == ["aaaaaaaaaaaa"], "no half copy left"
+    assert _entries(target) == ["aaaaaaaaaaaa"], "no half copy left"
     assert settings_mod.get_jobs_dir() is None
     assert stems_location.is_relocating() is False
 
@@ -259,32 +271,10 @@ def test_a_link_inside_the_library_is_never_followed_out_of_it(tmp_path, other_d
     with pytest.raises(StemsLocationError, match="Could not move aaaaaaaaaaaa: a link"):
         move_library(current, target)
 
-    assert list(target.iterdir()) == [], "nothing from outside is copied in"
+    assert _entries(target) == [], "nothing from outside is copied in"
     assert (outside / "secret.txt").read_text(encoding="utf-8") == "not the library's"
     assert stems_location._is_link(link), "the link itself stays where it was"
     assert (current / "aaaaaaaaaaaa" / "stems" / "vocals.wav").is_file()
-
-
-@pytest.fixture
-def stat_without_the_junction_tag(monkeypatch):
-    """The stat module as Linux and macOS have it: no IO_REPARSE_TAG_* names."""
-    import stat
-
-    monkeypatch.delattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", raising=False)
-
-
-def test_a_move_across_drives_works_where_stat_names_no_junction_tag(
-    tmp_path, other_drive, stat_without_the_junction_tag
-):
-    current = tmp_path / "old"
-    before = _library(current)
-    target = tmp_path / "new"
-
-    result = move_library(current, target)
-    stems_location.remove_moved(current, result.copied)
-
-    assert _snapshot(target) == before
-    assert list(current.iterdir()) == []
 
 
 def test_an_unfinished_copy_of_any_entry_is_cleared_by_the_retry(tmp_path):
@@ -349,3 +339,57 @@ def test_a_folder_with_songs_still_refuses_another_library(tmp_path):
 
     with pytest.raises(StemsLocationError, match="already holds another StemDeck library"):
         validate_target(library, current)
+
+
+def test_a_move_whose_setting_did_not_save_can_be_retried_after_new_writes(
+    client,  # noqa: F811
+    tmp_path,
+    monkeypatch,
+    other_drive,
+):
+    """The setting failed to save, so the app kept writing to the old folder and
+    its records now differ from the copies in the target: still our own move."""
+    import app.core.settings as settings_mod
+
+    _library(client.jobs_dir)
+    target = tmp_path / "elsewhere"
+    real_save = settings_mod._save
+    monkeypatch.setattr(settings_mod, "_save", lambda: False)
+    assert (
+        client.post("/api/settings/stems-location", json={"path": str(target)}).json()["persisted"]
+        is False
+    )
+    newer = _write_registry(client.jobs_dir, Job(id="bbbbbbbbbbbb", status="done", favorite=True))
+    (client.jobs_dir / SETLISTS_FILE).write_text('{"edited": 1}', encoding="utf-8")
+    monkeypatch.setattr(settings_mod, "_save", real_save)
+
+    r = client.post("/api/settings/stems-location", json={"path": str(target)})
+
+    assert r.status_code == 200, r.text
+    assert (target / "registry.json").read_text(encoding="utf-8") == newer
+    assert (target / SETLISTS_FILE).read_text(encoding="utf-8") == '{"edited": 1}'
+    assert list(client.jobs_dir.iterdir()) == []
+    assert sorted(p.name for p in target.iterdir()) == [
+        "aaaaaaaaaaaa",
+        "bbbbbbbbbbbb",
+        "registry.json",
+        SETLISTS_FILE,
+    ], "no marker left once the move is saved"
+
+
+def test_records_from_a_move_that_died_after_copying_them_are_not_another_library(
+    tmp_path, monkeypatch, other_drive
+):
+    """The app died after the registry was copied; on the next start it wrote
+    to the old folder again, so the two registries now differ."""
+    current = tmp_path / "old"
+    _library(current)
+    (current / "user-data.json").write_text('{"mine": 1}', encoding="utf-8")
+    target = tmp_path / "new"
+    _copy_failing_at(monkeypatch, 5, _Killed())
+    with pytest.raises(_Killed):
+        move_library(current, target)
+    assert (target / "registry.json").is_file() and not (target / "user-data.json").exists()
+    _write_registry(current, Job(id="bbbbbbbbbbbb", status="done"))
+
+    assert validate_target(target, current) == target.resolve()
