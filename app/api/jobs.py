@@ -8,7 +8,6 @@ import os
 import re
 import shutil
 import subprocess
-import threading
 import time
 import uuid
 from collections.abc import Callable
@@ -40,6 +39,7 @@ from app.core.config import (
     TIMEOUT_IDENTIFY_BACKFILL,
     TIMEOUT_LYRICS_LOOKUP,
     TIMEOUT_WORK_BACKFILL,
+    UPLOAD_EXTS,
     ffprobe_executable,
 )
 from app.core.models import (
@@ -69,6 +69,8 @@ from app.core.registry import set_trashed as registry_set_trashed
 from app.core.setlists import remove_songs as setlists_remove_songs
 from app.core.setlists import replace_song as setlists_replace_song
 from app.core.settings import get_auto_sections, get_discogs_token, get_max_duration_sec
+from app.core.song_folder import metadata_lock, saved_fields
+from app.core.song_folder import write_json_atomic as _write_json_atomic
 from app.core.stems_location import is_relocating
 from app.pipeline import discogs, jobqueue
 from app.pipeline.artist_lookup import tagged_artist_name
@@ -142,7 +144,6 @@ LYRICS_TIMING_RUNNING = "lyrics timing already running"
 TRANSCRIPTION_RUNNING = "transcription already running"
 VOCAL_SPLIT_ALREADY_RUNNING = "vocal split already running"
 
-_ALLOWED_EXTS = frozenset((".mp3", ".wav", ".flac", ".mp4", ".m4a", ".ogg", ".opus"))
 _MAX_UPLOAD_BYTES = 400 * 1024 * 1024  # 400 MB
 _WS_RE = re.compile(r"\s+")
 
@@ -374,7 +375,7 @@ async def _create_local_job(request: Request) -> dict[str, str]:
 
     filename: str = getattr(upload, "filename", "") or ""
     ext = Path(filename).suffix.lower()
-    if ext not in _ALLOWED_EXTS:
+    if ext not in UPLOAD_EXTS:
         raise HTTPException(
             status_code=422,
             detail=f"Unsupported file type '{ext}': accepted formats are .mp3, .wav, .flac, .mp4, .m4a, .ogg, and .opus",
@@ -491,6 +492,7 @@ def trash_job(job_id: str) -> dict:
     else:
         _stop_runs(job, with_lyrics=False)
     registry_persist(JOBS_DIR)
+    _keep_saved_fields(job)
     return {"job_id": job.id, "trashed_at": job.trashed_at}
 
 
@@ -503,6 +505,7 @@ def restore_job(job_id: str) -> dict:
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
     registry_persist(JOBS_DIR)
+    _keep_saved_fields(job)
     return {"job_id": job.id, "trashed_at": job.trashed_at}
 
 
@@ -551,6 +554,7 @@ def set_favorite(job_id: str, body: FavoriteBody) -> dict:
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
     registry_persist(JOBS_DIR)
+    _keep_saved_fields(job)
     return {"job_id": job.id, "favorite": job.favorite}
 
 
@@ -729,7 +733,7 @@ def _retained_source(job_id: str) -> Path | None:
         resolved = candidate.resolve()
         if (
             resolved.is_file()
-            and resolved.suffix.lower() in _ALLOWED_EXTS
+            and resolved.suffix.lower() in UPLOAD_EXTS
             and resolved.is_relative_to(JOBS_DIR.resolve())
         ):
             return resolved
@@ -906,20 +910,6 @@ async def start_vocal_split(job_id: str) -> JSONResponse:
 
 _SECTION_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
 _COLOR_RE = re.compile(r"^#[0-9a-fA-F]{3,8}$")
-_SECTIONS_WRITE_LOCK = threading.Lock()
-
-
-def _write_json_atomic(path: Path, data: dict) -> None:
-    """Durably replace a JSON file without exposing a partial write."""
-    temp = path.parent / f".{path.name}.{uuid.uuid4().hex}.tmp"
-    try:
-        with temp.open("w", encoding="utf-8", newline="\n") as handle:
-            handle.write(json.dumps(data, indent=2) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temp, path)
-    finally:
-        temp.unlink(missing_ok=True)
 
 
 class SectionItem(BaseModel):
@@ -996,7 +986,7 @@ def update_sections(job_id: str, body: SectionsBody) -> dict:
         raise HTTPException(status_code=404, detail="job not found")
     meta_path = job_dir / "metadata.json"
 
-    with _SECTIONS_WRITE_LOCK:
+    with metadata_lock:
         meta: dict = {}
         try:
             if meta_path.is_file():
@@ -1047,7 +1037,7 @@ def _write_metadata_fields(job_id: str, fields: dict[str, object]) -> None:
     if not meta_path.is_relative_to(JOBS_DIR.resolve()):
         return
     # The same lock as the sections editor, the other read-modify-write here.
-    with _SECTIONS_WRITE_LOCK:
+    with metadata_lock:
         try:
             if not meta_path.is_file():
                 return
@@ -1057,7 +1047,15 @@ def _write_metadata_fields(job_id: str, fields: dict[str, object]) -> None:
             meta.update(fields)
             _write_json_atomic(meta_path, meta)
         except (OSError, ValueError):
-            logger.warning("could not record audio tags in metadata for %s", job_id, exc_info=True)
+            logger.warning("could not update metadata.json for %s", job_id, exc_info=True)
+
+
+def _keep_saved_fields(job: Job) -> None:
+    """Copy what the user set on a song (favourite, Trash) into its
+    metadata.json, so a registry rebuilt from the folders keeps it. Read under
+    the lock, so of two quick changes the later one is what stays."""
+    with metadata_lock:
+        _write_metadata_fields(job.id, saved_fields(job))
 
 
 @router.post("/{job_id}/audio-tags")

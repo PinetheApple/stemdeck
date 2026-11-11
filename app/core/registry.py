@@ -8,6 +8,7 @@ import subprocess
 import threading
 import time
 import uuid
+from collections.abc import Iterable
 from pathlib import Path
 
 from app.core.config import DEMUCS_MODEL, EXTRA_STEM_NAMES, JOB_ID_RE, LYRICS_FILE, STEM_NAMES
@@ -27,10 +28,11 @@ from app.core.models import (
     clean_user_name,
     clean_work,
 )
+from app.core.song_folder import SAVED_FIELDS, copy_saved_fields, saved_from_meta
 
 logger = logging.getLogger("stemdeck.registry")
 
-REGISTRY_VERSION = 1
+REGISTRY_VERSION = 2
 
 _jobs: dict[str, Job] = {}
 # Active subprocesses keyed by job_id (currently only Demucs). Lets
@@ -177,6 +179,11 @@ def _migrate(data: dict) -> dict:
         # v0 → v1: version field was absent; no structural change needed.
         data["version"] = 1
         version = 1
+    if version < 2:
+        # v1 -> v2: nothing changes in this file. _load_registry copies each
+        # song's SAVED_FIELDS into its metadata.json once.
+        data["version"] = 2
+        version = 2
     # Future migrations go here as `if version < N:` blocks.
     return data
 
@@ -283,7 +290,10 @@ def restore(jobs_dir: Path) -> None:
 def _load_registry(path: Path, jobs_dir: Path) -> bool:
     """Read registry.json into the registry, one record at a time. True when
     the file on disk must be rewritten."""
-    data = _migrate(json.loads(path.read_text(encoding="utf-8")))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    version = data.get("version") if isinstance(data, dict) else None
+    copy_saved = not isinstance(version, int) or version < 2
+    data = _migrate(data)
     recorded = data.get("deleted")
     if isinstance(recorded, list):
         with _lock:
@@ -309,6 +319,8 @@ def _load_registry(path: Path, jobs_dir: Path) -> bool:
     # the next start does not set them aside again.
     if bad and _keep_bad_records(path, bad):
         changed = True
+    if copy_saved and _copy_saved_fields(to_add.values(), jobs_dir):
+        changed = True
     with _lock:
         _jobs.update(to_add)
     # The user's order first, then oldest first. queue_position is rewritten
@@ -320,6 +332,18 @@ def _load_registry(path: Path, jobs_dir: Path) -> bool:
         j.id for j in sorted(resume, key=lambda j: (j.queue_position, j.created_at))
     )
     return changed
+
+
+def _copy_saved_fields(jobs: Iterable[Job], jobs_dir: Path) -> bool:
+    """Give each finished song's metadata.json the SAVED_FIELDS, once, on the
+    first start after they were kept there: a registry lost later would still
+    reset them for songs finished before. True when any was copied."""
+    copied = sum(
+        copy_saved_fields(job, jobs_dir / job.id) for job in jobs if job.status in _TERMINAL
+    )
+    if copied:
+        logger.info("copied saved fields into %d song folder(s)", copied)
+    return copied > 0
 
 
 def _record_id(record: object) -> str | None:
@@ -429,9 +453,11 @@ def _resume_or_recover(job: Job, job_dir: Path) -> Job | None:
     has, and its files stay until the Trash is emptied."""
     recovered = _recover_done_job(job_dir)
     if recovered is not None:
-        # Finished after all: keep its Trash state and pending replacement, or a
-        # binned song reappears and the copy it replaces is never settled.
-        recovered.trashed_at = job.trashed_at
+        # Finished after all: keep what the registry says the user chose (its
+        # Trash above all, or a binned song reappears) and its pending
+        # replacement, or the copy it replaces is never settled.
+        for name in SAVED_FIELDS:
+            setattr(recovered, name, getattr(job, name))
         recovered.replaces = job.replaces
         return recovered
 
@@ -503,8 +529,10 @@ def _recover_done_job(job_dir: Path) -> Job | None:
     if meta_path.is_file():
         try:
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, RecursionError, ValueError):
             pass
+        if not isinstance(meta, dict):
+            meta = {}  # read as none, so the folders after this one still rebuild
     else:
         # Crash window (#284): the process died between status=done and the
         # metadata write, leaving a complete stems dir that used to be
@@ -516,7 +544,7 @@ def _recover_done_job(job_dir: Path) -> Job | None:
             meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
         except OSError:
             logger.warning("could not write recovery metadata for %s", job_dir.name, exc_info=True)
-    return Job(
+    job = Job(
         id=job_dir.name,
         status="done",
         progress=1.0,
@@ -553,6 +581,9 @@ def _recover_done_job(job_dir: Path) -> Job | None:
         vocal_split_choice=vocal_split_choice,
         vocal_split_error=vocal_split_error,
     )
+    for name, value in saved_from_meta(meta).items():
+        setattr(job, name, value)
+    return job
 
 
 def _recovered_vocal_split(

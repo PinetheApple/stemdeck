@@ -37,4 +37,4 @@ jobs/<job_id>/
     └── mix.wav         # ffmpeg amix of selected stems (subset only)
 ```
 
-The library itself is one file, `jobs/registry.json`, so it survives a restart. A song's folder is only removed when you empty the Trash, or by the opt-in **Automatically delete finished tracks** setting, which is off unless you turn it on.
+The library itself is one file, `jobs/registry.json`, so it survives a restart. If that file is lost or damaged, the next start rebuilds each song from its folder, and the song's `metadata.json` keeps its favourite, Trash state, stem selection, source and date added for that. A damaged registry record is kept aside as `registry.json.bad-<time>`. A song's folder is only removed when you empty the Trash, or by the opt-in **Automatically delete finished tracks** setting, which is off unless you turn it on.

@@ -95,6 +95,8 @@ STEM_NAMES: tuple[str, ...] = ("vocals", "drums", "bass", "guitar", "piano", "ot
 EXTRA_STEM_NAMES: tuple[str, ...] = ("lead_vocals", "backing_vocals")
 # \Z, not $: $ also accepts a trailing newline.
 JOB_ID_RE = re.compile(r"^[a-f0-9]{12}\Z")
+# The file types an upload may be. A job keeps its upload as source<ext>.
+UPLOAD_EXTS = frozenset((".mp3", ".wav", ".flac", ".mp4", ".m4a", ".ogg", ".opus"))
 
 
 def _packaged_data_dir() -> Path | None:
