@@ -34,6 +34,8 @@ const SETTLE_MS = 1000;
 const NO_MORE_SENDS_MS = HEALTH_CHECKS_WATCHED * PROBE_INTERVAL_MS + SETTLE_MS;
 const SECTION_INDICATOR = "#sectionsSaveIndicator";
 const TEMPO_STATUS = "#tempoStatus";
+const MODE = { constant: "constant", follow: "follow" };
+const MODE_BUTTON = { [MODE.constant]: "#tempoModeConstant", [MODE.follow]: "#tempoModeFollow" };
 
 test.afterEach(resetSongs);
 
@@ -187,6 +189,21 @@ test.describe("tempo", () => {
 
     await expect.poll(async () => (await savedTempo(request, JOB_ID)).bpm).toBeCloseTo(bpm, 5);
     await expectNotified(page, "tempo", "refused");
+  });
+
+  test("a lost tempo save goes again on its own even after the same change once landed", async ({ page, request }) => {
+    const savedMode = async () => (await savedTempo(request, JOB_ID)).mode;
+    const loseModeChange = (mode) =>
+      failNextSave(page, beatsUrl(JOB_ID), FAILED_SAVES.lost, () => page.locator(MODE_BUTTON[mode]).click());
+    const start = await savedMode();
+    const other = start === MODE.constant ? MODE.follow : MODE.constant;
+    await loseModeChange(other);
+    await expect.poll(savedMode, { timeout: RESENT_WITHIN_MS }).toBe(other);
+    await page.locator(MODE_BUTTON[start]).click();
+    await expect.poll(savedMode).toBe(start);
+    await loseModeChange(other);
+
+    await expect.poll(savedMode, { timeout: RESENT_WITHIN_MS }).toBe(other);
   });
 
   test("a lost tempo save stays, marked unsaved, until the server takes it", async ({ page, request }) => {

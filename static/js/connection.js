@@ -83,7 +83,6 @@ export function createConnectionMonitor({ baseFetch, origin, onChange, onRestore
     return monitoredFetch(HEALTH_URL, { cache: "no-store" }).then(wasAnswered, markNotAnswered);
   }
 
-  // Unanswered, it counts like an unanswered probe.
   function markNotAnswered(error) {
     markUnreachable(error);
     return false;
