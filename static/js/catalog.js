@@ -432,7 +432,7 @@ export function isPlayableTrack(trackId) {
   return tracks[trackId]?.status === "done" && !isInTrash(trackId);
 }
 
-/** Tell Up Next and setlists that songs went into or came out of the Trash. */
+/** Songs went into or came out of the Trash, so what can be played has changed. */
 function announceTrashChange(ids) {
   document.dispatchEvent(new CustomEvent(TRASH_CHANGE_EVENT, { detail: { ids } }));
 }
@@ -1220,7 +1220,7 @@ function moveTrackToTrash(trackId) {
 
 /** moveTrackToTrash without the save and repaint, for binning several at once. */
 function binTrack(trackId) {
-  putInTrash(trackId);
+  putInTrash([trackId]);
   // The server stops a job that is still importing when it is trashed, its
   // files kept. Ask for the queue again so the row goes now, not on the next frame.
   const wasInQueue = currentIds(getQueueSnapshot()).has(trackId);
@@ -1229,17 +1229,19 @@ function binTrack(trackId) {
   });
 }
 
-/** Move a track into the Trash here only. An import it was replacing is given up. */
-function putInTrash(trackId) {
-  reinstateReplaced(trackId);
-  removeTrackFromFolders(trackId);
+/** Move tracks into the Trash here only. An import one was replacing is given up. */
+function putInTrash(ids) {
   const trash = getTrashFolder();
-  if (!trash.items.includes(trackId)) trash.items.unshift(trackId);
-  if (_currentTrackId === trackId) _currentTrackId = null;
-  // The user is done with it; purgeTrash() repeats this for a job that errors
-  // once trashed.
-  dismissFailuresByJobId(trackId);
-  announceTrashChange([trackId]);
+  for (const trackId of ids) {
+    reinstateReplaced(trackId);
+    removeTrackFromFolders(trackId);
+    if (!trash.items.includes(trackId)) trash.items.unshift(trackId);
+    if (_currentTrackId === trackId) _currentTrackId = null;
+    // The user is done with it; purgeTrash() repeats this for a job that errors
+    // once trashed.
+    dismissFailuresByJobId(trackId);
+  }
+  if (ids.length) announceTrashChange(ids);
 }
 
 function setCatalogView(view) {
@@ -1292,7 +1294,7 @@ function reimportUnavailableTrack(trackId, track) {
 
 export async function loadTrackIntoStudio(trackId) {
   let track = tracks[trackId];
-  if (!track || isInTrash(trackId)) return;
+  if (!track) return;
   if (track.status === "unavailable") {
     reimportUnavailableTrack(trackId, track);
     return;
@@ -3954,7 +3956,7 @@ function followServerTrash(jobs, skipIds) {
     skipIds,
   });
   if (!toTrash.length && !toRestore.length) return;
-  toTrash.forEach(putInTrash);
+  putInTrash(toTrash);
   takeOutOfTrash(toRestore);
   saveState();
   render();
@@ -3977,7 +3979,7 @@ function adoptServerJob(state) {
     return;
   }
   tracks[track.id] = { ...track, createdAt: track.createdAt ?? Date.now() / 1000, favorite: Boolean(track.favorite) };
-  putInTrash(track.id);
+  putInTrash([track.id]);
   saveState();
   render();
 }

@@ -24,7 +24,7 @@ const SETLIST_HEAD = ".setlist-head";
 const SETLIST_SONG = ".setlist-song";
 const SETLIST_SONG_ACTIONS = ".setlist-song-actions button";
 const OPEN_SONG_CLASS = "active";
-const TRASHED_SONG_CLASS = "unavailable";
+const TRASHED_SONG_CLASS = "in-trash";
 
 let setlists = [];
 let tab = "songs";
@@ -438,7 +438,7 @@ function setlistRowKey(row) {
 
 // A head's Enter does nothing: Right reaches its Play, rename and delete.
 function openSetlistRow(row) {
-  if (row.matches(SETLIST_SONG)) loadTrackIntoStudio(row.dataset.id);
+  if (row.matches(SETLIST_SONG) && !isInTrash(row.dataset.id)) loadTrackIntoStudio(row.dataset.id);
 }
 
 function paintOpenSong(e) {
@@ -465,6 +465,11 @@ function render() {
   if (empty) empty.hidden = Boolean(setlists.length) || creating;
   const newBtn = $("setlistNewBtn");
   if (newBtn) newBtn.hidden = creating;
+}
+
+// Redrawing would reset a name being typed; closing the field redraws anyway.
+function onTrashChange() {
+  if (renamingSetlistId === null && !creating) render();
 }
 
 function onNewSetlistClick() {
@@ -500,7 +505,7 @@ export function initSetlists() {
   $("catalogSearch")?.addEventListener("input", onLibrarySearch);
   document.addEventListener("catalogviewchange", onCatalogViewChange);
   document.addEventListener("tracknames", render);
-  document.addEventListener(TRASH_CHANGE_EVENT, render);
+  document.addEventListener(TRASH_CHANGE_EVENT, onTrashChange);
   document.addEventListener("upnext:change", renderSaveUpNext);
   document.addEventListener("trackopen", renderSaveUpNext);
   document.addEventListener("trackopen", paintOpenSong);
