@@ -3112,9 +3112,7 @@ input, textarea { font-family: inherit; }
      on/off pill -- one flat wrap group the browser can line-break wherever
      the available width actually allows, instead of the pill being forced
      alone onto its own row and everything else confined to a second,
-     artificially narrow one (#269 follow-up). .hidden below still works: it
-     carries !important, which overrides this when the panel has no grid to
-     show options for. */
+     artificially narrow one (#269 follow-up). */
   display: contents;
 }
 
