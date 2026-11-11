@@ -1,12 +1,15 @@
-// Media keys, headset buttons and the OS media controls, through
-// navigator.mediaSession: they drive the transport, and the OS is told which
-// song is open, whether it plays, and where the playhead is.
-
 import { getCurrentTrackInfo, getLibraryTrack, displayTitle, libraryTitle } from "./catalog.js";
 import { togglePlayPause, stopTransport, setPlayheadTime, transport } from "./transport.js";
 import { playNextInUpNext } from "./upNext.js";
-import { totalDuration, playbackSpeed } from "./state.js";
-import { metadataInit, positionStateFor, positionDrifted } from "./mediaSessionModel.js";
+import { totalDuration, playbackSpeed, playBtn, loopEnabled, loopStart } from "./state.js";
+import { SEEK_STEP_SEC } from "./constants.js";
+import {
+  metadataInit,
+  positionStateFor,
+  positionDrifted,
+  nextMotion,
+  STILL,
+} from "./mediaSessionModel.js";
 
 const ACTION = Object.freeze({
   PLAY: "play",
@@ -19,15 +22,13 @@ const ACTION = Object.freeze({
   SEEK_FORWARD: "seekforward",
 });
 const PLAYBACK = Object.freeze({ PLAYING: "playing", PAUSED: "paused", NONE: "none" });
-// The same step as the [ and ] keys.
-const SEEK_STEP_SEC = 5;
 const SONG_START_SEC = 0;
-const PLAY_BUTTON_ID = "t-play";
 const AUDIO_SESSION_PLAYBACK = "playback";
 
 const session = globalThis.navigator?.mediaSession ?? null;
 let openTrackId = null;
 let reported = null;
+let motion = STILL;
 
 const isPlaying = () => transport()?.isPlaying() === true;
 const currentPosition = () => transport()?.getCurrentTime() ?? 0;
@@ -47,8 +48,7 @@ function clearPosition() {
   reported = null;
 }
 
-function reportPosition() {
-  if (!openTrackId) return;
+function reportPosition(moving) {
   const state = positionStateFor({
     duration: totalDuration,
     position: currentPosition(),
@@ -58,17 +58,19 @@ function reportPosition() {
     clearPosition();
     return;
   }
-  const playing = isPlaying();
   const now = performance.now();
-  if (!positionDrifted(reported, state, playing, now)) return;
+  if (!positionDrifted(reported, state, moving, now)) return;
   session.setPositionState(state);
-  reported = { state, playing, atMs: now };
+  reported = { state, playing: moving, atMs: now };
 }
 
+// Playing only once the playhead moves, so a count-in reads as paused at its start.
 function syncPlayback() {
   if (!openTrackId) return;
-  session.playbackState = isPlaying() ? PLAYBACK.PLAYING : PLAYBACK.PAUSED;
-  reportPosition();
+  motion = nextMotion(motion, isPlaying(), currentPosition());
+  const state = motion.moving ? PLAYBACK.PLAYING : PLAYBACK.PAUSED;
+  if (session.playbackState !== state) session.playbackState = state;
+  reportPosition(motion.moving);
 }
 
 function openSongMetadata() {
@@ -92,7 +94,7 @@ function syncMetadata() {
 function seekTo(sec) {
   if (!Number.isFinite(sec)) return;
   setPlayheadTime(sec);
-  reportPosition();
+  syncPlayback();
 }
 
 function playFromMediaKey() {
@@ -115,14 +117,15 @@ function seekAheadFromMediaKey(details) {
   seekTo(currentPosition() + (details.seekOffset ?? SEEK_STEP_SEC));
 }
 
-// Up Next keeps no played history, so previous restarts the open song.
+// Up Next keeps no played history, so previous restarts the open song, as Stop does.
 function restartFromMediaKey() {
-  seekTo(SONG_START_SEC);
+  seekTo(loopEnabled ? loopStart : SONG_START_SEC);
 }
 
 function onTrackOpen(e) {
   openTrackId = e.detail?.id ?? null;
   reported = null;
+  motion = STILL;
   setActionHandler(
     ACTION.PREVIOUS_TRACK,
     openTrackId ? restartFromMediaKey : null,
@@ -139,18 +142,17 @@ function onUpNextChange(e) {
 }
 
 function watchPlayButton() {
-  const button = document.getElementById(PLAY_BUTTON_ID);
-  if (!button) return;
+  if (!playBtn) return;
   // The engine emits no play or pause events; this button's state is the one place both show.
   new MutationObserver(syncPlayback).observe(
-    button,
+    playBtn,
     { attributes: true, attributeFilter: ["class"] },
   );
 }
 
 /** Each transport tick: report the position again only when the OS would have it wrong. */
 export function noteMediaPosition() {
-  if (session) reportPosition();
+  if (session) syncPlayback();
 }
 
 /** No song is open: the OS controls show nothing and say nothing plays. */
@@ -159,6 +161,7 @@ export function clearMediaSession() {
   openTrackId = null;
   session.metadata = null;
   session.playbackState = PLAYBACK.NONE;
+  motion = STILL;
   setActionHandler(ACTION.PREVIOUS_TRACK, null);
   clearPosition();
 }

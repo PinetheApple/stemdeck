@@ -1,5 +1,4 @@
-// What the OS media controls are told about the open song: its metadata, and a
-// position state the browser accepts. No DOM here, so node can test it.
+// No DOM here, so node can test it.
 
 const NORMAL_RATE = 1;
 const MS_PER_SEC = 1000;
@@ -42,4 +41,17 @@ export function positionDrifted(reported, next, playing, nowMs) {
   const elapsed = playing ? ((nowMs - atMs) / MS_PER_SEC) * state.playbackRate : 0;
   const expected = Math.min(state.duration, state.position + elapsed);
   return Math.abs(expected - next.position) > POSITION_DRIFT_SEC;
+}
+
+export const STILL = Object.freeze({ from: null, moving: false });
+
+/**
+ * Whether the playhead has moved since play started. A count-in plays with the
+ * playhead held, and the OS must not advance it until the audio starts.
+ */
+export function nextMotion(motion, playing, position) {
+  if (!playing) return STILL;
+  if (motion.from === null) return { from: position, moving: false };
+  if (motion.moving || position === motion.from) return motion;
+  return { from: motion.from, moving: true };
 }

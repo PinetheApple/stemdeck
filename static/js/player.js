@@ -1443,6 +1443,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
       updateFooterTimes(t);
       updatePresencePlayhead(t);
       updateStopVisual();
+      noteMediaPosition();
       if (loopEnabled && totalDuration > 0 && t >= loopEnd) {
         if (!loopWrapLogged) {
           loopWrapLogged = true;
