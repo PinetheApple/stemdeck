@@ -18,13 +18,14 @@ import {
 } from "./helpers.mjs";
 
 // Held past the restore so the fill has certainly finished.
-const HOLD_PAST_RESTORE = 1.5;
+const HOLD_PAST_RESTORE_FACTOR = 1.5;
 const OPEN_TIMEOUT_MS = 20000;
 const SONG_ROW = "#catalogList .cat-item";
 const LIBRARY_ROWS = "#catalogList :is(.cat-item, .folder-head)";
 const SETLIST_ROWS = "#setlistsList :is(.setlist-head, .setlist-song)";
 const UPNEXT_ROWS = "#upNextList .upnext-row";
 const ACTIVE = /\bactive\b/;
+const JOB_LIST_URL = /\/api\/jobs\?trashed=include$/;
 
 test.afterEach(async ({ request }) => {
   const res = await request.get("/api/setlists");
@@ -33,7 +34,7 @@ test.afterEach(async ({ request }) => {
 
 const songRow = (page, id) => page.locator(`${SONG_ROW}[data-id="${id}"]`);
 const trashHoldMs = (page) => page.evaluate(() => import("/js/catalog.js").then((m) => m.TRASH_HOLD_MS));
-const trashed = (id) => ({ id, action: "trash" });
+const trashCall = (id) => ({ id, action: "trash" });
 
 /** A Delete that does bin, pressed after the one under test: keys run in order, so its call proves the first did nothing. */
 async function binSiblingByKeyboard(page, trash) {
@@ -43,7 +44,7 @@ async function binSiblingByKeyboard(page, trash) {
   await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
   await page.keyboard.press(KEY.DELETE);
   await expect.poll(() => trash.calls.length).toBeGreaterThan(0);
-  expect(trash.calls).toEqual([trashed(SIBLING_JOB_ID)]);
+  expect(trash.calls).toEqual([trashCall(SIBLING_JOB_ID)]);
 }
 
 const trashItems = async (page) => (await readCatalogState(page)).folders.find((f) => f.id === "trash").items;
@@ -62,7 +63,10 @@ async function openLibrary(page, { favorite = false, trashed = [] } = {}) {
   const trash = await stubServerTrash(page, { trashed });
   await stubExportEndpoints(page);
   await stubUpdateCheck(page);
+  // The startup sync's read must be answered before a quick test ends, or its route outlives the page.
+  const listed = page.waitForResponse(JOB_LIST_URL);
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  await listed;
   await expect(page.locator(LIBRARY_ROWS).first()).toBeAttached();
   return { trash };
 }
@@ -138,10 +142,15 @@ test.describe("song rows", () => {
     await page.keyboard.press(ROW_KEY.INTO);
     await expect(row.locator(".cat-more")).toBeFocused();
     await page.keyboard.press(ROW_KEY.INTO);
-    await expect(row.locator(".cat-fav")).toBeFocused();
+    const heart = row.locator(".cat-fav");
+    await expect(heart).toBeFocused();
+    const before = await heart.getAttribute("aria-pressed");
+    const flipped = String(before !== "true");
     await page.keyboard.press(KEY.ENTER);
-    await expect(row.locator(".cat-fav")).toHaveAttribute("aria-pressed", "true");
-    await expect(row.locator(".cat-fav")).toBeFocused();
+    await expect(heart).toHaveAttribute("aria-pressed", flipped);
+    await expect(heart).toBeFocused();
+    await page.keyboard.press(KEY.ENTER);
+    await expect(heart).toHaveAttribute("aria-pressed", before);
 
     for (let i = 0; i < 3; i++) await page.keyboard.press(ROW_KEY.BACK);
     await expect(row).toBeFocused();
@@ -155,12 +164,12 @@ test.describe("song rows", () => {
     await songRow(page, JOB_ID).focus();
     await page.keyboard.press(KEY.DELETE);
 
-    await expect.poll(() => trash.calls).toEqual([trashed(JOB_ID)]);
+    await expect.poll(() => trash.calls).toEqual([trashCall(JOB_ID)]);
     expect(await trashItems(page)).toEqual([JOB_ID]);
     await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
 
     await page.keyboard.press(KEY.DELETE);
-    await expect.poll(() => trash.calls).toEqual([trashed(JOB_ID), trashed(SIBLING_JOB_ID)]);
+    await expect.poll(() => trash.calls).toEqual([trashCall(JOB_ID), trashCall(SIBLING_JOB_ID)]);
   });
 
   test("Delete after clicking a row bins nothing", async ({ page }) => {
@@ -170,6 +179,16 @@ test.describe("song rows", () => {
     await page.keyboard.press(KEY.DELETE);
 
     await binSiblingByKeyboard(page, trash);
+  });
+
+  test("Delete after clicking a row and arrowing down bins the next song", async ({ page }) => {
+    const { trash } = await openLibrary(page);
+    await songRow(page, JOB_ID).click();
+    await page.keyboard.press(ROW_KEY.NEXT);
+    await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
+    await page.keyboard.press(KEY.DELETE);
+
+    await expect.poll(() => trash.calls).toEqual([trashCall(SIBLING_JOB_ID)]);
   });
 
   test("Delete after opening and closing the … menu with clicks bins nothing", async ({ page }) => {
@@ -236,7 +255,7 @@ test.describe("other song lists", () => {
     await page.keyboard.press(ROW_KEY.NEXT);
     await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
     await page.keyboard.down(KEY.ENTER);
-    await page.waitForTimeout((await trashHoldMs(page)) * HOLD_PAST_RESTORE);
+    await page.waitForTimeout((await trashHoldMs(page)) * HOLD_PAST_RESTORE_FACTOR);
     await page.keyboard.up(KEY.ENTER);
     await expect.poll(() => trash.calls).toEqual([{ id: SIBLING_JOB_ID, action: "restore" }]);
   });
