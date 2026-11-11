@@ -33,6 +33,25 @@ def test_reports_the_log_directory(client, logs_dir):
     assert body["dir_exists"] is True
 
 
+def test_every_file_carries_a_unique_description_key_under_the_prefix(client, logs_dir):
+    from app.main import LOG_DESCRIPTION_KEY_PREFIX
+
+    files = client.get("/api/logs").json()["files"]
+    keys = [f["description_key"] for f in files]
+    assert len(set(keys)) == len(keys)
+    for f in files:
+        assert f["description_key"] == f"{LOG_DESCRIPTION_KEY_PREFIX}{f['name']}"
+    assert LOG_DESCRIPTION_KEY_PREFIX == "settings.logs.file."
+
+
+def test_english_descriptions_stay_in_the_payload(client, logs_dir):
+    from app.main import _LOG_FILES
+
+    files = client.get("/api/logs").json()["files"]
+    assert [(f["name"], f["description"]) for f in files] == list(_LOG_FILES)
+    assert files[0]["description"].startswith("Application log:")
+
+
 def test_reports_a_missing_directory_without_failing(client, tmp_path):
     """A fresh install has written nothing yet; the tab must still render."""
     body = client.get("/api/logs").json()
