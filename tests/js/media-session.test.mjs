@@ -7,6 +7,8 @@ import {
   metadataInit,
   positionStateFor,
   positionDrifted,
+  nextMotion,
+  STILL,
   POSITION_DRIFT_SEC,
 } from '../../static/js/mediaSessionModel.js';
 
@@ -110,6 +112,17 @@ check(
   ),
   false,
 );
+
+// ─── Whether the playhead is moving ───
+
+check('paused is still', nextMotion(STILL, false, 2), STILL);
+const started = nextMotion(STILL, true, 2);
+check('a play starts still, at where it starts', started, { from: 2, moving: false });
+check('a count-in holds the playhead: still', nextMotion(started, true, 2), started);
+const moving = nextMotion(started, true, 2.1);
+check('the playhead leaves the start: moving', moving, { from: 2, moving: true });
+check('a loop wrap back to the start stays moving', nextMotion(moving, true, 2), moving);
+check('a pause stops it', nextMotion(moving, false, 3), STILL);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

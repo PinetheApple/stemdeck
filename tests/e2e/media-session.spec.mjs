@@ -3,7 +3,15 @@
 // the handlers the app registers and the position states it reports, and the
 // tests call the handlers the way the browser would.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, fixtureTrack, openStudio, waitForClickTrack } from "./helpers.mjs";
+import {
+  JOB_ID,
+  SIBLING_JOB_ID,
+  SIBLING_TITLE,
+  fixtureTrack,
+  openClickOptions,
+  openStudio,
+  waitForClickTrack,
+} from "./helpers.mjs";
 
 // A 1x1 PNG. data: is in the page's img-src, so it loads with no network.
 const PIXEL =
@@ -12,6 +20,11 @@ const ARTIST = "The Fixtures";
 const ALBUM = "Fixture Album";
 const FIXTURE_DURATION_SEC = 6;
 const SECONDS_CLOSE = 1;
+const LOOP_START_SEC = 2;
+const LOOP_END_SEC = 4;
+// The fixture's one-bar count-in lasts about 2 s; the watch sits inside it.
+const LEAD_IN_SETTLE_MS = 300;
+const LEAD_IN_WATCH_MS = 1000;
 
 function library() {
   const tracks = {
@@ -78,6 +91,8 @@ const currentTime = (page) =>
 
 const playbackState = (page) => page.evaluate(() => navigator.mediaSession.playbackState);
 
+const positionsSent = (page) => page.evaluate(() => window.__media.positions.length);
+
 const lastPosition = (page) => page.evaluate(() => window.__media.positions.at(-1) ?? null);
 
 const metadata = (page) =>
@@ -111,6 +126,19 @@ test.describe("system media controls", () => {
     await expect.poll(() => playbackState(page)).toBe("paused");
   });
 
+  test("a song with no cover and no artist shows neither", async ({ page }) => {
+    await openWithMediaSession(page);
+    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().click();
+    await expect(page.locator("#title")).toHaveText(SIBLING_TITLE, { timeout: 15000 });
+
+    await expect.poll(() => metadata(page)).toEqual({
+      title: SIBLING_TITLE,
+      artist: "",
+      album: "",
+      artwork: [],
+    });
+  });
+
   test("play, pause and stop act on the transport, and the OS state follows", async ({ page }) => {
     await openWithMediaSession(page);
 
@@ -127,7 +155,7 @@ test.describe("system media controls", () => {
     await expectPlaying(page, true);
     await runAction(page, "stop");
     await expectPlaying(page, false);
-    expect(await currentTime(page)).toBe(0);
+    await expect.poll(() => currentTime(page)).toBe(0);
   });
 
   test("Space still toggles playback, and the OS state follows it", async ({ page }) => {
@@ -170,8 +198,8 @@ test.describe("system media controls", () => {
     await runAction(page, "seekto", { seekTime: 3 });
 
     await runAction(page, "nexttrack");
-    await expect(page.locator("#title")).toHaveText(/^E2E Fixture Track \(again\)$/, { timeout: 15000 });
-    await expect.poll(async () => (await metadata(page))?.title).toBe("E2E Fixture Track (again)");
+    await expect(page.locator("#title")).toHaveText(SIBLING_TITLE, { timeout: 15000 });
+    await expect.poll(async () => (await metadata(page))?.title).toBe(SIBLING_TITLE);
     await expectPlaying(page, true);
     await expect.poll(async () => (await lastPosition(page))?.position).toBeLessThan(SECONDS_CLOSE);
     await expect.poll(() => handlerKind(page, "nexttrack")).toBe("cleared");
@@ -199,6 +227,45 @@ test.describe("system media controls", () => {
     await expect.poll(() => currentTime(page)).toBe(0);
     await expectPlaying(page, false);
     await expect.poll(async () => (await lastPosition(page))?.position).toBe(0);
+  });
+
+  test("previous with a loop on goes to the loop start, as Stop does", async ({ page }) => {
+    await openWithMediaSession(page);
+    await page.evaluate(async ([start, end]) => {
+      (await import("/js/transport.js")).setLoopRange(start, end);
+    }, [LOOP_START_SEC, LOOP_END_SEC]);
+    await runAction(page, "seekto", { seekTime: 3.5 });
+    await expect.poll(() => currentTime(page)).toBeCloseTo(3.5, 1);
+
+    await runAction(page, "previoustrack");
+    await expect.poll(() => currentTime(page)).toBeCloseTo(LOOP_START_SEC, 1);
+  });
+
+  test("during a count-in the OS is not sent a position it would advance", async ({ page }) => {
+    await openWithMediaSession(page);
+    await openClickOptions(page);
+    await page.locator("#t-metro-countin").selectOption("1");
+
+    await runAction(page, "play");
+    await page.waitForTimeout(LEAD_IN_SETTLE_MS);
+    const sentBefore = await positionsSent(page);
+    await page.waitForTimeout(LEAD_IN_WATCH_MS);
+    expect(await positionsSent(page)).toBe(sentBefore);
+    expect(await playbackState(page)).toBe("paused");
+
+    await expectPlaying(page, true);
+    await expect.poll(async () => (await lastPosition(page))?.position).toBeGreaterThan(0);
+  });
+
+  test("on the streaming path a seek from the keys is reported again", async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem("stemdeck.audioEngine", "0"));
+    await recordMediaSession(page);
+    await openStudio(page, { catalog: library() });
+    await page.evaluate(() => document.activeElement?.blur());
+
+    await page.keyboard.press("BracketRight");
+    await expect.poll(() => currentTime(page)).toBeCloseTo(5, 1);
+    await expect.poll(async () => (await lastPosition(page))?.position).toBeCloseTo(5, 1);
   });
 
   test("a speed change reaches the reported position state", async ({ page }) => {
