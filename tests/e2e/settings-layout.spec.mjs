@@ -4,7 +4,7 @@
 // because that is where text gets cut or a control slides under its label.
 
 import { test, expect } from "@playwright/test";
-import { seedLibrary } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, fixtureTrack, seedCatalogState, seedLibrary } from "./helpers.mjs";
 
 const TABS = ["general", "details", "network", "export", "logs", "registry"];
 const LANGUAGES = ["en", "pl", "ja", "ko", "zh-Hans", "de", "fr", "es", "pt", "pt-PT", "id"];
@@ -183,10 +183,14 @@ test("the fade shows at whichever edge has more to scroll, and not on a tab that
     pane.evaluate((el) => [el.classList.contains("more-above"), el.classList.contains("more-below")]);
   const general = page.locator('.settings-pane[data-pane="general"]');
   await expect.poll(cueOf(general)).toEqual([false, true]);
+  const maskOf = () => general.evaluate((el) => getComputedStyle(el).maskImage);
+  const maskAtTop = await maskOf();
+  expect(maskAtTop).toContain("gradient");
   await general.evaluate((el) => el.scrollTo(0, (el.scrollHeight - el.clientHeight) / 2));
   await expect.poll(cueOf(general)).toEqual([true, true]);
   await general.evaluate((el) => el.scrollTo(0, el.scrollHeight));
   await expect.poll(cueOf(general)).toEqual([true, false]);
+  expect(await maskOf()).not.toBe(maskAtTop);
   await expect.poll(cueOf(await showTab(page, "export"))).toEqual([false, false]);
 });
 
@@ -199,10 +203,15 @@ test("each QR code is captioned with its address on one line", async ({ page }) 
   const labels = page.locator(".qr-label");
   await expect(labels).toHaveText(["100.114.201.106:8000", "192.168.1.50:8000"]);
   await expect(labels.first()).toHaveAttribute("title", "http://100.114.201.106:8000/mobile/");
-  const lines = await labels.evaluateAll((els) =>
-    els.map((el) => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight))),
-  );
-  expect(lines).toEqual([1, 1]);
+  const cut = await labels.evaluateAll((els) => els.map((el) => el.scrollWidth > el.clientWidth));
+  expect(cut).toEqual([false, false]);
+});
+
+test("an address that is not a URL is captioned as given, and the others still show", async ({ page }) => {
+  await withAddresses(page, ["not-an-address", "http://192.168.1.50:8000"]);
+  await openSettings(page);
+  await showTab(page, "network");
+  await expect(page.locator(".qr-label")).toHaveText(["not-an-address/mobile/", "192.168.1.50:8000"]);
 });
 
 test("every address the server gives gets a QR code", async ({ page }) => {
@@ -244,7 +253,35 @@ test("a library in sync says so once", async ({ page }) => {
   const pane = await showTab(page, "registry");
   await expect(pane.locator(".library-editor-status")).toHaveText("All tracks in sync");
   await expect(pane.locator(".library-editor-table-wrap")).toBeHidden();
+  await expect(pane.locator(".library-editor-sync")).toBeHidden();
   expect(await pane.innerText()).not.toMatch(/in sync[\s\S]*in sync/i);
+});
+
+test("a track whose audio is gone is listed with Resync", async ({ page }) => {
+  const goneId = "e2e0g0ne00000";
+  await seedCatalogState(page, {
+    folders: [
+      { id: "f-unsorted", name: "Unsorted", items: [JOB_ID, SIBLING_JOB_ID, goneId], color: null },
+      { id: "trash", name: "Trash", items: [], color: null },
+    ],
+    tracks: {
+      [JOB_ID]: fixtureTrack(JOB_ID, "Kept"),
+      [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, "Kept too"),
+      [goneId]: { ...fixtureTrack(goneId, "Gone"), status: "unavailable" },
+    },
+  });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.locator("#settingsBtn").click();
+  const pane = await showTab(page, "registry");
+  await expect(pane.locator(".library-editor-table-wrap")).toBeVisible();
+  await expect(pane.locator(".library-editor-sync")).toBeVisible();
+});
+
+test("compute device shows the choice, not which device it resolved to", async ({ page }) => {
+  await openSettings(page);
+  // Options gain their base label once the server's answer has been applied.
+  await expect(page.locator(".set-demucs-device option").first()).toHaveAttribute("data-base-label", /./);
+  expect(await page.locator(".set-demucs-desc").textContent()).not.toMatch(/currently|\b(cuda|cpu|mps)\b/i);
 });
 
 test("the raw library file is a download", async ({ page }) => {
