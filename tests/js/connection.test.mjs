@@ -242,5 +242,15 @@ const answer = async (h) => {
   check("an unanswered check on demand says so", (await h.monitor.checkNow()) === false);
 }
 
+{
+  const h = harness();
+  await h.failTimes(1);
+  h.outcomes.push(networkError());
+  await h.monitor.checkNow();
+  h.timers.shift().fn();
+  await settle();
+  check("the first answer after an unanswered check on demand is a restored connection", h.restored.length === 1);
+}
+
 console.log(`\n${pass}/${pass + fail} checks passed`);
 process.exit(fail ? 1 : 0);

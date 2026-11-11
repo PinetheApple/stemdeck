@@ -2,6 +2,7 @@
 // server keeps; a lost one stays, marked unsaved, until it reaches the server.
 import { test, expect } from "@playwright/test";
 import { JOB_ID, openStudio, uiText } from "./helpers.mjs";
+import { PROBE_INTERVAL_MS } from "../../static/js/connection.js";
 import {
   FAILED_SAVES,
   beatsUrl,
@@ -27,8 +28,10 @@ import {
 
 const EDITED_BAR_LENGTH = 5;
 const OTHER_BAR_LENGTH = 3;
-// Two of the page's health checks (3 s apart): a resend loop would send the save again in that time.
-const NO_MORE_SENDS_MS = 7000;
+// A resend loop would send the save again within two of the page's health checks.
+const HEALTH_CHECKS_WATCHED = 2;
+const SETTLE_MS = 1000;
+const NO_MORE_SENDS_MS = HEALTH_CHECKS_WATCHED * PROBE_INTERVAL_MS + SETTLE_MS;
 const SECTION_INDICATOR = "#sectionsSaveIndicator";
 const TEMPO_STATUS = "#tempoStatus";
 
@@ -118,7 +121,9 @@ test.describe("beat grid", () => {
     await expect.poll(() => savedBarLength(request, JOB_ID)).toBe(EDITED_BAR_LENGTH);
     await page.evaluate(() => {
       window.e2eGridTempos = [];
-      document.addEventListener("beatgridsave", function noteGridTempo(e) { window.e2eGridTempos.push(e.detail.tempo ?? null); });
+      document.addEventListener("beatgridsave", function noteGridTempo(e) {
+        window.e2eGridTempos.push(e.detail.tempo ?? null);
+      });
     });
     await failNextSave(page, beatsUrl(JOB_ID), FAILED_SAVES.refused, () => setGridBars(page, OTHER_BAR_LENGTH));
 
