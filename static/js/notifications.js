@@ -417,6 +417,8 @@ export function render() {
 
 // ─── Detail dialog ────────────────────────────────────────────────────────
 
+let failureOpener = null;
+
 async function openFailureDialog(record) {
   const dialog = document.getElementById("failureDialog");
   if (!dialog) return;
@@ -440,7 +442,9 @@ async function openFailureDialog(record) {
     logsBtn.textContent = t("failure.includeLogs");
   }
 
+  if (dialog.classList.contains("hidden")) failureOpener = document.activeElement;
   dialog.classList.remove("hidden");
+  document.getElementById("failureClose")?.focus();
 
   // The stderr tail and full traceback live in the quarantined error.txt and
   // are fetched now rather than at capture time -- one request when a user
@@ -529,7 +533,12 @@ function wireFailureDialog() {
   const dialog = document.getElementById("failureDialog");
   const close = document.getElementById("failureClose");
   if (!dialog) return;
-  const hide = () => dialog.classList.add("hidden");
+  const hide = () => {
+    if (dialog.classList.contains("hidden")) return;
+    dialog.classList.add("hidden");
+    if (failureOpener?.isConnected) failureOpener.focus();
+    failureOpener = null;
+  };
   close?.addEventListener("click", hide);
   dialog.addEventListener("mousedown", (e) => { if (e.target === dialog) hide(); });
   dialog.addEventListener("keydown", (e) => { if (e.code === "Escape") hide(); });

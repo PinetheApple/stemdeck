@@ -309,7 +309,8 @@ export async function stubFavorites(page, serverFavorites = {}) {
 }
 
 const TRASH_ACTION = /\/api\/jobs\/([^/]+)\/(trash|restore)$/;
-const JOB_LIST = /\/api\/jobs\?trashed=include$/;
+/** The job list the library sync reads, Trash included. */
+export const JOB_LIST_URL = /\/api\/jobs\?trashed=include$/;
 
 /**
  * Stand in for the server's Trash, which the desktop follows on every sync, so a
@@ -351,17 +352,21 @@ export async function stubServerTrash(
     else server.trashed.delete(id);
     return route.fulfill({ json: { job_id: id, trashed_at: action === "trash" ? 1 : null } });
   });
-  await page.route(JOB_LIST, async (route) => {
-    const jobs = await (await route.fetch()).json();
-    const listed = jobs
-      .filter((state) => !server.hidden.has(state.job_id))
-      .map((state) => ({
-        ...state,
-        trashed_at: server.trashed.has(state.job_id) ? 1 : null,
-        status: server.unavailable.has(state.job_id) ? "unavailable" : state.status,
-        replaces: replaces[state.job_id] ?? null,
-      }));
-    await route.fulfill({ json: listed });
+  await page.route(JOB_LIST_URL, async (route) => {
+    try {
+      const jobs = await (await route.fetch()).json();
+      const listed = jobs
+        .filter((state) => !server.hidden.has(state.job_id))
+        .map((state) => ({
+          ...state,
+          trashed_at: server.trashed.has(state.job_id) ? 1 : null,
+          status: server.unavailable.has(state.job_id) ? "unavailable" : state.status,
+          replaces: replaces[state.job_id] ?? null,
+        }));
+      await route.fulfill({ json: listed });
+    } catch (err) {
+      if (!TEARDOWN_ERROR.test(String(err?.message))) throw err;
+    }
   });
   return server;
 }
@@ -552,6 +557,23 @@ export async function stubLyricsLookup(page, { rows = [], artist = "", song = ""
   return asked;
 }
 
+const PENDING_UPLOADS_MAX = 5;
+const PENDING_URLS_MAX = 50;
+const SEPARATING = { status: "separating", stage: "Separating 40%", progress: 0.4 };
+
+/** What GET /api/queue answers: an unpaused queue with every pending slot free. */
+function queueState(running, queued = []) {
+  return {
+    running,
+    queued,
+    paused: false,
+    max_pending_uploads: PENDING_UPLOADS_MAX,
+    max_pending_urls: PENDING_URLS_MAX,
+    capacity_left_uploads: PENDING_UPLOADS_MAX,
+    capacity_left_urls: PENDING_URLS_MAX,
+  };
+}
+
 /**
  * Stand in for the import queue, for a test that has to watch an import while
  * it runs. The e2e backend never separates anything, so a job that stays
@@ -566,19 +588,7 @@ export async function stubImportQueue(page, jobId, title = "Importing", { source
   let running = false;
   await page.route("**/api/queue", (route) =>
     route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        running: running
-          ? { job_id: jobId, status: "separating", stage: "Separating 40%", progress: 0.4, title, source_url: sourceUrl }
-          : null,
-        queued: [],
-        paused: false,
-        max_pending_uploads: 5,
-        max_pending_urls: 50,
-        capacity_left_uploads: 5,
-        capacity_left_urls: 50,
-      }),
+      json: queueState(running ? { ...SEPARATING, job_id: jobId, title, source_url: sourceUrl } : null),
     }));
   await page.route("**/api/queue/events", (route) => route.abort());
   const read = () => page.evaluate(async () => (await import("/js/queue.js")).refreshQueue());
@@ -586,6 +596,20 @@ export async function stubImportQueue(page, jobId, title = "Importing", { source
     run: async () => { running = true; await read(); },
     settle: async () => { running = false; await read(); },
   };
+}
+
+const LONG_QUEUE_RUNNING_ID = "e2e0feed0000";
+const LONG_QUEUE_WAITING_IDS = ["e2e0feed0001", "e2e0feed0002", "e2e0feed0003"];
+
+/** A running import and three waiting ones, so the last two waiting rows offer "extract next". */
+export async function stubLongQueue(page) {
+  const job = (id) => ({ job_id: id, status: "queued", title: id, source_url: `https://example.invalid/${id}` });
+  const running = { ...job(LONG_QUEUE_RUNNING_ID), ...SEPARATING };
+  await page.route(
+    "**/api/queue",
+    (route) => route.fulfill({ json: queueState(running, LONG_QUEUE_WAITING_IDS.map(job)) }),
+  );
+  await page.route("**/api/queue/events", (route) => route.abort());
 }
 
 const JOB_URL = /\/api\/jobs\/[a-f0-9]{12}$/;
@@ -616,3 +640,11 @@ export async function failureMessages(page) {
 export async function uiText(page, key, vars = {}) {
   return page.evaluate(async ([k, v]) => (await import("/js/i18n.js")).t(k, v), [key, vars]);
 }
+
+/** Keys the specs press by name; the library's arrow keys are rovingRows.js's ROW_KEY. */
+export const KEY = Object.freeze({
+  TAB: "Tab",
+  ENTER: "Enter",
+  ESCAPE: "Escape",
+  DELETE: "Delete",
+});

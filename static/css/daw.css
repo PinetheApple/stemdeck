@@ -670,6 +670,7 @@ input, textarea { font-family: inherit; }
   white-space: nowrap;
   transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
 }
+.lib-section-head .new-folder-btn { min-height: var(--target-min); }
 .new-folder-btn:hover {
   background: var(--panel);
   color: var(--fg-2);
@@ -864,6 +865,7 @@ input, textarea { font-family: inherit; }
 .queue-row:hover .queue-cancel { opacity: 1; }
 .queue-cancel:hover { background: color-mix(in srgb, var(--danger) 16%, transparent); color: #e06c68; }
 .queue-cancel:disabled { opacity: 0.3; cursor: default; }
+.queue-row .queue-cancel { width: var(--target-min); height: var(--target-min); }
 .queue-section .lib-section-head { margin-bottom: 6px; }
 
 /* Restored-from-last-session banner. Opening the app never starts separating
@@ -908,6 +910,11 @@ input, textarea { font-family: inherit; }
 .queue-row:hover .queue-top { opacity: 0.65; }
 .queue-top:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); opacity: 1; }
 .queue-top:disabled { opacity: 0.3; cursor: default; }
+.queue-row .queue-top { width: var(--target-min); height: var(--target-min); }
+.queue-row:has(:focus-visible) .queue-cancel,
+.queue-cancel:focus-visible,
+.queue-top:focus-visible { opacity: 1; }
+.queue-row:has(:focus-visible) .queue-top:not(:focus-visible) { opacity: 0.65; }
 /* A row's actions float over its right edge and show on hover or keyboard
    focus (#724). In the flow they cost the title their width on every row at
    rest, which is where titles were being cut short, and a second button in
@@ -922,6 +929,15 @@ input, textarea { font-family: inherit; }
 }
 .cat-item:hover .cat-actions,
 .cat-item:focus-within .cat-actions { opacity: 1; pointer-events: auto; }
+/* Inset, so the list's scroll box does not clip it. */
+.cat-item:focus-visible,
+.folder-head:focus-visible,
+.setlist-head:focus-visible,
+.setlist-song:focus-visible { outline-offset: -2px; }
+.upnext-row:focus-visible { outline-offset: -2px; }
+.cat-item .cat-actions:has(.cat-upnext) { grid-template-columns: repeat(2, var(--target-min)); }
+.cat-item .cat-actions :is(.cat-upnext, .cat-more, .cat-fav, .cat-del) { width: var(--target-min); height: var(--target-min); }
+.cat-item .cat-extract { height: var(--target-min); }
 .cat-del, .cat-fav {
   width: 20px; height: 20px; border: 0; border-radius: 5px;
   background: transparent; color: var(--muted); cursor: pointer;
@@ -1011,6 +1027,11 @@ input, textarea { font-family: inherit; }
 }
 .folder-head:hover .f-del,
 .folder-head:hover .f-subfolder { opacity: 1; }
+.folder-head:focus-within :is(.f-del, .f-subfolder) { opacity: 1; }
+.folder-head > :is(.f-del, .f-subfolder) {
+  width: var(--target-min); height: var(--target-min);
+  margin-block: calc((var(--icon-lg) - var(--target-min)) / 2);
+}
 .folder-head .f-del:hover { background: color-mix(in srgb, var(--surface-2) 80%, transparent); color: var(--danger); }
 .folder-head .f-subfolder:hover { background: color-mix(in srgb, var(--surface-2) 80%, transparent); color: var(--fg-2); }
 /* Drag grip */
@@ -4788,6 +4809,14 @@ input, textarea { font-family: inherit; }
   background: rgba(255, 255, 255, 0.07);
 }
 .lane-key-step:disabled { opacity: 0.3; cursor: default; }
+/* The arrows stay drawn small; their hit reaches outwards, away from the K between them. */
+.lane-key-step { position: relative; }
+.lane-key-step::before {
+  content: ""; position: absolute; left: 50%;
+  width: var(--target-min); height: var(--target-min); transform: translateX(-50%);
+}
+.lane-key-step.up::before { bottom: 0; }
+.lane-key-step.down::before { top: 0; }
 /* Drums, and anything else that must never be resampled. */
 .lane-key.locked,
 .lane-key.unsupported { opacity: 0.35; }

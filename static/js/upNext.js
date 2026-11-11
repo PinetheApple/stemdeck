@@ -5,11 +5,15 @@ import { getCurrentTrackInfo, getLibraryTrack, loadTrackIntoStudio, displayTitle
 import { togglePlayPause, stopTransport, transport } from "./transport.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $, fmtTime, storeGet, storeSet } from "./utils.js";
+import { wireRovingRows } from "./rovingRows.js";
 
 const STORE_KEY = "stemdeck.upNext";
+const UPNEXT_ROW = ".upnext-row";
+const UPNEXT_ROW_ACTIONS = ".upnext-play, .upnext-remove";
 
 let queue = [];
 let pendingAutoplay = null;
+let upNextRows = null;
 
 async function readStoredQueue() {
   const stored = await storeGet(STORE_KEY, []);
@@ -177,7 +181,11 @@ function renderNowPlaying() {
 export function renderUpNext() {
   const ids = playableQueue();
   const list = $("upNextList");
-  if (list) list.replaceChildren(...ids.map((id, i) => queueRow(id, i + 1)));
+  if (list) {
+    const saved = upNextRows?.remember();
+    list.replaceChildren(...ids.map((id, i) => queueRow(id, i + 1)));
+    upNextRows?.restore(saved);
+  }
 
   const empty = !ids.length;
   const emptyEl = $("upNextEmpty");
@@ -202,7 +210,30 @@ async function restoreQueue() {
   renderUpNext();
 }
 
+function upNextRowKey(row) {
+  return row.dataset.id;
+}
+
+function playUpNextRow(row) {
+  playFromUpNext(row.dataset.id);
+}
+
+function wireUpNextRows() {
+  const list = $("upNextList");
+  if (!list) return;
+  upNextRows = wireRovingRows(
+    list,
+    {
+      rowSelector: UPNEXT_ROW,
+      actionSelector: UPNEXT_ROW_ACTIONS,
+      keyOf: upNextRowKey,
+      openRow: playUpNextRow,
+    },
+  );
+}
+
 export function initUpNext() {
+  wireUpNextRows();
   $("upNextClear")?.addEventListener("click", clearUpNext);
   $("t-next")?.addEventListener("click", playNextInUpNext);
   document.addEventListener("upnext:add", onAddRequest);

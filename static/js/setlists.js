@@ -16,8 +16,13 @@ import {
 } from "./libraryControls.js";
 import { $ } from "./utils.js";
 import { ARM_MS } from "./armConfirm.js";
+import { OUT_OF_TAB_ORDER, wireRovingRows } from "./rovingRows.js";
 
 const SETLISTS_URL = "/api/setlists";
+const SETLIST_SELECTOR = ".setlist";
+const SETLIST_HEAD = ".setlist-head";
+const SETLIST_SONG = ".setlist-song";
+const SETLIST_SONG_ACTIONS = ".setlist-song-actions button";
 
 let setlists = [];
 let tab = "songs";
@@ -25,6 +30,7 @@ let creating = false;
 let renamingSetlistId = null;
 let armedDeleteId = null;
 let armTimer = 0;
+let setlistRows = null;
 
 // ─── Server ───
 
@@ -247,6 +253,7 @@ function songRow(setlist, trackId, index) {
   open.type = "button";
   open.className = "setlist-song-open";
   open.title = t("setlists.openSong");
+  open.tabIndex = OUT_OF_TAB_ORDER;
   const number = document.createElement("span");
   number.className = "setlist-song-index num";
   number.textContent = String(index + 1);
@@ -421,6 +428,20 @@ function renderSaveUpNext() {
   if (save) save.hidden = !getNowAndUpNextIds().length;
 }
 
+function setlistRowKey(row) {
+  const setlistId = row.closest(SETLIST_SELECTOR)?.dataset.id;
+  return row.matches(SETLIST_SONG) ? `${setlistId}/${row.dataset.id}` : setlistId;
+}
+
+// A head's Enter does nothing: Right reaches its Play, rename and delete.
+function openSetlistRow(row) {
+  if (row.matches(SETLIST_SONG)) loadTrackIntoStudio(row.dataset.id);
+}
+
+function firstSetlistSong(rows) {
+  return rows.find((row) => row.matches(SETLIST_SONG));
+}
+
 function render() {
   const count = $("setlistsCount");
   if (count) count.textContent = String(setlists.length);
@@ -428,7 +449,9 @@ function render() {
   if (!list) return;
   const groups = setlists.map(setlistGroup);
   if (creating) groups.push(newSetlistField());
+  const saved = setlistRows?.remember();
   list.replaceChildren(...groups);
+  setlistRows?.restore(saved);
   const empty = $("setlistsEmpty");
   if (empty) empty.hidden = Boolean(setlists.length) || creating;
   const newBtn = $("setlistNewBtn");
@@ -446,6 +469,19 @@ function onSaveUpNextClick() {
 }
 
 export function initSetlists() {
+  const list = $("setlistsList");
+  if (list) {
+    setlistRows = wireRovingRows(
+      list,
+      {
+        rowSelector: `${SETLIST_HEAD}, ${SETLIST_SONG}`,
+        actionSelector: `${SETLIST_HEAD} button, ${SETLIST_SONG_ACTIONS}`,
+        keyOf: setlistRowKey,
+        openRow: openSetlistRow,
+        preferredRow: firstSetlistSong,
+      },
+    );
+  }
   $("libTabSongs")?.addEventListener("click", onSongsTabClick);
   $("libTabSetlists")?.addEventListener("click", onSetlistsTabClick);
   document.querySelector(".lib-tabs")?.addEventListener("keydown", onTabKeydown);
