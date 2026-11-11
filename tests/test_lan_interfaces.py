@@ -7,6 +7,9 @@ private range, and only the interface tells them apart.
 
 from __future__ import annotations
 
+import errno
+import socket
+import struct
 from pathlib import Path
 
 import httpx
@@ -16,10 +19,30 @@ import app.main as main
 from app.core import lan_interfaces, tls_listener
 from app.core.lan_interfaces import NetInterface
 
+UP_AND_RUNNING = 0x1043  # UP | BROADCAST | RUNNING | MULTICAST
+UP_NOT_RUNNING = 0x1003
+RUNNING_NOT_UP = 0x1042
+# Bytes beside each field, so reading one offset off returns something else.
+PORT_NOISE = b"\x1f\x90"
+FLAGS_NOISE = b"\x5a\x5a"
+TAIL_NOISE = b"\xaa"
+SOCKADDR_FAMILY = {"linux": b"\x02\x00", "darwin": b"\x10\x02"}
+FAKE_HOST = {
+    "lo2": (None, UP_AND_RUNNING),
+    "wlan0": ("192.168.1.20", UP_AND_RUNNING),
+    "ctr0": ("172.17.0.1", UP_AND_RUNNING),
+    "eth1": ("10.0.0.5", UP_NOT_RUNNING),
+    "eth2": ("10.0.0.6", RUNNING_NOT_UP),
+}
+
 
 async def _listed(monkeypatch, local_ips: set[str], interfaces: list[NetInterface]) -> list[str]:
-    monkeypatch.setattr(main, "_local_ips", lambda: frozenset(local_ips))
     monkeypatch.setattr(lan_interfaces, "read_interfaces", lambda: interfaces)
+    return await _settings_addresses(monkeypatch, local_ips)
+
+
+async def _settings_addresses(monkeypatch, local_ips: set[str]) -> list[str]:
+    monkeypatch.setattr(main, "_local_ips", lambda: frozenset(local_ips))
     monkeypatch.setattr(tls_listener, "_active_port", None)
     monkeypatch.setattr(main, "SSL_CERTFILE", None)
     monkeypatch.setattr(main, "SSL_KEYFILE", None)
@@ -28,16 +51,64 @@ async def _listed(monkeypatch, local_ips: set[str], interfaces: list[NetInterfac
         return (await c.get("/api/settings")).json()["lan_addresses"]
 
 
-async def test_a_container_bridge_is_hidden_next_to_wifi(monkeypatch) -> None:
-    listed = await _listed(
-        monkeypatch,
-        {"172.17.0.1", "192.168.1.20"},
-        [
-            NetInterface(name="docker0", ipv4="172.17.0.1", running=True),
-            NetInterface(name="wlan0", ipv4="192.168.1.20", running=True),
-        ],
+def _fake_host(monkeypatch, tmp_path: Path, platform: str) -> None:
+    """Answer the interface ioctls from FAKE_HOST, laid out as the kernel would."""
+    fcntl = pytest.importorskip("fcntl")
+    requests = lan_interfaces._IOCTL_REQUESTS[platform]
+
+    def fake_ioctl(fd: int, request: int, arg: bytes) -> bytes:
+        name = arg[:16].rstrip(b"\0").decode()
+        ipv4, flags = FAKE_HOST[name]
+        if request == requests.get_addr and ipv4 is not None:
+            payload = SOCKADDR_FAMILY[platform] + PORT_NOISE + socket.inet_aton(ipv4)
+        elif request == requests.get_flags:
+            payload = struct.pack("H", flags) + FLAGS_NOISE
+        else:
+            raise OSError(errno.EADDRNOTAVAIL, "no address")
+        return (arg[:16] + payload).ljust(len(arg), TAIL_NOISE)
+
+    monkeypatch.setattr(lan_interfaces.sys, "platform", platform)
+    monkeypatch.setattr(fcntl, "ioctl", fake_ioctl)
+    monkeypatch.setattr(
+        lan_interfaces.socket,
+        "if_nameindex",
+        lambda: list(enumerate(FAKE_HOST, start=1)),
     )
+    monkeypatch.setattr(lan_interfaces, "SYSFS_NET", _fake_sysfs(tmp_path))
+
+
+async def test_a_container_bridge_is_hidden_next_to_wifi(monkeypatch, tmp_path: Path) -> None:
+    _fake_host(monkeypatch, tmp_path, "linux")
+    listed = await _settings_addresses(monkeypatch, {"172.17.0.1", "192.168.1.20"})
     assert listed == ["http://192.168.1.20:8000"]
+
+
+@pytest.mark.parametrize("platform", ["linux", "darwin"])
+def test_each_interface_address_is_read_from_the_ifreq(
+    monkeypatch,
+    tmp_path: Path,
+    platform: str,
+) -> None:
+    _fake_host(monkeypatch, tmp_path, platform)
+    read = {iface.name: iface.ipv4 for iface in lan_interfaces.read_interfaces()}
+    assert read == {
+        "wlan0": "192.168.1.20",
+        "ctr0": "172.17.0.1",
+        "eth1": "10.0.0.5",
+        "eth2": "10.0.0.6",
+    }
+
+
+def test_running_needs_both_the_up_and_running_flags(monkeypatch, tmp_path: Path) -> None:
+    _fake_host(monkeypatch, tmp_path, "linux")
+    read = {iface.name: iface.running for iface in lan_interfaces.read_interfaces()}
+    assert read == {"wlan0": True, "ctr0": True, "eth1": False, "eth2": False}
+
+
+def test_a_bridge_without_hardware_is_read_as_unbacked(monkeypatch, tmp_path: Path) -> None:
+    _fake_host(monkeypatch, tmp_path, "linux")
+    read = {iface.name: iface.unbacked_bridge for iface in lan_interfaces.read_interfaces()}
+    assert read == {"wlan0": False, "ctr0": True, "eth1": False, "eth2": False}
 
 
 async def test_a_physical_lan_in_the_172_16_range_still_shows(monkeypatch) -> None:
@@ -105,22 +176,31 @@ def test_a_failing_interface_query_reads_no_interfaces(monkeypatch) -> None:
 
 
 def _fake_sysfs(root: Path) -> Path:
-    for name in ("docker0", "veth9", "br0", "enp4s0", "br-empty"):
+    """Bridges with and without hardware, one reaching its NIC through a bond and a VLAN."""
+    for nic in ("wlan0", "eth1", "eth2", "enp4s0", "enp1s0"):
+        (root / nic / "device").mkdir(parents=True)
+    for bridge in ("ctr0", "br0", "br-empty", "lanbr"):
+        (root / bridge / "bridge").mkdir(parents=True)
+    for name in ("veth9", "bond0", "vlan10"):
         (root / name).mkdir()
-    for bridge in ("docker0", "br0", "br-empty"):
-        (root / bridge / "bridge").mkdir()
-    (root / "enp4s0" / "device").mkdir()
-    (root / "docker0" / "lower_veth9").symlink_to("../veth9")
-    (root / "br0" / "lower_enp4s0").symlink_to("../enp4s0")
+    for upper, lower in (
+        ("ctr0", "veth9"),
+        ("br0", "enp4s0"),
+        ("lanbr", "bond0"),
+        ("bond0", "vlan10"),
+        ("vlan10", "enp1s0"),
+    ):
+        (root / upper / f"lower_{lower}").symlink_to(f"../{lower}")
     return root
 
 
 @pytest.mark.parametrize(
     "name,unbacked",
     [
-        ("docker0", True),
+        ("ctr0", True),
         ("br-empty", True),
         ("br0", False),
+        ("lanbr", False),
         ("enp4s0", False),
         ("veth9", False),
     ],

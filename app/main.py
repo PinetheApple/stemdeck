@@ -436,9 +436,8 @@ def _settings_payload() -> dict[str, object]:
 
 @app.get("/api/settings", tags=["settings"])
 def get_settings(request: Request) -> dict[str, object]:
-    # LAN addresses other devices can use — loopback and container or VM
-    # interfaces excluded (only the host reaches them; see lan_interfaces). The
-    # port is whatever this request came in on.
+    # LAN addresses other devices can use (see lan_interfaces for what is left
+    # out). The port is whatever this request came in on.
     port = request.url.port or 8000
     # The address handed to another device is not necessarily the one this
     # request arrived on. The desktop app answers its own webview over plain

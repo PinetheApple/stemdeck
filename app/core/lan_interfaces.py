@@ -2,10 +2,8 @@
 
 Settings > Network turns every address into a QR code for a phone, so an
 address the phone cannot reach is worse than none: it looks right and fails.
-The classic offender is a container bridge (docker0 on 172.17.0.1), which
-shares a private range with plenty of real LANs -- 172.16.0.0/12 is a common
-office and router range -- so the address alone cannot tell them apart. The
-interface it sits on can.
+A container bridge on 172.17.0.1 and a real LAN on 172.20.5.10 share a private
+range, so the address alone cannot tell them apart; the interface it sits on can.
 
 An address is left out when its interface is not up and running, when it is a
 Linux bridge with no hardware anywhere behind it (docker0, br-*, virbr0 and
@@ -29,25 +27,34 @@ import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple
 
 _log = logging.getLogger("stemdeck.network")
 
 SYSFS_NET = Path("/sys/class/net")
-# A bridge over a bond over a VLAN is three hops down to the NIC.
-MAX_LOWER_DEPTH = 4
+# lower_* hops followed below a bridge: bridge -> bond -> VLAN -> NIC is three.
+MAX_LOWER_DEPTH = 3
 
-# (SIOCGIFADDR, SIOCGIFFLAGS) per platform; absent means no ioctl to ask.
-_IOCTL_REQUESTS: dict[str, tuple[int, int]] = {
-    "linux": (0x8915, 0x8913),
-    "darwin": (0xC0206921, 0xC0206911),
+
+class IoctlRequests(NamedTuple):
+    get_addr: int  # SIOCGIFADDR
+    get_flags: int  # SIOCGIFFLAGS
+
+
+# Absent platform means no ioctl to ask.
+_IOCTL_REQUESTS: dict[str, IoctlRequests] = {
+    "linux": IoctlRequests(get_addr=0x8915, get_flags=0x8913),
+    "darwin": IoctlRequests(get_addr=0xC0206921, get_flags=0xC0206911),
 }
 # Linux's struct ifreq is 40 bytes and macOS's 32; the larger buffer serves both.
 _IFREQ_FORMAT = "40s"
 _IFNAME_MAX = 15
 _IFR_FLAGS_OFFSET = 16
+_IFR_FLAGS_FORMAT = "H"  # ifr_flags, a native-endian short
 _IFR_IPV4_SLICE = slice(20, 24)
 _IFF_UP = 0x1
 _IFF_RUNNING = 0x40
+_IFF_UP_AND_RUNNING = _IFF_UP | _IFF_RUNNING
 
 _HOST_ONLY_NAME = re.compile(
     r"^(docker|br-|veth|virbr|cni|flannel|cali|podman|vboxnet|vmnet|bridge1\d\d)"
@@ -91,20 +98,18 @@ def read_interfaces() -> list[NetInterface]:
 def _read_interface(
     sock: socket.socket,
     name: str,
-    requests: tuple[int, int],
+    requests: IoctlRequests,
 ) -> NetInterface | None:
-    addr_request, flags_request = requests
     try:
-        addr = _ioctl(sock, addr_request, name)
-        flags = _ioctl(sock, flags_request, name)
+        addr = _ioctl(sock, requests.get_addr, name)
+        flags = _ioctl(sock, requests.get_flags, name)
     except OSError:
         return None  # no IPv4 address, or the interface vanished mid-read
-    (flag_bits,) = struct.unpack_from("H", flags, _IFR_FLAGS_OFFSET)
-    running_bits = _IFF_UP | _IFF_RUNNING
+    (flag_bits,) = struct.unpack_from(_IFR_FLAGS_FORMAT, flags, _IFR_FLAGS_OFFSET)
     return NetInterface(
         name=name,
         ipv4=socket.inet_ntoa(addr[_IFR_IPV4_SLICE]),
-        running=flag_bits & running_bits == running_bits,
+        running=flag_bits & _IFF_UP_AND_RUNNING == _IFF_UP_AND_RUNNING,
         unbacked_bridge=is_unbacked_bridge(name, SYSFS_NET),
     )
 
