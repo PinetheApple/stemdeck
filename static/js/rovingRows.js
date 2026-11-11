@@ -66,11 +66,7 @@ function hasModifier(e) {
   return e.altKey || e.ctrlKey || e.metaKey || e.shiftKey;
 }
 
-/**
- * Rows matching `selectableRow` wear SELECTED_ROW_CLASS while they are the row last
- * focused, and open on a double-click or a click on their ROW_PLAY_CLASS button.
- */
-function wireRowSelection(container, { selectableRow, rowOf, allRows, keyOf, openRow, focusRow }) {
+function wireRowSelection({ selectableRow, rowOf, allRows, keyOf }) {
   let selectedKey = null;
   const isSelectable = (row) => Boolean(selectableRow) && row.matches(selectableRow);
 
@@ -93,8 +89,7 @@ function wireRowSelection(container, { selectableRow, rowOf, allRows, keyOf, ope
     paintSelection();
   }
 
-  wireRowOpening(container, { selectableRowOf, openRow, focusRow });
-  return { select, paintSelection };
+  return { select, paintSelection, selectableRowOf };
 }
 
 function wireRowOpening(container, { selectableRowOf, openRow, focusRow }) {
@@ -157,10 +152,8 @@ export function wireRovingRows(
     (actionsOf(row)[actionIndex] ?? row).focus(options);
   }
 
-  const { select, paintSelection } = wireRowSelection(
-    container,
-    { selectableRow, rowOf, allRows, keyOf, openRow, focusRow },
-  );
+  const { select, paintSelection, selectableRowOf } = wireRowSelection({ selectableRow, rowOf, allRows, keyOf });
+  wireRowOpening(container, { selectableRowOf, openRow, focusRow });
 
   function onRowFocus(e) {
     arrivedByKeyboard = e.target.matches(KEYBOARD_FOCUS);
