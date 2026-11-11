@@ -62,15 +62,18 @@ test("the two messages are not both shown", async ({ page }) => {
   await expect(warning(page)).not.toContainText(/secure connection \(https\)/i);
 });
 
-test("it is red, not another quiet grey note", async ({ page }) => {
-  // The setting already carries two grey explanatory lines. A third would be
-  // read as more of the same and skipped, which defeats the point of writing it.
+test("it stands apart in a box of its own without reading as an error", async ({ page }) => {
+  // The setting already carries two grey lines, and a third would be skipped as
+  // more of the same. A box sets it apart; red stays for something that failed.
   await withAddresses(page, ["http://192.168.1.50:8000"]);
   await openSettings(page);
-  const colour = await warning(page).evaluate((el) => getComputedStyle(el).color);
+  const { colour, background } = await warning(page).evaluate((el) => ({
+    colour: getComputedStyle(el).color,
+    background: getComputedStyle(el).backgroundColor,
+  }));
   const [r, g, b] = colour.match(/\d+/g).map(Number);
-  expect(r).toBeGreaterThan(g + 40);
-  expect(r).toBeGreaterThan(b + 40);
+  expect(r > g + 40 && r > b + 40).toBe(false);
+  expect(background).not.toBe("rgba(0, 0, 0, 0)");
 });
 
 test("nothing is said when there is no address to hand out", async ({ page }) => {

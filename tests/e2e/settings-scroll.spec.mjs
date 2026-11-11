@@ -38,7 +38,7 @@ async function withManyAddresses(page) {
         lan_addresses: [
           "http://192.168.1.50:8000",
           "http://10.0.0.7:8000",
-          "http://172.28.224.1:8000",
+          "http://100.64.0.7:8000",
         ],
       }),
     });
