@@ -1472,25 +1472,10 @@ function _renderMetroNote(grid) {
   metroNoteEl.className = unsure ? "metro-note warn" : "metro-note";
 }
 
-/**
- * Show the click-track options whether or not there is a grid to act on.
- *
- * They used to be hidden outright when a track had no beat grid, and with no
- * track at all, so the footer lost Count-in, the bar selector, Grid and the
- * rate buttons and then got them back. Half the strip appearing and vanishing
- * reads as a fault rather than as a state, and it is the one thing in that row
- * that does not behave like the rest: the metronome button beside them, and
- * every unavailable lane in the mixer, grey out rather than leave.
- *
- * So the panel stays and its controls go inert, which is also what the
- * disabled attribute already tells a screen reader.
- */
+// The options stay and go inert without a grid, as the metronome button and
+// unavailable lanes grey out rather than leave.
 function setMetroOptionsAvailable(available) {
   if (!metroPanel) return;
-  // "hidden" is the collapse levels' own word for this panel, and it shipped in
-  // the markup as the starting state. Availability no longer uses it, so clear
-  // it once and let footerFit be the only thing that sets it.
-  metroPanel.classList.remove("hidden");
   metroPanel.classList.toggle("unavailable", !available);
   for (const el of metroPanel.querySelectorAll("button, select, input")) {
     el.disabled = !available;
