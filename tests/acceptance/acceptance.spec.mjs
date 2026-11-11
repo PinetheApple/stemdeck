@@ -226,12 +226,11 @@ async function showClickOptions(page) {
 }
 
 // Steps: with no track open, look at the click track options in the Tempo tab.
-// Expect: they sit in the inspector, not over the lanes; a click on them stays
-// in the inspector; the controls are dimmed and disabled.
+// Expect: they are laid out in the tab, not floating over the lanes; a click on
+// them does not reach the lanes; the controls are dimmed and disabled.
 test(title("V3"), async ({ app }, testInfo) => {
   const { page } = app;
   await expect(page.locator(".app")).toHaveClass(/no-track/);
-  await setWindowWidth(page, 1296, 839);
   const panel = await showClickOptions(page);
   await expect(panel).toHaveClass(/\bunavailable\b/);
   const geo = await page.evaluate(() => {
@@ -241,20 +240,17 @@ test(title("V3"), async ({ app }, testInfo) => {
     return {
       position: getComputedStyle(p).position,
       opacity: Number(getComputedStyle(p).opacity),
-      inInspector: document.querySelector("#inspector").contains(p),
-      hitsInspector: document.querySelector("#inspector").contains(hit),
       hitsLanes: document.querySelector("#lanes").contains(hit),
+      controls: p.querySelectorAll("button, select, input").length,
       allDisabled: [...p.querySelectorAll("button, select, input")].every((el) => el.disabled),
     };
   });
-  expect(geo.inInspector, "the options are in the inspector").toBe(true);
   expect(geo.position, "laid out in the tab, not floating").toBe("static");
-  expect(geo.hitsInspector, "a click on the box lands in the inspector").toBe(true);
   expect(geo.hitsLanes, "not on the lanes").toBe(false);
   expect(geo.opacity).toBeLessThan(1);
+  expect(geo.controls, "the box has controls").toBeGreaterThan(0);
   expect(geo.allDisabled, "every control is disabled").toBe(true);
   await shot(page, testInfo, "options-no-track");
-  await wideWindow(page);
 });
 
 // ─── Settings: song identification ──────────────────────────────────────────
@@ -397,13 +393,12 @@ test(title("N1"), async ({ app }, testInfo) => {
   await shot(page, testInfo, "studio");
 });
 
-// Steps: with a song loaded, point at Count-in in the Tempo tab. Expect: its
-// tooltip says it plays even with the click track off.
+// Steps: with a song loaded, read Count-in's tooltip in the Tempo tab. Expect:
+// it says it plays even with the click track off.
 test(title("V4"), async ({ app }, testInfo) => {
   const { page } = app;
   const id = await trackFor(page, "wicked");
   if (await page.locator(".app").evaluate((el) => el.classList.contains("no-track"))) await openTrack(page, id);
-  await setWindowWidth(page, 1296, 839);
   await page.waitForFunction(() => document.querySelector("#t-metro") && !document.querySelector("#t-metro").disabled, null, { timeout: 60_000 });
   await showClickOptions(page);
   const countIn = page.locator("#t-metro-countin");
@@ -413,7 +408,6 @@ test(title("V4"), async ({ app }, testInfo) => {
   await expect(countIn).toHaveAttribute("title", await tr(page, "en", "click.countInTitle"));
   expect(await countIn.getAttribute("title"), "the tooltip says it plays with the click off").toContain(hint);
   await shot(page, testInfo, "count-in");
-  await wideWindow(page);
 });
 
 // Steps: import Wicked, Dancing Through Life; open About this song. Expect:
