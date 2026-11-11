@@ -559,7 +559,6 @@ export async function stubLyricsLookup(page, { rows = [], artist = "", song = ""
 
 const PENDING_UPLOADS_MAX = 5;
 const PENDING_URLS_MAX = 50;
-// Partway through separating, as a running import reports itself.
 const SEPARATING = { status: "separating", stage: "Separating 40%", progress: 0.4 };
 
 /** What GET /api/queue answers: an unpaused queue with every pending slot free. */
@@ -606,8 +605,10 @@ const LONG_QUEUE_WAITING_IDS = ["e2e0feed0001", "e2e0feed0002", "e2e0feed0003"];
 export async function stubLongQueue(page) {
   const job = (id) => ({ job_id: id, status: "queued", title: id, source_url: `https://example.invalid/${id}` });
   const running = { ...job(LONG_QUEUE_RUNNING_ID), ...SEPARATING };
-  await page.route("**/api/queue", (route) =>
-    route.fulfill({ json: queueState(running, LONG_QUEUE_WAITING_IDS.map(job)) }));
+  await page.route(
+    "**/api/queue",
+    (route) => route.fulfill({ json: queueState(running, LONG_QUEUE_WAITING_IDS.map(job)) }),
+  );
   await page.route("**/api/queue/events", (route) => route.abort());
 }
 
