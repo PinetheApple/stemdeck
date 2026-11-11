@@ -22,6 +22,7 @@
 | `STEMDECK_TIMEOUT_FFMPEG` | `300` | ffmpeg subprocess timeout (seconds). |
 | `STEMDECK_TIMEOUT_ANALYZE` | `120` | Audio analysis timeout (seconds). |
 | `STEMDECK_TIMEOUT_DEMUCS_STALL` | `1800` | Kill Demucs if no output for this many seconds. |
+| `STEMDECK_IDLE_UNLOAD_MINUTES` | `10` | Minutes with no separation or analysis running before the separation worker and the beat model are unloaded from memory, at most `1440`; `0` keeps them loaded. The next track loads them again and starts a few seconds later. Unloading frees the graphics card's memory, and another program may take it meanwhile, so the next separation on the GPU can fall back to the CPU. A value saved through `POST /api/settings` (`idle_unload_minutes`) wins over this. |
 | `STEMDECK_SSL_CERT` | (none) | PEM certificate; set with the key below to serve https directly. |
 | `STEMDECK_SSL_KEY` | (none) | PEM private key for the certificate above. |
 | `STEMDECK_HTTPS_PORT` | (none) | Serve https on this port *in addition* to the main listener. Set by the desktop app; see below. |

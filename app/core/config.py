@@ -313,6 +313,23 @@ PLAYLIST_MAX_ITEMS = max(1, min(200, _env_int("STEMDECK_PLAYLIST_MAX_ITEMS", 50)
 TIMEOUT_FFMPEG = _env_int("STEMDECK_TIMEOUT_FFMPEG", 300)
 TIMEOUT_ANALYZE = _env_int("STEMDECK_TIMEOUT_ANALYZE", 120)
 TIMEOUT_DEMUCS_STALL = _env_int("STEMDECK_TIMEOUT_DEMUCS_STALL", 1800)
+# Idle unload (#90, from upstream PR 1034). Minutes with no separation or
+# analysis before the Demucs worker stops and the beat model is dropped; 0
+# never. Upstream measured an idle CUDA worker at 1.93 GB RAM + 1.11 GB VRAM,
+# and the first separation after an unload 5.8 s slower. The default is
+# seeded from STEMDECK_IDLE_UNLOAD_MINUTES (app/core/settings.py).
+IDLE_UNLOAD_MINUTES_DEFAULT = 10
+IDLE_UNLOAD_MINUTES_MAX = 1440
+# How often the idle timer looks. An unload lands at most this late.
+IDLE_UNLOAD_CHECK_SEC = 30
+# Stopping the worker: terminate(), then kill(), each waited on this long. The
+# kill wait is bounded so a worker wedged in a CUDA call cannot hold the next
+# job and shutdown forever; it is then left behind and killed again per GPU
+# job, holding GPU jobs back for at most this many kills or seconds.
+WORKER_TERMINATE_TIMEOUT_SEC = 5
+WORKER_KILL_REAP_TIMEOUT_SEC = 10
+LEFT_BEHIND_WORKER_MAX_KILLS = 3
+LEFT_BEHIND_WORKER_MAX_SEC = 600
 # Automatic functional-section analysis. Inference stays on CPU because the
 # persistent Demucs worker deliberately keeps its model resident on the chosen
 # accelerator between jobs; loading a second model beside it would make VRAM

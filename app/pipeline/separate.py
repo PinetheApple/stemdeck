@@ -11,12 +11,20 @@ import threading
 import time
 from pathlib import Path
 
-from app.core.config import DEMUCS_MODEL, TIMEOUT_DEMUCS_STALL
+from app.core.config import (
+    DEMUCS_MODEL,
+    LEFT_BEHIND_WORKER_MAX_KILLS,
+    LEFT_BEHIND_WORKER_MAX_SEC,
+    TIMEOUT_DEMUCS_STALL,
+    WORKER_KILL_REAP_TIMEOUT_SEC,
+    WORKER_TERMINATE_TIMEOUT_SEC,
+)
 from app.core.models import Job, JobCancelled, _set
 from app.core.registry import set_proc
 from app.core.settings import get_demucs_device, get_separation_quality
-from app.pipeline import jobqueue
+from app.pipeline import idle_unload, jobqueue
 from app.pipeline.errors import SeparationError, classify_failure
+from app.pipeline.idle_unload import IdleResource
 
 logger = logging.getLogger("stemdeck.pipeline")
 
@@ -29,8 +37,14 @@ _PCT_RE = re.compile(r"(\d{1,3})%")
 # in runner.py), so there is exactly one worker to track, not a pool. Reused
 # across consecutive successful jobs on the same device; torn down on cancel,
 # a device change, or any job failure -- see demucs_worker.py's docstring for
-# why a failure always kills the worker rather than trying to keep serving.
+# why a failure always kills the worker rather than trying to keep serving --
+# and stopped by the idle timer when no job has used it for a while (#90).
 _worker: dict[str, object] = {}
+
+
+def _worker_alive() -> bool:
+    proc = _worker.get("proc")
+    return proc is not None and proc.poll() is None
 
 
 def _spawn_worker_cmd(device: str) -> list[str]:
@@ -40,20 +54,131 @@ def _spawn_worker_cmd(device: str) -> list[str]:
     return [sys.executable, "-m", "app.pipeline.demucs_worker", device]
 
 
+class _LeftBehind:
+    """A worker given up on after kill(), with its device."""
+
+    __slots__ = ("proc", "device", "since", "kills", "released")
+
+    def __init__(self, proc: subprocess.Popen, device: str) -> None:
+        self.proc = proc
+        self.device = device
+        self.since = time.monotonic()
+        self.kills = 0
+        self.released = False
+
+
+# Workers given up on after kill(). Still tracked, so the next GPU job does not
+# start a second worker beside one that may still hold the card's memory, and
+# shutdown tries them once more. The lock guards the list only, never a wait.
+_left_behind: list[_LeftBehind] = []
+_left_behind_lock = threading.Lock()
+
+
+def _forget_left_behind(entry: _LeftBehind) -> None:
+    logger.info("left-behind demucs worker %s (%s) has exited", entry.proc.pid, entry.device)
+    with _left_behind_lock:
+        if entry in _left_behind:
+            _left_behind.remove(entry)
+    _close_pipes(entry.proc)
+
+
+def _still_blocks(entry: _LeftBehind) -> bool:
+    """Kill a running leftover again; False once it has had its kills or time,
+    so one that never exits does not turn GPU separation off for good."""
+    spent = time.monotonic() - entry.since >= LEFT_BEHIND_WORKER_MAX_SEC
+    if entry.kills >= LEFT_BEHIND_WORKER_MAX_KILLS or spent:
+        entry.released = True
+        logger.error(
+            "left-behind demucs worker %s (%s) survived %d kills; the next job starts beside it",
+            entry.proc.pid,
+            entry.device,
+            entry.kills,
+        )
+        return False
+    logger.warning(
+        "left-behind demucs worker %s (%s) still running; killing again",
+        entry.proc.pid,
+        entry.device,
+    )
+    entry.kills += 1
+    try:
+        entry.proc.kill()
+    except OSError:
+        pass
+    return True
+
+
+def _reap_left_behind() -> set[str]:
+    """Forget the leftovers that have exited, kill the rest again. Returns the
+    devices a leftover still blocks."""
+    with _left_behind_lock:
+        entries = list(_left_behind)
+    blocking: set[str] = set()
+    for entry in entries:
+        if entry.proc.poll() is not None:
+            _forget_left_behind(entry)
+        elif not entry.released and _still_blocks(entry):
+            blocking.add(entry.device)
+    return blocking
+
+
 def _kill_worker() -> None:
     proc = _worker.pop("proc", None)
-    _worker.pop("device", None)
-    if proc is not None and proc.poll() is None:
+    device = _worker.pop("device", None)
+    if proc is None:
+        return
+    if proc.poll() is None:
         proc.terminate()
         try:
-            proc.wait(timeout=5)
+            proc.wait(timeout=WORKER_TERMINATE_TIMEOUT_SEC)
         except subprocess.TimeoutExpired:
             proc.kill()
-            # kill() only sends the signal. Without the reap a worker wedged in
-            # an uninterruptible CUDA call becomes a zombie whose pipes are
-            # closed only incidentally, whenever the Popen refcount happens to
-            # drop. vocal_split.py already pairs the two.
-            proc.communicate()
+            # Bounded reap: a worker wedged in an uninterruptible CUDA call
+            # must not hold the idle lock, the next job and shutdown forever.
+            try:
+                proc.wait(timeout=WORKER_KILL_REAP_TIMEOUT_SEC)
+            except subprocess.TimeoutExpired:
+                logger.error("demucs worker %s did not exit after kill; left behind", proc.pid)
+                # Pipes stay open: a job thread may still be blocked reading.
+                with _left_behind_lock:
+                    _left_behind.append(_LeftBehind(proc, str(device or "")))
+                return
+    _close_pipes(proc)
+
+
+def _close_pipes(proc: subprocess.Popen) -> None:
+    for pipe in (proc.stdin, proc.stderr):
+        if pipe is None:
+            continue
+        try:
+            pipe.close()
+        except OSError:
+            # stdin's close flushes into a reader that is gone.
+            pass
+
+
+# Lambdas, so a test that replaces _kill_worker replaces it here too.
+WORKER = idle_unload.register(
+    IdleResource("separation worker", lambda: _worker_alive(), lambda: _kill_worker())
+)
+
+
+def shutdown_worker() -> None:
+    """Stop the worker at server shutdown, even under a running job. Through
+    the idle lock, so an idle unload in progress finishes first. A leftover
+    gets one more kill; the worker's parent-PID watchdog is the backstop."""
+    WORKER.unload_now()
+    with _left_behind_lock:
+        entries = list(_left_behind)
+    for entry in entries:
+        if entry.proc.poll() is None:
+            try:
+                entry.proc.kill()
+            except OSError:
+                pass
+            logger.error(
+                "demucs worker %s (%s) still running at shutdown", entry.proc.pid, entry.device
+            )
 
 
 def _get_worker(device: str) -> subprocess.Popen:
@@ -111,6 +236,10 @@ def _run_demucs(job: Job, source: Path, job_dir: Path, device: str) -> tuple[int
 
     Returns (returncode, stderr_tail). Raises JobCancelled when the exit was
     caused by POST /cancel. The retry policy lives in separate()."""
+    if device != "cpu" and device in _reap_left_behind():
+        # A leftover may still hold the GPU's memory; failing here sends the
+        # job to separate()'s CPU retry, with the reason in its tail.
+        return 1, [f"a previous separation worker on {device} has not exited yet"]
     spawn_at = time.monotonic()
     proc = _get_worker(device)
     if proc.stdin is None or proc.stderr is None:
@@ -168,7 +297,12 @@ def _run_demucs(job: Job, source: Path, job_dir: Path, device: str) -> tuple[int
     wt.start()
     try:
         while True:
-            ch = proc.stderr.read(1)
+            try:
+                ch = proc.stderr.read(1)
+            except ValueError as exc:
+                # Closed under the read by a shutdown's _kill_worker: EOF.
+                logger.warning("[%s] demucs worker stderr closed during read: %s", job.id, exc)
+                ch = ""
             if not ch:
                 # EOF -- the worker process itself exited (crash, or it
                 # already wrote @@ERROR@@ and is shutting down).
@@ -243,7 +377,20 @@ def separate(job: Job, source: Path, job_dir: Path) -> Path:
     tail, and gpu_fallback/compute_device persist to job state and metadata.
     It applies even when the user forced cuda/mps in Settings -- a dead job
     with no diagnostics is strictly worse for them than a slow one that
-    explains itself."""
+    explains itself.
+
+    Holds the worker in use for the whole call, the CPU retry included, so the
+    idle timer never stops it under a job (#90)."""
+    cancelled_before = job.cancel_requested
+    with WORKER.in_use():
+        # Only a cancel that arrived while an idle unload held the worker; an
+        # earlier one keeps the attempt's own cancel path.
+        if job.cancel_requested and not cancelled_before:
+            raise JobCancelled()
+        return _separate(job, source, job_dir)
+
+
+def _separate(job: Job, source: Path, job_dir: Path) -> Path:
     _set(job, status="separating", progress=0.0, stage="Separating stems...")
 
     # Read the device fresh per job (not a frozen import) so a Settings change
