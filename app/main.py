@@ -25,7 +25,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.jobs import settle_pending_replacements
 from app.api.router import router
-from app.core import tls_listener
+from app.core import lan_interfaces, tls_listener
 from app.core.compression import COMPRESS_LEVEL, MINIMUM_SIZE, TextGZipMiddleware
 from app.core.config import (
     ACOUSTID_CHECK_KEY,
@@ -436,8 +436,9 @@ def _settings_payload() -> dict[str, object]:
 
 @app.get("/api/settings", tags=["settings"])
 def get_settings(request: Request) -> dict[str, object]:
-    # LAN addresses other devices can use — loopback excluded (only works on the
-    # host). The port is whatever this request came in on.
+    # LAN addresses other devices can use — loopback and container or VM
+    # interfaces excluded (only the host reaches them; see lan_interfaces). The
+    # port is whatever this request came in on.
     port = request.url.port or 8000
     # The address handed to another device is not necessarily the one this
     # request arrived on. The desktop app answers its own webview over plain
@@ -455,7 +456,12 @@ def get_settings(request: Request) -> dict[str, object]:
         # also what decides whether transpose works once they open it.
         scheme = "https" if SSL_CERTFILE and SSL_KEYFILE else "http"
         port_out = port
-    addresses = sorted(f"{scheme}://{ip}:{port_out}" for ip in _local_ips() if _is_lan_ipv4(ip))
+    unreachable = lan_interfaces.unreachable_ipv4s(lan_interfaces.read_interfaces())
+    addresses = sorted(
+        f"{scheme}://{ip}:{port_out}"
+        for ip in _local_ips()
+        if _is_lan_ipv4(ip) and ip not in unreachable
+    )
     # Show the port the server is actually running on rather than the stored
     # preference (which only takes effect on the next restart) -- so the field
     # reflects reality. Editing it still saves the preference via POST.
