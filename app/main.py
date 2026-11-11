@@ -45,6 +45,7 @@ from app.core.config import (
     torch_load_error,
 )
 from app.core.logging_setup import configure_logging
+from app.core.models import JobBusy
 from app.core.process import process_exists as _process_exists
 from app.core.redact import redact
 from app.core.registry import all_jobs as registry_all_jobs
@@ -669,6 +670,7 @@ async def set_stems_location(request: Request) -> dict[str, object]:
                 status_code=409,
                 detail="Finish or cancel the imports in the queue before moving the stems folder",
             )
+        _refuse_while_busy()
         target = validate_target(Path(raw), JOBS_DIR)
     except StemsLocationError as e:
         abandon_relocation()
@@ -740,6 +742,7 @@ def reset_app_data() -> dict[str, object]:
     active = [j for j in registry_all_jobs().values() if j.status in _ACTIVE_JOB_STATUSES]
     if active:
         raise HTTPException(status_code=409, detail="cannot reset while a job is in progress")
+    _refuse_while_busy()
     # Clear the queue alongside the registry, or the worker would keep popping
     # ids that no longer resolve and the queue view would report ghosts.
     from app.pipeline import jobqueue
@@ -1214,6 +1217,25 @@ def _secure_origin_required() -> bool:
     transpose on it.
     """
     return not _is_desktop_shell()
+
+
+def _refuse_while_busy() -> None:
+    """Raise JobBusy while a finished song is being worked on (upstream PR
+    878): the queue statuses the move and the reset check do not show it."""
+    if any(j.post_hoc_running() for j in registry_all_jobs().values()):
+        raise JobBusy()
+
+
+_JOB_BUSY_DETAIL = (
+    "A song is still being separated (Lead + Backing). Try again when it has finished."
+)
+
+
+# A library move or a reset refused while a Lead + Backing split runs. Its own
+# code, so a client can tell it from any other 409 and translate it.
+@app.exception_handler(JobBusy)
+async def refuse_while_busy(_request: Request, _exc: JobBusy) -> JSONResponse:
+    return JSONResponse({"detail": _JOB_BUSY_DETAIL, "code": "job_busy"}, status_code=409)
 
 
 @app.middleware("http")
