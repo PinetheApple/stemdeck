@@ -79,7 +79,9 @@ function selectFaults(dialog, { selectArrow }) {
     if (!select.offsetParent) continue;
     const style = getComputedStyle(select);
     ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-    const room = select.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - selectArrow;
+    // A select drawn with `appearance: none` keeps its caret in its own padding.
+    const arrow = style.appearance === "none" ? 0 : selectArrow;
+    const room = select.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - arrow;
     const shown = select.selectedOptions[0]?.text ?? "";
     if (ctx.measureText(shown).width > room) faults.push(`select cut: ${shown}`);
   }
