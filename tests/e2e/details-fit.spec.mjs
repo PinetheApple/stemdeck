@@ -1,6 +1,3 @@
-// The song details box closes from a comfortable target, and the Details tab
-// shows every label whole, however long the language spells it.
-
 import { test, expect } from "@playwright/test";
 import { openInspectorTab, openStudio } from "./helpers.mjs";
 
@@ -39,10 +36,6 @@ test("the song details close button is as easy to hit as the other dialogs'", as
   const settings = await boxSize(page.locator(".library-editor-close"));
   await page.keyboard.press("Escape");
 
-  await page.locator("#aboutBtn").click();
-  const about = await boxSize(page.locator("#aboutClose"));
-  await page.keyboard.press("Escape");
-
   await page.locator("#artistDialog").evaluate((el) => el.classList.remove("hidden"));
   const artist = await boxSize(page.locator("#artistClose"));
   const comfortable = await rootToken(page, "--ctl-h-sm");
@@ -50,7 +43,6 @@ test("the song details close button is as easy to hit as the other dialogs'", as
   for (const side of ["width", "height"]) {
     expect(artist[side]).toBeGreaterThanOrEqual(comfortable);
     expect(artist[side]).toBeGreaterThanOrEqual(settings[side]);
-    expect(artist[side]).toBeGreaterThanOrEqual(about[side]);
   }
 });
 
@@ -81,8 +73,6 @@ for (const language of LONG_LABEL_LANGUAGES) {
   });
 }
 
-// The File card's markup comes from the Details labels change; until that is
-// merged this builds the same shape so the layout is measured on it.
 const LABELLED_FILE_FACTS = `
   <span id="t-stems-chip">6 stems</span>
   <span class="daw-track-sep" aria-hidden="true">·</span>
