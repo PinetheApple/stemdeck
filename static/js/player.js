@@ -1081,6 +1081,19 @@ function _applyLaneHeight(count) {
   return rowH - WAVEFORM_SEPARATOR_HEIGHT;
 }
 
+const BEATS_FETCH_TIMEOUT_MS = 5000;
+
+// A 404 is the normal answer for jobs separated before the beat-grid stage
+// existed, and simply leaves the click control disabled.
+function _fetchBeatGrid(jobId) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), BEATS_FETCH_TIMEOUT_MS);
+  return fetch(`/api/jobs/${jobId}/beats`, { signal: ac.signal })
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null)
+    .finally(() => clearTimeout(timer));
+}
+
 export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, title = "", peaksPromise = null, hasVideo = false, videoStatus = null) {
   const rawStems = stems.filter((stem) => stem?.name && stem?.url);
   const app = document.querySelector(".app");
@@ -1195,19 +1208,11 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
       })()
     : Promise.resolve({}));
 
-  // Beat grid for the click track. Fetched alongside peaks; a 404 is the
-  // normal answer for jobs separated before the beat-grid stage existed, and
-  // simply leaves the click control disabled.
-  const _beatsPromise = jobId
-    ? (() => {
-        const ac = new AbortController();
-        const timer = setTimeout(() => ac.abort(), 5000);
-        return fetch(`/api/jobs/${jobId}/beats`, { signal: ac.signal })
-          .then((r) => (r.ok ? r.json() : null))
-          .catch(() => null)
-          .finally(() => clearTimeout(timer));
-      })()
-    : Promise.resolve(null);
+  // Beat grid for the click track, fetched alongside peaks for the first engine.
+  // A later engine (the swap to full decode) reads it again, so edits saved since load carry over.
+  const _loadTimeBeats = jobId ? _fetchBeatGrid(jobId) : Promise.resolve(null);
+  let _enginesGivenBeats = 0;
+  const _beatsForEngine = () => (_enginesGivenBeats++ === 0 || !jobId ? _loadTimeBeats : _fetchBeatGrid(jobId));
 
   for (const stem of stems) {
     const row = mixerEl.querySelector(`.lane-header[data-stem="${stem.name}"]`);
@@ -1539,7 +1544,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
           // Click track. Bound to this engine instance, so it is rebuilt on
           // every engine bring-up (including the chunked -> fulldecode swap
           // below) and torn down with it.
-          _beatsPromise.then((grid) => {
+          _beatsForEngine().then((grid) => {
             if (token !== visualRenderToken || multitrack !== mt || audioEngine !== eng) return;
             teardownMetronome();
             const beats = Array.isArray(grid?.beats) ? grid.beats : null;
