@@ -5692,9 +5692,16 @@ input, textarea { font-family: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .help-intro-ring { animation: none; opacity: 0.8; }
 }
+/* helpMode.js docks the pill over the waveforms, just above the transport,
+   through the --dock-* properties; without them it sits at the window's foot. */
 .help-pill {
-  position: fixed; z-index: 9999; left: 50%; bottom: 18px; transform: translateX(-50%);
-  max-width: calc(100vw - 32px);
+  --help-pill-gap: 8px;
+  position: fixed; z-index: 9999; transform: translateX(-50%);
+  left: var(--dock-centre, 50%);
+  bottom: calc(var(--dock-bottom, 10px) + var(--help-pill-gap));
+  width: max-content;
+  max-width: calc(var(--dock-width, calc(100vw - 16px)) - 2 * var(--help-pill-gap));
+  text-wrap: balance;
   background: var(--panel); border: 1px solid var(--accent); border-radius: 999px;
   padding: 7px 16px; box-shadow: var(--shadow-panel);
   color: var(--fg); font: 500 12.5px/1.4 var(--font-sans); text-align: center;

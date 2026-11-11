@@ -174,9 +174,19 @@ function visibleRect(el) {
   return { left, top, right, bottom, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
 }
 
+/** Older WebKit (macOS 13's Safari 16, older WebKitGTK) has no checkVisibility. */
+function isSeeThrough(el) {
+  if (el.checkVisibility) return !el.checkVisibility(SEEN_CHECK);
+  if (getComputedStyle(el).visibility !== "visible") return true;
+  for (let node = el; node; node = node.parentElement) {
+    if (getComputedStyle(node).opacity === "0") return true;
+  }
+  return false;
+}
+
 /** Rendered, not see-through or hidden, and at least partly in view. */
 function isShown(el) {
-  if (!el.checkVisibility(SEEN_CHECK)) return false;
+  if (isSeeThrough(el)) return false;
   const r = visibleRect(el);
   return r.width > 0 && r.height > 0;
 }
@@ -323,10 +333,30 @@ function stopIntro() {
   introEl.replaceChildren();
 }
 
+const TRACK_AREA = ".waves-column";
+const TRANSPORT = ".daw-footer";
+const DOCK_PROPS = ["--dock-centre", "--dock-bottom", "--dock-width"];
+
+/** Just above the transport and over the waveforms, where it covers no control. */
+function dockPill() {
+  const track = document.querySelector(TRACK_AREA);
+  const transport = document.querySelector(TRANSPORT);
+  const area = track && transport && isShown(transport) ? visibleRect(track) : null;
+  if (!area || area.width === 0) {
+    for (const prop of DOCK_PROPS) pillEl.style.removeProperty(prop);
+    return;
+  }
+  const [centre, bottom, width] = DOCK_PROPS;
+  pillEl.style.setProperty(centre, `${Math.round(area.left + area.width / 2)}px`);
+  pillEl.style.setProperty(bottom, `${Math.round(window.innerHeight - transport.getBoundingClientRect().top)}px`);
+  pillEl.style.setProperty(width, `${Math.floor(area.width)}px`);
+}
+
 /** Outlines drawn for the old layout would point at the wrong places. */
 function onViewportChange() {
   hide();
   stopIntro();
+  dockPill();
 }
 
 function onPointerOver(e) {
@@ -381,6 +411,7 @@ export function setHelpMode(next) {
     document.addEventListener("focusin", onFocus, true);
     window.addEventListener("resize", onViewportChange);
     document.addEventListener("scroll", onViewportChange, true);
+    dockPill();
     markTargets();
     playIntro();
   } else {
