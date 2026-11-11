@@ -225,23 +225,6 @@ test("the row menu opens beside the row and covers none of the list", async ({ p
   expect(Math.abs(menuBox.top - rowBox.top)).toBeLessThanOrEqual(1);
 });
 
-// Too narrow beside the first row and too short under it, with room above.
-const CRAMPED_WINDOW = { width: 480, height: 440 };
-
-test("with no room beside or below its row, the row menu opens above it", async ({ page }) => {
-  await page.setViewportSize(CRAMPED_WINDOW);
-  await openLibrary(page);
-  const rows = page.locator("#catalogList .cat-item");
-  const row = rows.first();
-  await row.hover();
-  await row.locator(".cat-more").click();
-  const menu = page.locator(".lib-menu");
-  await expect(menu).toBeVisible();
-  const menuBox = await boxOf(menu);
-  expect(overlaps(menuBox, await boxOf(row)), "menu covers its own row").toBe(false);
-  expect(overlaps(menuBox, await boxOf(rows.nth(1))), "menu covers the next row").toBe(false);
-});
-
 // Too narrow beside any row, and tall enough for room both above and below the
 // fixture rows once unavailable rows pad the list around them.
 const NARROW_TALL_WINDOW = { width: 480, height: 900 };
@@ -279,6 +262,30 @@ test("with no room beside a middle row, the row menu opens above it, not on the 
   expect(menuBox.left, "no room beside the row").toBeLessThan(rowBox.right);
   expect(rowBox.top, "room above the row").toBeGreaterThan(menuHeight);
   expect(NARROW_TALL_WINDOW.height - rowBox.bottom, "room below the row").toBeGreaterThan(menuHeight);
+  expect(overlaps(menuBox, rowBox), "menu covers its own row").toBe(false);
+  const nextRow = page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`);
+  expect(overlaps(menuBox, await boxOf(nextRow)), "menu covers the next row").toBe(false);
+});
+
+// No width the app supports leaves the menu no room beside a row, so this stays below
+// 620; many setlists make the menu too tall to fit under the row.
+const MANY_SETLISTS = Array.from({ length: 10 }, (_, i) => ({ id: `sl-${i}`, name: `Setlist ${i}`, song_ids: [] }));
+
+test("with no room beside or below its row, the row menu opens above it", async ({ page }) => {
+  await page.setViewportSize(NARROW_TALL_WINDOW);
+  await page.route("**/api/setlists", (route) => route.fulfill({ json: MANY_SETLISTS }));
+  await seedPaddedList(page);
+  const row = page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`);
+  await row.hover();
+  await row.locator(".cat-more").click();
+  const menu = page.locator(".lib-menu");
+  await expect(menu).toBeVisible();
+  const menuBox = await boxOf(menu);
+  const rowBox = await boxOf(row);
+  const menuHeight = menuBox.bottom - menuBox.top;
+  expect(menuBox.left, "no room beside the row").toBeLessThan(rowBox.right);
+  expect(rowBox.top, "room above the row").toBeGreaterThan(menuHeight);
+  expect(NARROW_TALL_WINDOW.height - rowBox.bottom, "no room below the row").toBeLessThan(menuHeight);
   expect(overlaps(menuBox, rowBox), "menu covers its own row").toBe(false);
   const nextRow = page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`);
   expect(overlaps(menuBox, await boxOf(nextRow)), "menu covers the next row").toBe(false);
