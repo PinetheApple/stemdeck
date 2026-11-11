@@ -61,6 +61,7 @@ import { destroySections } from "./sections.js";
 import { t, plural, onLanguageChange } from "./i18n.js";
 import { paintNowPlayingArt } from "./formatIcon.js";
 import { noteMediaPosition, clearMediaSession } from "./mediaSession.js";
+import { followPlayhead, resetFollowing } from "./autoScroll.js";
 
 // Playback-engine selection. All engines play decoded AudioBuffers off a single
 // AudioContext clock (no N streaming <audio> elements — that was the source of
@@ -915,6 +916,7 @@ export function destroyPlayer() {
   updateFooterTimes(0);
   updatePresencePlayhead(0);
   if (waveScroll) waveScroll.scrollLeft = 0;
+  resetFollowing();
   loopBtn.classList.remove("active");
   playBtn.classList.remove("playing");
   stopBtn.classList.remove("stopped");
@@ -1256,6 +1258,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
   }
 
   clearOverviewWaveforms();
+  resetFollowing();
 
   // "original" is prepended at row 0 only when it actually has a URL so it
   // appears at the top. Omitting it when absent avoids a phantom 70px gap.
@@ -1453,6 +1456,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
 
     let loopWrapLogged = false;
     ws.on("timeupdate", (t) => {
+      followPlayhead(t);
       timeEl.textContent = `${fmtTime(t)} / ${fmtTime(totalDuration)}`;
       updatePlayheadMarker(t);
       updateFooterTimes(t);
@@ -1489,6 +1493,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
       // Mirror the streaming "timeupdate" handler body so playhead/footer/
       // presence/stop-visual update the same way regardless of which clock runs.
       const driveTransportUi = (t) => {
+        followPlayhead(t);
         timeEl.textContent = `${fmtTime(t)} / ${fmtTime(totalDuration)}`;
         updatePlayheadMarker(t);
         updateFooterTimes(t);

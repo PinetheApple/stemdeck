@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="/css/vocal-split.css" />
     <link rel="stylesheet" href="/css/forms.css" />
 <link rel="stylesheet" href="/css/import-source.css" />
+    <link rel="stylesheet" href="/css/autoscroll.css" />
   </head>
   <body>
 
@@ -403,6 +404,11 @@
             <span data-i18n="sections.title">Sections</span>
           </button>
         </div>
+          <button class="autoscroll-toggle" id="autoScrollBtn" type="button" aria-pressed="true"
+                  title="Keep the playhead in view while playing when zoomed in" data-i18n-title="autoScroll.title">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 17 5-5-5-5"/><path d="m13 17 5-5-5-5"/></svg>
+            <span data-i18n="autoScroll.label">Auto-scroll</span>
+          </button>
           <button class="stage-mode-btn" id="stageModeBtn" type="button" aria-pressed="false" title="Full-screen view to play along from (F)" data-i18n-title="stage.enterTitle">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/></svg>
             <span data-i18n="stage.enter">Stage mode</span>
