@@ -121,6 +121,8 @@ docker run -d --name stemdeck -p 8000:8000 \
   ghcr.io/stemdeckapp/stemdeck:edge
 ```
 
+On a bridge network (the default) the container only sees its own internal address, so Settings > Network has nothing a phone can open. Add `-e STEMDECK_PUBLIC_URL=https://stemdeck.example.net` (the address other devices actually use) to show that instead; see [Configuration](configuration.md).
+
 On a Linux host with an NVIDIA GPU (driver + NVIDIA Container Toolkit installed), add `--runtime=nvidia -e NVIDIA_VISIBLE_DEVICES=all` and StemDeck auto-detects CUDA. The image already bundles CUDA-enabled torch, so no separate CUDA install is needed.
 
 #### Unraid

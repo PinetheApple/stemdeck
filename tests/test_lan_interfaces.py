@@ -8,6 +8,7 @@ private range, and only the interface tells them apart.
 from __future__ import annotations
 
 import errno
+import logging
 import socket
 import struct
 from pathlib import Path
@@ -16,7 +17,7 @@ import httpx
 import pytest
 
 import app.main as main
-from app.core import lan_interfaces, tls_listener
+from app.core import config, lan_interfaces, tls_listener
 from app.core.lan_interfaces import NetInterface
 
 UP_AND_RUNNING = 0x1043  # UP | BROADCAST | RUNNING | MULTICAST
@@ -36,19 +37,28 @@ FAKE_HOST = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _no_public_url(monkeypatch) -> None:
+    monkeypatch.setattr(main, "PUBLIC_URL", None)
+
+
 async def _listed(monkeypatch, local_ips: set[str], interfaces: list[NetInterface]) -> list[str]:
     monkeypatch.setattr(lan_interfaces, "read_interfaces", lambda: interfaces)
     return await _settings_addresses(monkeypatch, local_ips)
 
 
 async def _settings_addresses(monkeypatch, local_ips: set[str]) -> list[str]:
+    return (await _settings(monkeypatch, local_ips))["lan_addresses"]
+
+
+async def _settings(monkeypatch, local_ips: set[str]) -> dict[str, object]:
     monkeypatch.setattr(main, "_local_ips", lambda: frozenset(local_ips))
     monkeypatch.setattr(tls_listener, "_active_port", None)
     monkeypatch.setattr(main, "SSL_CERTFILE", None)
     monkeypatch.setattr(main, "SSL_KEYFILE", None)
     transport = httpx.ASGITransport(app=main.app, client=("127.0.0.1", 5000))
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as c:
-        return (await c.get("/api/settings")).json()["lan_addresses"]
+        return (await c.get("/api/settings")).json()
 
 
 def _fake_host(monkeypatch, tmp_path: Path, platform: str) -> None:
@@ -155,6 +165,75 @@ async def test_a_vpn_interface_stays_listed(monkeypatch) -> None:
         [NetInterface(name="tailscale0", ipv4="100.68.238.69", running=True)],
     )
     assert listed == ["http://100.68.238.69:8000"]
+
+
+@pytest.mark.parametrize("name", ["tailscale0", "wg0", "utun3", "tun0"])
+async def test_a_vpn_interface_is_marked_vpn_by_its_name(monkeypatch, name: str) -> None:
+    monkeypatch.setattr(
+        lan_interfaces,
+        "read_interfaces",
+        lambda: [
+            NetInterface(name=name, ipv4="10.8.0.2", running=True),
+            NetInterface(name="wlan0", ipv4="192.168.1.20", running=True),
+        ],
+    )
+    settings = await _settings(monkeypatch, {"10.8.0.2", "192.168.1.20"})
+    assert settings["network_addresses"] == [
+        {"url": "http://10.8.0.2:8000", "kind": "vpn"},
+        {"url": "http://192.168.1.20:8000", "kind": "lan"},
+    ]
+    assert settings["lan_addresses"] == ["http://10.8.0.2:8000", "http://192.168.1.20:8000"]
+
+
+@pytest.mark.parametrize(
+    "ip,kind",
+    [
+        ("100.64.0.1", "vpn"),
+        ("100.127.255.254", "vpn"),
+        ("100.63.255.255", "lan"),
+        ("100.128.0.1", "lan"),
+    ],
+)
+async def test_the_cgnat_range_is_marked_vpn_without_an_interface_table(
+    monkeypatch,
+    ip: str,
+    kind: str,
+) -> None:
+    monkeypatch.setattr(lan_interfaces, "read_interfaces", lambda: [])
+    settings = await _settings(monkeypatch, {ip})
+    assert settings["network_addresses"] == [{"url": f"http://{ip}:8000", "kind": kind}]
+
+
+async def test_a_public_url_replaces_the_detected_addresses(monkeypatch) -> None:
+    monkeypatch.setattr(main, "PUBLIC_URL", "https://stemdeck.example.net")
+    settings = await _settings(monkeypatch, {"192.168.1.20"})
+    assert settings["lan_addresses"] == ["https://stemdeck.example.net"]
+    assert settings["network_addresses"] == [
+        {"url": "https://stemdeck.example.net", "kind": "public"},
+    ]
+
+
+@pytest.mark.parametrize(
+    "raw,parsed",
+    [
+        ("https://stemdeck.example.net/", "https://stemdeck.example.net"),
+        (" http://192.168.1.20:8000 ", "http://192.168.1.20:8000"),
+        ("https://proxy.example.net/stemdeck/", "https://proxy.example.net/stemdeck"),
+        ("", None),
+    ],
+)
+def test_a_public_url_is_read_without_its_trailing_slash(raw: str, parsed: str | None) -> None:
+    assert config.parse_public_url(raw) == parsed
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ["stemdeck.example.net", "ftp://stemdeck.example.net", "https://", "http://host:port"],
+)
+def test_an_invalid_public_url_is_ignored_with_a_warning(caplog, raw: str) -> None:
+    with caplog.at_level(logging.WARNING, logger="stemdeck.config"):
+        assert config.parse_public_url(raw) is None
+    assert "STEMDECK_PUBLIC_URL" in caplog.text
 
 
 async def test_without_an_interface_table_every_address_is_kept(monkeypatch) -> None:

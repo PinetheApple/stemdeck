@@ -9,8 +9,10 @@ An address is left out when its interface is not up and running, when it is a
 Linux bridge with no hardware anywhere behind it (docker0, br-*, virbr0 and
 cni0 all look like this in sysfs), or when its name belongs to a container or
 VM host network. The name list is the fallback for macOS, which has no sysfs.
-VPN interfaces (tailscale0, wg0, utun*) stay listed: a phone on the same VPN
-reaches them.
+VPN interfaces (tailscale0, wg0, utun*, tun*) stay listed, since a phone on the
+same VPN reaches them, but are marked as VPN so the phone's owner knows which
+address needs the VPN on. Tailscale's 100.64.0.0/10 range counts as VPN even
+where no interface could be read.
 
 Everything here is best-effort and standard-library only. Interfaces are read
 with the SIOCGIF* ioctls, which Linux and macOS both have; on Windows, or when
@@ -19,6 +21,7 @@ a query fails, no interface is read and every address is kept as before.
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import re
 import socket
@@ -60,6 +63,14 @@ _HOST_ONLY_NAME = re.compile(
     r"^(docker|br-|veth|virbr|cni|flannel|cali|podman|vboxnet|vmnet|bridge1\d\d)"
 )
 
+_VPN_NAME = re.compile(r"^(tailscale|wg|utun|tun)")
+_CGNAT_NETWORK = ipaddress.IPv4Network("100.64.0.0/10")
+
+KIND_LAN = "lan"
+KIND_VPN = "vpn"
+# An address the operator configured rather than one read off an interface.
+KIND_PUBLIC = "public"
+
 
 @dataclass(frozen=True)
 class NetInterface:
@@ -72,6 +83,18 @@ class NetInterface:
 def unreachable_ipv4s(interfaces: Iterable[NetInterface]) -> frozenset[str]:
     """The addresses that sit on an interface no other device can reach."""
     return frozenset(iface.ipv4 for iface in interfaces if _is_unreachable(iface))
+
+
+def vpn_ipv4s(interfaces: Iterable[NetInterface]) -> frozenset[str]:
+    """The addresses that sit on a VPN interface, judged by its name."""
+    return frozenset(iface.ipv4 for iface in interfaces if _VPN_NAME.match(iface.name))
+
+
+def address_kind(ipv4: str, vpn_addresses: frozenset[str]) -> str:
+    """KIND_VPN for an address on a VPN interface or in the CGNAT range, else KIND_LAN."""
+    if ipv4 in vpn_addresses or ipaddress.IPv4Address(ipv4) in _CGNAT_NETWORK:
+        return KIND_VPN
+    return KIND_LAN
 
 
 def _is_unreachable(iface: NetInterface) -> bool:
