@@ -12,11 +12,11 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from app.core.config import (
-    CACHE_TEMP_MIN_AGE_SECONDS,
     DEMUCS_MODEL,
     FAILED_TTL_SECONDS,
     JOB_TTL_SECONDS,
     STEM_NAMES,
+    TEMP_MIN_AGE_SECONDS,
     TIMEOUT_FFMPEG,
     ffmpeg_executable,
 )
@@ -517,18 +517,20 @@ def _song_leftovers(jobs_dir: Path) -> list[Path]:
 
 
 def _cache_leftovers(cache_dirs: Iterable[Path]) -> list[Path]:
-    cutoff = time.time() - CACHE_TEMP_MIN_AGE_SECONDS
     found: list[Path] = []
     for cache_dir in cache_dirs:
         try:
-            found += [
-                p
-                for p in _matching(cache_dir, _CACHE_TEMP_DIR_RE, _CACHE_TEMP_FILE_RE)
-                if p.stat().st_mtime < cutoff
-            ]
+            found += _matching(cache_dir, _CACHE_TEMP_DIR_RE, _CACHE_TEMP_FILE_RE)
         except OSError:
             logger.warning("crash leftover sweep could not read %s", cache_dir.name)
     return found
+
+
+def _unwritten_since(path: Path, cutoff: float) -> bool:
+    try:
+        return path.stat().st_mtime < cutoff
+    except OSError:
+        return False
 
 
 def sweep_crash_leftovers(jobs_dir: Path, cache_dirs: Iterable[Path]) -> int:
@@ -537,11 +539,12 @@ def sweep_crash_leftovers(jobs_dir: Path, cache_dirs: Iterable[Path]) -> int:
 
     Call this at startup only, before the queue runs anything: no writer is
     alive then, so every temp found is dead. Only StemDeck's song folders are
-    looked in, and no link is followed or removed. A cache temp written in the
-    last CACHE_TEMP_MIN_AGE_SECONDS is left alone: it may be another server's."""
+    looked in, and no link is followed or removed. A temp written in the last
+    TEMP_MIN_AGE_SECONDS is left alone: it may be another server's."""
+    cutoff = time.time() - TEMP_MIN_AGE_SECONDS
     gone = 0
     for path in _song_leftovers(jobs_dir) + _cache_leftovers(cache_dirs):
-        if not is_real_entry(path):
+        if not is_real_entry(path) or not _unwritten_since(path, cutoff):
             continue
         try:
             if path.is_dir():

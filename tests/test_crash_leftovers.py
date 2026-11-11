@@ -22,12 +22,12 @@ from fastapi.testclient import TestClient
 
 import app.api.stems as stems_mod
 from app.core import registry as _registry
-from app.core.config import CACHE_TEMP_MIN_AGE_SECONDS
+from app.core.config import TEMP_MIN_AGE_SECONDS
 from app.core.models import Job
 from app.pipeline import click_render
 
 JOB = "a1b2c3d4e5f6"
-OLD = time.time() - CACHE_TEMP_MIN_AGE_SECONDS - 60
+OLD = time.time() - TEMP_MIN_AGE_SECONDS - 60
 
 
 @pytest.fixture(autouse=True)
@@ -68,11 +68,16 @@ def _song(jobs: Path) -> tuple[list[Path], list[Path]]:
         _put(stems / ".complete"),
         _put(stems / ".DS_Store"),
     ]
-    left = [
-        _put(job_dir / f".metadata.json.{_hex()}.tmp"),
-        _put(stems / f".original.wav.{_hex()}.tmp"),
-        _put(stems / f".vocals.mp3.{_hex()}.tmp"),
+    kept += [
+        # Recent: another server sharing the jobs folder may be writing them.
+        _put(stems / f".mix.wav.{_hex()}.tmp"),
         _put(stems / f".vocal_split.{_hex()}.tmp", folder=True),
+    ]
+    left = [
+        _put(job_dir / f".metadata.json.{_hex()}.tmp", old=True),
+        _put(stems / f".original.wav.{_hex()}.tmp", old=True),
+        _put(stems / f".vocals.mp3.{_hex()}.tmp", old=True),
+        _put(stems / f".vocal_split.{_hex()}.tmp", folder=True, old=True),
     ]
     return kept, left
 
