@@ -41,7 +41,10 @@ from app.core.song_folder import (
     backfill_stems_complete,
     copy_saved_fields,
     is_real_entry,
+    is_started_only,
+    read_metadata,
     saved_from_meta,
+    write_json_atomic,
 )
 
 logger = logging.getLogger("stemdeck.registry")
@@ -546,6 +549,8 @@ def _stopped_from_source(job_dir: Path) -> Job | None:
     # registry.
     title = f"Recovered track {job_dir.name[:_RECOVERED_ID_CHARS]}"
     logger.warning("%s holds an upload that was never separated; kept as stopped", job_dir.name)
+    meta = read_metadata(job_dir / "metadata.json")
+    added = saved_from_meta(meta, ("created_at",)) if isinstance(meta, dict) else {}
     return Job(
         id=job_dir.name,
         status="stopped",
@@ -554,8 +559,49 @@ def _stopped_from_source(job_dir: Path) -> Job | None:
         source_url=f"local:{title}",
         source_format=source.suffix[1:].lower(),
         selected_stems=list(STEM_NAMES),
-        created_at=created_at,
+        created_at=added.get("created_at", created_at),
     )
+
+
+def _disk_stems(job_dir: Path) -> list[dict[str, str]]:
+    """The stems a song's folder holds, Lead + Backing both or neither: the
+    worker writes the pair one file at a time, and a kill between them leaves
+    a lead alone (upstream PR 901)."""
+    stems_dir = job_dir / "stems"
+    has_split = all((stems_dir / f"{name}.wav").is_file() for name in EXTRA_STEM_NAMES)
+    return [
+        {"name": name, "url": f"/api/jobs/{job_dir.name}/stems/{name}.wav"}
+        for name in ("original", *STEM_NAMES, *(EXTRA_STEM_NAMES if has_split else ()))
+        if (stems_dir / f"{name}.wav").is_file()
+    ]
+
+
+def _finished_meta(job_dir: Path) -> dict | None:
+    """The metadata.json of a folder whose separation finished, or None.
+
+    A song made before the marker gets it while the registry holds it
+    (backfill_stems_complete); one whose record was already gone has the
+    metadata.json a finished run writes after the marker. A file with only the
+    add time is from before the song was done; any other one, unreadable
+    included, is taken as a finished run's, as it always was."""
+    meta_path = job_dir / "metadata.json"
+    meta = read_metadata(meta_path)
+    finished = meta_path.is_file() and not is_started_only(meta)
+    if not (job_dir / "stems" / STEMS_COMPLETE).is_file() and not finished:
+        logger.warning("%s holds stems of a separation that did not finish", job_dir.name)
+        return None
+    if not isinstance(meta, dict):
+        meta = {}  # read as none, so the folders after this one still rebuild
+    if not finished:
+        # Crash window (#284): the process died between the marker and the
+        # metadata write. Recover with a placeholder title and write it beside
+        # the add time now, so the NEXT restart takes the normal path.
+        meta["title"] = f"Recovered track {job_dir.name[:_RECOVERED_ID_CHARS]}"
+        try:
+            write_json_atomic(meta_path, meta)
+        except OSError:
+            logger.warning("could not write recovery metadata for %s", job_dir.name, exc_info=True)
+    return meta
 
 
 def _recover_done_job(job_dir: Path) -> Job | None:
@@ -564,22 +610,11 @@ def _recover_done_job(job_dir: Path) -> Job | None:
     stems_dir = job_dir / "stems"
     if not stems_dir.is_dir():
         return None
-    # Lead + Backing both or neither: the worker writes the pair one file at a
-    # time, and a kill between them leaves a lead alone.
-    has_split = all((stems_dir / f"{name}.wav").is_file() for name in EXTRA_STEM_NAMES)
-    stems = [
-        {"name": name, "url": f"/api/jobs/{job_dir.name}/stems/{name}.wav"}
-        for name in ("original", *STEM_NAMES, *(EXTRA_STEM_NAMES if has_split else ()))
-        if (stems_dir / f"{name}.wav").is_file()
-    ]
+    stems = _disk_stems(job_dir)
     if not stems:
         return None
-    meta_path = job_dir / "metadata.json"
-    # A song made before the marker gets it while the registry holds it
-    # (backfill_stems_complete). One whose record was already gone has the
-    # metadata.json written once a song is done, after the marker.
-    if not (stems_dir / STEMS_COMPLETE).is_file() and not meta_path.is_file():
-        logger.warning("%s holds stems of a separation that did not finish", job_dir.name)
+    meta = _finished_meta(job_dir)
+    if meta is None:
         return None
     mix_url = None
     if (stems_dir / "mix.wav").is_file():
@@ -590,25 +625,6 @@ def _recover_done_job(job_dir: Path) -> Job | None:
     # same way `stems` above does, so the recovered library entry doesn't
     # regress (#275).
     vocal_split, vocal_split_choice, vocal_split_error = _recovered_vocal_split(stems_dir)
-    meta: dict = {}
-    if meta_path.is_file():
-        try:
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        except (OSError, RecursionError, ValueError):
-            pass
-        if not isinstance(meta, dict):
-            meta = {}  # read as none, so the folders after this one still rebuild
-    else:
-        # Crash window (#284): the process died between status=done and the
-        # metadata write, leaving a complete stems dir that used to be
-        # unrecoverable. Recover with a placeholder title and write a minimal
-        # metadata.json immediately, so the NEXT restart takes the normal
-        # path -- self-healing, not a permanent special case.
-        meta = {"title": f"Recovered track {job_dir.name[:_RECOVERED_ID_CHARS]}"}
-        try:
-            meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
-        except OSError:
-            logger.warning("could not write recovery metadata for %s", job_dir.name, exc_info=True)
     job = Job(
         id=job_dir.name,
         status="done",

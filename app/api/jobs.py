@@ -69,7 +69,7 @@ from app.core.registry import set_trashed as registry_set_trashed
 from app.core.setlists import remove_songs as setlists_remove_songs
 from app.core.setlists import replace_song as setlists_replace_song
 from app.core.settings import get_auto_sections, get_discogs_token, get_max_duration_sec
-from app.core.song_folder import metadata_lock, saved_fields
+from app.core.song_folder import keep_added_time, metadata_lock, saved_fields
 from app.core.song_folder import write_json_atomic as _write_json_atomic
 from app.core.stems_location import is_relocating
 from app.pipeline import discogs, jobqueue
@@ -443,6 +443,7 @@ async def _create_local_job(request: Request) -> dict[str, str]:
         auto_sections=get_auto_sections(),
         replaces=replaces,
     )
+    await asyncio.to_thread(keep_added_time, job, job_dir)
     if not registry_register_if_capacity(job, MAX_PENDING_UPLOAD_JOBS):
         shutil.rmtree(job_dir, ignore_errors=True)
         raise HTTPException(status_code=503, detail=_UPLOAD_QUEUE_FULL_DETAIL)
@@ -831,6 +832,7 @@ async def resplit_job(job_id: str, body: ResplitBody) -> dict:
         auto_sections=get_auto_sections(),
         vocal_split_choice=job.vocal_split_choice,
     )
+    await asyncio.to_thread(keep_added_time, new_job, new_dir)
     if not registry_register_if_capacity(new_job, MAX_PENDING_UPLOAD_JOBS):
         shutil.rmtree(new_dir, ignore_errors=True)
         raise HTTPException(status_code=503, detail=_UPLOAD_QUEUE_FULL_DETAIL)

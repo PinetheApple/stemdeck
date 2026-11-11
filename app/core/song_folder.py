@@ -183,3 +183,36 @@ def copy_saved_fields(job: Job, job_dir: Path) -> bool:
             logger.warning("could not copy saved fields into %s", job_dir.name, exc_info=True)
             return False
     return True
+
+
+def read_metadata(meta_path: Path) -> Any:
+    """metadata.json as parsed, {} when there is none, or None when it cannot
+    be read as JSON."""
+    try:
+        return json.loads(meta_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, RecursionError, ValueError):
+        logger.warning("could not read %s", meta_path, exc_info=True)
+        return None
+
+
+def is_started_only(meta: Any) -> bool:
+    """A metadata.json that only holds what keep_added_time starts it with: a
+    finished run writes the title among the rest (upstream PR 1005)."""
+    return isinstance(meta, dict) and "created_at" in meta and "title" not in meta
+
+
+def keep_added_time(job: Job, job_dir: Path) -> None:
+    """Start the song's metadata.json with the time it was added, when its
+    folder has none yet, so a song rebuilt from its folder keeps its place in
+    the library. The folder's own time moves with every file written into it.
+    Never fails the caller: without it, the rebuild takes the folder's time."""
+    meta_path = job_dir / "metadata.json"
+    with metadata_lock:
+        try:
+            if meta_path.exists():
+                return
+            write_json_atomic(meta_path, {"created_at": job.created_at})
+        except OSError:
+            logger.warning("could not write the add time of %s", job.id, exc_info=True)

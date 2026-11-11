@@ -284,7 +284,8 @@ def test_an_old_upload_resplits(client, old_library, jobs_dir):
     assert new.artist == _jobs[OLD_ID].artist
     assert (new.identity, new.work, new.has_lyrics) == (None, None, False)
     new_dir = jobs_dir / new.id
-    assert sorted(p.name for p in new_dir.iterdir()) == ["source.mp3"]
+    # metadata.json holds only the time it was added (keep_added_time).
+    assert sorted(p.name for p in new_dir.iterdir()) == ["metadata.json", "source.mp3"]
     # The track it came from is untouched.
     assert _jobs[OLD_ID].status == "done"
     assert (jobs_dir / OLD_ID / "source.mp3").read_bytes() == b"ID3old"
@@ -547,7 +548,11 @@ def test_a_resplit_of_a_job_lrclib_had_nothing_for(client, jobs_dir):
     new = _jobs[r.json()["job_id"]]
     assert new.has_lyrics is False
     new_dir = jobs_dir / new.id
-    assert sorted(p.name for p in new_dir.iterdir()) == ["lyrics_candidates.json", "source.mp3"]
+    assert sorted(p.name for p in new_dir.iterdir()) == [
+        "lyrics_candidates.json",
+        "metadata.json",
+        "source.mp3",
+    ]
     assert json.loads((new_dir / "lyrics_candidates.json").read_text(encoding="utf-8")) == marker
     assert (jobs_dir / job.id / "lyrics_candidates.json").is_file()
     assert new.selected_stems == ["vocals", "drums"]
