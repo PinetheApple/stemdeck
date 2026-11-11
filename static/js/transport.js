@@ -36,7 +36,7 @@ import { t, onLanguageChange } from "./i18n.js";
 import { pitchBlockedKey } from "./pitchBus.js";
 import { refitFooter } from "./footerFit.js";
 import { SPEED_MIN, SPEED_MAX, SPEED_STEP, SPEED_NOTCH, clampSpeed, nextNotch, parseSpeedInput } from "./speedInput.js";
-import { followPlayhead, resumeFollowing } from "./autoScroll.js";
+import { trackPlayhead, resumeFollowing } from "./autoScroll.js";
 
 // Zoom range. 1 is the whole track fitted to the panel; there is nothing below
 // it to show, so it is the floor rather than a soft default.
@@ -118,7 +118,7 @@ export function setPlayheadTime(sec) {
   if (!tx || !totalDuration || loadingMultitrack(tx)) return;
   const next = Math.max(0, Math.min(totalDuration, sec));
   tx.setTime(next);
-  followPlayhead(next, true);
+  trackPlayhead(next, true);
   updatePlayheadMarker(next);
   updateFooterTimes(next);
   updatePresencePlayhead(next);

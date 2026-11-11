@@ -56,7 +56,7 @@ import { destroySections } from "./sections.js";
 import { t, plural, onLanguageChange } from "./i18n.js";
 import { paintNowPlayingArt } from "./formatIcon.js";
 import { noteMediaPosition, clearMediaSession } from "./mediaSession.js";
-import { followPlayhead, resetFollowing } from "./autoScroll.js";
+import { trackPlayhead, resetFollowing } from "./autoScroll.js";
 
 // Playback-engine selection. All engines play decoded AudioBuffers off a single
 // AudioContext clock (no N streaming <audio> elements — that was the source of
@@ -1448,7 +1448,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
 
     let loopWrapLogged = false;
     ws.on("timeupdate", (t) => {
-      followPlayhead(t);
+      trackPlayhead(t);
       timeEl.textContent = `${fmtTime(t)} / ${fmtTime(totalDuration)}`;
       updatePlayheadMarker(t);
       updateFooterTimes(t);
@@ -1485,7 +1485,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
       // Mirror the streaming "timeupdate" handler body so playhead/footer/
       // presence/stop-visual update the same way regardless of which clock runs.
       const driveTransportUi = (t) => {
-        followPlayhead(t);
+        trackPlayhead(t);
         timeEl.textContent = `${fmtTime(t)} / ${fmtTime(totalDuration)}`;
         updatePlayheadMarker(t);
         updateFooterTimes(t);
