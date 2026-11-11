@@ -1,12 +1,13 @@
 // The phone says a Lead + Backing import is ready only once its split ends, and
-// says so when the split failed: the split's 202 answer is not its result.
+// says why when the split failed: the split's 202 answer is not its result.
 import { test, expect } from "@playwright/test";
 
 const JSON_TYPE = "application/json";
 const NEW_JOB = "e2e0f00dfeed";
 const SOURCE = "https://example.com/song.mp3";
 const READY = "Stems ready!";
-const SPLIT_FAILED = "Stems ready (lead/backing split didn't work this time).";
+const SPLIT_FAILED = "Stems ready, without the lead/backing split.";
+const OUT_OF_MEMORY_REASON = "There was not enough memory to split the vocals. Close other apps, then try again.";
 
 const answer = (route, status, body) => route.fulfill({ status, contentType: JSON_TYPE, body: JSON.stringify(body) });
 const running = (progress) => ({ state: "running", choice: "split", error: null, phase: "splitting", progress });
@@ -73,12 +74,13 @@ test.describe("phone: Lead + Backing import", () => {
     expect(calls.starts).toBe(0);
   });
 
-  test("says so when the split fails", async ({ page }) => {
+  test("says the stems are ready and why the split failed", async ({ page }) => {
     const { server } = await stubImport(page);
     await importWith(page, "split");
     await expect(progressCard(page)).toContainText("Splitting lead/backing vocals…");
 
     server.view = ended("error", "out_of_memory");
-    await expect(toastEl(page)).toHaveText(SPLIT_FAILED);
+    await expect(toastEl(page)).toContainText(SPLIT_FAILED);
+    await expect(toastEl(page)).toContainText(OUT_OF_MEMORY_REASON);
   });
 });

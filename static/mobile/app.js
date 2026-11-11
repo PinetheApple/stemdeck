@@ -8,7 +8,16 @@ import { createChunkedAudioEngine } from "../js/chunkedAudioEngine.js";
 import { PITCH_MAX, PITCH_MIN, clampPitch } from "../js/pitchBus.js";
 import { createPlaybackContext } from "../js/audioContext.js";
 import { HTTP_CONFLICT } from "../js/lyricsTranscribe.js";
-import { SPLIT_STATE, SPLIT_CHOICE, startSplit, followSplit, storeSplitChoice } from "../js/vocalSplit.js";
+import {
+  SPLIT_STATE,
+  SPLIT_CHOICE,
+  failureKey,
+  startSplit,
+  followSplit,
+  storeSplitChoice,
+} from "../js/vocalSplit.js";
+// The phone never calls initI18n, so translate() answers in English, like the rest of its UI.
+import { t as translate } from "../js/i18n.js";
 // Per-stem label + color, keyed by the backend stem name. Unknown names fall
 // back to a rotating palette so non-standard models still render sensibly.
 const STEM_META = {
@@ -717,7 +726,7 @@ async function _runVocalSplitThenFinish(jobId) {
   // The base separation still succeeded -- the split is a best-effort
   // extra, so this is a lesser notice, not a failure of the whole import.
   if (final?.state === SPLIT_STATE.DONE) toast("Stems ready!");
-  else toast("Stems ready (lead/backing split didn't work this time).");
+  else toast(`Stems ready, without the lead/backing split. ${translate(failureKey(final?.error))}`);
   _showExtractStatus(jobId, EXTRACT_DONE_STATUS, 1);
   loadLibrary();
   _finishExtractJob(jobId);
