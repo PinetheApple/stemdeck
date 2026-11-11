@@ -45,6 +45,7 @@ from app.core.song_folder import (
     read_metadata,
     saved_from_meta,
     write_json_atomic,
+    write_text_atomic,
 )
 
 logger = logging.getLogger("stemdeck.registry")
@@ -57,6 +58,8 @@ _jobs: dict[str, Job] = {}
 # of waiting for the pipeline thread to notice the cancel flag.
 _procs: dict[str, subprocess.Popen] = {}
 _lock = threading.Lock()
+# Orders registry.json saves (see persist). Taken before _lock, never inside it.
+_write_lock = threading.Lock()
 _REGISTRY_FILE = "registry.json"
 _TERMINAL = {"done"}
 # Jobs that were queued or mid-flight when the process died. They are persisted
@@ -230,9 +233,11 @@ def _prune_deleted(jobs_dir: Path) -> None:
 
     A record only has to outlive the directory it refers to, so this keeps the
     set naturally bounded instead of growing for the life of the install.
-    Caller must not hold _lock."""
+    Caller must not hold _lock. The disk checks run outside it."""
     with _lock:
-        stale = {job_id for job_id in _deleted if not (jobs_dir / job_id).exists()}
+        recorded = set(_deleted)
+    stale = {job_id for job_id in recorded if not (jobs_dir / job_id).exists()}
+    with _lock:
         _deleted.difference_update(stale)
 
 
@@ -240,11 +245,15 @@ def persist(jobs_dir: Path) -> None:
     """Persist terminal jobs so completed library entries survive restarts.
 
     Callers run on the pipeline thread, API threads, and the sweep loop
-    concurrently, so the write+replace happens under the lock with a unique
-    temp name per call (#281) -- a shared temp path let two writers collide,
-    and on Windows os.replace over a file another writer holds open raises
-    PermissionError. Best-effort like the settings store: a failed persist
-    logs and returns rather than killing the caller."""
+    concurrently, so each save takes its snapshot and writes it under
+    _write_lock with a unique temp name per call (#281) -- a shared temp path
+    let two writers collide, and on Windows os.replace over a file another
+    writer holds open raises PermissionError. One lock for both keeps a later
+    snapshot from being overwritten by an earlier one. Only the snapshot takes
+    _lock: every get() waited on the disk when the write did too (upstream PR
+    896). Blocking, so async callers run it in a thread. Best-effort like the
+    settings store: a failed persist logs and returns rather than killing the
+    caller."""
     try:
         jobs_dir.mkdir(parents=True, exist_ok=True)
     except OSError:
@@ -252,31 +261,19 @@ def persist(jobs_dir: Path) -> None:
         return
     path = registry_path(jobs_dir)
     _prune_deleted(jobs_dir)
-    with _lock:
-        records = [
-            job.to_record()
-            for job in sorted(_jobs.values(), key=lambda item: item.created_at)
-            if job.status in _PERSISTED
-        ]
-        payload = (
-            json.dumps(
-                {
-                    "version": REGISTRY_VERSION,
-                    "jobs": records,
-                    "deleted": sorted(_deleted),
-                },
-                indent=2,
-            )
-            + "\n"
-        )
-        tmp = jobs_dir / f".registry.{uuid.uuid4().hex}.tmp"
+    with _write_lock:
+        with _lock:
+            records = [
+                job.to_record()
+                for job in sorted(_jobs.values(), key=lambda item: item.created_at)
+                if job.status in _PERSISTED
+            ]
+            deleted = sorted(_deleted)
+        body = {"version": REGISTRY_VERSION, "jobs": records, "deleted": deleted}
         try:
-            tmp.write_text(payload, encoding="utf-8")
-            tmp.replace(path)
+            write_text_atomic(path, json.dumps(body, indent=2) + "\n")
         except OSError:
             logger.warning("could not persist registry to %s", path, exc_info=True)
-        finally:
-            tmp.unlink(missing_ok=True)
 
 
 def restore(jobs_dir: Path) -> None:
@@ -697,7 +694,9 @@ def reset_all(jobs_dir: Path) -> list[str]:
     -> "Reset app data") -- the caller is responsible for checking no job is
     actively running first (deleting a running job's directory out from
     under it would corrupt that job, not just reset the library)."""
-    with _lock:
+    # A save still writing its snapshot finishes first: replacing the file
+    # after the loop below removed it brought the old library back.
+    with _write_lock, _lock:
         _jobs.clear()
         _procs.clear()
     if not jobs_dir.is_dir():

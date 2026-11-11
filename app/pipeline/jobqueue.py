@@ -193,7 +193,7 @@ async def _dispatch(job: Job) -> None:
                 stage="Error: Source file missing",
                 error="The uploaded file is no longer available. Re-import it to finish.",
             )
-            registry_persist(JOBS_DIR)
+            await asyncio.to_thread(registry_persist, JOBS_DIR)
             return
         await run_local_pipeline(job, source, JOBS_DIR)
         return
@@ -212,7 +212,7 @@ async def _finalise_dropped_job(job: Job) -> None:
         return
     if settle_cancelled(job):
         await asyncio.to_thread(cleanup_job_dir, job.id)
-    registry_persist(JOBS_DIR)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
 
 
 async def _worker_loop() -> None:

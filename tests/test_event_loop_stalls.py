@@ -10,16 +10,20 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
+import os
 import shutil
 import threading
 import time
 from pathlib import Path
 from unittest.mock import patch
 
+import httpx
 import pytest
 
 from app.core import registry as _registry
 from app.core.models import Job, JobCancelled
+from app.core.registry import registry_path
 from app.pipeline import jobqueue
 from app.pipeline import runner as _runner
 
@@ -148,3 +152,101 @@ async def test_a_job_cancelled_before_its_claim_is_cleaned_up_off_the_loop(monke
     ticks = await _ticks_while(removing, asyncio.wait_for(settle(), 5))
 
     assert ticks > 0, "the cleanup blocked the event loop"
+
+
+# ─── a registry save holds neither the lock nor the loop (upstream PR 896) ───
+
+
+def _slow_registry_write(monkeypatch) -> threading.Event:
+    return _slow(monkeypatch, os, "replace", lambda src, dst: Path(dst).name == "registry.json")
+
+
+def test_the_write_does_not_hold_the_registry_lock(tmp_path: Path, monkeypatch):
+    """Every registry.get, from every request and stream, waited on the disk."""
+    held: list[bool] = []
+    real = os.replace
+
+    def replace(src, dst):
+        if Path(dst).name == "registry.json":
+            held.append(_registry._lock.locked())
+        real(src, dst)
+
+    monkeypatch.setattr(os, "replace", replace)
+    _registry.register(Job(id=JOB, status="done", title="Song"))
+
+    _registry.persist(tmp_path)
+
+    assert held == [False]
+    saved = json.loads(registry_path(tmp_path).read_text(encoding="utf-8"))
+    assert [record["id"] for record in saved["jobs"]] == [JOB]
+
+
+def test_a_later_save_is_never_overwritten_by_an_earlier_one(tmp_path: Path, monkeypatch):
+    job = _registry.register(Job(id=JOB, status="done", title="Before"))
+    writing = _slow_registry_write(monkeypatch)
+    first = threading.Thread(target=_registry.persist, args=(tmp_path,))
+    first.start()
+    assert writing.wait(1)
+    job.title = "After"
+    _registry.persist(tmp_path)
+    first.join()
+
+    saved = json.loads(registry_path(tmp_path).read_text(encoding="utf-8"))
+    assert saved["jobs"][0]["title"] == "After"
+
+
+def test_a_save_still_writing_cannot_undo_a_reset(tmp_path: Path, monkeypatch):
+    _registry.register(Job(id=JOB, status="done", title="Song"))
+    writing = _slow_registry_write(monkeypatch)
+    save = threading.Thread(target=_registry.persist, args=(tmp_path,))
+    save.start()
+    assert writing.wait(1)
+    _registry.reset_all(tmp_path)
+    save.join()
+
+    assert not registry_path(tmp_path).exists()
+
+
+def test_a_timing_never_changes_a_dict_a_save_may_be_reading():
+    """The pipeline thread added timings in place while a save serialised the
+    same dict: "dictionary changed size during iteration", a 500."""
+    job = Job(id=JOB, stage_timings={"download": 1.0})
+    before = job.stage_timings
+
+    _runner._lap(job, "separate", time.monotonic())
+
+    assert before == {"download": 1.0}
+    assert set(job.stage_timings) == {"download", "separate"}
+
+
+async def test_a_route_saving_the_registry_leaves_the_loop_free(monkeypatch):
+    from app.main import app
+
+    writing = _slow_registry_write(monkeypatch)
+    monkeypatch.setattr(jobqueue, "enqueue", lambda job_id: None)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        request = client.post("/api/jobs", json={"url": "https://youtu.be/dQw4w9WgXcQ"})
+        ticks = await _ticks_while(writing, request)
+
+    assert ticks > 0, "the registry write blocked the event loop"
+
+
+@pytest.mark.parametrize("ending", ["done", "cancelled", "failed"])
+async def test_the_pipeline_saving_the_registry_leaves_the_loop_free(
+    tmp_path: Path, monkeypatch, ending
+):
+    job = _registry.register(Job(id=JOB, title="Song", cancel_requested=ending == "cancelled"))
+    (tmp_path / JOB).mkdir()
+
+    def run(_job, _job_dir):
+        if ending == "cancelled":
+            raise JobCancelled()
+        if ending == "failed":
+            raise RuntimeError("worker died")
+
+    writing = _slow_registry_write(monkeypatch)
+    ticks = await _ticks_while(writing, _runner._run_async(job, tmp_path / JOB, tmp_path, run))
+
+    assert ticks > 0, "the registry write blocked the event loop"

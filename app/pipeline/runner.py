@@ -161,11 +161,10 @@ def _prepare_local_source(job: Job, source: Path, job_dir: Path) -> Path:
 def _lap(job: Job, name: str, start: float) -> float:
     """Record a stage duration in job.stage_timings; returns a new start mark.
     Timings feed the one-line completion summary, metadata.json, and the
-    failure quarantine's error.txt (#293)."""
+    failure quarantine's error.txt (#293). A new dict each time: a registry
+    save reads the old one from another thread, without a lock this takes."""
     now = time.monotonic()
-    if job.stage_timings is None:
-        job.stage_timings = {}
-    job.stage_timings[name] = round(now - start, 1)
+    job.stage_timings = {**(job.stage_timings or {}), name: round(now - start, 1)}
     return now
 
 
@@ -505,7 +504,7 @@ async def _run_async(
             # can delete the folder mid-move.
             await asyncio.to_thread(_quarantine_failed_job, job, job_dir, jobs_dir, e)
             _set(job, status="error", stage="Error: Processing failed", error=error_msg)
-            persist_registry(jobs_dir)
+            await asyncio.to_thread(persist_registry, jobs_dir)
             return
         logger.info(
             "pipeline cancelled%s for job %s",
@@ -513,7 +512,7 @@ async def _run_async(
             job.id,
         )
         remove_files = settle_cancelled(job)
-        persist_registry(jobs_dir)
+        await asyncio.to_thread(persist_registry, jobs_dir)
         release_source(job.id)
         # A job stopped from the Trash keeps its files until the Trash is
         # emptied (#748). A plain cancel's folder is retried like delete_job's
@@ -531,7 +530,7 @@ async def _run_async(
     job.stop_requested = False
     _set(job, status="done", progress=1.0, stage="Done")
     _write_metadata(job, job_dir)
-    persist_registry(jobs_dir)
+    await asyncio.to_thread(persist_registry, jobs_dir)
     # One-line per-job summary: the timing telemetry that makes performance
     # regressions (and the CPU-vs-GPU question) answerable from logs (#293).
     t = job.stage_timings or {}
@@ -569,7 +568,7 @@ async def run_pipeline(job: Job, url: str, jobs_dir: Path) -> None:
             stage="Error: Processing failed",
             error="Audio processing failed. Please try another video.",
         )
-        persist_registry(jobs_dir)
+        await asyncio.to_thread(persist_registry, jobs_dir)
         return
     await _run_async(
         job,

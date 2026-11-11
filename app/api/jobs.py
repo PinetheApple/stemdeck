@@ -343,7 +343,7 @@ async def _create_youtube_job(request: Request) -> dict[str, str]:
     if not registry_register_if_capacity(job, MAX_PENDING_URL_JOBS):
         raise HTTPException(status_code=503, detail=_URL_QUEUE_FULL_DETAIL)
     jobqueue.enqueue(job.id)
-    registry_persist(JOBS_DIR)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
     return {"job_id": job.id}
 
 
@@ -448,7 +448,7 @@ async def _create_local_job(request: Request) -> dict[str, str]:
         shutil.rmtree(job_dir, ignore_errors=True)
         raise HTTPException(status_code=503, detail=_UPLOAD_QUEUE_FULL_DETAIL)
     jobqueue.enqueue(job.id)
-    registry_persist(JOBS_DIR)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
     return {"job_id": job.id}
 
 
@@ -837,7 +837,7 @@ async def resplit_job(job_id: str, body: ResplitBody) -> dict:
         shutil.rmtree(new_dir, ignore_errors=True)
         raise HTTPException(status_code=503, detail=_UPLOAD_QUEUE_FULL_DETAIL)
     jobqueue.enqueue(new_job.id)
-    registry_persist(JOBS_DIR)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
     # source_url comes back because the client cannot derive it: it is
     # deliberately not the one it asked with.
     return {"job_id": new_job.id, "source_url": new_job.source_url}
@@ -1226,7 +1226,7 @@ async def refresh_audio_tags(job_id: str) -> dict:
         and not lyrics_path(job_dir).is_file()
         and await asyncio.to_thread(keep_answer, job, job_dir, lyrics)
     ):
-        registry_persist(JOBS_DIR)
+        await asyncio.to_thread(registry_persist, JOBS_DIR)
     found: dict[str, object] = {}
     if tags and not job.audio_tags:
         found["audio_tags"] = tags
@@ -1238,7 +1238,7 @@ async def refresh_audio_tags(job_id: str) -> dict:
         found["work"] = work
     if found:
         _set(job, **found)
-        registry_persist(JOBS_DIR)
+        await asyncio.to_thread(registry_persist, JOBS_DIR)
         await asyncio.to_thread(_write_metadata_fields, job_id, found)
     return {
         "audio_tags": job.audio_tags,
@@ -1488,7 +1488,7 @@ async def lookup_lyrics_route(job_id: str, body: LyricsLookupBody | None = None)
         and not lyrics_path(job_dir).is_file()
         and await asyncio.to_thread(keep_answer, job, job_dir, answer)
     ):
-        registry_persist(JOBS_DIR)
+        await asyncio.to_thread(registry_persist, JOBS_DIR)
     try:
         return await asyncio.to_thread(get_lyrics, job_id)
     except HTTPException:
@@ -1813,7 +1813,7 @@ async def put_user_text(job_id: str, request: Request) -> Response:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if entry is None:
         raise HTTPException(status_code=500, detail=LYRICS_NOT_SAVED)
-    registry_persist(JOBS_DIR)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
     return await asyncio.to_thread(get_lyrics, job_id)
 
 
@@ -1825,7 +1825,7 @@ async def delete_user_text(job_id: str) -> Response:
     job, job_dir = _lyrics_job(job_id)
     if not await asyncio.to_thread(restore_lyrics, job, job_dir):
         raise HTTPException(status_code=500, detail="could not restore lyrics")
-    registry_persist(JOBS_DIR)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
     return await asyncio.to_thread(get_lyrics, job_id)
 
 
@@ -1868,7 +1868,7 @@ async def put_lyrics(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     if not kept:
         raise HTTPException(status_code=500, detail=LYRICS_NOT_SAVED)
-    registry_persist(JOBS_DIR)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
     return await asyncio.to_thread(get_lyrics, job_id)
 
 
@@ -1884,7 +1884,7 @@ async def delete_lyrics(job_id: str, carry_over: bool = False) -> Response:
         raise HTTPException(status_code=409, detail=JOB_NOT_READY)
     if not await asyncio.to_thread(remove_lyrics, job, job_dir, carry_over=carry_over):
         raise HTTPException(status_code=500, detail=LYRICS_NOT_REMOVED)
-    registry_persist(JOBS_DIR)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
     return await asyncio.to_thread(get_lyrics, job_id)
 
 
