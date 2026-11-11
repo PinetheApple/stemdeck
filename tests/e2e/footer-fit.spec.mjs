@@ -58,8 +58,9 @@ const singleRowFit = (page) =>
     return Math.ceil(row + window.innerWidth - strip.getBoundingClientRect().width);
   });
 
-// Below the desktop app's 1024 minimum width, so only a browser window gets here.
-const BELOW_DESKTOP_MIN_WIDTH = 820;
+// Browser-only (the desktop app's minimum is 1024): about the narrowest window the
+// full-size Position cluster fits in, and one where the old levels hid every label.
+const NARROWEST_FIT_WIDTH = 620;
 
 const stripReports = (page) => page.evaluate(() => window.stripWidths.length);
 
@@ -214,13 +215,13 @@ test.describe("footer fit", () => {
     expect(reopens).toEqual([{ level: null, width: reopenWidth }]);
   });
 
-  test("at 820 every label stays visible and nothing overflows", async ({ page }) => {
-    await page.setViewportSize({ width: BELOW_DESKTOP_MIN_WIDTH, height: WINDOW_HEIGHT });
+  test(`at ${NARROWEST_FIT_WIDTH} every label stays visible and nothing overflows`, async ({ page }) => {
+    await page.setViewportSize({ width: NARROWEST_FIT_WIDTH, height: WINDOW_HEIGHT });
     await openStudio(page, { tauri: true });
     await waitForClickTrack(page, { revealOptions: false });
 
-    await expect.poll(() => collapseLevels(page), { timeout: 5000 }).toEqual([ROWS_LEVEL]);
     await expectLabelsReadable(page);
+    expect(await collapseLevels(page)).toEqual([ROWS_LEVEL]);
   });
 
   // Deleted: "the page itself never scrolls sideways".
