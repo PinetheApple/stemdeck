@@ -6,6 +6,9 @@ export function isRendered(el) {
   return r.width > 0 && r.height > 0;
 }
 
+// A control taking more of the window than this is an area, not a place to point.
+export const BIG_AREA_SHARE = 0.04;
+export const TRACK_AREA = ".waves-column";
 const OPACITY_AND_VISIBILITY = { opacityProperty: true, visibilityProperty: true };
 // Fractional layout edges round to whole pixels when an outline is placed.
 const EDGE_SLACK_PX = 0.5;
@@ -63,28 +66,36 @@ export function isWhollyShown(el) {
     && EDGES.every((edge) => Math.abs(full[edge] - seen[edge]) <= EDGE_SLACK_PX);
 }
 
+/** A ring that hugs the drawing when it is clearly smaller than the box, else takes in both. */
+function fitBox(box, drawing) {
+  if (drawing.width <= 0 || drawing.height <= 0) return { fit: box, pad: BOX_RING_PAD_PX };
+  const small = drawing.width < box.width * CONTENT_FIT_SHARE || drawing.height < box.height * CONTENT_FIT_SHARE;
+  if (small) return { fit: drawing, pad: DRAWING_RING_PAD_PX };
+  const both = {
+    left: Math.min(box.left, drawing.left),
+    top: Math.min(box.top, drawing.top),
+    right: Math.max(box.right, drawing.right),
+    bottom: Math.max(box.bottom, drawing.bottom),
+  };
+  return { fit: both, pad: BOX_RING_PAD_PX };
+}
+
 /**
  * What the eye sees of a control. A button is often much bigger than the icon
- * in it, and a ring around the whole box reads as a stray bar, so when the
- * drawing is clearly smaller than the box the ring goes around the drawing.
- * Otherwise it takes in both: a rail label can hang below its button's own box.
- * Only the part left in view counts.
+ * in it, and a ring around the whole box reads as a stray bar, so the ring goes
+ * around the drawing; a rail label hanging below its button is taken in too.
+ * Only the part left in view counts, and with the drawing out of view, the box's.
  */
 export function hoverRect(el) {
-  const r = el.getBoundingClientRect();
+  const box = el.getBoundingClientRect();
   const range = document.createRange();
   range.selectNodeContents(el);
-  const c = range.getBoundingClientRect();
-  const drawn = c.width > 0 && c.height > 0;
-  const small = drawn && (c.width < r.width * CONTENT_FIT_SHARE || c.height < r.height * CONTENT_FIT_SHARE);
-  const union = {
-    left: Math.min(r.left, c.left),
-    top: Math.min(r.top, c.top),
-    right: Math.max(r.right, c.right),
-    bottom: Math.max(r.bottom, c.bottom),
-  };
-  const seen = intersect(small ? c : drawn ? union : r, viewFrame(el));
-  const pad = small ? DRAWING_RING_PAD_PX : BOX_RING_PAD_PX;
-  const padded = { left: seen.left - pad, top: seen.top - pad, right: seen.right + pad, bottom: seen.bottom + pad };
+  const { fit, pad } = fitBox(box, range.getBoundingClientRect());
+  const frame = viewFrame(el);
+  const fitInView = intersect(fit, frame);
+  const fitShows = fitInView.width > 0 && fitInView.height > 0;
+  const seen = fitShows ? fitInView : intersect(box, frame);
+  const gap = fitShows ? pad : BOX_RING_PAD_PX;
+  const padded = { left: seen.left - gap, top: seen.top - gap, right: seen.right + gap, bottom: seen.bottom + gap };
   return intersect(padded, windowFrame());
 }
