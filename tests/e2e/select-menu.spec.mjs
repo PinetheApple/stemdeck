@@ -9,6 +9,8 @@ const FRUITS = ["Apple", "Banana", "Blueberry", "Cherry (out of season)", "Damso
 const DISABLED_FRUIT = "Cherry (out of season)";
 const NEAR_BOTTOM_PX = 40;
 const SCROLLED_PAST_PX = 400;
+const LONG_LIST_SIZE = 25;
+const itemName = (n) => `Item ${String(n).padStart(2, "0")}`;
 
 const list = (page) => page.locator("#select-menu-list");
 const option = (page, name) => list(page).getByRole("option", { name, exact: true });
@@ -118,6 +120,50 @@ test.describe("select lists", () => {
     await expect(fruit).toHaveValue("banana");
     expect(await fruitChanges(page)).toBe(1);
     expect(await focused(page)).toBe("fruit");
+  });
+
+  test("F4 opens the list and F4 closes it again", async ({ page }) => {
+    await openApp(page);
+    const fruit = await addFruitSelect(page);
+    await fruit.focus();
+    await page.keyboard.press("F4");
+    await expect(list(page)).toBeFocused();
+    await page.keyboard.press("F4");
+    await expect(list(page)).toHaveCount(0);
+    await expect(fruit).toBeFocused();
+  });
+
+  test("PageDown and PageUp move a page, not to the ends", async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(({ size, names }) => {
+      const select = document.createElement("select");
+      select.id = "long";
+      select.style.cssText = "position: fixed; top: 40px; left: 40px; z-index: 5";
+      for (let n = 1; n <= size; n++) select.append(new Option(names[n - 1], String(n)));
+      select.value = "5";
+      document.body.append(select);
+    }, { size: LONG_LIST_SIZE, names: Array.from({ length: LONG_LIST_SIZE }, (_, i) => itemName(i + 1)) });
+    await page.locator("#long").focus();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("PageDown");
+    await expect(option(page, itemName(15))).toHaveClass(/active/);
+    await page.keyboard.press("PageUp");
+    await expect(option(page, itemName(5))).toHaveClass(/active/);
+  });
+
+  test("letters on a closed select type ahead natively, and shortcut letters still reach the app", async ({ page }) => {
+    await openStudio(page);
+    await waitForClickTrack(page);
+    await openClickOptions(page);
+    const accent = page.locator("#t-metro-bar");
+    await accent.focus();
+    await page.keyboard.press("3");
+    await expect(accent).toHaveValue("3");
+    await expect(list(page)).toHaveCount(0);
+    await expect(page.locator("#t-loop")).not.toHaveClass(/active/);
+    await page.keyboard.press("l");
+    await expect(page.locator("#t-loop")).toHaveClass(/active/);
+    await expect(list(page)).toHaveCount(0);
   });
 
   test("on a closed select the arrows step the value, as a native one does", async ({ page }) => {
