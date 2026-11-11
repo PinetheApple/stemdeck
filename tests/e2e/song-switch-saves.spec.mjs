@@ -27,6 +27,7 @@ import {
   liveSaves,
   freezeTimers,
   clickFrozen,
+  dblclickFrozen,
   resetSongs,
 } from "./saveRaces.mjs";
 
@@ -38,7 +39,7 @@ test.describe("sections", () => {
     await openStudio(page);
     await freezeTimers(page);
     await clickFrozen(page, "#sectionsAddBtn");
-    await clickFrozen(page, `.cat-item[data-id="${SIBLING_JOB_ID}"]`);
+    await dblclickFrozen(page, `.cat-item[data-id="${SIBLING_JOB_ID}"]`);
 
     await expect.poll(() => savedSections(request, JOB_ID).then((s) => s.length)).toBe(1);
     expect(await savedSections(request, SIBLING_JOB_ID)).toEqual([]);

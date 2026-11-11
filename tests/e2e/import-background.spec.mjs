@@ -70,7 +70,7 @@ test.describe("an import with the studio empty", () => {
     await seedSibling(page);
     const queue = await startImport(page);
 
-    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().click();
+    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().dblclick();
     await expect(page.locator("#title")).toHaveText(SIBLING_TITLE, { timeout: 15000 });
 
     await queue.settle();

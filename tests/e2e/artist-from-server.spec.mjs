@@ -154,11 +154,11 @@ test.describe("band found by the server during the import", () => {
       },
     });
 
-    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
     await expect(page.locator("#np-artist")).toHaveText("Dream Theater", { timeout: 15000 });
     await expect.poll(() => savedArtist(page), { timeout: 15000 }).toEqual(BAND);
 
-    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().click();
+    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().dblclick();
     await expect(page.locator("#title")).toHaveText("Metropolis", { timeout: 15000 });
     await expect(page.locator("#np-artist")).toHaveText("Chosen Band");
     expect(await savedArtist(page, SIBLING_JOB_ID)).toEqual(chosen);
@@ -186,7 +186,7 @@ test.describe("band found by the server during the import", () => {
       },
       [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, "E2E Fixture Track (again)"),
     });
-    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
     await expect(page.locator("#title")).toHaveText("Pull Me Under", { timeout: 15000 });
     await expect(page.locator("#np-artist")).toHaveText("Dream Theater");
 

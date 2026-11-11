@@ -39,7 +39,7 @@ async function openWithKey(page, { language }) {
   await stubExportEndpoints(page);
   await stubUpdateCheck(page, { available: false });
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
 }
 
 // Background syncs are still in flight through the rewriter when a test ends.

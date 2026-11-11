@@ -313,7 +313,7 @@ test.describe("the re-import request", () => {
       return route.fulfill({ status, json: status === 200 ? { job_id: NEW_ID } : { detail: "busy" } });
     });
     await open(page);
-    await page.locator(`#catalogList .cat-item[data-id="${LINKED_ID}"]`).first().click();
+    await page.locator(`#catalogList .cat-item[data-id="${LINKED_ID}"]`).first().dblclick();
     await expect.poll(() => posted.length).toBe(1);
     return posted;
   }

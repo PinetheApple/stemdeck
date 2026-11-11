@@ -53,7 +53,7 @@ test.describe("song structure toggle", () => {
     // submitted right now would capture.
     await expect.poll(() => setting(page)).toBe(true);
 
-    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
     await expect(button(page)).toHaveAttribute("aria-pressed", "false");
     await expect.poll(() => setting(page)).toBe(false);
   });

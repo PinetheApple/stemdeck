@@ -46,7 +46,7 @@ const TITLES = {
 };
 
 async function openTrack(page, id) {
-  await page.locator(`.cat-item[data-id="${id}"]`).first().click();
+  await page.locator(`.cat-item[data-id="${id}"]`).first().dblclick();
   await expect(page.locator("#title")).toHaveText(TITLES[id], { timeout: 15000 });
 }
 

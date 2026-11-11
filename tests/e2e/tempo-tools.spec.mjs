@@ -499,7 +499,7 @@ test.describe("the accent select as an override of the grid's bars", () => {
       });
     });
 
-    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().click();
+    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().dblclick();
     await expectNoOverride(ui);
 
     releaseSibling();
@@ -507,7 +507,7 @@ test.describe("the accent select as an override of the grid's bars", () => {
     await expect(ui.accent).toHaveValue("3");
     await expectNoOverride(ui);
 
-    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
     await expect(ui.accentAuto).toHaveText("Auto · 4");
     await expectOverride(ui, "Click accents every 3 beats, grid has 4.");
   });

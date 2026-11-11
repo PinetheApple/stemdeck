@@ -49,6 +49,7 @@ const ui = (page) => ({
 });
 
 const clickHidden = (page, selector) => page.evaluate((s) => document.querySelector(s).click(), selector);
+const dblclickHidden = (page, selector) => page.locator(selector).first().dispatchEvent("dblclick");
 const seek = (page, seconds) =>
   page.evaluate(async (at) => (await import("/js/transport.js")).setPlayheadTime(at), seconds);
 const SEEK_SETTLE_MS = 1000;
@@ -65,7 +66,7 @@ const seekShows = (page, seconds, locator, text) => {
 };
 
 async function openTrack(page, id) {
-  await clickHidden(page, `.cat-item[data-id="${id}"]`);
+  await dblclickHidden(page, `.cat-item[data-id="${id}"]`);
   await page.waitForFunction(
     async (track) => (await import("/js/catalog.js")).getCurrentTrackInfo()?.id === track,
     id,
@@ -154,7 +155,7 @@ async function setUp(page, {
     },
   });
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await page.waitForFunction(
     () => !/\/\s*00:00\s*$/.test(document.querySelector("#t-time")?.textContent || "00:00 / 00:00"),
     null,

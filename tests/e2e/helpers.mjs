@@ -383,7 +383,7 @@ export async function openStudio(
   await stubUpdateCheck(page, { available: updateAvailable });
 
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   // The transport total only leaves 00:00 once an engine has reported a
   // duration, so it doubles as "the studio is actually ready".
   await page.waitForFunction(

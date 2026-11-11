@@ -96,7 +96,7 @@ async function setUp(page, { server = version(), detect = { confident: false, of
 async function openLyrics(page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
   await page.locator(".rail-lyrics").click();
   await expect(page.locator(".lyrics-line, .lyrics-text").first()).toBeVisible();
@@ -250,7 +250,7 @@ test.describe("aligning lyrics to the track", () => {
     await expect.poll(() => offsets).toEqual([0.5]);
 
     await page.reload({ waitUntil: "domcontentloaded" });
-    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
     await page.locator(".rail-lyrics").click();
     await expect(page.locator(".lyrics-line", { hasText: "Server one" })).toBeVisible();
     await page.locator(".lyrics-line", { hasText: "Server three" }).click();
