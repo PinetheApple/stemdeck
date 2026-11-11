@@ -17,9 +17,8 @@ persisted with the registry: job.vocal_split (the VOCAL_SPLIT_* states in
 app.core.models), and for a failure job.vocal_split_error, a
 VOCAL_SPLIT_FAILED_* code. The worker's own words go only to the log and to
 stems/vocal_split_error.txt, with the code, which is what a job rebuilt from
-disk reads it back from. A failed or
-cancelled split leaves nothing of itself behind, and never touches
-vocals.wav or the job's status.
+disk reads it back from. A failed or cancelled split leaves nothing of itself
+behind, and never touches vocals.wav or the job's status.
 """
 
 from __future__ import annotations
