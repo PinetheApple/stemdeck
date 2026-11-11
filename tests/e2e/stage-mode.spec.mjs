@@ -14,6 +14,7 @@ import {
   LYRICS_REMOVED,
   answerLyricsChoice,
 } from "./helpers.mjs";
+import { dblclickFrozen } from "./saveRaces.mjs";
 
 const BEAT_PERIOD = 0.5;
 const BEATS_PER_BAR = 4;
@@ -49,7 +50,6 @@ const ui = (page) => ({
 });
 
 const clickHidden = (page, selector) => page.evaluate((s) => document.querySelector(s).click(), selector);
-const dblclickHidden = (page, selector) => page.locator(selector).first().dispatchEvent("dblclick");
 const seek = (page, seconds) =>
   page.evaluate(async (at) => (await import("/js/transport.js")).setPlayheadTime(at), seconds);
 const SEEK_SETTLE_MS = 1000;
@@ -66,7 +66,7 @@ const seekShows = (page, seconds, locator, text) => {
 };
 
 async function openTrack(page, id) {
-  await dblclickHidden(page, `.cat-item[data-id="${id}"]`);
+  await dblclickFrozen(page, `.cat-item[data-id="${id}"]`);
   await page.waitForFunction(
     async (track) => (await import("/js/catalog.js")).getCurrentTrackInfo()?.id === track,
     id,

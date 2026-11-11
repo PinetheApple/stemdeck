@@ -5,6 +5,7 @@ import { test, expect } from "@playwright/test";
 import { ROW_KEY, ROW_PLAY_CLASS, SELECTED_ROW_CLASS } from "../../static/js/rovingRows.js";
 import {
   JOB_ID,
+  KEY,
   JOB_LIST_URL,
   SIBLING_JOB_ID,
   SIBLING_TITLE,
@@ -59,13 +60,14 @@ async function openLibrary(page, { favorite = false } = {}) {
     tracks: Object.fromEntries(ids.map((id) => [id, { ...fixtureTrack(id, id), favorite }])),
   });
   await stubFavorites(page);
-  await stubServerTrash(page);
+  const trash = await stubServerTrash(page);
   await stubExportEndpoints(page);
   await stubUpdateCheck(page);
   const listed = page.waitForResponse(JOB_LIST_URL);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await listed;
   await expect(songRow(page, SIBLING_JOB_ID)).toBeVisible();
+  return { trash };
 }
 
 async function startPlayback(page) {
@@ -79,6 +81,16 @@ async function expectSelectedNotOpened(page, row, opens) {
   await page.waitForTimeout(SETTLE_MS);
   await expect(row).not.toHaveClass(ACTIVE);
   expect(opens.count).toBe(0);
+}
+
+/** Delete on the focused row bins nothing: `key` then moves on by keyboard, whose Delete bins `binnedId`. */
+async function expectDeleteUnarmed(page, trash, key, binnedId) {
+  await page.keyboard.press(KEY.DELETE);
+  await page.keyboard.press(key);
+  await expect(songRow(page, binnedId)).toBeFocused();
+  await page.keyboard.press(KEY.DELETE);
+  await expect.poll(() => trash.calls.length).toBeGreaterThan(0);
+  expect(trash.calls).toEqual([{ id: binnedId, action: "trash" }]);
 }
 
 const opacityOf = (locator) => locator.evaluate((el) => getComputedStyle(el).opacity);
@@ -106,6 +118,14 @@ test.describe("song rows", () => {
     expect(await openId(page)).toBeNull();
   });
 
+  test("a click selects a song without arming Delete", async ({ page }) => {
+    const { trash } = await openLibrary(page);
+    await songRow(page, SIBLING_JOB_ID).click();
+    await expect(songRow(page, SIBLING_JOB_ID)).toHaveClass(SELECTED);
+    await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
+    await expectDeleteUnarmed(page, trash, ROW_KEY.PREVIOUS, JOB_ID);
+  });
+
   test("a double-click opens the song once", async ({ page }) => {
     await openStudio(page);
     const opens = countOpens(page, SIBLING_JOB_ID);
@@ -131,6 +151,16 @@ test.describe("song rows", () => {
     await row.locator(PLAY).click();
     await expect(row).toHaveClass(ACTIVE, { timeout: OPEN_TIMEOUT_MS });
     await expect(row).toBeFocused();
+  });
+
+  test("opening with the Play button leaves Delete unarmed", async ({ page }) => {
+    const { trash } = await openLibrary(page);
+    const row = songRow(page, JOB_ID);
+    await row.hover();
+    await row.locator(PLAY).click();
+    await expect(row).toHaveClass(ACTIVE, { timeout: OPEN_TIMEOUT_MS });
+    await expect(row).toBeFocused();
+    await expectDeleteUnarmed(page, trash, ROW_KEY.NEXT, SIBLING_JOB_ID);
   });
 
   test("arrows move the selection and open nothing", async ({ page }) => {
@@ -209,6 +239,7 @@ test.describe("other song lists", () => {
     expect(opens.count).toBe(0);
     expect(await isPlaying(page)).toBe(true);
     await expect(song.locator(PLAY)).toBeVisible();
+    await setlistSong(page, JOB_ID).hover();
     await expect(setlistSong(page, JOB_ID).locator(PLAY)).toBeHidden();
 
     await song.dblclick();
