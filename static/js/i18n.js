@@ -781,6 +781,8 @@ const en = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "Wikipedia (CC BY-SA), MusicBrainz and Wikidata (CC0), Whisper (MIT).",
+  "about.license": "StemDeck is free software under the GNU AGPL-3.0.",
+  "about.source": "Source code",
 
   "release.title": "New release available",
   "release.closeAria": "Close release dialog",
@@ -1851,6 +1853,8 @@ const pl = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "Wikipedia (CC BY-SA), MusicBrainz i Wikidane (CC0), Whisper (MIT).",
+  "about.license": "StemDeck to wolne oprogramowanie na licencji GNU AGPL-3.0.",
+  "about.source": "Kod źródłowy",
 
   "release.title": "Dostępna nowa wersja",
   "release.closeAria": "Zamknij okno wydania",
@@ -2913,6 +2917,8 @@ const ja = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "Wikipedia (CC BY-SA)、MusicBrainz・Wikidata (CC0)、Whisper (MIT)。",
+  "about.license": "StemDeck は GNU AGPL-3.0 で公開されているフリーソフトウェアです。",
+  "about.source": "ソースコード",
 
   "release.title": "新しいリリースがあります",
   "release.closeAria": "リリースダイアログを閉じる",
@@ -3949,6 +3955,8 @@ const zhHans = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "维基百科 (CC BY-SA)、MusicBrainz 和维基数据 (CC0)、Whisper (MIT)。",
+  "about.license": "StemDeck 是采用 GNU AGPL-3.0 许可证的自由软件。",
+  "about.source": "源代码",
 
   "release.title": "有新版本可用",
   "release.closeAria": "关闭版本对话框",
@@ -4986,6 +4994,8 @@ const de = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "Wikipedia (CC BY-SA), MusicBrainz und Wikidata (CC0), Whisper (MIT).",
+  "about.license": "StemDeck ist freie Software unter der GNU AGPL-3.0.",
+  "about.source": "Quellcode",
 
   "release.title": "Neue Version verfügbar",
   "release.closeAria": "Versionsdialog schließen",
@@ -6034,6 +6044,8 @@ const pt = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "Wikipédia (CC BY-SA), MusicBrainz e Wikidata (CC0), Whisper (MIT).",
+  "about.license": "O StemDeck é software livre sob a licença GNU AGPL-3.0.",
+  "about.source": "Código-fonte",
 
   "release.title": "Nova versão disponível",
   "release.closeAria": "Fechar diálogo de versão",
@@ -7083,6 +7095,8 @@ const id = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "Wikipedia (CC BY-SA), MusicBrainz dan Wikidata (CC0), Whisper (MIT).",
+  "about.license": "StemDeck adalah perangkat lunak bebas dengan lisensi GNU AGPL-3.0.",
+  "about.source": "Kode sumber",
 
   "release.title": "Versi baru tersedia",
   "release.closeAria": "Tutup dialog versi",
@@ -8120,6 +8134,8 @@ const fr = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "Wikipédia (CC BY-SA), MusicBrainz et Wikidata (CC0), Whisper (MIT).",
+  "about.license": "StemDeck est un logiciel libre sous licence GNU AGPL-3.0.",
+  "about.source": "Code source",
 
   "release.title": "Nouvelle version disponible",
   "release.closeAria": "Fermer la fenêtre de version",
@@ -9413,6 +9429,8 @@ const es = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "Wikipedia (CC BY-SA), MusicBrainz y Wikidata (CC0), Whisper (MIT).",
+  "about.license": "StemDeck es software libre con licencia GNU AGPL-3.0.",
+  "about.source": "Código fuente",
 
   "release.title": "Nueva versión disponible",
   "release.closeAria": "Cerrar el diálogo de la versión",
@@ -10483,6 +10501,8 @@ const ko = {
   "about.instagram": "Instagram",
   "about.x": "X",
   "about.credits": "위키백과 (CC BY-SA), MusicBrainz와 위키데이터 (CC0), Whisper (MIT).",
+  "about.license": "StemDeck은 GNU AGPL-3.0 라이선스를 따르는 자유 소프트웨어입니다.",
+  "about.source": "소스 코드",
 
   "release.title": "새 버전이 나왔어요",
   "release.closeAria": "릴리스 창 닫기",
