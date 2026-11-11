@@ -2,12 +2,12 @@
 //
 // StemDeck is AGPL-3.0-only and its server version is used over a network, so
 // the About box is where a user finds the source (AGPL section 13). The link
-// goes to the same repository the GitHub button already opens.
+// goes to this fork, since a modified version offers its own source.
 
 import { test, expect } from "@playwright/test";
 import { openStudio } from "./helpers.mjs";
 
-const REPO = "https://github.com/stemdeckapp/stemdeck";
+const REPO = "https://github.com/PinetheApple/stemdeck";
 
 test("the About box names the AGPL and links to the source code", async ({ page }) => {
   await openStudio(page);
