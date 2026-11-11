@@ -34,9 +34,10 @@
 
 import { t, getLanguage, onLanguageChange } from "./i18n.js";
 import {
-  artistMatchesName,
+  artistMatchesCredit,
   languageTag,
   lookupArtist,
+  lookupCredit,
   lookupWork,
   nativeNameToShow,
   taggedArtistName,
@@ -728,15 +729,22 @@ async function loadWork(work, lang, signal) {
 }
 
 // The band by id or name, from the answers already had or from Wikidata.
-async function bandAnswer(query, id, lang, signal) {
+async function cachedBand(query, id, lang, signal) {
   const key = id ? `${lang}|#${id}` : `${lang}|${query.toLowerCase()}`;
   if (answers.has(key)) return answers.get(key);
+  if (signal.aborted) return null;
   const artist = await lookupArtist(query, lang, { id, signal });
   if (signal.aborted) return null;
   answers.set(key, artist);
   // Also by id, so a band found by name and then saved opens from the cache.
   if (artist) answers.set(`${lang}|#${artist.id}`, artist);
   return artist;
+}
+
+// By name, the main artist of a multi-artist credit is asked for too.
+function bandAnswer(query, id, lang, signal) {
+  if (id) return cachedBand(query, id, lang, signal);
+  return lookupCredit(query, (name) => cachedBand(name, "", lang, signal));
 }
 
 // The Discogs profile of the open track's band, from the server, or null:
@@ -972,15 +980,10 @@ async function runFindBandFromTags(trackId) {
   const controller = new AbortController();
   autoController = controller;
   autoTrackId = trackId;
-  const lang = getLanguage();
-  const key = `${lang}|${name.toLowerCase()}`;
   try {
-    // The box may have asked for this name already.
-    const artist = answers.has(key) ? answers.get(key) : await lookupArtist(name, lang, { signal: controller.signal });
     // Kept for the box either way, under the keys search() looks for.
-    answers.set(key, artist);
-    if (artist) answers.set(`${lang}|#${artist.id}`, artist);
-    if (!artist || !artistMatchesName(artist, name)) return;
+    const artist = await bandAnswer(name, "", getLanguage(), controller.signal);
+    if (!artistMatchesCredit(artist, name)) return;
     // Still the open track, and nobody saved a band on it in the meantime.
     if (getCurrentTrackInfo()?.id !== trackId || getCurrentTrackArtist()) return;
     setFoundTrackArtist({ id: artist.id, name: artist.name, englishName: artist.englishName });

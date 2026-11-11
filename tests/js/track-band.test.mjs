@@ -91,6 +91,15 @@ check(
 );
 check("a lookup answering another id is a pick", (await isGuessedBand(tagged("Other"), LOCAL, answers(SERVER))) === false);
 check("a lookup finding nobody is a pick", (await isGuessedBand(tagged("Other"), LOCAL, answers(null))) === false);
+check(
+  "a band named as a credit's main artist is a guess, unasked",
+  (await isGuessedBand(tagged(`${LOCAL.name}, Someone`), LOCAL, forbidden)) === true,
+);
+const byName = (bands) => async (name) => bands[name] ?? null;
+check(
+  "a credit finding nobody is a guess when its main artist finds the band",
+  (await isGuessedBand(tagged("Other, Someone"), LOCAL, byName({ Other: { id: LOCAL.id } }))) === true,
+);
 let thrown = false;
 await isGuessedBand(tagged("Other"), LOCAL, offline).catch(() => { thrown = true; });
 check("a throwing lookup is no answer", thrown);

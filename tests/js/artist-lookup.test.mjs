@@ -17,6 +17,8 @@ import {
   historyHeadingsFor,
   wikiLanguage,
   lookupArtist,
+  lookupCredit,
+  mainArtistName,
   artistMatchesName,
   taggedArtistName,
   albumList,
@@ -457,6 +459,49 @@ check("the link is the article shown", jayPl?.articleUrl === "https://en.wikiped
 
 const allStubs = await lookupArtist("", "pl", { id: "Q238819", fetchJson: cjkFetch().fetchJson });
 check("the Chinese article when both others are stubs", allStubs?.historyLang === "zh");
+
+for (const [credit, main] of [
+  ["Dream Theater", "Dream Theater"],
+  ["  Dream Theater  ", "Dream Theater"],
+  ["SEU Worship, Abbie Gamboa, Caylie Bryant", "SEU Worship"],
+  ["Simon & Garfunkel", "Simon"],
+  ["A; B", "A"],
+  ["A/B", "A"],
+  ["Artist Feat. Someone", "Artist"],
+  ["Artist ft. Someone", "Artist"],
+  ["Artist featuring Someone", "Artist"],
+  ["Artist AND Someone", "Artist"],
+  ["Artist x Someone", "Artist"],
+  ["Artist With Someone", "Artist"],
+  ["Lil Nas X", "Lil Nas X"],
+  ["Andrew Bird", "Andrew Bird"],
+]) {
+  check(`the main artist of "${credit}"`, mainArtistName(credit) === main, mainArtistName(credit));
+}
+
+function findFrom(bands) {
+  const asked = [];
+  const find = async (name) => {
+    asked.push(name);
+    return bands[name] ?? null;
+  };
+  return { asked, find };
+}
+
+const SEU = { id: "Q1", name: "SEU Worship" };
+const CREDIT = "SEU Worship, Abbie Gamboa, Caylie Bryant";
+const fallback = findFrom({ "SEU Worship": SEU });
+check("a credit finding nothing gives the main artist's band", (await lookupCredit(CREDIT, fallback.find)) === SEU);
+check("the credit first, then its main artist", same(fallback.asked, [CREDIT, "SEU Worship"]));
+
+const whole = { id: "Q2", name: "Simon & Garfunkel" };
+const matched = findFrom({ "Simon & Garfunkel": whole });
+check("a credit that is a band keeps it", (await lookupCredit("Simon & Garfunkel", matched.find)) === whole);
+check("and asks nothing more", same(matched.asked, ["Simon & Garfunkel"]));
+
+const single = findFrom({});
+check("one artist finding nothing is nothing", (await lookupCredit("Nobody", single.find)) === null);
+check("asked once", same(single.asked, ["Nobody"]));
 
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
