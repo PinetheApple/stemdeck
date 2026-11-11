@@ -2,53 +2,21 @@ from __future__ import annotations
 
 import json
 import logging
-import math
-import re
 import shutil
 import subprocess
 import threading
 import time
-import uuid
-from collections.abc import Iterable
 from pathlib import Path
 
-from app.core.config import (
-    DEMUCS_MODEL,
-    EXTRA_STEM_NAMES,
-    JOB_ID_RE,
-    LYRICS_FILE,
-    STEM_NAMES,
-    UPLOAD_EXTS,
-)
-from app.core.models import (
-    VOCAL_SPLIT_CHOICE_COMBINED,
-    VOCAL_SPLIT_CHOICE_SPLIT,
-    VOCAL_SPLIT_DONE,
-    VOCAL_SPLIT_ERROR,
-    VOCAL_SPLIT_NONE,
-    Job,
-    VocalSplitChoice,
-    VocalSplitFailure,
-    VocalSplitState,
-    clean_artist,
-    clean_audio_tags,
-    clean_identity,
-    clean_user_name,
-    clean_work,
-)
+from app.core.config import DEMUCS_MODEL, JOB_ID_RE
+from app.core.folder_rebuild import migrate_song_folders, stopped_from_source
+from app.core.folder_rebuild import recover_done_job as _recover_done_job
+from app.core.models import Job
+from app.core.registry_records import keep_bad_records, read_record, record_id
 from app.core.song_folder import (
     SAVED_FIELDS,
-    STEMS_COMPLETE,
-    backfill_stems_complete,
-    copy_saved_fields,
-    holds_job_files,
-    is_real_entry,
-    is_started_only,
-    job_dirs,
-    quarantine_dirs,
-    read_metadata,
-    saved_from_meta,
-    write_json_atomic,
+    own_entries,
+    remove_empty_failed_root,
     write_text_atomic,
 )
 
@@ -81,14 +49,6 @@ _PERSISTED = _TERMINAL | _RESUMABLE | _STOPPED
 # wedging the queue forever.
 _MAX_RESUME_ATTEMPTS = 1
 
-# Hex digits after the time in a registry.json.bad-<time>-<hex> name, so two
-# loads in one second do not overwrite each other's copy.
-_BAD_SUFFIX_HEX = 6
-# How much of the id a rebuilt song's placeholder title shows.
-_RECOVERED_ID_CHARS = 6
-# Compared and sorted by every load and save: a record holding anything but a
-# number in one of these broke the load, or every persist after it.
-_ORDER_FIELDS = ("created_at", "queue_position", "resume_attempts")
 
 # Ids restore() wants re-queued, drained once by the app lifespan.
 _pending_resume: list[str] = []
@@ -246,18 +206,8 @@ def _prune_deleted(jobs_dir: Path) -> None:
 
 
 def persist(jobs_dir: Path) -> None:
-    """Persist terminal jobs so completed library entries survive restarts.
-
-    Callers run on the pipeline thread, API threads, and the sweep loop
-    concurrently, so each save takes its snapshot and writes it under
-    _write_lock with a unique temp name per call (#281) -- a shared temp path
-    let two writers collide, and on Windows os.replace over a file another
-    writer holds open raises PermissionError. One lock for both keeps a later
-    snapshot from being overwritten by an earlier one. Only the snapshot takes
-    _lock: every get() waited on the disk when the write did too (upstream PR
-    896). Blocking, so async callers run it in a thread. Best-effort like the
-    settings store: a failed persist logs and returns rather than killing the
-    caller."""
+    """Save the registry. Blocking: async callers run it in a thread. Only the
+    snapshot holds _lock, so get() never waits on the disk (upstream PR 896)."""
     try:
         jobs_dir.mkdir(parents=True, exist_ok=True)
     except OSError:
@@ -318,17 +268,39 @@ def _load_registry(path: Path, jobs_dir: Path) -> tuple[bool, bool]:
     if isinstance(recorded, list):
         with _lock:
             _deleted.update(str(job_id) for job_id in recorded)
-    records = data.get("jobs", [])
+    to_add: dict[str, Job] = {}
+    resume: list[Job] = []
+    changed = _load_records(data.get("jobs", []), path, jobs_dir, to_add, resume, legacy)
+    if legacy and migrate_song_folders(to_add.values(), jobs_dir):
+        changed = True
+    with _lock:
+        _jobs.update(to_add)
+    # The user's order first, then oldest first: queue_position is rewritten
+    # whenever the queue changes, and defaults to 0 in older records.
+    _pending_resume.extend(
+        j.id for j in sorted(resume, key=lambda j: (j.queue_position, j.created_at))
+    )
+    return changed, legacy
+
+
+def _load_records(
+    records: object,
+    path: Path,
+    jobs_dir: Path,
+    to_add: dict[str, Job],
+    resume: list[Job],
+    legacy: bool,
+) -> bool:
+    """Place each record; a bad one costs only itself. True when registry.json
+    must be rewritten."""
     bad: list = []
     if not isinstance(records, list):
         bad, records = [records], []
-    to_add: dict[str, Job] = {}
-    resume: list[Job] = []
     changed = False
     for record in records:
-        rid = _record_id(record)
+        rid = record_id(record)
         try:
-            job = _read_record(record, rid, to_add)
+            job = read_record(record, rid, to_add)
             changed = _place(job, jobs_dir, to_add, resume, legacy) or changed
         except Exception as exc:
             # Only a well-formed id reaches the log: nothing from a damaged
@@ -337,58 +309,7 @@ def _load_registry(path: Path, jobs_dir: Path) -> tuple[bool, bool]:
             bad.append(record)
     # Kept aside first: only then is registry.json rewritten without them, so
     # the next start does not set them aside again.
-    if bad and _keep_bad_records(path, bad):
-        changed = True
-    if legacy and _migrate_song_folders(to_add.values(), jobs_dir):
-        changed = True
-    with _lock:
-        _jobs.update(to_add)
-    # The user's order first, then oldest first. queue_position is rewritten
-    # whenever the queue changes, so a queue the user reordered comes back in
-    # that order rather than submission order. Records written before that
-    # field existed all default to 0, where created_at decides exactly as it
-    # used to.
-    _pending_resume.extend(
-        j.id for j in sorted(resume, key=lambda j: (j.queue_position, j.created_at))
-    )
-    return changed, legacy
-
-
-def _migrate_song_folders(jobs: Iterable[Job], jobs_dir: Path) -> bool:
-    """Once, on the first start after a version 1 library: give each finished
-    song the completion marker and its SAVED_FIELDS in metadata.json, or a
-    registry lost later would not bring it back whole. True when any changed."""
-    done = [job for job in jobs if job.status in _TERMINAL]
-    for job in done:
-        backfill_stems_complete(jobs_dir / job.id)
-    copied = sum(copy_saved_fields(job, jobs_dir / job.id) for job in done)
-    if copied:
-        logger.info("copied saved fields into %d song folder(s)", copied)
-    return copied > 0
-
-
-def _record_id(record: object) -> str | None:
-    rid = record.get("id") if isinstance(record, dict) else None
-    return rid if isinstance(rid, str) and JOB_ID_RE.match(rid) else None
-
-
-def _read_record(record: object, rid: str | None, seen: dict[str, Job]) -> Job:
-    """One registry record as a Job. Raises ValueError for a bad one, which
-    then costs only itself: a single bad record used to abort the whole load,
-    and the persist after orphan recovery wrote the survivors over favourites,
-    the Trash, the queue and the delete tombstones (upstream PR 888)."""
-    if rid is None:
-        raise ValueError("no valid job id")
-    if rid in seen:
-        raise ValueError("repeated")
-    job = Job.from_record(record)  # type: ignore[arg-type]
-    for name in _ORDER_FIELDS:
-        value = getattr(job, name)
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ValueError(f"{name} is not a number")
-        if not math.isfinite(value):
-            raise ValueError(f"{name} is not finite")
-    return job
+    return (bool(bad) and keep_bad_records(path, bad)) or changed
 
 
 def _place(
@@ -416,21 +337,6 @@ def _place(
     return True
 
 
-def _keep_bad_records(path: Path, records: list) -> bool:
-    """Save the raw records the load skipped beside the registry, as
-    registry.json.bad-<time>, so dropping them is never silent. True when
-    they were kept."""
-    stamp = time.strftime("%Y%m%d-%H%M%S")
-    target = path.with_name(f"{path.name}.bad-{stamp}-{uuid.uuid4().hex[:_BAD_SUFFIX_HEX]}")
-    try:
-        target.write_text(json.dumps({"records": records}, indent=2) + "\n", encoding="utf-8")
-    except (OSError, TypeError, ValueError):
-        logger.warning("could not keep bad registry records aside", exc_info=True)
-        return False
-    logger.warning("kept %d registry record(s) aside in %s", len(records), target.name)
-    return True
-
-
 def _adopt_orphans(jobs_dir: Path, legacy: bool) -> bool:
     """Rebuild the jobs registry.json has no entry for from their folders.
     True when any was adopted."""
@@ -446,7 +352,7 @@ def _adopt_orphans(jobs_dir: Path, legacy: bool) -> bool:
             # Adopting it here is what brought songs back (#521).
             continue
         try:
-            recovered = _recover_done_job(job_dir, legacy) or _stopped_from_source(job_dir)
+            recovered = _recover_done_job(job_dir, legacy) or stopped_from_source(job_dir)
         except Exception:
             # One folder that cannot be read costs that song, not every folder
             # after it and the save that follows.
@@ -527,166 +433,6 @@ def take_pending_resume() -> list[str]:
     return ids
 
 
-def _stopped_from_source(job_dir: Path) -> Job | None:
-    """A song stopped before it was separated, rebuilt from the upload it kept
-    (upstream PR 889), or None when the file Extract would run (the first
-    source.*, as jobqueue._find_local_source picks it) is not a type an upload
-    can be.
-
-    Such a folder has no stems to rebuild from, so it stayed out of the
-    registry and out of reach of Extract with the only copy of an upload. Not a
-    link's download cut off part way, and not a folder that is or holds a
-    link: Extract would write through it."""
-    try:
-        if not is_real_entry(job_dir) or not all(is_real_entry(p) for p in job_dir.iterdir()):
-            return None
-        source = next((p for p in sorted(job_dir.glob("source.*")) if p.is_file()), None)
-        created_at = job_dir.stat().st_mtime
-    except OSError:
-        logger.warning("could not read %s", job_dir.name, exc_info=True)
-        return None
-    if source is None or source.suffix.lower() not in UPLOAD_EXTS:
-        return None
-    # Placeholder, as for stems without metadata.json: the name went with the
-    # registry.
-    title = f"Recovered track {job_dir.name[:_RECOVERED_ID_CHARS]}"
-    logger.warning("%s holds an upload that was never separated; kept as stopped", job_dir.name)
-    meta = read_metadata(job_dir / "metadata.json")
-    added = saved_from_meta(meta, ("created_at",)) if isinstance(meta, dict) else {}
-    return Job(
-        id=job_dir.name,
-        status="stopped",
-        stage_message="Stopped",
-        title=title,
-        source_url=f"local:{title}",
-        source_format=source.suffix[1:].lower(),
-        selected_stems=list(STEM_NAMES),
-        created_at=added.get("created_at", created_at),
-    )
-
-
-def _disk_stems(job_dir: Path) -> list[dict[str, str]]:
-    """The stems a song's folder holds, Lead + Backing both or neither: the
-    worker writes the pair one file at a time, and a kill between them leaves
-    a lead alone (upstream PR 901)."""
-    stems_dir = job_dir / "stems"
-    has_split = all((stems_dir / f"{name}.wav").is_file() for name in EXTRA_STEM_NAMES)
-    return [
-        {"name": name, "url": f"/api/jobs/{job_dir.name}/stems/{name}.wav"}
-        for name in ("original", *STEM_NAMES, *(EXTRA_STEM_NAMES if has_split else ()))
-        if (stems_dir / f"{name}.wav").is_file()
-    ]
-
-
-def _finished_meta(job_dir: Path, legacy: bool) -> dict | None:
-    """The metadata.json of a folder whose separation finished, or None.
-
-    A song made before the marker gets it while the registry holds it
-    (backfill_stems_complete); one whose record was already gone has the
-    metadata.json a finished run writes after the marker. A file with only the
-    add time is from before the song was done; any other one, unreadable
-    included, is taken as a finished run's, as it always was."""
-    meta_path = job_dir / "metadata.json"
-    meta = read_metadata(meta_path)
-    finished = meta_path.is_file() and not is_started_only(meta)
-    # A version 1 library predates the marker: its stems alone meant done.
-    marked = legacy or (job_dir / "stems" / STEMS_COMPLETE).is_file()
-    if not marked and not finished:
-        logger.warning("%s holds stems of a separation that did not finish", job_dir.name)
-        return None
-    if not isinstance(meta, dict):
-        meta = {}  # read as none, so the folders after this one still rebuild
-    if not finished:
-        # Crash window (#284): the process died between the marker and the
-        # metadata write. Recover with a placeholder title and write it beside
-        # the add time now, so the NEXT restart takes the normal path.
-        meta["title"] = f"Recovered track {job_dir.name[:_RECOVERED_ID_CHARS]}"
-        try:
-            write_json_atomic(meta_path, meta)
-        except OSError:
-            logger.warning("could not write recovery metadata for %s", job_dir.name, exc_info=True)
-    return meta
-
-
-def _recover_done_job(job_dir: Path, legacy: bool = False) -> Job | None:
-    """A finished song rebuilt from its folder, or None for a folder whose
-    separation did not finish (upstream PR 901)."""
-    stems_dir = job_dir / "stems"
-    if not stems_dir.is_dir():
-        return None
-    stems = _disk_stems(job_dir)
-    if not stems:
-        return None
-    meta = _finished_meta(job_dir, legacy)
-    if meta is None:
-        return None
-    mix_url = None
-    if (stems_dir / "mix.wav").is_file():
-        mix_url = f"/api/jobs/{job_dir.name}/stems/mix.wav"
-    selected = [stem["name"] for stem in stems if stem["name"] in STEM_NAMES] or list(STEM_NAMES)
-    # A restart between the split finishing and its next registry persist
-    # would otherwise report the job as never split -- derive from disk the
-    # same way `stems` above does, so the recovered library entry doesn't
-    # regress (#275).
-    vocal_split, vocal_split_choice, vocal_split_error = _recovered_vocal_split(stems_dir)
-    job = Job(
-        id=job_dir.name,
-        status="done",
-        progress=1.0,
-        stage_message="Done",
-        stems=stems,
-        selected_stems=selected,
-        mix_url=mix_url,
-        created_at=job_dir.stat().st_mtime,
-        title=meta.get("title"),
-        user_title=clean_user_name(meta.get("user_title")),
-        user_artist=clean_user_name(meta.get("user_artist")),
-        thumbnail=meta.get("thumbnail"),
-        duration_sec=meta.get("duration_sec"),
-        bpm=meta.get("bpm"),
-        key=meta.get("key"),
-        scale=meta.get("scale"),
-        key_confidence=meta.get("key_confidence"),
-        lufs=meta.get("lufs"),
-        peak_db=meta.get("peak_db"),
-        dynamic_range=meta.get("dynamic_range"),
-        tempo_stability=meta.get("tempo_stability"),
-        stem_presence=meta.get("stem_presence"),
-        sections=meta.get("sections"),
-        sections_source=meta.get("sections_source"),
-        tags=meta.get("tags"),
-        audio_tags=clean_audio_tags(meta.get("audio_tags")),
-        identity=clean_identity(meta.get("identity")),
-        artist=clean_artist(meta.get("artist")),
-        user_band=clean_artist(meta.get("user_band")),
-        work=clean_work(meta.get("work")),
-        # The file is the record: metadata.json predates it for most jobs.
-        has_lyrics=(job_dir / LYRICS_FILE).is_file(),
-        vocal_split=vocal_split,
-        vocal_split_choice=vocal_split_choice,
-        vocal_split_error=vocal_split_error,
-    )
-    for name, value in saved_from_meta(meta).items():
-        setattr(job, name, value)
-    return job
-
-
-def _recovered_vocal_split(
-    stems_dir: Path,
-) -> tuple[VocalSplitState, VocalSplitChoice, VocalSplitFailure | None]:
-    """The split state, choice and failure code a job's stems folder shows:
-    both split stems, a failed split's error file, or neither."""
-    if all((stems_dir / f"{name}.wav").is_file() for name in EXTRA_STEM_NAMES):
-        return VOCAL_SPLIT_DONE, VOCAL_SPLIT_CHOICE_SPLIT, None
-    # Imported here: app.pipeline imports this module.
-    from app.pipeline.vocal_split import read_error_code
-
-    code = read_error_code(stems_dir)
-    if code is not None:
-        return VOCAL_SPLIT_ERROR, VOCAL_SPLIT_CHOICE_SPLIT, code
-    return VOCAL_SPLIT_NONE, VOCAL_SPLIT_CHOICE_COMBINED, None
-
-
 def set_proc(job_id: str, proc: subprocess.Popen | None) -> None:
     with _lock:
         if proc is None:
@@ -695,37 +441,9 @@ def set_proc(job_id: str, proc: subprocess.Popen | None) -> None:
             _procs[job_id] = proc
 
 
-# The files reset removes beside the job folders: the registry, its temp and
-# set-aside copies (persist, _keep_bad_records), the setlists and the desktop
-# shell's store (#403), each with the temp name of an atomic write.
-_OWN_FILE_RE = re.compile(
-    r"(registry\.json(\.bad-[\w-]+)?|user-data\.json|setlists\.json)\Z"
-    r"|\.(registry|registry\.json|setlists\.json)\.[0-9a-f]{32}\.tmp\Z"
-)
-
-
-def _own_entries(jobs_dir: Path, known: set[str]) -> list[Path]:
-    """What reset removes: job folders the registry knows or that hold job
-    files, StemDeck's quarantined failures, and its own files. The jobs folder
-    can be shared with other things (upstream PR 886), so nothing else, and
-    nothing behind a link."""
-    targets = [d for d in job_dirs(jobs_dir) if d.name in known or holds_job_files(d)]
-    targets += quarantine_dirs(jobs_dir)
-    targets += [
-        f
-        for f in jobs_dir.iterdir()
-        if _OWN_FILE_RE.match(f.name) and f.is_file() and is_real_entry(f)
-    ]
-    return targets
-
-
 def reset_all(jobs_dir: Path) -> list[str]:
-    """Delete StemDeck's entries in the jobs folder (_own_entries), clearing
-    the in-memory registry too. Factory reset (Settings -> General -> "Reset
-    app data") -- the caller is responsible for checking no job is actively
-    running first (deleting a running job's directory out from under it would
-    corrupt that job, not just reset the library). Returns the names it could
-    not remove."""
+    """Factory reset: delete StemDeck's entries in the jobs folder and clear the
+    registry. The caller checks no job runs. Returns the names not removed."""
     # A save still writing its snapshot finishes first: replacing the file
     # after the loop below removed it brought the old library back.
     with _write_lock, _lock:
@@ -734,25 +452,13 @@ def reset_all(jobs_dir: Path) -> list[str]:
         _procs.clear()
     if not jobs_dir.is_dir():
         return []
-    failed: list[str] = []
-    for entry in _own_entries(jobs_dir, known):
-        try:
-            if entry.is_dir():
-                shutil.rmtree(entry)
-            else:
-                entry.unlink()
-        except OSError:
-            logger.warning("reset: could not remove %s", entry, exc_info=True)
-            failed.append(entry.name)
-    _remove_empty_failed_root(jobs_dir, failed)
+    failed = _remove_entries(own_entries(jobs_dir, known))
+    remove_empty_failed_root(jobs_dir, failed)
     skipped = [e.name for e in jobs_dir.iterdir() if e.name not in failed]
     if skipped:
         logger.info("reset left %d entries that are not StemDeck's", len(skipped))
-    # Anything that survived is still a job-shaped directory on disk, so the
-    # next start would adopt it and the "reset" library would refill itself.
-    # Record it as deleted and persist that, which also recreates the registry
-    # file this loop just removed. A known job left alone because it is a
-    # link is one of these too.
+    # A job folder still on disk (one that failed to go, or a known one left
+    # alone as a link) would be adopted again on the next start (#521).
     surviving = [name for name in failed if JOB_ID_RE.match(name)]
     surviving += [name for name in skipped if name in known]
     if surviving:
@@ -762,16 +468,19 @@ def reset_all(jobs_dir: Path) -> list[str]:
     return failed
 
 
-def _remove_empty_failed_root(jobs_dir: Path, failed: list[str]) -> None:
-    """failed/ goes only once empty: anything still in it is not ours."""
-    failed_root = jobs_dir / "failed"
-    if not failed_root.is_dir() or not is_real_entry(failed_root) or any(failed_root.iterdir()):
-        return
-    try:
-        failed_root.rmdir()
-    except OSError:
-        logger.warning("reset: could not remove %s", failed_root, exc_info=True)
-        failed.append(failed_root.name)
+def _remove_entries(entries: list[Path]) -> list[str]:
+    """Remove each entry; the names of those that could not be removed."""
+    failed: list[str] = []
+    for entry in entries:
+        try:
+            if entry.is_dir():
+                shutil.rmtree(entry)
+            else:
+                entry.unlink()
+        except OSError:
+            logger.warning("reset: could not remove %s", entry, exc_info=True)
+            failed.append(entry.name)
+    return failed
 
 
 def get_proc(job_id: str) -> subprocess.Popen | None:

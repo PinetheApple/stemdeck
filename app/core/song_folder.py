@@ -21,6 +21,7 @@ import json
 import logging
 import math
 import os
+import re
 import threading
 import uuid
 from pathlib import Path
@@ -56,7 +57,7 @@ def saved_fields(job: Job) -> dict[str, Any]:
     return {name: getattr(job, name) for name in SAVED_FIELDS}
 
 
-def _is_time(value: object) -> bool:
+def is_non_negative_number(value: object) -> bool:
     """A real, finite, non-negative number: no song was added before 1970,
     and NaN or infinity fails every JSON response the library sends."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -77,9 +78,9 @@ def _clean_value(name: str, value: object) -> tuple[bool, object]:
     if name == "favorite":
         return value is None or isinstance(value, bool), value
     if name == "trashed_at":
-        return value is None or _is_time(value), value
+        return value is None or is_non_negative_number(value), value
     if name == "created_at":
-        return _is_time(value), value
+        return is_non_negative_number(value), value
     if name == "selected_stems":
         stems = _clean_stems(value)
         return stems is not None, stems
@@ -140,6 +141,42 @@ def quarantine_dirs(jobs_dir: Path) -> list[Path]:
     if not failed_root.exists() or not is_real_entry(failed_root):
         return []
     return [d for d in job_dirs(failed_root) if (d / "error.txt").is_file()]
+
+
+# The files reset removes beside the job folders: the registry, its temp and
+# set-aside copies (persist, _keep_bad_records), the setlists and the desktop
+# shell's store (upstream issue 403), each with the temp name of an atomic write.
+_OWN_FILE_RE = re.compile(
+    r"(registry\.json(\.bad-[\w-]+)?|user-data\.json|setlists\.json)\Z"
+    r"|\.(registry|registry\.json|setlists\.json)\.[0-9a-f]{32}\.tmp\Z"
+)
+
+
+def own_entries(jobs_dir: Path, known: set[str]) -> list[Path]:
+    """What reset removes: job folders the registry knows or that hold job
+    files, StemDeck's quarantined failures, and its own files. The jobs folder
+    can be shared with other things (upstream PR 886), so nothing else, and
+    nothing behind a link."""
+    targets = [d for d in job_dirs(jobs_dir) if d.name in known or holds_job_files(d)]
+    targets += quarantine_dirs(jobs_dir)
+    targets += [
+        f
+        for f in jobs_dir.iterdir()
+        if _OWN_FILE_RE.match(f.name) and f.is_file() and is_real_entry(f)
+    ]
+    return targets
+
+
+def remove_empty_failed_root(jobs_dir: Path, failed: list[str]) -> None:
+    """failed/ goes only once empty: anything still in it is not ours."""
+    failed_root = jobs_dir / "failed"
+    if not failed_root.is_dir() or not is_real_entry(failed_root) or any(failed_root.iterdir()):
+        return
+    try:
+        failed_root.rmdir()
+    except OSError:
+        logger.warning("reset: could not remove %s", failed_root, exc_info=True)
+        failed.append(failed_root.name)
 
 
 def write_text_atomic(path: Path, text: str) -> None:
