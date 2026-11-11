@@ -16,7 +16,7 @@ const LIST_CLASS = "select-menu";
 const OPTION_CLASS = "select-menu-option";
 const ACTIVE_CLASS = "active";
 const MARGIN_PROPERTY = "--select-menu-margin";
-const LIST_GAP_PX = 4;
+const GAP_PROPERTY = "--select-menu-gap";
 const TYPEAHEAD_RESET_MS = 500;
 const PAGE_SIZE = 10;
 const PRIMARY_BUTTON = 0;
@@ -104,6 +104,8 @@ function showSelected() {
   if (!select.options[menu.selected]?.disabled) setActive(menu.selected);
 }
 
+const cssPx = (el, property) => parseFloat(getComputedStyle(el).getPropertyValue(property)) || 0;
+
 function positionList(anchor = menu.select.getBoundingClientRect()) {
   const { list } = menu;
   menu.layout = layoutKey(anchor);
@@ -114,8 +116,8 @@ function positionList(anchor = menu.select.getBoundingClientRect()) {
     listWidth: list.offsetWidth,
     listHeight: list.scrollHeight,
     viewport: { width: window.innerWidth, height: window.innerHeight },
-    gap: LIST_GAP_PX,
-    margin: parseFloat(getComputedStyle(list).getPropertyValue(MARGIN_PROPERTY)) || 0,
+    gap: cssPx(list, GAP_PROPERTY),
+    margin: cssPx(list, MARGIN_PROPERTY),
   });
   list.style.top = `${place.top}px`;
   list.style.left = `${place.left}px`;
@@ -161,6 +163,7 @@ function openMenu(select, active = select.selectedIndex) {
   renderOptions();
   list.showPopover?.();
   positionList();
+  select.setAttribute("aria-haspopup", "listbox");
   select.setAttribute("aria-expanded", "true");
   select.setAttribute("aria-controls", LIST_ID);
   const usable = active >= 0 && !select.options[active]?.disabled;
@@ -231,10 +234,8 @@ function typeahead(key) {
 const isTypingKey = (e) => e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
 const isTypingSpace = () => performance.now() - typedAt <= TYPEAHEAD_RESET_MS;
 
-/**
- * A key on a closed select: true when handled. Space and letters are left to
- * the app's shortcuts, as they always were on a select.
- */
+/** A key on a closed select: true when handled. Space and letters are left to
+ * the app's shortcuts and the select's own type-ahead. */
 function keyOnClosedSelect(select, e) {
   if (e.ctrlKey || e.metaKey) return false;
   const flags = optionFlags(select);
@@ -335,8 +336,8 @@ function onListFocusout(e) {
   if (menu && !menu.list.contains(e.relatedTarget)) closeMenu({ refocus: false });
 }
 
-// On window at load, ahead of every later key listener (help mode, lyric sync),
-// so stopping a key here keeps it for the list.
+// On window capture, ahead of help mode's listener; Sync lines listens earlier
+// but stands down while a control reports an open popup (aria-haspopup/expanded).
 window.addEventListener("keydown", onKeydown, true);
 document.addEventListener("mousedown", onPressOutside, true);
 document.addEventListener("mousedown", onSelectPress);

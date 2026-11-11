@@ -13,6 +13,7 @@ import {
   JOB_ID,
   SIBLING_JOB_ID,
   fixtureTrack,
+  openClickOptions,
   readCatalogState,
   seedCatalogState,
   stubAudioTags,
@@ -491,5 +492,23 @@ test.describe("syncing lyrics line by line", () => {
     await expect(panel(page)).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(panel(page)).toBeHidden();
+  });
+
+  test("an open select list outside the Lyrics panel keeps its keys from Sync lines", async ({ page }) => {
+    await setUp(page);
+    await openSync(page);
+    await openClickOptions(page);
+    const accent = page.locator("#t-metro-bar");
+    await accent.click();
+    const list = page.locator("#select-menu-list");
+    await expect(list).toBeVisible();
+
+    await page.keyboard.press("ArrowDown");
+    await expect(list.getByRole("option", { name: "Off", exact: true })).toHaveClass(/active/);
+    await expect(page.locator(".lyrics-sync-next-text")).toHaveText("Server one");
+    await page.keyboard.press("Enter");
+    await expect(list).toHaveCount(0);
+    await expect(accent).toHaveValue("0");
+    await expect(page.locator(".lyrics-sync-next-text")).toHaveText("Server one");
   });
 });

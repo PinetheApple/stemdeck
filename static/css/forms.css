@@ -11,6 +11,7 @@
   --check-mark: 10px;
   --radio-dot: 6px;
   --select-menu-margin: var(--s-2);
+  --select-menu-gap: var(--s-1);
   --select-menu-line-height: 1.2;
   --z-select-menu: 1000;
 }
@@ -33,7 +34,7 @@ select:not([multiple]):not(.metro-select) {
     right var(--caret-inset) center;
   background-repeat: no-repeat;
 }
-:where(select:not([multiple]):disabled) { cursor: not-allowed; }
+select:not([multiple]):disabled { cursor: not-allowed; }
 select[aria-expanded="true"]:not([multiple]) { border-color: var(--accent); }
 
 .select-menu {
