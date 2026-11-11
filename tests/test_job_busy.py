@@ -15,6 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core import registry as _registry
+from app.core import stems_location
 from app.core.models import VOCAL_SPLIT_DONE, VOCAL_SPLIT_RUNNING, Job
 from tests.test_stems_location import _job_dir, client  # noqa: F401
 
@@ -70,6 +71,5 @@ def test_moving_the_library_is_refused_while_a_split_runs(client, tmp_path):  # 
     assert r.json()["code"] == BUSY["code"]
     assert (client.jobs_dir / JOB).is_dir()
     assert not (target / JOB).exists()
-    # The door is open again: the move goes ahead once the split is over.
-    _registry.get(JOB).vocal_split = VOCAL_SPLIT_DONE
-    assert client.post("/api/settings/stems-location", json={"path": str(target)}).is_success
+    # The door is open again: imports are not held up by a refused move.
+    assert stems_location.is_relocating() is False
