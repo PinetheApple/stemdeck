@@ -10,6 +10,7 @@ import { test, expect } from "@playwright/test";
 import {
   JOB_ID,
   SIBLING_JOB_ID,
+  failureMessages,
   fixtureTrack,
   readCatalogState,
   seedCatalogState,
@@ -227,6 +228,33 @@ test.describe("tags for tracks imported before they were read", () => {
     await openTrack(page);
     await expect.poll(() => timesAsked(asked), { timeout: 15000 }).toBe(2);
   });
+
+  const REFUSALS = [
+    { name: "a read-only server (403)", refuse: (route) => route.fulfill({ status: 403, body: "read-only" }) },
+    { name: "a server that cannot write (503)", refuse: (route) => route.fulfill({ status: 503, body: "unavailable" }) },
+    { name: "no connection", refuse: (route) => route.abort("internetdisconnected") },
+  ];
+  for (const { name, refuse } of REFUSALS) {
+    test(`a refused read leaves the song viewable: ${name}`, async ({ page }) => {
+      const errors = [];
+      page.on("pageerror", (e) => errors.push(e.message));
+      await stubWikimedia(page);
+      const asked = [];
+      await page.route("**/api/jobs/*/audio-tags", (route) => {
+        asked.push(route.request().method());
+        return refuse(route);
+      });
+      await openStudio(page);
+      await openTrack(page);
+
+      await expect.poll(() => asked, { timeout: 15000 }).toEqual(["POST"]);
+      await expect(page.locator("#title")).toHaveText("E2E Fixture Track");
+      await expect(page.locator(".stem-waveform-row[data-stem] svg").first()).toBeVisible();
+      await expect(page.locator(`.cat-item[data-id="${JOB_ID}"]`).first()).not.toHaveClass(/unavailable/);
+      expect(await failureMessages(page)).toEqual([]);
+      expect(errors).toEqual([]);
+    });
+  }
 
   test("a read already under way on the server (409) is asked again on the next open", async ({ page }) => {
     await stubWikimedia(page);

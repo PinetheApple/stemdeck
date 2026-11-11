@@ -1082,6 +1082,14 @@ async def refresh_audio_tags(job_id: str) -> dict:
     soundtrack or cast recording is from, found here for a job that has none
     when its identity, album tag or title says it is one. Also an added key.
 
+    A POST because it may keep what it finds: in the registry and
+    metadata.json, and in lyrics.json or, when LRCLIB had none, the record of
+    that ask that keeps it from being asked again before
+    LYRICS_NOT_FOUND_RETRY_SEC. Only what the job lacked is written, so a call
+    that finds nothing new writes nothing, and the page can ask whenever it
+    opens a track missing any of it. A refused or failed call costs the page
+    nothing but the answer: the track is already open, and stays as it was.
+
     Deliberately outside _pipeline_lock. This is one metadata request, and
     waiting behind a twenty-minute separation for it would leave the artist
     box empty for no reason.
