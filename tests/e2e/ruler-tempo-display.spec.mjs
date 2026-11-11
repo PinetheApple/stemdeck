@@ -1,7 +1,7 @@
 // The ruler and the Tempo tab stay readable while the song plays and scrolls.
 
 import { test, expect } from "@playwright/test";
-import { openStudio, openInspectorTab } from "./helpers.mjs";
+import { openStudio, openInspectorTab, waitForPanesSettled } from "./helpers.mjs";
 
 const VIEWPORTS = [
   { width: 1024, height: 768 },
@@ -52,6 +52,7 @@ function contentCrossesPaneTop(pane) {
 
 async function expectTempoPaddingClearWhenScrolled(page, { withoutScrollTimeline = false } = {}) {
   await openStudio(page);
+  await waitForPanesSettled(page);
   if (withoutScrollTimeline) {
     expect(await page.evaluate(applyScrollTimelineFallback, SCROLL_TIMELINE_CONDITION)).toBeGreaterThan(0);
   }
@@ -80,6 +81,7 @@ for (const viewport of VIEWPORTS) {
 
     test("the playhead flag leaves a ruler label readable", async ({ page }) => {
       await openStudio(page);
+      await waitForPanesSettled(page);
       const label = page.locator("#ruler-time .tick-label").first();
       const box = await label.boundingBox();
 
