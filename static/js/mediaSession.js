@@ -13,6 +13,7 @@ const ACTION = Object.freeze({
   PAUSE: "pause",
   STOP: "stop",
   NEXT_TRACK: "nexttrack",
+  PREVIOUS_TRACK: "previoustrack",
   SEEK_TO: "seekto",
   SEEK_BACKWARD: "seekbackward",
   SEEK_FORWARD: "seekforward",
@@ -20,6 +21,7 @@ const ACTION = Object.freeze({
 const PLAYBACK = Object.freeze({ PLAYING: "playing", PAUSED: "paused", NONE: "none" });
 // The same step as the [ and ] keys.
 const SEEK_STEP_SEC = 5;
+const SONG_START_SEC = 0;
 const PLAY_BUTTON_ID = "t-play";
 const AUDIO_SESSION_PLAYBACK = "playback";
 
@@ -113,9 +115,18 @@ function seekAheadFromMediaKey(details) {
   seekTo(currentPosition() + (details.seekOffset ?? SEEK_STEP_SEC));
 }
 
+// Up Next keeps no played history, so previous restarts the open song.
+function restartFromMediaKey() {
+  seekTo(SONG_START_SEC);
+}
+
 function onTrackOpen(e) {
   openTrackId = e.detail?.id ?? null;
   reported = null;
+  setActionHandler(
+    ACTION.PREVIOUS_TRACK,
+    openTrackId ? restartFromMediaKey : null,
+  );
   syncMetadata();
   syncPlayback();
 }
@@ -148,6 +159,7 @@ export function clearMediaSession() {
   openTrackId = null;
   session.metadata = null;
   session.playbackState = PLAYBACK.NONE;
+  setActionHandler(ACTION.PREVIOUS_TRACK, null);
   clearPosition();
 }
 

@@ -177,6 +177,30 @@ test.describe("system media controls", () => {
     await expect.poll(() => handlerKind(page, "nexttrack")).toBe("cleared");
   });
 
+  test("previous restarts the open song and keeps it playing", async ({ page }) => {
+    await openWithMediaSession(page);
+    await runAction(page, "play");
+    await expectPlaying(page, true);
+    await runAction(page, "seekto", { seekTime: 3 });
+    await expect.poll(() => currentTime(page)).toBeGreaterThan(2.5);
+
+    await runAction(page, "previoustrack");
+    await expect.poll(() => currentTime(page)).toBeLessThan(SECONDS_CLOSE);
+    await expectPlaying(page, true);
+    await expect.poll(async () => (await lastPosition(page))?.position).toBeLessThan(SECONDS_CLOSE);
+  });
+
+  test("previous restarts a paused song and leaves it paused", async ({ page }) => {
+    await openWithMediaSession(page);
+    await runAction(page, "seekto", { seekTime: 3 });
+    await expect.poll(() => currentTime(page)).toBeCloseTo(3, 1);
+
+    await runAction(page, "previoustrack");
+    await expect.poll(() => currentTime(page)).toBe(0);
+    await expectPlaying(page, false);
+    await expect.poll(async () => (await lastPosition(page))?.position).toBe(0);
+  });
+
   test("a speed change reaches the reported position state", async ({ page }) => {
     await openWithMediaSession(page);
 
@@ -189,10 +213,12 @@ test.describe("system media controls", () => {
   test("closing the song clears what the OS shows", async ({ page }) => {
     await openWithMediaSession(page);
     await expect.poll(() => metadata(page)).not.toBeNull();
+    expect(await handlerKind(page, "previoustrack")).toBe("set");
 
     await page.evaluate(async () => (await import("/js/job.js")).reset());
     await expect.poll(() => metadata(page)).toBeNull();
     await expect.poll(() => playbackState(page)).toBe("none");
     expect(await lastPosition(page)).toBeNull();
+    expect(await handlerKind(page, "previoustrack")).toBe("cleared");
   });
 });
