@@ -2,11 +2,13 @@
 // see, each the size of its control, inside the window and clear of the others.
 // A crowded library with long titles is the case that used to break it: rows
 // scrolled out of the list and their hover-only buttons were outlined too.
-// The help pill must leave every outlined control and the transport uncovered.
+// The help pill must leave every control and the transport uncovered, and keep
+// doing so when the studio's layout changes under it.
 
 import { test, expect } from "@playwright/test";
 
 import { JOB_ID, SIBLING_JOB_ID, SIBLING_TITLE, TRACK_TITLE, fixtureTrack, openStudio } from "./helpers.mjs";
+import { clickFrozen, freezeTimers } from "./saveRaces.mjs";
 
 const VIEWPORTS = [
   { width: 1024, height: 768 },
@@ -27,6 +29,9 @@ const HIDDEN_CONTROLS_CSS = `
   :has(> #t-pitch-reset) { opacity: 0; }
 `;
 const TRANSPORT_CONTROLS = '.daw-footer :is(button, input, select, [role="slider"])';
+// Guide treats anything bigger than this share of the window as an area to point into, not a control.
+const AREA_SHARE = 0.04;
+const NO_TRACK_AREA_CSS = ".waves-column { display: none !important; }";
 
 function crowdedLibrary() {
   const extra = Array.from({ length: EXTRA_SONGS }, (_, i) => `e2e0long${String(i).padStart(4, "0")}`);
@@ -87,17 +92,39 @@ function measureOutlines({ tolerance, stash }) {
   });
 }
 
-/** The help pill, and every transport control a user can see. */
-function measurePill(selector) {
+/**
+ * The help pill; every control a user can see right now (each transport control,
+ * and each explainable one that is not an area and is not covered); and the
+ * middle of the waveforms' visible part, if they are shown.
+ */
+function measurePill({ transport, areaShare }) {
   const edges = (el) => {
     const r = el.getBoundingClientRect();
     return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
   };
-  const controls = [...document.querySelectorAll(selector)]
-    .filter((el) => el.getClientRects().length && getComputedStyle(el).visibility === "visible")
+  const big = window.innerWidth * window.innerHeight * areaShare;
+  const seen = (el) => {
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2);
+    return r.width * r.height > 0 && r.width * r.height <= big && Boolean(hit) && el.contains(hit);
+  };
+  const controls = [...document.querySelectorAll(`${transport}, .help-target`)]
+    .filter((el) => getComputedStyle(el).visibility === "visible" && seen(el))
     .map((el) => ({ target: el.id || el.className, rect: edges(el) }));
-  return { pill: edges(document.querySelector(".help-pill")), controls };
+  const track = document.querySelector(".waves-column");
+  let area = track?.getClientRects().length ? edges(track) : null;
+  for (let p = track?.parentElement; area && p && p !== document.body; p = p.parentElement) {
+    const { overflowX } = getComputedStyle(p);
+    const r = p.getBoundingClientRect();
+    if (overflowX !== "visible") area = { ...area, left: Math.max(area.left, r.left), right: Math.min(area.right, r.right) };
+  }
+  const trackCentre = area ? (area.left + area.right) / 2 : null;
+  return { pill: edges(document.querySelector(".help-pill")), controls, trackCentre };
 }
+
+const pillCentre = ({ pill }) => (pill.left + pill.right) / 2;
+const coveredBy = ({ pill, controls }) => controls.filter(({ rect }) => crossing(pill, rect)).map((c) => c.target);
+const measurePillNow = (page) => page.evaluate(measurePill, { transport: TRANSPORT_CONTROLS, areaShare: AREA_SHARE });
 
 function crossing(a, b) {
   return a.right > b.left + RECT_TOLERANCE_PX
@@ -114,13 +141,20 @@ function overlapping(outlines) {
   return pairs;
 }
 
-async function guideOn(page, viewport, { native }) {
+/** Guide on in a crowded studio. `hold` stops the page's clock first, so the intro's outlines stay up to be measured. */
+async function guideOn(page, viewport, { native, hold = false, css = HIDDEN_CONTROLS_CSS }) {
   await page.setViewportSize(viewport);
   if (!native) await withoutCheckVisibility(page);
+  if (hold) await page.clock.install();
   await openStudio(page, { catalog: crowdedLibrary() });
-  await page.addStyleTag({ content: HIDDEN_CONTROLS_CSS });
+  await page.addStyleTag({ content: css });
   expect(await page.evaluate(() => typeof Element.prototype.checkVisibility)).toBe(native ? "function" : "undefined");
-  await page.locator("#helpModeBtn").click();
+  if (hold) {
+    await freezeTimers(page);
+    await clickFrozen(page, "#helpModeBtn");
+  } else {
+    await page.locator("#helpModeBtn").click();
+  }
   await expect(page.locator(".help-pill")).toBeVisible();
 }
 
@@ -132,7 +166,7 @@ const ENGINES = [
 test.describe("Guide outlines", () => {
   for (const viewport of VIEWPORTS) for (const engine of ENGINES) {
     test(`each outline fits a visible control at ${viewport.width} px${engine.label}`, async ({ page }) => {
-      await guideOn(page, viewport, engine);
+      await guideOn(page, viewport, { ...engine, hold: true });
       const outlines = await page.evaluate(measureOutlines, { tolerance: RECT_TOLERANCE_PX, stash: NATIVE_CHECK });
 
       expect(outlines.length).toBeGreaterThan(MIN_OUTLINES);
@@ -147,15 +181,38 @@ test.describe("Guide outlines", () => {
     });
   }
 
-  for (const viewport of VIEWPORTS) {
-    test(`the help pill covers no control at ${viewport.width} px`, async ({ page }) => {
-      await guideOn(page, viewport, { native: true });
-      const outlines = await page.evaluate(measureOutlines, { tolerance: RECT_TOLERANCE_PX, stash: NATIVE_CHECK });
-      const { pill, controls } = await page.evaluate(measurePill, TRANSPORT_CONTROLS);
+  for (const viewport of VIEWPORTS) for (const engine of ENGINES) {
+    test(`the help pill covers no control at ${viewport.width} px${engine.label}`, async ({ page }) => {
+      await guideOn(page, viewport, engine);
+      const measured = await measurePillNow(page);
 
-      expect(controls.length).toBeGreaterThan(0);
-      const covered = [...outlines, ...controls].filter(({ rect }) => crossing(pill, rect)).map((c) => c.target);
-      expect(covered).toEqual([]);
+      expect(measured.controls.length).toBeGreaterThan(MIN_OUTLINES);
+      expect(coveredBy(measured)).toEqual([]);
+      expect(Math.abs(pillCentre(measured) - measured.trackCentre)).toBeLessThanOrEqual(RECT_TOLERANCE_PX);
     });
   }
+
+  test("the help pill follows the waveforms when the library is put away", async ({ page }) => {
+    await guideOn(page, VIEWPORTS[0], { native: true });
+    const before = await measurePillNow(page);
+    await page.evaluate(async () => (await import("/js/catalog.js")).setSidebarCollapsed(true));
+
+    await expect.poll(async () => (await measurePillNow(page)).trackCentre).not.toBe(before.trackCentre);
+    await expect.poll(async () => {
+      const measured = await measurePillNow(page);
+      return Math.abs(pillCentre(measured) - measured.trackCentre);
+    }).toBeLessThanOrEqual(RECT_TOLERANCE_PX);
+    expect(coveredBy(await measurePillNow(page))).toEqual([]);
+  });
+
+  test("with no waveforms shown, the help pill sits above the transport, centred", async ({ page }) => {
+    const viewport = VIEWPORTS[0];
+    await guideOn(page, viewport, { native: true, css: NO_TRACK_AREA_CSS });
+    const measured = await measurePillNow(page);
+
+    expect(measured.trackCentre).toBeNull();
+    expect(Math.abs(pillCentre(measured) - viewport.width / 2)).toBeLessThanOrEqual(RECT_TOLERANCE_PX);
+    const footerTop = await page.locator(".daw-footer").evaluate((el) => el.getBoundingClientRect().top);
+    expect(measured.pill.bottom).toBeLessThanOrEqual(footerTop);
+  });
 });

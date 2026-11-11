@@ -5,9 +5,38 @@
 
 import { test, expect } from "@playwright/test";
 
-import { openInspectorTab, openStudio, seedLibrary, stubUpdateCheck } from "./helpers.mjs";
+import { SIBLING_JOB_ID, openInspectorTab, openStudio, seedLibrary, stubUpdateCheck, uiText } from "./helpers.mjs";
 
 const tip = (page) => page.locator("#helpTip");
+// The pointer's ring is placed on whole pixels.
+const RING_TOLERANCE_PX = 1;
+const AWAY_FROM_CONTROLS = { x: 2, y: 2 };
+
+/** The pointer's ring, the control's own box, and the box of everything the control draws. */
+function measureHoverRing(selector) {
+  const edges = (r) => ({ left: r.left, top: r.top, right: r.right, bottom: r.bottom, height: r.height });
+  const el = document.querySelector(selector);
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  return {
+    ring: edges(document.querySelector(".help-ring").getBoundingClientRect()),
+    box: edges(el.getBoundingClientRect()),
+    drawn: edges(range.getBoundingClientRect()),
+  };
+}
+
+const contains = (outer, inner) => outer.left <= inner.left + RING_TOLERANCE_PX
+  && outer.top <= inner.top + RING_TOLERANCE_PX
+  && outer.right >= inner.right - RING_TOLERANCE_PX
+  && outer.bottom >= inner.bottom - RING_TOLERANCE_PX;
+
+/** A song row's Up Next button, hidden until its row is pointed at or focused. */
+async function hiddenUpNext(page) {
+  const upNext = page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"] .cat-upnext`);
+  const actions = page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"] .cat-actions`);
+  await expect.poll(() => actions.evaluate((el) => getComputedStyle(el).opacity)).toBe("0");
+  return upNext;
+}
 
 async function helpOn(page) {
   await page.locator("#helpModeBtn").click();
@@ -54,6 +83,43 @@ test.describe("help mode", () => {
     await expect(tip(page).locator("b")).toHaveText("0.75x");
     await expect(tip(page)).toContainText("three-quarter speed");
     await expect(page.locator("#t-speed-075")).toHaveClass(/help-current/);
+  });
+
+  test("pointing at an icon button rings the icon, not the whole button", async ({ page }) => {
+    await openStudio(page);
+    await helpOn(page);
+    await page.locator("#fav-btn").hover();
+    await expect(page.locator(".help-ring")).toBeVisible();
+    const { ring, box, drawn } = await page.evaluate(measureHoverRing, "#fav-btn");
+    expect(contains(ring, drawn)).toBe(true);
+    expect(ring.height).toBeLessThan(box.height);
+  });
+
+  test("pointing at a rail button rings its label too, where the label is wider than the button", async ({ page }) => {
+    await openStudio(page);
+    await helpOn(page);
+    await page.locator("#notifBtn").hover();
+    await expect(page.locator(".help-ring")).toBeVisible();
+    const { ring, box, drawn } = await page.evaluate(measureHoverRing, "#notifBtn");
+    expect(drawn.right - drawn.left).toBeGreaterThan(box.right - box.left);
+    expect(contains(ring, drawn)).toBe(true);
+  });
+
+  test("a song's Up Next button explains itself the moment it is focused", async ({ page }) => {
+    await openStudio(page);
+    await helpOn(page);
+    const upNext = await hiddenUpNext(page);
+    await upNext.focus();
+    await expect(tip(page)).toContainText(await uiText(page, "help.addToUpNext"));
+  });
+
+  test("a song's Up Next button explains itself the moment it is pointed at", async ({ page }) => {
+    await openStudio(page);
+    await helpOn(page);
+    await page.mouse.move(AWAY_FROM_CONTROLS.x, AWAY_FROM_CONTROLS.y);
+    const upNext = await hiddenUpNext(page);
+    await upNext.hover({ force: true });
+    await expect(tip(page)).toContainText(await uiText(page, "help.addToUpNext"));
   });
 
   test("a lane's control names its instrument", async ({ page }) => {
