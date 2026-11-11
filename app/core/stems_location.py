@@ -150,8 +150,7 @@ def _holds_another_library(target: Path, current: Path) -> bool:
     and has not removed the original yet: identical, or ours anyway when the
     target's move marker names `current`.
     """
-    if _moving_from(target) == str(current):
-        return False
+    ours = _moving_from(target) == str(current)
     for name in _LIBRARY_RECORDS:
         theirs = target / name
         mine = current / name
@@ -160,6 +159,8 @@ def _holds_another_library(target: Path, current: Path) -> bool:
         # A link in the target could point anywhere; never treat it as ours.
         if theirs.is_symlink() or not theirs.is_file():
             return True
+        if ours:
+            continue
         try:
             if not filecmp.cmp(mine, theirs, shallow=False):
                 return True
@@ -171,6 +172,9 @@ def _holds_another_library(target: Path, current: Path) -> bool:
 # Written in the target when a move starts and removed once the new location is
 # saved, so the records an unfinished move copied there still read as ours.
 _MOVE_MARKER = ".stemdeck-move-from"
+# It holds one path; anything longer is not a marker StemDeck wrote.
+_MARKER_MAX_BYTES = 4096
+_MARKER_REFUSED = "That folder holds a file StemDeck did not expect. Pick an empty folder instead."
 _OURS = frozenset({"registry.json", "failed", "user-data.json", SETLISTS_FILE, _MOVE_MARKER})
 # What Finder and Explorer write into any folder they show.
 _OS_FILES = frozenset({".ds_store", "desktop.ini", "thumbs.db"})
@@ -193,14 +197,31 @@ def _looks_like_job_dir(entry: Path) -> bool:
 
 
 def _moving_from(target: Path) -> str | None:
+    """The library the target's move marker names, or None without one. A linked,
+    oversized or garbled marker is not StemDeck's: the folder is refused."""
+    marker = target / _MOVE_MARKER
+    if _is_link(marker):
+        raise StemsLocationError(_MARKER_REFUSED)
     try:
-        return (target / _MOVE_MARKER).read_text(encoding="utf-8")
-    except OSError:
+        with open(marker, "rb") as fh:
+            raw = fh.read(_MARKER_MAX_BYTES + 1)
+    except FileNotFoundError:
         return None
+    except OSError as e:
+        raise StemsLocationError(_MARKER_REFUSED) from e
+    try:
+        source = raw.decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise StemsLocationError(_MARKER_REFUSED) from e
+    if len(raw) > _MARKER_MAX_BYTES or not source.isprintable() or not Path(source).is_absolute():
+        raise StemsLocationError(_MARKER_REFUSED)
+    return source
 
 
 def _mark_move(target: Path, current: Path) -> None:
     marker = target / _MOVE_MARKER
+    if _is_link(marker):
+        raise StemsLocationError(_MARKER_REFUSED)
     marker.write_text(str(current), encoding="utf-8")
     fsync_file(marker)
     fsync_dir(target)
@@ -289,20 +310,24 @@ def _move_entry(entry: Path, destination: Path, resumed: bool) -> _Moved:
 
 
 def remove_moved(result: MoveResult) -> None:
-    """Delete the originals of the entries move_library copied, and its marker,
-    once the new location is saved. The records go first, so an old folder this
-    stops partway through holds no registry that could later read as another
-    library. One that cannot be deleted is only a leftover copy: logged."""
+    """Delete the move marker, then the originals of the entries move_library
+    copied, once the new location is saved. A marker left naming the old folder
+    would let its records overwrite this library's on a later move back, so
+    while it cannot be removed the originals stay. The records go first, so an
+    old folder this stops partway through holds no registry that could later
+    read as another library. One that cannot be deleted is only a leftover
+    copy: logged."""
+    try:
+        (Path(result.target) / _MOVE_MARKER).unlink(missing_ok=True)
+    except OSError:
+        logger.warning("stems move: marker not removed; keeping the originals", exc_info=True)
+        return
     current = Path(result.source)
     for name in sorted(result.copied, key=lambda n: n not in _LIBRARY_RECORDS):
         try:
             _remove(current / name)
         except OSError:
             logger.warning("stems move: could not remove the original of %s", name, exc_info=True)
-    try:
-        (Path(result.target) / _MOVE_MARKER).unlink(missing_ok=True)
-    except OSError:
-        logger.warning("stems move: could not remove the move marker", exc_info=True)
 
 
 # Windows' reparse tag for a junction, as shutil.rmtree checks it; only Windows'

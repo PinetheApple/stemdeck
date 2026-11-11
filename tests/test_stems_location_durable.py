@@ -393,3 +393,85 @@ def test_records_from_a_move_that_died_after_copying_them_are_not_another_librar
     _write_registry(current, Job(id="bbbbbbbbbbbb", status="done"))
 
     assert validate_target(target, current) == target.resolve()
+
+
+def _our_marker(target: Path, current: Path) -> None:
+    target.mkdir(parents=True, exist_ok=True)
+    (target / _MARKER).write_text(str(current.resolve()), encoding="utf-8")
+
+
+def test_a_linked_records_file_is_refused_even_under_our_marker(tmp_path):
+    current = tmp_path / "old"
+    _library(current)
+    target = tmp_path / "new"
+    _our_marker(target, current)
+    elsewhere = tmp_path / "elsewhere.json"
+    elsewhere.write_text('{"jobs": []}', encoding="utf-8")
+    try:
+        (target / "registry.json").symlink_to(elsewhere)
+    except OSError:
+        pytest.skip("symlinks are not available here")
+
+    with pytest.raises(StemsLocationError, match="another StemDeck library"):
+        validate_target(target, current)
+
+
+def _linked_marker(target: Path, current: Path, outside: Path) -> None:
+    target.mkdir(parents=True)
+    outside.write_text(str(current.resolve()), encoding="utf-8")
+    try:
+        (target / _MARKER).symlink_to(outside)
+    except OSError:
+        pytest.skip("symlinks are not available here")
+
+
+def test_a_linked_marker_is_refused_and_never_written_through(tmp_path):
+    current = tmp_path / "old"
+    _library(current)
+    target = tmp_path / "new"
+    outside = tmp_path / "outside.txt"
+    _linked_marker(target, current, outside)
+
+    with pytest.raises(StemsLocationError):
+        validate_target(target, current)
+    with pytest.raises(StemsLocationError):
+        move_library(current, target)
+    assert outside.read_text(encoding="utf-8") == str(current.resolve())
+    assert _entries(target) == []
+
+
+@pytest.mark.parametrize(
+    "content",
+    [b"/" + b"a" * 8192, b"\xff\xfe not text", b"relative/path", b"/old\n/other", b"/old\0"],
+    ids=["oversized", "not utf-8", "relative", "two lines", "nul"],
+)
+def test_a_marker_that_is_not_a_plain_path_is_refused(tmp_path, content):
+    current = tmp_path / "old"
+    _library(current)
+    target = tmp_path / "new"
+    target.mkdir()
+    (target / _MARKER).write_bytes(content)
+
+    with pytest.raises(StemsLocationError):
+        validate_target(target, current)
+
+
+def test_a_marker_that_cannot_be_removed_keeps_the_originals(tmp_path, monkeypatch, other_drive):
+    """A marker left behind naming this folder would later let its empty
+    registry overwrite the new library's on a move back, so the originals are
+    deleted only once the marker is gone."""
+    current = tmp_path / "old"
+    before = _library(current)
+    target = tmp_path / "new"
+    result = move_library(current, target)
+    real_unlink = Path.unlink
+
+    def unlink(self, *a, **kw):
+        if self.name == _MARKER:
+            raise PermissionError(13, "Access is denied")
+        return real_unlink(self, *a, **kw)
+
+    monkeypatch.setattr(Path, "unlink", unlink)
+    stems_location.remove_moved(result)
+
+    assert _snapshot(current) == before
