@@ -215,41 +215,45 @@ test(title("S3"), async ({ app }, testInfo) => {
 
 // ─── Needs no track: V3 ─────────────────────────────────────────────────────
 
-// Steps: with no track open, click Click track options. Expect: the box is
-// fully opaque and takes its own clicks; only the controls inside are dimmed.
+// The click-track options sit inline in the inspector's Tempo tab at every width.
+async function showClickOptions(page) {
+  if (!(await page.locator("#inspector").isVisible())) await page.locator("#inspectorToggleBtn").click();
+  await page.locator("#inspectorTabTempo").click();
+  await expect(page.locator("#t-metro-more")).toBeHidden();
+  const panel = page.locator("#t-metro-panel");
+  await expect(panel).toBeVisible();
+  return panel;
+}
+
+// Steps: with no track open, look at the click track options in the Tempo tab.
+// Expect: they sit in the inspector, not over the lanes; a click on them stays
+// in the inspector; the controls are dimmed and disabled.
 test(title("V3"), async ({ app }, testInfo) => {
   const { page } = app;
   await expect(page.locator(".app")).toHaveClass(/no-track/);
-  // The default window (1280 wide): the options fold behind the disclosure.
   await setWindowWidth(page, 1296, 839);
-  const more = page.locator("#t-metro-more");
-  await expect(more).toBeVisible({ timeout: 10_000 });
-  await more.click();
-  const panel = page.locator("#t-metro-panel");
+  const panel = await showClickOptions(page);
   await expect(panel).toHaveClass(/\bunavailable\b/);
-  await expect(panel).toBeVisible();
   const geo = await page.evaluate(() => {
     const p = document.querySelector("#t-metro-panel");
     const pr = p.getBoundingClientRect();
-    const hit = document.elementFromPoint(pr.left + pr.width / 2, pr.top + 4);
-    const child = p.firstElementChild;
+    const hit = document.elementFromPoint(pr.left + pr.width / 2, pr.top + pr.height / 2);
     return {
-      opacity: getComputedStyle(p).opacity,
-      pointerEvents: getComputedStyle(p).pointerEvents,
-      background: getComputedStyle(p).backgroundColor,
-      childOpacity: child ? getComputedStyle(child).opacity : null,
-      hitsPanel: p.contains(hit),
+      position: getComputedStyle(p).position,
+      opacity: Number(getComputedStyle(p).opacity),
+      inInspector: document.querySelector("#inspector").contains(p),
+      hitsInspector: document.querySelector("#inspector").contains(hit),
+      hitsLanes: document.querySelector("#lanes").contains(hit),
+      allDisabled: [...p.querySelectorAll("button, select, input")].every((el) => el.disabled),
     };
   });
-  expect(geo.opacity).toBe("1");
-  expect(geo.pointerEvents).not.toBe("none");
-  expect(geo.hitsPanel, "a click on the box lands on the box, not the lanes").toBe(true);
-  expect(geo.background, "a solid background").not.toMatch(/rgba\(.*,\s*0(\.\d+)?\)$/);
-  expect(Number(geo.childOpacity)).toBeLessThan(1);
+  expect(geo.inInspector, "the options are in the inspector").toBe(true);
+  expect(geo.position, "laid out in the tab, not floating").toBe("static");
+  expect(geo.hitsInspector, "a click on the box lands in the inspector").toBe(true);
+  expect(geo.hitsLanes, "not on the lanes").toBe(false);
+  expect(geo.opacity).toBeLessThan(1);
+  expect(geo.allDisabled, "every control is disabled").toBe(true);
   await shot(page, testInfo, "options-no-track");
-  await panel.click({ position: { x: 6, y: 6 } });
-  await expect(more).toHaveAttribute("aria-expanded", "true");
-  await page.keyboard.press("Escape");
   await wideWindow(page);
 });
 
@@ -393,29 +397,22 @@ test(title("N1"), async ({ app }, testInfo) => {
   await shot(page, testInfo, "studio");
 });
 
-// Steps: with a song loaded, open Click track options. Expect: under Count-in,
-// a caption "Plays even with the click track off".
+// Steps: with a song loaded, point at Count-in in the Tempo tab. Expect: its
+// tooltip says it plays even with the click track off.
 test(title("V4"), async ({ app }, testInfo) => {
   const { page } = app;
   const id = await trackFor(page, "wicked");
   if (await page.locator(".app").evaluate((el) => el.classList.contains("no-track"))) await openTrack(page, id);
-  // The caption belongs to the popover, which the default window width shows.
   await setWindowWidth(page, 1296, 839);
   await page.waitForFunction(() => document.querySelector("#t-metro") && !document.querySelector("#t-metro").disabled, null, { timeout: 60_000 });
-  const more = page.locator("#t-metro-more");
-  await expect(more).toBeVisible();
-  if ((await more.getAttribute("aria-expanded")) !== "true") await more.click();
-  const hint = page.locator("#t-metro-panel .metro-countin-hint");
-  await expect(hint).toBeVisible();
-  await expect(hint).toHaveText("Plays even with the click track off");
-  const below = await page.evaluate(() => {
-    const s = document.querySelector("#t-metro-countin").getBoundingClientRect();
-    const h = document.querySelector("#t-metro-panel .metro-countin-hint").getBoundingClientRect();
-    return h.top >= s.bottom - 2;
-  });
-  expect(below, "the caption sits under Count-in").toBe(true);
+  await showClickOptions(page);
+  const countIn = page.locator("#t-metro-countin");
+  await expect(countIn).toBeVisible();
+  await expect(countIn).toBeEnabled();
+  const hint = await tr(page, "en", "click.countInHint");
+  await expect(countIn).toHaveAttribute("title", await tr(page, "en", "click.countInTitle"));
+  expect(await countIn.getAttribute("title"), "the tooltip says it plays with the click off").toContain(hint);
   await shot(page, testInfo, "count-in");
-  await page.keyboard.press("Escape");
   await wideWindow(page);
 });
 
