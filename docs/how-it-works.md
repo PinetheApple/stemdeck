@@ -73,7 +73,9 @@ for the folder layout.
   anything that crashed it before `stemdeck.log` could record it.
 - `setup.log` (desktop app only): first-run setup and the GPU runtime installation.
 
-**Export logs** puts every log file in one zip, to attach to a bug report.
+**Export logs** puts every log file in one zip, to attach to a bug report. Like the Logs view,
+the zip has folder paths, user names, network shares, LAN addresses and source links replaced by
+placeholders such as `<home>` and `<ip>`. A log over 8 MB keeps only its newest part.
 
 ## Reporting a failure
 
