@@ -229,5 +229,18 @@ const answer = async (h) => {
   check("a request that keeps failing while the health check answers restores nothing", h.restored.length === 0);
 }
 
+// --------------------------------------------------------------------------
+// A health check on demand, for a save that just went unanswered
+// --------------------------------------------------------------------------
+
+{
+  const h = harness();
+  const answered = await h.monitor.checkNow();
+  check("a check on demand asks the health endpoint", h.calls.at(-1) === HEALTH_URL, h.calls.at(-1));
+  check("an answered check on demand says so", answered === true);
+  h.outcomes.push(networkError());
+  check("an unanswered check on demand says so", (await h.monitor.checkNow()) === false);
+}
+
 console.log(`\n${pass}/${pass + fail} checks passed`);
 process.exit(fail ? 1 : 0);

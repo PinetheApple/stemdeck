@@ -17,13 +17,18 @@ import {
 } from "./saveRaces.mjs";
 import {
   RESENT_WITHIN_MS,
+  SENDS_OF_A_LOST_SAVE,
   controlServer,
   expectNotified,
   failNextSave,
+  isSaveTo,
   notifications,
 } from "./saveFailures.mjs";
 
 const EDITED_BAR_LENGTH = 5;
+const OTHER_BAR_LENGTH = 3;
+// Two of the page's health checks (3 s apart): a resend loop would send the save again in that time.
+const NO_MORE_SENDS_MS = 7000;
 const SECTION_INDICATOR = "#sectionsSaveIndicator";
 const TEMPO_STATUS = "#tempoStatus";
 
@@ -65,6 +70,26 @@ test.describe("sections", () => {
     await expect.poll(() => sectionCount(request), { timeout: RESENT_WITHIN_MS }).toBe(1);
     await expect.poll(() => notifications(page)).toEqual([]);
   });
+
+  test("a section save lost while the server is up goes again on its own", async ({ page, request }) => {
+    await failNextSave(page, sectionsUrl(JOB_ID), FAILED_SAVES.lost, () => addSection(page));
+
+    await expect.poll(() => sectionCount(request), { timeout: RESENT_WITHIN_MS }).toBe(1);
+    await expect.poll(() => notifications(page)).toEqual([]);
+  });
+
+  test("a section save that keeps getting lost goes again once, not on every health check", async ({ page }) => {
+    const sends = [];
+    page.on("request", function noteSectionSave(r) {
+      if (isSaveTo(sectionsUrl(JOB_ID))(r)) sends.push(r);
+    });
+    const server = await controlServer(page);
+    await server.loseSaves(sectionsUrl(JOB_ID), () => addSection(page));
+    await page.waitForTimeout(NO_MORE_SENDS_MS);
+
+    expect(sends).toHaveLength(SENDS_OF_A_LOST_SAVE);
+    await expectNotified(page, "sections", "lost");
+  });
 });
 
 test.describe("beat grid", () => {
@@ -86,6 +111,19 @@ test.describe("beat grid", () => {
     await failNextSave(page, beatsUrl(JOB_ID), FAILED_SAVES.refused, () => editGrid(page));
 
     await expect.poll(() => shownBarLength(page)).toBe(saved);
+  });
+
+  test("a refused grid save hands the tempo panel the saved tempo", async ({ page, request }) => {
+    await editGrid(page);
+    await expect.poll(() => savedBarLength(request, JOB_ID)).toBe(EDITED_BAR_LENGTH);
+    await page.evaluate(() => {
+      window.e2eGridTempos = [];
+      document.addEventListener("beatgridsave", function noteGridTempo(e) { window.e2eGridTempos.push(e.detail.tempo ?? null); });
+    });
+    await failNextSave(page, beatsUrl(JOB_ID), FAILED_SAVES.refused, () => setGridBars(page, OTHER_BAR_LENGTH));
+
+    const saved = await savedTempo(request, JOB_ID);
+    await expect.poll(() => page.evaluate(() => window.e2eGridTempos.at(-1))).toEqual(saved);
   });
 
   test("a lost grid save stays until the server takes it, and says so", async ({ page, request }) => {

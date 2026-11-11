@@ -27,6 +27,7 @@ import {
 } from "./saveFailures.mjs";
 
 const EDITED_BAR_LENGTH = 5;
+const OTHER_BAR_LENGTH = 3;
 const SECTION_INDICATOR = "#sectionsSaveIndicator";
 const TEMPO_STATUS = "#tempoStatus";
 const GRID_KIND = "beatgrid";
@@ -36,6 +37,27 @@ test.afterEach(resetSongs);
 const addSection = (page) => page.locator("#sectionsAddBtn").click();
 const sectionCount = (request, id = JOB_ID) => savedSections(request, id).then((s) => s.length);
 const gridCards = async (page) => (await notifications(page)).filter((card) => card.kind === GRID_KIND);
+
+/** Keep the song's grid as the player loaded it, to hand it back later as a reload does. */
+const keepLoadTimeGrid = (page) =>
+  page.evaluate(async (id) => {
+    window.e2eLoadTimeGrid = await (await import("/js/beatgrid.js")).loadBeatGrid(id);
+  }, JOB_ID);
+
+/** What the player does when it swaps engines: set the grid and tempo up again from the load-time grid. */
+const loadGridAgain = (page) =>
+  page.evaluate(async (id) => {
+    const grid = window.e2eLoadTimeGrid;
+    (await import("/js/beatgrid.js")).initBeatGrid({ jobId: id, grid, duration: grid.duration });
+    (await import("/js/tempoTools.js")).setTempoGrid(id, grid);
+  }, JOB_ID);
+
+/** From here, note when the Tempo tab next takes a grid from the server. */
+const noteTempoRefresh = (page) =>
+  page.evaluate(() => {
+    window.e2eTempoRefreshed = false;
+    document.addEventListener("tempochange", function markTempoRefreshed() { window.e2eTempoRefreshed = true; });
+  });
 
 test.describe("sections", () => {
   test.beforeEach(({ page }) => openStudio(page));
@@ -91,19 +113,65 @@ test.describe("beat grid", () => {
   });
 
   test("a lost grid edit replaced by a tempo change no longer says it will save", async ({ page }) => {
-    await failNextSave(page, beatsUrl(JOB_ID), FAILED_SAVES.lost, () => editGrid(page));
+    const server = await controlServer(page);
+    await server.loseSaves(beatsUrl(JOB_ID), () => editGrid(page));
     await expectNotified(page, "grid", "lost");
+    server.allowSaves();
     await page.locator("#tempoNudgeLater").click();
 
     await expect.poll(() => gridCards(page)).toEqual([]);
   });
 
   test("a lost grid edit replaced by a reset no longer says it will save", async ({ page }) => {
-    await failNextSave(page, beatsUrl(JOB_ID), FAILED_SAVES.lost, () => editGrid(page));
+    const server = await controlServer(page);
+    await server.loseSaves(beatsUrl(JOB_ID), () => editGrid(page));
     await expectNotified(page, "grid", "lost");
+    server.allowSaves();
     await page.evaluate(async () => (await import("/js/beatgrid.js")).resetBeatGrid());
 
     await expect.poll(() => gridCards(page)).toEqual([]);
+  });
+
+  test("a lost grid edit outlives a refused tempo save and is saved on reconnect", async ({ page, request }) => {
+    const server = await controlServer(page);
+    await server.loseSaves(beatsUrl(JOB_ID), () => editGrid(page));
+    const refusal = await holdFirstPatch(page, `**${beatsUrl(JOB_ID)}`, FAILED_SAVES.refused.answer);
+    await page.locator("#tempoNudgeLater").click();
+    await refusal.seen;
+    await noteTempoRefresh(page);
+    await failHeldSave(page, refusal, FAILED_SAVES.refused, beatsUrl(JOB_ID));
+    await page.waitForFunction(() => window.e2eTempoRefreshed);
+
+    expect(await shownBarLength(page)).toBe(EDITED_BAR_LENGTH);
+    expect(await gridCards(page)).toEqual([{ kind: GRID_KIND, message: await uiText(page, "notif.beatGridSavePending") }]);
+    await server.reconnect();
+    await expect.poll(() => savedBarLength(request, JOB_ID), { timeout: RESENT_WITHIN_MS }).toBe(EDITED_BAR_LENGTH);
+  });
+
+  test("a lost grid edit refused on reconnect after another song was edited goes back", async ({ page, request }) => {
+    const saved = await savedBarLength(request, JOB_ID);
+    const server = await controlServer(page);
+    await server.loseSaves(beatsUrl(JOB_ID), () => editGrid(page));
+    await openSongTempo(page, SIBLING_JOB_ID);
+    await setGridBars(page, OTHER_BAR_LENGTH);
+    await expect.poll(() => savedBarLength(request, SIBLING_JOB_ID)).toBe(OTHER_BAR_LENGTH);
+    await openSongTempo(page, JOB_ID);
+    expect(await shownBarLength(page)).toBe(EDITED_BAR_LENGTH);
+    await server.reconnect({ refuse: true });
+
+    await expect.poll(() => shownBarLength(page), { timeout: RESENT_WITHIN_MS }).toBe(saved);
+    await expectNotified(page, "grid", "refused");
+  });
+
+  test("a grid the player loads again keeps the saves made since", async ({ page, request }) => {
+    await keepLoadTimeGrid(page);
+    await editGrid(page);
+    await expect.poll(() => savedBarLength(request, JOB_ID)).toBe(EDITED_BAR_LENGTH);
+    await loadGridAgain(page);
+    expect(await shownBarLength(page)).toBe(EDITED_BAR_LENGTH);
+    await failNextSave(page, beatsUrl(JOB_ID), FAILED_SAVES.refused, () => setGridBars(page, OTHER_BAR_LENGTH));
+
+    await expect.poll(() => shownBarLength(page)).toBe(EDITED_BAR_LENGTH);
   });
 });
 
@@ -125,6 +193,21 @@ test.describe("tempo", () => {
     await expect(anchor(page)).not.toHaveText(saved);
     await server.reconnect();
     await expect.poll(() => savedAnchor(request), { timeout: RESENT_WITHIN_MS }).not.toEqual(before);
+  });
+
+  test("a tempo the player loads again keeps the saves made since", async ({ page, request }) => {
+    const before = await savedAnchor(request);
+    await keepLoadTimeGrid(page);
+    await noteTempoRefresh(page);
+    await nudge(page);
+    await expect.poll(() => savedAnchor(request)).not.toEqual(before);
+    await page.waitForFunction(() => window.e2eTempoRefreshed);
+    const edited = await anchor(page).textContent();
+    await loadGridAgain(page);
+    await expect(anchor(page)).toHaveText(edited);
+    await failNextSave(page, beatsUrl(JOB_ID), FAILED_SAVES.refused, () => nudge(page));
+
+    await expect(anchor(page)).toHaveText(edited);
   });
 
   test("a tempo save lost again after its song was reopened mid-retry still shows the edit", async ({ page }) => {
