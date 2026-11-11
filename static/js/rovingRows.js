@@ -15,6 +15,8 @@ const ROVING_STOP = 0;
 export const OUT_OF_TAB_ORDER = -1;
 export const ON_ROW = -1;
 const NOT_FOUND = -1;
+const KEYBOARD_FOCUS = ":focus-visible";
+const wiredLists = new WeakMap();
 
 /** The row index a movement key leads to, or null for any other key. */
 export function rowStep(key, index, count) {
@@ -62,15 +64,16 @@ function hasModifier(e) {
  * `preferredRow(rows)` picks the stop among `rows` when none was focused yet.
  * Call `remember()` before a redraw and `restore(saved)` after it, or `refresh()`
  * when rows were shown or hidden without one. `isKeyboardFocus()` says whether the
- * focus in the list arrived by keyboard rather than by a click.
+ * focus in the list is the keyboard's rather than a click's or a tap's.
+ * Wiring the same list again returns its first wiring.
  */
 export function wireRovingRows(
   container,
   { rowSelector, actionSelector, keyOf, openRow, preferredRow = () => null },
 ) {
-  let pointerHeld = false;
-  let focusFromPointer = false;
-  let redrawing = false;
+  if (wiredLists.has(container)) return wiredLists.get(container);
+  // Read as focus arrives: a key pressed later can make a clicked row match too.
+  let arrivedByKeyboard = false;
 
   const rowOf = (el) => {
     const row = el?.closest?.(rowSelector);
@@ -84,22 +87,13 @@ export function wireRovingRows(
     for (const el of allRows()) el.tabIndex = el === row ? ROVING_STOP : OUT_OF_TAB_ORDER;
   }
 
-  function focusRow(row, actionIndex = ON_ROW, { preventScroll = false } = {}) {
+  function focusRow(row, actionIndex = ON_ROW, options = {}) {
     makeStop(row);
-    (actionsOf(row)[actionIndex] ?? row).focus({ preventScroll });
-  }
-
-  function onRowPointerDown() {
-    pointerHeld = true;
-    focusFromPointer = true;
-  }
-
-  function onPointerRelease() {
-    pointerHeld = false;
+    (actionsOf(row)[actionIndex] ?? row).focus(options);
   }
 
   function onRowFocus(e) {
-    if (!redrawing) focusFromPointer = pointerHeld;
+    arrivedByKeyboard = e.target.matches(KEYBOARD_FOCUS);
     const row = rowOf(e.target);
     if (row && row.tabIndex !== ROVING_STOP) makeStop(row);
   }
@@ -132,9 +126,6 @@ export function wireRovingRows(
     if (moveBetweenRows(e, row) || moveWithinRow(e, row)) e.preventDefault();
   }
 
-  container.addEventListener("pointerdown", onRowPointerDown, true);
-  document.addEventListener("pointerup", onPointerRelease, true);
-  document.addEventListener("pointercancel", onPointerRelease, true);
   container.addEventListener("focusin", onRowFocus);
   container.addEventListener("keydown", onRowKeydown);
 
@@ -147,6 +138,7 @@ export function wireRovingRows(
       index: shownRows().indexOf(row),
       actionIndex: actionIndexOf(actionsOf(row), active),
       hadFocus: Boolean(rowOf(active)),
+      byKeyboard: Boolean(rowOf(active)) && arrivedByKeyboard,
     };
   }
 
@@ -162,9 +154,12 @@ export function wireRovingRows(
       makeStop(row);
       return;
     }
-    redrawing = true;
-    focusRow(row, keyOf(row) === saved.key ? saved.actionIndex : ON_ROW, { preventScroll: true });
-    redrawing = false;
+    focusRow(
+      row,
+      keyOf(row) === saved.key ? saved.actionIndex : ON_ROW,
+      { preventScroll: true, focusVisible: saved.byKeyboard },
+    );
+    arrivedByKeyboard = saved.byKeyboard;
   }
 
   function refresh() {
@@ -172,8 +167,10 @@ export function wireRovingRows(
   }
 
   function isKeyboardFocus() {
-    return !focusFromPointer;
+    return Boolean(rowOf(document.activeElement)) && arrivedByKeyboard;
   }
 
-  return { remember, restore, refresh, isKeyboardFocus };
+  const wired = { remember, restore, refresh, isKeyboardFocus };
+  wiredLists.set(container, wired);
+  return wired;
 }

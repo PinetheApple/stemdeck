@@ -616,3 +616,11 @@ export async function failureMessages(page) {
 export async function uiText(page, key, vars = {}) {
   return page.evaluate(async ([k, v]) => (await import("/js/i18n.js")).t(k, v), [key, vars]);
 }
+
+/** Keys the specs press by name; the library's arrow keys are ROW_KEY in static/js/rovingRows.js. */
+export const KEY = Object.freeze({
+  TAB: "Tab",
+  ENTER: "Enter",
+  ESCAPE: "Escape",
+  DELETE: "Delete",
+});

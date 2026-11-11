@@ -1,10 +1,11 @@
 // Every list in the library pane is one Tab stop with arrows inside it, so a
-// keyboard user gets past 16 songs in one press instead of 64.
+// keyboard user gets past a long list in one press instead of one per button.
 
 import { test, expect } from "@playwright/test";
 import { ROW_KEY } from "../../static/js/rovingRows.js";
 import {
   JOB_ID,
+  KEY,
   SIBLING_JOB_ID,
   fixtureTrack,
   openInspectorTab,
@@ -16,8 +17,8 @@ import {
   stubUpdateCheck,
 } from "./helpers.mjs";
 
-const KEY = { TAB: "Tab", DELETE: "Delete" };
-const TRASH_HOLD_MS = 1000;
+// Held past the restore so the fill has certainly finished.
+const HOLD_PAST_RESTORE = 1.5;
 const OPEN_TIMEOUT_MS = 20000;
 const SONG_ROW = "#catalogList .cat-item";
 const LIBRARY_ROWS = "#catalogList :is(.cat-item, .folder-head)";
@@ -31,6 +32,20 @@ test.afterEach(async ({ request }) => {
 });
 
 const songRow = (page, id) => page.locator(`${SONG_ROW}[data-id="${id}"]`);
+const trashHoldMs = (page) => page.evaluate(() => import("/js/catalog.js").then((m) => m.TRASH_HOLD_MS));
+const trashed = (id) => ({ id, action: "trash" });
+
+/** A Delete that does bin, pressed after the one under test: keys run in order, so its call proves the first did nothing. */
+async function binSiblingByKeyboard(page, trash) {
+  await page.locator("#newFolderBtn").focus();
+  await page.keyboard.press(KEY.TAB);
+  await page.keyboard.press(ROW_KEY.LAST);
+  await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
+  await page.keyboard.press(KEY.DELETE);
+  await expect.poll(() => trash.calls.length).toBeGreaterThan(0);
+  expect(trash.calls).toEqual([trashed(SIBLING_JOB_ID)]);
+}
+
 const trashItems = async (page) => (await readCatalogState(page)).folders.find((f) => f.id === "trash").items;
 
 async function openLibrary(page, { favorite = false, trashed = [] } = {}) {
@@ -124,7 +139,7 @@ test.describe("song rows", () => {
     await expect(row.locator(".cat-more")).toBeFocused();
     await page.keyboard.press(ROW_KEY.INTO);
     await expect(row.locator(".cat-fav")).toBeFocused();
-    await page.keyboard.press(ROW_KEY.OPEN);
+    await page.keyboard.press(KEY.ENTER);
     await expect(row.locator(".cat-fav")).toHaveAttribute("aria-pressed", "true");
     await expect(row.locator(".cat-fav")).toBeFocused();
 
@@ -140,9 +155,12 @@ test.describe("song rows", () => {
     await songRow(page, JOB_ID).focus();
     await page.keyboard.press(KEY.DELETE);
 
-    await expect.poll(() => trash.calls).toEqual([{ id: JOB_ID, action: "trash" }]);
+    await expect.poll(() => trash.calls).toEqual([trashed(JOB_ID)]);
     expect(await trashItems(page)).toEqual([JOB_ID]);
     await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
+
+    await page.keyboard.press(KEY.DELETE);
+    await expect.poll(() => trash.calls).toEqual([trashed(JOB_ID), trashed(SIBLING_JOB_ID)]);
   });
 
   test("Delete after clicking a row bins nothing", async ({ page }) => {
@@ -151,9 +169,33 @@ test.describe("song rows", () => {
     await expect(songRow(page, JOB_ID)).toBeFocused();
     await page.keyboard.press(KEY.DELETE);
 
-    await page.waitForTimeout(300);
-    expect(trash.calls).toEqual([]);
-    expect(await trashItems(page)).toEqual([]);
+    await binSiblingByKeyboard(page, trash);
+  });
+
+  test("Delete after opening and closing the … menu with clicks bins nothing", async ({ page }) => {
+    const { trash } = await openLibrary(page);
+    const more = songRow(page, JOB_ID).locator(".cat-more");
+    await songRow(page, JOB_ID).hover();
+    await more.click();
+    await expect(page.locator(".lib-menu")).toBeVisible();
+    await more.click();
+    await expect(page.locator(".lib-menu")).toHaveCount(0);
+    await page.keyboard.press(KEY.DELETE);
+
+    await binSiblingByKeyboard(page, trash);
+  });
+});
+
+test.describe("touch", () => {
+  test.use({ hasTouch: true });
+
+  test("Delete after tapping a row bins nothing", async ({ page }) => {
+    const { trash } = await openLibrary(page);
+    await songRow(page, JOB_ID).tap();
+    await expect(songRow(page, JOB_ID)).toBeFocused();
+    await page.keyboard.press(KEY.DELETE);
+
+    await binSiblingByKeyboard(page, trash);
   });
 });
 
@@ -193,9 +235,9 @@ test.describe("other song lists", () => {
     await songRow(page, JOB_ID).focus();
     await page.keyboard.press(ROW_KEY.NEXT);
     await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
-    await page.keyboard.down(ROW_KEY.OPEN);
-    await page.waitForTimeout(TRASH_HOLD_MS * 1.5);
-    await page.keyboard.up(ROW_KEY.OPEN);
+    await page.keyboard.down(KEY.ENTER);
+    await page.waitForTimeout((await trashHoldMs(page)) * HOLD_PAST_RESTORE);
+    await page.keyboard.up(KEY.ENTER);
     await expect.poll(() => trash.calls).toEqual([{ id: SIBLING_JOB_ID, action: "restore" }]);
   });
 });
@@ -233,19 +275,22 @@ test.describe("setlists", () => {
     await page.locator("#libTabSetlists").click();
     await page.locator(".setlist-song").focus();
     await page.keyboard.press(KEY.DELETE);
-
-    await page.waitForTimeout(300);
-    expect(trash.calls).toEqual([]);
     await expect(page.locator(".setlist-song")).toHaveCount(1);
+
+    await page.locator("#libTabSongs").click();
+    await binSiblingByKeyboard(page, trash);
   });
 });
 
 test.describe("Up Next", () => {
   test("Up Next is one Tab stop; Enter plays a row and Right reaches its buttons", async ({ page }) => {
     await openLibrary(page);
-    await page.evaluate((ids) => {
-      for (const id of ids) document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id } }));
-    }, [JOB_ID, SIBLING_JOB_ID]);
+    await page.evaluate(
+      (ids) => {
+        for (const id of ids) document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id } }));
+      },
+      [JOB_ID, SIBLING_JOB_ID],
+    );
     await openInspectorTab(page, "upnext");
     const rows = page.locator(UPNEXT_ROWS);
     await expect(rows).toHaveCount(2);
@@ -258,7 +303,7 @@ test.describe("Up Next", () => {
     await expect(rows.nth(1).locator(".upnext-play")).toBeFocused();
     await page.keyboard.press(ROW_KEY.INTO);
     await expect(rows.nth(1).locator(".upnext-remove")).toBeFocused();
-    await page.keyboard.press(ROW_KEY.OPEN);
+    await page.keyboard.press(KEY.ENTER);
     await expect(rows).toHaveCount(1);
 
     await expect(rows.first()).toBeFocused();

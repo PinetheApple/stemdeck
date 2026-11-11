@@ -76,7 +76,7 @@ const _trashSelection = new Set();
 let _trashAnchor = null;
 // How long a Trash row has to be held to restore it. daw.css reads it through
 // --hold-ms, so the fill and the timer cannot drift apart.
-const TRASH_HOLD_MS = 1000;
+export const TRASH_HOLD_MS = 1000;
 const ESCAPE_KEY = "Escape";
 
 // ─── Persistence ───
@@ -1893,7 +1893,7 @@ function clearTrashSelection() {
 }
 
 function paintTrashSelection() {
-  for (const el of document.querySelectorAll(".cat-item.in-trash")) {
+  for (const el of document.querySelectorAll(TRASH_ROW_SELECTOR)) {
     const selected = _trashSelection.has(el.dataset.id);
     el.classList.toggle("selected", selected);
     el.setAttribute("aria-selected", String(selected));
@@ -1904,7 +1904,7 @@ function paintTrashSelection() {
  *  takes the range from the last row picked, in the order on screen. */
 function selectTrashRow(trackId, e) {
   if (e.shiftKey && _trashAnchor) {
-    const order = [...document.querySelectorAll(".cat-item.in-trash")].map((el) => el.dataset.id);
+    const order = [...document.querySelectorAll(TRASH_ROW_SELECTOR)].map((el) => el.dataset.id);
     const from = order.indexOf(_trashAnchor);
     const to = order.indexOf(trackId);
     if (from !== -1 && to !== -1) {
@@ -1947,7 +1947,7 @@ function wireTrashRow(el, trackId) {
     cancel();
     restored = false;
     const targets = new Set(trashTargets(trackId));
-    held = [...document.querySelectorAll(".cat-item.in-trash")].filter((row) => targets.has(row.dataset.id));
+    held = [...document.querySelectorAll(TRASH_ROW_SELECTOR)].filter((row) => targets.has(row.dataset.id));
     if (!held.includes(el)) held.push(el);
     for (const row of held) row.classList.add("holding");
     timer = setTimeout(() => {

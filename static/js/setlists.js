@@ -19,7 +19,7 @@ import { ARM_MS } from "./armConfirm.js";
 import { OUT_OF_TAB_ORDER, wireRovingRows } from "./rovingRows.js";
 
 const SETLISTS_URL = "/api/setlists";
-const SETLIST = ".setlist";
+const SETLIST_SELECTOR = ".setlist";
 const SETLIST_HEAD = ".setlist-head";
 const SETLIST_SONG = ".setlist-song";
 const SETLIST_SONG_ACTIONS = ".setlist-song-actions button";
@@ -429,7 +429,7 @@ function renderSaveUpNext() {
 }
 
 function setlistRowKey(row) {
-  const setlistId = row.closest(SETLIST)?.dataset.id;
+  const setlistId = row.closest(SETLIST_SELECTOR)?.dataset.id;
   return row.matches(SETLIST_SONG) ? `${setlistId}/${row.dataset.id}` : setlistId;
 }
 
