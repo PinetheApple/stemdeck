@@ -24,11 +24,11 @@ const NEW_FOLDER_NAME = "Covers";
 const MAX_ARROW_PRESSES = 12;
 const GERMAN = { moveToFolder: "In Ordner verschieben", newFolder: "Neuer Ordner…" };
 
-async function openLibrary(page) {
+async function openLibrary(page, { rehearsalCollapsed = false } = {}) {
   await seedCatalogState(page, {
     folders: [
       { ...UNSORTED, items: [JOB_ID], color: null },
-      { ...REHEARSAL, items: [SIBLING_JOB_ID], color: null },
+      { ...REHEARSAL, items: [SIBLING_JOB_ID], color: null, collapsed: rehearsalCollapsed },
       { ...GIGS, items: [], color: null },
       // After Gigs in storage, so only a tree walk lists it under Rehearsal.
       { ...WARMUPS, items: [], color: null, parentId: REHEARSAL.id },
@@ -177,6 +177,18 @@ test("the keyboard opens the menu, arrows to a folder, picks it with Enter, and 
   await expect(menu).toBeHidden();
   await expect(moreAgain).toBeFocused();
   await expect(songIn(page, GIGS.id, JOB_ID)).toBeVisible();
+});
+
+test("a move into a folder hidden in a collapsed one focuses the nearest shown folder row", async ({ page }) => {
+  await openLibrary(page, { rehearsalCollapsed: true });
+  await rowOf(page, JOB_ID).locator(".cat-more").focus();
+  await page.keyboard.press(KEY.ENTER);
+  await arrowTo(page, WARMUPS.name);
+  await page.keyboard.press(KEY.ENTER);
+  await expect(page.locator(".lib-menu")).toBeHidden();
+  await expect(songIn(page, WARMUPS.id, JOB_ID)).toHaveCount(1);
+  await expect(songIn(page, UNSORTED.id, JOB_ID)).toHaveCount(0);
+  await expect(folderOf(page, REHEARSAL.id).locator(":scope > .folder-head")).toBeFocused();
 });
 
 test.describe("on a touch screen", () => {

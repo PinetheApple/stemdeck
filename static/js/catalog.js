@@ -1741,20 +1741,31 @@ function dropOnFolder(folderId, trackId) {
   render();
 }
 
-/** The row menu's move: the same as dragging the song onto the folder. */
+/** The row menu's move: the song leaves its folder as on a drag, then takes
+ *  focus. False when nothing in the list could take it. */
 export function moveTrackToFolder(trackId, folderId) {
   placeTrackInFolder(folderId, trackId);
   saveState();
   render();
-  focusMovedSong(trackId, folderId);
+  return focusMovedSong(trackId, folderId);
 }
 
-// Not as the keyboard's focus, so Delete is not armed on the song just moved;
-// a song in a collapsed folder leaves focus on that folder's row.
+/** The row of the folder, or of the nearest folder above it, that is shown. */
+function shownFolderRow(folderId) {
+  for (let f = folders.find((x) => x.id === folderId); f; f = folders.find((x) => x.id === f.parentId)) {
+    const head = folderHeadEl(f.id);
+    if (head && isShown(head)) return head;
+  }
+  return null;
+}
+
+// Not as the keyboard's focus, so Delete is not armed on the song just moved.
 function focusMovedSong(trackId, folderId) {
   const row = document.querySelector(`${LIBRARY_ROW_SELECTOR}[data-id="${CSS.escape(trackId)}"]`);
-  const target = row && isShown(row) ? row : folderHeadEl(folderId);
-  if (target) libraryRows?.focusRow(target, ON_ROW, { preventScroll: true, focusVisible: false });
+  const target = row && isShown(row) ? row : shownFolderRow(folderId);
+  if (!target || !libraryRows) return false;
+  libraryRows.focusRow(target, ON_ROW, { preventScroll: true, focusVisible: false });
+  return true;
 }
 
 export function moveTrackToNewFolder(trackId) {

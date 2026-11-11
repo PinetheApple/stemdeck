@@ -42,9 +42,9 @@ function setlistItem(setlist, trackId) {
 // Indents a subfolder under its parent, as the folder tree does.
 const DEPTH_PROPERTY = "--menu-depth";
 
-function folderItem(folder, trackId) {
+function folderItem(folder, trackId, anchor) {
   const item = menuItem(folder.name, folder.current ? "check" : "folder", function onMoveToFolder() {
-    moveTrackToFolder(trackId, folder.id);
+    if (!moveTrackToFolder(trackId, folder.id)) anchor.focus();
   }, { disabled: folder.current });
   item.classList.add("lib-menu-folder");
   item.style.setProperty(DEPTH_PROPERTY, String(folder.depth));
@@ -52,17 +52,17 @@ function folderItem(folder, trackId) {
   return item;
 }
 
-function folderSection(trackId) {
+function folderSection(trackId, anchor) {
   return [
     menuLabel(t("trackMenu.moveToFolder")),
-    ...folderChoices(trackId).map((folder) => folderItem(folder, trackId)),
+    ...folderChoices(trackId).map((folder) => folderItem(folder, trackId, anchor)),
     menuItem(t("trackMenu.newFolder"), "plus", function onNewFolderWithSong() {
       moveTrackToNewFolder(trackId);
     }),
   ];
 }
 
-function buildMenu(trackId) {
+function buildMenu(trackId, anchor) {
   const el = document.createElement("div");
   el.className = "lib-menu";
   el.setAttribute("role", "menu");
@@ -76,7 +76,7 @@ function buildMenu(trackId) {
     menuItem(t("trackMenu.newSetlist"), "plus", function onNewSetlistWithSong() {
       createSetlistFrom([trackId]);
     }),
-    ...folderSection(trackId),
+    ...folderSection(trackId, anchor),
   );
   el.addEventListener("keydown", onMenuKeydown);
   return el;
@@ -147,7 +147,7 @@ function onTrackMenuRequest(e) {
   const reopening = menu && anchorEl === anchor;
   closeMenu();
   if (!id || !anchor || reopening) return;
-  menu = buildMenu(id);
+  menu = buildMenu(id, anchor);
   anchorEl = anchor;
   anchor.setAttribute("aria-expanded", "true");
   document.body.append(menu);
