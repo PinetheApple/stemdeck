@@ -8,6 +8,16 @@
 // already translates, and its text comes from the help.* keys in i18n.js.
 
 import { t } from "./i18n.js";
+import {
+  BIG_AREA_SHARE,
+  TRACK_AREA,
+  clipsOverflow,
+  hoverRect,
+  inViewRect,
+  isInView,
+  isRendered,
+  isWhollyShown,
+} from "./helpGeometry.js";
 
 /** Lane controls name their instrument in the text ("Silences the Drums"). */
 const laneName = (el) => el.closest(".mx-row, .lane-header")?.querySelector(".mx-name")?.textContent.trim() || "";
@@ -128,9 +138,14 @@ let pillEl = null;
 let ringEl = null;
 let introEl = null;
 let introTimer = null;
+let introRings = [];
+let introFrame = 0;
+let dockObserver = null;
 // How long the glow on every explainable control lasts when Guide turns on.
 // daw.css reads it through --intro-ms, so the fade and the cleanup agree.
 const INTRO_MS = 1600;
+// Below this, a control is too small to keep its glyph clear under the full ring and halo.
+const TINY_CONTROL_PX = 16;
 let current = null;
 
 export function isHelpModeOn() {
@@ -142,14 +157,9 @@ function findEntry(target) {
   if (!(target instanceof Element)) return null;
   for (const [sel, key, nameOf, titleKey] of HELP) {
     const el = target.closest(sel);
-    if (el && isVisible(el)) return { el, key, nameOf, titleKey };
+    if (el && isInView(el)) return { el, key, nameOf, titleKey };
   }
   return null;
-}
-
-function isVisible(el) {
-  const r = el.getBoundingClientRect();
-  return r.width > 0 && r.height > 0;
 }
 
 /** The control's own label, which the app already translates. Visible text
@@ -194,35 +204,13 @@ function fillTip(entry) {
   }
 }
 
-/**
- * What the eye sees of a control. A button is often much bigger than the icon
- * in it (the heart is a 76px tall strip around a 16px icon), and a ring around
- * the whole box reads as a stray bar. When the content is clearly smaller than
- * the box, the ring goes around the content instead.
- */
-function visibleRect(el) {
-  const r = el.getBoundingClientRect();
-  const range = document.createRange();
-  range.selectNodeContents(el);
-  const c = range.getBoundingClientRect();
-  const small = c.width > 0 && c.height > 0 && (c.width < r.width * 0.6 || c.height < r.height * 0.6);
-  // Otherwise the box and its content together: a rail label can hang below
-  // its button's own box, and the ring has to take it in.
-  const box = small ? c : c.width > 0 && c.height > 0
-    ? { left: Math.min(r.left, c.left), top: Math.min(r.top, c.top), right: Math.max(r.right, c.right), bottom: Math.max(r.bottom, c.bottom) }
-    : r;
-  const pad = small ? 6 : 3;
-  const left = box.left - pad, top = box.top - pad, right = box.right + pad, bottom = box.bottom + pad;
-  return { left, top, right, bottom, width: right - left, height: bottom - top };
-}
-
-/** The ring is its own layer over the page, so no panel can clip it. */
-function placeRing(rect) {
-  ringEl.style.left = `${Math.round(rect.left)}px`;
-  ringEl.style.top = `${Math.round(rect.top)}px`;
-  ringEl.style.width = `${Math.round(rect.right - rect.left)}px`;
-  ringEl.style.height = `${Math.round(rect.bottom - rect.top)}px`;
-  ringEl.hidden = false;
+/** Rings are their own layer over the page, so no panel can clip them. */
+function placeBox(node, rect) {
+  const left = Math.round(rect.left), top = Math.round(rect.top);
+  node.style.left = `${left}px`;
+  node.style.top = `${top}px`;
+  node.style.width = `${Math.round(rect.right) - left}px`;
+  node.style.height = `${Math.round(rect.bottom) - top}px`;
 }
 
 /** Beside the control, on whichever side has room, never over it. */
@@ -251,8 +239,9 @@ function show(entry) {
   entry.el.classList.add("help-current");
   fillTip(entry);
   tipEl.hidden = false;
-  const rect = visibleRect(entry.el);
-  placeRing(rect);
+  const rect = hoverRect(entry.el);
+  placeBox(ringEl, rect);
+  ringEl.hidden = false;
   placeTip(rect);
 }
 
@@ -268,7 +257,7 @@ function markTargets() {
   for (const el of document.querySelectorAll(".help-target")) el.classList.remove("help-target");
   if (!on) return;
   for (const [sel] of HELP) {
-    for (const el of document.querySelectorAll(sel)) if (isVisible(el)) el.classList.add("help-target");
+    for (const el of document.querySelectorAll(sel)) if (isRendered(el)) el.classList.add("help-target");
   }
 }
 
@@ -277,33 +266,97 @@ function markTargets() {
  * the user sees where to point without the screen staying busy. One ring per
  * control, drawn the same way as the pointer's ring, so no panel clips them.
  * Large areas (the waveforms, the song facts) are left out: a glowing box
- * across half the screen says nothing about where to point.
+ * across half the screen says nothing about where to point. So are controls
+ * only partly in view, and those inside one already outlined, like a song
+ * row's own buttons, so no two rings cross.
  */
 function playIntro() {
   stopIntro();
-  const vw = window.innerWidth, vh = window.innerHeight;
-  const big = vw * vh * 0.04;
+  const big = window.innerWidth * window.innerHeight * BIG_AREA_SHARE;
   for (const el of document.querySelectorAll(".help-target")) {
-    const r = visibleRect(el);
-    if (r.width * r.height > big || r.bottom < 0 || r.top > vh || r.right < 0 || r.left > vw) continue;
-    const ring = document.createElement("div");
-    ring.className = "help-intro-ring";
-    ring.style.left = `${Math.round(r.left)}px`;
-    ring.style.top = `${Math.round(r.top)}px`;
-    ring.style.width = `${Math.round(r.width)}px`;
-    ring.style.height = `${Math.round(r.height)}px`;
-    introEl.appendChild(ring);
+    if (!isWhollyShown(el) || introRings.some(({ el: outer }) => outer.contains(el))) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width * r.height <= big) addIntroRing(el, r);
   }
   introEl.hidden = false;
   introTimer = setTimeout(stopIntro, INTRO_MS);
 }
 
+function addIntroRing(el, r) {
+  const ring = document.createElement("div");
+  ring.className = "help-intro-ring";
+  ring.classList.toggle("tiny", Math.min(r.width, r.height) < TINY_CONTROL_PX);
+  placeBox(ring, r);
+  introEl.appendChild(ring);
+  introRings.push({ el, ring });
+}
+
+/** After a scroll, each ring follows its control, and waits out of sight while the control is. */
+function followIntro() {
+  introFrame = 0;
+  for (const { el, ring } of introRings) {
+    ring.hidden = !isWhollyShown(el);
+    if (!ring.hidden) placeBox(ring, el.getBoundingClientRect());
+  }
+}
+
 function stopIntro() {
   clearTimeout(introTimer);
   introTimer = null;
+  cancelAnimationFrame(introFrame);
+  introFrame = 0;
+  introRings = [];
   if (!introEl) return;
   introEl.hidden = true;
   introEl.replaceChildren();
+}
+
+const TRANSPORT = ".daw-footer";
+const DOCK_CENTRE = "--dock-centre";
+const DOCK_BOTTOM = "--dock-bottom";
+const DOCK_WIDTH = "--dock-width";
+
+function setDock(prop, px) {
+  if (px === null) pillEl.style.removeProperty(prop);
+  else pillEl.style.setProperty(prop, `${px}px`);
+}
+
+/** Just above the transport and over the waveforms, where it covers no control. */
+function dockPill() {
+  const transport = document.querySelector(TRANSPORT);
+  const track = document.querySelector(TRACK_AREA);
+  const docked = Boolean(transport) && isInView(transport);
+  const area = docked && track ? inViewRect(track) : null;
+  const overTrack = area !== null && area.width > 0;
+  setDock(DOCK_BOTTOM, docked ? Math.round(window.innerHeight - transport.getBoundingClientRect().top) : null);
+  setDock(DOCK_CENTRE, overTrack ? Math.round(area.left + area.width / 2) : null);
+  setDock(DOCK_WIDTH, overTrack ? Math.floor(area.width) : null);
+}
+
+/** The panel the waveforms scroll in: it, not the waveforms, changes size when the layout does. */
+function trackPanel(track) {
+  for (let panel = track.parentElement; panel && panel !== document.body; panel = panel.parentElement) {
+    if (clipsOverflow(getComputedStyle(panel).overflowX)) return panel;
+  }
+  return null;
+}
+
+/** Re-dock whenever the window, the transport or the waveforms' panel changes size. */
+function watchDock() {
+  const track = document.querySelector(TRACK_AREA);
+  const watched = [document.documentElement, document.querySelector(TRANSPORT), track, track && trackPanel(track)];
+  dockObserver = new ResizeObserver(dockPill);
+  for (const el of watched) if (el) dockObserver.observe(el);
+}
+
+function unwatchDock() {
+  dockObserver?.disconnect();
+  dockObserver = null;
+}
+
+function onViewportChange() {
+  hide();
+  if (introRings.length && !introFrame) introFrame = requestAnimationFrame(followIntro);
 }
 
 function onPointerOver(e) {
@@ -341,6 +394,17 @@ function onKey(e) {
 
 const PRESS_EVENTS = ["pointerdown", "mousedown", "click", "dblclick", "dragstart", "contextmenu"];
 
+/** Help mode's listeners, all on or all off together. */
+function listen(isOn) {
+  const method = isOn ? "addEventListener" : "removeEventListener";
+  document[method]("pointerover", onPointerOver, true);
+  for (const type of PRESS_EVENTS) document[method](type, swallow, true);
+  document[method]("keydown", onKey, true);
+  document[method]("focusin", onFocus, true);
+  window[method]("resize", onViewportChange);
+  document[method]("scroll", onViewportChange, true);
+}
+
 export function setHelpMode(next) {
   if (next === on) return;
   on = next;
@@ -349,24 +413,14 @@ export function setHelpMode(next) {
     pillEl.textContent = t("help.pill");
     pillEl.hidden = !on;
   }
-  const btn = document.getElementById("helpModeBtn");
-  btn?.setAttribute("aria-pressed", String(on));
+  document.getElementById("helpModeBtn")?.setAttribute("aria-pressed", String(on));
+  listen(on);
   if (on) {
-    document.addEventListener("pointerover", onPointerOver, true);
-    for (const type of PRESS_EVENTS) document.addEventListener(type, swallow, true);
-    document.addEventListener("keydown", onKey, true);
-    document.addEventListener("focusin", onFocus, true);
-    window.addEventListener("resize", hide);
-    document.addEventListener("scroll", hide, true);
+    watchDock();
     markTargets();
     playIntro();
   } else {
-    document.removeEventListener("pointerover", onPointerOver, true);
-    for (const type of PRESS_EVENTS) document.removeEventListener(type, swallow, true);
-    document.removeEventListener("keydown", onKey, true);
-    document.removeEventListener("focusin", onFocus, true);
-    window.removeEventListener("resize", hide);
-    document.removeEventListener("scroll", hide, true);
+    unwatchDock();
     hide();
     stopIntro();
     markTargets();
