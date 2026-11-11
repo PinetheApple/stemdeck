@@ -97,8 +97,9 @@ function seekTo(sec) {
   syncPlayback();
 }
 
+// The OS reads a count-in as paused, so its play key there cancels it, as the toggle does.
 function playFromMediaKey() {
-  if (!isPlaying()) togglePlayPause();
+  if (!isPlaying() || !motion.moving) togglePlayPause();
 }
 
 function pauseFromMediaKey() {

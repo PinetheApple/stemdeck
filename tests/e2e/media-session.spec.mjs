@@ -25,6 +25,7 @@ const LOOP_END_SEC = 4;
 // The fixture's one-bar count-in lasts about 2 s; the watch sits inside it.
 const LEAD_IN_SETTLE_MS = 300;
 const LEAD_IN_WATCH_MS = 1000;
+const CANCEL_WITHIN_MS = 1000;
 
 function library() {
   const tracks = {
@@ -255,6 +256,21 @@ test.describe("system media controls", () => {
 
     await expectPlaying(page, true);
     await expect.poll(async () => (await lastPosition(page))?.position).toBeGreaterThan(0);
+  });
+
+  test("the play key during a count-in cancels it, as the toggle did", async ({ page }) => {
+    await openWithMediaSession(page);
+    await openClickOptions(page);
+    await page.locator("#t-metro-countin").selectOption("1");
+    await runAction(page, "play");
+    await page.waitForTimeout(LEAD_IN_SETTLE_MS);
+    expect(await playbackState(page)).toBe("paused");
+
+    await runAction(page, "play");
+    // Well before the lead-in and the 6 s song could run out by themselves.
+    await expect.poll(() => isPlaying(page), { timeout: CANCEL_WITHIN_MS }).toBe(false);
+    expect(await currentTime(page)).toBeLessThan(SECONDS_CLOSE);
+    await expect.poll(() => playbackState(page)).toBe("paused");
   });
 
   test("on the streaming path a seek from the keys is reported again", async ({ page }) => {
