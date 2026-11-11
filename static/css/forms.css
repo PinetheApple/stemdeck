@@ -1,0 +1,126 @@
+/* ── Form controls in StemDeck's own look ──
+   :where() keeps these base rules at zero specificity, so any component rule
+   for a control (a switch, a pill select) still wins. */
+
+:root {
+  --caret-w: calc(2 * var(--caret-h));
+  --caret-h: 5px;
+  --caret-stroke: 0.75px;
+  --check-size: var(--icon);
+  --check-mark: 10px;
+  --radio-dot: 6px;
+}
+
+/* A stroked chevron drawn with gradients, so its colour follows the tokens. */
+select:not([multiple]):not(.metro-select) {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: calc(var(--s-3) + var(--caret-w) + var(--s-2));
+  background-image:
+    linear-gradient(45deg, transparent calc(50% - var(--caret-stroke)), var(--text-3) calc(50% - var(--caret-stroke)), var(--text-3) calc(50% + var(--caret-stroke)), transparent calc(50% + var(--caret-stroke))),
+    linear-gradient(-45deg, transparent calc(50% - var(--caret-stroke)), var(--text-3) calc(50% - var(--caret-stroke)), var(--text-3) calc(50% + var(--caret-stroke)), transparent calc(50% + var(--caret-stroke)));
+  background-size: var(--caret-h) var(--caret-h);
+  background-position:
+    right calc(var(--s-3) + var(--caret-h)) center,
+    right var(--s-3) center;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+select:not([multiple]):disabled { cursor: not-allowed; }
+
+/* The list a select opens (static/js/selectMenu.js). */
+.select-menu {
+  position: fixed;
+  inset: auto;
+  z-index: 1000;
+  margin: 0;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: calc(100vw - 2 * var(--s-2));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-panel);
+  color: var(--text);
+  font: var(--fw-medium) var(--fs-sm) / 1.2 var(--font-sans);
+  text-align: left;
+}
+.select-menu-option {
+  display: flex;
+  align-items: center;
+  min-height: var(--ctl-h-sm);
+  padding: 0 var(--s-2);
+  border-radius: var(--r-1);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.select-menu-option.active { background: var(--surface-3); }
+.select-menu-option[aria-selected="true"] { color: var(--accent); }
+.select-menu-option[aria-disabled="true"] {
+  color: var(--text-4);
+  background: none;
+  cursor: not-allowed;
+}
+
+/* Checkboxes and radios */
+:where(input[type="checkbox"], input[type="radio"]) {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: var(--check-size);
+  height: var(--check-size);
+  margin: 0;
+  border: 1px solid var(--text-4);
+  border-radius: var(--r-1);
+  background: var(--surface-1);
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+:where(input[type="radio"]) { border-radius: 50%; }
+:where(input[type="checkbox"], input[type="radio"])::before {
+  content: "";
+  background: var(--accent-ink);
+  transform: scale(0);
+  transition: transform var(--t-fast) var(--easing);
+}
+:where(input[type="checkbox"])::before {
+  width: var(--check-mark);
+  height: var(--check-mark);
+  clip-path: polygon(14% 44%, 0 59%, 40% 96%, 100% 22%, 85% 8%, 39% 66%);
+}
+:where(input[type="radio"])::before {
+  width: var(--radio-dot);
+  height: var(--radio-dot);
+  border-radius: 50%;
+}
+:where(input[type="checkbox"], input[type="radio"]):hover:not(:disabled) { border-color: var(--text-3); }
+:where(input[type="checkbox"], input[type="radio"]):checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+:where(input[type="checkbox"], input[type="radio"]):checked::before { transform: scale(1); }
+:where(input[type="checkbox"], input[type="radio"]):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+:where(input[type="checkbox"], input[type="radio"]):disabled {
+  opacity: var(--disabled-opacity);
+  cursor: not-allowed;
+}
+
+/* The browser's stepper cannot take the theme, so number fields drop it;
+   Up and Down still step the value. */
+:where(input[type="number"]) {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+:where(input[type="number"])::-webkit-inner-spin-button,
+:where(input[type="number"])::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
