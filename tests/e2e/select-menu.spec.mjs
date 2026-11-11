@@ -1,6 +1,5 @@
 // Selects open StemDeck's own list (static/js/selectMenu.js) instead of the
-// browser's grey system list, while the <select> itself stays the source of
-// truth that the rest of the app reads and writes.
+// browser's grey system list, while the <select> stays the source of truth.
 
 import { test, expect } from "@playwright/test";
 import { openClickOptions, openStudio, seedLibrary, waitForClickTrack } from "./helpers.mjs";
@@ -9,21 +8,24 @@ const SETTINGS_URL = /\/api\/settings$/;
 const FRUITS = ["Apple", "Banana", "Blueberry", "Cherry (out of season)", "Damson"];
 const DISABLED_FRUIT = "Cherry (out of season)";
 const NEAR_BOTTOM_PX = 40;
+const SCROLLED_PAST_PX = 400;
 
 const list = (page) => page.locator("#select-menu-list");
+const option = (page, name) => list(page).getByRole("option", { name, exact: true });
 
-/** A select of fruits pinned `bottom` px above the window's bottom edge (or
- * near the top), counting the change events the app would see. */
+/** A select of fruits pinned near the top, or `bottom` px above the window's
+ * bottom edge, counting the change events the app would see. */
 async function addFruitSelect(page, { bottom = null } = {}) {
   await page.evaluate(({ fruits, disabledFruit, bottom }) => {
     const select = document.createElement("select");
     select.id = "fruit";
     select.setAttribute("aria-label", "Fruit");
-    select.style.cssText = `position: fixed; left: 40px; z-index: 5; ${bottom === null ? "top: 40px" : `bottom: ${bottom}px`}`;
+    const edge = bottom === null ? "top: 40px" : `bottom: ${bottom}px`;
+    select.style.cssText = `position: fixed; left: 40px; z-index: 5; ${edge}`;
     for (const name of fruits) {
-      const option = new Option(name, name.toLowerCase());
-      option.disabled = name === disabledFruit;
-      select.append(option);
+      const choice = new Option(name, name.toLowerCase());
+      choice.disabled = name === disabledFruit;
+      select.append(choice);
     }
     window.fruitChanges = 0;
     select.addEventListener("change", function countChange() { window.fruitChanges++; });
@@ -38,17 +40,22 @@ async function openApp(page) {
 }
 
 const fruitChanges = (page) => page.evaluate(() => window.fruitChanges);
-const focusedId = (page) => page.evaluate(() => document.activeElement?.id);
+const focused = (page) => page.evaluate(() => document.activeElement?.id);
+const isPlaying = (page) => page.evaluate(async () => (await import("/js/state.js")).audioEngine.isPlaying());
 
 test.describe("select lists", () => {
-  test("a click opens StemDeck's styled list, not the browser's", async ({ page }) => {
+  test("a click opens StemDeck's styled list, focused, and a pick hands focus back", async ({ page }) => {
     await openApp(page);
     const fruit = await addFruitSelect(page);
     await fruit.click();
 
     await expect(list(page)).toBeVisible();
     await expect(list(page)).toHaveAttribute("role", "listbox");
+    await expect(list(page)).toHaveAttribute("aria-label", "Fruit");
+    await expect(list(page)).toBeFocused();
     await expect(list(page).getByRole("option")).toHaveText(FRUITS);
+    await expect(option(page, "Apple")).toHaveAttribute("aria-selected", "true");
+    await expect(list(page)).toHaveAttribute("aria-activedescendant", await option(page, "Apple").getAttribute("id"));
     await expect(fruit).toHaveAttribute("aria-expanded", "true");
     const surface = await page.evaluate(() => {
       const probe = document.createElement("div");
@@ -60,41 +67,57 @@ test.describe("select lists", () => {
     });
     await expect(list(page)).toHaveCSS("background-color", surface);
 
-    await list(page).getByRole("option", { name: "Banana" }).click();
+    await option(page, "Banana").click();
     await expect(list(page)).toHaveCount(0);
     await expect(fruit).toHaveValue("banana");
+    await expect(fruit).toHaveAttribute("aria-expanded", "false");
     expect(await fruitChanges(page)).toBe(1);
-    expect(await focusedId(page)).toBe("fruit");
+    expect(await focused(page)).toBe("fruit");
   });
 
-  test("arrows, type-ahead and Enter pick; Escape closes and keeps focus", async ({ page }) => {
+  test("open-list keys move, type-ahead and pick; Escape closes back to the select", async ({ page }) => {
     await openApp(page);
     const fruit = await addFruitSelect(page);
     await fruit.focus();
 
-    await page.keyboard.press("ArrowDown");
-    await expect(list(page)).toBeVisible();
-    await expect(list(page).getByRole("option", { name: "Apple" })).toHaveClass(/active/);
+    await page.keyboard.press("Enter");
+    await expect(list(page)).toBeFocused();
+    await expect(option(page, "Apple")).toHaveClass(/active/);
     await page.keyboard.press("End");
-    await expect(list(page).getByRole("option", { name: "Damson" })).toHaveClass(/active/);
+    await expect(option(page, "Damson")).toHaveClass(/active/);
     await page.keyboard.press("ArrowUp");
-    await expect(list(page).getByRole("option", { name: "Blueberry" })).toHaveClass(/active/);
-    await page.keyboard.press("Home");
+    await expect(option(page, "Blueberry")).toHaveClass(/active/);
+    await page.keyboard.press("PageUp");
+    await expect(option(page, "Apple")).toHaveClass(/active/);
     await page.keyboard.type("bl");
-    await expect(list(page).getByRole("option", { name: "Blueberry" })).toHaveClass(/active/);
-    await expect(fruit).toHaveAttribute("aria-activedescendant", await list(page).getByRole("option", { name: "Blueberry" }).getAttribute("id"));
+    await expect(option(page, "Blueberry")).toHaveClass(/active/);
+    await expect(list(page)).toHaveAttribute("aria-activedescendant", await option(page, "Blueberry").getAttribute("id"));
 
     await page.keyboard.press("Escape");
     await expect(list(page)).toHaveCount(0);
     await expect(fruit).toHaveValue("apple");
-    expect(await focusedId(page)).toBe("fruit");
+    expect(await focused(page)).toBe("fruit");
 
-    await page.keyboard.press("Enter");
+    await page.keyboard.press("Alt+ArrowDown");
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("Enter");
     await expect(list(page)).toHaveCount(0);
     await expect(fruit).toHaveValue("banana");
     expect(await fruitChanges(page)).toBe(1);
+    expect(await focused(page)).toBe("fruit");
+  });
+
+  test("on a closed select the arrows step the value, as a native one does", async ({ page }) => {
+    await openApp(page);
+    const fruit = await addFruitSelect(page);
+    await fruit.focus();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await expect(fruit).toHaveValue("blueberry");
+    await page.keyboard.press("ArrowDown");
+    await expect(fruit).toHaveValue("damson");
+    await expect(list(page)).toHaveCount(0);
+    expect(await fruitChanges(page)).toBe(3);
   });
 
   test("a disabled option is skipped and cannot be picked", async ({ page }) => {
@@ -104,17 +127,17 @@ test.describe("select lists", () => {
     await page.evaluate(() => { window.fruitChanges = 0; });
     await fruit.click();
 
-    const cherry = list(page).getByRole("option", { name: DISABLED_FRUIT });
+    const cherry = option(page, DISABLED_FRUIT);
     await expect(cherry).toHaveAttribute("aria-disabled", "true");
     await cherry.click({ force: true });
     await expect(list(page)).toBeVisible();
     await expect(fruit).toHaveValue("blueberry");
 
     await page.keyboard.press("ArrowDown");
-    await expect(list(page).getByRole("option", { name: "Damson" })).toHaveClass(/active/);
+    await expect(option(page, "Damson")).toHaveClass(/active/);
     await page.keyboard.press("Home");
     await page.keyboard.type("c");
-    await expect(list(page).getByRole("option", { name: "Apple" })).toHaveClass(/active/);
+    await expect(option(page, "Apple")).toHaveClass(/active/);
     expect(await fruitChanges(page)).toBe(0);
   });
 
@@ -125,23 +148,47 @@ test.describe("select lists", () => {
 
     const select = await fruit.boundingBox();
     const box = await list(page).boundingBox();
-    const viewport = page.viewportSize();
     expect(box.y + box.height).toBeLessThanOrEqual(select.y);
     expect(box.y).toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+    expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize().width);
   });
 
-  test("the list follows the select's value, and the select follows the list", async ({ page }) => {
+  test("a value set by code shows in the list, open or not", async ({ page }) => {
     await openApp(page);
     const fruit = await addFruitSelect(page);
     await page.evaluate(() => { document.querySelector("#fruit").value = "damson"; });
     await fruit.click();
     await expect(list(page).getByRole("option", { selected: true })).toHaveText("Damson");
-    await expect(list(page).getByRole("option", { name: "Damson" })).toHaveClass(/active/);
 
-    await list(page).getByRole("option", { name: "Apple" }).click();
-    expect(await page.evaluate(() => document.querySelector("#fruit").value)).toBe("apple");
-    expect(await page.evaluate(() => document.querySelector("#fruit").selectedOptions[0].text)).toBe("Apple");
+    await page.evaluate(() => { document.querySelector("#fruit").value = "banana"; });
+    await expect(list(page).getByRole("option", { selected: true })).toHaveText("Banana");
+    await expect(option(page, "Banana")).toHaveClass(/active/);
+  });
+
+  test("the list closes when its select is removed, scrolled away or clicked off", async ({ page }) => {
+    await openApp(page);
+    const fruit = await addFruitSelect(page);
+    await fruit.click();
+    await page.evaluate(() => document.querySelector("#fruit").remove());
+    await expect(list(page)).toHaveCount(0);
+
+    await page.evaluate((scrolledPast) => {
+      const pane = document.createElement("div");
+      pane.id = "pane";
+      pane.style.cssText = "position: fixed; top: 40px; left: 40px; width: 200px; height: 120px; overflow: auto; z-index: 5";
+      pane.innerHTML = `<select id="inpane"><option>One</option><option>Two</option></select><div id="spacer" style="height: ${scrolledPast * 2}px"></div>`;
+      document.body.append(pane);
+    }, SCROLLED_PAST_PX);
+    await page.locator("#inpane").click();
+    await expect(list(page)).toBeVisible();
+    await page.evaluate((scrolledPast) => { document.querySelector("#pane").scrollTop = scrolledPast; }, SCROLLED_PAST_PX);
+    await expect(list(page)).toHaveCount(0);
+
+    await page.evaluate(() => { document.querySelector("#pane").scrollTop = 0; });
+    await page.locator("#inpane").click();
+    await expect(list(page)).toBeVisible();
+    await page.locator("#spacer").click({ position: { x: 170, y: 60 } });
+    await expect(list(page)).toHaveCount(0);
   });
 
   test("options the app rebuilds while the list is open show at once", async ({ page }) => {
@@ -156,13 +203,22 @@ test.describe("select lists", () => {
     });
     await openApp(page);
     await page.locator("#settingsBtn").click();
-    const device = page.locator(".set-demucs-device");
-    await device.click();
-    await expect(list(page).getByRole("option", { name: "CUDA (NVIDIA)", exact: true })).not.toHaveAttribute("aria-disabled", "true");
+    await page.locator(".set-demucs-device").click();
+    await expect(option(page, "CUDA (NVIDIA)")).not.toHaveAttribute("aria-disabled", "true");
 
     release();
     await expect(list(page).getByRole("option", { name: /^CUDA \(NVIDIA\).+/ })).toHaveAttribute("aria-disabled", "true");
     await expect(list(page)).toBeVisible();
+  });
+
+  test("the list takes the field's font", async ({ page }) => {
+    await openApp(page);
+    await page.locator("#settingsBtn").click();
+    const quality = page.locator(".set-separation-quality");
+    await quality.click();
+    const field = await quality.evaluate((el) => [getComputedStyle(el).fontFamily, getComputedStyle(el).fontSize]);
+    await expect(list(page)).toHaveCSS("font-family", field[0]);
+    await expect(list(page)).toHaveCSS("font-size", field[1]);
   });
 
   test("Escape closes only the list, not Settings around it", async ({ page }) => {
@@ -177,13 +233,86 @@ test.describe("select lists", () => {
     await expect(quality).toBeFocused();
   });
 
+  test("with Guide on, Escape closes the list and Guide stays on", async ({ page }) => {
+    await openApp(page);
+    const fruit = await addFruitSelect(page);
+    await page.locator("#helpModeBtn").click();
+    await expect(page.locator("body")).toHaveClass(/help-mode/);
+    await fruit.click();
+    await expect(list(page)).toHaveCount(0);
+
+    await fruit.focus();
+    await page.keyboard.press("Enter");
+    await expect(list(page)).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(list(page)).toHaveCount(0);
+    await expect(page.locator("body")).toHaveClass(/help-mode/);
+  });
+
+  test("Space on a select the user just picked from still plays and pauses", async ({ page }) => {
+    await openStudio(page);
+    await waitForClickTrack(page);
+    await openClickOptions(page);
+    await page.locator("#t-metro-countin").click();
+    await option(page, "Count-in: 1 bar").click();
+    await expect(page.locator("#t-metro-countin")).toBeFocused();
+
+    await page.keyboard.press("Space");
+    await expect(list(page)).toHaveCount(0);
+    await expect.poll(() => isPlaying(page)).toBe(true);
+    await page.keyboard.press("Space");
+    await expect.poll(() => isPlaying(page)).toBe(false);
+  });
+
   test("picking Custom accent in the Tempo tab reveals the beats field", async ({ page }) => {
     await openStudio(page);
     await waitForClickTrack(page);
     await openClickOptions(page);
     await page.locator("#t-metro-bar").click();
-    await list(page).getByRole("option", { name: "Custom..." }).click();
+    await option(page, "Custom...").click();
     await expect(page.locator("#t-metro-bar")).toHaveValue("custom");
     await expect(page.locator("#t-metro-bar-custom")).toBeVisible();
+  });
+});
+
+test.describe("select lists without the popover API", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => { delete HTMLElement.prototype.showPopover; });
+  });
+
+  test.afterEach(async ({ page }) => {
+    await page.request.post("/api/settings", { data: { separation_quality: "standard" } });
+  });
+
+  test("the list still opens in the window, flips and takes clicks", async ({ page }) => {
+    await openApp(page);
+    const fruit = await addFruitSelect(page, { bottom: NEAR_BOTTOM_PX });
+    await fruit.click();
+    await expect(list(page)).not.toHaveAttribute("popover");
+    const select = await fruit.boundingBox();
+    const box = await list(page).boundingBox();
+    expect(box.y + box.height).toBeLessThanOrEqual(select.y);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    await option(page, "Damson").click();
+    await expect(fruit).toHaveValue("damson");
+  });
+
+  test("a pick lands inside the Tempo tab's accent select", async ({ page }) => {
+    await openStudio(page);
+    await waitForClickTrack(page);
+    await openClickOptions(page);
+    await page.locator("#t-metro-bar").click();
+    await option(page, "3/4").click();
+    await expect(page.locator("#t-metro-bar")).toHaveValue("3");
+  });
+
+  test("a pick lands inside Settings", async ({ page }) => {
+    await openApp(page);
+    await page.locator("#settingsBtn").click();
+    const quality = page.locator(".set-separation-quality");
+    await quality.click();
+    await option(page, "Best (2× slower)").click();
+    await expect(quality).toHaveValue("best");
+    await expect(page.locator(".library-editor")).toBeVisible();
   });
 });
