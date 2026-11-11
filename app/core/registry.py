@@ -11,7 +11,14 @@ import uuid
 from collections.abc import Iterable
 from pathlib import Path
 
-from app.core.config import DEMUCS_MODEL, EXTRA_STEM_NAMES, JOB_ID_RE, LYRICS_FILE, STEM_NAMES
+from app.core.config import (
+    DEMUCS_MODEL,
+    EXTRA_STEM_NAMES,
+    JOB_ID_RE,
+    LYRICS_FILE,
+    STEM_NAMES,
+    UPLOAD_EXTS,
+)
 from app.core.models import (
     VOCAL_SPLIT_CHOICE_COMBINED,
     VOCAL_SPLIT_CHOICE_SPLIT,
@@ -28,7 +35,7 @@ from app.core.models import (
     clean_user_name,
     clean_work,
 )
-from app.core.song_folder import SAVED_FIELDS, copy_saved_fields, saved_from_meta
+from app.core.song_folder import SAVED_FIELDS, copy_saved_fields, is_real_entry, saved_from_meta
 
 logger = logging.getLogger("stemdeck.registry")
 
@@ -60,6 +67,8 @@ _MAX_RESUME_ATTEMPTS = 1
 # Hex digits after the time in a registry.json.bad-<time>-<hex> name, so two
 # loads in one second do not overwrite each other's copy.
 _BAD_SUFFIX_HEX = 6
+# How much of the id a rebuilt song's placeholder title shows.
+_RECOVERED_ID_CHARS = 6
 # Compared and sorted by every load and save: a record holding anything but a
 # number in one of these broke the load, or every persist after it.
 _ORDER_FIELDS = ("created_at", "queue_position", "resume_attempts")
@@ -423,7 +432,7 @@ def _adopt_orphans(jobs_dir: Path) -> bool:
             # Adopting it here is what brought songs back (#521).
             continue
         try:
-            recovered = _recover_done_job(job_dir)
+            recovered = _recover_done_job(job_dir) or _stopped_from_source(job_dir)
         except Exception:
             # One folder that cannot be read costs that song, not every folder
             # after it and the save that follows.
@@ -504,6 +513,42 @@ def take_pending_resume() -> list[str]:
     return ids
 
 
+def _stopped_from_source(job_dir: Path) -> Job | None:
+    """A song stopped before it was separated, rebuilt from the upload it kept
+    (upstream PR 889), or None when the file Extract would run (the first
+    source.*, as jobqueue._find_local_source picks it) is not a type an upload
+    can be.
+
+    Such a folder has no stems to rebuild from, so it stayed out of the
+    registry and out of reach of Extract with the only copy of an upload. Not a
+    link's download cut off part way, and not a folder that is or holds a
+    link: Extract would write through it."""
+    try:
+        if not is_real_entry(job_dir) or not all(is_real_entry(p) for p in job_dir.iterdir()):
+            return None
+        source = next((p for p in sorted(job_dir.glob("source.*")) if p.is_file()), None)
+        created_at = job_dir.stat().st_mtime
+    except OSError:
+        logger.warning("could not read %s", job_dir.name, exc_info=True)
+        return None
+    if source is None or source.suffix.lower() not in UPLOAD_EXTS:
+        return None
+    # Placeholder, as for stems without metadata.json: the name went with the
+    # registry.
+    title = f"Recovered track {job_dir.name[:_RECOVERED_ID_CHARS]}"
+    logger.warning("%s holds an upload that was never separated; kept as stopped", job_dir.name)
+    return Job(
+        id=job_dir.name,
+        status="stopped",
+        stage_message="Stopped",
+        title=title,
+        source_url=f"local:{title}",
+        source_format=source.suffix[1:].lower(),
+        selected_stems=list(STEM_NAMES),
+        created_at=created_at,
+    )
+
+
 def _recover_done_job(job_dir: Path) -> Job | None:
     stems_dir = job_dir / "stems"
     if not stems_dir.is_dir():
@@ -539,7 +584,7 @@ def _recover_done_job(job_dir: Path) -> Job | None:
         # unrecoverable. Recover with a placeholder title and write a minimal
         # metadata.json immediately, so the NEXT restart takes the normal
         # path -- self-healing, not a permanent special case.
-        meta = {"title": f"Recovered track {job_dir.name[:6]}"}
+        meta = {"title": f"Recovered track {job_dir.name[:_RECOVERED_ID_CHARS]}"}
         try:
             meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
         except OSError:

@@ -98,6 +98,13 @@ def saved_from_meta(meta: dict, names: tuple[str, ...] = SAVED_FIELDS) -> dict[s
     return found
 
 
+def is_real_entry(entry: Path) -> bool:
+    """Whether `entry` is itself in its folder, not a link or a Windows
+    junction to somewhere else. Removing or writing what is found by walking
+    through one reaches whatever it points at."""
+    return entry.resolve() == entry.parent.resolve() / entry.name
+
+
 def write_json_atomic(path: Path, data: dict) -> None:
     """Durably replace a JSON file without exposing a partial write."""
     temp = path.parent / f".{path.name}.{uuid.uuid4().hex}.tmp"
