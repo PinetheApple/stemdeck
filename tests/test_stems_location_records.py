@@ -28,21 +28,30 @@ def _write_registry(folder: Path, job: Job) -> str:
 
 
 def _fail_on(monkeypatch, entry_name: str) -> dict[str, bool]:
-    """shutil.move as the stems move calls it, failing for one entry the way a
-    full disk does, while the returned switch's "fail" is on."""
+    """One entry cannot be moved, the way a full disk stops it, while the
+    returned switch's "fail" is on: its rename is refused, and so is every file
+    the copy that follows reads."""
+    import os
     import shutil
 
-    from app.core import stems_location
-
-    real = shutil.move
+    real_rename, real_copy = os.rename, shutil.copyfile
     switch = {"fail": True}
 
-    def flaky(src, dst):
-        if switch["fail"] and Path(src).name == entry_name:
-            raise OSError(28, "No space left on device")
-        return real(src, dst)
+    def stopped(src) -> bool:
+        return switch["fail"] and entry_name in Path(src).parts
 
-    monkeypatch.setattr(stems_location.shutil, "move", flaky)
+    def rename(src, dst):
+        if stopped(src):
+            raise OSError(18, "Invalid cross-device link")
+        return real_rename(src, dst)
+
+    def copyfile(src, dst, **kw):
+        if stopped(src):
+            raise OSError(28, "No space left on device")
+        return real_copy(src, dst, **kw)
+
+    monkeypatch.setattr(os, "rename", rename)
+    monkeypatch.setattr(shutil, "copyfile", copyfile)
     return switch
 
 
