@@ -2,7 +2,7 @@
 //
 // Run:  node tests/js/select-menu.test.mjs
 
-import { edgeIndex, placeList, stepIndex, typeaheadIndex } from '../../static/js/selectMenuLogic.js';
+import { edgeIndex, isClippedOut, pageIndex, placeList, stepIndex, typeaheadIndex } from '../../static/js/selectMenuLogic.js';
 
 let passed = 0;
 let failed = 0;
@@ -36,6 +36,17 @@ check('Up stays on the first option', stepIndex(NONE, 0, -1), 0);
 check('Down stays put when only disabled options follow', stepIndex(ENDS_OFF, 2, 1), 2);
 check('Down with nothing chosen lands on the first enabled', stepIndex(ENDS_OFF, -1, 1), 1);
 check('Up with nothing chosen lands on the last enabled', stepIndex(ENDS_OFF, -1, -1), 2);
+
+const LONG = Array(25).fill(false);
+const PAGE = 10;
+check('PageDown jumps a page', pageIndex(LONG, 3, 1, PAGE), 13);
+check('PageUp jumps a page back', pageIndex(LONG, 13, -1, PAGE), 3);
+check('PageDown stops at the last option', pageIndex(LONG, 20, 1, PAGE), 24);
+check('PageUp stops at the first option', pageIndex(LONG, 4, -1, PAGE), 0);
+const PAGE_LANDS_OFF = LONG.map((_, i) => i === 13 || i === 12);
+check('PageDown onto a disabled option settles short of it', pageIndex(PAGE_LANDS_OFF, 3, 1, PAGE), 11);
+check('PageDown with nothing chosen counts from the top', pageIndex(LONG, -1, 1, PAGE), 10);
+check('PageDown on the last option stays', pageIndex(LONG, 24, 1, PAGE), 24);
 
 const DEVICES = ['Auto', 'CUDA (NVIDIA)', 'MPS (Apple Silicon) — not available', 'CPU'];
 const DEVICES_OFF = [false, false, true, false];
@@ -78,6 +89,14 @@ const right = placeList({ ...PLACE, anchor: { ...ANCHOR_TOP, left: 950 }, listHe
 check('it is pulled left to stay inside the viewport', right.left, 792);
 const left = placeList({ ...PLACE, anchor: { ...ANCHOR_TOP, left: -40 }, listHeight: 100 });
 check('it never starts left of the margin', left.left, 8);
+
+const PANE = { top: 100, bottom: 500, left: 0, right: 400 };
+const at = (top, bottom) => ({ top, bottom, left: 10, right: 200 });
+check('a select inside its pane is not clipped', isClippedOut(at(200, 230), [PANE]), false);
+check('a select half out of its pane still counts as shown', isClippedOut(at(90, 120), [PANE]), false);
+check('a select scrolled above its pane is clipped', isClippedOut(at(60, 100), [PANE]), true);
+check('a select scrolled below its pane is clipped', isClippedOut(at(500, 530), [PANE]), true);
+check('any one clipping box hides it', isClippedOut(at(200, 230), [PANE, { ...PANE, top: 300 }]), true);
 
 console.log(`\n${passed}/${passed + failed} checks passed`);
 process.exit(failed === 0 ? 0 : 1);

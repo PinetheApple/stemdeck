@@ -1,6 +1,5 @@
-// The styled select list's decisions, kept free of the DOM: which option a
-// key leads to, which option typing matches, and where the list opens.
-// `disabled` is one flag per option, in the select's option order.
+// Kept free of the DOM so the list's key, type-ahead and placement rules run
+// under node. `disabled` is one flag per option, in the select's option order.
 
 const NOT_FOUND = -1;
 const LEADING_SYMBOLS = /^[^\p{L}\p{N}]+/u;
@@ -21,6 +20,16 @@ export function stepIndex(disabled, from, step) {
     if (!disabled[i]) return i;
   }
   return from;
+}
+
+/** The option `pageSize` away, or the nearest enabled one short of it. */
+export function pageIndex(disabled, from, step, pageSize) {
+  const last = disabled.length - 1;
+  const target = Math.max(0, Math.min(last, Math.max(from, 0) + step * pageSize));
+  for (let i = target; i !== from && i >= 0 && i <= last; i -= step) {
+    if (!disabled[i]) return i;
+  }
+  return stepIndex(disabled, from, step);
 }
 
 const comparable = (label) => label.trim().replace(LEADING_SYMBOLS, "").toLocaleLowerCase();
@@ -62,4 +71,14 @@ export function placeList({ anchor, listWidth, listHeight, viewport, gap, margin
     maxHeight,
     flipped,
   };
+}
+
+/** True when the select is entirely outside one of the boxes that clip it. */
+export function isClippedOut(anchor, clips) {
+  return clips.some((clip) =>
+    anchor.bottom <= clip.top ||
+    anchor.top >= clip.bottom ||
+    anchor.right <= clip.left ||
+    anchor.left >= clip.right,
+  );
 }
