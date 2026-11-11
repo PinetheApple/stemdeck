@@ -9,6 +9,7 @@ resource reads a clock the test moves.
 
 from __future__ import annotations
 
+import asyncio
 import subprocess
 import sys
 import threading
@@ -225,6 +226,57 @@ def test_a_cancel_during_an_unload_stays_a_cancel(tmp_path, clock, spawns, monke
     assert not (tmp_path / "htdemucs_6s").exists(), "the cancelled job separated nothing"
     assert spawns == ["cpu"], "no worker was started for it"
     assert sep_mod.WORKER._users == 0
+
+
+# --- shutdown -------------------------------------------------------------------
+
+
+def test_shutdown_waits_for_an_unload_in_progress(tmp_path, clock, spawns, monkeypatch):
+    _separate(tmp_path, "aaaa")
+    clock.t += 60 * MIN
+    unloader, release = _hold_unload(monkeypatch)
+
+    shutdown = threading.Thread(target=sep_mod.shutdown_worker)
+    shutdown.start()
+    shutdown.join(0.3)
+    assert shutdown.is_alive(), "shutdown waits for the unload holding the worker"
+    release.set()
+    unloader.join(10)
+    shutdown.join(10)
+    assert not shutdown.is_alive()
+    assert "proc" not in sep_mod._worker
+
+
+async def test_lifespan_starts_the_timer_cancels_it_and_stops_the_worker(
+    tmp_path, clock, spawns, monkeypatch
+):
+    import app.main as main_mod
+
+    async def no_sweep() -> None:
+        pass
+
+    monkeypatch.setattr(main_mod, "_sweep_loop", no_sweep)
+    monkeypatch.delenv("STEMDECK_DESKTOP", raising=False)
+    monkeypatch.setattr(main_mod, "HTTPS_PORT", None)
+    timer: list[str] = []
+
+    async def fake_run() -> None:
+        timer.append("started")
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            timer.append("cancelled")
+            raise
+
+    monkeypatch.setattr(idle_unload, "run", fake_run)
+    _separate(tmp_path, "aaaa")
+    proc = sep_mod._worker["proc"]
+    async with main_mod.lifespan(main_mod.app):
+        await asyncio.sleep(0)
+        assert timer == ["started"]
+    await asyncio.sleep(0)
+    assert timer == ["started", "cancelled"]
+    assert proc.poll() is not None, "no worker outlives the server"
 
 
 # --- a worker that will not stop -------------------------------------------------
