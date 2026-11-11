@@ -715,7 +715,7 @@ const en = {
   "position.loopTitle": "Loop the selected position (L)",
   "position.loopLabel": "Loop",
   "position.loopExactTitle": "Exact loop start / end (mm:ss.mmm or seconds)",
-  "position.loopScrollHint": "Scroll up/down to adjust",
+  "position.loopScrollHint": "Loop start/end · scroll",
   "position.loopStartAria": "Loop start",
   "position.loopEndAria": "Loop end",
 
@@ -1784,7 +1784,7 @@ const pl = {
   "position.loopTitle": "Zapętl zaznaczoną pozycję (L)",
   "position.loopLabel": "Pętla",
   "position.loopExactTitle": "Dokładny początek / koniec pętli (mm:ss.mmm lub sekundy)",
-  "position.loopScrollHint": "Przewiń, aby dostosować",
+  "position.loopScrollHint": "Zakres pętli · przewiń",
   "position.loopStartAria": "Początek pętli",
   "position.loopEndAria": "Koniec pętli",
 
@@ -2845,7 +2845,7 @@ const ja = {
   "position.loopTitle": "選択した位置をループ (L)",
   "position.loopLabel": "ループ",
   "position.loopExactTitle": "正確なループ開始/終了 (mm:ss.mmm または秒)",
-  "position.loopScrollHint": "スクロールで調整",
+  "position.loopScrollHint": "ループ範囲・スクロール",
   "position.loopStartAria": "ループ開始",
   "position.loopEndAria": "ループ終了",
 
@@ -3880,7 +3880,7 @@ const zhHans = {
   "position.loopTitle": "循环所选位置 (L)",
   "position.loopLabel": "循环",
   "position.loopExactTitle": "精确循环起止点 (mm:ss.mmm 或秒)",
-  "position.loopScrollHint": "滚动进行调整",
+  "position.loopScrollHint": "循环起点/终点 · 滚动",
   "position.loopStartAria": "循环起点",
   "position.loopEndAria": "循环终点",
 
@@ -4916,7 +4916,7 @@ const de = {
   "position.loopTitle": "Ausgewählte Position loopen (L)",
   "position.loopLabel": "Loop",
   "position.loopExactTitle": "Genauer Loop-Start/-Ende (mm:ss.mmm oder Sekunden)",
-  "position.loopScrollHint": "Zum Anpassen scrollen",
+  "position.loopScrollHint": "Loopbereich · scrollen",
   "position.loopStartAria": "Loop-Start",
   "position.loopEndAria": "Loop-Ende",
 
@@ -5963,7 +5963,7 @@ const pt = {
   "position.loopTitle": "Repetir a posição selecionada (L)",
   "position.loopLabel": "Loop",
   "position.loopExactTitle": "Início/fim exato do loop (mm:ss.mmm ou segundos)",
-  "position.loopScrollHint": "Role para ajustar",
+  "position.loopScrollHint": "Início/fim do loop · role",
   "position.loopStartAria": "Início do loop",
   "position.loopEndAria": "Fim do loop",
 
@@ -7011,7 +7011,7 @@ const id = {
   "position.loopTitle": "Loop posisi yang dipilih (L)",
   "position.loopLabel": "Loop",
   "position.loopExactTitle": "Awal/akhir loop yang tepat (mm:ss.mmm atau detik)",
-  "position.loopScrollHint": "Gulir untuk menyesuaikan",
+  "position.loopScrollHint": "Awal/akhir loop · gulir",
   "position.loopStartAria": "Awal loop",
   "position.loopEndAria": "Akhir loop",
 
@@ -8047,7 +8047,7 @@ const fr = {
   "position.loopTitle": "Boucler la position sélectionnée (L)",
   "position.loopLabel": "Boucle",
   "position.loopExactTitle": "Début / fin exacts de la boucle (mm:ss.mmm ou secondes)",
-  "position.loopScrollHint": "Faites défiler pour régler",
+  "position.loopScrollHint": "Début/fin · défiler",
   "position.loopStartAria": "Début de la boucle",
   "position.loopEndAria": "Fin de la boucle",
 
@@ -8627,7 +8627,7 @@ const ptPT = {
   "lyrics.align.doneTitle": "Fechar o painel. As alterações já estão guardadas.",
   "settings.transcribe.desc": "Quando não é encontrada nenhuma letra, esta é transcrita localmente a partir das vozes. Da primeira vez, é transferido um modelo de fala (1,6 GB para GPU NVIDIA, 0,5 GB nos restantes casos). Aplica-se à próxima faixa.",
   "pitch.insecureOrigin": "A transposição não está disponível através de uma ligação de rede",
-  "position.loopScrollHint": "Desloque para ajustar",
+  "position.loopScrollHint": "Início/fim · deslocar",
   "settings.autoDelete.title": "Eliminar automaticamente as faixas concluídas",
   "pitch.resetTitle": "Repor todas as faixas no tom original",
   "settings.autoDelete.desc": "Elimina as faixas concluídas após os dias definidos abaixo. A eliminação não pode ser anulada.",
@@ -9338,7 +9338,7 @@ const es = {
   "position.loopTitle": "Repetir en loop la posición seleccionada (L)",
   "position.loopLabel": "Bucle",
   "position.loopExactTitle": "Inicio / fin exacto del loop (mm:ss.mmm o segundos)",
-  "position.loopScrollHint": "Desplaza para ajustar",
+  "position.loopScrollHint": "Inicio/fin · desplaza",
   "position.loopStartAria": "Inicio del loop",
   "position.loopEndAria": "Fin del loop",
 
@@ -10407,7 +10407,7 @@ const ko = {
   "position.loopTitle": "선택한 구간을 반복해요 (L)",
   "position.loopLabel": "반복",
   "position.loopExactTitle": "반복 시작과 끝을 정확히 (mm:ss.mmm 또는 초)",
-  "position.loopScrollHint": "스크롤로 조절",
+  "position.loopScrollHint": "루프 시작/끝 · 스크롤",
   "position.loopStartAria": "반복 시작",
   "position.loopEndAria": "반복 끝",
 
