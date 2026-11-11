@@ -1,8 +1,5 @@
-// The import queue's text must be in the selected language, in every language.
-//
-// t() falls back to English for a missing key, so a gap in one table still
-// looks fine. This reads each table's own keys (pt-PT through pt, as the app
-// does), then renders the queue's row labels in every language.
+// t() falls back to English for a missing key, so a gap in one table still looks
+// fine; this reads each table's own keys and renders the queue rows per language.
 //
 // Run:  node tests/js/queue-i18n.test.mjs
 
