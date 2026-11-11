@@ -182,22 +182,51 @@ check("an unparseable URL does not count", !isApiRequest("http://[bad", ORIGIN))
 }
 
 // --------------------------------------------------------------------------
-// Restored: an answer after unanswered requests, so lost saves can go again
+// Restored: the server answers again after it was unreachable, so lost saves can go again
 // --------------------------------------------------------------------------
+
+const answer = async (h) => {
+  await h.monitor.fetch("/api/jobs");
+  await settle();
+};
 
 {
   const h = harness();
-  await h.monitor.fetch("/api/jobs");
-  await settle();
+  await answer(h);
   check("an answer with nothing unanswered before it restores nothing", h.restored.length === 0);
   await h.failTimes(1);
-  check("a failure alone restores nothing", h.restored.length === 0);
-  await h.monitor.fetch("/api/jobs");
+  await answer(h);
+  check("an answer after a failure the health check never saw restores nothing", h.restored.length === 0);
+}
+
+{
+  const h = harness();
+  await h.failTimes(1);
+  h.outcomes.push(networkError());
+  h.timers.shift().fn();
   await settle();
-  check("the first answer after a failure is a restored connection", h.restored.length === 1);
-  await h.monitor.fetch("/api/jobs");
-  await settle();
+  check("a failed health check restores nothing yet", h.restored.length === 0);
+  await answer(h);
+  check("the first answer after a failed health check is a restored connection", h.restored.length === 1);
+  await answer(h);
   check("later answers restore nothing more", h.restored.length === 1);
+}
+
+{
+  const h = harness();
+  await h.failTimes(FAILURES_BEFORE_OFFLINE);
+  await answer(h);
+  check("coming back online is a restored connection", h.restored.length === 1);
+}
+
+{
+  const h = harness();
+  for (let round = 0; round < FAILURES_BEFORE_OFFLINE; round++) {
+    await h.failTimes(1);
+    h.timers.shift().fn();
+    await settle();
+  }
+  check("a request that keeps failing while the health check answers restores nothing", h.restored.length === 0);
 }
 
 console.log(`\n${pass}/${pass + fail} checks passed`);
