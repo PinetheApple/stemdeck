@@ -4592,6 +4592,51 @@ input, textarea { font-family: inherit; }
 /* Overlay and job progress live inside .daw-content but must stay fully visible while processing */
 .daw.no-track .daw-content .wave-loading-overlay,
 .daw.no-track .daw-content .job { opacity: 1; pointer-events: auto; }
+/* What to do first, over the dimmed studio. Out of the way of an import's
+   progress, which takes the same space. */
+.empty-start { display: none; }
+.app.no-track .daw-main { position: relative; }
+.app.no-track .empty-start {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  width: fit-content;
+  max-width: calc(100% - 2 * var(--s-5));
+  height: fit-content;
+  margin: auto;
+  padding: var(--s-6) var(--s-5);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-panel);
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+.app.no-track .daw-main:has(#job:not(.hidden), #waveLoadingOverlay:not(.hidden)) .empty-start { display: none; }
+.empty-start > .ic { width: var(--ctl-h); height: var(--ctl-h); color: var(--accent); }
+.empty-start strong { color: var(--text); font-size: var(--fs-lg); font-weight: var(--fw-semibold); }
+.empty-start-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--s-2); margin-top: var(--s-2); }
+.empty-start-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--ctl-h);
+  padding: 0 var(--s-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  color: var(--text);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+.empty-start-btn:hover { background: var(--surface-3); border-color: var(--accent-line); }
+.empty-start-btn .ic { width: var(--icon); height: var(--icon); }
 
 .app.no-track #t-export-btn,
 .app.is-import #t-export-btn {

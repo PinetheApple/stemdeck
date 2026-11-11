@@ -203,6 +203,26 @@
 .lib-setlists-empty strong { color: var(--text-2); font-size: var(--fs-base); }
 .lib-setlists-empty[hidden],
 .setlist-new-btn[hidden] { display: none; }
+/* Every list's empty state, Setlists' included: an icon, a heading and a hint. */
+.lib-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-5) var(--s-3);
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+.lib-empty .ic { width: var(--ctl-h-sm); height: var(--ctl-h-sm); }
+.lib-empty strong { color: var(--text-2); font-size: var(--fs-base); }
+/* Inside a folder, a line like an empty setlist's rather than a whole empty state. */
+.folder-body > .folder-empty {
+  padding: var(--s-1) var(--s-2);
+  font-size: var(--fs-sm);
+  font-style: normal;
+  color: var(--text-3);
+}
 .setlists-error { margin: 0; font-size: var(--fs-sm); color: var(--danger); }
 .setlist-new-btn {
   display: inline-flex;
@@ -303,6 +323,17 @@
 }
 .cat-item.active .cat-title { color: var(--accent); }
 .cat-item.active .cat-actions { background: linear-gradient(to right, transparent, var(--row-bg) var(--s-2)); }
+/* Actions that stay up take their own room, so the title and artist end before them.
+   No height of their own: the row keeps its height and the buttons overflow it evenly. */
+.cat-item:is(.is-selected, .is-stopped, :focus-within) .cat-actions {
+  position: static;
+  height: 0;
+  align-items: center;
+  align-content: center;
+  padding-left: 0;
+  transform: none;
+  background: none;
+}
 .setlist-song.active .setlist-song-title { color: var(--accent); }
 .setlist-song.active .setlist-song-actions { background: linear-gradient(to right, transparent, var(--row-bg) var(--s-4)); }
 .cat-item.is-selected { border-color: var(--text-3); }

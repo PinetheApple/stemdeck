@@ -1444,7 +1444,7 @@ function createFolder() {
   folders.push(folder);
   saveState();
   render();
-  openFolderEditor(folder.id);
+  openFolderEditor(folder.id, "library.newFolder");
 }
 
 /** Put a whole playlist import in a folder of its own.
@@ -1576,7 +1576,7 @@ const FOLDER_NAME_RE = /^[\p{L}\p{M}\p{N} '’&().,_-]+$/u;
 const MAX_FOLDER_NAME_LEN = 100;
 const isValidFolderName = (s) => FOLDER_NAME_RE.test(s);
 
-function openFolderEditor(folderId) {
+function openFolderEditor(folderId, titleKey = "folderEditor.title") {
   const folder = folders.find((f) => f.id === folderId);
   if (!folder || folder.id === TRASH_ID) return;
   closeFolderEditor();
@@ -1585,9 +1585,9 @@ function openFolderEditor(folderId) {
   const overlay = document.createElement("div");
   overlay.className = "folder-editor-backdrop";
   overlay.innerHTML = `
-    <form class="folder-editor" role="dialog" aria-modal="true" aria-label="Edit folder" data-i18n-aria-label="folderEditor.title">
+    <form class="folder-editor" role="dialog" aria-modal="true" aria-label="${esc(i18nT(titleKey))}" data-i18n-aria-label="${titleKey}">
       <div class="folder-editor-head">
-        <span data-i18n="folderEditor.title">Edit folder</span>
+        <span data-i18n="${titleKey}">${esc(i18nT(titleKey))}</span>
         <button class="folder-editor-close" type="button" aria-label="Close" data-i18n-aria-label="folderEditor.closeAria">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path d="M18 6 6 18M6 6l12 12"></path>
@@ -2144,6 +2144,28 @@ function getAllTags(trashIds) {
   return Object.entries(counts).sort(([, a], [, b]) => b - a);
 }
 
+const HEART_ICON = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+const EMPTY_ICONS = {
+  search: icon("search"),
+  trash: icon("trash"),
+  favorites: HEART_ICON,
+  queue: icon("listPlus"),
+};
+
+/** A list with nothing to show: the Setlists look, an icon, a heading and a hint. */
+function emptyStateHtml(iconName, headingKey, hintKey) {
+  return `<div class="lib-empty">${EMPTY_ICONS[iconName]}<strong>${esc(i18nT(headingKey))}</strong>`
+    + `<span class="lib-empty-hint">${esc(i18nT(hintKey))}</span></div>`;
+}
+
+function noMatchHtml(headingKey) {
+  return emptyStateHtml("search", headingKey, "search.noMatchHint");
+}
+
+function visibleSongCount(trashIds) {
+  return Object.entries(tracks).filter(([id, track]) => !trashIds.has(id) && trackMatchesSearch(track)).length;
+}
+
 function makeSectionEl(labelText) {
   const section = document.createElement("div");
   section.className = "lib-section";
@@ -2372,6 +2394,7 @@ function renderFolder(folder) {
   el.className = `folder${folder.collapsed ? " collapsed" : ""}${isSubfolder ? " subfolder" : ""}`;
   el.dataset.id = folder.id;
 
+  const visibleItems = folder.items.filter((id) => trackMatchesSearch(tracks[id]));
   const head = document.createElement("div");
   head.className = isUnsorted ? "folder-head system" : "folder-head";
   if (!isTrash) head.style.setProperty("--folder-color", folder.color);
@@ -2391,7 +2414,7 @@ function renderFolder(folder) {
     <svg class="f-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
     ${folderIcon}
     <span class="f-name">${esc(folder.name)}</span>
-    <span class="f-count">${folder.items.length}</span>
+    <span class="f-count">${visibleItems.length}</span>
     ${isSystem ? "" : `
       <button class="f-subfolder" type="button" aria-label="${esc(i18nT("folder.newSubfolder"))}" title="${esc(i18nT("folder.newSubfolder"))}">
         <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -2409,7 +2432,6 @@ function renderFolder(folder) {
   const body = document.createElement("div");
   body.className = "folder-body";
 
-  const visibleItems = folder.items.filter((id) => trackMatchesSearch(tracks[id]));
   const childFolders = folders.filter((f) => f.parentId === folder.id);
 
   if (catalogSearchQuery && visibleItems.length === 0 && childFolders.length === 0) {
@@ -2417,7 +2439,7 @@ function renderFolder(folder) {
   }
 
   if (visibleItems.length === 0 && childFolders.length === 0) {
-    body.innerHTML = '<span class="folder-empty">Empty folder</span>';
+    body.innerHTML = `<span class="folder-empty">${esc(i18nT("library.emptyFolder"))}</span>`;
   } else {
     for (const id of visibleItems) {
       const item = renderTrackItem(id);
@@ -2468,7 +2490,7 @@ function renderFolder(folder) {
     el.classList.remove("collapsed");
     saveState();
     render();
-    openFolderEditor(child.id);
+    openFolderEditor(child.id, "folder.newSubfolder");
   });
 
   // Folder drag handle — reorder folders.
@@ -2590,7 +2612,7 @@ function drawCatalog() {
   for (const id of _trashSelection) if (!trashIds.has(id)) _trashSelection.delete(id);
   updateTrashBadge(trashIds.size);
   const songsCount = document.getElementById("libSongsCount");
-  if (songsCount) songsCount.textContent = String(Object.keys(tracks).filter((id) => !trashIds.has(id)).length);
+  if (songsCount) songsCount.textContent = String(visibleSongCount(trashIds));
   const isTrashView = catalogView === "trash";
   const isFavoritesView = catalogView === "favorites";
   const isQueueView = catalogView === "queue";
@@ -2639,9 +2661,9 @@ function drawCatalog() {
   if (isTrashView) {
     const visibleTrashItems = (trash?.items || []).filter((id) => trackMatchesSearch(tracks[id]));
     if (!trash?.items.length) {
-      list.innerHTML = `<span class="folder-empty trash-empty">${esc(i18nT("trash.isEmptyState"))}</span>`;
+      list.innerHTML = emptyStateHtml("trash", "trash.isEmptyState", "trash.emptyHint");
     } else if (visibleTrashItems.length === 0) {
-      list.innerHTML = `<span class="folder-empty trash-empty">${esc(i18nT("trash.noSearchMatch"))}</span>`;
+      list.innerHTML = noMatchHtml("trash.noSearchMatch");
     } else {
       for (const id of visibleTrashItems) {
         const item = renderTrackItem(id, { inTrash: true });
@@ -2658,7 +2680,9 @@ function drawCatalog() {
       .sort(([, a], [, b]) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
       .map(([id]) => id);
     if (!favIds.length) {
-      list.innerHTML = `<span class="folder-empty trash-empty">${esc(catalogSearchQuery ? i18nT("favorites.noSearchMatch") : i18nT("favorites.empty"))}</span>`;
+      list.innerHTML = catalogSearchQuery
+        ? noMatchHtml("favorites.noSearchMatch")
+        : emptyStateHtml("favorites", "favorites.emptyTitle", "favorites.emptyHint");
     } else {
       for (const id of favIds) {
         const item = renderRecentItem(id);
@@ -2698,7 +2722,7 @@ function drawCatalog() {
 
   // Empty state when search yields nothing
   if (catalogSearchQuery && !hasCollections) {
-    list.innerHTML = `<span class="folder-empty trash-empty">${esc(i18nT("library.noSearchMatch"))}</span>`;
+    list.innerHTML = noMatchHtml("library.noSearchMatch");
     return;
   }
 
@@ -3043,10 +3067,7 @@ function renderQueueList(listEl, snap = getQueueSnapshot()) {
   }
 
   if (!entries.length) {
-    section.insertAdjacentHTML(
-      "beforeend",
-      '<span class="folder-empty trash-empty">Nothing importing. Queued tracks appear here.</span>',
-    );
+    section.insertAdjacentHTML("beforeend", emptyStateHtml("queue", "queue.emptyTitle", "queue.emptyHint"));
     listEl.appendChild(section);
     return;
   }

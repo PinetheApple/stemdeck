@@ -57,14 +57,20 @@ function buildMenu(trackId) {
   return el;
 }
 
+const ROW_SELECTOR = ".cat-item";
+
+/** Beside the row, top edges level, so the menu covers none of the list;
+ *  under the row when the window has no room beside it. */
 function placeMenu(el, anchor) {
-  const box = anchor.getBoundingClientRect();
+  const row = (anchor.closest(ROW_SELECTOR) ?? anchor).getBoundingClientRect();
   const { width, height } = el.getBoundingClientRect();
-  const left = Math.min(box.right - width, window.innerWidth - width - VIEWPORT_MARGIN_PX);
-  const below = box.bottom + MENU_GAP_PX;
-  const top = below + height > window.innerHeight - VIEWPORT_MARGIN_PX ? box.top - height - MENU_GAP_PX : below;
+  const besideLeft = row.right + MENU_GAP_PX;
+  const fitsBeside = besideLeft + width <= window.innerWidth - VIEWPORT_MARGIN_PX;
+  const left = fitsBeside ? besideLeft : Math.min(row.right - width, window.innerWidth - width - VIEWPORT_MARGIN_PX);
+  const top = fitsBeside ? row.top : row.bottom + MENU_GAP_PX;
+  const lowest = window.innerHeight - height - VIEWPORT_MARGIN_PX;
   el.style.left = `${Math.max(VIEWPORT_MARGIN_PX, left)}px`;
-  el.style.top = `${Math.max(VIEWPORT_MARGIN_PX, top)}px`;
+  el.style.top = `${Math.max(VIEWPORT_MARGIN_PX, Math.min(top, lowest))}px`;
 }
 
 function focusableItems() {
