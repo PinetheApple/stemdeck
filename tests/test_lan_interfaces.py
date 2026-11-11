@@ -34,6 +34,7 @@ FAKE_HOST = {
     "ctr0": ("172.17.0.1", UP_AND_RUNNING),
     "eth1": ("10.0.0.5", UP_NOT_RUNNING),
     "eth2": ("10.0.0.6", RUNNING_NOT_UP),
+    "home": ("10.6.0.2", UP_AND_RUNNING),
 }
 
 
@@ -101,19 +102,20 @@ def test_each_interface_address_is_read_from_the_ifreq(
         "ctr0": "172.17.0.1",
         "eth1": "10.0.0.5",
         "eth2": "10.0.0.6",
+        "home": "10.6.0.2",
     }
 
 
 def test_running_needs_both_the_up_and_running_flags(monkeypatch, tmp_path: Path) -> None:
     _fake_host(monkeypatch, tmp_path, "linux")
     read = {iface.name: iface.running for iface in lan_interfaces.read_interfaces()}
-    assert read == {"wlan0": True, "ctr0": True, "eth1": False, "eth2": False}
+    assert read == {"wlan0": True, "ctr0": True, "eth1": False, "eth2": False, "home": True}
 
 
 def test_a_bridge_without_hardware_is_read_as_unbacked(monkeypatch, tmp_path: Path) -> None:
     _fake_host(monkeypatch, tmp_path, "linux")
     read = {iface.name: iface.unbacked_bridge for iface in lan_interfaces.read_interfaces()}
-    assert read == {"wlan0": False, "ctr0": True, "eth1": False, "eth2": False}
+    assert read == {"wlan0": False, "ctr0": True, "eth1": False, "eth2": False, "home": False}
 
 
 async def test_a_physical_lan_in_the_172_16_range_still_shows(monkeypatch) -> None:
@@ -162,7 +164,7 @@ async def test_a_vpn_interface_stays_listed(monkeypatch) -> None:
     assert listed == ["http://100.68.238.69:8000"]
 
 
-@pytest.mark.parametrize("name", ["tailscale0", "wg0", "utun3", "tun0"])
+@pytest.mark.parametrize("name", ["tailscale0", "wg0", "wg-home", "wg.office", "utun3", "tun0"])
 async def test_a_vpn_interface_is_marked_vpn_by_its_name(monkeypatch, name: str) -> None:
     monkeypatch.setattr(
         lan_interfaces,
@@ -242,6 +244,24 @@ def test_an_invalid_public_url_is_ignored_with_a_warning(caplog, raw: str) -> No
     assert "STEMDECK_PUBLIC_URL" in caplog.text
 
 
+async def test_a_wireguard_device_is_marked_vpn_whatever_its_name(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    _fake_host(monkeypatch, tmp_path, "linux")
+    settings = await _settings(monkeypatch, {"10.6.0.2", "192.168.1.20"})
+    assert settings["network_addresses"] == [
+        {"url": "http://10.6.0.2:8000", "kind": "vpn"},
+        {"url": "http://192.168.1.20:8000", "kind": "lan"},
+    ]
+
+
+def test_a_missing_or_unreadable_uevent_is_not_wireguard(tmp_path: Path) -> None:
+    (tmp_path / "odd" / "uevent").mkdir(parents=True)
+    assert lan_interfaces.is_wireguard("odd", tmp_path) is False
+    assert lan_interfaces.is_wireguard("absent", tmp_path) is False
+
+
 @pytest.mark.parametrize("name", ["tunl0", "tunnel0"])
 async def test_an_ip_tunnel_is_not_marked_vpn(monkeypatch, name: str) -> None:
     monkeypatch.setattr(
@@ -277,8 +297,9 @@ def _fake_sysfs(root: Path) -> Path:
         (root / nic / "device").mkdir(parents=True)
     for bridge in ("ctr0", "br0", "br-empty", "lanbr"):
         (root / bridge / "bridge").mkdir(parents=True)
-    for name in ("veth9", "bond0", "vlan10"):
+    for name in ("veth9", "bond0", "vlan10", "home"):
         (root / name).mkdir()
+    (root / "home" / "uevent").write_text("DEVTYPE=wireguard\nINTERFACE=home\nIFINDEX=6\n")
     for upper, lower in (
         ("ctr0", "veth9"),
         ("br0", "enp4s0"),

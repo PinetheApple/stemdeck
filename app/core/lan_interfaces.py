@@ -9,7 +9,7 @@ An address is left out when its interface is not up and running, when it is a
 Linux bridge with no hardware anywhere behind it (docker0, br-*, virbr0 and
 cni0 all look like this in sysfs), or when its name belongs to a container or
 VM host network. The name list is the fallback for macOS, which has no sysfs.
-VPN interfaces (tailscale0, wg0, utun3, tun0) stay listed, since a phone on the
+VPN interfaces (tailscale0, wg0, utun3, tun0, any WireGuard device) stay listed, since a phone on the
 same VPN reaches them, but are marked as VPN so the phone's owner knows which
 address needs the VPN on. Tailscale's 100.64.0.0/10 range counts as VPN even
 where no interface could be read.
@@ -63,7 +63,8 @@ _HOST_ONLY_NAME = re.compile(
     r"^(docker|br-|veth|virbr|cni|flannel|cali|podman|vboxnet|vmnet|bridge1\d\d)"
 )
 
-_VPN_NAME = re.compile(r"^(tailscale\d*|wg\d+|utun\d+|tun\d+)$")
+_VPN_NAME = re.compile(r"^(tailscale\d*|wg[\w.-]*|utun\d+|tun\d+)$")
+_WIREGUARD_UEVENT_LINE = "DEVTYPE=wireguard"
 _CGNAT_NETWORK = ipaddress.IPv4Network("100.64.0.0/10")
 
 KIND_LAN = "lan"
@@ -82,6 +83,7 @@ class NetInterface:
     ipv4: str
     running: bool
     unbacked_bridge: bool = False
+    wireguard: bool = False
 
 
 def unreachable_ipv4s(interfaces: Iterable[NetInterface]) -> frozenset[str]:
@@ -90,8 +92,10 @@ def unreachable_ipv4s(interfaces: Iterable[NetInterface]) -> frozenset[str]:
 
 
 def vpn_ipv4s(interfaces: Iterable[NetInterface]) -> frozenset[str]:
-    """The addresses that sit on a VPN interface, judged by its name."""
-    return frozenset(iface.ipv4 for iface in interfaces if _VPN_NAME.match(iface.name))
+    """The addresses that sit on a VPN interface, judged by its name or sysfs type."""
+    return frozenset(
+        iface.ipv4 for iface in interfaces if iface.wireguard or _VPN_NAME.match(iface.name)
+    )
 
 
 def address_kind(ipv4: str, vpn_addresses: frozenset[str]) -> str:
@@ -138,6 +142,7 @@ def _read_interface(
         ipv4=socket.inet_ntoa(addr[_IFR_IPV4_SLICE]),
         running=flag_bits & _IFF_UP_AND_RUNNING == _IFF_UP_AND_RUNNING,
         unbacked_bridge=is_unbacked_bridge(name, SYSFS_NET),
+        wireguard=is_wireguard(name, SYSFS_NET),
     )
 
 
@@ -160,3 +165,12 @@ def _has_hardware(iface: Path, depth: int) -> bool:
     if depth == 0:
         return False
     return any(_has_hardware(lower, depth - 1) for lower in iface.glob("lower_*"))
+
+
+def is_wireguard(name: str, sysfs_root: Path) -> bool:
+    """A WireGuard interface by its kernel type, whatever wg-quick named it."""
+    try:
+        uevent = (sysfs_root / name / "uevent").read_text()
+    except OSError:
+        return False
+    return _WIREGUARD_UEVENT_LINE in uevent.splitlines()
