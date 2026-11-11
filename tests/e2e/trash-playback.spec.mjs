@@ -1,10 +1,5 @@
-// Trashed songs never play from Up Next or setlists. Up Next drops a trashed
-// song for good; a setlist keeps its row, greyed, until the Trash is emptied.
-//
-// The server's Trash is stubbed (stubServerTrash): a real trash would leave the
-// shared fixture jobs trashed for the next spec. So is the permanent delete; the
-// server taking the song out of every setlist is covered by
-// tests/test_setlists_api.py (test_deleting_a_song_removes_it_from_every_setlist).
+// Trashed songs never play from Up Next or setlists. The server's Trash and
+// permanent delete are stubbed so the shared fixture jobs stay out of the Trash.
 
 import { test, expect } from "@playwright/test";
 
@@ -22,7 +17,7 @@ import {
 } from "./helpers.mjs";
 
 const UP_NEXT_KEY = "stemdeck.upNext";
-const HOLD_TO_RESTORE_MS = 1300;
+const HOLD_PAST_RESTORE_FACTOR = 1.5;
 // What follows a click is an async load; an assertion that nothing opened
 // made before it settles would pass on a page that never got the chance.
 const SETTLE_MS = 500;
@@ -36,6 +31,8 @@ test.afterEach(async ({ request }) => {
   const res = await request.get(SETLISTS_PATH);
   for (const setlist of await res.json()) await request.delete(`${SETLISTS_PATH}/${setlist.id}`);
 });
+
+const trashHoldMs = (page) => page.evaluate(() => import("/js/catalog.js").then((m) => m.TRASH_HOLD_MS));
 
 /** Both fixture songs, the sibling already in the Trash when `trashed`, and Up Next as stored. */
 async function openApp(page, { trashed = false, upNext = [] } = {}) {
@@ -81,7 +78,7 @@ async function restoreFromTrash(page, id) {
   const box = await row.boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
-  await page.waitForTimeout(HOLD_TO_RESTORE_MS);
+  await page.waitForTimeout((await trashHoldMs(page)) * HOLD_PAST_RESTORE_FACTOR);
   await page.mouse.up();
   await expect(row).toHaveCount(0);
   await page.locator(".rail-library").click();
@@ -151,14 +148,31 @@ test("a song trashed on another device leaves Up Next and greys in its setlist, 
   server.trashed.add(SIBLING_JOB_ID);
   await syncOnFocus(page);
   await expect(upNextRow(page, SIBLING_JOB_ID)).toHaveCount(0);
-  await expect(setlistRow(page, SIBLING_JOB_ID)).toHaveClass(/unavailable/);
+  await expect(setlistRow(page, SIBLING_JOB_ID)).toHaveClass(/in-trash/);
   await expect(page.locator(".setlist-play")).toBeDisabled();
 
   server.trashed.delete(SIBLING_JOB_ID);
   await syncOnFocus(page);
-  await expect(setlistRow(page, SIBLING_JOB_ID)).not.toHaveClass(/unavailable/);
+  await expect(setlistRow(page, SIBLING_JOB_ID)).not.toHaveClass(/in-trash/);
   await expect(page.locator(".setlist-play")).toBeEnabled();
   await expect(upNextRow(page, SIBLING_JOB_ID)).toHaveCount(0);
+});
+
+test("a trash from another device keeps a setlist name being typed, and greys the row once it is saved", async ({ page, request }) => {
+  await createSetlist(request, [SIBLING_JOB_ID]);
+  await page.clock.install();
+  const server = await openApp(page);
+  await openSetlistsTab(page);
+  await page.locator(".setlist-rename").click();
+  const name = page.locator(".setlist-name-input");
+  await name.fill("Encore");
+
+  server.trashed.add(SIBLING_JOB_ID);
+  await syncOnFocus(page);
+  await expect(name).toHaveValue("Encore");
+  await name.press("Enter");
+  await expect(page.locator(".setlist-name")).toHaveText("Encore");
+  await expect(setlistRow(page, SIBLING_JOB_ID)).toHaveClass(/in-trash/);
 });
 
 test.describe("a setlist", () => {
@@ -168,9 +182,9 @@ test.describe("a setlist", () => {
     await recordOpens(page);
     await openSetlistsTab(page);
     const row = setlistRow(page, SIBLING_JOB_ID);
-    await expect(row).toHaveClass(/unavailable/);
+    await expect(row).toHaveClass(/in-trash/);
     await expect(row.locator(".setlist-song-sub")).toHaveText("In the Trash");
-    await expect(setlistRow(page, JOB_ID)).not.toHaveClass(/unavailable/);
+    await expect(setlistRow(page, JOB_ID)).not.toHaveClass(/in-trash/);
     await expect(page.locator(".setlist-count")).toHaveText("2 songs");
 
     await row.hover();
@@ -204,7 +218,7 @@ test.describe("a setlist", () => {
     await restoreFromTrash(page, SIBLING_JOB_ID);
     await openSetlistsTab(page);
     const row = setlistRow(page, SIBLING_JOB_ID);
-    await expect(row).not.toHaveClass(/unavailable/);
+    await expect(row).not.toHaveClass(/in-trash/);
     await expect(page.locator(".setlist-play")).toBeEnabled();
     await row.dblclick();
     await expect(page.locator("#title")).toHaveText(SIBLING_TITLE, { timeout: LOAD_TIMEOUT_MS });
