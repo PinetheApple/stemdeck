@@ -1,9 +1,5 @@
-// The key confidence painted by a running import (job.js) says what it
-// measures, and a state without one clears the ring rather than keeping the
-// last song's (#50).
-//
-// The e2e backend never separates, so the import's POST and its event stream
-// are answered here.
+// A running import paints the key ring through job.js, a separate path from opening
+// a track; the e2e backend never separates, so its POST and event stream are stubbed.
 
 import { test, expect } from "@playwright/test";
 import { openInspectorTab, stubExportEndpoints, stubUpdateCheck, uiText } from "./helpers.mjs";
