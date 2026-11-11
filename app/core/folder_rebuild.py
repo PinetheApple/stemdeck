@@ -100,8 +100,10 @@ def _finished_meta(job_dir: Path, legacy: bool) -> dict | None:
     meta_path = job_dir / "metadata.json"
     meta = read_metadata(meta_path)
     finished = meta_path.is_file() and not is_started_only(meta)
-    # A version 1 library predates the marker: its stems alone meant done.
-    marked = legacy or (job_dir / "stems" / STEMS_COMPLETE).is_file()
+    # Current code writes metadata.json before it separates, so stems with none
+    # at all, or in a version 1 library, are from before the marker: done.
+    older = legacy or not meta_path.exists()
+    marked = older or (job_dir / "stems" / STEMS_COMPLETE).is_file()
     if not marked and not finished:
         logger.warning("%s holds stems of a separation that did not finish", job_dir.name)
         return None
