@@ -60,7 +60,8 @@ deleted automatically, because a DAW project that references a dragged file need
 stay put.
 
 **Automatically delete finished tracks** is off unless you turn it on, so separated tracks are
-kept until you delete them.
+kept until you delete them. When it is on, it still keeps favourites, songs in a setlist, stopped
+songs, and any song with a vocal split, lyrics timing or transcription running.
 
 **Registry.** The library is one file, `registry.json`: the list of finished jobs on disk.
 Settings, Registry shows it read-only. See [Troubleshooting](troubleshooting.md#layout-on-disk)
