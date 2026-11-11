@@ -131,6 +131,8 @@ let introTimer = null;
 // How long the glow on every explainable control lasts when Guide turns on.
 // daw.css reads it through --intro-ms, so the fade and the cleanup agree.
 const INTRO_MS = 1600;
+// A control taking more of the window than this is an area, not a place to point.
+const BIG_AREA_SHARE = 0.04;
 let current = null;
 
 export function isHelpModeOn() {
@@ -142,14 +144,49 @@ function findEntry(target) {
   if (!(target instanceof Element)) return null;
   for (const [sel, key, nameOf, titleKey] of HELP) {
     const el = target.closest(sel);
-    if (el && isVisible(el)) return { el, key, nameOf, titleKey };
+    if (el && isShown(el)) return { el, key, nameOf, titleKey };
   }
   return null;
 }
 
-function isVisible(el) {
+function isRendered(el) {
   const r = el.getBoundingClientRect();
   return r.width > 0 && r.height > 0;
+}
+
+const SEEN_CHECK = { opacityProperty: true, visibilityProperty: true };
+// Fractional layout edges round to whole pixels when an outline is placed.
+const EDGE_SLACK_PX = 0.5;
+const EDGES = ["left", "top", "right", "bottom"];
+const clips = (overflow) => overflow !== "visible";
+
+/** The part of a control that the window and every scrolling or clipping panel around it leave in view. */
+function visibleRect(el) {
+  const r = el.getBoundingClientRect();
+  let left = Math.max(r.left, 0), top = Math.max(r.top, 0);
+  let right = Math.min(r.right, window.innerWidth), bottom = Math.min(r.bottom, window.innerHeight);
+  for (let panel = el.parentElement; panel && panel !== document.body; panel = panel.parentElement) {
+    const { overflowX, overflowY } = getComputedStyle(panel);
+    const p = panel.getBoundingClientRect();
+    if (clips(overflowX)) [left, right] = [Math.max(left, p.left), Math.min(right, p.right)];
+    if (clips(overflowY)) [top, bottom] = [Math.max(top, p.top), Math.min(bottom, p.bottom)];
+  }
+  return { left, top, right, bottom, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
+}
+
+/** Rendered, not see-through or hidden, and at least partly in view. */
+function isShown(el) {
+  if (!el.checkVisibility(SEEN_CHECK)) return false;
+  const r = visibleRect(el);
+  return r.width > 0 && r.height > 0;
+}
+
+/** Shown in full: nothing of it scrolled away or cut off by a panel. */
+function isWhollyShown(el) {
+  if (!isShown(el)) return false;
+  const full = el.getBoundingClientRect();
+  const seen = visibleRect(el);
+  return EDGES.every((edge) => Math.abs(full[edge] - seen[edge]) <= EDGE_SLACK_PX);
 }
 
 /** The control's own label, which the app already translates. Visible text
@@ -194,35 +231,13 @@ function fillTip(entry) {
   }
 }
 
-/**
- * What the eye sees of a control. A button is often much bigger than the icon
- * in it (the heart is a 76px tall strip around a 16px icon), and a ring around
- * the whole box reads as a stray bar. When the content is clearly smaller than
- * the box, the ring goes around the content instead.
- */
-function visibleRect(el) {
-  const r = el.getBoundingClientRect();
-  const range = document.createRange();
-  range.selectNodeContents(el);
-  const c = range.getBoundingClientRect();
-  const small = c.width > 0 && c.height > 0 && (c.width < r.width * 0.6 || c.height < r.height * 0.6);
-  // Otherwise the box and its content together: a rail label can hang below
-  // its button's own box, and the ring has to take it in.
-  const box = small ? c : c.width > 0 && c.height > 0
-    ? { left: Math.min(r.left, c.left), top: Math.min(r.top, c.top), right: Math.max(r.right, c.right), bottom: Math.max(r.bottom, c.bottom) }
-    : r;
-  const pad = small ? 6 : 3;
-  const left = box.left - pad, top = box.top - pad, right = box.right + pad, bottom = box.bottom + pad;
-  return { left, top, right, bottom, width: right - left, height: bottom - top };
-}
-
-/** The ring is its own layer over the page, so no panel can clip it. */
-function placeRing(rect) {
-  ringEl.style.left = `${Math.round(rect.left)}px`;
-  ringEl.style.top = `${Math.round(rect.top)}px`;
-  ringEl.style.width = `${Math.round(rect.right - rect.left)}px`;
-  ringEl.style.height = `${Math.round(rect.bottom - rect.top)}px`;
-  ringEl.hidden = false;
+/** Rings are their own layer over the page, so no panel can clip them. */
+function placeBox(node, rect) {
+  const left = Math.round(rect.left), top = Math.round(rect.top);
+  node.style.left = `${left}px`;
+  node.style.top = `${top}px`;
+  node.style.width = `${Math.round(rect.right) - left}px`;
+  node.style.height = `${Math.round(rect.bottom) - top}px`;
 }
 
 /** Beside the control, on whichever side has room, never over it. */
@@ -252,7 +267,8 @@ function show(entry) {
   fillTip(entry);
   tipEl.hidden = false;
   const rect = visibleRect(entry.el);
-  placeRing(rect);
+  placeBox(ringEl, rect);
+  ringEl.hidden = false;
   placeTip(rect);
 }
 
@@ -268,7 +284,7 @@ function markTargets() {
   for (const el of document.querySelectorAll(".help-target")) el.classList.remove("help-target");
   if (!on) return;
   for (const [sel] of HELP) {
-    for (const el of document.querySelectorAll(sel)) if (isVisible(el)) el.classList.add("help-target");
+    for (const el of document.querySelectorAll(sel)) if (isRendered(el)) el.classList.add("help-target");
   }
 }
 
@@ -277,21 +293,22 @@ function markTargets() {
  * the user sees where to point without the screen staying busy. One ring per
  * control, drawn the same way as the pointer's ring, so no panel clips them.
  * Large areas (the waveforms, the song facts) are left out: a glowing box
- * across half the screen says nothing about where to point.
+ * across half the screen says nothing about where to point. So are controls
+ * only partly in view, and those inside one already outlined, like a song
+ * row's own buttons, so no two rings cross.
  */
 function playIntro() {
   stopIntro();
-  const vw = window.innerWidth, vh = window.innerHeight;
-  const big = vw * vh * 0.04;
+  const big = window.innerWidth * window.innerHeight * BIG_AREA_SHARE;
+  const outlined = [];
   for (const el of document.querySelectorAll(".help-target")) {
-    const r = visibleRect(el);
-    if (r.width * r.height > big || r.bottom < 0 || r.top > vh || r.right < 0 || r.left > vw) continue;
+    if (!isWhollyShown(el) || outlined.some((outer) => outer.contains(el))) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width * r.height > big) continue;
+    outlined.push(el);
     const ring = document.createElement("div");
     ring.className = "help-intro-ring";
-    ring.style.left = `${Math.round(r.left)}px`;
-    ring.style.top = `${Math.round(r.top)}px`;
-    ring.style.width = `${Math.round(r.width)}px`;
-    ring.style.height = `${Math.round(r.height)}px`;
+    placeBox(ring, r);
     introEl.appendChild(ring);
   }
   introEl.hidden = false;
@@ -304,6 +321,12 @@ function stopIntro() {
   if (!introEl) return;
   introEl.hidden = true;
   introEl.replaceChildren();
+}
+
+/** Outlines drawn for the old layout would point at the wrong places. */
+function onViewportChange() {
+  hide();
+  stopIntro();
 }
 
 function onPointerOver(e) {
@@ -356,8 +379,8 @@ export function setHelpMode(next) {
     for (const type of PRESS_EVENTS) document.addEventListener(type, swallow, true);
     document.addEventListener("keydown", onKey, true);
     document.addEventListener("focusin", onFocus, true);
-    window.addEventListener("resize", hide);
-    document.addEventListener("scroll", hide, true);
+    window.addEventListener("resize", onViewportChange);
+    document.addEventListener("scroll", onViewportChange, true);
     markTargets();
     playIntro();
   } else {
@@ -365,8 +388,8 @@ export function setHelpMode(next) {
     for (const type of PRESS_EVENTS) document.removeEventListener(type, swallow, true);
     document.removeEventListener("keydown", onKey, true);
     document.removeEventListener("focusin", onFocus, true);
-    window.removeEventListener("resize", hide);
-    document.removeEventListener("scroll", hide, true);
+    window.removeEventListener("resize", onViewportChange);
+    document.removeEventListener("scroll", onViewportChange, true);
     hide();
     stopIntro();
     markTargets();
