@@ -380,8 +380,10 @@ function exportMix(kind) {
   triggerDownload(`/api/jobs/${id}/${path}?${q}`);
 }
 
+const TOAST_MS = 2400;
+const READING_TOAST_MS = 6000;
 let _toastTimer = null;
-function toast(msg) {
+function toast(msg, durationMs = TOAST_MS) {
   let el = document.getElementById("m-toast");
   if (!el) {
     el = document.createElement("div");
@@ -392,7 +394,7 @@ function toast(msg) {
   el.textContent = msg;
   el.classList.add("show");
   clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => el.classList.remove("show"), 2400);
+  _toastTimer = setTimeout(() => el.classList.remove("show"), durationMs);
 }
 
 function mainWaveform() {
@@ -726,7 +728,12 @@ async function _runVocalSplitThenFinish(jobId) {
   // The base separation still succeeded -- the split is a best-effort
   // extra, so this is a lesser notice, not a failure of the whole import.
   if (final?.state === SPLIT_STATE.DONE) toast("Stems ready!");
-  else toast(`Stems ready, without the lead/backing split. ${translate(failureKey(final?.error))}`);
+  else {
+    toast(
+      `Stems ready, without the lead/backing split. ${translate(failureKey(final?.error))}`,
+      READING_TOAST_MS,
+    );
+  }
   _showExtractStatus(jobId, EXTRACT_DONE_STATUS, 1);
   loadLibrary();
   _finishExtractJob(jobId);

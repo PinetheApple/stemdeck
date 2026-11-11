@@ -8,6 +8,10 @@ const SOURCE = "https://example.com/song.mp3";
 const READY = "Stems ready!";
 const SPLIT_FAILED = "Stems ready, without the lead/backing split.";
 const OUT_OF_MEMORY_REASON = "There was not enough memory to split the vocals. Close other apps, then try again.";
+// app.js's default toast duration, plus slack for the assertion that saw the toast appear.
+const DEFAULT_TOAST_MS = 2400;
+const PAST_DEFAULT_TOAST_MS = DEFAULT_TOAST_MS + 600;
+const SHOWN = /\bshow\b/;
 
 const answer = (route, status, body) => route.fulfill({ status, contentType: JSON_TYPE, body: JSON.stringify(body) });
 const running = (progress) => ({ state: "running", choice: "split", error: null, phase: "splitting", progress });
@@ -74,7 +78,7 @@ test.describe("phone: Lead + Backing import", () => {
     expect(calls.starts).toBe(0);
   });
 
-  test("says the stems are ready and why the split failed", async ({ page }) => {
+  test("says the stems are ready and why the split failed, long enough to read", async ({ page }) => {
     const { server } = await stubImport(page);
     await importWith(page, "split");
     await expect(progressCard(page)).toContainText("Splitting lead/backing vocals…");
@@ -82,5 +86,7 @@ test.describe("phone: Lead + Backing import", () => {
     server.view = ended("error", "out_of_memory");
     await expect(toastEl(page)).toContainText(SPLIT_FAILED);
     await expect(toastEl(page)).toContainText(OUT_OF_MEMORY_REASON);
+    await page.waitForTimeout(PAST_DEFAULT_TOAST_MS);
+    await expect(toastEl(page)).toHaveClass(SHOWN, { timeout: 0 });
   });
 });
