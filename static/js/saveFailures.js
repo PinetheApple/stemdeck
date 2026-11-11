@@ -47,16 +47,20 @@ export function onConnectionRestored(retry) {
 
 // Per kind and song, the last lost save that already went again on its own.
 const resentOnItsOwn = new Map();
+const resendKey = (kind, id) => `${kind}:${id}`;
 
 /** Send a lost save (`sent`) again once, on its own, when the server answers a health check now. */
 export function resendOnceIfAnswered(kind, id, sent, resend) {
-  const key = `${kind}:${id}`;
+  const key = resendKey(kind, id);
   if (resentOnItsOwn.get(key) === sent) return;
   resentOnItsOwn.set(key, sent);
   checkConnectionNow().then(function resendIfAnswered(answered) {
     if (answered) resend();
   });
 }
+
+/** The song's save landed, so a later lost save of the same content gets its own resend. */
+export const forgetOwnResend = (kind, id) => resentOnItsOwn.delete(resendKey(kind, id));
 
 /** Each song's newest unconfirmed save, and which got no answer. `sentOf(entry)` is what its
  * request carried, so an answer to an older save is told apart. */
@@ -94,6 +98,7 @@ export class UnconfirmedSaves {
     if (!this.#isNewest(id, sent)) return;
     this.#forget(id);
     clearSaveFailure(this.kind, id);
+    forgetOwnResend(this.kind, id);
   }
 
   /** The server refused `sent`. True when it was the newest, so the song goes back to what is saved. */

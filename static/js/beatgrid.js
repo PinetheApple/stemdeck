@@ -91,9 +91,8 @@ const _unconfirmed = new UnconfirmedSaves({
   resend: _resendLostGrid,
   sentOf: (entry) => entry.payload,
 });
-// A song's grid and tempo as the server has them, to go back to when it refuses a save.
+// The open song's grid and tempo as the server has them, to go back to when it refuses a save.
 let _confirmedGrid = null;
-let _confirmedJobId = null;
 
 // ─── geometry ───────────────────────────────────────────────
 
@@ -340,7 +339,7 @@ async function _sendGrid(jobId, payload, seq, fetchOptions) {
     return;
   }
   _unconfirmed.confirm(jobId, payload);
-  if (jobId === _confirmedJobId) _confirmedGrid = { ...payload, tempo: saved.tempo };
+  if (jobId === _jobId) _confirmedGrid = { ...payload, tempo: saved.tempo };
   // An edit made while this was in flight still has its own save to come.
   if (jobId === _jobId && seq === _editSeq) _dirty = false;
   _announceTempo(jobId, saved.tempo);
@@ -676,12 +675,8 @@ export function initBeatGrid({ jobId, grid, duration, onChange }) {
   _jobId = jobId;
   _duration = Math.max(0, duration || 0);
   const unconfirmed = _unconfirmed.get(jobId)?.payload;
-  // A song set up again (an engine swap) keeps the saves confirmed since it was loaded.
-  if (jobId !== _confirmedJobId || !_confirmedGrid) {
-    _confirmedGrid = grid ?? null;
-    _confirmedJobId = jobId;
-  }
-  const shown = unconfirmed ?? _confirmedGrid;
+  _confirmedGrid = grid ?? null;
+  const shown = unconfirmed ?? grid;
   _beats = Array.isArray(shown?.beats) ? shown.beats.slice() : [];
   _bars = Array.isArray(shown?.bars) ? shown.bars.map((b) => ({ ...b })) : [];
   _onsets = Array.isArray(grid?.onsets) ? grid.onsets.slice() : [];

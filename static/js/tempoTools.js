@@ -19,6 +19,7 @@ import {
   notifySaveFailure,
   onConnectionRestored,
   resendOnceIfAnswered,
+  forgetOwnResend,
 } from "./saveFailures.js";
 
 const MODE_CONSTANT = "constant";
@@ -158,6 +159,7 @@ async function sendFields(forJob, entry) {
     if (forJob === jobId && saved?.tempo) confirmedTempo = saved.tempo;
     sendingFieldsByJob.delete(forJob);
     clearSaveFailure(SAVE_KIND.tempo, forJob);
+    forgetOwnResend(SAVE_KIND.tempo, forJob);
     return SAVED;
   } catch (e) {
     console.warn("[tempoTools] could not save the tempo:", e);
@@ -244,16 +246,14 @@ function announce() {
 }
 
 export function setTempoGrid(nextJobId, nextGrid) {
-  const sameSong = nextJobId === jobId;
-  if (!sameSong) {
+  if (nextJobId !== jobId) {
     commitPendingTaps();
     taps = [];
     saveStatus = lostFieldsJobs.has(nextJobId) ? SAVE_LOST : null;
   }
   jobId = nextGrid ? nextJobId : null;
   grid = nextGrid ?? null;
-  // The same song set up again (an engine swap) keeps the saves confirmed since it was loaded.
-  if (!sameSong || !nextGrid || !confirmedTempo) confirmedTempo = nextGrid?.tempo ?? null;
+  confirmedTempo = nextGrid?.tempo ?? null;
   tempo = shownTempo(nextJobId, confirmedTempo);
   renderAccentState();
   render();

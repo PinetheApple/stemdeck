@@ -80,14 +80,19 @@ export function createConnectionMonitor({ baseFetch, origin, onChange, onRestore
 
   /** One health check now: true when the server answered it. */
   function checkNow() {
-    return monitoredFetch(HEALTH_URL, { cache: "no-store" }).then(wasAnswered, wasNotAnswered);
+    return monitoredFetch(HEALTH_URL, { cache: "no-store" }).then(wasAnswered, markNotAnswered);
+  }
+
+  // Unanswered, it counts like an unanswered probe.
+  function markNotAnswered(error) {
+    markUnreachable(error);
+    return false;
   }
 
   return { fetch: monitoredFetch, isOffline: () => offline, checkNow };
 }
 
 const wasAnswered = () => true;
-const wasNotAnswered = () => false;
 let activeMonitor = null;
 
 /** One health check now, through the app's monitor: true when the server answered it. */
