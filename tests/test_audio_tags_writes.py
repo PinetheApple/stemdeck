@@ -1,59 +1,48 @@
 """POST /api/jobs/{id}/audio-tags writes only what it newly found.
 
-The page asks this every time it opens a track that is missing tags, so
-opening a song must leave its stored data alone unless the lookup found
-something the job did not have. Each test here calls the route, then checks
-what a second call with nothing new to find wrote: no registry persist, no
-metadata.json write, and no file under the jobs dir touched.
+The page asks this when it opens a track that is missing tags, so opening a
+song must leave its stored data alone unless the lookup found something the
+job did not have. Each test counts the registry persists and metadata.json
+writes a call made, and which files under the jobs dir it touched.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import NamedTuple
 from unittest.mock import patch
 
 import pytest
-from fastapi.testclient import TestClient
 
 import app.api.jobs as jobs_mod
+from app.core.config import LYRICS_CANDIDATES_FILE
 from app.core.models import Job
-from app.core.registry import _jobs
+from tests.test_audio_tags_api import (  # noqa: F401
+    _done_job,
+    _isolate_registry,
+    _tags_identity,
+    client,
+)
 
 FOUND_TAGS = {"artist": "Nirvana", "title": "Lithium"}
 UNTAGGED_UPLOAD = "local:Lithium"
+FLAC_MAGIC = b"fLaC"
+METADATA_FILE = "metadata.json"
 
 
-@pytest.fixture(autouse=True)
-def _isolate_registry():
-    _jobs.clear()
-    jobs_mod._TAG_LOOKUPS.clear()
-    yield
-    _jobs.clear()
-    jobs_mod._TAG_LOOKUPS.clear()
+class Writes(NamedTuple):
+    persists: int
+    metadata: int
 
 
-@pytest.fixture
-def client():
-    with patch("app.api.jobs.jobqueue.enqueue", lambda job_id: None):
-        from app.main import app
-
-        with TestClient(app) as c:
-            yield c
+NO_WRITES = Writes(persists=0, metadata=0)
 
 
 def _done_upload(**fields) -> Job:
-    job = Job(
-        id="aaaaaaaaaaaa",
-        status="done",
-        title="Lithium",
-        source_url=UNTAGGED_UPLOAD,
-        **fields,
-    )
-    _jobs[job.id] = job
+    job = _done_job(source_url=UNTAGGED_UPLOAD, **fields)
     job_dir = jobs_mod.JOBS_DIR / job.id
-    (job_dir / "stems").mkdir(parents=True)
-    (job_dir / "source.flac").write_bytes(b"fLaC")
-    (job_dir / "metadata.json").write_text('{"title": "Lithium"}', encoding="utf-8")
+    (job_dir / "source.flac").write_bytes(FLAC_MAGIC)
+    (job_dir / METADATA_FILE).write_text('{"title": "Lithium"}', encoding="utf-8")
     return job
 
 
@@ -65,8 +54,8 @@ def _snapshot(root: Path) -> dict[str, tuple[int, bytes]]:
     }
 
 
-def _post_counting_writes(client, job_id: str) -> tuple[int, int]:
-    """Call the route once; how many registry persists and metadata writes it made."""
+def _post_counting_writes(http, job_id: str) -> Writes:
+    """Call the route once; the registry persists and metadata writes it made."""
     with (
         patch("app.api.jobs.registry_persist", wraps=jobs_mod.registry_persist) as persist,
         patch(
@@ -74,9 +63,9 @@ def _post_counting_writes(client, job_id: str) -> tuple[int, int]:
             wraps=jobs_mod._write_metadata_fields,
         ) as metadata,
     ):
-        response = client.post(f"/api/jobs/{job_id}/audio-tags")
+        response = http.post(f"/api/jobs/{job_id}/audio-tags")
     assert response.status_code == 200
-    return persist.call_count, metadata.call_count
+    return Writes(persists=persist.call_count, metadata=metadata.call_count)
 
 
 def _lrclib_has_nothing(endpoint, params):
@@ -93,7 +82,7 @@ def _lrclib_has_nothing(endpoint, params):
     ],
 )
 def test_a_second_call_with_nothing_new_writes_nothing(
-    client,
+    client,  # noqa: F811
     monkeypatch,
     tags,
     probed,
@@ -107,18 +96,37 @@ def test_a_second_call_with_nothing_new_writes_nothing(
         before = _snapshot(jobs_mod.JOBS_DIR)
         writes = _post_counting_writes(client, job.id)
 
-    assert writes == (0, 0)
+    assert writes == NO_WRITES
     assert _snapshot(jobs_mod.JOBS_DIR) == before
 
 
-def test_a_call_that_finds_new_tags_writes_them_once(client):
+def test_a_first_call_that_finds_no_lyrics_writes_only_the_not_found_stamp(
+    client,  # noqa: F811
+    monkeypatch,
+):
+    job = _done_upload(
+        audio_tags=dict(FOUND_TAGS),
+        identity=_tags_identity(FOUND_TAGS["artist"], FOUND_TAGS["title"]),
+    )
+    monkeypatch.setattr("app.pipeline.lyrics_lookup._fetch_json", _lrclib_has_nothing)
+    before = _snapshot(jobs_mod.JOBS_DIR)
+
+    writes = _post_counting_writes(client, job.id)
+
+    after = _snapshot(jobs_mod.JOBS_DIR)
+    assert writes == NO_WRITES
+    changed = {name for name in before.keys() | after.keys() if before.get(name) != after.get(name)}
+    assert changed == {f"{job.id}/{LYRICS_CANDIDATES_FILE}"}
+
+
+def test_a_call_that_finds_new_tags_writes_them_once(client):  # noqa: F811
     job = _done_upload()
     with patch("app.api.jobs.probe_tags", return_value=dict(FOUND_TAGS)):
         first = _post_counting_writes(client, job.id)
         second = _post_counting_writes(client, job.id)
 
-    assert first == (1, 1)
-    assert second == (0, 0)
+    assert first == Writes(persists=1, metadata=1)
+    assert second == NO_WRITES
     assert job.audio_tags == FOUND_TAGS
-    meta = (jobs_mod.JOBS_DIR / job.id / "metadata.json").read_text(encoding="utf-8")
+    meta = (jobs_mod.JOBS_DIR / job.id / METADATA_FILE).read_text(encoding="utf-8")
     assert '"audio_tags"' in meta

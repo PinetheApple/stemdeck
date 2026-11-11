@@ -1065,8 +1065,10 @@ async def refresh_audio_tags(job_id: str) -> dict:
 
     Answers {"audio_tags": {...} | null, "artist": {...} | null,
     "has_lyrics": bool}. A lookup that fails or times out is "nothing found",
-    not an error: the page asks once per track and does not retry, and the
-    reason is in the server log. The band is looked up when the tags name an
+    not an error, and the reason is in the server log. The page asks when it
+    opens a finished track missing any of this, once per page load; after a
+    409 (the job is not done, or a lookup for it is under way) it asks again
+    on the next open. The band is looked up when the tags name an
     artist and the job has no band yet, whether the tags were found just now
     or were there already, and the lyrics (lyrics.json, GET .../lyrics) when
     the job has none and anything is known to look them up by.
@@ -1084,11 +1086,10 @@ async def refresh_audio_tags(job_id: str) -> dict:
 
     A POST because it may keep what it finds: in the registry and
     metadata.json, and in lyrics.json or, when LRCLIB had none, the record of
-    that ask that keeps it from being asked again before
-    LYRICS_NOT_FOUND_RETRY_SEC. Only what the job lacked is written, so a call
-    that finds nothing new writes nothing, and the page can ask whenever it
-    opens a track missing any of it. A refused or failed call costs the page
-    nothing but the answer: the track is already open, and stays as it was.
+    that ask, which keeps it from being asked again before
+    LYRICS_NOT_FOUND_RETRY_SEC; a call past that rewrites the record. Only
+    what the job lacked is written, so a call that finds nothing new inside
+    that window writes nothing.
 
     Deliberately outside _pipeline_lock. This is one metadata request, and
     waiting behind a twenty-minute separation for it would leave the artist

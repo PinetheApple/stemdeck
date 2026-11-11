@@ -230,9 +230,24 @@ test.describe("tags for tracks imported before they were read", () => {
   });
 
   const REFUSALS = [
-    { name: "a read-only server (403)", refuse: (route) => route.fulfill({ status: 403, body: "read-only" }) },
-    { name: "a server that cannot write (503)", refuse: (route) => route.fulfill({ status: 503, body: "unavailable" }) },
-    { name: "no connection", refuse: (route) => route.abort("internetdisconnected") },
+    {
+      name: "a read-only server (403)",
+      refuse: (route) => route.fulfill({
+        status: 403,
+        body: "read-only",
+      }),
+    },
+    {
+      name: "a server that cannot write (503)",
+      refuse: (route) => route.fulfill({
+        status: 503,
+        body: "unavailable",
+      }),
+    },
+    {
+      name: "no connection",
+      refuse: (route) => route.abort("internetdisconnected"),
+    },
   ];
   for (const { name, refuse } of REFUSALS) {
     test(`a refused read leaves the song viewable: ${name}`, async ({ page }) => {
