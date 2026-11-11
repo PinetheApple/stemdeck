@@ -83,6 +83,7 @@ test("the Songs count is the number of songs the search leaves", async ({ page }
   await search(page, "again");
   await expect(page.locator("#catalogList .cat-item")).toHaveCount(1);
   await expect(count).toHaveText("1");
+  await expect(page.locator('.folder[data-id="f-unsorted"] .f-count')).toHaveText("1");
 
   await search(page, NO_MATCH_QUERY);
   await expect(count).toHaveText("0");
