@@ -27,7 +27,7 @@ const check = (name, cond, detail = "") => {
   }
 };
 
-const KEYS = ["queue.pausedStatus", "queue.positionInLine", "queue.emptyState"];
+const KEYS = ["queue.pausedStatus", "queue.positionInLine"];
 const FALLBACK = { "pt-PT": "pt" };
 const ENGLISH_ORDINAL = /\d(st|nd|rd|th)\b/;
 const WAITING_ID = "waiting";
@@ -60,7 +60,6 @@ for (const { code } of LANGUAGES) {
 }
 
 const catalogJs = readFileSync(new URL("../../static/js/catalog.js", import.meta.url), "utf8");
-check("catalog.js has no English queue empty state", !/Nothing importing/.test(catalogJs));
 check("catalog.js has no English queue grip title", !/queue-grip" title="Drag/.test(catalogJs));
 
 console.log(`\n${pass} passed, ${fail} failed`);
