@@ -370,3 +370,12 @@
   border-color: color-mix(in srgb, var(--danger) 50%, transparent);
 }
 .settings-row:has(.auto-delete-input[data-armed="1"]) .auto-delete-desc { color: var(--danger); }
+
+.lib-tags-row {
+  max-height: var(--lib-tags-max-h);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-3) transparent;
+  /* The fade says there is more below; the row's bottom padding takes it when nothing is. */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--s-3)), transparent);
+}

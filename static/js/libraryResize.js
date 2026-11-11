@@ -2,7 +2,10 @@ import { $, storeGet, storeSet, storeSetDebounced } from "./utils.js";
 import { isSidebarCollapsed, setSidebarCollapsed } from "./catalog.js";
 
 const WIDTH_STORE_KEY = "stemdeck.library.width";
-const AUTO_COLLAPSED_STORE_KEY = "stemdeck.library.autoCollapsed";
+// Beside the catalog's own collapsed flag, in the same storage, so the two cannot diverge.
+const AUTO_COLLAPSED_KEY = "stemdeck.library.autoCollapsed";
+const AUTO_COLLAPSED_STORED = "1";
+const COLLAPSED_CLASS = "cat-collapsed";
 const WIDTH_VAR = "--library-w";
 const TRACK_LABELS_WIDTH_VAR = "--daw-col-w";
 const SIZING_CLASS = "is-sizing";
@@ -29,10 +32,13 @@ let dragStartX = 0;
 let dragStartWidth = 0;
 let dragStartPreferred = null;
 let dragMoved = false;
+let app = null;
+let collapseWatcher = null;
 // Collapsing is only weighed once a song is open, so the library's own saved state lands first.
 let watchingRoom = false;
 let hadRoom = true;
 let autoCollapsed = false;
+let userKeptOpen = false;
 
 function minTracksWidth() {
   const labels = getComputedStyle(document.documentElement).getPropertyValue(TRACK_LABELS_WIDTH_VAR);
@@ -76,28 +82,66 @@ function hasRoomForLibrary() {
   return roomForLibrary() >= MIN_WIDTH_PX;
 }
 
-function setAutoCollapsed(collapsed) {
-  setSidebarCollapsed(collapsed);
-  autoCollapsed = collapsed;
-  storeSet(AUTO_COLLAPSED_STORE_KEY, collapsed);
+function readAutoCollapsed() {
+  try {
+    return localStorage.getItem(AUTO_COLLAPSED_KEY) === AUTO_COLLAPSED_STORED;
+  } catch (e) {
+    console.warn("[library] could not read auto-collapse state:", e);
+    return false;
+  }
 }
 
-// Shown again only if this collapsed it, and only until the user opens or closes it themselves.
-function fitLibraryToRoom() {
-  if (autoCollapsed && !isSidebarCollapsed()) {
-    autoCollapsed = false;
-    storeSet(AUTO_COLLAPSED_STORE_KEY, false);
+function writeAutoCollapsed(collapsed) {
+  autoCollapsed = collapsed;
+  try {
+    if (collapsed) localStorage.setItem(AUTO_COLLAPSED_KEY, AUTO_COLLAPSED_STORED);
+    else localStorage.removeItem(AUTO_COLLAPSED_KEY);
+  } catch (e) {
+    console.warn("[library] could not persist auto-collapse state:", e);
   }
+}
+
+function clearAutoCollapsed() {
+  if (autoCollapsed) writeAutoCollapsed(false);
+}
+
+// Drops this module's own class change, so only the user's toggles reach onCollapseChange.
+function setCollapsedForRoom(collapsed) {
+  setSidebarCollapsed(collapsed);
+  collapseWatcher.takeRecords();
+  writeAutoCollapsed(collapsed);
+}
+
+function collapseForRoom() {
+  setCollapsedForRoom(true);
+}
+
+function reopenWithRoom() {
+  setCollapsedForRoom(false);
+}
+
+function onCollapseChange(records) {
+  const was = records[0].oldValue?.split(" ").includes(COLLAPSED_CLASS) ?? false;
+  const collapsed = isSidebarCollapsed();
+  if (collapsed === was) return;
+  // The catalog restoring a collapse this module made, at startup, is not the user overruling it.
+  if (collapsed && autoCollapsed && !watchingRoom) return;
+  clearAutoCollapsed();
+  userKeptOpen = !collapsed && !hasRoomForLibrary();
+}
+
+function fitLibraryToRoom() {
   const hasRoom = hasRoomForLibrary();
-  if (!hasRoom && hadRoom && !isSidebarCollapsed()) setAutoCollapsed(true);
-  else if (hasRoom && autoCollapsed) setAutoCollapsed(false);
+  if (hasRoom && autoCollapsed) reopenWithRoom();
+  if (!watchingRoom) return;
+  if (!hasRoom && hadRoom && !userKeptOpen && !isSidebarCollapsed()) collapseForRoom();
   hadRoom = hasRoom;
 }
 
 function fitWidth() {
   // Stage mode hides the rail and inspector, which would inflate maxWidth().
   if (!rail.offsetWidth) return;
-  if (watchingRoom) fitLibraryToRoom();
+  fitLibraryToRoom();
   renderWidth();
   syncAria();
 }
@@ -182,11 +226,9 @@ async function restoreWidth() {
   fitWidth();
 }
 
-// A library collapsed for a narrow window opens again in a wide one, even across a reload.
-async function restoreAutoCollapsed() {
-  if (!(await storeGet(AUTO_COLLAPSED_STORE_KEY, false))) return;
-  autoCollapsed = true;
-  if (rail.offsetWidth && hasRoomForLibrary()) setAutoCollapsed(false);
+function watchCollapse() {
+  collapseWatcher = new MutationObserver(onCollapseChange);
+  collapseWatcher.observe(app, { attributes: true, attributeFilter: ["class"], attributeOldValue: true });
 }
 
 export function initLibraryResize() {
@@ -195,12 +237,15 @@ export function initLibraryResize() {
   sidebar = $("catalogPanel");
   rail = sidebar?.querySelector(".sidebar-rail");
   inspector = $("inspector");
-  if (!handle || !panes || !sidebar || !rail || !inspector) return;
+  app = document.querySelector(".app");
+  if (!handle || !panes || !sidebar || !rail || !inspector || !app) return;
 
   handle.addEventListener("pointerdown", onHandlePointerDown);
   handle.addEventListener("dblclick", resetWidth);
   handle.addEventListener("keydown", onHandleKeydown);
   document.addEventListener("trackopen", onFirstTrackOpen, { once: true });
+  autoCollapsed = readAutoCollapsed();
+  watchCollapse();
 
   // The sidebar reports reopening and leaving Stage mode.
   const observer = new ResizeObserver(queueFit);
@@ -210,5 +255,4 @@ export function initLibraryResize() {
 
   fitWidth();
   restoreWidth().catch(console.error);
-  restoreAutoCollapsed().catch(console.error);
 }
