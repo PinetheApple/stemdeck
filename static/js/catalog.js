@@ -989,8 +989,8 @@ function stabilityLabel(pct) {
 
 const PERCENT_MAX = 100;
 
-/** The key's confidence ring, or nothing when it is unknown. The figure alone
- *  said nothing, so its title and accessible name say what it measures. */
+/** The key's confidence ring, or nothing when it is unknown. Named, because a
+ *  bare percentage beside the key does not say what it measures. */
 export function paintKeyConfidence(ring, keyConfidence) {
   ring.textContent = "";
   ring.style.removeProperty("--confidence-pct");
@@ -1007,7 +1007,17 @@ export function paintKeyConfidence(ring, keyConfidence) {
   ring.classList.remove("hidden");
 }
 
+// The Guide's sentence for each stem card, as its tooltip and accessible description.
+function describePresenceCards() {
+  for (const card of document.querySelectorAll(".stem-presence-panel .stem-card[data-stem]")) {
+    card.title = i18nT("help.presence", { name: i18nT(`stem.${card.dataset.stem}`) });
+  }
+}
+
+onLanguageChange(describePresenceCards);
+
 export function applyStemPresenceCards(stemPresence) {
+  describePresenceCards();
   const cards = document.querySelectorAll(".stem-presence-panel .stem-card");
   cards.forEach((card) => {
     const stem = card.dataset.stem;
@@ -1110,11 +1120,12 @@ function paintFileFacts(track) {
   if (trackSource) trackSource.textContent = deriveSource(track.sourceUrl);
   if (!trackFormatEl) return;
   // Only a format read from the file: YouTube's "High" and SoundCloud's "MP3"
-  // were the same guess for every song (#50).
+  // were the same guess for every song.
   const format = trackFormat(track).toUpperCase();
   trackFormatEl.textContent = format;
   // Hidden with its label and the separator in front, so there is no empty "· ·".
   const formatFact = trackFormatEl.closest(".details-fact");
+  if (!formatFact) return;
   formatFact.hidden = !format;
   const sep = formatFact.previousElementSibling;
   if (sep?.classList.contains("daw-track-sep")) sep.hidden = !format;

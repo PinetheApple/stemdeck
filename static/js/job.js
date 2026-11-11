@@ -284,7 +284,7 @@ function applyStudioSummary(state) {
     const s = Math.floor(state.duration % 60).toString().padStart(2, "0");
     summaryDuration.textContent = `${m.toString().padStart(2, "0")}:${s}`;
   }
-  if (summaryConfidence && state.key_confidence != null) paintKeyConfidence(summaryConfidence, state.key_confidence);
+  if (summaryConfidence) paintKeyConfidence(summaryConfidence, state.key_confidence);
   const summaryDr = document.getElementById("summary-dr");
   const summaryDrLabel = document.getElementById("summary-dr-label");
   const summaryStability = document.getElementById("summary-stability");

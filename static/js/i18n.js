@@ -645,7 +645,6 @@ const en = {
   "presence.guitar": "Guitar Presence",
   "presence.piano": "Piano Presence",
   "presence.other": "Other",
-  "presence.explain": "How loud this part is next to the loudest part of the song. 100% is the loudest; a dash means it is not in the song.",
 
   "sections.title": "Sections",
   "sections.add": "Add",
@@ -1742,7 +1741,6 @@ const pl = {
   "presence.guitar": "Obecność gitary",
   "presence.piano": "Obecność pianina",
   "presence.other": "Inne",
-  "presence.explain": "Jak głośna jest ta ścieżka w porównaniu z najgłośniejszą w utworze. 100% to najgłośniejsza; kreska oznacza, że jej nie ma.",
 
   "sections.title": "Sekcje",
   "sections.add": "Dodaj",
@@ -2830,7 +2828,6 @@ const ja = {
   "presence.guitar": "ギターの存在感",
   "presence.piano": "ピアノの存在感",
   "presence.other": "その他",
-  "presence.explain": "曲の中で最も大きいパートと比べたこのパートの音量です。100% が最大、ダッシュはそのパートが入っていないことを示します。",
 
   "sections.title": "セクション",
   "sections.add": "追加",
@@ -3891,7 +3888,6 @@ const zhHans = {
   "presence.guitar": "吉他强度",
   "presence.piano": "钢琴强度",
   "presence.other": "其他",
-  "presence.explain": "这一声部与歌曲中最响的声部相比有多响。100% 为最响；横线表示歌曲中没有它。",
 
   "sections.title": "段落",
   "sections.add": "添加",
@@ -4952,7 +4948,6 @@ const de = {
   "presence.guitar": "Gitarrenpräsenz",
   "presence.piano": "Klavierpräsenz",
   "presence.other": "Sonstiges",
-  "presence.explain": "Wie laut dieser Part im Vergleich zum lautesten Part im Song ist. 100 % ist der lauteste; ein Strich heißt, er kommt nicht vor.",
 
   "sections.title": "Abschnitte",
   "sections.add": "Hinzufügen",
@@ -6025,7 +6020,6 @@ const pt = {
   "presence.guitar": "Presença da guitarra",
   "presence.piano": "Presença do piano",
   "presence.other": "Outros",
-  "presence.explain": "O quão alta esta parte está em relação à parte mais alta da música. 100% é a mais alta; um traço significa que não está na música.",
 
   "sections.title": "Seções",
   "sections.add": "Adicionar",
@@ -7100,7 +7094,6 @@ const id = {
   "presence.guitar": "Kehadiran Gitar",
   "presence.piano": "Kehadiran Piano",
   "presence.other": "Lainnya",
-  "presence.explain": "Seberapa keras bagian ini dibanding bagian paling keras di lagu. 100% adalah yang paling keras; tanda strip berarti tidak ada di lagu.",
 
   "sections.title": "Bagian",
   "sections.add": "Tambah",
@@ -8161,7 +8154,6 @@ const fr = {
   "presence.guitar": "Présence de la guitare",
   "presence.piano": "Présence du piano",
   "presence.other": "Autre",
-  "presence.explain": "Le volume de cette partie par rapport à la partie la plus forte du morceau. 100 % est la plus forte ; un tiret signifie qu'elle n'est pas dans le morceau.",
 
   "sections.title": "Sections",
   "sections.add": "Ajouter",
@@ -9487,7 +9479,6 @@ const es = {
   "presence.guitar": "Presencia de guitarra",
   "presence.piano": "Presencia de piano",
   "presence.other": "Otros",
-  "presence.explain": "Qué tan fuerte suena esta parte frente a la parte más fuerte de la canción. 100% es la más fuerte; un guion significa que no está en la canción.",
 
   "sections.title": "Secciones",
   "sections.add": "Añadir",
@@ -10583,7 +10574,6 @@ const ko = {
   "presence.guitar": "기타 비중",
   "presence.piano": "피아노 비중",
   "presence.other": "기타 소리",
-  "presence.explain": "곡에서 가장 큰 파트와 비교한 이 파트의 음량이에요. 100%가 가장 크고, 대시는 곡에 없다는 뜻이에요.",
 
   "sections.title": "구간",
   "sections.add": "추가",

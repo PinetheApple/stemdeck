@@ -917,8 +917,8 @@
             <!-- Row 1: track card + metadata cards -->
             <div class="daw-info-row">
 
-              <div class="daw-meta-card" data-meta="key" data-i18n-title="help.meta.key">
-                <span class="meta-card-label" data-i18n="meta.key">KEY</span>
+              <div class="daw-meta-card" data-meta="key" data-i18n-title="help.meta.key" tabindex="0" role="group" aria-labelledby="meta-key-label summary-key">
+                <span class="meta-card-label" id="meta-key-label" data-i18n="meta.key">KEY</span>
                 <div class="meta-card-main">
                   <span class="meta-card-value" id="summary-key">—</span>
                   <div class="daw-camelot-ring hidden" id="summary-confidence" role="img"></div>
@@ -932,8 +932,8 @@
                 </div>
               </div>
 
-              <div class="daw-meta-card" data-meta="lufs" data-i18n-title="help.meta.lufs">
-                <span class="meta-card-label" data-i18n="meta.lufs">LUFS</span>
+              <div class="daw-meta-card" data-meta="lufs" data-i18n-title="help.meta.lufs" tabindex="0" role="group" aria-labelledby="meta-lufs-label summary-lufs summary-peak">
+                <span class="meta-card-label" id="meta-lufs-label" data-i18n="meta.lufs">LUFS</span>
                 <div class="meta-card-main">
                   <span class="meta-card-value" id="summary-lufs">—</span>
                   <span class="meta-card-sub" id="summary-peak"></span>
@@ -947,16 +947,16 @@
                 </div>
               </div>
 
-              <div class="daw-meta-card" data-meta="dr" data-i18n-title="help.meta.dr">
-                <span class="meta-card-label" data-i18n="meta.dynamicRange">DYNAMIC RANGE</span>
+              <div class="daw-meta-card" data-meta="dr" data-i18n-title="help.meta.dr" tabindex="0" role="group" aria-labelledby="meta-dr-label summary-dr summary-dr-label">
+                <span class="meta-card-label" id="meta-dr-label" data-i18n="meta.dynamicRange">DYNAMIC RANGE</span>
                 <div class="meta-card-main">
                   <span class="meta-card-value" id="summary-dr">—</span>
                   <span class="meta-card-sub" id="summary-dr-label"></span>
                 </div>
               </div>
 
-              <div class="daw-meta-card" data-meta="stability" data-i18n-title="help.meta.stability">
-                <span class="meta-card-label" data-i18n="meta.tempoStability">TEMPO STABILITY</span>
+              <div class="daw-meta-card" data-meta="stability" data-i18n-title="help.meta.stability" tabindex="0" role="group" aria-labelledby="meta-stability-label summary-stability summary-stability-label">
+                <span class="meta-card-label" id="meta-stability-label" data-i18n="meta.tempoStability">TEMPO STABILITY</span>
                 <div class="meta-card-main">
                   <span class="meta-card-value" id="summary-stability">—</span>
                   <span class="meta-card-sub" id="summary-stability-label"></span>
@@ -966,41 +966,41 @@
 
             <!-- Row 2: stem presence cards -->
             <div class="stem-presence-panel">
-              <div class="stem-card inactive" data-stem="vocals" data-i18n-title="presence.explain">
-                <span class="stem-card-label" data-i18n="presence.vocalGlobal">GLOBAL VOCALS</span>
-                <span class="stem-card-pct">—</span>
+              <div class="stem-card inactive" data-stem="vocals" tabindex="0" role="group" aria-labelledby="presence-vocals-label presence-vocals-pct">
+                <span class="stem-card-label" id="presence-vocals-label" data-i18n="presence.vocalGlobal">GLOBAL VOCALS</span>
+                <span class="stem-card-pct" id="presence-vocals-pct">—</span>
               </div>
               <!-- The lead/backing pair replaces the single Vocals card once
                    the on-demand split (#275) has run, so this row keeps the
                    same seven columns as the metadata row above it. Hidden
                    until then, by applyStemSelectionFilter. -->
-              <div class="stem-card inactive hidden" data-stem="lead_vocals" data-i18n-title="presence.explain">
-                <span class="stem-card-label" data-i18n="stem.lead_vocals">LEAD VOCALS</span>
-                <span class="stem-card-pct">—</span>
+              <div class="stem-card inactive hidden" data-stem="lead_vocals" tabindex="0" role="group" aria-labelledby="presence-lead_vocals-label presence-lead_vocals-pct">
+                <span class="stem-card-label" id="presence-lead_vocals-label" data-i18n="stem.lead_vocals">LEAD VOCALS</span>
+                <span class="stem-card-pct" id="presence-lead_vocals-pct">—</span>
               </div>
-              <div class="stem-card inactive hidden" data-stem="backing_vocals" data-i18n-title="presence.explain">
-                <span class="stem-card-label" data-i18n="stem.backing_vocals">BACKING VOCALS</span>
-                <span class="stem-card-pct">—</span>
+              <div class="stem-card inactive hidden" data-stem="backing_vocals" tabindex="0" role="group" aria-labelledby="presence-backing_vocals-label presence-backing_vocals-pct">
+                <span class="stem-card-label" id="presence-backing_vocals-label" data-i18n="stem.backing_vocals">BACKING VOCALS</span>
+                <span class="stem-card-pct" id="presence-backing_vocals-pct">—</span>
               </div>
-              <div class="stem-card inactive" data-stem="drums" data-i18n-title="presence.explain">
-                <span class="stem-card-label" data-i18n="presence.drum">DRUM INTENSITY</span>
-                <span class="stem-card-pct">—</span>
+              <div class="stem-card inactive" data-stem="drums" tabindex="0" role="group" aria-labelledby="presence-drums-label presence-drums-pct">
+                <span class="stem-card-label" id="presence-drums-label" data-i18n="presence.drum">DRUM INTENSITY</span>
+                <span class="stem-card-pct" id="presence-drums-pct">—</span>
               </div>
-              <div class="stem-card inactive" data-stem="bass" data-i18n-title="presence.explain">
-                <span class="stem-card-label" data-i18n="presence.bass">BASS DEPTH</span>
-                <span class="stem-card-pct">—</span>
+              <div class="stem-card inactive" data-stem="bass" tabindex="0" role="group" aria-labelledby="presence-bass-label presence-bass-pct">
+                <span class="stem-card-label" id="presence-bass-label" data-i18n="presence.bass">BASS DEPTH</span>
+                <span class="stem-card-pct" id="presence-bass-pct">—</span>
               </div>
-              <div class="stem-card inactive" data-stem="guitar" data-i18n-title="presence.explain">
-                <span class="stem-card-label" data-i18n="presence.guitar">GUITAR PRESENCE</span>
-                <span class="stem-card-pct">—</span>
+              <div class="stem-card inactive" data-stem="guitar" tabindex="0" role="group" aria-labelledby="presence-guitar-label presence-guitar-pct">
+                <span class="stem-card-label" id="presence-guitar-label" data-i18n="presence.guitar">GUITAR PRESENCE</span>
+                <span class="stem-card-pct" id="presence-guitar-pct">—</span>
               </div>
-              <div class="stem-card inactive" data-stem="piano" data-i18n-title="presence.explain">
-                <span class="stem-card-label" data-i18n="presence.piano">PIANO PRESENCE</span>
-                <span class="stem-card-pct">—</span>
+              <div class="stem-card inactive" data-stem="piano" tabindex="0" role="group" aria-labelledby="presence-piano-label presence-piano-pct">
+                <span class="stem-card-label" id="presence-piano-label" data-i18n="presence.piano">PIANO PRESENCE</span>
+                <span class="stem-card-pct" id="presence-piano-pct">—</span>
               </div>
-              <div class="stem-card inactive" data-stem="other" data-i18n-title="presence.explain">
-                <span class="stem-card-label" data-i18n="presence.other">OTHER</span>
-                <span class="stem-card-pct">—</span>
+              <div class="stem-card inactive" data-stem="other" tabindex="0" role="group" aria-labelledby="presence-other-label presence-other-pct">
+                <span class="stem-card-label" id="presence-other-label" data-i18n="presence.other">OTHER</span>
+                <span class="stem-card-pct" id="presence-other-pct">—</span>
               </div>
             </div>
 
