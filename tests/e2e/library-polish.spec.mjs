@@ -25,6 +25,10 @@ const LANGUAGES = ["en", "pl", "ja", "ko", "zh-Hans", "de", "fr", "es", "pt", "p
 async function openLibrary(page, { emptyFolder = false } = {}) {
   if (emptyFolder) await seedWithEmptyFolder(page);
   else await seedLibrary(page);
+  await loadSeededLibrary(page);
+}
+
+async function loadSeededLibrary(page) {
   await stubFavorites(page);
   await stubUpdateCheck(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
@@ -236,6 +240,48 @@ test("with no room beside or below its row, the row menu opens above it", async 
   const menuBox = await boxOf(menu);
   expect(overlaps(menuBox, await boxOf(row)), "menu covers its own row").toBe(false);
   expect(overlaps(menuBox, await boxOf(rows.nth(1))), "menu covers the next row").toBe(false);
+});
+
+// Too narrow beside any row, and tall enough for room both above and below the
+// fixture rows once unavailable rows pad the list around them.
+const NARROW_TALL_WINDOW = { width: 480, height: 900 };
+const PADDING_ROWS = 4;
+
+const paddingIds = (side) => Array.from({ length: PADDING_ROWS }, (_, i) => `pad-${side}-${i}`);
+
+async function seedPaddedList(page) {
+  const padding = [...paddingIds("above"), ...paddingIds("below")];
+  await seedCatalogState(page, {
+    folders: [
+      { id: "f-unsorted", name: "Unsorted", items: [...paddingIds("above"), JOB_ID, SIBLING_JOB_ID, ...paddingIds("below")], color: null },
+      { id: "trash", name: "Trash", items: [], color: null },
+    ],
+    tracks: {
+      ...Object.fromEntries(padding.map((id) => [id, fixtureTrack(id, id)])),
+      [JOB_ID]: fixtureTrack(JOB_ID, TRACK_TITLE),
+      [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, SIBLING_TITLE),
+    },
+  });
+  await loadSeededLibrary(page);
+}
+
+test("with no room beside a middle row, the row menu opens above it, not on the next row", async ({ page }) => {
+  await page.setViewportSize(NARROW_TALL_WINDOW);
+  await seedPaddedList(page);
+  const row = page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`);
+  await row.hover();
+  await row.locator(".cat-more").click();
+  const menu = page.locator(".lib-menu");
+  await expect(menu).toBeVisible();
+  const menuBox = await boxOf(menu);
+  const rowBox = await boxOf(row);
+  const menuHeight = menuBox.bottom - menuBox.top;
+  expect(menuBox.left, "no room beside the row").toBeLessThan(rowBox.right);
+  expect(rowBox.top, "room above the row").toBeGreaterThan(menuHeight);
+  expect(NARROW_TALL_WINDOW.height - rowBox.bottom, "room below the row").toBeGreaterThan(menuHeight);
+  expect(overlaps(menuBox, rowBox), "menu covers its own row").toBe(false);
+  const nextRow = page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`);
+  expect(overlaps(menuBox, await boxOf(nextRow)), "menu covers the next row").toBe(false);
 });
 
 test("the open song's actions leave its title and artist uncovered", async ({ page }) => {
