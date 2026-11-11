@@ -14,7 +14,7 @@ import { importPlaylist, looksLikePlaylist } from "./playlist.js";
 import { t } from "./i18n.js";
 import { formatKey } from "./keyLabel.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
-import { choiceToStore, storeSplitChoice } from "./vocalSplit.js";
+import { carrySplitChoice, choiceToStore, storeSplitChoice } from "./vocalSplit.js";
 
 // Playful stage label rotation (Claude-Code-style flair). The backend
 // emits truthful stage strings; we surface them in the small #job-detail
@@ -661,6 +661,7 @@ export async function importFromUrl(url, { title, stems, replaces } = {}) {
   setSubmitProcessing(false);
   setCurrentJobId(jobId);
   setForegroundJobId(jobId);
+  if (replaces) carrySplitChoice(replaces, jobId);
   jobSources.set(jobId, url);
   addTrackToLibrary({
     id: jobId,

@@ -90,6 +90,13 @@ export async function fetchSplitView(jobId, io = DEFAULT_IO) {
   return null;
 }
 
+/** Store a re-imported song's Lead + Backing choice on the job that replaces it. */
+export async function carrySplitChoice(oldJobId, newJobId, io = DEFAULT_IO) {
+  const view = await fetchSplitView(oldJobId, io);
+  if (view?.choice !== SPLIT_CHOICE.SPLIT) return false;
+  return storeSplitChoice(newJobId, SPLIT_CHOICE.SPLIT, io);
+}
+
 /** Start (or retry) the split; a split already under way is joined. Throws when refused. */
 export async function startSplit(jobId, io = DEFAULT_IO) {
   const res = await io.fetch(splitUrl(jobId), { method: "POST" });
