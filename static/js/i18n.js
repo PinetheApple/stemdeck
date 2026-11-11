@@ -1285,6 +1285,7 @@ const en = {
   "notif.tempoSavePending": "The tempo change isn't saved yet. It'll save when StemDeck reconnects.",
   "sections.notSaved": "Not saved",
   "tempo.savePending": "Not saved yet",
+  "sections.noRoom": "No room left. Shorten or delete a section.",
 };
 
 const pl = {
@@ -2346,6 +2347,7 @@ const pl = {
   "notif.tempoSavePending": "Zmiana tempa nie jest jeszcze zapisana. Zapisze się po ponownym połączeniu ze StemDeck.",
   "sections.notSaved": "Nie zapisano",
   "tempo.savePending": "Jeszcze nie zapisano",
+  "sections.noRoom": "Brak miejsca. Skróć lub usuń sekcję.",
 };
 
 const ja = {
@@ -3380,6 +3382,7 @@ const ja = {
   "notif.tempoSavePending": "テンポの変更はまだ保存されていません。StemDeck に再接続すると保存されます。",
   "sections.notSaved": "未保存",
   "tempo.savePending": "まだ保存されていません",
+  "sections.noRoom": "空きがありません。セクションを短くするか削除してください。",
 };
 
 const zhHans = {
@@ -4414,6 +4417,7 @@ const zhHans = {
   "notif.tempoSavePending": "速度更改尚未保存，StemDeck 重新连接后会自动保存。",
   "sections.notSaved": "未保存",
   "tempo.savePending": "尚未保存",
+  "sections.noRoom": "没有空间了。请缩短或删除一个段落。",
 };
 
 const de = {
@@ -5460,6 +5464,7 @@ const de = {
   "notif.tempoSavePending": "Die Tempoänderung ist noch nicht gespeichert. Sie wird gespeichert, sobald StemDeck wieder verbunden ist.",
   "sections.notSaved": "Nicht gespeichert",
   "tempo.savePending": "Noch nicht gespeichert",
+  "sections.noRoom": "Kein Platz mehr. Kürze oder lösche einen Abschnitt.",
 };
 
 const pt = {
@@ -6508,6 +6513,7 @@ const pt = {
   "notif.tempoSavePending": "A alteração de andamento ainda não foi salva. Ela será salva quando o StemDeck se reconectar.",
   "sections.notSaved": "Não salvo",
   "tempo.savePending": "Ainda não salvo",
+  "sections.noRoom": "Sem espaço. Encurte ou exclua uma seção.",
 };
 
 const id = {
@@ -7542,6 +7548,7 @@ const id = {
   "notif.tempoSavePending": "Perubahan tempo belum tersimpan. Akan tersimpan saat StemDeck terhubung kembali.",
   "sections.notSaved": "Tidak tersimpan",
   "tempo.savePending": "Belum tersimpan",
+  "sections.noRoom": "Tidak ada ruang. Perpendek atau hapus sebuah bagian.",
 };
 
 const fr = {
@@ -8590,6 +8597,7 @@ const fr = {
   "notif.tempoSavePending": "La modification du tempo n'est pas encore enregistrée. Elle le sera quand StemDeck sera reconnecté.",
   "sections.notSaved": "Non enregistré",
   "tempo.savePending": "Pas encore enregistré",
+  "sections.noRoom": "Plus de place. Raccourcissez ou supprimez une section.",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -8831,6 +8839,7 @@ const ptPT = {
   "vocalSplit.failed.unsupportedDevice": "A placa gráfica deste computador não consegue fazer a separação de voz.",
   "vocalSplit.failed.diskFull": "O disco está cheio. Liberte espaço e tente novamente.",
   "vocalSplit.failed.noVocals": "Falta a voz desta música. Extraia as faixas de novo e tente novamente.",
+  "sections.noRoom": "Sem espaço. Encurte ou elimine uma secção.",
 };
 
 const es = {
@@ -9891,6 +9900,7 @@ const es = {
   "notif.tempoSavePending": "El cambio de tempo aún no se ha guardado. Se guardará cuando StemDeck se vuelva a conectar.",
   "sections.notSaved": "No guardado",
   "tempo.savePending": "Aún no guardado",
+  "sections.noRoom": "No queda espacio. Acorta o elimina una sección.",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -10934,6 +10944,7 @@ const ko = {
   "notif.tempoSavePending": "템포 변경 사항이 아직 저장되지 않았어요. StemDeck에 다시 연결되면 저장돼요.",
   "sections.notSaved": "저장 안 됨",
   "tempo.savePending": "아직 저장 안 됨",
+  "sections.noRoom": "남은 공간이 없어요. 구간을 줄이거나 삭제하세요.",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };

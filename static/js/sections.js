@@ -438,9 +438,7 @@ function _newSectionBounds() {
 function _addSection() {
   const bounds = _newSectionBounds();
   if (!bounds) {
-    // Only worth explaining when a loop was the thing that failed. A full
-    // track with no gap left is visible on its own.
-    if (_armedLoop()) _showNotice(t("sections.loopOverlaps"));
+    _showNotice(t(_armedLoop() ? "sections.loopOverlaps" : "sections.noRoom"));
     return;
   }
   const { start, end } = bounds;
