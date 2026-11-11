@@ -91,6 +91,9 @@ const clearBtn = {
   querySelector: () => null,
   addEventListener: () => {},
 };
+// A failed save is recorded in the notification store, which falls back to localStorage.
+globalThis.window = {};
+globalThis.localStorage = { getItem: () => null, setItem: () => {} };
 globalThis.document = {
   getElementById(id) {
     return id === "sectionsClearBtn" ? clearBtn : null;
@@ -235,7 +238,9 @@ destroySections();
 
 const refuse = (r) => r.resolve({ ok: false, status: 422, text: async () => "invalid" });
 const lose = (r) => r.reject(new TypeError("network"));
-for (const [how, answer] of [["refused", refuse], ["lost", lose]]) {
+
+/** Clear SONG_C's sections, switch away, and answer the save with `answer`. */
+async function failSongCSave(answer) {
   initSections(SONG_C, verse, 20);
   clearAllSections();
   initSections(SONG_B, verse, 20);
@@ -243,11 +248,25 @@ for (const [how, answer] of [["refused", refuse], ["lost", lose]]) {
   held.splice(0).forEach(answer);
   await settle();
   initSections(SONG_C, verse, 20);
-  check(`a ${how} save leaves nothing over the server's sections on reopen`, getSections().length === 1);
-  saveSectionsOnPageClose();
-  check(`a ${how} save is not sent again on close`, held.every((r) => !r.keepalive));
-  destroySections();
 }
+
+await failSongCSave(refuse);
+check("a refused save leaves nothing over the server's sections on reopen", getSections().length === 1);
+saveSectionsOnPageClose();
+check("a refused save is not sent again on close", held.every((r) => !r.keepalive));
+destroySections();
+
+await failSongCSave(lose);
+check("a lost save is still shown on reopen", getSections().length === 0);
+saveSectionsOnPageClose();
+const lostResent = held.filter((r) => r.keepalive);
+check(
+  "a lost save is sent again on close",
+  lostResent.length === 1 && lostResent[0].url === `/api/jobs/${SONG_C}/sections` && lostResent[0].body.sections.length === 0,
+);
+held.splice(0).forEach((r) => r.resolve({ ok: true }));
+await settle();
+destroySections();
 
 initSections(SONG_C, verse, 20);
 clearAllSections();

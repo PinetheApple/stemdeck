@@ -28,6 +28,7 @@ function harness() {
   const outcomes = [];
   const calls = [];
   const changes = [];
+  const restored = [];
   const timers = [];
   const baseFetch = (input) => {
     calls.push(String(input?.url ?? input));
@@ -38,6 +39,7 @@ function harness() {
     baseFetch,
     origin: ORIGIN,
     onChange: (offline) => changes.push(offline),
+    onRestored: () => restored.push(true),
     schedule: (fn, ms) => timers.push({ fn, ms }),
   });
   const failTimes = async (n, error = networkError) => {
@@ -47,7 +49,7 @@ function harness() {
     }
     await settle();
   };
-  return { outcomes, calls, changes, timers, monitor, failTimes };
+  return { outcomes, calls, changes, restored, timers, monitor, failTimes };
 }
 
 // --------------------------------------------------------------------------
@@ -177,6 +179,25 @@ check("an unparseable URL does not count", !isApiRequest("http://[bad", ORIGIN))
   h.timers.shift().fn();
   await settle();
   check("a probe due after recovery does not fire", h.calls.length === before);
+}
+
+// --------------------------------------------------------------------------
+// Restored: an answer after unanswered requests, so lost saves can go again
+// --------------------------------------------------------------------------
+
+{
+  const h = harness();
+  await h.monitor.fetch("/api/jobs");
+  await settle();
+  check("an answer with nothing unanswered before it restores nothing", h.restored.length === 0);
+  await h.failTimes(1);
+  check("a failure alone restores nothing", h.restored.length === 0);
+  await h.monitor.fetch("/api/jobs");
+  await settle();
+  check("the first answer after a failure is a restored connection", h.restored.length === 1);
+  await h.monitor.fetch("/api/jobs");
+  await settle();
+  check("later answers restore nothing more", h.restored.length === 1);
 }
 
 console.log(`\n${pass}/${pass + fail} checks passed`);

@@ -27,7 +27,12 @@ const TEMPO_STATUS = "#tempoStatus";
 
 const FAILURE_TEXT = {
   sections: { kind: "sections", refused: "notif.sectionsSaveFailed", lost: "notif.sectionsSavePending" },
-  grid: { kind: "beatgrid", refused: "notif.beatGridSaveFailed", lost: "notif.beatGridSavePending" },
+  grid: {
+    kind: "beatgrid",
+    refused: "notif.beatGridSaveFailed",
+    lost: "notif.beatGridSavePending",
+    reset: "notif.beatGridResetFailed",
+  },
   tempo: { kind: "tempo", refused: "notif.tempoSaveFailed", lost: "notif.tempoSavePending" },
 };
 
@@ -52,6 +57,26 @@ async function failNextSave(page, url, failure, edit) {
   await failHeldSave(page, hold, failure, url);
 }
 
+/**
+ * Lose every PATCH to `url` until `restore()`, so no retry reaches the server before the
+ * test has looked at the unsaved state. Resolves once `edit`'s save is lost.
+ */
+async function loseSaves(page, url, edit) {
+  let down = true;
+  await page.route(`**${url}`, function loseWhileDown(route) {
+    return down && route.request().method() === "PATCH" ? route.abort() : route.fallback();
+  });
+  const lost = page.waitForEvent("requestfailed", (r) => r.url().endsWith(url) && r.method() === "PATCH");
+  await edit();
+  await lost;
+  return { restore: () => { down = false; } };
+}
+
+function refuseReset(route) {
+  if (route.request().method() !== "DELETE") return route.fallback();
+  return FAILED_SAVES.refused.answer(route);
+}
+
 const addSection = (page) => page.locator("#sectionsAddBtn").click();
 const sectionCount = (request) => savedSections(request, JOB_ID).then((s) => s.length);
 
@@ -66,21 +91,23 @@ test.describe("sections", () => {
   });
 
   test("a lost section save stays, marked unsaved, until the server takes it", async ({ page, request }) => {
-    await failNextSave(page, sectionsUrl(JOB_ID), FAILED_SAVES.lost, () => addSection(page));
+    const server = await loseSaves(page, sectionsUrl(JOB_ID), () => addSection(page));
 
     await expect(page.locator(".section-block")).toHaveCount(1);
     await expect(page.locator(SECTION_INDICATOR)).toHaveText(await uiText(page, "sections.notSaved"));
     await expectNotified(page, "sections", "lost");
+    server.restore();
     await expect.poll(() => sectionCount(request), { timeout: RESENT_WITHIN_MS }).toBe(1);
     await expect.poll(() => notifications(page)).toEqual([]);
   });
 
   test("a lost section save is still shown when its song is reopened, and is saved", async ({ page, request }) => {
-    await failNextSave(page, sectionsUrl(JOB_ID), FAILED_SAVES.lost, () => addSection(page));
+    const server = await loseSaves(page, sectionsUrl(JOB_ID), () => addSection(page));
     await openSong(page, SIBLING_JOB_ID);
     await openSong(page, JOB_ID);
 
     await expect(page.locator(".section-block")).toHaveCount(1);
+    server.restore();
     await expect.poll(() => sectionCount(request), { timeout: RESENT_WITHIN_MS }).toBe(1);
   });
 });
@@ -99,20 +126,32 @@ test.describe("beat grid", () => {
   });
 
   test("a lost grid save stays until the server takes it, and says so", async ({ page, request }) => {
-    await failNextSave(page, beatsUrl(JOB_ID), FAILED_SAVES.lost, () => editGrid(page));
+    const server = await loseSaves(page, beatsUrl(JOB_ID), () => editGrid(page));
 
     expect(await shownBarLength(page)).toBe(EDITED_BAR_LENGTH);
     await expectNotified(page, "grid", "lost");
+    server.restore();
     await expect.poll(() => savedBarLength(request, JOB_ID), { timeout: RESENT_WITHIN_MS }).toBe(EDITED_BAR_LENGTH);
     await expect.poll(() => notifications(page)).toEqual([]);
   });
 
+  test("a refused grid reset keeps the saved grid and says so", async ({ page, request }) => {
+    await editGrid(page);
+    await expect.poll(() => savedBarLength(request, JOB_ID)).toBe(EDITED_BAR_LENGTH);
+    await page.route(`**${beatsUrl(JOB_ID)}`, refuseReset);
+    await page.evaluate(async () => (await import("/js/beatgrid.js")).resetBeatGrid());
+
+    expect(await shownBarLength(page)).toBe(EDITED_BAR_LENGTH);
+    await expectNotified(page, "grid", "reset");
+  });
+
   test("a lost grid save is still shown when its song is reopened, and is saved", async ({ page, request }) => {
-    await failNextSave(page, beatsUrl(JOB_ID), FAILED_SAVES.lost, () => editGrid(page));
+    const server = await loseSaves(page, beatsUrl(JOB_ID), () => editGrid(page));
     await openSongTempo(page, SIBLING_JOB_ID);
     await openSongTempo(page, JOB_ID);
 
     expect(await shownBarLength(page)).toBe(EDITED_BAR_LENGTH);
+    server.restore();
     await expect.poll(() => savedBarLength(request, JOB_ID), { timeout: RESENT_WITHIN_MS }).toBe(EDITED_BAR_LENGTH);
   });
 });
@@ -136,11 +175,12 @@ test.describe("tempo", () => {
   test("a lost tempo save stays, marked unsaved, until the server takes it", async ({ page, request }) => {
     const before = await savedAnchor(request);
     const saved = await anchor(page).textContent();
-    await failNextSave(page, beatsUrl(JOB_ID), FAILED_SAVES.lost, () => nudge(page));
+    const server = await loseSaves(page, beatsUrl(JOB_ID), () => nudge(page));
 
     await expect(anchor(page)).not.toHaveText(saved);
     await expect(page.locator(TEMPO_STATUS)).toHaveText(await uiText(page, "tempo.savePending"));
     await expectNotified(page, "tempo", "lost");
+    server.restore();
     await expect.poll(() => savedAnchor(request), { timeout: RESENT_WITHIN_MS }).not.toEqual(before);
     await expect.poll(() => notifications(page)).toEqual([]);
   });
@@ -148,11 +188,12 @@ test.describe("tempo", () => {
   test("a lost tempo save is still shown when its song is reopened, and is saved", async ({ page, request }) => {
     const before = await savedAnchor(request);
     const saved = await anchor(page).textContent();
-    await failNextSave(page, beatsUrl(JOB_ID), FAILED_SAVES.lost, () => nudge(page));
+    const server = await loseSaves(page, beatsUrl(JOB_ID), () => nudge(page));
     await openSongTempo(page, SIBLING_JOB_ID);
     await openSongTempo(page, JOB_ID);
 
     await expect(anchor(page)).not.toHaveText(saved);
+    server.restore();
     await expect.poll(() => savedAnchor(request), { timeout: RESENT_WITHIN_MS }).not.toEqual(before);
   });
 });
