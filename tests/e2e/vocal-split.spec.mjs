@@ -1,5 +1,5 @@
-// The lead/backing vocal split in the Details pane (#43), with the split's
-// endpoints stubbed. What the server does is tests/test_vocal_split_api.py.
+// The lead/backing vocal split in the Details pane, with the split's endpoints
+// stubbed. What the server does is tests/test_vocal_split_api.py.
 import { test, expect } from "@playwright/test";
 import { JOB_ID, openStudio, openInspectorTab } from "./helpers.mjs";
 

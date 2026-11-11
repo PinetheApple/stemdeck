@@ -36,6 +36,9 @@ const EXTRACT_STEMS = EXTRACT_BASE_STEMS.map((id) => ({ id, name: STEM_META[id].
 
 const DEFAULT_GRADIENT = "linear-gradient(150deg,#3a3a42,#202026)";
 const FILTERS = ["All", "Favorites"];
+// The base job is already done; the card says the split is still going.
+const SPLITTING_STATUS = "splitting";
+const EXTRACT_DONE_STATUS = "done";
 
 // ─── Web Audio engine (reused from desktop: ../js/audioEngine.js) ───
 let engine = null;
@@ -719,10 +722,6 @@ async function _runVocalSplitThenFinish(jobId) {
   loadLibrary();
   _finishExtractJob(jobId);
 }
-
-// The base job is already done; the card says the split is still going.
-const SPLITTING_STATUS = "splitting";
-const EXTRACT_DONE_STATUS = "done";
 
 function _showVocalSplitProgress(jobId, view) {
   if (state.extractJob?.id !== jobId) return;

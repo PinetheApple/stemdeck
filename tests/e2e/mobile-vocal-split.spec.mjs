@@ -1,6 +1,5 @@
-// The phone's Lead + Backing import says the stems are ready only once the
-// split has finished, and says so when it did not (#43). The split answers
-// 202 at once now, so taking that answer for the result told the user too soon.
+// The phone says a Lead + Backing import is ready only once its split ends, and
+// says so when the split failed: the split's 202 answer is not its result.
 import { test, expect } from "@playwright/test";
 
 const JSON_TYPE = "application/json";

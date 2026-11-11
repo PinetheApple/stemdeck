@@ -1,5 +1,5 @@
 // Lead + Backing picked at import is kept with the song, so a reload before the
-// import finishes still splits it when it opens (#43).
+// import finishes still splits it when it opens.
 import { test, expect } from "@playwright/test";
 import {
   JOB_ID,

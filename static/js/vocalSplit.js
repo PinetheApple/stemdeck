@@ -1,6 +1,7 @@
-// A song's lead/backing vocal split on the server: the stored choice, starting
-// or retrying it, following it to the end, and the message key for each failure.
-// No DOM and no i18n, so the desktop and the phone UI can both use it.
+// Answers i18n keys rather than text and touches no DOM, so the desktop and
+// the phone UI can both use it.
+
+import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 
 export const SPLIT_STATE = Object.freeze({
   NONE: "none",
@@ -15,11 +16,11 @@ export const POLL_MS = 1000;
 // Polls in a row that got no answer before the split is given up for failed.
 export const MAX_FAILED_POLLS = 3;
 
-const JOB_DONE = "done";
+export const JOB_DONE = "done";
+export const UNREACHABLE_VIEW = Object.freeze({ state: SPLIT_STATE.ERROR, error: null });
+
 const VOCALS_STEM = "vocals";
-const HTTP_CONFLICT = 409;
 const JSON_HEADERS = { "Content-Type": "application/json" };
-const UNREACHABLE_VIEW = Object.freeze({ state: SPLIT_STATE.ERROR, error: null });
 // app/core/models.py VOCAL_SPLIT_FAILED_*
 const FAILURE_KEYS = {
   model_missing: "vocalSplit.failed.modelMissing",

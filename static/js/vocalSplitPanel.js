@@ -4,31 +4,29 @@
 import { t, getLanguage, onLanguageChange } from "./i18n.js";
 import { loadTrackIntoStudio } from "./catalog.js";
 import {
+  JOB_DONE,
   SPLIT_STATE,
   SPLIT_PHASE,
+  UNREACHABLE_VIEW,
   failureKey,
   hasVocalsStem,
   wantsAutoSplit,
-  fetchSplitView,
   startSplit,
   followSplit,
   cancelSplit,
 } from "./vocalSplit.js";
 import { reportSplitFailure } from "./vocalSplitNotify.js";
 
-const JOB_DONE = "done";
 const PHASE_KEYS = {
   [SPLIT_PHASE.QUEUED]: "vocalSplit.queued",
   [SPLIT_PHASE.SPLITTING]: "vocalSplit.running",
 };
 const START_KEY = "vocalSplit.start";
 const RETRY_KEY = "job.tryAgain";
-// States that leave the card offering a split.
 const OFFERED_STATES = new Set([SPLIT_STATE.NONE, SPLIT_STATE.CANCELLED, SPLIT_STATE.ERROR]);
-const FAILED_START_VIEW = Object.freeze({ state: SPLIT_STATE.ERROR, error: null });
 
 let ui = null;
-let shownFor = null; // the song the card is about
+let shownFor = null;
 let shownView = null;
 let token = 0; // another song or a new run makes every answer under way stale
 
@@ -118,7 +116,7 @@ async function runSplit(jobId, { automatic = false } = {}) {
   const mine = ++token;
   // Busy rather than disabled: a disabled button drops focus to the page.
   ui.start.setAttribute("aria-busy", "true");
-  let view = FAILED_START_VIEW;
+  let view = UNREACHABLE_VIEW;
   try {
     view = await startSplit(jobId);
   } catch (err) {
