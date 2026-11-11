@@ -16,7 +16,7 @@ import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
 import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
 import { isModalOpen } from "./stageMode.js";
-import { OUT_OF_TAB_ORDER, ROW_PLAY_CLASS, wireRovingRows } from "./rovingRows.js";
+import { ON_ROW, OUT_OF_TAB_ORDER, ROW_PLAY_CLASS, isShown, wireRovingRows } from "./rovingRows.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
@@ -1445,9 +1445,11 @@ export function setCurrentTrack(trackId) {
 
 // ─── Folder operations ───
 
-function createFolder() {
+/** A new folder, opened for naming; `trackId` moves that song into it first. */
+function createFolder({ trackId = null } = {}) {
   const folder = makeFolder();
   folders.push(folder);
+  if (trackId) placeTrackInFolder(folder.id, trackId);
   saveState();
   render();
   openFolderEditor(folder.id, "library.newFolder");
@@ -1491,6 +1493,15 @@ export function addPlaylistToLibrary(playlistTitle, jobs) {
   saveState();
   render();
   return folder.id;
+}
+
+/** The folders at the top of the tree, the Trash left out. */
+function topLevelFolders() {
+  return folders.filter((f) => f.id !== TRASH_ID && !f.parentId);
+}
+
+function childFoldersOf(folderId) {
+  return folders.filter((f) => f.parentId === folderId);
 }
 
 /** The folder and every folder nested under it, at any depth. */
@@ -1712,19 +1723,65 @@ function endDrag(itemEl) {
   document.getElementById("lanes")?.classList.remove("library-drop-target");
 }
 
-function dropOnFolder(folderId, trackId) {
-  const id = trackId ?? dragId;
-  if (!id) return;
-  // Remove from current folder
+/** Take the song out of its current folder and into `folderId`. */
+function placeTrackInFolder(folderId, id) {
   for (const f of folders) {
     const idx = f.items.indexOf(id);
     if (idx !== -1) { f.items.splice(idx, 1); break; }
   }
-  // Add to target folder
   const target = folders.find((f) => f.id === folderId);
   if (target && !target.items.includes(id)) target.items.push(id);
+}
+
+function dropOnFolder(folderId, trackId) {
+  const id = trackId ?? dragId;
+  if (!id) return;
+  placeTrackInFolder(folderId, id);
   saveState();
   render();
+}
+
+/** The row menu's move: the song leaves its folder as on a drag, then takes
+ *  focus. False when nothing in the list could take it. */
+export function moveTrackToFolder(trackId, folderId) {
+  placeTrackInFolder(folderId, trackId);
+  saveState();
+  render();
+  return focusMovedSong(trackId, folderId);
+}
+
+/** The row of the folder, or of the nearest folder above it, that is shown. */
+function shownFolderRow(folderId) {
+  for (let f = folders.find((x) => x.id === folderId); f; f = folders.find((x) => x.id === f.parentId)) {
+    const head = folderHeadEl(f.id);
+    if (head && isShown(head)) return head;
+  }
+  return null;
+}
+
+// Not as the keyboard's focus, so Delete is not armed on the song just moved.
+function focusMovedSong(trackId, folderId) {
+  const row = document.querySelector(`${LIBRARY_ROW_SELECTOR}[data-id="${CSS.escape(trackId)}"]`);
+  const target = row && isShown(row) ? row : shownFolderRow(folderId);
+  if (!target || !libraryRows) return false;
+  libraryRows.focusRow(target, ON_ROW, { preventScroll: true, focusVisible: false });
+  return true;
+}
+
+export function moveTrackToNewFolder(trackId) {
+  createFolder({ trackId });
+}
+
+/** Every folder but the Trash, in the tree's order, with its nesting depth
+ *  and whether it holds `trackId`. */
+export function folderChoices(trackId) {
+  const choices = [];
+  const visit = (folder, depth) => {
+    choices.push({ id: folder.id, name: folder.name, depth, current: folder.items.includes(trackId) });
+    for (const child of childFoldersOf(folder.id)) visit(child, depth + 1);
+  };
+  for (const top of topLevelFolders()) visit(top, 0);
+  return choices;
 }
 
 function paintFavButton(btn, on) {
@@ -2437,7 +2494,7 @@ function renderFolder(folder) {
   const body = document.createElement("div");
   body.className = "folder-body";
 
-  const childFolders = folders.filter((f) => f.parentId === folder.id);
+  const childFolders = childFoldersOf(folder.id);
 
   if (catalogSearchQuery && visibleItems.length === 0 && childFolders.length === 0) {
     return null;
@@ -2655,12 +2712,12 @@ function drawCatalog() {
   // backend is actually working on, in the order it will work on it.
   if (isQueueView) {
     renderQueueList(list);
-    renderStrip(strip, folders.filter((f) => f.id !== TRASH_ID && !f.parentId));
+    renderStrip(strip, topLevelFolders());
     updateQueueBadge();
     return;
   }
 
-  const nonTrash = folders.filter((f) => f.id !== TRASH_ID && !f.parentId);
+  const nonTrash = topLevelFolders();
 
   // ── Trash view ──
   if (isTrashView) {
@@ -2714,7 +2771,7 @@ function drawCatalog() {
   newFolderBtn.type = "button";
   newFolderBtn.setAttribute("aria-label", i18nT("library.newFolder"));
   newFolderBtn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v6 M9 14h6"/></svg>${esc(i18nT("library.newFolder"))}`;
-  newFolderBtn.addEventListener("click", createFolder);
+  newFolderBtn.addEventListener("click", function onNewFolderClick() { createFolder(); });
   collectionsSection.querySelector(".lib-section-head").appendChild(newFolderBtn);
   let hasCollections = false;
   for (const folder of nonTrash) {

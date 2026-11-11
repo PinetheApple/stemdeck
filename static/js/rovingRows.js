@@ -58,7 +58,7 @@ export function actionIndexOf(actions, el) {
   return at === NOT_FOUND ? ON_ROW : at;
 }
 
-function isShown(el) {
+export function isShown(el) {
   return el.getClientRects().length > 0;
 }
 
@@ -125,6 +125,7 @@ function wireRowOpening(container, { selectableRowOf, openRow, focusRow }) {
  * Call `remember()` before a redraw and `restore(saved)` after it, or `refresh()`
  * when rows were shown or hidden without one. `isKeyboardFocus()` says whether the
  * focus in the list is the keyboard's rather than a click's or a tap's.
+ * `focusRow(row, actionIndex, options)` moves the list's stop and focus to `row`.
  * Wiring the same list again returns its first wiring.
  */
 export function wireRovingRows(
@@ -236,7 +237,7 @@ export function wireRovingRows(
     return Boolean(rowOf(document.activeElement)) && arrivedByKeyboard;
   }
 
-  const wired = { remember, restore, refresh, isKeyboardFocus };
+  const wired = { remember, restore, refresh, isKeyboardFocus, focusRow };
   wiredLists.set(container, wired);
   return wired;
 }

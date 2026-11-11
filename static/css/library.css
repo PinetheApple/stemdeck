@@ -279,6 +279,7 @@
 .lib-menu-item:focus-visible { background: var(--surface-3); outline: none; }
 .lib-menu-item:disabled { color: var(--text-3); cursor: default; background: none; }
 .lib-menu-item:disabled .ic { color: var(--success); }
+.lib-menu-folder { padding-left: calc(var(--s-2) + var(--menu-depth, 0) * var(--s-3)); }
 .lib-menu-label {
   padding: var(--s-2) var(--s-2) var(--s-1);
   margin-top: var(--s-1);
