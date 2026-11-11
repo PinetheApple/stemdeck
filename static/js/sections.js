@@ -3,6 +3,14 @@
 import { onLanguageChange, t } from "./i18n.js";
 import { PAGE_CLOSE_FETCH } from "./utils.js";
 import { isPageClosing, wasCutOffByPageClose } from "./pageClosing.js";
+import {
+  SAVE_KIND,
+  SAVE_LOST,
+  SAVE_REFUSED,
+  clearSaveFailure,
+  notifySaveFailure,
+  onConnectionRestored,
+} from "./saveFailures.js";
 
 const SECTION_COLORS = [
   "#4a7fff",
@@ -30,6 +38,10 @@ let _saveChain = Promise.resolve();
 // Each track's newest save still waiting for an answer, as its request body: what
 // the track shows if it is reopened first, and what goes out if the page closes.
 const _unconfirmed = new Map();
+// Tracks whose unconfirmed save got no answer: sent again once the server answers.
+const _lost = new Set();
+// The open track's sections as the server has them, to go back to when it refuses a save.
+let _confirmed = "";
 
 // The loop lives in transport.js, which reaches the DOM at import time through
 // state.js. Importing it here would drag a document into every Node test that
@@ -60,7 +72,9 @@ export function initSections(trackId, sections, duration) {
   _trackId = trackId;
   _duration = Math.max(1, duration || 0);
   const unconfirmed = _unconfirmed.get(trackId);
-  _sections = (unconfirmed ? JSON.parse(unconfirmed).sections : sections || []).map((s) => ({ ...s }));
+  _confirmed = JSON.stringify({ sections: sections || [] });
+  _sections = JSON.parse(unconfirmed ?? _confirmed).sections;
+  if (_lost.has(trackId)) _showNotSaved();
   // Clear lives in the header rather than the ribbon, so it has to be correct
   // even when the ribbon is absent and the render below never runs.
   _refreshClearVisibility();
@@ -618,14 +632,25 @@ function _showSaved() {
 // and it is beside the button that was just pressed rather than in the import
 // panel at the other end of the page.
 function _showNotice(message) {
-  const el = document.getElementById("sectionsSaveIndicator");
+  const el = _paintNotice(message);
   if (!el) return;
-  clearTimeout(_savedTimer);
-  el.textContent = message;
-  el.className = "sections-save-indicator notice";
   _savedTimer = setTimeout(() => {
     el.className = "sections-save-indicator hidden";
   }, 3200);
+}
+
+/** Stays until a save of the open track is answered. */
+function _showNotSaved() {
+  _paintNotice(t("sections.notSaved"));
+}
+
+function _paintNotice(message) {
+  const el = document.getElementById("sectionsSaveIndicator");
+  if (!el) return null;
+  clearTimeout(_savedTimer);
+  el.textContent = message;
+  el.className = "sections-save-indicator notice";
+  return el;
 }
 
 function _hideSaveIndicator() {
@@ -676,6 +701,7 @@ export function saveSectionsOnPageClose() {
   const ids = [...new Set([_trackId, ..._unconfirmed.keys()])].filter((id) => _unconfirmed.has(id));
   for (const id of ids) _sendSave(id, _unconfirmed.get(id), PAGE_CLOSE_FETCH);
   _unconfirmed.clear();
+  _lost.clear();
 }
 
 function _queueSaveSnapshot() {
@@ -691,31 +717,74 @@ function _queueSaveSnapshot() {
 const _sendQueuedSave = (id, body) => (isPageClosing() ? undefined : _sendSave(id, body));
 
 async function _sendSave(id, body, fetchOptions = {}) {
-  let cutOff = false;
+  let res;
   try {
-    const res = await fetch(`/api/jobs/${id}/sections`, {
+    res = await fetch(`/api/jobs/${id}/sections`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body,
       ...fetchOptions,
     });
-    if (!res.ok) {
-      const detail = await res.text().catch(() => String(res.status));
-      console.warn("[sections] save failed:", res.status, detail);
-      if (id === _trackId) _hideSaveIndicator();
-      return;
-    }
-    if (id === _trackId) {
-      if (body === JSON.stringify({ sections: _sections }) && _saveTimer === null) _showSaved();
-    }
   } catch (e) {
-    cutOff = wasCutOffByPageClose(e);
     console.warn("[sections] save failed:", e);
-    if (id === _trackId) _hideSaveIndicator();
-  } finally {
-    if (!cutOff && _unconfirmed.get(id) === body) _unconfirmed.delete(id);
+    if (!wasCutOffByPageClose(e)) _onSaveLost(id, body);
+    return;
+  }
+  if (!res.ok) {
+    const detail = await res.text().catch(() => String(res.status));
+    console.warn("[sections] save failed:", res.status, detail);
+    _onSaveRefused(id, body);
+    return;
+  }
+  _onSaved(id, body);
+}
+
+/** Forget the track's unconfirmed save when `body` is still its newest. True when it was. */
+function _settleNewest(id, body) {
+  if (_unconfirmed.get(id) !== body) return false;
+  _unconfirmed.delete(id);
+  _lost.delete(id);
+  return true;
+}
+
+function _onSaved(id, body) {
+  if (_settleNewest(id, body)) clearSaveFailure(SAVE_KIND.sections, id);
+  if (id !== _trackId) return;
+  _confirmed = body;
+  if (body === JSON.stringify({ sections: _sections }) && _saveTimer === null) _showSaved();
+}
+
+function _onSaveRefused(id, body) {
+  const newest = _settleNewest(id, body);
+  notifySaveFailure(SAVE_KIND.sections, SAVE_REFUSED, id);
+  if (id !== _trackId) return;
+  if (newest && _saveTimer === null) _showConfirmed();
+  _showNotice(t("sections.notSaved"));
+}
+
+// A newer save already on its way carries this edit too, and reports for itself.
+function _onSaveLost(id, body) {
+  if (_unconfirmed.get(id) !== body) return;
+  _lost.add(id);
+  notifySaveFailure(SAVE_KIND.sections, SAVE_LOST, id);
+  if (id === _trackId) _showNotSaved();
+}
+
+function _showConfirmed() {
+  _sections = JSON.parse(_confirmed).sections;
+  _refreshClearVisibility();
+  if (_container) _render();
+}
+
+function _retryLostSaves() {
+  for (const id of [..._lost]) {
+    _lost.delete(id);
+    const body = _unconfirmed.get(id);
+    if (body) _saveChain = _saveChain.then(() => _sendQueuedSave(id, body));
   }
 }
+
+onConnectionRestored(_retryLostSaves);
 
 function _timesChanged(beforeStart, beforeEnd, afterStart, afterEnd) {
   return Math.abs(beforeStart - afterStart) > 1e-6 || Math.abs(beforeEnd - afterEnd) > 1e-6;

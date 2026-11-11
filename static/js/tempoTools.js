@@ -10,6 +10,15 @@ import { EMPTY_VALUE } from "./constants.js";
 import { t, getLanguage, onLanguageChange } from "./i18n.js";
 import { $ } from "./utils.js";
 import { isPageClosing, wasCutOffByPageClose } from "./pageClosing.js";
+import {
+  SAVE_KIND,
+  SAVE_LOST,
+  SAVE_REFUSED,
+  SaveRefusedError,
+  clearSaveFailure,
+  notifySaveFailure,
+  onConnectionRestored,
+} from "./saveFailures.js";
 
 const MODE_CONSTANT = "constant";
 const SOURCE_USER = "user";
@@ -31,6 +40,9 @@ const TAP_MAX = 8;
 const TAP_COMMIT_MS = 700;
 const CLICK_RATE_NORMAL = 1;
 const RESET_FIELDS = { mode: null, bpm: null, anchor: null, beats_per_bar: null };
+const SAVED = "saved";
+const CUT_OFF = "cutOff";
+const STATUS_KEYS = { [SAVE_REFUSED]: "tempo.saveFailed", [SAVE_LOST]: "tempo.savePending" };
 
 let jobId = null;
 let grid = null;
@@ -40,10 +52,12 @@ let tempo = null;
 const sendingFieldsByJob = new Map();
 const queuedFieldsByJob = new Map();
 const savesInFlight = new Map();
+// Songs whose queued fields include a save that got no answer: sent again once the server answers.
+const lostFieldsJobs = new Set();
 let refreshSeq = 0;
 let taps = [];
 let tapTimer = null;
-let saveFailed = false;
+let saveStatus = null;
 
 const roundBpm = (bpm) => Number((Math.round(bpm / BPM_STEP) * BPM_STEP).toFixed(BPM_DECIMALS));
 const roundAnchor = (sec) => Number(sec.toFixed(ANCHOR_DECIMALS));
@@ -118,31 +132,58 @@ async function refreshGrid(forJob) {
 // Keyed by song, so a switch mid-save neither drops one song's edits nor sends them to the
 // next. Once the page is closing, its close request sends what is left, grid edits included.
 async function sendUnconfirmedFields(forJob) {
+  lostFieldsJobs.delete(forJob);
   await flushBeatGrid();
-  let failed = false;
+  let outcome = SAVED;
   let entry;
-  while (!isPageClosing() && (entry = queuedFieldsByJob.get(forJob))) {
+  while (outcome !== SAVE_LOST && !isPageClosing() && (entry = queuedFieldsByJob.get(forJob))) {
     queuedFieldsByJob.delete(forJob);
     sendingFieldsByJob.set(forJob, entry);
-    failed = !(await sendFields(forJob, entry));
+    outcome = await sendFields(forJob, entry);
   }
   savesInFlight.delete(forJob);
-  if (forJob !== jobId || isPageClosing()) return;
-  saveFailed = failed;
-  await refreshGrid(forJob);
+  if (isPageClosing()) return;
+  await reportOutcome(forJob, outcome);
 }
 
-/** True when the server took the save. One the closing page cut off stays for its close request. */
+/** How the server took the save. One the closing page cut off stays for its close request. */
 async function sendFields(forJob, entry) {
   try {
     await saveBeatGridTempo(forJob, entry.fields);
     sendingFieldsByJob.delete(forJob);
-    return true;
+    clearSaveFailure(SAVE_KIND.tempo, forJob);
+    return SAVED;
   } catch (e) {
     console.warn("[tempoTools] could not save the tempo:", e);
-    if (!wasCutOffByPageClose(e)) sendingFieldsByJob.delete(forJob);
-    return false;
+    if (wasCutOffByPageClose(e)) return CUT_OFF;
+    sendingFieldsByJob.delete(forJob);
+    if (e instanceof SaveRefusedError) return SAVE_REFUSED;
+    queuedFieldsByJob.set(forJob, mergeUnconfirmedEntries(entry, queuedFieldsByJob.get(forJob)));
+    return SAVE_LOST;
   }
+}
+
+// A lost save keeps showing its edit; any other answer shows the server's grid.
+async function reportOutcome(forJob, outcome) {
+  if (outcome === SAVE_LOST) lostFieldsJobs.add(forJob);
+  if (outcome === SAVE_LOST || outcome === SAVE_REFUSED) notifySaveFailure(SAVE_KIND.tempo, outcome, forJob);
+  if (forJob !== jobId) return;
+  saveStatus = outcome === SAVED ? null : outcome;
+  if (outcome === SAVE_LOST) render();
+  else await refreshGrid(forJob);
+}
+
+function retryLostFields() {
+  for (const forJob of lostFieldsJobs) {
+    if (!savesInFlight.has(forJob)) savesInFlight.set(forJob, sendUnconfirmedFields(forJob));
+  }
+}
+
+/** The server's tempo, with a song's unsent edits over it while they wait to go again. */
+function shownTempo(forJob, serverTempo) {
+  const unsent = lostFieldsJobs.has(forJob) && queuedFieldsByJob.get(forJob);
+  if (!serverTempo) return null;
+  return unsent ? withFields(serverTempo, unsent.fields) : serverTempo;
 }
 
 const mergeUnconfirmedEntries = (earlier, later) => ({
@@ -183,11 +224,11 @@ export function setTempoGrid(nextJobId, nextGrid) {
   if (nextJobId !== jobId) {
     commitPendingTaps();
     taps = [];
-    saveFailed = false;
+    saveStatus = lostFieldsJobs.has(nextJobId) ? SAVE_LOST : null;
   }
   jobId = nextGrid ? nextJobId : null;
   grid = nextGrid ?? null;
-  tempo = nextGrid?.tempo ?? null;
+  tempo = shownTempo(nextJobId, nextGrid?.tempo);
   renderAccentState();
   render();
   announce();
@@ -372,8 +413,8 @@ function render() {
   }
 
   const status = $("tempoStatus");
-  status.textContent = saveFailed ? t("tempo.saveFailed") : "";
-  status.hidden = !saveFailed;
+  status.textContent = saveStatus ? t(STATUS_KEYS[saveStatus]) : "";
+  status.hidden = !saveStatus;
 }
 
 function onLanguageSwitch() {
@@ -415,6 +456,7 @@ export function initTempoTools() {
   $("tempoReset").addEventListener("click", onResetClick);
   document.addEventListener("beatgridsave", onBeatGridSave);
   document.addEventListener("trackopen", render);
+  onConnectionRestored(retryLostFields);
   onLanguageChange(onLanguageSwitch);
   onLanguageSwitch();
 }

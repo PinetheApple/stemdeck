@@ -1258,6 +1258,18 @@ const en = {
   "about.data.models": "Model files download once, at desktop setup or on first use, sending only your IP.",
   "notif.favoriteSaveFailed": "Could not save the favorite. Try again.",
   "job.reimportBusy": "This song is still importing. Try again when it finishes.",
+  "notifKind.sectionsSaveFailed": "Sections not saved",
+  "notifKind.beatGridSaveFailed": "Beat grid not saved",
+  "notifKind.tempoSaveFailed": "Tempo not saved",
+  "notif.sectionsSaveFailed": "Section changes weren't saved.",
+  "notif.sectionsSavePending": "Section changes aren't saved yet. They'll save when StemDeck reconnects.",
+  "notif.beatGridSaveFailed": "Beat grid changes weren't saved.",
+  "notif.beatGridSavePending": "Beat grid changes aren't saved yet. They'll save when StemDeck reconnects.",
+  "notif.beatGridResetFailed": "The beat grid wasn't reset. Try again.",
+  "notif.tempoSaveFailed": "The tempo change wasn't saved.",
+  "notif.tempoSavePending": "The tempo change isn't saved yet. It'll save when StemDeck reconnects.",
+  "sections.notSaved": "Not saved",
+  "tempo.savePending": "Not saved yet",
 };
 
 const pl = {
@@ -2292,6 +2304,18 @@ const pl = {
   "about.data.models": "Pliki modeli pobierają się raz, przy konfiguracji aplikacji desktopowej lub przy pierwszym użyciu, wysyłając tylko Twój adres IP.",
   "notif.favoriteSaveFailed": "Nie udało się zapisać ulubionego. Spróbuj ponownie.",
   "job.reimportBusy": "Ten utwór wciąż się importuje. Spróbuj ponownie, gdy się skończy.",
+  "notifKind.sectionsSaveFailed": "Nie zapisano sekcji",
+  "notifKind.beatGridSaveFailed": "Nie zapisano siatki",
+  "notifKind.tempoSaveFailed": "Nie zapisano tempa",
+  "notif.sectionsSaveFailed": "Nie zapisano zmian w sekcjach.",
+  "notif.sectionsSavePending": "Zmiany w sekcjach nie są jeszcze zapisane. Zapiszą się po ponownym połączeniu ze StemDeck.",
+  "notif.beatGridSaveFailed": "Nie zapisano zmian w siatce.",
+  "notif.beatGridSavePending": "Zmiany w siatce nie są jeszcze zapisane. Zapiszą się po ponownym połączeniu ze StemDeck.",
+  "notif.beatGridResetFailed": "Nie zresetowano siatki. Spróbuj ponownie.",
+  "notif.tempoSaveFailed": "Nie zapisano zmiany tempa.",
+  "notif.tempoSavePending": "Zmiana tempa nie jest jeszcze zapisana. Zapisze się po ponownym połączeniu ze StemDeck.",
+  "sections.notSaved": "Nie zapisano",
+  "tempo.savePending": "Jeszcze nie zapisano",
 };
 
 const ja = {
@@ -3299,6 +3323,18 @@ const ja = {
   "about.data.models": "モデルファイルはデスクトップ版のセットアップ時か初回使用時に一度だけダウンロードされ、送られるのは IP アドレスだけです。",
   "notif.favoriteSaveFailed": "お気に入りを保存できませんでした。もう一度お試しください。",
   "job.reimportBusy": "この曲はまだ取り込み中です。完了してからもう一度お試しください。",
+  "notifKind.sectionsSaveFailed": "セクションを保存できませんでした",
+  "notifKind.beatGridSaveFailed": "グリッドを保存できませんでした",
+  "notifKind.tempoSaveFailed": "テンポを保存できませんでした",
+  "notif.sectionsSaveFailed": "セクションの変更を保存できませんでした。",
+  "notif.sectionsSavePending": "セクションの変更はまだ保存されていません。StemDeck に再接続すると保存されます。",
+  "notif.beatGridSaveFailed": "グリッドの変更を保存できませんでした。",
+  "notif.beatGridSavePending": "グリッドの変更はまだ保存されていません。StemDeck に再接続すると保存されます。",
+  "notif.beatGridResetFailed": "グリッドをリセットできませんでした。もう一度お試しください。",
+  "notif.tempoSaveFailed": "テンポの変更を保存できませんでした。",
+  "notif.tempoSavePending": "テンポの変更はまだ保存されていません。StemDeck に再接続すると保存されます。",
+  "sections.notSaved": "未保存",
+  "tempo.savePending": "まだ保存されていません",
 };
 
 const zhHans = {
@@ -4306,6 +4342,18 @@ const zhHans = {
   "about.data.models": "模型文件只下载一次，在桌面版设置时或首次使用时，只发送你的 IP 地址。",
   "notif.favoriteSaveFailed": "无法保存收藏，请重试。",
   "job.reimportBusy": "这首歌仍在导入中，请在完成后重试。",
+  "notifKind.sectionsSaveFailed": "段落未保存",
+  "notifKind.beatGridSaveFailed": "网格未保存",
+  "notifKind.tempoSaveFailed": "速度未保存",
+  "notif.sectionsSaveFailed": "段落更改未保存。",
+  "notif.sectionsSavePending": "段落更改尚未保存，StemDeck 重新连接后会自动保存。",
+  "notif.beatGridSaveFailed": "网格更改未保存。",
+  "notif.beatGridSavePending": "网格更改尚未保存，StemDeck 重新连接后会自动保存。",
+  "notif.beatGridResetFailed": "网格未能重置，请重试。",
+  "notif.tempoSaveFailed": "速度更改未保存。",
+  "notif.tempoSavePending": "速度更改尚未保存，StemDeck 重新连接后会自动保存。",
+  "sections.notSaved": "未保存",
+  "tempo.savePending": "尚未保存",
 };
 
 const de = {
@@ -5325,6 +5373,18 @@ const de = {
   "about.data.models": "Modelldateien werden einmal geladen, beim Einrichten der Desktop-App oder bei der ersten Nutzung, und senden nur deine IP.",
   "notif.favoriteSaveFailed": "Der Favorit konnte nicht gespeichert werden. Versuche es noch einmal.",
   "job.reimportBusy": "Dieser Song wird noch importiert. Versuche es noch einmal, wenn er fertig ist.",
+  "notifKind.sectionsSaveFailed": "Abschnitte nicht gespeichert",
+  "notifKind.beatGridSaveFailed": "Raster nicht gespeichert",
+  "notifKind.tempoSaveFailed": "Tempo nicht gespeichert",
+  "notif.sectionsSaveFailed": "Die Änderungen an den Abschnitten wurden nicht gespeichert.",
+  "notif.sectionsSavePending": "Die Änderungen an den Abschnitten sind noch nicht gespeichert. Sie werden gespeichert, sobald StemDeck wieder verbunden ist.",
+  "notif.beatGridSaveFailed": "Die Änderungen am Raster wurden nicht gespeichert.",
+  "notif.beatGridSavePending": "Die Änderungen am Raster sind noch nicht gespeichert. Sie werden gespeichert, sobald StemDeck wieder verbunden ist.",
+  "notif.beatGridResetFailed": "Das Raster wurde nicht zurückgesetzt. Versuche es erneut.",
+  "notif.tempoSaveFailed": "Die Tempoänderung wurde nicht gespeichert.",
+  "notif.tempoSavePending": "Die Tempoänderung ist noch nicht gespeichert. Sie wird gespeichert, sobald StemDeck wieder verbunden ist.",
+  "sections.notSaved": "Nicht gespeichert",
+  "tempo.savePending": "Noch nicht gespeichert",
 };
 
 const pt = {
@@ -6346,6 +6406,18 @@ const pt = {
   "about.data.models": "Os arquivos de modelo são baixados uma vez, na configuração do app para desktop ou no primeiro uso, enviando só seu IP.",
   "notif.favoriteSaveFailed": "Não foi possível salvar o favorito. Tente de novo.",
   "job.reimportBusy": "Esta música ainda está sendo importada. Tente de novo quando terminar.",
+  "notifKind.sectionsSaveFailed": "Seções não salvas",
+  "notifKind.beatGridSaveFailed": "Grade não salva",
+  "notifKind.tempoSaveFailed": "Andamento não salvo",
+  "notif.sectionsSaveFailed": "As alterações nas seções não foram salvas.",
+  "notif.sectionsSavePending": "As alterações nas seções ainda não foram salvas. Elas serão salvas quando o StemDeck se reconectar.",
+  "notif.beatGridSaveFailed": "As alterações na grade não foram salvas.",
+  "notif.beatGridSavePending": "As alterações na grade ainda não foram salvas. Elas serão salvas quando o StemDeck se reconectar.",
+  "notif.beatGridResetFailed": "A grade não foi redefinida. Tente de novo.",
+  "notif.tempoSaveFailed": "A alteração de andamento não foi salva.",
+  "notif.tempoSavePending": "A alteração de andamento ainda não foi salva. Ela será salva quando o StemDeck se reconectar.",
+  "sections.notSaved": "Não salvo",
+  "tempo.savePending": "Ainda não salvo",
 };
 
 const id = {
@@ -7353,6 +7425,18 @@ const id = {
   "about.data.models": "Berkas model diunduh sekali, saat penyiapan aplikasi desktop atau pemakaian pertama, dengan hanya mengirim IP Anda.",
   "notif.favoriteSaveFailed": "Favorit tidak dapat disimpan. Coba lagi.",
   "job.reimportBusy": "Lagu ini masih diimpor. Coba lagi setelah selesai.",
+  "notifKind.sectionsSaveFailed": "Bagian tidak tersimpan",
+  "notifKind.beatGridSaveFailed": "Grid tidak tersimpan",
+  "notifKind.tempoSaveFailed": "Tempo tidak tersimpan",
+  "notif.sectionsSaveFailed": "Perubahan bagian tidak tersimpan.",
+  "notif.sectionsSavePending": "Perubahan bagian belum tersimpan. Akan tersimpan saat StemDeck terhubung kembali.",
+  "notif.beatGridSaveFailed": "Perubahan grid tidak tersimpan.",
+  "notif.beatGridSavePending": "Perubahan grid belum tersimpan. Akan tersimpan saat StemDeck terhubung kembali.",
+  "notif.beatGridResetFailed": "Grid tidak dapat direset. Coba lagi.",
+  "notif.tempoSaveFailed": "Perubahan tempo tidak tersimpan.",
+  "notif.tempoSavePending": "Perubahan tempo belum tersimpan. Akan tersimpan saat StemDeck terhubung kembali.",
+  "sections.notSaved": "Tidak tersimpan",
+  "tempo.savePending": "Belum tersimpan",
 };
 
 const fr = {
@@ -8374,6 +8458,18 @@ const fr = {
   "about.data.models": "Les fichiers de modèle se téléchargent une fois, à l'installation de l'application de bureau ou à la première utilisation, en n'envoyant que votre IP.",
   "notif.favoriteSaveFailed": "Impossible d'enregistrer le favori. Réessayez.",
   "job.reimportBusy": "Ce morceau est encore en cours d'importation. Réessayez quand il sera terminé.",
+  "notifKind.sectionsSaveFailed": "Sections non enregistrées",
+  "notifKind.beatGridSaveFailed": "Grille non enregistrée",
+  "notifKind.tempoSaveFailed": "Tempo non enregistré",
+  "notif.sectionsSaveFailed": "Les modifications des sections n'ont pas été enregistrées.",
+  "notif.sectionsSavePending": "Les modifications des sections ne sont pas encore enregistrées. Elles le seront quand StemDeck sera reconnecté.",
+  "notif.beatGridSaveFailed": "Les modifications de la grille n'ont pas été enregistrées.",
+  "notif.beatGridSavePending": "Les modifications de la grille ne sont pas encore enregistrées. Elles le seront quand StemDeck sera reconnecté.",
+  "notif.beatGridResetFailed": "La grille n'a pas été réinitialisée. Réessayez.",
+  "notif.tempoSaveFailed": "La modification du tempo n'a pas été enregistrée.",
+  "notif.tempoSavePending": "La modification du tempo n'est pas encore enregistrée. Elle le sera quand StemDeck sera reconnecté.",
+  "sections.notSaved": "Non enregistré",
+  "tempo.savePending": "Pas encore enregistré",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -8596,6 +8692,18 @@ const ptPT = {
   "about.data.summary": "Para onde vão os seus dados",
   "notif.favoriteSaveFailed": "Não foi possível guardar o favorito. Tente novamente.",
   "job.reimportBusy": "Esta música ainda está a ser importada. Tente novamente quando terminar.",
+  "notifKind.sectionsSaveFailed": "Seções não guardadas",
+  "notifKind.beatGridSaveFailed": "Grade não guardada",
+  "notifKind.tempoSaveFailed": "Andamento não guardado",
+  "notif.sectionsSaveFailed": "As alterações nas seções não foram guardadas.",
+  "notif.sectionsSavePending": "As alterações nas seções ainda não foram guardadas. Serão guardadas quando o StemDeck voltar a ligar-se.",
+  "notif.beatGridSaveFailed": "As alterações na grade não foram guardadas.",
+  "notif.beatGridSavePending": "As alterações na grade ainda não foram guardadas. Serão guardadas quando o StemDeck voltar a ligar-se.",
+  "notif.beatGridResetFailed": "A grade não foi reposta. Tente novamente.",
+  "notif.tempoSaveFailed": "A alteração de andamento não foi guardada.",
+  "notif.tempoSavePending": "A alteração de andamento ainda não foi guardada. Será guardada quando o StemDeck voltar a ligar-se.",
+  "sections.notSaved": "Não guardado",
+  "tempo.savePending": "Ainda não guardado",
 };
 
 const es = {
@@ -9629,6 +9737,18 @@ const es = {
   "about.data.models": "Los archivos de modelo se descargan una vez, al configurar la app de escritorio o en el primer uso, y solo envían tu IP.",
   "notif.favoriteSaveFailed": "No se pudo guardar el favorito. Inténtalo de nuevo.",
   "job.reimportBusy": "Esta canción todavía se está importando. Inténtalo de nuevo cuando termine.",
+  "notifKind.sectionsSaveFailed": "Secciones no guardadas",
+  "notifKind.beatGridSaveFailed": "Cuadrícula no guardada",
+  "notifKind.tempoSaveFailed": "Tempo no guardado",
+  "notif.sectionsSaveFailed": "Los cambios en las secciones no se guardaron.",
+  "notif.sectionsSavePending": "Los cambios en las secciones aún no se han guardado. Se guardarán cuando StemDeck se vuelva a conectar.",
+  "notif.beatGridSaveFailed": "Los cambios en la cuadrícula no se guardaron.",
+  "notif.beatGridSavePending": "Los cambios en la cuadrícula aún no se han guardado. Se guardarán cuando StemDeck se vuelva a conectar.",
+  "notif.beatGridResetFailed": "No se pudo restablecer la cuadrícula. Inténtalo de nuevo.",
+  "notif.tempoSaveFailed": "El cambio de tempo no se guardó.",
+  "notif.tempoSavePending": "El cambio de tempo aún no se ha guardado. Se guardará cuando StemDeck se vuelva a conectar.",
+  "sections.notSaved": "No guardado",
+  "tempo.savePending": "Aún no guardado",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -10645,6 +10765,18 @@ const ko = {
   "about.data.models": "모델 파일은 데스크톱 앱 설정 때나 처음 사용할 때 한 번 내려받으며, IP만 전송돼요.",
   "notif.favoriteSaveFailed": "즐겨찾기를 저장하지 못했어요. 다시 시도해 주세요.",
   "job.reimportBusy": "이 곡은 아직 가져오는 중이에요. 끝나면 다시 시도해 주세요.",
+  "notifKind.sectionsSaveFailed": "구간을 저장하지 못했어요",
+  "notifKind.beatGridSaveFailed": "그리드를 저장하지 못했어요",
+  "notifKind.tempoSaveFailed": "템포를 저장하지 못했어요",
+  "notif.sectionsSaveFailed": "구간 변경 사항을 저장하지 못했어요.",
+  "notif.sectionsSavePending": "구간 변경 사항이 아직 저장되지 않았어요. StemDeck에 다시 연결되면 저장돼요.",
+  "notif.beatGridSaveFailed": "그리드 변경 사항을 저장하지 못했어요.",
+  "notif.beatGridSavePending": "그리드 변경 사항이 아직 저장되지 않았어요. StemDeck에 다시 연결되면 저장돼요.",
+  "notif.beatGridResetFailed": "그리드를 초기화하지 못했어요. 다시 시도해 주세요.",
+  "notif.tempoSaveFailed": "템포 변경 사항을 저장하지 못했어요.",
+  "notif.tempoSavePending": "템포 변경 사항이 아직 저장되지 않았어요. StemDeck에 다시 연결되면 저장돼요.",
+  "sections.notSaved": "저장 안 됨",
+  "tempo.savePending": "아직 저장 안 됨",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };

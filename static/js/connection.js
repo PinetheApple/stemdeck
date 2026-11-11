@@ -6,6 +6,8 @@ export const PROBE_INTERVAL_MS = 3000;
 export const HEALTH_URL = "/api/health";
 const API_PREFIX = "/api/";
 const INDICATOR_ID = "connStatus";
+/** Dispatched on document when the server answers again after requests went unanswered. */
+export const CONNECTION_RESTORED_EVENT = "connectionrestored";
 
 /** Whether a fetch input is one of this app's own API requests. */
 export function isApiRequest(input, origin) {
@@ -26,7 +28,7 @@ const isAbort = (error) => error?.name === "AbortError";
  * one it probes HEALTH_URL until something answers, so both going offline and
  * coming back are noticed without the user having to act.
  */
-export function createConnectionMonitor({ baseFetch, origin, onChange, schedule }) {
+export function createConnectionMonitor({ baseFetch, origin, onChange, onRestored, schedule }) {
   let failures = 0;
   let offline = false;
   let probeScheduled = false;
@@ -38,8 +40,10 @@ export function createConnectionMonitor({ baseFetch, origin, onChange, schedule 
   }
 
   function recordAnswer() {
+    const restored = failures > 0;
     failures = 0;
     setOffline(false);
+    if (restored) onRestored();
   }
 
   function recordFailure(error) {
@@ -77,6 +81,10 @@ function showConnectionState(offline) {
   document.getElementById(INDICATOR_ID)?.classList.toggle("hidden", !offline);
 }
 
+function announceRestored() {
+  document.dispatchEvent(new CustomEvent(CONNECTION_RESTORED_EVENT));
+}
+
 function scheduleOnWindow(fn, ms) {
   window.setTimeout(fn, ms);
 }
@@ -87,6 +95,7 @@ export function initConnection() {
     baseFetch: window.fetch.bind(window),
     origin: window.location.origin,
     onChange: showConnectionState,
+    onRestored: announceRestored,
     schedule: scheduleOnWindow,
   });
   window.fetch = monitor.fetch;
