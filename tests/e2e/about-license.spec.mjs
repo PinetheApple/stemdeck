@@ -1,9 +1,3 @@
-// The About box states StemDeck's own license and links to its source.
-//
-// StemDeck is AGPL-3.0-only and its server version is used over a network, so
-// the About box is where a user finds the source (AGPL section 13). The link
-// goes to this fork, since a modified version offers its own source.
-
 import { test, expect } from "@playwright/test";
 import { openStudio } from "./helpers.mjs";
 
