@@ -1,7 +1,16 @@
 // Up Next: library track ids to play after the open song, kept in the store.
 // catalog.js queues songs via "upnext:add"; player.js reports "trackended" and "playbackready".
 
-import { getCurrentTrackInfo, getLibraryTrack, loadTrackIntoStudio, displayTitle, libraryTitle } from "./catalog.js";
+import {
+  TRASH_CHANGE_EVENT,
+  getCurrentTrackInfo,
+  getLibraryTrack,
+  isInTrash,
+  isPlayableTrack,
+  loadTrackIntoStudio,
+  displayTitle,
+  libraryTitle,
+} from "./catalog.js";
 import { togglePlayPause, stopTransport, transport } from "./transport.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $, fmtTime, storeGet, storeSet } from "./utils.js";
@@ -26,7 +35,15 @@ function persist() {
 
 /** Songs that left the library since they were queued are dropped quietly. */
 function playableQueue() {
-  return queue.filter((id) => getLibraryTrack(id)?.status === "done");
+  return queue.filter(isPlayableTrack);
+}
+
+/** A trashed song leaves Up Next for good: restoring it does not queue it again. */
+function dropTrashedSongs() {
+  const kept = queue.filter((id) => !isInTrash(id));
+  if (kept.length === queue.length) return;
+  queue = kept;
+  persist();
 }
 
 function addToUpNext(trackId) {
@@ -62,13 +79,13 @@ async function playFromUpNext(trackId) {
 /** The open song, when it can be played, then what is queued after it. */
 export function getNowAndUpNextIds() {
   const current = getCurrentTrackInfo()?.id;
-  const now = getLibraryTrack(current)?.status === "done" ? [current] : [];
+  const now = isPlayableTrack(current) ? [current] : [];
   return [...new Set([...now, ...playableQueue()])];
 }
 
 /** Open the first playable song and start it, with the rest as Up Next. */
 export async function playSongs(trackIds) {
-  const [first, ...rest] = trackIds.filter((id) => getLibraryTrack(id)?.status === "done");
+  const [first, ...rest] = trackIds.filter(isPlayableTrack);
   if (!first) return false;
   queue = rest;
   persist();
@@ -179,6 +196,9 @@ function renderNowPlaying() {
 }
 
 export function renderUpNext() {
+  // Here rather than only on a trash: the stored list can arrive before the
+  // library, and is checked again once it has loaded.
+  dropTrashedSongs();
   const ids = playableQueue();
   const list = $("upNextList");
   if (list) {
@@ -241,6 +261,7 @@ export function initUpNext() {
   document.addEventListener("playbackready", onPlaybackReady);
   document.addEventListener("trackopen", renderUpNext);
   document.addEventListener("tracknames", renderUpNext);
+  document.addEventListener(TRASH_CHANGE_EVENT, renderUpNext);
   onLanguageChange(renderUpNext);
   renderUpNext();
   restoreQueue().catch(console.error);

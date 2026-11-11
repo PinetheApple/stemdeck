@@ -82,6 +82,8 @@ const ESCAPE_KEY = "Escape";
 // ─── Persistence ───
 
 const TRASH_ID = "trash";
+/** Fired on document with { ids } when songs go into or come out of the Trash. */
+export const TRASH_CHANGE_EVENT = "tracktrash";
 // The default landing folder for unorganized tracks — protected from deletion.
 const UNSORTED_ID = "f-unsorted";
 const PROCESSING_STATUSES = new Set(["queued", "downloading", "analyzing", "separating", "processing"]);
@@ -419,6 +421,20 @@ export function addTrackToLibrary({ replaces, ...track }) {
 /** A library track by id, or null. Read-only: the store is this module's. */
 export function getLibraryTrack(trackId) {
   return tracks[trackId] ?? null;
+}
+
+export function isInTrash(trackId) {
+  return Boolean(folders.find((f) => f.id === TRASH_ID)?.items.includes(trackId));
+}
+
+/** Finished and out of the Trash: what Up Next and setlists may play. */
+export function isPlayableTrack(trackId) {
+  return tracks[trackId]?.status === "done" && !isInTrash(trackId);
+}
+
+/** Songs went into or came out of the Trash, so what can be played has changed. */
+function announceTrashChange(ids) {
+  document.dispatchEvent(new CustomEvent(TRASH_CHANGE_EVENT, { detail: { ids } }));
 }
 
 /** The library track an import of `url` would replace, or null. See soleSourceMatch. */
@@ -1204,7 +1220,7 @@ function moveTrackToTrash(trackId) {
 
 /** moveTrackToTrash without the save and repaint, for binning several at once. */
 function binTrack(trackId) {
-  putInTrash(trackId);
+  putInTrash([trackId]);
   // The server stops a job that is still importing when it is trashed, its
   // files kept. Ask for the queue again so the row goes now, not on the next frame.
   const wasInQueue = currentIds(getQueueSnapshot()).has(trackId);
@@ -1213,16 +1229,19 @@ function binTrack(trackId) {
   });
 }
 
-/** Move a track into the Trash here only. An import it was replacing is given up. */
-function putInTrash(trackId) {
-  reinstateReplaced(trackId);
-  removeTrackFromFolders(trackId);
+/** Move tracks into the Trash here only. An import one was replacing is given up. */
+function putInTrash(ids) {
   const trash = getTrashFolder();
-  if (!trash.items.includes(trackId)) trash.items.unshift(trackId);
-  if (_currentTrackId === trackId) _currentTrackId = null;
-  // The user is done with it; purgeTrash() repeats this for a job that errors
-  // once trashed.
-  dismissFailuresByJobId(trackId);
+  for (const trackId of ids) {
+    reinstateReplaced(trackId);
+    removeTrackFromFolders(trackId);
+    if (!trash.items.includes(trackId)) trash.items.unshift(trackId);
+    if (_currentTrackId === trackId) _currentTrackId = null;
+    // The user is done with it; purgeTrash() repeats this for a job that errors
+    // once trashed.
+    dismissFailuresByJobId(trackId);
+  }
+  if (ids.length) announceTrashChange(ids);
 }
 
 function setCatalogView(view) {
@@ -1887,6 +1906,7 @@ function takeOutOfTrash(ids) {
     _trashSelection.delete(id);
     if (!target.items.includes(id)) target.items.push(id);
   }
+  if (ids.length) announceTrashChange(ids);
 }
 
 /** The rows a gesture on this one acts on: the whole selection when the row
@@ -3936,7 +3956,7 @@ function followServerTrash(jobs, skipIds) {
     skipIds,
   });
   if (!toTrash.length && !toRestore.length) return;
-  toTrash.forEach(putInTrash);
+  putInTrash(toTrash);
   takeOutOfTrash(toRestore);
   saveState();
   render();
@@ -3959,7 +3979,7 @@ function adoptServerJob(state) {
     return;
   }
   tracks[track.id] = { ...track, createdAt: track.createdAt ?? Date.now() / 1000, favorite: Boolean(track.favorite) };
-  putInTrash(track.id);
+  putInTrash([track.id]);
   saveState();
   render();
 }
