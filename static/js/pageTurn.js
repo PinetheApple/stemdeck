@@ -15,11 +15,11 @@ export function isPlayheadInView({ scrollLeft, viewportWidth, playheadX }) {
 }
 
 /** The scrollLeft that turns the page to the playhead, or null to leave the view alone. */
-export function pageTurnTarget({ scrollLeft, viewportWidth, contentWidth, playheadX }) {
+export function pageTurnTarget({ scrollLeft, viewportWidth, contentWidth, playheadX }, turnAt = TURN_AT) {
   const maxScroll = contentWidth - viewportWidth;
   if (!(viewportWidth > 0) || maxScroll <= 0) return null;
   const x = playheadX - scrollLeft;
-  if (x >= 0 && x <= viewportWidth * TURN_AT) return null;
+  if (x >= 0 && x <= viewportWidth * turnAt) return null;
   const target = Math.max(0, Math.min(maxScroll, playheadX - viewportWidth * LAND_AT));
   return Math.abs(target - scrollLeft) < SAME_SCROLL_PX ? null : target;
 }
@@ -35,9 +35,21 @@ export function isUserScroll({ knownScrollLeft, scrollLeft, sinceIntentMs, point
   return pointerHeld || sinceIntentMs <= USER_INTENT_MS;
 }
 
-/** A manual scroll pauses following until the playhead is back in view, or a seek or Play (`resumed`). */
-export function followStep({ enabled, paused, resumed }, view) {
-  if (!enabled) return { paused, target: null };
-  if (paused && !resumed && !isPlayheadInView(view)) return { paused: true, target: null };
-  return { paused: false, target: pageTurnTarget(view) };
+function isPastTurnPoint({ scrollLeft, viewportWidth, playheadX }) {
+  return playheadX - scrollLeft >= viewportWidth * TURN_AT;
+}
+
+/**
+ * A manual scroll pauses following until the playhead is back in view, or a seek or Play (`resumed`).
+ * Back in view past the turn point, it waits for the right edge (`holdToEdge`) rather than pull the view away.
+ */
+export function followStep({ enabled, paused, resumed, holdToEdge = false }, view) {
+  if (!enabled) return { paused, holdToEdge, target: null };
+  let hold = holdToEdge && !resumed;
+  if (paused && !resumed) {
+    if (!isPlayheadInView(view)) return { paused: true, holdToEdge, target: null };
+    hold = isPastTurnPoint(view);
+  }
+  const target = pageTurnTarget(view, hold ? 1 : TURN_AT);
+  return { paused: false, holdToEdge: hold && target === null, target };
 }

@@ -5,9 +5,9 @@ import { openStudio, SIBLING_JOB_ID } from "./helpers.mjs";
 // seed.py writes a 6 second fixture; at 10x a page holds well under a second.
 const ZOOM_IN_NOTCHES = 40;
 const NOTCH_DELTA = -240;
-// transport.js: WAVE_ZOOM_STEP per notch, capped at WAVE_ZOOM_MAX.
+// transport.js: WAVE_ZOOM_STEP per notch.
 const NOTCH_FACTOR = 1.18;
-const MAX_ZOOM = 10;
+const CENTRE_ANCHOR = 0.5;
 const ZOOM_SLACK = 0.9;
 const WATCH_MS = 1500;
 // A page turn moves the view by most of a page; anything smaller is jitter.
@@ -21,15 +21,16 @@ const PARTIAL_ZOOM_NOTCHES = 4;
 const FAR_LEFT_ANCHOR = 0.05;
 const MID_PAGE = 0.4;
 
-async function zoomIn(page, { notches = ZOOM_IN_NOTCHES, anchor = 0.5 } = {}) {
+async function zoomIn(page, { notches = ZOOM_IN_NOTCHES, anchor = CENTRE_ANCHOR } = {}) {
   await expect(page.locator("#waveLoadingOverlay")).toBeHidden();
   const box = await page.locator(".wave-scroll").boundingBox();
   await page.mouse.move(box.x + box.width * anchor, box.y + box.height / 2);
   for (let i = 0; i < notches; i++) await page.mouse.wheel(0, NOTCH_DELTA);
-  await expect.poll(() => page.evaluate(() => {
+  await expect.poll(() => page.evaluate(async (factor) => {
+    const { WAVE_ZOOM_MAX } = await import("/js/transport.js");
     const wave = document.getElementById("wave-scroll");
-    return wave.scrollWidth / wave.clientWidth;
-  })).toBeGreaterThan(Math.min(MAX_ZOOM, NOTCH_FACTOR ** notches) * ZOOM_SLACK);
+    return wave.scrollWidth / wave.clientWidth / Math.min(WAVE_ZOOM_MAX, factor);
+  }, NOTCH_FACTOR ** notches)).toBeGreaterThan(ZOOM_SLACK);
 }
 
 // Where the drawn playhead sits in the visible part of the timeline, from the
@@ -106,11 +107,12 @@ test.describe("auto-scroll", () => {
     await expect.poll(() => playheadInView(page)).toBe(true);
 
     await expect.poll(async () => (await readView(page)).fraction).toBeGreaterThan(MID_PAGE);
-    // One jump, as a wheel burst lands between ticks in steps small enough to follow anyway.
-    await page.evaluate(async ({ anchor, zoom }) => {
+    // One jump: a wheel burst zooms in steps small enough to follow anyway.
+    await page.evaluate(async (anchor) => {
       const wave = document.getElementById("wave-scroll").getBoundingClientRect();
-      (await import("/js/transport.js")).setWaveZoomLevel(zoom, wave.left + wave.width * anchor);
-    }, { anchor: FAR_LEFT_ANCHOR, zoom: MAX_ZOOM });
+      const { setWaveZoomLevel, WAVE_ZOOM_MAX } = await import("/js/transport.js");
+      setWaveZoomLevel(WAVE_ZOOM_MAX, wave.left + wave.width * anchor);
+    }, FAR_LEFT_ANCHOR);
     await expect.poll(() => playheadInView(page)).toBe(true);
     const { frames } = await watchFrames(page, WATCH_MS);
     expect(frames.every((f) => f.inView)).toBe(true);

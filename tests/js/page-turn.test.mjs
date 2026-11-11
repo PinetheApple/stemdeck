@@ -77,8 +77,19 @@ check('paused: resumes once the playhead is back in view',
   followStep({ ...on, paused: true }, view(4000, 4100)).paused === false);
 check('paused: a seek or Play resumes and turns at once',
   followStep({ ...on, paused: true, resumed: true }, view(4000, 950)).target === 850);
-check('paused: back in view anywhere on the page resumes, edge included',
-  followStep({ ...on, paused: true }, view(4000, 4950)).paused === false);
+const resumedAt95 = followStep({ ...on, paused: true }, view(4000, 4950));
+check('paused: back in view at 95% resumes without pulling the view away',
+  resumedAt95.paused === false && resumedAt95.target === null && resumedAt95.holdToEdge === true);
+check('held: no turn while the playhead is still on the page',
+  followStep({ ...on, holdToEdge: true }, view(4000, 4990)).target === null);
+check('held: turns once the playhead leaves the right edge',
+  followStep({ ...on, holdToEdge: true }, view(4000, 5010)).target === 4910);
+const afterHeldTurn = followStep({ ...on, holdToEdge: true }, view(4000, 5010));
+check('after the held turn, turns go back to 90%',
+  afterHeldTurn.holdToEdge === false
+  && followStep({ ...on, holdToEdge: afterHeldTurn.holdToEdge }, view(4910, 4910 + 950)).target !== null);
+check('paused: back in view before the turn point resumes as normal',
+  followStep({ ...on, paused: true }, view(4000, 4500)).holdToEdge === false);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

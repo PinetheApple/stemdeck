@@ -6,6 +6,7 @@ const STORE_KEY = "stemdeck:auto-scroll";
 
 let enabled = true;
 let paused = false;
+let holdToEdge = false;
 let resumeRequested = false;
 let lastSec = 0;
 let knownScrollLeft = 0;
@@ -22,8 +23,6 @@ function readView(sec) {
   };
 }
 
-// Instant, because the scroller's CSS asks for smooth scrolling and a page
-// turn should land in one frame.
 function scrollTimelineTo(left) {
   waveScroll.scrollTo({ left, behavior: "instant" });
   knownScrollLeft = waveScroll.scrollLeft;
@@ -35,8 +34,9 @@ export function trackPlayhead(sec, seek = false) {
   const resumed = seek || resumeRequested || isBackwardJump(lastSec, sec);
   lastSec = sec;
   resumeRequested = false;
-  const step = followStep({ enabled, paused, resumed }, readView(sec));
+  const step = followStep({ enabled, paused, resumed, holdToEdge }, readView(sec));
   paused = step.paused;
+  holdToEdge = step.holdToEdge;
   if (step.target !== null) scrollTimelineTo(step.target);
 }
 
@@ -46,6 +46,7 @@ export function resumeFollowing() {
 
 export function resetFollowing() {
   paused = false;
+  holdToEdge = false;
   resumeRequested = false;
   lastSec = 0;
   knownScrollLeft = waveScroll?.scrollLeft ?? 0;
