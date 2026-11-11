@@ -8,6 +8,7 @@
 // already translates, and its text comes from the help.* keys in i18n.js.
 
 import { t } from "./i18n.js";
+import { clipsOverflow, hoverRect, inViewRect, isInView, isRendered, isWhollyShown } from "./helpGeometry.js";
 
 /** Lane controls name their instrument in the text ("Silences the Drums"). */
 const laneName = (el) => el.closest(".mx-row, .lane-header")?.querySelector(".mx-name")?.textContent.trim() || "";
@@ -128,11 +129,16 @@ let pillEl = null;
 let ringEl = null;
 let introEl = null;
 let introTimer = null;
+let introRings = [];
+let introFrame = 0;
+let dockObserver = null;
 // How long the glow on every explainable control lasts when Guide turns on.
 // daw.css reads it through --intro-ms, so the fade and the cleanup agree.
 const INTRO_MS = 1600;
 // A control taking more of the window than this is an area, not a place to point.
 const BIG_AREA_SHARE = 0.04;
+// Below this, a control is too small to keep its glyph clear under the full ring and halo.
+const TINY_CONTROL_PX = 16;
 let current = null;
 
 export function isHelpModeOn() {
@@ -144,59 +150,9 @@ function findEntry(target) {
   if (!(target instanceof Element)) return null;
   for (const [sel, key, nameOf, titleKey] of HELP) {
     const el = target.closest(sel);
-    if (el && isShown(el)) return { el, key, nameOf, titleKey };
+    if (el && isInView(el)) return { el, key, nameOf, titleKey };
   }
   return null;
-}
-
-function isRendered(el) {
-  const r = el.getBoundingClientRect();
-  return r.width > 0 && r.height > 0;
-}
-
-const SEEN_CHECK = { opacityProperty: true, visibilityProperty: true };
-// Fractional layout edges round to whole pixels when an outline is placed.
-const EDGE_SLACK_PX = 0.5;
-const EDGES = ["left", "top", "right", "bottom"];
-const clips = (overflow) => overflow !== "visible";
-
-/** The part of a control that the window and every scrolling or clipping panel around it leave in view. */
-function visibleRect(el) {
-  const r = el.getBoundingClientRect();
-  let left = Math.max(r.left, 0), top = Math.max(r.top, 0);
-  let right = Math.min(r.right, window.innerWidth), bottom = Math.min(r.bottom, window.innerHeight);
-  for (let panel = el.parentElement; panel && panel !== document.body; panel = panel.parentElement) {
-    const { overflowX, overflowY } = getComputedStyle(panel);
-    const p = panel.getBoundingClientRect();
-    if (clips(overflowX)) [left, right] = [Math.max(left, p.left), Math.min(right, p.right)];
-    if (clips(overflowY)) [top, bottom] = [Math.max(top, p.top), Math.min(bottom, p.bottom)];
-  }
-  return { left, top, right, bottom, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
-}
-
-/** Older WebKit (macOS 13's Safari 16, older WebKitGTK) has no checkVisibility. */
-function isSeeThrough(el) {
-  if (el.checkVisibility) return !el.checkVisibility(SEEN_CHECK);
-  if (getComputedStyle(el).visibility !== "visible") return true;
-  for (let node = el; node; node = node.parentElement) {
-    if (getComputedStyle(node).opacity === "0") return true;
-  }
-  return false;
-}
-
-/** Rendered, not see-through or hidden, and at least partly in view. */
-function isShown(el) {
-  if (isSeeThrough(el)) return false;
-  const r = visibleRect(el);
-  return r.width > 0 && r.height > 0;
-}
-
-/** Shown in full: nothing of it scrolled away or cut off by a panel. */
-function isWhollyShown(el) {
-  if (!isShown(el)) return false;
-  const full = el.getBoundingClientRect();
-  const seen = visibleRect(el);
-  return EDGES.every((edge) => Math.abs(full[edge] - seen[edge]) <= EDGE_SLACK_PX);
 }
 
 /** The control's own label, which the app already translates. Visible text
@@ -276,7 +232,7 @@ function show(entry) {
   entry.el.classList.add("help-current");
   fillTip(entry);
   tipEl.hidden = false;
-  const rect = visibleRect(entry.el);
+  const rect = hoverRect(entry.el);
   placeBox(ringEl, rect);
   ringEl.hidden = false;
   placeTip(rect);
@@ -310,24 +266,39 @@ function markTargets() {
 function playIntro() {
   stopIntro();
   const big = window.innerWidth * window.innerHeight * BIG_AREA_SHARE;
-  const outlined = [];
   for (const el of document.querySelectorAll(".help-target")) {
-    if (!isWhollyShown(el) || outlined.some((outer) => outer.contains(el))) continue;
+    if (!isWhollyShown(el) || introRings.some(({ el: outer }) => outer.contains(el))) continue;
     const r = el.getBoundingClientRect();
-    if (r.width * r.height > big) continue;
-    outlined.push(el);
-    const ring = document.createElement("div");
-    ring.className = "help-intro-ring";
-    placeBox(ring, r);
-    introEl.appendChild(ring);
+    if (r.width * r.height <= big) addIntroRing(el, r);
   }
   introEl.hidden = false;
   introTimer = setTimeout(stopIntro, INTRO_MS);
 }
 
+function addIntroRing(el, r) {
+  const ring = document.createElement("div");
+  ring.className = "help-intro-ring";
+  ring.classList.toggle("tiny", Math.min(r.width, r.height) < TINY_CONTROL_PX);
+  placeBox(ring, r);
+  introEl.appendChild(ring);
+  introRings.push({ el, ring });
+}
+
+/** After a scroll, each ring follows its control, and waits out of sight while the control is. */
+function followIntro() {
+  introFrame = 0;
+  for (const { el, ring } of introRings) {
+    ring.hidden = !isWhollyShown(el);
+    if (!ring.hidden) placeBox(ring, el.getBoundingClientRect());
+  }
+}
+
 function stopIntro() {
   clearTimeout(introTimer);
   introTimer = null;
+  cancelAnimationFrame(introFrame);
+  introFrame = 0;
+  introRings = [];
   if (!introEl) return;
   introEl.hidden = true;
   introEl.replaceChildren();
@@ -335,28 +306,51 @@ function stopIntro() {
 
 const TRACK_AREA = ".waves-column";
 const TRANSPORT = ".daw-footer";
-const DOCK_PROPS = ["--dock-centre", "--dock-bottom", "--dock-width"];
+const DOCK_CENTRE = "--dock-centre";
+const DOCK_BOTTOM = "--dock-bottom";
+const DOCK_WIDTH = "--dock-width";
+
+function setDock(prop, px) {
+  if (px === null) pillEl.style.removeProperty(prop);
+  else pillEl.style.setProperty(prop, `${Math.round(px)}px`);
+}
 
 /** Just above the transport and over the waveforms, where it covers no control. */
 function dockPill() {
-  const track = document.querySelector(TRACK_AREA);
   const transport = document.querySelector(TRANSPORT);
-  const area = track && transport && isShown(transport) ? visibleRect(track) : null;
-  if (!area || area.width === 0) {
-    for (const prop of DOCK_PROPS) pillEl.style.removeProperty(prop);
-    return;
-  }
-  const [centre, bottom, width] = DOCK_PROPS;
-  pillEl.style.setProperty(centre, `${Math.round(area.left + area.width / 2)}px`);
-  pillEl.style.setProperty(bottom, `${Math.round(window.innerHeight - transport.getBoundingClientRect().top)}px`);
-  pillEl.style.setProperty(width, `${Math.floor(area.width)}px`);
+  const track = document.querySelector(TRACK_AREA);
+  const docked = Boolean(transport) && isInView(transport);
+  const area = docked && track ? inViewRect(track) : null;
+  const overTrack = area !== null && area.width > 0;
+  setDock(DOCK_BOTTOM, docked ? window.innerHeight - transport.getBoundingClientRect().top : null);
+  setDock(DOCK_CENTRE, overTrack ? area.left + area.width / 2 : null);
+  setDock(DOCK_WIDTH, overTrack ? area.width : null);
 }
 
-/** Outlines drawn for the old layout would point at the wrong places. */
+/** The panel the waveforms scroll in: it, not the waveforms, changes size when the layout does. */
+function trackPanel(track) {
+  for (let panel = track.parentElement; panel && panel !== document.body; panel = panel.parentElement) {
+    if (clipsOverflow(getComputedStyle(panel).overflowX)) return panel;
+  }
+  return null;
+}
+
+/** Re-dock whenever the window, the transport or the waveforms' panel changes size. */
+function watchDock() {
+  const track = document.querySelector(TRACK_AREA);
+  const watched = [document.documentElement, document.querySelector(TRANSPORT), track, track && trackPanel(track)];
+  dockObserver = new ResizeObserver(dockPill);
+  for (const el of watched) if (el) dockObserver.observe(el);
+}
+
+function unwatchDock() {
+  dockObserver?.disconnect();
+  dockObserver = null;
+}
+
 function onViewportChange() {
   hide();
-  stopIntro();
-  dockPill();
+  if (introRings.length && !introFrame) introFrame = requestAnimationFrame(followIntro);
 }
 
 function onPointerOver(e) {
@@ -394,6 +388,17 @@ function onKey(e) {
 
 const PRESS_EVENTS = ["pointerdown", "mousedown", "click", "dblclick", "dragstart", "contextmenu"];
 
+/** Help mode's listeners, all on or all off together. */
+function listen(isOn) {
+  const method = isOn ? "addEventListener" : "removeEventListener";
+  document[method]("pointerover", onPointerOver, true);
+  for (const type of PRESS_EVENTS) document[method](type, swallow, true);
+  document[method]("keydown", onKey, true);
+  document[method]("focusin", onFocus, true);
+  window[method]("resize", onViewportChange);
+  document[method]("scroll", onViewportChange, true);
+}
+
 export function setHelpMode(next) {
   if (next === on) return;
   on = next;
@@ -402,25 +407,15 @@ export function setHelpMode(next) {
     pillEl.textContent = t("help.pill");
     pillEl.hidden = !on;
   }
-  const btn = document.getElementById("helpModeBtn");
-  btn?.setAttribute("aria-pressed", String(on));
+  document.getElementById("helpModeBtn")?.setAttribute("aria-pressed", String(on));
+  listen(on);
   if (on) {
-    document.addEventListener("pointerover", onPointerOver, true);
-    for (const type of PRESS_EVENTS) document.addEventListener(type, swallow, true);
-    document.addEventListener("keydown", onKey, true);
-    document.addEventListener("focusin", onFocus, true);
-    window.addEventListener("resize", onViewportChange);
-    document.addEventListener("scroll", onViewportChange, true);
     dockPill();
+    watchDock();
     markTargets();
     playIntro();
   } else {
-    document.removeEventListener("pointerover", onPointerOver, true);
-    for (const type of PRESS_EVENTS) document.removeEventListener(type, swallow, true);
-    document.removeEventListener("keydown", onKey, true);
-    document.removeEventListener("focusin", onFocus, true);
-    window.removeEventListener("resize", onViewportChange);
-    document.removeEventListener("scroll", onViewportChange, true);
+    unwatchDock();
     hide();
     stopIntro();
     markTargets();

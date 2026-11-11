@@ -5678,6 +5678,8 @@ input, textarea { font-family: inherit; }
 .help-intro { position: fixed; inset: 0; z-index: 9997; pointer-events: none; }
 /* A line of ink inside each ring keeps it apart from a coral control's own fill. */
 .help-ring, .help-intro-ring { --help-ring-halo: inset 0 0 0 2px var(--bg); }
+/* Set by helpMode.js on controls too small for the full ring (the key arrows). */
+.help-intro-ring.tiny { border-width: 1px; --help-ring-halo: 0 0 transparent; }
 .help-intro-ring {
   position: absolute;
   border: 2px solid var(--accent); border-radius: var(--radius-sm);
@@ -5695,14 +5697,15 @@ input, textarea { font-family: inherit; }
   .help-intro-ring { animation: none; opacity: 0.8; }
 }
 /* helpMode.js docks the pill over the waveforms, just above the transport,
-   through the --dock-* properties; without them it sits at the window's foot. */
+   through the --dock-* properties. With no waveforms in view it centres on the
+   window above the transport, and with no transport it sits at the window's foot. */
 .help-pill {
-  --help-pill-gap: 8px;
+  --help-pill-gap: var(--s-2);
   position: fixed; z-index: 9999; transform: translateX(-50%);
   left: var(--dock-centre, 50%);
-  bottom: calc(var(--dock-bottom, 10px) + var(--help-pill-gap));
+  bottom: calc(var(--dock-bottom, 0px) + var(--help-pill-gap));
   width: max-content;
-  max-width: calc(var(--dock-width, calc(100vw - 16px)) - 2 * var(--help-pill-gap));
+  max-width: calc(var(--dock-width, calc(100vw - var(--s-4))) - 2 * var(--help-pill-gap));
   text-wrap: balance;
   background: var(--panel); border: 1px solid var(--accent); border-radius: 999px;
   padding: 7px 16px; box-shadow: var(--shadow-panel);
