@@ -21,6 +21,9 @@ export const SIBLING_JOB_ID = "e2e0cafebabe";
 export const SIBLING_TITLE = "E2E Fixture Track (again)";
 export const SOURCE_URL = "local:e2e-fixture";
 
+// libraryResize.js keeps at least this much waveform beside the stem labels.
+export const MIN_TIMELINE_WIDTH = 360;
+
 const STORAGE_KEY = "stemdeck.folders";
 const STORAGE_VERSION = 2;
 const BANDS_UPLOADED_KEY = "stemdeck.bands_uploaded";
@@ -392,6 +395,15 @@ export async function openStudio(
     { timeout: 20000 },
   );
   return { favoriteWrites };
+}
+
+/**
+ * Wait for the library pane to finish sliding open or shut. A narrow window
+ * collapses it once a song opens, and its width animates, so anything measured
+ * beside it mid-slide is measured at a width that is about to change.
+ */
+export async function waitForPanesSettled(page) {
+  await page.waitForFunction(() => document.querySelector(".sidebar").getAnimations().length === 0);
 }
 
 /**

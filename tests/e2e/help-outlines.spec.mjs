@@ -7,7 +7,15 @@
 
 import { test, expect } from "@playwright/test";
 
-import { JOB_ID, SIBLING_JOB_ID, SIBLING_TITLE, TRACK_TITLE, fixtureTrack, openStudio } from "./helpers.mjs";
+import {
+  JOB_ID,
+  SIBLING_JOB_ID,
+  SIBLING_TITLE,
+  TRACK_TITLE,
+  fixtureTrack,
+  openStudio,
+  waitForPanesSettled,
+} from "./helpers.mjs";
 import { clickFrozen, freezeTimers } from "./saveRaces.mjs";
 import { BIG_AREA_SHARE, TRACK_AREA } from "../../static/js/helpGeometry.js";
 
@@ -189,13 +197,23 @@ function overlapping(outlines) {
   return pairs;
 }
 
+// A 1024 px window collapses the library once a song opens; reopening it is the user's call and sticks.
+async function reopenLibrary(page) {
+  if (!(await page.locator(".app").getAttribute("class")).includes("cat-collapsed")) return;
+  await page.locator("#sidebarCollapseBtn").click();
+  await expect(page.locator(".app")).not.toHaveClass(/cat-collapsed/);
+  await waitForPanesSettled(page);
+}
+
 /** Guide on in a crowded studio. `hold` stops the page's clock first, so the intro's outlines stay up to be measured. */
-async function guideOn(page, viewport, { native, hold = false, css = HIDDEN_CONTROLS_CSS }) {
+async function guideOn(page, viewport, { native, hold = false, css = HIDDEN_CONTROLS_CSS, libraryOpen = false }) {
   await page.setViewportSize(viewport);
   if (!native) await withoutCheckVisibility(page);
   await installProbe(page);
   if (hold) await page.clock.install();
   await openStudio(page, { catalog: crowdedLibrary() });
+  await waitForPanesSettled(page);
+  if (libraryOpen) await reopenLibrary(page);
   await page.addStyleTag({ content: css });
   expect(await page.evaluate(() => typeof Element.prototype.checkVisibility)).toBe(native ? "function" : "undefined");
   if (hold) {
@@ -244,7 +262,7 @@ test.describe("Guide outlines", () => {
   }
 
   test("scrolling the library keeps the glow, moves each row's ring with it and hides a row's ring as it leaves view", async ({ page }) => {
-    await guideOn(page, VIEWPORTS[0], { native: true, hold: true });
+    await guideOn(page, VIEWPORTS[0], { native: true, hold: true, libraryOpen: true });
     const before = await page.evaluate(measureOutlines, { probe: PROBE, stash: NATIVE_CHECK });
     await page.evaluate(scrollLibrary, LIBRARY_SCROLL_PX);
     await page.clock.runFor(FOLLOW_FRAMES_MS);
@@ -257,7 +275,7 @@ test.describe("Guide outlines", () => {
   });
 
   test("the help pill follows the waveforms when the library is put away", async ({ page }) => {
-    await guideOn(page, VIEWPORTS[0], { native: true });
+    await guideOn(page, VIEWPORTS[0], { native: true, libraryOpen: true });
     const before = await measurePillNow(page);
     await page.evaluate(async () => (await import("/js/catalog.js")).setSidebarCollapsed(true));
 

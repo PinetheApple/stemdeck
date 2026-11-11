@@ -8,7 +8,7 @@
 // to avoid. Every assertion about "art" below is measuring that.
 
 import { test, expect } from "@playwright/test";
-import { openStudio, JOB_ID } from "./helpers.mjs";
+import { openStudio, waitForPanesSettled, JOB_ID } from "./helpers.mjs";
 
 const wheel = (page, dy, x = 900, y = 400) =>
   page.mouse.move(x, y).then(() => page.mouse.wheel(0, dy));
@@ -147,6 +147,7 @@ test.describe("waveform zoom", () => {
 
   test("the pointer stays over the same moment in the track", async ({ page }) => {
     await openStudio(page, { tauri: true });
+    await waitForPanesSettled(page);
     const rect = await page.locator(".wave-scroll").boundingBox();
     const anchorX = rect.x + rect.width * 0.75;
 
@@ -238,10 +239,11 @@ test.describe("waveform zoom", () => {
   // first zoom step can widen the content by less than its own factor, or not at
   // all. Deriving the scroll correction from the zoom ratio rather than the
   // measured width slides the anchor out from under the pointer exactly here.
-  // 1150px leaves the wave area 460px wide, where the floor is active.
+  // 1150px leaves the wave area narrower than that floor.
   test("the anchor holds where the minimum wave width floors the growth", async ({ page }) => {
     await page.setViewportSize({ width: 1150, height: 800 });
     await openStudio(page, { tauri: true });
+    await waitForPanesSettled(page);
     const rect = await page.locator(".wave-scroll").boundingBox();
     const anchorX = rect.x + rect.width * 0.6;
 

@@ -10,6 +10,7 @@ import {
   stubAudioTags,
   stubExportEndpoints,
   stubUpdateCheck,
+  waitForPanesSettled,
 } from "./helpers.mjs";
 
 const JSON_TYPE = "application/json";
@@ -133,6 +134,7 @@ test.describe("the lyrics toolbar", () => {
 
   test("wraps inside the sidebar at 1024 px", async ({ page }) => {
     await setUp(page, { viewport: NARROW });
+    await waitForPanesSettled(page);
     const bar = await toolbar(page).boundingBox();
     const panel = await page.locator("#lyricsPanel").boundingBox();
     expect(bar.x + bar.width).toBeLessThanOrEqual(panel.x + panel.width + SUBPIXEL);

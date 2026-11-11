@@ -102,6 +102,8 @@
   --lane-h:       86px;
   /* Shared by the composer's Detect structure and Extract stems segments. */
   --composer-action-w: 140px;
+  /* Two rows of tag chips and a glimpse of a third under the fade, so more tags read as more. */
+  --lib-tags-max-h: 86px;
 
   /* Motion */
   --t-fast: 120ms;

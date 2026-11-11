@@ -3844,11 +3844,22 @@ input, textarea { font-family: inherit; }
   color: var(--fg);
 }
 
+@property --lib-tags-fade { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes lib-tags-fade-out { from { --lib-tags-fade: var(--s-3); } to { --lib-tags-fade: 0px; } }
+/* Inline padding keeps the first and last chips' focus rings inside the scroll box. The fade
+   follows the scroll position, so it shows only while more tags sit below. */
 .lib-tags-row {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 2px 0 8px;
+  max-height: var(--lib-tags-max-h);
+  padding: var(--s-1) var(--s-1) var(--s-2);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-3) transparent;
+  mask-image: linear-gradient(to bottom, black calc(100% - var(--lib-tags-fade)), transparent);
+  animation: lib-tags-fade-out linear both;
+  animation-timeline: scroll(self);
 }
 .lib-tag-chip {
   display: inline-flex;
