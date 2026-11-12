@@ -5099,7 +5099,7 @@ async function loadLogsView(overlay) {
               <code class="settings-log-name">${esc(f.name)}</code>
               <span class="settings-log-meta">${_fmtBytes(f.size)}${when ? ` · ${esc(when)}` : ""}</span>
             </div>
-            <div class="settings-log-desc">${esc(f.description)}</div>
+            <div class="settings-log-desc">${esc(i18nT(f.description_key) === f.description_key ? f.description : i18nT(f.description_key))}</div>
           </div>`;
       })
       .join("");

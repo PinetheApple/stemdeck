@@ -777,6 +777,8 @@ def get_registry_raw() -> PlainTextResponse:
     return PlainTextResponse(path.read_text(encoding="utf-8"), media_type="application/json")
 
 
+LOG_DESCRIPTION_KEY_PREFIX = "settings.logs.file."
+
 # Every log this deployment can produce, with what writes each one. The desktop
 # entries only exist under the Tauri shell -- the Docker/server deployments have
 # just the Python log -- so the endpoint reports which are actually present
@@ -817,6 +819,7 @@ def get_logs_info() -> dict[str, object]:
             {
                 "name": name,
                 "description": description,
+                "description_key": f"{LOG_DESCRIPTION_KEY_PREFIX}{name}",
                 "path": str(path),
                 "exists": exists,
                 "size": size,

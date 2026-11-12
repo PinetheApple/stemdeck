@@ -1320,6 +1320,14 @@ const en = {
   "tempo.savePending": "Not saved yet",
   "sections.noRoom": "No room left. Shorten or delete a section.",
   "sections.loopTooShort": "Loop too short for a section",
+  "settings.logs.file.stemdeck.log": "Application log: the pipeline, API and job activity. Rotates at 5 MB, 3 kept.",
+  "settings.logs.file.stemdeck.log.1": "Older application log.",
+  "settings.logs.file.stemdeck.log.2": "Older application log.",
+  "settings.logs.file.stemdeck.log.3": "Oldest kept application log.",
+  "settings.logs.file.backend.log": "Desktop only: raw output of the bundled Python backend process.",
+  "settings.logs.file.backend.log.1": "Desktop only: older backend output.",
+  "settings.logs.file.backend.log.2": "Desktop only: oldest kept backend output.",
+  "settings.logs.file.setup.log": "Desktop only: first-run setup and GPU runtime installation.",
 };
 
 const pl = {
@@ -2416,6 +2424,14 @@ const pl = {
   "tempo.savePending": "Jeszcze nie zapisano",
   "sections.noRoom": "Brak miejsca. Skróć lub usuń sekcję.",
   "sections.loopTooShort": "Pętla za krótka na sekcję",
+  "settings.logs.file.stemdeck.log": "Dziennik aplikacji: potok, API i zadania. Rotuje przy 5 MB, zachowywane są 3.",
+  "settings.logs.file.stemdeck.log.1": "Starszy dziennik aplikacji.",
+  "settings.logs.file.stemdeck.log.2": "Starszy dziennik aplikacji.",
+  "settings.logs.file.stemdeck.log.3": "Najstarszy zachowany dziennik aplikacji.",
+  "settings.logs.file.backend.log": "Tylko wersja desktopowa: surowe dane wyjściowe dołączonego procesu backendu w Pythonie.",
+  "settings.logs.file.backend.log.1": "Tylko wersja desktopowa: starsze dane wyjściowe backendu.",
+  "settings.logs.file.backend.log.2": "Tylko wersja desktopowa: najstarsze zachowane dane wyjściowe backendu.",
+  "settings.logs.file.setup.log": "Tylko wersja desktopowa: pierwsza konfiguracja i instalacja środowiska GPU.",
 };
 
 const ja = {
@@ -3485,6 +3501,14 @@ const ja = {
   "tempo.savePending": "まだ保存されていません",
   "sections.noRoom": "空きがありません。セクションを短くするか削除してください。",
   "sections.loopTooShort": "ループが短すぎてセクションにできません",
+  "settings.logs.file.stemdeck.log": "アプリケーションログ: パイプライン、API、ジョブの動作。5 MBでローテーションし、3世代を保持します。",
+  "settings.logs.file.stemdeck.log.1": "古いアプリケーションログ。",
+  "settings.logs.file.stemdeck.log.2": "古いアプリケーションログ。",
+  "settings.logs.file.stemdeck.log.3": "保持されている最も古いアプリケーションログ。",
+  "settings.logs.file.backend.log": "デスクトップ版のみ: 同梱のPythonバックエンドプロセスの生の出力。",
+  "settings.logs.file.backend.log.1": "デスクトップ版のみ: 古いバックエンドの出力。",
+  "settings.logs.file.backend.log.2": "デスクトップ版のみ: 保持されている最も古いバックエンドの出力。",
+  "settings.logs.file.setup.log": "デスクトップ版のみ: 初回セットアップとGPUランタイムのインストール。",
 };
 
 const zhHans = {
@@ -4554,6 +4578,14 @@ const zhHans = {
   "tempo.savePending": "尚未保存",
   "sections.noRoom": "没有空间了。请缩短或删除一个段落。",
   "sections.loopTooShort": "循环区域太短，无法设为段落",
+  "settings.logs.file.stemdeck.log": "应用日志：流水线、API 和任务活动。达到 5 MB 时轮转，保留 3 份。",
+  "settings.logs.file.stemdeck.log.1": "较旧的应用日志。",
+  "settings.logs.file.stemdeck.log.2": "较旧的应用日志。",
+  "settings.logs.file.stemdeck.log.3": "保留的最旧应用日志。",
+  "settings.logs.file.backend.log": "仅桌面版：内置 Python 后端进程的原始输出。",
+  "settings.logs.file.backend.log.1": "仅桌面版：较旧的后端输出。",
+  "settings.logs.file.backend.log.2": "仅桌面版：保留的最旧后端输出。",
+  "settings.logs.file.setup.log": "仅桌面版：首次运行设置和 GPU 运行时安装。",
 };
 
 const de = {
@@ -5635,6 +5667,14 @@ const de = {
   "tempo.savePending": "Noch nicht gespeichert",
   "sections.noRoom": "Kein Platz mehr. Kürze oder lösche einen Abschnitt.",
   "sections.loopTooShort": "Loop zu kurz für einen Abschnitt",
+  "settings.logs.file.stemdeck.log": "Anwendungsprotokoll: Pipeline-, API- und Auftragsaktivität. Rotiert bei 5 MB, 3 werden behalten.",
+  "settings.logs.file.stemdeck.log.1": "Älteres Anwendungsprotokoll.",
+  "settings.logs.file.stemdeck.log.2": "Älteres Anwendungsprotokoll.",
+  "settings.logs.file.stemdeck.log.3": "Ältestes behaltenes Anwendungsprotokoll.",
+  "settings.logs.file.backend.log": "Nur Desktop: Rohausgabe des mitgelieferten Python-Backend-Prozesses.",
+  "settings.logs.file.backend.log.1": "Nur Desktop: ältere Backend-Ausgabe.",
+  "settings.logs.file.backend.log.2": "Nur Desktop: älteste behaltene Backend-Ausgabe.",
+  "settings.logs.file.setup.log": "Nur Desktop: Ersteinrichtung und Installation der GPU-Laufzeit.",
 };
 
 const pt = {
@@ -6718,6 +6758,14 @@ const pt = {
   "tempo.savePending": "Ainda não salvo",
   "sections.noRoom": "Sem espaço. Encurte ou exclua uma seção.",
   "sections.loopTooShort": "Loop curto demais para uma seção",
+  "settings.logs.file.stemdeck.log": "Log do aplicativo: atividade do pipeline, da API e dos trabalhos. Rotaciona em 5 MB, 3 são mantidos.",
+  "settings.logs.file.stemdeck.log.1": "Log mais antigo do aplicativo.",
+  "settings.logs.file.stemdeck.log.2": "Log mais antigo do aplicativo.",
+  "settings.logs.file.stemdeck.log.3": "Log mais antigo mantido do aplicativo.",
+  "settings.logs.file.backend.log": "Somente desktop: saída bruta do processo do backend Python incluído.",
+  "settings.logs.file.backend.log.1": "Somente desktop: saída mais antiga do backend.",
+  "settings.logs.file.backend.log.2": "Somente desktop: saída mais antiga mantida do backend.",
+  "settings.logs.file.setup.log": "Somente desktop: configuração da primeira execução e instalação do runtime de GPU.",
 };
 
 const id = {
@@ -7787,6 +7835,14 @@ const id = {
   "tempo.savePending": "Belum tersimpan",
   "sections.noRoom": "Tidak ada ruang. Perpendek atau hapus sebuah bagian.",
   "sections.loopTooShort": "Loop terlalu pendek untuk bagian",
+  "settings.logs.file.stemdeck.log": "Log aplikasi: aktivitas pipeline, API, dan tugas. Dirotasi pada 5 MB, 3 disimpan.",
+  "settings.logs.file.stemdeck.log.1": "Log aplikasi yang lebih lama.",
+  "settings.logs.file.stemdeck.log.2": "Log aplikasi yang lebih lama.",
+  "settings.logs.file.stemdeck.log.3": "Log aplikasi tersimpan yang paling lama.",
+  "settings.logs.file.backend.log": "Khusus desktop: keluaran mentah proses backend Python bawaan.",
+  "settings.logs.file.backend.log.1": "Khusus desktop: keluaran backend yang lebih lama.",
+  "settings.logs.file.backend.log.2": "Khusus desktop: keluaran backend tersimpan yang paling lama.",
+  "settings.logs.file.setup.log": "Khusus desktop: penyiapan pertama kali dan instalasi runtime GPU.",
 };
 
 const fr = {
@@ -8870,6 +8926,14 @@ const fr = {
   "tempo.savePending": "Pas encore enregistré",
   "sections.noRoom": "Plus de place. Raccourcissez ou supprimez une section.",
   "sections.loopTooShort": "Boucle trop courte pour une section",
+  "settings.logs.file.stemdeck.log": "Journal de l'application : activité du pipeline, de l'API et des tâches. Rotation à 5 Mo, 3 conservés.",
+  "settings.logs.file.stemdeck.log.1": "Journal de l'application plus ancien.",
+  "settings.logs.file.stemdeck.log.2": "Journal de l'application plus ancien.",
+  "settings.logs.file.stemdeck.log.3": "Plus ancien journal de l'application conservé.",
+  "settings.logs.file.backend.log": "Bureau uniquement : sortie brute du processus backend Python intégré.",
+  "settings.logs.file.backend.log.1": "Bureau uniquement : sortie plus ancienne du backend.",
+  "settings.logs.file.backend.log.2": "Bureau uniquement : sortie du backend la plus ancienne conservée.",
+  "settings.logs.file.setup.log": "Bureau uniquement : configuration au premier lancement et installation du runtime GPU.",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -9131,6 +9195,14 @@ const ptPT = {
   "settings.idleUnload.desc": "Minutos sem nenhuma faixa a ser separada ou analisada antes de o StemDeck libertar da memória os modelos de separação, no máximo {max}. A próxima faixa carrega-os de novo e começa alguns segundos depois. 0 mantém-nos carregados.",
   "settings.idleUnload.saveFailed": "Não foi possível guardar esta definição. O campo mostra o valor que continua em uso.",
   "settings.idleUnload.clamped": "O máximo é {max} minutos, por isso foi guardado {max}.",
+  "settings.logs.file.stemdeck.log": "Registo da aplicação: atividade do pipeline, da API e das tarefas. Rotação aos 5 MB, com 3 mantidos.",
+  "settings.logs.file.stemdeck.log.1": "Registo mais antigo da aplicação.",
+  "settings.logs.file.stemdeck.log.2": "Registo mais antigo da aplicação.",
+  "settings.logs.file.stemdeck.log.3": "Registo mais antigo mantido da aplicação.",
+  "settings.logs.file.backend.log": "Apenas no ambiente de trabalho: saída em bruto do processo do backend Python incluído.",
+  "settings.logs.file.backend.log.1": "Apenas no ambiente de trabalho: saída mais antiga do backend.",
+  "settings.logs.file.backend.log.2": "Apenas no ambiente de trabalho: saída mais antiga mantida do backend.",
+  "settings.logs.file.setup.log": "Apenas no ambiente de trabalho: configuração da primeira execução e instalação do runtime de GPU.",
 };
 
 const es = {
@@ -10226,6 +10298,14 @@ const es = {
   "tempo.savePending": "Aún no guardado",
   "sections.noRoom": "No queda espacio. Acorta o elimina una sección.",
   "sections.loopTooShort": "Bucle demasiado corto para una sección",
+  "settings.logs.file.stemdeck.log": "Registro de la aplicación: actividad del pipeline, la API y los trabajos. Rota a los 5 MB y se conservan 3.",
+  "settings.logs.file.stemdeck.log.1": "Registro anterior de la aplicación.",
+  "settings.logs.file.stemdeck.log.2": "Registro anterior de la aplicación.",
+  "settings.logs.file.stemdeck.log.3": "Registro más antiguo conservado de la aplicación.",
+  "settings.logs.file.backend.log": "Solo escritorio: salida sin procesar del proceso del backend de Python incluido.",
+  "settings.logs.file.backend.log.1": "Solo escritorio: salida anterior del backend.",
+  "settings.logs.file.backend.log.2": "Solo escritorio: salida más antigua conservada del backend.",
+  "settings.logs.file.setup.log": "Solo escritorio: configuración del primer arranque e instalación del entorno de ejecución de GPU.",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -11304,6 +11384,14 @@ const ko = {
   "tempo.savePending": "아직 저장 안 됨",
   "sections.noRoom": "남은 공간이 없어요. 구간을 줄이거나 삭제하세요.",
   "sections.loopTooShort": "루프가 너무 짧아 구간을 만들 수 없습니다",
+  "settings.logs.file.stemdeck.log": "애플리케이션 로그: 파이프라인, API, 작업 활동. 5 MB에서 교체되며 3개를 보관해요.",
+  "settings.logs.file.stemdeck.log.1": "이전 애플리케이션 로그.",
+  "settings.logs.file.stemdeck.log.2": "이전 애플리케이션 로그.",
+  "settings.logs.file.stemdeck.log.3": "보관 중인 가장 오래된 애플리케이션 로그.",
+  "settings.logs.file.backend.log": "데스크톱 전용: 내장 Python 백엔드 프로세스의 원본 출력.",
+  "settings.logs.file.backend.log.1": "데스크톱 전용: 이전 백엔드 출력.",
+  "settings.logs.file.backend.log.2": "데스크톱 전용: 보관 중인 가장 오래된 백엔드 출력.",
+  "settings.logs.file.setup.log": "데스크톱 전용: 첫 실행 설정과 GPU 런타임 설치.",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };
