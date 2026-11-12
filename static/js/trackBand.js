@@ -2,7 +2,7 @@
 // server, and which it holds back from a later lookup. The network comes in as
 // arguments, so this runs under node.
 
-import { artistMatchesName, taggedArtistName } from "./artistLookup.js";
+import { artistMatchesCredit, lookupCredit, taggedArtistName } from "./artistLookup.js";
 
 const WIKIDATA_ITEM = /^Q\d+$/;
 const HTTP_NOT_FOUND = 404;
@@ -41,8 +41,8 @@ export function mergedBand(localBand, source, holdLocal) {
 export async function isGuessedBand(track, band, lookup) {
   const name = taggedArtistName(track.userArtist || track.audioTags?.artist);
   if (!name) return false;
-  if (artistMatchesName(band, name)) return true;
-  return (await lookup(name))?.id === band.id;
+  if (artistMatchesCredit(band, name)) return true;
+  return (await lookupCredit(name, lookup))?.id === band.id;
 }
 
 function statesById(jobs) {

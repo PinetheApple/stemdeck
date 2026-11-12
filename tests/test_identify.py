@@ -888,6 +888,27 @@ def test_a_tags_identity_uses_the_name_search(services):
     assert wikidata_asked[0]["action"] == "wbsearchentities"
 
 
+def test_a_credit_with_no_band_is_looked_up_by_its_main_artist(monkeypatch):
+    searched = []
+    musicbrainz_asked = []
+
+    def wikidata(params):
+        if params["action"] == "wbsearchentities":
+            searched.append(params["search"])
+            return {"search": [{"id": "Q15862"}] if params["search"] == "Queen" else []}
+        return _wikidata_entity()
+
+    def search_artists(names, **_kwargs):
+        musicbrainz_asked.append(names)
+        return []
+
+    monkeypatch.setattr(al, "_fetch_json", wikidata)
+    monkeypatch.setattr(mb, "search_artists", search_artists)
+    assert ident.find_band_for(None, "Queen x Freddie Mercury") == QUEEN
+    assert searched == ["Queen x Freddie Mercury", "Queen"]
+    assert musicbrainz_asked == []
+
+
 # ── in a thread beside the pipeline ──
 
 

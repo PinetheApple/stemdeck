@@ -172,6 +172,20 @@ test.describe("artist box", () => {
     expect(asked.length).toBe(first);
   });
 
+  test("a typed credit keeps the band its search finds, asking once", async ({ page }) => {
+    const asked = await stubWikimedia(page);
+    await openStudio(page);
+    await openTrack(page);
+    await page.locator("#np-details-btn").click();
+    await lookUp(page, "Dream and Friends");
+    await expect(page.locator(".artist-name")).toHaveText("Dream Theater");
+    const searched = asked
+      .map((url) => new URL(url).searchParams)
+      .filter((params) => params.get("action") === "wbsearchentities")
+      .map((params) => params.get("search"));
+    expect(searched).toEqual(["Dream and Friends"]);
+  });
+
   test("a name that is no band says so", async ({ page }) => {
     await stubWikimedia(page, { nothing: true });
     await openStudio(page);

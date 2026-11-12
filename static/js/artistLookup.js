@@ -731,6 +731,30 @@ export function artistMatchesName(artist, name) {
     .some((candidate) => artistNameKey(candidate) === want);
 }
 
+// The same rule as CREDIT_SEPARATOR_RE in app/pipeline/artist_lookup.py.
+export const CREDIT_SEPARATORS = /\s*[,&;/]\s*|\s+(?:and|x|feat\.|ft\.|featuring|with)\s+/i;
+
+/** The first artist of a multi-artist credit, or the whole credit when it names one. */
+export function mainArtistName(credit) {
+  return String(credit || "").trim().split(CREDIT_SEPARATORS)[0].trim();
+}
+
+/** Whether `artist` is the credit's, whole or its main artist alone. */
+export function artistMatchesCredit(artist, credit) {
+  return artistMatchesName(artist, credit) || artistMatchesName(artist, mainArtistName(credit));
+}
+
+/**
+ * `find` for the whole credit, then for its main artist when the credit is no
+ * band by that name. Answers the main artist's band, else the credit's.
+ */
+export async function lookupCredit(credit, find) {
+  const found = await find(credit);
+  const main = mainArtistName(credit);
+  if (!main || main === String(credit || "").trim() || artistMatchesName(found, credit)) return found;
+  return (await find(main)) || found;
+}
+
 function withTimeout(signal) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error("timeout")), TIMEOUT_MS);

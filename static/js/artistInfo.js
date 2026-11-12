@@ -34,9 +34,10 @@
 
 import { t, getLanguage, onLanguageChange } from "./i18n.js";
 import {
-  artistMatchesName,
+  artistMatchesCredit,
   languageTag,
   lookupArtist,
+  lookupCredit,
   lookupWork,
   nativeNameToShow,
   taggedArtistName,
@@ -731,6 +732,7 @@ async function loadWork(work, lang, signal) {
 async function bandAnswer(query, id, lang, signal) {
   const key = id ? `${lang}|#${id}` : `${lang}|${query.toLowerCase()}`;
   if (answers.has(key)) return answers.get(key);
+  if (signal.aborted) return null;
   const artist = await lookupArtist(query, lang, { id, signal });
   if (signal.aborted) return null;
   answers.set(key, artist);
@@ -972,15 +974,12 @@ async function runFindBandFromTags(trackId) {
   const controller = new AbortController();
   autoController = controller;
   autoTrackId = trackId;
-  const lang = getLanguage();
-  const key = `${lang}|${name.toLowerCase()}`;
   try {
-    // The box may have asked for this name already.
-    const artist = answers.has(key) ? answers.get(key) : await lookupArtist(name, lang, { signal: controller.signal });
-    // Kept for the box either way, under the keys search() looks for.
-    answers.set(key, artist);
-    if (artist) answers.set(`${lang}|#${artist.id}`, artist);
-    if (!artist || !artistMatchesName(artist, name)) return;
+    // Kept for the box either way, under the keys search() looks for. A tag
+    // may credit several artists, so the main one is asked for too.
+    const lang = getLanguage();
+    const artist = await lookupCredit(name, (credit) => bandAnswer(credit, "", lang, controller.signal));
+    if (!artistMatchesCredit(artist, name)) return;
     // Still the open track, and nobody saved a band on it in the meantime.
     if (getCurrentTrackInfo()?.id !== trackId || getCurrentTrackArtist()) return;
     setFoundTrackArtist({ id: artist.id, name: artist.name, englishName: artist.englishName });
