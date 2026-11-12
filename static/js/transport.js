@@ -117,8 +117,9 @@ export function setPlayheadTime(sec) {
   const tx = audioEngine ?? multitrack;
   if (!tx || !totalDuration || loadingMultitrack(tx)) return;
   const next = Math.max(0, Math.min(totalDuration, sec));
-  tx.setTime(next);
+  // Before setTime, whose time report would otherwise follow the jump as plain playback.
   trackPlayhead(next, true);
+  tx.setTime(next);
   updatePlayheadMarker(next);
   updateFooterTimes(next);
   updatePresencePlayhead(next);
