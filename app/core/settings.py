@@ -45,6 +45,7 @@ from app.core.config import (
     available_torch_devices,
     detect_torch_device,
     pinned_jobs_dir,
+    usable_jobs_dir,
 )
 
 _log = logging.getLogger("stemdeck.settings")
@@ -495,7 +496,7 @@ class CookiesInLibraryError(ValueError):
 def library_folder() -> Path:
     """Where the library is now, by config's precedence: a deployment's pin, then
     the moved-to folder even before the restart that points JOBS_DIR at it."""
-    return (pinned_jobs_dir() or Path(get_jobs_dir() or JOBS_DIR)).resolve()
+    return (pinned_jobs_dir() or usable_jobs_dir(get_jobs_dir()) or JOBS_DIR).resolve()
 
 
 def get_cookies_file() -> str | None:

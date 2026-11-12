@@ -163,7 +163,11 @@ def _stored_jobs_dir() -> Path | None:
         raw = json.loads((DATA_DIR / "settings.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    value = raw.get("jobs_dir") if isinstance(raw, dict) else None
+    return usable_jobs_dir(raw.get("jobs_dir") if isinstance(raw, dict) else None)
+
+
+def usable_jobs_dir(value: object) -> Path | None:
+    """The saved stems location as a folder, or None when it cannot be used."""
     if not isinstance(value, str) or not value.strip():
         return None
     path = Path(value).expanduser()

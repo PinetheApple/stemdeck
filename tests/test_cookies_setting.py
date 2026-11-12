@@ -180,3 +180,14 @@ def test_api_refuses_a_file_inside_a_pinned_library(client, tmp_path, monkeypatc
     cookies.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
     resp = client.post("/api/settings", json={"cookies_file": str(cookies)})
     _assert_refused_as_in_library(resp)
+
+
+def test_api_refuses_a_file_in_the_fallback_when_the_saved_folder_is_gone(
+    client,
+    tmp_path,
+    cookies_in_library,
+):
+    """An unplugged disk sends the library back to its default folder."""
+    _settings.set_jobs_dir(str(tmp_path / "unplugged"))
+    resp = client.post("/api/settings", json={"cookies_file": str(cookies_in_library)})
+    _assert_refused_as_in_library(resp)
