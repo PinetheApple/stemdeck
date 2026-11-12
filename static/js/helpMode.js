@@ -59,6 +59,7 @@ const HELP = [
   ["#catalogList .cat-item.in-trash", "help.trashedSong"],
   ["#catalogList .cat-item", "help.song"],
   ["#sectionsAddBtn", "help.addSection"],
+  ["#sectionsHideBtn", "help.sectionsHide"],
   [".mx-fader", "help.volume", laneName],
   [".lane-key-step.up", "help.laneKeyUp", laneName],
   [".lane-key-step.down", "help.laneKeyDown", laneName],
