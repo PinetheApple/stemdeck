@@ -7,7 +7,7 @@
 // not passable.
 
 import { test, expect } from "@playwright/test";
-import { JOB_ID, openStudio } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, openStudio } from "./helpers.mjs";
 
 const down = (page) => page.locator("#t-pitch-down");
 const up = (page) => page.locator("#t-pitch-up");
@@ -179,16 +179,41 @@ test.describe("transpose", () => {
     expect(await appliedSpeed()).toBe(0.75);
   });
 
-  test("reopening a track resets its displayed and applied key", async ({ page }) => {
+  test("reopening a track at once keeps its displayed and applied key", async ({ page }) => {
     await recordRouting(page);
     await openStudio(page);
+    await settleRoutes(page);
     await up(page).click();
     await up(page).click();
     await expect(value(page)).toHaveText("+2");
 
+    await clearRoutes(page);
     await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
+    await expect.poll(() => recentInputs(page)).toContain(ZERO_INPUT + 2);
+    await expect(value(page)).toHaveText("+2");
+    await expect(value(page)).toHaveClass(/active/);
+    await expect(laneValue(page, "vocals")).toHaveText("+2");
+  });
+
+  test("returning from another song shows the key it plays in", async ({ page }) => {
+    await recordRouting(page);
+    await openStudio(page);
+    await settleRoutes(page);
+    await down(page).click();
+    await down(page).click();
+    await expect(value(page)).toHaveText("-2");
+
+    await clearRoutes(page);
+    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().dblclick();
+    await settleRoutes(page);
     await expect(value(page)).toHaveText("0");
-    await expect(value(page)).not.toHaveClass(/active/);
+    await expect(laneValue(page, "vocals")).toHaveText("K");
+
+    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
+    await expect.poll(() => recentInputs(page)).toContain(ZERO_INPUT - 2);
+    await expect(value(page)).toHaveText("-2");
+    await expect(value(page)).toHaveClass(/active/);
+    await expect(laneValue(page, "vocals")).toHaveText("-2");
   });
 
   test("disables transpose when AudioWorklet setup is unavailable", async ({ page }) => {

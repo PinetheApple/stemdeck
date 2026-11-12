@@ -31,7 +31,7 @@ import {
 import { createAudioEngine, estimateDecodedBytes } from "./audioEngine.js";
 import { createChunkedAudioEngine } from "./chunkedAudioEngine.js";
 import { createPlaybackContext } from "./audioContext.js";
-import { effectivePitch } from "./pitchBus.js";
+import { effectivePitch, globalPitchFromLanes } from "./pitchBus.js";
 import { addVisualOnlyStems, buildPlaybackStems } from "./playbackStems.js";
 import { vuLevel } from "./vuScale.js";
 import { createMetronome } from "./metronome.js";
@@ -1557,6 +1557,12 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
           // per-track store in the same breath as the gains.
           setLaneKeysAvailable(eng.supportsPitchShift?.() === true);
           applyAllLanePitches();
+          // The engine can come up before the saved mix is read, so the keys follow the record.
+          mixReady.then(() => {
+            if (audioEngine !== eng || !eng.supportsPitchShift?.()) return;
+            resetPitch(globalPitchFromLanes(mixerState, stems.map((s) => s.name)));
+            applyAllLanePitches();
+          });
           document.dispatchEvent(new CustomEvent("playbackready", { detail: { id: jobId } }));
 
           // Click track. Bound to this engine instance, so it is rebuilt on

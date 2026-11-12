@@ -1108,13 +1108,13 @@ function applyPitch(semitones) {
 }
 
 /**
- * Clear the readout when a track is torn down or swapped.
+ * Set the readout when a track is torn down, swapped or opened at a saved key.
  *
  * Deliberately does not touch the lanes: their keys are saved per track and are
- * about to be reloaded from the store for whatever is being opened.
+ * reloaded from the store for whatever is being opened.
  */
-export function resetPitch() {
-  _pitchSemitones = 0;
+export function resetPitch(semitones = 0) {
+  _pitchSemitones = Math.max(PITCH_MIN, Math.min(PITCH_MAX, Math.round(semitones)));
   renderPitch();
 }
 

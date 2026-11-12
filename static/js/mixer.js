@@ -16,7 +16,7 @@ import {
   mixerState, mixerEl, stemListEl, currentJobId, multitrack, trackIndex,
   masterVolume, audioEngine,
 } from "./state.js";
-import { storeGet, storeSetDebounced } from "./utils.js";
+import { storeGet, storeSetDebounced, storeFlushPending } from "./utils.js";
 import { t } from "./i18n.js";
 import { PITCH_MAX, PITCH_MIN, clampPitch, pitchBlockedKey } from "./pitchBus.js";
 
@@ -36,9 +36,13 @@ export function ensureMixerStateDefaults() {
 }
 
 export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES) {
+  const key = `stemdeck:mix:${jobId}`;
   let stored = {};
   try {
-    const data = await storeGet(`stemdeck:mix:${jobId}`, {});
+    // A change still waiting out the debounce would otherwise be read past,
+    // then land in the store behind the reopened song.
+    await storeFlushPending(key);
+    const data = await storeGet(key, {});
     if (data && typeof data === "object") stored = data;
   } catch (e) { console.warn("[mixer] failed to load mix state:", e); }
   for (const name of allTrackNames()) {

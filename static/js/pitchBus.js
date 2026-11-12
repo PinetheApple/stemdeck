@@ -36,6 +36,32 @@ export function effectivePitch(name, semitones, pitchable) {
   return clampPitch(semitones);
 }
 
+/**
+ * The global key a saved mix was left at, read back from its lanes.
+ *
+ * The mix saves only absolute lane keys, and the global control moves every
+ * lane but drums by the same amount, so the key most of the song's lanes are
+ * in is where it was left; on a tie, the one nearer the original.
+ */
+export function globalPitchFromLanes(record, laneNames) {
+  const counts = new Map();
+  for (const name of laneNames || []) {
+    const p = record?.[name]?.pitch;
+    if (name === "drums" || !Number.isFinite(p)) continue;
+    const key = clampPitch(p);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  let best = 0;
+  let bestCount = 0;
+  for (const [key, n] of counts) {
+    if (n > bestCount || (n === bestCount && Math.abs(key) < Math.abs(best))) {
+      best = key;
+      bestCount = n;
+    }
+  }
+  return best;
+}
+
 /** Worklet input index for a given shift. */
 export function inputForPitch(semitones) {
   return clampPitch(semitones) + ZERO_INPUT;
