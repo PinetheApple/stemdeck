@@ -4381,7 +4381,6 @@ async function wireExportsLocation(overlay) {
   });
 }
 
-// The server words these refusals in English; the status and code say which one it is.
 const JOB_BUSY_CODE = "job_busy";
 const STEMS_MOVE_ERROR_KEYS = {
   [HTTP_CONFLICT]: "settings.stemsLocation.queueBusy",
