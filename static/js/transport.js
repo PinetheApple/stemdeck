@@ -502,8 +502,8 @@ function _dropCountIn() {
 
 // Arm a count-in when it is enabled and the engine + grid can support one.
 // Starts the audio late (engine.play(leadIn)) and schedules the count clicks in
-// the gap, whether or not the running click is on. Returns true when it took
-// over starting playback, so the caller does not also start it immediately.
+// the gap, whether or not the running click is on. Returns the start's promise
+// when it took over starting playback, so the caller does not also start it.
 function _armCountIn(eng, startPos) {
   if (metronomeCountInBars < 1 || !eng?.supportsCountIn || !metronome) return false;
   const grid = _currentGrid();
@@ -530,11 +530,22 @@ function _armCountIn(eng, startPos) {
   // this one's clicks belong to this one. A destroyed metronome ignores them.
   const generation = ++_countInGeneration;
   const clickTrack = metronome;
-  eng.play(leadIn).then((started) => {
+  const start = eng.play(leadIn);
+  start.then((started) => {
     if (!started || generation !== _countInGeneration) return;
     clickTrack.playCountIn(sourceClicks);
   });
-  return true;
+  return start;
+}
+
+// The button lights on the press, before a start that may wait for a fetch or
+// for the stems. One that never happens must not leave it lit over silence.
+function _unlightIfNotStarted(start) {
+  start.then(function unlightUnlessPlaying(started) {
+    if (!started && !audioEngine?.isPlaying()) playBtn.classList.remove("playing");
+  }, function warnPlayFailed(err) {
+    console.warn("[transport] play failed:", err);
+  });
 }
 
 export function togglePlayPause() {
@@ -566,7 +577,7 @@ export function togglePlayPause() {
     // same position playback will actually start from.
     let startPos = eng.getCurrentTime?.() ?? 0;
     if (totalDuration > 0 && startPos >= totalDuration) startPos = 0;
-    if (!_armCountIn(eng, startPos)) eng.play();
+    _unlightIfNotStarted(_armCountIn(eng, startPos) || eng.play());
     playBtn.classList.add("playing");
     stopBtn.classList.remove("stopped");
   } else {

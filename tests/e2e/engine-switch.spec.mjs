@@ -1,11 +1,13 @@
-// A song change drops the previous song's engine.
+// A song change drops the previous song's engine, and a Play pressed while the
+// stems load waits for them instead of ending the song.
 import { test, expect } from "@playwright/test";
-import { SIBLING_JOB_ID, openStudio } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, openStudio } from "./helpers.mjs";
 
 test.use({ launchOptions: { args: ["--mute-audio", "--autoplay-policy=no-user-gesture-required"] } });
 
 const STREAMING_FLAG = ["stemdeck.audioEngine", "0"];
 const LOAD_TIMEOUT_MS = 20000;
+const TICKS_MS = 600;
 
 const stemsOf = (jobId) => new RegExp(`${jobId}.*\\.wav`);
 const state = (page, fn) => page.evaluate(fn);
@@ -30,6 +32,13 @@ async function rememberPlayingEngine(page) {
   }, null, { timeout: LOAD_TIMEOUT_MS });
   await page.locator("#t-play").click();
   await expect.poll(() => state(page, () => window.__previousEngine.isPlaying())).toBe(true);
+}
+
+async function countTrackEnds(page) {
+  await page.evaluate(() => {
+    window.__trackEnds = 0;
+    document.addEventListener("trackended", function countTrackEnd() { window.__trackEnds++; });
+  });
 }
 
 test("a streaming-path song silences the previous engine at once and takes the transport", async ({ page }) => {
@@ -57,4 +66,29 @@ test("a streaming-path song silences the previous engine at once and takes the t
   await page.locator("#t-stop").click();
   await expect.poll(() => state(page, async () => (await import("/js/state.js")).multitrack.isPlaying())).toBe(false);
   expect(await state(page, () => window.__previousEngine.isPlaying())).toBe(false);
+});
+
+test("Play pressed while the stems load starts the song once they arrive", async ({ page }) => {
+  const stems = await holdStems(page, JOB_ID);
+  await openStudio(page, { waitForDuration: false });
+  await page.waitForFunction(
+    async () => Boolean((await import("/js/state.js")).audioEngine),
+    null,
+    { timeout: LOAD_TIMEOUT_MS },
+  );
+  await countTrackEnds(page);
+
+  await page.locator("#t-play").click();
+  await page.waitForTimeout(TICKS_MS);
+  expect(await state(page, () => window.__trackEnds)).toBe(0);
+
+  stems.release();
+  await expect.poll(
+    () => state(page, async () => (await import("/js/state.js")).audioEngine.isClockReady()),
+    { timeout: LOAD_TIMEOUT_MS },
+  ).toBe(true);
+  await expect.poll(
+    () => state(page, async () => (await import("/js/state.js")).audioEngine.getCurrentTime()),
+  ).toBeGreaterThan(0);
+  expect(await state(page, () => window.__trackEnds)).toBe(0);
 });

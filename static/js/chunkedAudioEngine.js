@@ -191,6 +191,7 @@ import {
 import { createPlaybackContext } from "./audioContext.js";
 import { createTickLoop } from "./tickLoop.js";
 import { loadStretchWorklet, pipelineLatencySeconds as stretchLatency } from "./tempoStage.js";
+import { reachedEnd } from "./playbackEnd.js";
 
 export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {}) {
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -266,6 +267,10 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
   // as it is built and would otherwise read these before initialisation.
   let playing = false;
   let destroyed = false;
+  // Before ready() settles there is no duration and no chunk to start from.
+  let _loaded = false;
+  // Bumped by each play() that waits for ready(), so a stale wait starts nothing.
+  let _pendingSeq = 0;
 
   // Per-stem state: url, parsed WAV header, gain node, analyser (VU tap), and
   // currently playing nodes. Graph per stem: sources -> gain -> analyser -> master.
@@ -632,13 +637,19 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
         return;
       }
     }
-    if (t >= _duration) {
+    if (reachedEnd(t, _duration)) {
       playing = false;
       _audioStarted = false;
       _startOffset = _duration;
       tickLoop.cancel();
       onTime?.(_duration);
       onEnded?.();
+      return;
+    }
+    if (!(_duration > 0)) {
+      playing = false;
+      _audioStarted = false;
+      tickLoop.cancel();
       return;
     }
     _maybeSchedule();
@@ -668,6 +679,7 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
   function play(leadIn = 0) {
     if (playing || destroyed) return Promise.resolve(false);
     if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    if (!_loaded) return _playWhenLoaded(leadIn);
     // Play from the end starts again from the top, as the buffered engine's
     // play() does. The transport places a count-in on that assumption; without
     // this the count-in led into 0 while the audio started at the end.
@@ -714,6 +726,19 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
       });
   }
 
+  // Started at once, it ran one tick at 0 of a 0 s track: its end. `playing`
+  // is set meanwhile, as during a first chunk fetch, so a second press pauses.
+  function _playWhenLoaded(leadIn) {
+    playing = true;
+    const seq = ++_pendingSeq;
+    const settle = (ok) => {
+      if (seq !== _pendingSeq || !playing || destroyed) return false;
+      playing = false;
+      return ok ? play(leadIn) : false;
+    };
+    return ready.then(settle, () => settle(false));
+  }
+
   function pause() {
     if (!playing) return;
     _startOffset = _getCurrentTime();
@@ -727,7 +752,9 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
   }
 
   function seek(t) {
-    const clamped = Math.max(0, Math.min(t, _duration || 0));
+    // Before ready() the length is unknown, so the position is kept as asked
+    // and clamped in _load once it is known.
+    const clamped = Math.max(0, _loaded ? Math.min(t, _duration || 0) : t);
     const wasPlaying = playing;
     if (wasPlaying) {
       _stopNodes();
@@ -755,6 +782,14 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
   // only, ~6 x 1 KB) instead of blocking on the full first-chunk download (~5 MB).
   // play() handles the case where chunk 0 is not yet cached.
   const ready = (async () => {
+    try {
+      return await _load();
+    } finally {
+      _loaded = true;
+    }
+  })();
+
+  async function _load() {
     if (!stemMap.size) {
       _loadError = "This track has no stem files to play.";
       return false;
@@ -794,11 +829,13 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
       return false;
     }
 
+    if (_startOffset > _duration) _startOffset = _scheduledTo = _duration;
+
     // Kick off chunk 0 and 1 in the background; play() picks up the cached result.
     _fetchChunk(0);
     _fetchChunk(1);
     return true;
-  })();
+  }
 
   return {
     ready,
