@@ -1000,6 +1000,7 @@ const en = {
   "settings.network.noConnection": "No local network connection detected.",
   "settings.network.qrHint": "Tap to reveal.",
   "settings.network.tapToUnblur": "Tap to unblur",
+  "settings.network.vpnTag": "VPN",
   "settings.network.qrCodeFor": "QR code for {url}",
 
   "settings.export.sampleRate.title": "Sample rate",
@@ -2113,6 +2114,7 @@ const pl = {
   "settings.network.noConnection": "Nie wykryto lokalnego połączenia sieciowego.",
   "settings.network.qrHint": "Dotknij, aby odsłonić.",
   "settings.network.tapToUnblur": "Dotknij, aby wyostrzyć",
+  "settings.network.vpnTag": "VPN",
   "settings.network.qrCodeFor": "Kod QR dla {url}",
 
   "settings.export.sampleRate.title": "Częstotliwość próbkowania",
@@ -3207,6 +3209,7 @@ const ja = {
   "settings.network.noConnection": "ローカルネットワーク接続が検出されませんでした。",
   "settings.network.qrHint": "タップして表示。",
   "settings.network.tapToUnblur": "タップしてぼかしを解除",
+  "settings.network.vpnTag": "VPN",
   "settings.network.qrCodeFor": "{url}のQRコード",
 
   "settings.export.sampleRate.title": "サンプルレート",
@@ -4283,6 +4286,7 @@ const zhHans = {
   "settings.network.noConnection": "未检测到本地网络连接。",
   "settings.network.qrHint": "点击可显示。",
   "settings.network.tapToUnblur": "点击以取消模糊",
+  "settings.network.vpnTag": "VPN",
   "settings.network.qrCodeFor": "{url} 的二维码",
 
   "settings.export.sampleRate.title": "采样率",
@@ -5364,6 +5368,7 @@ const de = {
   "settings.network.noConnection": "Keine lokale Netzwerkverbindung erkannt.",
   "settings.network.qrHint": "Zum Aufdecken tippen.",
   "settings.network.tapToUnblur": "Zum Scharfstellen tippen",
+  "settings.network.vpnTag": "VPN",
   "settings.network.qrCodeFor": "QR-Code für {url}",
 
   "settings.export.sampleRate.title": "Abtastrate",
@@ -6452,6 +6457,7 @@ const pt = {
   "settings.network.noConnection": "Nenhuma conexão de rede local detectada.",
   "settings.network.qrHint": "Toque para revelar.",
   "settings.network.tapToUnblur": "Toque para focar",
+  "settings.network.vpnTag": "VPN",
   "settings.network.qrCodeFor": "Código QR para {url}",
 
   "settings.export.sampleRate.title": "Taxa de amostragem",
@@ -7537,6 +7543,7 @@ const id = {
   "settings.network.noConnection": "Tidak ada koneksi jaringan lokal yang terdeteksi.",
   "settings.network.qrHint": "Ketuk untuk menampilkan.",
   "settings.network.tapToUnblur": "Ketuk untuk menampilkan",
+  "settings.network.vpnTag": "VPN",
   "settings.network.qrCodeFor": "Kode QR untuk {url}",
 
   "settings.export.sampleRate.title": "Laju sampel",
@@ -8618,6 +8625,7 @@ const fr = {
   "settings.network.noConnection": "Aucune connexion au réseau local détectée.",
   "settings.network.qrHint": "Touchez pour révéler.",
   "settings.network.tapToUnblur": "Touchez pour révéler",
+  "settings.network.vpnTag": "VPN",
   "settings.network.qrCodeFor": "QR code pour {url}",
 
   "settings.export.sampleRate.title": "Fréquence d'échantillonnage",
@@ -9980,6 +9988,7 @@ const es = {
   "settings.network.noConnection": "No se detectó ninguna conexión de red local.",
   "settings.network.qrHint": "Toca para mostrarlo.",
   "settings.network.tapToUnblur": "Toca para desenfocar",
+  "settings.network.vpnTag": "VPN",
   "settings.network.qrCodeFor": "Código QR de {url}",
 
   "settings.export.sampleRate.title": "Frecuencia de muestreo",
@@ -11085,6 +11094,7 @@ const ko = {
   "settings.network.noConnection": "로컬 네트워크 연결을 찾지 못했어요.",
   "settings.network.qrHint": "눌러서 확인하세요.",
   "settings.network.tapToUnblur": "눌러서 선명하게",
+  "settings.network.vpnTag": "VPN",
   "settings.network.qrCodeFor": "{url} QR 코드",
 
   "settings.export.sampleRate.title": "샘플레이트",

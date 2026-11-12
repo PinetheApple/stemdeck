@@ -25,6 +25,11 @@ async function openSettings(page) {
 
 /** Make the Network tab as tall as it gets: warning plus several QR cards. */
 async function withManyAddresses(page) {
+  const addresses = [
+    "http://192.168.1.50:8000",
+    "http://10.0.0.7:8000",
+    "http://172.28.224.1:8000",
+  ];
   await page.route("**/api/settings", async (route) => {
     if (route.request().method() !== "GET") return route.continue();
     const resp = await route.fetch();
@@ -35,11 +40,8 @@ async function withManyAddresses(page) {
       body: JSON.stringify({
         ...body,
         allow_network: true,
-        lan_addresses: [
-          "http://192.168.1.50:8000",
-          "http://10.0.0.7:8000",
-          "http://172.28.224.1:8000",
-        ],
+        lan_addresses: addresses,
+        network_addresses: addresses.map((url) => ({ url, kind: "lan" })),
       }),
     });
   });

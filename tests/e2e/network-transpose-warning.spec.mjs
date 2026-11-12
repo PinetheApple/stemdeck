@@ -34,7 +34,12 @@ async function withAddresses(page, addresses) {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ ...body, allow_network: true, lan_addresses: addresses }),
+      body: JSON.stringify({
+        ...body,
+        allow_network: true,
+        lan_addresses: addresses,
+        network_addresses: addresses.map((url) => ({ url, kind: "lan" })),
+      }),
     });
   });
 }
