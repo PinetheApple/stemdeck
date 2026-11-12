@@ -9,6 +9,7 @@ import {
   KEY,
   SIBLING_JOB_ID,
   fixtureTrack,
+  focusAddedInput,
   openInspectorTab,
   readCatalogState,
   seedCatalogState,
@@ -203,6 +204,17 @@ test.describe("song rows", () => {
 
     await binSiblingByKeyboard(page, trash);
   });
+
+  for (const type of ["range", "checkbox", "search"]) {
+    test(`Delete with a focused ${type} input bins nothing, though a song row had keyboard focus`, async ({ page }) => {
+      const { trash } = await openLibrary(page);
+      await songRow(page, JOB_ID).focus();
+      await focusAddedInput(page, type);
+      await page.keyboard.press(KEY.DELETE);
+
+      await binSiblingByKeyboard(page, trash);
+    });
+  }
 });
 
 test.describe("touch", () => {

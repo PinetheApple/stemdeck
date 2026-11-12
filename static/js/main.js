@@ -1083,11 +1083,15 @@ function wireAppShellControls() {
 
 // ─── Keyboard shortcuts ───
 
+// Space is how a keyboard user presses these, so a focused one keeps it.
+const NATIVE_SPACE_CONTROL = "button, input[type='checkbox']";
+
 document.addEventListener("keydown", function onStudioShortcutKey(e) {
   if (!transport()) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   // A focused field, select or editable keeps its own keys, Space included.
   if (isTextEditingTarget(e.target)) return;
+  if (e.code === "Space" && e.target.closest?.(NATIVE_SPACE_CONTROL)) return;
   if (e.code === "Space") {
     e.preventDefault();
     togglePlayPause();

@@ -1,10 +1,16 @@
 import { test, expect } from "@playwright/test";
-import { openClickOptions, openStudio, waitForClickTrack } from "./helpers.mjs";
+import { focusAddedInput, openClickOptions, openStudio, waitForClickTrack } from "./helpers.mjs";
 
 const MODIFIER_KEYS = ["Control", "Meta", "Alt", "Shift"];
 const ALT_CHORDS = ["Alt+Space", "Alt+[", "Alt+]", "Alt+l", "Alt+k"];
 const ALT_LOOP_CHORDS = ["Alt+i", "Alt+o"];
 const SELECT_KEYS = ["k", "l", "Space"];
+const TEXT_ENTRY_TYPES = ["number", "search"];
+const ACTIVE = /\bactive\b/;
+const MIXER_FADER = ".mx-fader-input";
+const SPEED_FADER = "#t-speed";
+const SPEED_BOX = "#t-speed-value";
+const UNCHANGED_SPEED = "1.00x";
 
 /** Record, for each non-modifier keydown, whether a handler claimed it. */
 async function watchKeys(page) {
@@ -99,4 +105,81 @@ test.describe("one-key shortcuts and what they leave alone", () => {
     expect(await takePreventedKeys(page)).toEqual([false]);
     await expect(page.locator("#t-metro")).not.toHaveClass(/active/);
   });
+
+  test("a focused mixer fader moves on its arrows and leaves K, L and Space to the shortcuts", async ({ page }) => {
+    await setUp(page);
+    const fader = page.locator(MIXER_FADER).first();
+    await fader.focus();
+    const before = await studioState(page);
+    const startValue = await fader.inputValue();
+
+    await page.keyboard.press("ArrowLeft");
+
+    await expect(fader).not.toHaveValue(startValue);
+    expect(await takePreventedKeys(page)).toEqual([false]);
+    expect((await studioState(page)).time).toBeCloseTo(before.time, 2);
+    await expect(page.locator("#t-loop")).not.toHaveClass(ACTIVE);
+
+    await pressAll(page, ["k", "l"]);
+    await expect(page.locator("#t-metro")).toHaveClass(ACTIVE);
+    await expect(page.locator("#t-loop")).toHaveClass(ACTIVE);
+    await page.keyboard.press("Space");
+    await expect.poll(async () => (await studioState(page)).playing).toBe(true);
+    await expect(fader).toBeFocused();
+  });
+
+  test("a focused speed fader moves on its arrows and leaves ] and Space to the shortcuts", async ({ page }) => {
+    await setUp(page);
+    const fader = page.locator(SPEED_FADER);
+    await fader.focus();
+    const before = await studioState(page);
+
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.locator(SPEED_BOX)).not.toHaveValue(UNCHANGED_SPEED);
+    await expect(page.locator("#t-loop")).not.toHaveClass(ACTIVE);
+    expect((await studioState(page)).time).toBeCloseTo(before.time, 2);
+
+    await page.keyboard.press("]");
+    await expect.poll(async () => (await studioState(page)).time).toBeGreaterThan(before.time);
+    await page.keyboard.press("Space");
+    await expect.poll(async () => (await studioState(page)).playing).toBe(true);
+  });
+
+  test("a focused button takes Space as its own press and leaves L to the shortcut", async ({ page }) => {
+    await setUp(page);
+    await page.locator("#t-metro").focus();
+
+    await page.keyboard.press("l");
+    await expect(page.locator("#t-loop")).toHaveClass(ACTIVE);
+    await page.keyboard.press("Space");
+
+    await expect(page.locator("#t-metro")).toHaveClass(ACTIVE);
+    expect((await studioState(page)).playing).toBe(false);
+  });
+
+  test("a focused checkbox takes Space as its own press and leaves K to the shortcut", async ({ page }) => {
+    await setUp(page);
+    const checkbox = await focusAddedInput(page, "checkbox");
+
+    await page.keyboard.press("k");
+    await expect(page.locator("#t-metro")).toHaveClass(ACTIVE);
+    await page.keyboard.press("Space");
+
+    await expect(checkbox).toBeChecked();
+    expect((await studioState(page)).playing).toBe(false);
+  });
+
+  for (const type of TEXT_ENTRY_TYPES) {
+    test(`a focused ${type} field keeps its own keys`, async ({ page }) => {
+      await setUp(page);
+      await focusAddedInput(page, type);
+
+      await pressAll(page, SELECT_KEYS);
+
+      expect(await takePreventedKeys(page)).toEqual(SELECT_KEYS.map(() => false));
+      expect((await studioState(page)).playing).toBe(false);
+      await expect(page.locator("#t-loop")).not.toHaveClass(ACTIVE);
+      await expect(page.locator("#t-metro")).not.toHaveClass(ACTIVE);
+    });
+  }
 });

@@ -2195,8 +2195,18 @@ function wireRailLibraryDrop() {
   });
 }
 
+// Inputs that take no typing, so a focused one leaves the app's keys alone.
+const NON_TEXT_INPUT_TYPES = ["range", "checkbox", "radio", "button", "submit", "reset", "color", "file", "image"];
+const TEXT_EDITING_SELECTOR = [
+  `input:not(${NON_TEXT_INPUT_TYPES.map((type) => `[type='${type}']`).join(", ")})`,
+  "textarea",
+  "select",
+  "[contenteditable]:not([contenteditable='false'])",
+  ".folder-editor",
+].join(", ");
+
 export function isTextEditingTarget(target) {
-  return Boolean(target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false']), .folder-editor"));
+  return Boolean(target?.closest?.(TEXT_EDITING_SELECTOR));
 }
 
 const SONG_ROW_SELECTOR = ".cat-item:not(.in-trash):not(.queue-row)";
