@@ -32,7 +32,7 @@ A save writes `user-data.json.tmp` first, then keeps the file it replaces as `us
 - `user-data.json.tmp`: a save that was interrupted. It is gone after the next save.
 - `user-data.json.corrupt-<number>`: a `user-data.json` that was empty or damaged when the app started, kept so it can be inspected. The two newest are kept.
 
-**The library list came back one change older after a crash:** on start, a `user-data.json` that is missing, empty or not valid JSON is restored from the `.tmp` (when that save was complete) or the `.bak`. `logs/setup.log` in the data directory names the file it restored from. If neither copy can be read, the app starts with an empty library list and `setup.log` says `starting with an empty library list`.
+**The library list came back one change older after a crash:** on start, a `user-data.json` that is missing, empty or not valid JSON is restored from the `.tmp` (when that save was complete) or the `.bak`. `logs/setup.log` in the data directory names the file it restored from. If neither copy can be read, the app starts with an empty library list, says once that it couldn't be recovered, and `setup.log` says `starting with an empty library list`.
 
 **"StemDeck can't open your library list right now", with Try again:** `user-data.json` is there but could not be read for ten seconds, often because a virus scanner or a sync client (OneDrive, Dropbox) is holding it, or the jobs folder is on a drive that is not connected. Nothing is restored from a copy and nothing is saved over the file. `setup.log` has the reason, after `user-data-unavailable`. Let the sync finish or connect the drive, then press Try again.
 
