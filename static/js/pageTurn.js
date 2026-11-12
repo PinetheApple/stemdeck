@@ -41,15 +41,13 @@ function isPastTurnPoint({ scrollLeft, viewportWidth, playheadX }) {
 
 /**
  * A manual scroll pauses following until the playhead is back in view, or a seek or Play (`resumed`).
- * Back in view past the turn point, it waits for the right edge (`holdToEdge`) rather than pull the view away.
+ * Back in view, or sought to, past the turn point, it waits for the right edge (`holdToEdge`)
+ * rather than pull the view away.
  */
 export function followStep({ enabled, paused, resumed, holdToEdge = false }, view) {
   if (!enabled) return { paused, holdToEdge, target: null };
-  let hold = holdToEdge && !resumed;
-  if (paused && !resumed) {
-    if (!isPlayheadInView(view)) return { paused: true, holdToEdge, target: null };
-    hold = isPastTurnPoint(view);
-  }
+  if (paused && !resumed && !isPlayheadInView(view)) return { paused: true, holdToEdge, target: null };
+  const hold = paused || resumed ? isPastTurnPoint(view) : holdToEdge;
   const target = pageTurnTarget(view, hold ? 1 : TURN_AT);
   return { paused: false, holdToEdge: hold && target === null, target };
 }
