@@ -4928,7 +4928,6 @@ async function wireGeneralSettings(overlay) {
     if (autoDeleteDays) autoDeleteDays.disabled = !on;
   };
 
-  // The bitrate only applies to MP3, so it is dimmed the same way while WAV is chosen.
   const setStemKbpsEnabled = (format) => {
     const on = format === STEM_EXT_MP3;
     stemKbpsSel?.closest(".settings-row")?.classList.toggle("disabled", !on);

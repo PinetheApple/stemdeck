@@ -14,7 +14,7 @@ export function stemFileExt(url) {
   return path.endsWith(`.${STEM_EXT_MP3}`) ? STEM_EXT_MP3 : STEM_EXT_WAV;
 }
 
-/** True when any stem is stored compressed, which the chunked engine cannot parse. */
+/** True when any stem is stored compressed: the chunked engine parses WAV itself and rejects those. */
 export function hasCompressedStems(stems) {
   return stems.some((stem) => stemFileExt(stem.url) === STEM_EXT_MP3);
 }

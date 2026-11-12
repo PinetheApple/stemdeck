@@ -302,7 +302,6 @@ async function openTrack(card, { autoplay = false } = {}) {
     context: ensureAudioCtx(),
   };
   const engineStems = laneList.map((l) => ({ name: l.name, url: l.url }));
-  // The chunked engine parses WAV containers itself and rejects compressed stems.
   const createEngine = hasCompressedStems(engineStems) ? createAudioEngine : createChunkedAudioEngine;
   engine = createEngine(engineStems, engineOpts);
   engineTrackId = card.id;

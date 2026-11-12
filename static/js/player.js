@@ -1275,7 +1275,6 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
   // freeze). Null URLs make the multitrack's <audio> elements ready instantly.
   const engineStemCount = fullDecodeStems.filter((s) => s.url).length;
   const preferredMode = engineMode();
-  // The chunked engine parses WAV containers itself and rejects compressed stems.
   const mode = preferredMode === "chunked" && hasCompressedStems(fullDecodeStems)
     ? "fulldecode"
     : preferredMode;
