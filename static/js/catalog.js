@@ -4861,6 +4861,7 @@ function wireDiscogsSetting(overlay) {
 
 const DEVICE_CUDA = "cuda";
 const GPU_BACKEND_ROCM = "rocm";
+const STEM_FORMAT_MP3 = "mp3";
 
 function deviceOptionLabel(opt, gpuBackend) {
   return opt.value === DEVICE_CUDA && gpuBackend === GPU_BACKEND_ROCM ? i18nT("settings.device.rocm") : opt.dataset.baseLabel;
@@ -4902,6 +4903,8 @@ async function wireGeneralSettings(overlay) {
   const deviceSel = overlay.querySelector(".set-demucs-device");
   const deviceDesc = overlay.querySelector(".set-demucs-desc");
   const qualitySel = overlay.querySelector(".set-separation-quality");
+  const stemFormatSel = overlay.querySelector(".set-stem-format");
+  const stemKbpsSel = overlay.querySelector(".set-stem-mp3-kbps");
   const transcribeSel = overlay.querySelector(".set-transcribe-lyrics");
   const cookiesInput = overlay.querySelector(".set-cookies-file");
   const cookiesMsg = overlay.querySelector(".cookies-file-msg");
@@ -4910,7 +4913,7 @@ async function wireGeneralSettings(overlay) {
   const autoDeleteDays = overlay.querySelector(".set-auto-delete-days");
   const autoDeleteDaysDesc = overlay.querySelector(".auto-delete-days-desc");
   const autoDeleteDesc = overlay.querySelector(".auto-delete-desc");
-  if (!durInput && !playlistInput && !heightSel && !sampleRateSel && !portInput && !deviceSel && !qualitySel && !transcribeSel && !cookiesInput && !autoDeleteInput) return;
+  if (!durInput && !playlistInput && !heightSel && !sampleRateSel && !portInput && !deviceSel && !qualitySel && !stemFormatSel && !transcribeSel && !cookiesInput && !autoDeleteInput) return;
 
   // Last server-confirmed device choice, to revert the select when the server
   // rejects a forced device (e.g. CUDA not available on this machine).
@@ -4923,6 +4926,13 @@ async function wireGeneralSettings(overlay) {
   const setDaysEnabled = (on) => {
     autoDeleteDaysRow?.classList.toggle("disabled", !on);
     if (autoDeleteDays) autoDeleteDays.disabled = !on;
+  };
+
+  // The bitrate only applies to MP3, so it is dimmed the same way while WAV is chosen.
+  const setStemKbpsEnabled = (format) => {
+    const on = format === STEM_FORMAT_MP3;
+    stemKbpsSel?.closest(".settings-row")?.classList.toggle("disabled", !on);
+    if (stemKbpsSel) stemKbpsSel.disabled = !on;
   };
 
   const apply = (d) => {
@@ -4939,6 +4949,11 @@ async function wireGeneralSettings(overlay) {
     if (sampleRateSel && d.export_sample_rate) sampleRateSel.value = String(d.export_sample_rate);
     if (portInput && d.port) portInput.value = String(d.port);
     if (qualitySel && d.separation_quality) qualitySel.value = d.separation_quality;
+    if (stemFormatSel && d.stem_format) {
+      stemFormatSel.value = d.stem_format;
+      setStemKbpsEnabled(d.stem_format);
+    }
+    if (stemKbpsSel && d.stem_mp3_kbps) stemKbpsSel.value = String(d.stem_mp3_kbps);
     if (transcribeSel && d.transcribe_lyrics) transcribeSel.value = d.transcribe_lyrics;
     applyTranscribeWording(overlay, d.gpu_backend);
     // Unset is the normal case, so read the key rather than truthiness --
@@ -5077,6 +5092,13 @@ async function wireGeneralSettings(overlay) {
   });
   qualitySel?.addEventListener("change", () => {
     post({ separation_quality: qualitySel.value });
+  });
+  stemFormatSel?.addEventListener("change", function onStemFormatChange() {
+    setStemKbpsEnabled(stemFormatSel.value);
+    post({ stem_format: stemFormatSel.value });
+  });
+  stemKbpsSel?.addEventListener("change", function onStemKbpsChange() {
+    post({ stem_mp3_kbps: parseInt(stemKbpsSel.value, 10) });
   });
   transcribeSel?.addEventListener("change", () => {
     post({ transcribe_lyrics: transcribeSel.value });
@@ -5798,6 +5820,27 @@ function openLibraryEditor() {
             <select class="settings-select set-separation-quality" aria-label="Separation quality" data-i18n-aria-label="settings.quality.title">
               <option value="standard" data-i18n="settings.quality.standard">Standard</option>
               <option value="best" data-i18n="settings.quality.best">Best (2× slower)</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <div class="settings-row-title" data-i18n="settings.stemFormat.title">Stem format</div>
+              <div class="settings-row-desc" data-i18n="settings.stemFormat.desc">MP3 takes less disk space. Applies to the next track.</div>
+            </div>
+            <select class="settings-select set-stem-format" aria-label="Stem format" data-i18n-aria-label="settings.stemFormat.title">
+              <option value="wav" data-i18n="settings.stemFormat.wav">WAV</option>
+              <option value="mp3" data-i18n="settings.stemFormat.mp3">MP3</option>
+            </select>
+          </div>
+          <div class="settings-row disabled">
+            <div class="settings-row-text">
+              <div class="settings-row-title" data-i18n="settings.stemBitrate.title">MP3 bitrate</div>
+              <div class="settings-row-desc" data-i18n="settings.stemBitrate.desc">Higher sounds better and takes more space.</div>
+            </div>
+            <select class="settings-select set-stem-mp3-kbps" aria-label="MP3 bitrate" data-i18n-aria-label="settings.stemBitrate.title" disabled>
+              <option value="128" data-i18n="settings.stemBitrate.kbps128">128 kbps</option>
+              <option value="192" data-i18n="settings.stemBitrate.kbps192">192 kbps</option>
+              <option value="256" data-i18n="settings.stemBitrate.kbps256">256 kbps</option>
             </select>
           </div>
           <div class="settings-row">

@@ -32,7 +32,12 @@ import { createAudioEngine, estimateDecodedBytes } from "./audioEngine.js";
 import { createChunkedAudioEngine } from "./chunkedAudioEngine.js";
 import { createPlaybackContext } from "./audioContext.js";
 import { effectivePitch } from "./pitchBus.js";
-import { addVisualOnlyStems, buildPlaybackStems } from "./playbackStems.js";
+import {
+  addVisualOnlyStems,
+  buildPlaybackStems,
+  hasCompressedStems,
+  stemFileExt,
+} from "./playbackStems.js";
 import { vuLevel } from "./vuScale.js";
 import { createMetronome } from "./metronome.js";
 import { initBeatGrid, destroyBeatGrid, setBeatGridShown } from "./beatgrid.js";
@@ -80,6 +85,9 @@ function engineMode() {
   }
   return "chunked"; // default — stream in 5s chunks, fast start, low RAM
 }
+
+const CHUNKED_MODE = "chunked";
+const FULL_DECODE_MODE = "fulldecode";
 
 // Only the full-decode engine holds all PCM in RAM, so only it needs a size cap.
 // Above this estimated decoded-PCM size it falls back to streaming. The chunked
@@ -1233,7 +1241,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
     const dl = row.querySelector(".lane-dl");
     if (dl) {
       dl.href = stem.url;
-      dl.download = _stemFilename(stem.name);
+      dl.download = _stemFilename(stem.name, stemFileExt(stem.url));
     }
   }
 
@@ -1269,7 +1277,11 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
   // the 6-connection HTTP/1.1 limit and `canplay` stalls (the WebView2/WKWebView
   // freeze). Null URLs make the multitrack's <audio> elements ready instantly.
   const engineStemCount = fullDecodeStems.filter((s) => s.url).length;
-  const mode = engineMode();
+  const preferredMode = engineMode();
+  // The chunked engine parses WAV containers itself and rejects compressed stems.
+  const mode = preferredMode === CHUNKED_MODE && hasCompressedStems(fullDecodeStems)
+    ? FULL_DECODE_MODE
+    : preferredMode;
   // Only the full-decode engine holds all PCM in RAM, so only it is size-capped;
   // the chunked engine streams and is never "too large".
   const engineTooLarge =
