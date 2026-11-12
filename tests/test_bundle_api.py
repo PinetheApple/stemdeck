@@ -284,6 +284,7 @@ def test_bundle_metadata_leaves_out_what_only_the_library_rebuild_keeps(client, 
         "selected_stems": ["vocals"],
         "source_url": "local:my private demo.wav",
         "source_format": "wav",
+        "source_name": "my private demo.wav",
         "created_at": 1_700_000_000.0,
     }
     assert set(saved) == set(SAVED_FIELDS)

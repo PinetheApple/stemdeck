@@ -18,11 +18,12 @@ from app.core.config import (
     LYRICS_LOOKUP_GRACE_SEC,
     TIMEOUT_FFMPEG,
 )
-from app.core.models import Job, JobCancelled, _set, settle_cancelled
+from app.core.models import STATUS_ERROR, Job, JobCancelled, _set, settle_cancelled
 from app.core.redact import redact
 from app.core.registry import is_upload
 from app.core.registry import persist as persist_registry
 from app.core.song_folder import (
+    FAILED_DIR_NAME,
     keep_added_time,
     mark_stems_complete,
     metadata_lock,
@@ -43,7 +44,7 @@ from app.pipeline.collect import (
     remove_job_dir,
 )
 from app.pipeline.download import download
-from app.pipeline.errors import classify_failure
+from app.pipeline.errors import CAUSE_UNKNOWN, classify_failure
 from app.pipeline.identify import IdentifyLookup, release_source
 from app.pipeline.lyrics_lookup import LyricsLookup
 from app.pipeline.lyrics_retime import retime_after_separation
@@ -402,20 +403,72 @@ def _metadata(job: Job) -> dict:
     }
 
 
-# Files worth keeping in a quarantined failure dir. Everything else (source
-# download, stem WAVs, video) is deleted first -- evidence must stay KB-scale,
-# not GB-scale.
+# The failed job's own record. Failed jobs are not in the registry file, so this
+# is what brings one back after a restart for the API to show and retry.
+FAILED_RECORD_FILE = "job.json"
+
+# The evidence a quarantined failure dir keeps. Everything else (stem WAVs, a
+# link's download) is deleted first, so a link's failure stays KB-scale; only
+# an upload also keeps its own file (_kept_for_retry).
 _QUARANTINE_KEEP = frozenset(("error.txt", "metadata.json"))
+UPLOAD_VIDEO_FILE = "video.mp4"
+_FAILED_STAGE = "Error: Processing failed"
 
 
-def _quarantine_failed_job(job: Job, job_dir: Path, jobs_dir: Path, exc: Exception) -> None:
-    """Preserve failure evidence instead of destroying it (#277).
+def _kept_for_retry(job: Job, job_dir: Path) -> frozenset[str]:
+    """An upload's file, and the video cut from it: a retry has no other copy.
+    A link fetches its source again, so it keeps no audio."""
+    if not is_upload(job):
+        return frozenset()
+    return frozenset((*(p.name for p in job_dir.glob("source.*")), UPLOAD_VIDEO_FILE))
+
+
+def _quarantine_failed_job(
+    job: Job,
+    job_dir: Path,
+    jobs_dir: Path,
+    exc: Exception,
+    error_msg: str,
+) -> None:
+    """Preserve failure evidence instead of destroying it (#277), then mark the
+    job failed.
 
     Writes error.txt (stage, device, model, timings, classified cause, stderr
-    tail, full traceback), strips the heavy audio payloads, and moves the dir
-    to jobs/failed/<id> where sweep_failed_jobs expires it after FAILED_TTL.
-    Best-effort throughout: any step failing falls back to plain removal so a
-    pathological error can never leak disk."""
+    tail, full traceback), strips the heavy audio payloads but an upload's own
+    file, which a retry needs, moves the dir to jobs/failed/<id> where
+    sweep_failed_jobs expires it after FAILED_TTL, and writes the job's record
+    there. Best-effort throughout: any step failing falls back to plain removal
+    so a pathological error can never leak disk. The job shows failed only
+    after that, and always, so whoever reads it then finds its cause and its
+    kept file."""
+    failure = {
+        "status": STATUS_ERROR,
+        "stage_message": _FAILED_STAGE,
+        "error": error_msg,
+        "error_detail": CAUSE_UNKNOWN,
+        "error_code": CAUSE_UNKNOWN,
+    }
+    try:
+        # A fingerprint may still have the source open (Windows).
+        release_source(job.id)
+    except Exception:
+        logger.warning("[%s] could not release the source", job.id, exc_info=True)
+    try:
+        cause, detail = _failure_cause(exc)
+        failure.update(error_code=cause, error_detail=detail)
+        dest = _keep_evidence(job, job_dir, jobs_dir, exc, cause)
+        record = {**job.to_record(), **failure}
+        (dest / FAILED_RECORD_FILE).write_text(json.dumps(record), encoding="utf-8")
+    except Exception:
+        logger.warning("[%s] quarantine failed; removing job dir", job.id, exc_info=True)
+        _rmtree(job_dir)
+    finally:
+        _set(job, **failure)
+
+
+def _failure_cause(exc: Exception) -> tuple[str, str]:
+    """The classified cause, and the detail the client shows: the cause and,
+    when there is one, the redacted last line of what failed."""
     tail: list[str] = getattr(exc, "tail", None) or []
     cause = classify_failure("\n".join([*tail, repr(exc)]))
     detail = cause
@@ -430,55 +483,61 @@ def _quarantine_failed_job(job: Job, job_dir: Path, jobs_dir: Path, exc: Excepti
     message = redact(tail[-1]) if tail else redact(str(exc))
     if message.strip():
         detail += f" — {message[:200]}"
-    job.error_detail = detail
+    return cause, detail
 
-    try:
-        # title/source stay unredacted: they never leave this file (the
-        # /failure API's allowlist excludes both, see app/api/jobs.py), so
-        # this is purely local diagnostic value for the person looking at
-        # their own disk. Everything below IS served to the client and is
-        # redacted accordingly -- exc!r can embed a source URL (yt-dlp errors
-        # often do), and the stderr tail/traceback can carry either a source
-        # URL or the reporter's home directory.
-        redacted_tail = [redact(line) for line in tail]
-        lines = [
-            f"time: {datetime.now(timezone.utc).isoformat(timespec='seconds')}",
-            f"job: {job.id}",
-            f"title: {job.title or '(unknown)'}",
-            f"source: {job.source_url or '(unknown)'}",
-            f"stage: {job.stage_message}",
-            f"device: {job.compute_device or getattr(exc, 'device', None) or '(not reached)'}",
-            f"model: {DEMUCS_MODEL}",
-            f"cause: {cause}",
-            f"timings: {json.dumps(job.stage_timings) if job.stage_timings else '(none)'}",
-            f"exception: {redact(repr(exc))}",
-        ]
-        if redacted_tail:
-            lines += ["", "--- stderr tail ---", *redacted_tail]
-        tb = redact("".join(traceback.format_exception(type(exc), exc, exc.__traceback__))).rstrip()
-        if tb:
-            lines += ["", "--- traceback ---", tb]
-        (job_dir / "error.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-        # Strip heavy payloads: the quarantine keeps diagnostics, not audio.
-        for p in list(job_dir.iterdir()):
-            if p.name in _QUARANTINE_KEEP:
-                continue
-            if p.is_dir():
-                shutil.rmtree(p, ignore_errors=True)
-            else:
-                p.unlink(missing_ok=True)
+def _evidence_lines(job: Job, exc: Exception, cause: str) -> list[str]:
+    # title/source stay unredacted: they never leave this file (the
+    # /failure API's allowlist excludes both, see app/api/jobs.py), so
+    # this is purely local diagnostic value for the person looking at
+    # their own disk. Everything below IS served to the client and is
+    # redacted accordingly -- exc!r can embed a source URL (yt-dlp errors
+    # often do), and the stderr tail/traceback can carry either a source
+    # URL or the reporter's home directory.
+    tail: list[str] = getattr(exc, "tail", None) or []
+    lines = [
+        f"time: {datetime.now(timezone.utc).isoformat(timespec='seconds')}",
+        f"job: {job.id}",
+        f"title: {job.title or '(unknown)'}",
+        f"source: {job.source_url or '(unknown)'}",
+        f"stage: {_FAILED_STAGE}",
+        f"device: {job.compute_device or getattr(exc, 'device', None) or '(not reached)'}",
+        f"model: {DEMUCS_MODEL}",
+        f"cause: {cause}",
+        f"timings: {json.dumps(job.stage_timings) if job.stage_timings else '(none)'}",
+        f"exception: {redact(repr(exc))}",
+    ]
+    if tail:
+        lines += ["", "--- stderr tail ---", *(redact(line) for line in tail)]
+    tb = redact("".join(traceback.format_exception(type(exc), exc, exc.__traceback__))).rstrip()
+    if tb:
+        lines += ["", "--- traceback ---", tb]
+    return lines
 
-        failed_root = jobs_dir / "failed"
-        failed_root.mkdir(parents=True, exist_ok=True)
-        dest = failed_root / job.id
-        if dest.exists():
-            shutil.rmtree(dest, ignore_errors=True)
-        shutil.move(str(job_dir), str(dest))
-        logger.info("[%s] failure evidence kept at %s", job.id, dest)
-    except Exception:
-        logger.warning("[%s] quarantine failed; removing job dir", job.id, exc_info=True)
-        _rmtree(job_dir)
+
+def _keep_evidence(job: Job, job_dir: Path, jobs_dir: Path, exc: Exception, cause: str) -> Path:
+    """Write error.txt, strip the payloads and move the dir into the quarantine.
+    Returns where it went."""
+    (job_dir / "error.txt").write_text(
+        "\n".join(_evidence_lines(job, exc, cause)) + "\n", encoding="utf-8"
+    )
+    keep = _QUARANTINE_KEEP | _kept_for_retry(job, job_dir)
+    for p in list(job_dir.iterdir()):
+        if p.name in keep:
+            continue
+        if p.is_dir():
+            shutil.rmtree(p, ignore_errors=True)
+        else:
+            p.unlink(missing_ok=True)
+
+    failed_root = jobs_dir / FAILED_DIR_NAME
+    failed_root.mkdir(parents=True, exist_ok=True)
+    dest = failed_root / job.id
+    if dest.exists():
+        shutil.rmtree(dest, ignore_errors=True)
+    shutil.move(str(job_dir), str(dest))
+    logger.info("[%s] failure evidence kept at %s", job.id, dest)
+    return dest
 
 
 async def _run_async(
@@ -506,14 +565,11 @@ async def _run_async(
                 logger.info("[%s] interrupted by shutdown: %s", job.id, e)
                 return
             logger.exception("pipeline failed for job %s: %s", job.id, e)
-            # A fingerprint may still have the source open (Windows).
-            release_source(job.id)
             # Off the loop: stripping and moving a big folder on a NAS stalled
-            # every stream and request. The status changes after it, so the
-            # first "error" a page sees already carries error_detail and nothing
-            # can delete the folder mid-move.
-            await asyncio.to_thread(_quarantine_failed_job, job, job_dir, jobs_dir, e)
-            _set(job, status="error", stage="Error: Processing failed", error=error_msg)
+            # every stream and request. The quarantine marks the job failed as
+            # its last step, so the first "error" a page sees already carries
+            # its cause and kept file, and nothing can delete the folder mid-move.
+            await asyncio.to_thread(_quarantine_failed_job, job, job_dir, jobs_dir, e, error_msg)
             await asyncio.to_thread(persist_registry, jobs_dir)
             return
         logger.info(
@@ -574,8 +630,8 @@ async def run_pipeline(job: Job, url: str, jobs_dir: Path) -> None:
         logger.exception("pipeline failed for job %s: %s", job.id, e)
         _set(
             job,
-            status="error",
-            stage="Error: Processing failed",
+            status=STATUS_ERROR,
+            stage=_FAILED_STAGE,
             error="Audio processing failed. Please try another video.",
         )
         await asyncio.to_thread(persist_registry, jobs_dir)

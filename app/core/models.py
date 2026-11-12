@@ -38,6 +38,7 @@ JobStatus = Literal[
 
 STATUS_DONE: JobStatus = "done"
 STATUS_STOPPED: JobStatus = "stopped"
+STATUS_ERROR: JobStatus = "error"
 
 # Statuses no pipeline will move on from. "stopped" is a job halted because the
 # user put it in the Trash (#748): unlike "cancelled", its files stay on disk,
@@ -333,6 +334,8 @@ class Job:
     # for a link, and for an upload older than this field until its state is
     # first served (see _job_state).
     source_format: str | None = None
+    # An upload's file name as picked ("Hollow Veins.wav"); the title drops the extension.
+    source_name: str | None = None
     # What the source said about itself (#699): {"artist", "title", "album",
     # "lyrics"}, each only when present. An upload's container tags, read
     # before the upload is deleted; a link's music metadata from yt-dlp. The
@@ -381,6 +384,8 @@ class Job:
     # Shown by the UI as a secondary line under the generic error message so
     # failures are actionable instead of uniformly opaque.
     error_detail: str | None = None
+    # Why the job failed: a classify_failure cause the UI maps to its own words.
+    error_code: str | None = None
     # Device the separation actually ran on ("cuda" / "mps" / "cpu"), recorded
     # per job for diagnostics -- settings may change between jobs.
     compute_device: str | None = None
@@ -530,6 +535,7 @@ class Job:
             "mix_url": self.mix_url,
             "source_url": self.source_url,
             "source_format": self.source_format,
+            "source_name": self.source_name,
             "audio_tags": self.audio_tags,
             "identity": self.identity,
             "artist": self.band,
@@ -540,6 +546,7 @@ class Job:
             "video_status": self.video_status,
             "error": self.error,
             "error_detail": self.error_detail,
+            "error_code": self.error_code,
             "compute_device": self.compute_device,
             "gpu_fallback": self.gpu_fallback,
             "stage_timings": self.stage_timings,
