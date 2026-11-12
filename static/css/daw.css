@@ -5636,3 +5636,8 @@ input, textarea { font-family: inherit; }
 .help-tip-h { break-after: avoid; margin-top: 8px; color: var(--accent); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
 .help-tip-row { break-inside: avoid; margin-top: 3px; }
 .help-tip-row span { color: var(--fg); font-weight: 600; }
+.qr-tag {
+  display: block; width: fit-content; margin: 0 auto var(--s-1); padding: 0 var(--s-1);
+  border: 1px solid var(--line-strong); border-radius: var(--radius-xs);
+  font-size: var(--fs-2xs); color: var(--text-2);
+}

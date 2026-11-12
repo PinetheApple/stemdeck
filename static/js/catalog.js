@@ -4884,6 +4884,8 @@ async function wireGeneralSettings(overlay) {
 }
 
 const QR_SIZE_PROPERTY = "--settings-qr-size";
+const ADDRESS_KIND_LAN = "lan";
+const ADDRESS_KIND_VPN = "vpn";
 
 /** The host and port, which is what a person compares; the raw text if it is not a URL. */
 function addressCaption(url) {
@@ -4912,12 +4914,17 @@ async function wireNetworkSetting(overlay) {
 
   let enabled = false;
   let addresses = [];
+  let addressEntries = [];
   try {
     const r = await fetch("/api/settings", { cache: "no-store" });
     if (r.ok) {
       const data = await r.json();
       enabled = data.allow_network === true;
-      addresses = Array.isArray(data.lan_addresses) ? data.lan_addresses : [];
+      addressEntries = Array.isArray(data.network_addresses)
+        ? data.network_addresses
+        : (Array.isArray(data.lan_addresses) ? data.lan_addresses : [])
+          .map((url) => ({ url, kind: ADDRESS_KIND_LAN }));
+      addresses = addressEntries.map((entry) => entry.url);
     }
   } catch { /* leave defaults */ }
   if (serverMode) enabled = true;
@@ -4950,7 +4957,7 @@ async function wireNetworkSetting(overlay) {
       qrWrap.appendChild(hint);
       const row = document.createElement("div");
       row.className = "qr-cards-row";
-      for (const a of addresses) {
+      for (const { url: a, kind } of addressEntries) {
         const mobileUrl = `${a}/mobile/`;
         const card = document.createElement("div");
         card.className = "qr-card qr-blurred";
@@ -4965,6 +4972,12 @@ async function wireNetworkSetting(overlay) {
         label.className = "qr-label";
         label.textContent = addressCaption(mobileUrl);
         label.title = mobileUrl;
+        if (kind === ADDRESS_KIND_VPN) {
+          const tag = document.createElement("span");
+          tag.className = "qr-tag";
+          tag.textContent = i18nT("settings.network.vpnTag");
+          label.prepend(tag);
+        }
         const imgWrap = document.createElement("div");
         imgWrap.className = "qr-img-wrap";
         imgWrap.appendChild(img);

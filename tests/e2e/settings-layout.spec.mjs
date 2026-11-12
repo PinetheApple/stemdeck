@@ -4,7 +4,16 @@
 // because that is where text gets cut or a control slides under its label.
 
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, fixtureTrack, seedCatalogState, seedLibrary } from "./helpers.mjs";
+import {
+  JOB_ID,
+  SIBLING_JOB_ID,
+  fixtureTrack,
+  seedCatalogState,
+  seedLibrary,
+  settleRoutes,
+} from "./helpers.mjs";
+
+test.afterEach(settleRoutes);
 
 const TABS = ["general", "details", "network", "export", "logs", "registry"];
 const LANGUAGES = ["en", "pl", "ja", "ko", "zh-Hans", "de", "fr", "es", "pt", "pt-PT", "id"];
@@ -26,7 +35,12 @@ async function withAddresses(page, addresses) {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ ...body, allow_network: true, lan_addresses: addresses }),
+      body: JSON.stringify({
+        ...body,
+        allow_network: true,
+        lan_addresses: addresses,
+        network_addresses: addresses.map((url) => ({ url, kind: "lan" })),
+      }),
     });
   });
 }

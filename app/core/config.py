@@ -5,6 +5,7 @@ import re
 import shutil
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 logger = logging.getLogger("stemdeck.config")
 
@@ -308,6 +309,38 @@ def js_solver_available() -> bool:
     if bundled_js_runtime() is not None:
         return True
     return any(shutil.which(exe) for _, exe in _JS_RUNTIME_BINARIES)
+
+
+# ── The address other devices are shown ──────────────────────────────────────
+# Replaces the detected LAN addresses where the server cannot see its reachable
+# one (a container on a bridge network, a reverse proxy, a tunnel).
+_PUBLIC_URL_SCHEMES = ("http", "https")
+_MIN_PORT = 1
+
+
+def parse_public_url(raw: str) -> str | None:
+    """A plain http(s) URL with a host, normalised; anything else is None."""
+    raw = raw.strip()
+    if not raw:
+        return None
+    try:
+        parts = urlsplit(raw)
+        scheme = parts.scheme.lower()
+        valid = (
+            scheme in _PUBLIC_URL_SCHEMES
+            and bool(parts.hostname)
+            and not (parts.query or parts.fragment or parts.username or parts.password)
+            and (parts.port is None or parts.port >= _MIN_PORT)
+        )
+    except ValueError:  # a port that is not a number in range, or a malformed host
+        valid = False
+    if not valid:
+        logger.warning("ignoring STEMDECK_PUBLIC_URL %r: not a plain http(s) URL with a host", raw)
+        return None
+    return urlunsplit((scheme, parts.netloc, parts.path.rstrip("/"), "", ""))
+
+
+PUBLIC_URL = parse_public_url(os.environ.get("STEMDECK_PUBLIC_URL", ""))
 
 
 DEMUCS_MODEL = os.environ.get("STEMDECK_DEMUCS_MODEL", "htdemucs_6s").strip() or "htdemucs_6s"
