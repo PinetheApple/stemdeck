@@ -309,6 +309,23 @@ def test_a_cancel_mid_encode_cleans_up_and_raises(monkeypatch):
     assert sorted(p.name for p in _stems(job).iterdir()) == sorted(f"{n}.wav" for n in NAMES)
 
 
+async def test_a_late_cancel_leaves_a_finished_wav_song_done():
+    from app.pipeline import runner
+
+    job = _job()
+    job.status = "processing"
+
+    def finish_then_cancel(job_, job_dir):
+        runner._mark_stems_complete(job_, job_dir)
+        job_.cancel_requested = True
+        runner._store_stems(job_, job_dir)
+
+    await runner._run_async(job, config.JOBS_DIR / job.id, config.JOBS_DIR, finish_then_cancel)
+    assert job.status == "done"
+    assert job.stem_format == "wav"
+    assert "store" not in (job.stage_timings or {})
+
+
 def test_the_runner_never_fails_a_song_over_storage(monkeypatch):
     from app.pipeline import runner
 

@@ -346,11 +346,11 @@ def _mark_stems_complete(job: Job, job_dir: Path) -> None:
 
 def _store_stems(job: Job, job_dir: Path) -> None:
     """WAV or MP3 storage of the stems, after the marker: a kill mid-way leaves
-    a marked song whose WAVs are all still there. store_stems keeps the WAVs on
-    any failure; the guard is for a future change there, as for the beat grid."""
+    a marked song whose WAVs are all still there. Timed only when MP3 was chosen."""
     mark = time.monotonic()
     try:
-        store_stems(job, job_dir)
+        if not store_stems(job, job_dir):
+            return
     except JobCancelled:
         raise
     except Exception:

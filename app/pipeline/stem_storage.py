@@ -52,30 +52,32 @@ def temp_mp3_path(wav: Path) -> Path:
     return wav.with_name(f".{wav.stem}.{uuid.uuid4().hex}{MP3_EXT}{_TEMP_SUFFIX}")
 
 
-def store_stems(job: Job, job_dir: Path) -> None:
-    """Keep the song's stems in the format the setting asks for now. Never
-    raises but for a cancel."""
-    check_cancel(job)
+def store_stems(job: Job, job_dir: Path) -> bool:
+    """Keep the song's stems in the format the setting asks for now. False,
+    with nothing touched and no cancel looked at, when the setting is WAV.
+    Never raises but for a cancel."""
     if get_stem_format() != STEM_FORMAT_MP3:
         _record(job, STEM_FORMAT_WAV, None)
-        return
+        return False
+    check_cancel(job)
     kbps = get_stem_mp3_kbps()
     stems_dir = job_dir / "stems"
     wavs = _wavs(stems_dir, STORED_NAMES)
     if not wavs:
         _record(job, STEM_FORMAT_WAV, None)
-        return
+        return True
     _set(job, stage=_STAGE)
     started = time.monotonic()
     before = sum(_size(w) for w in wavs)
     vocals_stamp = _stamp(stems_dir / f"vocals{WAV_EXT}")
     if not _convert(job, wavs, kbps):
         _record(job, STEM_FORMAT_WAV, None)
-        return
+        return True
     _keep_derived_files(job_dir, vocals_stamp)
     _refresh_urls(job, stems_dir)
     _record(job, STEM_FORMAT_MP3, kbps)
     _log_stored(job, kbps, wavs, before, started)
+    return True
 
 
 def _log_stored(job: Job, kbps: int, wavs: list[Path], before: int, started: float) -> None:
