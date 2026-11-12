@@ -1,0 +1,102 @@
+/* A song's import source, and a failed import's row and panel. */
+
+.import-source { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+.details-song .import-source { margin-top: var(--s-3); }
+.import-source-head { display: flex; align-items: center; gap: 2px; min-height: var(--target-min); }
+.import-source-head .inspector-label { flex: 1; }
+.import-source-btn {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: var(--target-min);
+  height: var(--target-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.import-source-btn:hover { background: var(--surface-3); color: var(--text); }
+.import-source-btn .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.import-source-box {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  min-width: 0;
+  padding: var(--s-1) var(--s-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-1);
+  background: var(--surface-1);
+}
+.import-source-box > .ic { flex: none; margin-top: 5px; width: var(--icon-sm); height: var(--icon-sm); color: var(--text-3); }
+.import-source-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  padding: 3px 0;
+  font: var(--fs-xs)/1.5 var(--font-mono);
+  color: var(--text-2);
+}
+
+.cat-item.is-failed { flex-wrap: wrap; }
+.cat-item.is-failed .cat-thumb { display: grid; place-items: center; color: var(--text-3); }
+.cat-item.is-failed .cat-thumb .ic { width: var(--icon); height: var(--icon); }
+.cat-item.is-failed .cat-title { color: var(--text-2); }
+.cat-item.is-failed .cat-sub > span:first-child { color: var(--danger); font-weight: var(--fw-semibold); }
+.cat-item.is-failed .cat-actions { opacity: 1; pointer-events: auto; }
+.cat-retry {
+  display: inline-grid;
+  place-items: center;
+  width: var(--target-min);
+  height: var(--target-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.cat-retry:hover { background: var(--surface-3); color: var(--text); }
+.cat-retry .ic { width: var(--icon-sm); height: var(--icon-sm); }
+/* Its panel carries Retry once selected. Kept while it has focus, so the
+   click that selected the row by pressing it still lands. */
+.cat-item.is-failed.is-selected .cat-retry:not(:focus) { display: none; }
+.cat-item.is-failed.is-selected,
+.cat-item.is-failed.is-selected:hover { background: var(--surface-1); }
+
+.import-fail-panel { display: none; flex: 1 0 100%; flex-direction: column; gap: var(--s-2); min-width: 0; cursor: default; }
+.cat-item.is-failed.is-selected .import-fail-panel { display: flex; }
+.import-fail-reason {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  font: var(--fw-medium) var(--fs-sm)/1.35 var(--font-sans);
+  color: var(--text);
+  white-space: normal;
+}
+.import-fail-reason .ic { flex: none; width: var(--icon-sm); height: var(--icon-sm); margin-top: 2px; color: var(--danger); }
+.import-fail-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.import-fail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-1);
+  background: var(--surface-2);
+  color: var(--text);
+  font: var(--fw-semibold) var(--fs-sm) var(--font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.import-fail-btn:hover { background: var(--surface-3); }
+.import-fail-btn .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.import-fail-primary { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.import-fail-primary:hover { background: var(--accent-hi); }

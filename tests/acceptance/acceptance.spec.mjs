@@ -874,7 +874,7 @@ test(title("L5"), async ({ app }, testInfo) => {
 
 // Steps: upload a local MP3, open it and show the Details tab; narrow the window
 // until the File card's info line fills. Expect: the date moves to a second line
-// whole; the format chip reads just MP3, the source reads Local, and Local appears once.
+// whole; the format chip reads just MP3, and the Source section names the file, not Local.
 test(title("V1"), async ({ app }, testInfo) => {
   const { page } = app;
   await wideWindow(page);
@@ -882,10 +882,10 @@ test(title("V1"), async ({ app }, testInfo) => {
   await openTrack(page, id);
   await page.locator("#inspectorTabDetails").click();
   await expect(page.locator("#track-quality")).toHaveText("MP3");
-  await expect(page.locator("#track-source")).toHaveText("Local");
+  await expect(page.locator("#inspector .details-song .import-source-text")).toHaveText(/\.mp3$/i);
   const line = page.locator("#inspector .details-song .daw-track-meta-line");
   await expect(line).toBeVisible();
-  expect((await line.innerText()).match(/\bLocal\b/g)?.length, "Local once").toBe(1);
+  await expect(line).not.toContainText("Local");
   const measure = () => page.evaluate(() => {
     const first = document.getElementById("t-stems-chip").getBoundingClientRect();
     const date = document.getElementById("track-extracted").parentElement;
