@@ -25,6 +25,16 @@ const TAGS = { artist: "Fixture Band", title: "Fixture Song" };
 const TAGS_CHECKED = { audioTagsChecked: true, workChecked: true };
 const EMBEDDED = "[00:00.50]Embedded one\n[00:02.00]Embedded two";
 const A_REPEAT_WOULD_HAVE_LEFT_MS = 500;
+const LIBRARY_SHOWN_MS = 20000;
+const TRACK_OPEN_MS = 15000;
+const LOOKUP_REFUSED = "Could not look up lyrics right now. Try again later.";
+const LRCLIB_OUT_OF_REACH = "Could not reach LRCLIB. Check your connection and try again.";
+const NOTHING_KNOWN = "This track has no artist or song tags.";
+const NOT_FOUND = "No lyrics found";
+const REFUSED = { status: WRITES_REFUSED, json: { detail: "writes unavailable" } };
+const ALREADY_LOOKING = { status: 409, json: { detail: "already looking" } };
+const NOTHING_TO_LOOK_UP = { status: 404, json: { detail: "nothing to look up", others: [], nothing_known: true } };
+const NO_LYRICS = { status: 404, json: { detail: "no lyrics", others: [] } };
 
 const KEPT = {
   v: 1,
@@ -52,8 +62,17 @@ async function refuseWrites(page) {
   return writes;
 }
 
-/** Boot with the fixture track tagged `audioTags`, the server keeping `kept` lyrics. */
-async function boot(page, { audioTags = TAGS, kept = null } = {}) {
+/** Answer lookups in turn from `answers`, the last for every later one; each is recorded in `writes`. */
+async function answerLookups(page, answers, writes) {
+  await page.route(LYRICS_LOOKUP, (route) => {
+    writes.push(`POST ${new URL(route.request().url()).pathname}`);
+    return route.fulfill(answers.length > 1 ? answers.shift() : answers[0]);
+  });
+}
+
+/** Boot with the fixture track tagged `audioTags`, the server keeping `kept` lyrics;
+ * `lookups` answers its lookups in turn, else they are refused as every write is. */
+async function boot(page, { audioTags = TAGS, kept = null, lookups = null } = {}) {
   await page.route(LYRICS, (route) => {
     if (route.request().method() !== "GET") return route.fallback();
     if (kept) return route.fulfill({ status: 200, json: kept });
@@ -68,6 +87,7 @@ async function boot(page, { audioTags = TAGS, kept = null } = {}) {
   await stubUpdateCheck(page);
   await stubAudioTags(page, null);
   const writes = await refuseWrites(page);
+  if (lookups) await answerLookups(page, lookups, writes);
   await seedCatalogState(page, {
     folders: [
       { id: "f-unsorted", name: "Unsorted", items: [JOB_ID, SIBLING_JOB_ID], color: null },
@@ -79,7 +99,7 @@ async function boot(page, { audioTags = TAGS, kept = null } = {}) {
     },
   });
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
+  await page.locator(".cat-item").first().waitFor({ timeout: LIBRARY_SHOWN_MS });
   await openTrack(page, JOB_ID);
   await page.locator(".rail-lyrics").click();
   return writes;
@@ -87,7 +107,7 @@ async function boot(page, { audioTags = TAGS, kept = null } = {}) {
 
 async function openTrack(page, id) {
   await page.locator(`.cat-item[data-id="${id}"]`).first().dblclick();
-  await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
+  await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: TRACK_OPEN_MS });
 }
 
 /** Open a song the way a click on its row does; the Lyrics view hides the library. */
@@ -109,6 +129,8 @@ async function openAgain(page) {
   await page.waitForTimeout(A_REPEAT_WOULD_HAVE_LEFT_MS);
 }
 
+const lookupsIn = (writes) => () => writes.filter((w) => LYRICS_LOOKUP.test(w));
+const lyricsStatus = (page) => page.locator("#lyricsStatus");
 const lyricsWrites = (writes) => writes.filter((w) => w.includes(`/api/jobs/${JOB_ID}/lyrics`));
 
 test.describe("opening a song while the server refuses writes", () => {
@@ -138,16 +160,39 @@ test.describe("opening a song while the server refuses writes", () => {
 
   test("a refused lookup is not asked again on each open, only by Look up again", async ({ page }) => {
     const writes = await boot(page);
-    const lookups = () => writes.filter((w) => LYRICS_LOOKUP.test(w));
-    await expect(page.locator(".lyrics-tool", { hasText: "Look up again" })).toBeVisible();
+    const lookups = lookupsIn(writes);
+    await expect(lyricsStatus(page)).toHaveText(LOOKUP_REFUSED);
     expect(lookups()).toHaveLength(1);
 
     await openAgain(page);
 
+    await expect(lyricsStatus(page)).toHaveText(LOOKUP_REFUSED);
     await expect(page.locator(".lyrics-tool", { hasText: "Look up again" })).toBeVisible();
     expect(lookups()).toHaveLength(1);
 
     await page.locator(".lyrics-tool", { hasText: "Look up again" }).click();
     await expect.poll(lookups).toHaveLength(2);
+  });
+
+  test("a lookup answered after a refusal is what later openings show", async ({ page }) => {
+    const writes = await boot(page, { lookups: [REFUSED, NOTHING_TO_LOOK_UP] });
+    await expect(lyricsStatus(page)).toHaveText(LOOKUP_REFUSED);
+
+    await page.locator(".lyrics-tool", { hasText: "Look up again" }).click();
+    await expect(lyricsStatus(page)).toContainText(NOTHING_KNOWN);
+    await openAgain(page);
+
+    await expect(lyricsStatus(page)).toContainText(NOTHING_KNOWN);
+    expect(lookupsIn(writes)().length).toBeGreaterThan(2);
+  });
+
+  test("a lookup already running is asked again on the next open", async ({ page }) => {
+    const writes = await boot(page, { lookups: [ALREADY_LOOKING, NO_LYRICS] });
+    await expect(lyricsStatus(page)).toHaveText(LRCLIB_OUT_OF_REACH);
+
+    await openAgain(page);
+
+    await expect(lyricsStatus(page)).toContainText(NOT_FOUND);
+    expect(lookupsIn(writes)()).toHaveLength(2);
   });
 });

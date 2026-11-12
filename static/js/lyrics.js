@@ -153,8 +153,9 @@ const answered = new Map();
 // Tracks whose keep or lookup on opening the server refused this session: later
 // openings show what they can without asking again, until Look up again.
 const refusedOnOpen = new Set();
-// The lookup's answer when LRCLIB is out of reach, which the next opening retries.
-const LRCLIB_UNREACHABLE = 502;
+// Lookup answers the next opening asks again: LRCLIB out of reach, or a lookup
+// for the track already running.
+const RETRIED_ON_OPEN = new Set([502, 409]);
 // The vocals stem's level over time for one track, { hop, db }, which times
 // the wipe to the singing (lyricsLookup.js wordTimings). Only the open
 // track's is kept: it is asked for again, cheaply, when a track comes back.
@@ -1483,10 +1484,9 @@ function onTranscribeStale(trackId) {
  * and the server may not have it yet.
  *
  * What came back without lyrics is remembered for the session, so opening the
- * tab again does not ask again. A failed connection or LRCLIB out of reach is
- * not, so the next opening tries again; any other refusal waits for Look up
- * again. A lookup after Remove lyrics is answered "removed", unless `again`
- * (Look up again) ends the removal.
+ * tab again does not ask again. A failed connection is not, so the next
+ * opening tries again. A lookup after Remove lyrics is answered "removed",
+ * unless `again` (Look up again) ends the removal.
  */
 async function lookUp(info, { song, again = false }) {
   searchController?.abort();
@@ -1502,38 +1502,46 @@ async function lookUp(info, { song, again = false }) {
       signal: controller.signal,
     });
     if (controller.signal.aborted || getCurrentTrackInfo()?.id !== info.id) return;
-    if (!res.ok && res.status !== 404) {
-      if (res.status !== LRCLIB_UNREACHABLE) refusedOnOpen.add(info.id);
-      throw new Error(`lyrics lookup -> ${res.status}`);
-    }
-    const data = await res.json().catch(() => null);
-    if (res.status === 404 && data?.nothing_known) {
-      showNothingKnown(info.id);
+    const refused = !res.ok && res.status !== 404;
+    if (refused && RETRIED_ON_OPEN.has(res.status)) throw new Error(`lyrics lookup -> ${res.status}`);
+    if (refused) {
+      refusedOnOpen.add(info.id);
+      showLookupFailed(info.id, "lyrics.lookupRefused");
       return;
     }
-    if (isRemovedAnswer(data)) {
-      showRemoved();
-      return;
-    }
-    const found = fromServerLyrics(data);
-    if (found?.entry) {
-      show(found.entry, found.others);
-      return;
-    }
-    answered.set(info.id, { song, matches: found?.others || [] });
-    showAnswer(answered.get(info.id));
+    refusedOnOpen.delete(info.id);
+    showLookupAnswer(info.id, song, await res.json().catch(() => null));
   } catch (err) {
     // Aborted only by another track being opened.
     if (controller.signal.aborted) return;
     console.warn("lyrics lookup failed", err);
-    showLookupFailed(info.id);
+    showLookupFailed(info.id, "lyrics.offline");
   } finally {
     if (searchController === controller) searchController = null;
   }
 }
 
-function showLookupFailed(trackId) {
-  setStatus(t("lyrics.offline"), "error");
+/** A lookup's answer: lyrics kept, versions to pick from, none, or why none. */
+function showLookupAnswer(trackId, song, data) {
+  if (data?.nothing_known) {
+    showNothingKnown(trackId);
+    return;
+  }
+  if (isRemovedAnswer(data)) {
+    showRemoved();
+    return;
+  }
+  const found = fromServerLyrics(data);
+  if (found?.entry) {
+    show(found.entry, found.others);
+    return;
+  }
+  answered.set(trackId, { song, matches: found?.others || [] });
+  showAnswer(answered.get(trackId));
+}
+
+function showLookupFailed(trackId, messageKey) {
+  setStatus(t(messageKey), "error");
   // There is no search box to press again, so the retry is offered here.
   ownToolsEl.replaceChildren(lookAgainButton());
   checkTranscribe(trackId);
@@ -1642,18 +1650,15 @@ async function findLyrics(info, token, again) {
     return;
   }
   if (refusedOnOpen.has(info.id) && !again) {
-    showLookupFailed(info.id);
+    showLookupFailed(info.id, "lyrics.lookupRefused");
     return;
   }
   lookUp(info, { song: known.song || info.title, again });
 }
 
-/** Keep the lyrics a file came with as the track's, and show them. The import
- * keeps them, so this writes only for a track the server has none for: offsets,
- * timing and other devices work on the server's copy. Shown still when the
- * server could not keep them, and not sent again on later openings this
- * session. `again` is Look up again: the user asks for lyrics back, so they are
- * kept as the user's pick, refused before or not. */
+/** Keep the lyrics a file came with as the track's, and show them; shown still
+ * when the server could not keep them, which is not asked again this session
+ * but by `again`, Look up again, which keeps them as the user's pick. */
 async function keepEmbedded(info, embedded, { artist, song }, token, again = false) {
   // A load left behind by a switch keeps nothing, and runs again when the track is back.
   if (getCurrentTrackInfo()?.id !== info.id) {
@@ -1675,7 +1680,8 @@ async function keepEmbedded(info, embedded, { artist, song }, token, again = fal
   let kept = null;
   if (again || !refusedOnOpen.has(info.id)) {
     kept = await keepOnServer(info.id, version, { picked: again });
-    if (!kept) refusedOnOpen.add(info.id);
+    if (kept) refusedOnOpen.delete(info.id);
+    else refusedOnOpen.add(info.id);
   }
   if (token !== loadToken) return;
   show(kept?.entry ?? version, kept?.others ?? []);
