@@ -442,10 +442,8 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
     destroyed = true;
     stopSources();
     resetProcessor();
-    // destroyPlayer() tears the engine down without pausing first, so an engine
-    // destroyed mid-playback used to leave `playing` true forever. isPlaying()
-    // then lied about a dead engine, and anything still holding a reference to
-    // the tick would have kept it alive on that stale flag.
+    // destroyPlayer() tears the engine down without pausing first, so a dead
+    // engine must not read as playing or keep its tick alive.
     playing = false;
     _pending = 0;
     tickLoop.dispose();

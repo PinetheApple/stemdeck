@@ -294,6 +294,24 @@ async function chunkedSeekCancelsWait() {
   eng.destroy();
 }
 
+async function chunkedSeekAsLoadingEnds() {
+  holdFetches();
+  const { eng } = chunked();
+  eng.ready.then(function seekBeforeTheWaitSettles() { eng.seek(SEEK_SEC); });
+  const play = eng.play();
+  releaseFetch();
+  check("chunked: a seek as loading ends cancels the waiting Play", (await play) === false);
+  await ticks();
+  check("chunked: a seek as loading ends schedules nothing twice", started.length <= STEMS.length, `${started.length} sources`);
+  check("chunked: a seek as loading ends starts nothing", started.length === 0, `${started.length} sources`);
+  check(
+    "chunked: a seek as loading ends keeps its position",
+    Math.abs(eng.getCurrentTime() - SEEK_SEC) < EPSILON,
+    String(eng.getCurrentTime()),
+  );
+  eng.destroy();
+}
+
 async function chunkedFailedLoad() {
   holdFetches();
   const { eng, ev } = chunked(MISSING_STEMS);
@@ -424,6 +442,7 @@ await chunkedStaleWaitStartsNothing();
 await chunkedDestroyDropsWait();
 await chunkedSeekWhileLoading();
 await chunkedSeekCancelsWait();
+await chunkedSeekAsLoadingEnds();
 await chunkedFailedLoad();
 await chunkedReadyStartsAtOnce();
 await fullDecodePlayWhileLoading();

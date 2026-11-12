@@ -269,6 +269,9 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
   let destroyed = false;
   // Before ready() settles there is no duration and no chunk to start from.
   let _loaded = false;
+  // The id of the play() waiting for ready(), 0 when none. ready() settles a
+  // microtask before that wait does, so _loaded cannot say a wait is live.
+  let _pending = 0;
   let _pendingSeq = 0;
 
   // Per-stem state: url, parsed WAV header, gain node, analyser (VU tap), and
@@ -729,9 +732,10 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
   // press pauses.
   function _playWhenLoaded(leadIn) {
     playing = true;
-    const seq = ++_pendingSeq;
+    const seq = _pending = ++_pendingSeq;
     const settle = (ok) => {
-      if (seq !== _pendingSeq || !playing || destroyed) return false;
+      if (_pending !== seq || destroyed) return false;
+      _pending = 0;
       playing = false;
       return ok ? play(leadIn) : false;
     };
@@ -739,6 +743,7 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
   }
 
   function pause() {
+    _pending = 0;
     if (!playing) return;
     _startOffset = _getCurrentTime();
     _stopNodes();
@@ -755,7 +760,8 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
     // and clamped in _load once it is known.
     const clamped = Math.max(0, _loaded ? Math.min(t, _duration || 0) : t);
     const wasPlaying = playing;
-    const wasWaiting = wasPlaying && !_loaded;
+    const wasWaiting = _pending !== 0;
+    _pending = 0;
     if (wasPlaying) {
       _stopNodes();
       playing = false;
