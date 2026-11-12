@@ -6,7 +6,11 @@ import { audioEngine, bpmChip, foregroundJobId, keyChip, multitrack, saveSelecte
 import { refreshStemChoiceVisuals } from "./stemChoice.js";
 import { trackFormat, formatIconSvg, paintNowPlayingArt } from "./formatIcon.js";
 import { formatKey } from "./keyLabel.js";
-import { showError, importFromUrl, detachForegroundJob } from "./job.js";
+import { showError, importFromUrl, detachForegroundJob, reimportFailedLink, reuploadFailedImport, showRetryError } from "./job.js";
+import {
+  FILE_GONE_REASON_KEY, RETRY_OUTCOME, SOURCE_KIND, failureReasonKey, importSource, needsFilePickedAgain,
+  retryOutcome, sourceIcon, sourceKindOf,
+} from "./importSource.js";
 import {
   cancelQueuedJob, currentIds, getQueueSnapshot, isPaused, onJobSettled, onQueueChange,
   queueCount, queueRowStates, refreshQueue, reorderQueuedJob, runningLabel, startQueue,
@@ -935,6 +939,10 @@ function stateMetadataToTrack(state, fallbackTrack) {
     sectionsSource: state.sections_source ?? fallbackTrack.sectionsSource ?? null,
     sourceUrl: state.source_url || fallbackTrack.sourceUrl,
     sourceFormat: state.source_format ?? fallbackTrack.sourceFormat ?? null,
+    sourceKind: state.source_kind ?? fallbackTrack.sourceKind ?? null,
+    sourceName: state.source_name ?? fallbackTrack.sourceName ?? null,
+    errorCode: state.error_code ?? null,
+    retryable: state.retryable ?? fallbackTrack.retryable ?? null,
     // The source's own artist, title, album and lyrics (#699), read at import.
     audioTags: state.audio_tags ? libraryAudioTags(state.audio_tags) : fallbackTrack.audioTags ?? null,
     mixUrl: state.mix_url ?? fallbackTrack.mixUrl ?? null,
@@ -1117,18 +1125,72 @@ function paintFileFacts(track) {
   const trackSource = document.getElementById("track-source");
   const trackFormatEl = document.getElementById("track-quality");
   if (trackExtracted) trackExtracted.textContent = fmtExtracted(track.createdAt);
-  if (trackSource) trackSource.textContent = deriveSource(track.sourceUrl);
+  // The Source section below the facts names the link or the file instead.
+  showFact(trackSource, false);
+  paintTrackSource(track);
   if (!trackFormatEl) return;
   // Only a format read from the file: YouTube's "High" and SoundCloud's "MP3"
   // were the same guess for every song.
   const format = trackFormat(track).toUpperCase();
   trackFormatEl.textContent = format;
-  // Hidden with its label and the separator in front, so there is no empty "· ·".
-  const formatFact = trackFormatEl.closest(".details-fact");
-  if (!formatFact) return;
-  formatFact.hidden = !format;
-  const sep = formatFact.previousElementSibling;
-  if (sep?.classList.contains("daw-track-sep")) sep.hidden = !format;
+  showFact(trackFormatEl, Boolean(format));
+}
+
+// Hidden with its label and the separator in front, so there is no empty "· ·".
+function showFact(valueEl, shown) {
+  const fact = valueEl?.closest(".details-fact");
+  if (!fact) return;
+  fact.hidden = !shown;
+  const sep = fact.previousElementSibling;
+  if (sep?.classList.contains("daw-track-sep")) sep.hidden = !shown;
+}
+
+function paintTrackSource(track) {
+  const slot = document.getElementById("trackSource");
+  if (!slot) return;
+  slot.innerHTML = sourceBlockHtml(track);
+  wireSourceBlock(slot);
+}
+
+/** Where a song came from: its link, with Copy and Open, or its file's name. */
+function sourceBlockHtml(track) {
+  const source = importSource(track);
+  if (!source) return "";
+  return `<div class="import-source">
+      <div class="import-source-head"><span class="inspector-label" data-i18n="inspector.fileSource">${esc(i18nT("inspector.fileSource"))}</span>${sourceButtonsHtml(source)}</div>
+      <div class="import-source-box">${sourceIcon(source.kind)}<span class="import-source-text" title="${esc(source.full)}">${esc(source.text)}</span></div>
+    </div>`;
+}
+
+function sourceButtonsHtml(source) {
+  if (source.kind !== SOURCE_KIND.LINK) return "";
+  const copy = esc(i18nT("source.copyLink"));
+  const open = esc(i18nT("source.openLink"));
+  const openHtml = source.href
+    ? `<a class="import-source-btn import-source-open" href="${esc(source.href)}" target="_blank" rel="noopener noreferrer" title="${open}" aria-label="${open}" data-i18n-title="source.openLink" data-i18n-aria-label="source.openLink">${sourceIcon("external")}</a>`
+    : "";
+  return `<button class="import-source-btn import-source-copy" type="button" data-copy="${esc(source.full)}" title="${copy}" aria-label="${copy}" data-i18n-title="source.copyLink" data-i18n-aria-label="source.copyLink">${sourceIcon("copy")}</button>${openHtml}`;
+}
+
+const COPIED_FEEDBACK_MS = 1500;
+
+async function onCopySourceClick(e) {
+  e.stopPropagation();
+  const btn = e.currentTarget;
+  try {
+    await navigator.clipboard.writeText(btn.dataset.copy);
+  } catch (err) {
+    console.warn("[catalog] could not copy the source link", err);
+    return;
+  }
+  btn.title = i18nT("source.copied");
+  setTimeout(function restoreCopyTitle() {
+    btn.title = i18nT("source.copyLink");
+  }, COPIED_FEEDBACK_MS);
+}
+
+function wireSourceBlock(root) {
+  root.querySelector(".import-source-copy")?.addEventListener("click", onCopySourceClick);
 }
 
 /**
@@ -2405,17 +2467,18 @@ function renderTrackItem(trackId, { inTrash = false } = {}) {
 
   const el = document.createElement("div");
   const isUnavailable = track.status === "unavailable";
-  el.className = `cat-item${trackId === _currentTrackId ? " active" : ""}${isUnavailable ? " unavailable" : ""}${!inTrash && track.favorite ? " is-fav" : ""}${!inTrash && track.status === "stopped" ? " is-stopped" : ""}${inTrash ? " in-trash" : ""}${inTrash && _trashSelection.has(trackId) ? " selected" : ""}`;
+  const isFailed = !inTrash && track.status === FAILED_STATUS;
+  el.className = `cat-item${trackId === _currentTrackId ? " active" : ""}${isUnavailable ? " unavailable" : ""}${!inTrash && track.favorite ? " is-fav" : ""}${!inTrash && track.status === "stopped" ? " is-stopped" : ""}${inTrash ? " in-trash" : ""}${inTrash && _trashSelection.has(trackId) ? " selected" : ""}${isFailed ? " is-failed" : ""}`;
   el.dataset.id = trackId;
 
   el.innerHTML = `
-    <div class="cat-thumb">${thumbHtml(track)}${inTrash ? "" : playButtonHtml(track)}</div>
+    <div class="cat-thumb">${isFailed ? sourceIcon(sourceKindOf(track)) : `${thumbHtml(track)}${inTrash ? "" : playButtonHtml(track)}`}</div>
     <div class="cat-meta">
       <div class="cat-title">${esc(displayTitle(libraryTitle(track)))}</div>
       <div class="cat-sub">${trackSublineHtml(track, { inTrash })}</div>${inTrash ? `<div class="cat-sub trash-hint">${esc(i18nT("trash.holdToRestore"))}</div>` : ""}
     </div>
     <div class="cat-status${PROCESSING_STATUSES.has(track.status) ? " processing" : isUnavailable ? " unavailable" : ""}"></div>
-    ${inTrash ? `<div class="trash-hold" aria-hidden="true"></div>` : `<div class="cat-actions">${track.status === "stopped" ? extractButtonHtml(track) : ""}${upNextButtonHtml(track)}${moreButtonHtml(track)}${favButtonHtml(track)}<button class="cat-del" type="button" title="${esc(i18nT("track.moveToTrash"))}">
+    ${inTrash ? `<div class="trash-hold" aria-hidden="true"></div>` : isFailed ? failedRowHtml(track) : `<div class="cat-actions">${track.status === "stopped" ? extractButtonHtml(track) : ""}${upNextButtonHtml(track)}${moreButtonHtml(track)}${favButtonHtml(track)}<button class="cat-del" type="button" title="${esc(i18nT("track.moveToTrash"))}">
       ${TRASH_ICON_SVG}
     </button></div>`}
   `;
@@ -2433,6 +2496,7 @@ function renderTrackItem(trackId, { inTrash = false } = {}) {
   wireFavButton(el, trackId);
   wireUpNextButton(el, trackId);
   wireMoreButton(el, trackId);
+  if (isFailed) wireFailedRow(el);
 
   if (inTrash) {
     el.title = i18nT("trash.holdToRestore");
@@ -2443,6 +2507,135 @@ function renderTrackItem(trackId, { inTrash = false } = {}) {
   }
 
   return el;
+}
+
+// ─── Failed imports: Retry on the row, the reason and source once selected ───
+
+const FAILED_STATUS = "error";
+
+function failedRowHtml(track) {
+  const pickAgain = needsFilePickedAgain(track);
+  const title = displayTitle(libraryTitle(track));
+  const label = pickAgain ? i18nT("importFail.pickAgainTitle", { title }) : i18nT("importFail.retryTitle", { title });
+  const tip = i18nT(pickAgain ? "importFail.pickAgain" : "importFail.retry");
+  return `<div class="cat-actions"><button class="cat-retry" type="button" title="${esc(tip)}" aria-label="${esc(label)}">${icon("restore")}</button></div>
+    ${failedPanelHtml(track, pickAgain)}`;
+}
+
+function failedPanelHtml(track, pickAgain) {
+  const reasonKey = pickAgain ? FILE_GONE_REASON_KEY : failureReasonKey(track.errorCode);
+  const primaryIcon = pickAgain ? sourceIcon("folderOpen") : icon("restore");
+  const primaryKey = pickAgain ? "importFail.pickAgain" : "importFail.retry";
+  return `<div class="import-fail-panel">
+      <p class="import-fail-reason">${sourceIcon("alert")}<span>${esc(i18nT(reasonKey))}</span></p>
+      ${sourceBlockHtml(track)}
+      <div class="import-fail-actions">
+        <button class="import-fail-btn import-fail-primary" type="button">${primaryIcon}<span>${esc(i18nT(primaryKey))}</span></button>
+        <button class="import-fail-btn import-fail-trash" type="button">${icon("trash")}<span>${esc(i18nT("nav.trash"))}</span></button>
+      </div>
+    </div>`;
+}
+
+function failedRowId(e) {
+  return e.currentTarget.closest(".cat-item")?.dataset.id;
+}
+
+function onFailedRetryClick(e) {
+  e.stopPropagation();
+  e.currentTarget.disabled = true;
+  retryFailedImport(failedRowId(e));
+}
+
+function onFailedTrashClick(e) {
+  e.stopPropagation();
+  moveTrackToTrash(failedRowId(e));
+}
+
+function wireFailedRow(el) {
+  for (const btn of el.querySelectorAll(".cat-retry, .import-fail-primary")) btn.addEventListener("click", onFailedRetryClick);
+  el.querySelector(".import-fail-trash")?.addEventListener("click", onFailedTrashClick);
+  wireSourceBlock(el);
+}
+
+/** Run a failed import again from its source, as the same job where the server still can. */
+export async function retryFailedImport(trackId) {
+  const track = tracks[trackId];
+  if (!track) return;
+  if (needsFilePickedAgain(track)) {
+    pickFileAgain(trackId);
+    render();
+    return;
+  }
+  let res;
+  try {
+    res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/retry`, { method: "POST" });
+  } catch (err) {
+    showRetryError(null, err.message);
+    render();
+    return;
+  }
+  await RETRY_STEPS[retryOutcome(res.status, sourceKindOf(track))](trackId, res);
+}
+
+async function followRetriedImport(trackId, res) {
+  const state = await res.json();
+  dismissFailuresByJobId(trackId, "import");
+  addTrackToLibrary(stateMetadataToTrack(state, { ...tracks[trackId], id: trackId }));
+  armAutoOpen(trackId);
+  await refreshQueue();
+}
+
+async function reimportFailedTrack(trackId) {
+  await reimportFailedLink({ ...tracks[trackId], id: trackId });
+  render();
+}
+
+function markFileGone(trackId) {
+  if (!tracks[trackId]) return;
+  tracks[trackId].retryable = false;
+  saveState();
+  render();
+}
+
+/** Take a failed import's state from the server again: its reason, and whether it can be retried. */
+export async function refreshFailedImport(trackId) {
+  const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}`, { cache: "no-store" }).catch(() => null);
+  if (!res?.ok || !tracks[trackId]) {
+    render();
+    return;
+  }
+  addTrackToLibrary(stateMetadataToTrack(await res.json(), { ...tracks[trackId], id: trackId }));
+}
+
+async function showRetryRefusal(trackId, res) {
+  const body = await res.json().catch(() => ({}));
+  showRetryError(res.status, body.detail);
+  render();
+}
+
+const RETRY_STEPS = {
+  [RETRY_OUTCOME.QUEUED]: followRetriedImport,
+  [RETRY_OUTCOME.REIMPORT_LINK]: reimportFailedTrack,
+  [RETRY_OUTCOME.FILE_GONE]: markFileGone,
+  [RETRY_OUTCOME.REFRESH]: refreshFailedImport,
+  [RETRY_OUTCOME.QUEUE_FULL]: showRetryRefusal,
+  [RETRY_OUTCOME.FAILED]: showRetryRefusal,
+};
+
+function pickFileAgain(trackId) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = document.getElementById("fileInput")?.accept ?? "";
+  input.dataset.replaces = trackId;
+  input.addEventListener("change", onReplacementFilePicked);
+  input.click();
+}
+
+function onReplacementFilePicked(e) {
+  const input = e.currentTarget;
+  const file = input.files?.[0];
+  const track = tracks[input.dataset.replaces];
+  if (file && track) reuploadFailedImport(file, { ...track, id: input.dataset.replaces });
 }
 
 function renderFolder(folder) {
@@ -2939,7 +3132,7 @@ async function completeSettledJob(jobId) {
     if (state.status === "error") {
       notifyFailure({
         kind: "import",
-        message: state.error || i18nT("job.audioProcessingFailed"),
+        message: i18nT(failureReasonKey(state.error_code)),
         detail: state.error_detail || null,
         context: {
           jobId,

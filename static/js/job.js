@@ -8,7 +8,8 @@ import {
 import { destroyPlayer, wireUpAudio, setWaveformLoading, updateFooterTrack } from "./player.js";
 import { notifyFailure, dismissFailuresByJobId } from "./notifications.js";
 import { getStagePhrases } from "./phrases.js";
-import { addTrackToLibrary, replaceableTrackId, setCurrentTrack, updateTrackStatus, applyStemPresenceCards, paintKeyConfidence, libraryAudioTags, libraryArtist, libraryIdentity, libraryWork, paintFinishedTrackNames, armAutoOpen } from "./catalog.js";
+import { addTrackToLibrary, replaceableTrackId, setCurrentTrack, updateTrackStatus, applyStemPresenceCards, paintKeyConfidence, libraryAudioTags, libraryArtist, libraryIdentity, libraryWork, paintFinishedTrackNames, armAutoOpen, refreshFailedImport, retryFailedImport } from "./catalog.js";
+import { SOURCE_KIND, failureReasonKey } from "./importSource.js";
 import { initSections } from "./sections.js";
 import { importPlaylist, looksLikePlaylist } from "./playlist.js";
 import { t } from "./i18n.js";
@@ -418,12 +419,15 @@ function applyState(state) {
     stopJobPolling();
     updateTrackStatus(state.job_id, "error");
     setWaveformLoading(false);
-    showError(state.error || t("job.unknownError"), state.error_detail);
+    const reason = t(failureReasonKey(state.error_code));
+    showError(reason, null, { onRetry: retryFailedImport.bind(null, state.job_id) });
+    // The stream does not say whether it can be retried; the job's state does.
+    refreshFailedImport(state.job_id);
     // Also record it: the banner above is transient and the user may well
     // dismiss it before deciding to report anything.
     notifyFailure({
       kind: "import",
-      message: state.error || t("job.unknownError"),
+      message: reason,
       detail: state.error_detail || null,
       context: {
         jobId: state.job_id,
@@ -579,17 +583,19 @@ async function postFileJob(file) {
 
 /** Give an accepted upload its library row straight away, so a batch appears as
  *  rows the moment each file lands rather than only once every upload is done. */
-function registerUploadRow(jobId, file) {
+function registerUploadRow(jobId, file, { replaces = null, stems = [...selectedStems] } = {}) {
   const title = sanitizeFilename(file.name);
   const sourceUrl = `local:${title}`;
   jobSources.set(jobId, sourceUrl);
-  storeImportSplitChoice(jobId);
+  if (replaces) carrySplitChoice(replaces, jobId);
+  else storeImportSplitChoice(jobId);
   addTrackToLibrary({
     id: jobId,
+    ...replacesField(replaces),
     title,
     thumb: "",
-    stems: [...selectedStems],
-    selectedStems: [...selectedStems],
+    stems,
+    selectedStems: stems,
     audioStems: [],
     status: "queued",
     bpm: null,
@@ -599,6 +605,8 @@ function registerUploadRow(jobId, file) {
     lufs: null,
     peakDb: null,
     sourceUrl,
+    sourceKind: SOURCE_KIND.FILE,
+    sourceName: file.name,
   });
   armAutoOpen(jobId);
 }
@@ -611,6 +619,67 @@ function sanitizeFilename(name) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 120);
+}
+
+const HTTP_QUEUE_FULL = 503;
+
+/** Why a retry or its replacement import did not start, in words. */
+export function showRetryError(status, detail) {
+  let message = t("job.startFailed", { message: detail || t("job.unknownError") });
+  if (status === HTTP_QUEUE_FULL) message = t("playlist.queueFull");
+  else if (status === HTTP_CONFLICT) message = t("job.reimportBusy");
+  showError(message, null, { onRetry: null });
+}
+
+/** A new import in place of a failed one; its data, or null once the reason is shown. */
+async function postReplacementImport(init) {
+  try {
+    const res = await fetch("/api/jobs", { method: "POST", ...init });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) return data;
+    showRetryError(res.status, data.detail);
+  } catch (err) {
+    showRetryError(null, err.message);
+  }
+  return null;
+}
+
+const retryStems = (track) => (track.selectedStems?.length ? [...track.selectedStems] : [...selectedStems]);
+
+/** Import a failed link again when the server no longer has the failed job. */
+export async function reimportFailedLink(track) {
+  const stems = retryStems(track);
+  const data = await postReplacementImport({
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url: track.sourceUrl, stems, replaces: track.id }),
+  });
+  if (!data) return;
+  carrySplitChoice(track.id, data.job_id);
+  jobSources.set(data.job_id, track.sourceUrl);
+  addTrackToLibrary({
+    id: data.job_id,
+    replaces: track.id,
+    title: track.title,
+    thumb: "",
+    stems,
+    selectedStems: stems,
+    audioStems: [],
+    status: "queued",
+    sourceUrl: track.sourceUrl,
+    sourceKind: SOURCE_KIND.LINK,
+  });
+  armAutoOpen(data.job_id);
+}
+
+/** Upload a file again for a failed import whose file was not kept, in its place. */
+export async function reuploadFailedImport(file, track) {
+  const stems = retryStems(track);
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("stems", JSON.stringify(stems));
+  fd.append("replaces", track.id);
+  const data = await postReplacementImport({ body: fd });
+  if (data) registerUploadRow(data.job_id, file, { replaces: track.id, stems });
 }
 
 /** The song a re-import would replace is itself still importing. */

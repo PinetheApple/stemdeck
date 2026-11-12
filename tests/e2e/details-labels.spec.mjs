@@ -17,12 +17,14 @@ const NEW_KEYS = ["inspector.fileSource", "inspector.fileFormat", "meta.keyConfi
 const FIGURE_CARDS = { key: "help.meta.key", lufs: "help.meta.lufs", dr: "help.meta.dr", stability: "help.meta.stability" };
 
 // The server's record wins over the store once the page syncs, so a source is
-// rewritten on the way in.
+// rewritten on the way in, link kind included.
 async function routeSource(page, sourceUrl) {
   await page.route("**/api/jobs**", async (route) => {
     const response = await route.fetch();
     if (!(response.headers()["content-type"] || "").includes("json")) return route.fulfill({ response });
-    const body = (await response.text()).replaceAll('"local:e2e-fixture"', JSON.stringify(sourceUrl));
+    const body = (await response.text())
+      .replaceAll('"local:e2e-fixture"', JSON.stringify(sourceUrl))
+      .replaceAll('"source_kind":"file"', '"source_kind":"link"');
     await route.fulfill({ response, body });
   });
 }
@@ -49,6 +51,7 @@ async function openDetails(page, { language = "en", sourceUrl } = {}) {
 
 const fileCard = (page) => page.locator(".inspector-card.details-song");
 const fact = (page, valueId) => fileCard(page).locator(".details-fact", { has: page.locator(`#${valueId}`) });
+const source = (page) => fileCard(page).locator(".import-source");
 
 test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: "ignoreErrors" });
@@ -56,8 +59,9 @@ test.afterEach(async ({ page }) => {
 
 test("every fact on the File card has a label, and the duration is not repeated", async ({ page }) => {
   await openDetails(page);
-  await expect(fact(page, "track-source").locator(".details-fact-label")).toHaveText(await uiText(page, "inspector.fileSource"));
-  await expect(page.locator("#track-source")).toHaveText(await uiText(page, "track.localFile"));
+  await expect(source(page).locator(".inspector-label")).toHaveText(await uiText(page, "inspector.fileSource"));
+  await expect(source(page).locator(".import-source-text")).toHaveText("e2e-fixture");
+  await expect(fact(page, "track-source")).toBeHidden();
   await expect(fact(page, "track-quality").locator(".details-fact-label")).toHaveText(await uiText(page, "inspector.fileFormat"));
   await expect(page.locator("#track-quality")).toHaveText("WAV");
   await expect(fact(page, "track-extracted").locator(".details-fact-label")).toHaveText(await uiText(page, "footer.extractedLabel"));
@@ -67,14 +71,15 @@ test("every fact on the File card has a label, and the duration is not repeated"
 
 test("a YouTube song shows no made-up format", async ({ page }) => {
   await openDetails(page, { sourceUrl: YOUTUBE_URL });
-  await expect(page.locator("#track-source")).toHaveText("YouTube");
+  await expect(source(page).locator(".import-source-text")).toHaveText("youtube.com/watch?v=e2e");
+  await expect(fileCard(page)).not.toContainText("YouTube");
   await expect(fact(page, "track-quality")).toBeHidden();
   await expect(fileCard(page)).not.toContainText(await uiText(page, "track.qualityHigh"));
 });
 
 test("a SoundCloud song shows no guessed MP3", async ({ page }) => {
   await openDetails(page, { sourceUrl: SOUNDCLOUD_URL });
-  await expect(page.locator("#track-source")).toHaveText("SoundCloud");
+  await expect(source(page).locator(".import-source-text")).toHaveText("soundcloud.com/e2e/song");
   await expect(fact(page, "track-quality")).toBeHidden();
   await expect(fileCard(page)).not.toContainText("MP3");
 });
@@ -121,7 +126,7 @@ test("a keyboard reaches each figure card and hears what it measures", async ({ 
 
 test("the labels and explanations follow the language", async ({ page }) => {
   await openDetails(page, { language: "de" });
-  await expect(fact(page, "track-source").locator(".details-fact-label")).toHaveText("Quelle");
+  await expect(source(page).locator(".inspector-label")).toHaveText("Quelle");
   await expect(page.locator("#summary-confidence")).toHaveAttribute("title", await uiText(page, "meta.keyConfidence", { value: KEY_CONFIDENCE }));
   const untranslated = await page.evaluate(async (keys) => {
     const { TRANSLATIONS } = await import("/js/i18n.js");
