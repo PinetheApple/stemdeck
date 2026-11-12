@@ -448,12 +448,12 @@ def _record_failure(job: Job, stems_dir: Path, exc: Exception) -> None:
     _set(job, vocal_split=VOCAL_SPLIT_ERROR, vocal_split_error=code, stage=_STAGE_DONE)
 
 
-def _keep(job: Job, stems_dir: Path, new_names: list[str]) -> None:
-    # "vocals" rides along so presence_for_split can recover the scale the base
-    # stems were normalised against; without it the two new cards would have no
-    # percentage to show. Read before the pair is stored like the song.
-    rms_values = merge_stem_peaks(stems_dir, ["vocals", *new_names])
-    store_split_stems(job, stems_dir, new_names)
+def _keep(
+    job: Job,
+    stems_dir: Path,
+    new_names: list[str],
+    rms_values: dict[str, float],
+) -> None:
     existing = {s["name"] for s in job.stems}
     for name in new_names:
         if name not in existing:
@@ -481,6 +481,10 @@ def split_now(
     JobCancelled, the job marked CANCELLED, once ``cancelled()`` turned true."""
     try:
         new_names = split_vocals(job, stems_dir, cancelled=cancelled, report=report)
+        # "vocals" rides along so presence_for_split can recover the scale the
+        # base stems were normalised against. Read before the pair is stored.
+        rms_values = merge_stem_peaks(stems_dir, ["vocals", *new_names])
+        store_split_stems(job, stems_dir, new_names, cancelled)
     except JobCancelled:
         _discard_partial(stems_dir)
         _mark_cancelled(job)
@@ -489,7 +493,7 @@ def split_now(
         _discard_partial(stems_dir)
         _record_failure(job, stems_dir, exc)
         return
-    _keep(job, stems_dir, new_names)
+    _keep(job, stems_dir, new_names, rms_values)
 
 
 def begin_split(job: Job) -> None:

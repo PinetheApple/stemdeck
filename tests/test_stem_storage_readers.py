@@ -21,7 +21,7 @@ from fastapi.testclient import TestClient
 
 from app.core import config, settings
 from app.core.folder_rebuild import recover_done_job
-from app.core.models import Job
+from app.core.models import Job, JobCancelled
 from app.core.registry import _jobs
 from app.core.song_folder import STEMS_COMPLETE, backfill_stems_complete
 from app.core.stem_files import decoded_wav
@@ -211,13 +211,21 @@ def test_decoded_wav_is_the_same_length_and_removed_after(mp3_song, tmp_path):
     assert not wav.exists()
 
 
+def _write_pair(work: Path) -> None:
+    for i, name in enumerate(config.EXTRA_STEM_NAMES):
+        sf.write(work / f"{name}.wav", _tone(i), SR, subtype="PCM_16")
+
+
+def _fake_split(job, vocals_path, work, *, cancelled, report):
+    _write_pair(work)
+
+
 def test_the_split_reads_a_wav_and_stores_the_pair_like_the_song(mp3_song, monkeypatch):
     heard: list[str] = []
 
     def fake_split(job, vocals_path, work, *, cancelled, report):
         heard.append(vocals_path.suffix)
-        for i, name in enumerate(config.EXTRA_STEM_NAMES):
-            sf.write(work / f"{name}.wav", _tone(i), SR, subtype="PCM_16")
+        _write_pair(work)
 
     monkeypatch.setattr(vocal_split, "_split_into", fake_split)
     vocal_split.split_now(mp3_song, _stems(mp3_song), cancelled=lambda: False, report=print)
@@ -229,3 +237,26 @@ def test_the_split_reads_a_wav_and_stores_the_pair_like_the_song(mp3_song, monke
     urls = {s["name"]: s["url"] for s in mp3_song.stems}
     assert urls["lead_vocals"].endswith("/lead_vocals.mp3")
     assert not any(p.name.startswith(".") for p in _stems(mp3_song).iterdir())
+
+
+def test_a_split_cancelled_while_compressing_leaves_no_pair(mp3_song, monkeypatch):
+    encoded: list[Path] = []
+    real_encode = stem_storage.encode_mp3
+
+    def encode_and_count(job, src, dest, kbps):
+        real_encode(job, src, dest, kbps)
+        encoded.append(src)
+
+    monkeypatch.setattr(vocal_split, "_split_into", _fake_split)
+    monkeypatch.setattr(stem_storage, "encode_mp3", encode_and_count)
+    with pytest.raises(JobCancelled):
+        vocal_split.split_now(
+            mp3_song,
+            _stems(mp3_song),
+            cancelled=lambda: bool(encoded),
+            report=print,
+        )
+    assert mp3_song.vocal_split == "cancelled"
+    assert len(encoded) == 1
+    names = [p.name for p in _stems(mp3_song).iterdir()]
+    assert not [n for n in names if any(pair in n for pair in config.EXTRA_STEM_NAMES)]

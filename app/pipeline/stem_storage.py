@@ -25,6 +25,7 @@ import logging
 import os
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 
 from app.core.config import EXTRA_STEM_NAMES, STEM_FORMAT_MP3, STEM_FORMAT_WAV, STEM_NAMES
@@ -70,7 +71,7 @@ def store_stems(job: Job, job_dir: Path) -> bool:
     started = time.monotonic()
     before = sum(_size(w) for w in wavs)
     vocals_stamp = _stamp(stems_dir / f"vocals{WAV_EXT}")
-    if not _convert(job, wavs, kbps):
+    if not _convert(job, wavs, kbps, lambda: job.cancel_requested):
         _record(job, STEM_FORMAT_WAV, None)
         return True
     _keep_derived_files(job_dir, vocals_stamp)
@@ -93,24 +94,28 @@ def _log_stored(job: Job, kbps: int, wavs: list[Path], before: int, started: flo
     )
 
 
-def store_split_stems(job: Job, stems_dir: Path, names: list[str]) -> None:
+def store_split_stems(
+    job: Job,
+    stems_dir: Path,
+    names: list[str],
+    cancelled: Callable[[], bool],
+) -> None:
     """The on-demand Lead + Backing split writes WAVs into a song that may be
     stored as MP3. They are stored the way the song is, with the same checks,
-    and stay WAV on any failure. Never raises."""
+    and stay WAV on any failure. Never raises but for the split's cancel,
+    with the WAVs kept."""
     wavs = _wavs(stems_dir, tuple(names))
     if job.stem_format != STEM_FORMAT_MP3 or not job.stem_mp3_kbps or not wavs:
         return
-    try:
-        _convert(job, wavs, job.stem_mp3_kbps)
-    except JobCancelled:
-        logger.info("[%s] split stems kept as WAV: cancelled", job.id)
+    _convert(job, wavs, job.stem_mp3_kbps, cancelled)
 
 
-def _convert(job: Job, wavs: list[Path], kbps: int) -> bool:
+def _convert(job: Job, wavs: list[Path], kbps: int, stop: Callable[[], bool]) -> bool:
     """Every WAV to a verified MP3, then the WAVs deleted. False when the WAVs
-    were kept, with nothing of the attempt left behind. Raises JobCancelled."""
+    were kept, with nothing of the attempt left behind. Raises JobCancelled
+    once `stop()` is true, before any WAV is deleted."""
     try:
-        made = _encode_all(job, wavs, kbps)
+        made = _encode_all(job, wavs, kbps, stop)
         _move_in(made)
     except JobCancelled:
         raise
@@ -128,20 +133,31 @@ def _convert(job: Job, wavs: list[Path], kbps: int) -> bool:
     return True
 
 
-def _encode_all(job: Job, wavs: list[Path], kbps: int) -> list[tuple[Path, Path]]:
+def _encode_all(
+    job: Job,
+    wavs: list[Path],
+    kbps: int,
+    stop: Callable[[], bool],
+) -> list[tuple[Path, Path]]:
     made: list[tuple[Path, Path]] = []
     try:
         for wav in wavs:
-            check_cancel(job)
+            _check_stop(stop)
             tmp = temp_mp3_path(wav)
             made.append((wav, tmp))
             encode_mp3(job, wav, tmp, kbps)
             verify_mp3(job, wav, tmp)
             fsync_file(tmp)
+        _check_stop(stop)
     except BaseException:
         _discard(tmp for _wav, tmp in made)
         raise
     return made
+
+
+def _check_stop(stop: Callable[[], bool]) -> None:
+    if stop():
+        raise JobCancelled()
 
 
 def _move_in(made: list[tuple[Path, Path]]) -> None:

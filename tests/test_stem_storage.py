@@ -221,7 +221,12 @@ def test_split_stems_reach_the_disk_before_their_wavs_go(monkeypatch):
     job = _job(names=("lead_vocals", "backing_vocals"))
     job.stem_format, job.stem_mp3_kbps = "mp3", 128
     events = _watch_the_disk(monkeypatch)
-    stem_storage.store_split_stems(job, _stems(job), ["lead_vocals", "backing_vocals"])
+    stem_storage.store_split_stems(
+        job,
+        _stems(job),
+        ["lead_vocals", "backing_vocals"],
+        cancelled=lambda: False,
+    )
     first_unlink = next(i for i, e in enumerate(events) if e.startswith("unlink"))
     assert events.index("fsync dir") < first_unlink
     assert sorted(p.name for p in _stems(job).iterdir()) == [
