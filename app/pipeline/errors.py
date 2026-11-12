@@ -46,6 +46,8 @@ _CAUSE_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "cannot allocate memory",
             "out of memory",
             "memoryerror",
+            # MIOpen (ROCm's cuDNN) failing to allocate, ahead of its other statuses.
+            "miopenstatusallocfailed",
         ),
     ),
     (
@@ -57,6 +59,10 @@ _CAUSE_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "cudnn error",
             "not currently implemented for the mps device",
             "torch not compiled with cuda",
+            # A ROCm build of torch on an AMD GPU.
+            "hiperrornobinaryforgpu",
+            "no hip gpus are available",
+            "miopenstatus",
         ),
     ),
     (
