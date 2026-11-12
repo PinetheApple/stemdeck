@@ -476,9 +476,9 @@ def expand_playlist(url: str, limit: int) -> dict:
     }
 
 
-def fetch_audio_tags(url: str) -> dict[str, str] | None:
-    """A link's tags from its metadata alone, for a track imported before tags
-    were read (#699). Nothing is downloaded.
+def probe_info(url: str, *, process: bool = True) -> dict:
+    """A link's yt-dlp metadata, nothing downloaded. ``process=False`` skips
+    format resolution when only the title, uploader and length are wanted.
 
     The URL goes through validate_youtube_url here as well as at the caller:
     this is where the fetch happens, so this is where the SSRF boundary (#173)
@@ -486,8 +486,8 @@ def fetch_audio_tags(url: str) -> dict[str, str] | None:
 
     Same cookie rule as an import (#432): without them first, with them only
     once YouTube's bot check has turned the request away. _with_cookie_fallback
-    itself is not reused because it reports progress on a job's stage, and the
-    job here is finished.
+    itself is not reused because it reports progress on a job's stage, and
+    there is no job here.
     """
     url = validate_youtube_url(url)
 
@@ -498,16 +498,22 @@ def fetch_audio_tags(url: str) -> dict[str, str] | None:
             "skip_download": True,
         }
         with YoutubeDL(opts) as ydl:
-            return ydl.extract_info(url, download=False) or {}
+            return ydl.extract_info(url, download=False, process=process) or {}
 
     try:
         info = probe(False)
     except Exception as exc:
         if not _is_bot_check(exc) or get_cookies_file() is None:
             raise
-        logger.info("tag lookup hit YouTube's bot check; retrying with cookies")
+        logger.info("metadata probe hit YouTube's bot check; retrying with cookies")
         info = probe(True)
-    return tags_from_ytdlp(info if isinstance(info, dict) else None)
+    return info if isinstance(info, dict) else {}
+
+
+def fetch_audio_tags(url: str) -> dict[str, str] | None:
+    """A link's tags from its metadata alone, for a track imported before tags
+    were read (#699). Nothing is downloaded; raises on any failure."""
+    return tags_from_ytdlp(probe_info(url))
 
 
 def _download_video_track(job: Job, url: str, job_dir: Path, *, use_cookies: bool = False) -> None:
