@@ -359,14 +359,21 @@ def _store_stems(job: Job, job_dir: Path) -> None:
     _lap(job, "store", mark)
 
 
+def _finish_stems(job: Job, job_dir: Path) -> None:
+    """The metadata goes to disk before storage, so a crash while the stems are
+    being stored rebuilds the song with its title. Rewritten once done."""
+    _mark_stems_complete(job, job_dir)
+    _write_metadata(job, job_dir)
+    _store_stems(job, job_dir)
+
+
 def _run_blocking(job: Job, url: str, job_dir: Path) -> None:
     _check_cancel(job)
     mark = time.monotonic()
     source = download(job, url, job_dir)
     _lap(job, "download", mark)
     _run_with_band_lookup(job, source, job_dir)
-    _mark_stems_complete(job, job_dir)
-    _store_stems(job, job_dir)
+    _finish_stems(job, job_dir)
 
 
 def _run_local_blocking(job: Job, source_path: Path, job_dir: Path) -> None:
@@ -375,8 +382,7 @@ def _run_local_blocking(job: Job, source_path: Path, job_dir: Path) -> None:
     source = _prepare_local_source(job, source_path, job_dir)
     _lap(job, "prepare", mark)
     _run_with_band_lookup(job, source, job_dir)
-    _mark_stems_complete(job, job_dir)
-    _store_stems(job, job_dir)
+    _finish_stems(job, job_dir)
 
 
 def _write_metadata(job: Job, job_dir: Path) -> None:

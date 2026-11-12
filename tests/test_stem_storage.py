@@ -340,6 +340,25 @@ def test_the_runner_never_fails_a_song_over_storage(monkeypatch):
     assert "store" in job.stage_timings
 
 
+def test_a_crash_while_storing_leaves_recovery_the_real_title(monkeypatch):
+    from app.core.folder_rebuild import recover_done_job
+    from app.core.song_folder import keep_added_time
+    from app.pipeline import runner
+
+    job = _job()
+    job_dir = config.JOBS_DIR / job.id
+    keep_added_time(job, job_dir)
+    recovered: list[Job | None] = []
+    monkeypatch.setattr(runner, "_prepare_local_source", lambda job_, src, dir_: src)
+    monkeypatch.setattr(runner, "_run_with_band_lookup", lambda job_, src, dir_: None)
+    monkeypatch.setattr(
+        runner, "store_stems", lambda job_, dir_: recovered.append(recover_done_job(dir_))
+    )
+    runner._run_local_blocking(job, job_dir / "source.wav", job_dir)
+    assert recovered[0] is not None
+    assert recovered[0].title == "Storage"
+
+
 def test_a_crash_mid_storage_leaves_only_temps_the_startup_sweep_removes():
     job = _job()
     (config.JOBS_DIR / job.id / "metadata.json").write_text("{}", encoding="utf-8")
