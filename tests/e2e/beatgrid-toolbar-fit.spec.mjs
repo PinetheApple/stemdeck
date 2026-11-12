@@ -10,8 +10,12 @@ const COLLAPSED_CLASS = "cat-collapsed";
 const CONTROLS = "#beatgrid-toolbar button, #beatgrid-toolbar input";
 // Sub-pixel layout puts edges a fraction past each other even when they fit.
 const EDGE_SLACK = 0.5;
-// The library re-checks its room from a ResizeObserver that queues the fit for the next frame.
-const FRAMES_FOR_ROOM_CHECK = 3;
+
+const isLibraryCollapsed = (page) =>
+  page.locator(".app").evaluate(
+    (el, cls) => el.classList.contains(cls),
+    COLLAPSED_CLASS,
+  );
 
 async function expectLibrary(page, state) {
   const app = page.locator(".app");
@@ -19,19 +23,12 @@ async function expectLibrary(page, state) {
   else await expect(app).not.toHaveClass(new RegExp(COLLAPSED_CLASS));
 }
 
+// The first click makes the state the user's choice, which stops the library reopening by itself.
 async function setLibrary(page, state) {
-  const collapsed = await page.locator(".app").evaluate(
-    (el, cls) => el.classList.contains(cls),
-    COLLAPSED_CLASS,
-  );
-  if (collapsed !== (state === "collapsed")) await page.locator("#sidebarCollapseBtn").click();
+  const collapseButton = page.locator("#sidebarCollapseBtn");
+  await collapseButton.click();
+  if ((await isLibraryCollapsed(page)) !== (state === "collapsed")) await collapseButton.click();
   await expectLibrary(page, state);
-}
-
-async function waitForRoomCheck(page) {
-  await page.evaluate(async (frames) => {
-    for (let i = 0; i < frames; i++) await new Promise(requestAnimationFrame);
-  }, FRAMES_FOR_ROOM_CHECK);
   await waitForPanesSettled(page);
 }
 
@@ -82,9 +79,7 @@ test.describe("beat-grid toolbar fit", () => {
           await waitForPanesSettled(page);
           await openGridEditor(page);
           await setInspector(page, inspector);
-          await waitForRoomCheck(page);
           await setLibrary(page, library);
-          await waitForRoomCheck(page);
 
           await expect(page.locator("#beatgrid-toolbar")).toBeVisible();
           await expectLibrary(page, library);
