@@ -76,8 +76,7 @@ def _partition(items: list[Track]) -> tuple[list[Track], list[Track]]:
     cap = get_playlist_max_items()
     keep, too_long = [], []
     for item in items:
-        duration = item.get("duration")
-        if isinstance(duration, int | float) and duration > max_duration:
+        if _too_long(item.get("duration"), max_duration):
             too_long.append(item)
             continue
         keep.append(item)
@@ -102,8 +101,16 @@ def _gone_copies() -> dict[str, str]:
     }
 
 
+def _too_long(duration: object, limit: int) -> bool:
+    return isinstance(duration, int | float) and duration > limit
+
+
+def _library_jobs() -> dict[str, str]:
+    return {job.source_url: job.id for job in registry_all_jobs().values() if _holds_song(job)}
+
+
 def _library_urls() -> set[str]:
-    return {job.source_url for job in registry_all_jobs().values() if _holds_song(job)}
+    return set(_library_jobs())
 
 
 def _split_in_library(items: list[Track]) -> tuple[list[Track], list[Track]]:

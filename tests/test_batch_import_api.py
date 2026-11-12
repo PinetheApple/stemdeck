@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from unittest.mock import patch
 
 import pytest
@@ -22,6 +23,8 @@ class _FakeYDL:
 
     infos: dict[str, dict] = {}
     opts: list[dict] = []
+    stall_url: str | None = None
+    release = threading.Event()
 
     def __init__(self, opts):
         type(self).opts.append(opts)
@@ -33,6 +36,8 @@ class _FakeYDL:
         return False
 
     def extract_info(self, url, download=False, process=True):
+        if url == type(self).stall_url:
+            type(self).release.wait()
         if url not in type(self).infos:
             raise RuntimeError("Video unavailable")
         return type(self).infos[url]
@@ -55,12 +60,14 @@ def _track(video_id: str, title: str, duration: float | None = 200) -> dict:
 def fake_ydl():
     _FakeYDL.infos = {}
     _FakeYDL.opts = []
+    _FakeYDL.stall_url = None
+    _FakeYDL.release = threading.Event()
     with (
         patch("app.pipeline.download.YoutubeDL", _FakeYDL),
-        patch("app.api.batch_import.YoutubeDL", _FakeYDL),
         patch("app.api.batch_import.get_max_duration_sec", lambda: LIMIT_SEC),
     ):
         yield _FakeYDL
+    _FakeYDL.release.set()
 
 
 @pytest.fixture
@@ -95,6 +102,7 @@ def test_a_link_reports_its_canonical_url_title_artist_and_length(client, fake_y
 
     assert item == {
         "input": "https://youtu.be/aaaaaaaaaaa",
+        "line": 1,
         "url": VIDEO_A,
         "title": "Build My Life",
         "artist": "Housefires",
@@ -130,7 +138,18 @@ def test_a_link_over_the_limit_is_too_long(client, fake_ydl):
 def test_blank_lines_are_ignored_and_order_is_kept(client, fake_ydl):
     fake_ydl.infos = {VIDEO_A: _video("A"), VIDEO_B: _video("B")}
     items = _preview(client, [VIDEO_B, "  ", "nope", VIDEO_A])["items"]
-    assert [i["input"] for i in items] == [VIDEO_B, "nope", VIDEO_A]
+    assert [(i["input"], i["line"]) for i in items] == [(VIDEO_B, 1), ("nope", 3), (VIDEO_A, 4)]
+
+
+def test_a_link_that_takes_too_long_to_read_is_unavailable(client, fake_ydl):
+    fake_ydl.infos = {VIDEO_B: _video("B")}
+    fake_ydl.stall_url = VIDEO_A
+    with patch("app.api.batch_import.TIMEOUT_BATCH_PROBE", 0.2):
+        try:
+            items = _preview(client, [VIDEO_A, VIDEO_B])["items"]
+        finally:
+            fake_ydl.release.set()
+    assert [i["status"] for i in items] == ["unavailable", "ok"]
 
 
 def test_the_same_song_twice_is_listed_once(client, fake_ydl):
@@ -199,6 +218,7 @@ def test_a_playlist_line_expands_to_its_tracks(client, fake_ydl):
     assert body["playlists"] == [
         {
             "input": PLAYLIST,
+            "line": 1,
             "url": PLAYLIST,
             "title": "Worship Nights",
             "found": 2,
@@ -214,13 +234,17 @@ def test_a_playlist_that_cannot_be_read_is_one_unavailable_item(client):
     assert body["playlists"] == []
 
 
-def test_a_pasted_link_also_in_a_playlist_is_listed_once(client, fake_ydl):
+def test_a_pasted_link_also_in_a_playlist_is_listed_and_counted_once(client, fake_ydl):
     fake_ydl.infos = {
         VIDEO_A: _video("A"),
-        PLAYLIST: {"title": "P", "entries": [_track("aaaaaaaaaaa", "A")]},
+        PLAYLIST: {
+            "title": "P",
+            "entries": [_track("aaaaaaaaaaa", "A"), _track("ccccccccccc", "C")],
+        },
     }
-    items = _preview(client, [VIDEO_A, PLAYLIST])["items"]
-    assert [i["input"] for i in items] == [VIDEO_A]
+    body = _preview(client, [VIDEO_A, PLAYLIST])
+    assert [(i["title"], i["line"]) for i in body["items"]] == [("A", 1), ("C", 2)]
+    assert body["playlists"][0]["found"] == 1
 
 
 # ── the request ──────────────────────────────────────────────────────────────
@@ -242,6 +266,13 @@ def test_too_many_links_is_refused(client):
     assert res.status_code == 422
 
 
+def test_blank_lines_do_not_count_against_the_cap(client):
+    from app.api.batch_import import MAX_BATCH_LINKS
+
+    res = client.post(PREVIEW, json={"links": [VIDEO_A, *[""] * MAX_BATCH_LINKS]})
+    assert res.status_code == 200
+
+
 def test_the_link_probe_stays_on_the_supported_extractors(client, fake_ydl):
     from app.pipeline.download import _ALLOWED_EXTRACTORS
 
@@ -250,3 +281,10 @@ def test_the_link_probe_stays_on_the_supported_extractors(client, fake_ydl):
     [opts] = fake_ydl.opts
     assert opts["allowed_extractors"] == _ALLOWED_EXTRACTORS
     assert opts["noplaylist"] is True
+
+
+def test_the_probe_refuses_a_host_it_does_not_support():
+    from app.pipeline.download import InvalidYouTubeURL, probe_info
+
+    with pytest.raises(InvalidYouTubeURL):
+        probe_info("https://example.com/song")

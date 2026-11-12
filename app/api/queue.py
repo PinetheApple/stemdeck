@@ -32,6 +32,10 @@ from app.pipeline import jobqueue
 router = APIRouter(tags=["queue"])
 
 
+def upload_capacity_left() -> int:
+    return max(0, MAX_PENDING_UPLOAD_JOBS - registry_pending_count(uploads=True))
+
+
 def _snapshot() -> dict[str, Any]:
     """Current queue as the client sees it. Position is derived here rather than
     stored on the Job: it changes for every waiting job whenever the head is
@@ -56,7 +60,6 @@ def _snapshot() -> dict[str, Any]:
 
     # Capacity is per kind: a waiting upload holds its source file on disk, a
     # waiting link holds nothing, so they are bounded separately.
-    uploads_pending = registry_pending_count(uploads=True)
     urls_pending = registry_pending_count(uploads=False)
     return {
         "running": running,
@@ -66,7 +69,7 @@ def _snapshot() -> dict[str, Any]:
         "paused": jobqueue.is_paused(),
         "max_pending_uploads": MAX_PENDING_UPLOAD_JOBS,
         "max_pending_urls": MAX_PENDING_URL_JOBS,
-        "capacity_left_uploads": max(0, MAX_PENDING_UPLOAD_JOBS - uploads_pending),
+        "capacity_left_uploads": upload_capacity_left(),
         "capacity_left_urls": max(0, MAX_PENDING_URL_JOBS - urls_pending),
     }
 
