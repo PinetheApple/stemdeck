@@ -1,7 +1,7 @@
 """Where a stem's audio file is, whatever format the song keeps it in.
 
 A library holds songs stored as WAV (every song by default) and songs stored as
-MP3 (the opt-in Stem storage format, upstream PR 822). Every reader that opens
+MP3 (the opt-in Stem storage format). Every reader that opens
 a stem of a finished song goes through `stem_path`, so none of them needs to
 know which kind of song it has.
 

@@ -18,7 +18,7 @@ at startup), so the Settings UI can change them without a restart:
 - `discogs_token`     - the user's Discogs token, for band profiles.
 - `transcribe_lyrics` - Whisper lyrics when none are found: auto | on | off.
 - `idle_unload_minutes` - idle minutes before the separation models unload (0 never).
-- `stem_format`       - how new songs' stems are stored: wav | mp3 (upstream PR 822).
+- `stem_format`       - how new songs' stems are stored: wav | mp3.
 - `stem_mp3_kbps`     - the MP3 bitrate when stem_format is mp3: 128 | 192 | 256.
 
 Defaults fall back to the config.py constants (which honor their env vars), so
@@ -705,11 +705,8 @@ def set_separation_quality(value: str) -> str:
 
 
 # ── stem_format / stem_mp3_kbps ──
-# How a song's stems are stored once it finishes: "wav" or "mp3" at a CBR
-# bitrate. Read when a job finishes (app/pipeline/stem_storage.py), so a change
-# applies to the next song without a restart; songs already in the library keep
-# their format. STEMDECK_STEM_FORMAT and STEMDECK_STEM_MP3_KBPS seed the
-# defaults for Docker and Unraid; a choice saved in Settings wins over them.
+# Read when a job finishes, so a change applies to the next song without a
+# restart. The env seeds them for Docker and Unraid; a saved choice wins.
 _KBPS_SUFFIX = "k"
 
 

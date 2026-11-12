@@ -1,4 +1,4 @@
-"""Every fork reader of stem audio on a song stored as MP3 (#97): the stem
+"""Every fork reader of stem audio on a song stored as MP3: the stem
 routes, the zip, the song bundle, the vocal envelope, the rebuild from disk,
 auto-delete and the completeness marker, transcription, the kept transcript,
 and the Lead + Backing split. A WAV song with a cached download MP3 still reads

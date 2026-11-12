@@ -396,11 +396,8 @@ class Job:
     # Wall-clock seconds per pipeline stage ({"download": 12.3, ...}); written
     # to metadata.json and the one-line completion summary in the log.
     stage_timings: dict[str, float] | None = None
-    # How this song's stems are kept on disk: "wav" or "mp3", set when the job
-    # finishes from the Stem storage format setting of that moment, with the
-    # MP3 bitrate (kbps) or None. None for a song finished before the setting
-    # existed, whose stems are WAV. Readers do not branch on it: they resolve
-    # each file through app.core.stem_files, which looks at the disk.
+    # For diagnostics and the split only: readers find each file on disk
+    # (app.core.stem_files), which stays right after a crash.
     stem_format: str | None = None
     stem_mp3_kbps: int | None = None
     # On-demand lead/backing vocal split (#275) -- a post-hoc action on an

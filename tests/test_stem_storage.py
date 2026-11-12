@@ -1,5 +1,5 @@
-"""Opt-in MP3 stem storage (#97, upstream PR 822 and 898): the setting, the
-stem-path lookup and the storage stage.
+"""Opt-in MP3 stem storage: the setting, the stem-path lookup and the storage
+stage.
 
 - The setting: WAV by default, env seeds it, a saved choice wins, a whitelist
   guards both values and one bad value changes nothing.

@@ -1,5 +1,4 @@
-"""The last pipeline stage: keep a finished song's stems as WAV or MP3
-(upstream PR 822, with the durability of upstream PR 898).
+"""The last pipeline stage: keep a finished song's stems as WAV or MP3.
 
 Separation and every analysis stage run on WAV exactly as they always did.
 Only once the song has nothing left to read from its stems does this stage
