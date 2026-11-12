@@ -37,7 +37,6 @@ export function ensureMixerStateDefaults() {
   }
 }
 
-// The transport's global key, saved in the same record as the lanes it moved.
 let globalPitch = 0;
 
 export function mixGlobalPitch() {

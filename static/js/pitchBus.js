@@ -36,16 +36,9 @@ export function effectivePitch(name, semitones, pitchable) {
   return clampPitch(semitones);
 }
 
-// Where a saved mix keeps the transport's global key, beside its lanes.
 export const GLOBAL_PITCH_FIELD = "globalPitch";
 
-/**
- * The global key a saved mix was left at.
- *
- * The record says so itself under GLOBAL_PITCH_FIELD. One saved before that
- * field has only the lanes, which are absolute, and the global control moves
- * every lane but drums together, so it is read back from them instead.
- */
+/** Saved global key; older records fall back to the lane vote. */
 export function savedGlobalPitch(record, laneNames) {
   const saved = record?.[GLOBAL_PITCH_FIELD];
   return Number.isFinite(saved) ? clampPitch(saved) : globalPitchFromLanes(record, laneNames);

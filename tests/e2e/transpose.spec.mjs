@@ -90,11 +90,8 @@ const recentInputs = (page) => page.evaluate(
   () => [...new Set(window.__routes || [])].sort((a, b) => a - b),
 );
 
-/**
- * Hold every read of a song's saved mix until the test releases it, and note
- * when playback is ready, so the gap between the two can be inspected.
- * Goes through the desktop store bridge, the only store read that can wait.
- */
+// Hold a song's mix read (via the desktop store bridge, the only read that
+// can wait) until the test releases it, and note when playback is ready.
 async function holdMixRead(page) {
   await page.addInitScript(() => {
     let release;
