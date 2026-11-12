@@ -2113,7 +2113,7 @@ function wireRailLibraryDrop() {
   });
 }
 
-function isTextEditingTarget(target) {
+export function isTextEditingTarget(target) {
   return Boolean(target?.closest?.("input, textarea, select, [contenteditable='true'], .folder-editor"));
 }
 

@@ -15,7 +15,7 @@ import { togglePlayPause, updateLoopRegionVisual, toggleMetronome, transport, se
 import { setSectionsLoopBridge, saveSectionsOnPageClose } from "./sections.js";
 import { saveBeatGridOnPageClose } from "./beatgrid.js";
 import { wireStemListControls, wireMixerToolbar, laneDragIcon } from "./mixer.js";
-import { initCatalog, collectDiagnostics } from "./catalog.js";
+import { initCatalog, collectDiagnostics, isTextEditingTarget } from "./catalog.js";
 import { initNotifications, notifyFailure, dismissFailuresByJobId } from "./notifications.js";
 import { runStoreMigrationIfNeeded } from "./utils.js";
 import { initI18n, applyTranslations, t, plural, onLanguageChange } from "./i18n.js";
@@ -1076,12 +1076,11 @@ function wireAppShellControls() {
 
 // ─── Keyboard shortcuts ───
 
-document.addEventListener("keydown", (e) => {
+document.addEventListener("keydown", function onStudioShortcutKey(e) {
   if (!transport()) return;
-  if (e.ctrlKey || e.metaKey) return;
-  // Textareas were not excluded, so Space in the log viewer started playback
-  // instead of scrolling.
-  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  // A focused field, select or editable keeps its own keys, Space included.
+  if (isTextEditingTarget(e.target)) return;
   if (e.code === "Space") {
     e.preventDefault();
     togglePlayPause();
