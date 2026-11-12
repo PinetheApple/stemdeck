@@ -159,6 +159,7 @@ LYRICS_RUNNING_BLOCKS_RESET = (
     "Lyrics are still being made. Wait for them or cancel them, then reset."
 )
 STEMS_FOLDER_MOVING = "Restart StemDeck to finish moving your stems folder, then make the lyrics."
+STEMS_FOLDER_MOVING_IMPORT = "Restart StemDeck to finish moving your stems folder before importing"
 JOB_NOT_FAILED = "job has not failed"
 SOURCE_FILE_GONE = "source file is gone"
 RESTORE_FROM_TRASH_FIRST = "restore it from the Trash first"
@@ -333,10 +334,7 @@ async def create_job(request: Request) -> dict[str, str]:
     if is_relocating():
         # The stems folder just moved. This process still writes to the old one,
         # so anything accepted now would be orphaned by the restart.
-        raise HTTPException(
-            status_code=409,
-            detail="Restart StemDeck to finish moving your stems folder before importing",
-        )
+        raise HTTPException(status_code=409, detail=STEMS_FOLDER_MOVING_IMPORT)
     ct = request.headers.get("content-type", "")
     if "multipart/form-data" in ct:
         return await _create_local_job(request)
@@ -643,6 +641,8 @@ def retry_job(job_id: str) -> dict:
     410 when an upload's kept file is gone."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
+    if is_relocating():
+        raise HTTPException(status_code=409, detail=STEMS_FOLDER_MOVING_IMPORT)
     with _RETRY_LOCK:
         job = _known_job(job_id)
         if job is None:

@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.api import jobs as jobs_mod
 from app.api.jobs import RESTORE_FROM_TRASH_FIRST, SOURCE_FILE_GONE
-from app.core import config, registry
+from app.core import config, registry, stems_location
 from app.core.models import STATUS_DONE, STATUS_ERROR, Job
 from app.core.registry import _jobs, register, registry_path
 from app.core.song_folder import FAILED_DIR_NAME
@@ -209,3 +209,14 @@ def test_an_uploads_file_name_survives_a_registry_rebuilt_from_its_folder() -> N
     registry.restore(root)
 
     assert registry.get(UPLOAD_ID).source_name == "Song.mp3"
+
+
+def test_retry_waits_for_the_stems_folder_to_finish_moving(client: TestClient, monkeypatch) -> None:
+    register(_failed_upload())
+    monkeypatch.setattr(stems_location, "_relocating", True)
+
+    res = client.post(f"/api/jobs/{UPLOAD_ID}/retry")
+
+    assert (res.status_code, res.json()["detail"]) == (409, jobs_mod.STEMS_FOLDER_MOVING_IMPORT)
+    assert _jobs[UPLOAD_ID].status == STATUS_ERROR
+    assert (_failed_dir(UPLOAD_ID) / "source.mp3").is_file()
