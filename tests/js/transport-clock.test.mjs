@@ -63,8 +63,8 @@ check(
 );
 
 check(
-  'the keyboard guard excludes textareas',
-  code.includes('HTMLTextAreaElement'),
+  'the keyboard guard excludes fields, selects and editables',
+  /if \(isTextEditingTarget\(e\.target\)\) return;/.test(code),
   'Space in the log viewer used to start playback instead of scrolling',
 );
 
