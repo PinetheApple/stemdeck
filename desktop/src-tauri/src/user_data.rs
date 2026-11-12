@@ -23,8 +23,16 @@ pub struct UserData {
 #[derive(Default)]
 struct State {
     open: Option<OpenStore>,
-    /// Set when the store could not be reached; cleared by `ready`.
+    /// Set when the page could not reach the store; cleared by `ready`.
     blocked: bool,
+}
+
+/// Who asks. Only the page's failures block writes: it may hold stand-ins for
+/// what it could not read. A shell lookup that fails says nothing about that.
+#[derive(Clone, Copy, PartialEq)]
+pub enum Caller {
+    Page,
+    Shell,
 }
 
 /// Where the store is: its path (Err when the jobs folder cannot be reached)
@@ -34,21 +42,53 @@ pub struct Place {
     pub legacy: Option<PathBuf>,
 }
 
+impl State {
+    /// The store at `place`, opened if needed. A failure by the page blocks writes.
+    fn open_at(
+        &mut self,
+        place: Place,
+        report: impl Fn(&str),
+        caller: Caller,
+    ) -> Result<&mut OpenStore, String> {
+        if let Err(e) = self.ensure_open(place, &report) {
+            self.blocked |= caller == Caller::Page;
+            let error = format!("{UNAVAILABLE}: {e}");
+            report(&error);
+            return Err(error);
+        }
+        self.open
+            .as_mut()
+            .ok_or_else(|| format!("{UNAVAILABLE}: not open"))
+    }
+
+    /// A store open at another path is dropped unsaved: the library moved.
+    fn ensure_open(&mut self, place: Place, report: &impl Fn(&str)) -> Result<(), String> {
+        let path = place.path?;
+        if self.open.as_ref().is_some_and(|store| store.path() != path) {
+            self.open = None;
+        }
+        if self.open.is_none() {
+            self.open = Some(OpenStore::open(&path, place.legacy.as_deref(), report)?);
+        }
+        Ok(())
+    }
+}
+
 impl UserData {
     fn state(&self) -> MutexGuard<'_, State> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Run `f` on the store at `place`, holding it for the whole call so two
-    /// saves never share the `.tmp`. A store open at another path is dropped
-    /// unsaved: the library moved. With `write`, refused while blocked.
+    /// saves never share the `.tmp`. With `write`, refused while blocked.
     fn run<T>(
         &self,
         place: Place,
         report: impl Fn(&str),
-        write: bool,
+        access: (Caller, bool),
         f: impl FnOnce(&mut OpenStore) -> T,
     ) -> Result<T, String> {
+        let (caller, write) = access;
         let mut state = self.state();
         if write && state.blocked {
             return Err(format!(
@@ -56,53 +96,37 @@ impl UserData {
                  so it has to be loaded again first"
             ));
         }
-        let path = match place.path {
-            Ok(path) => path,
-            Err(e) => {
-                state.blocked = true;
-                return Err(format!("{UNAVAILABLE}: {e}"));
-            }
-        };
-        if state.open.as_ref().is_some_and(|store| store.path() != path) {
-            state.open = None;
-        }
-        if state.open.is_none() {
-            match OpenStore::open(&path, place.legacy.as_deref(), &report) {
-                Ok(store) => state.open = Some(store),
-                Err(e) => {
-                    state.blocked = true;
-                    let error = format!("{UNAVAILABLE}: {e}");
-                    report(&error);
-                    return Err(error);
-                }
-            }
-        }
-        match state.open.as_mut() {
-            Some(store) => Ok(f(store)),
-            None => Err(format!("{UNAVAILABLE}: not open")),
-        }
+        state.open_at(place, report, caller).map(f)
     }
 
     pub fn read<T>(
         &self,
         place: Place,
         report: impl Fn(&str),
+        caller: Caller,
         f: impl FnOnce(&OpenStore) -> T,
     ) -> Result<T, String> {
-        self.run(place, report, false, |store| f(store))
+        self.run(place, report, (caller, false), |store| f(store))
     }
 
     pub fn write<T>(
         &self,
         place: Place,
         report: impl Fn(&str),
+        caller: Caller,
         f: impl FnOnce(&mut OpenStore) -> T,
     ) -> Result<T, String> {
-        self.run(place, report, true, f)
+        self.run(place, report, (caller, true), f)
     }
 
-    pub fn get(&self, place: Place, report: impl Fn(&str), key: &str) -> Result<Option<Value>, String> {
-        self.read(place, report, |store| store.get(key))
+    pub fn get(
+        &self,
+        place: Place,
+        report: impl Fn(&str),
+        caller: Caller,
+        key: &str,
+    ) -> Result<Option<Value>, String> {
+        self.read(place, report, caller, |store| store.get(key))
     }
 
     /// Every key in one save; refused whole while blocked.
@@ -110,9 +134,10 @@ impl UserData {
         &self,
         place: Place,
         report: impl Fn(&str),
+        caller: Caller,
         entries: Map<String, Value>,
     ) -> Result<(), String> {
-        self.write(place, report, |store| {
+        self.write(place, report, caller, |store| {
             for (key, value) in entries {
                 store.set(key, value);
             }
@@ -123,17 +148,20 @@ impl UserData {
     }
 
     /// Open the store for a page that is loading, then lift the block on writes.
-    pub fn ready(&self, place: Place, report: impl Fn(&str)) -> Result<(), String> {
-        self.run(place, report, false, |_| ())?;
+    /// True once when the open found nothing it could recover and started empty.
+    pub fn ready(&self, place: Place, report: impl Fn(&str)) -> Result<bool, String> {
+        let lost = self.run(place, report, (Caller::Page, false), OpenStore::take_lost)?;
         self.state().blocked = false;
-        Ok(())
+        Ok(lost)
     }
 
     /// Clear the store. Not refused while blocked: nothing the page holds is
     /// written, and the page loads again right after.
     pub fn reset(&self, place: Place, report: impl Fn(&str) + Copy) -> Result<(), String> {
-        self.run(place, report, false, |store| store.reset(report))?
-            .map_err(|e| format!("could not save user-data.json: {e}"))
+        self.run(place, report, (Caller::Page, false), |store| {
+            store.reset(report)
+        })?
+        .map_err(|e| format!("could not save user-data.json: {e}"))
     }
 
     /// At exit: save the open store if its last save failed.
@@ -146,15 +174,15 @@ impl UserData {
 
 /// Run `attempt` until it works, pausing between tries, for at most `budget`;
 /// then its last error.
-pub fn wait_until_ready(
-    mut attempt: impl FnMut() -> Result<(), String>,
+pub fn wait_until_ready<T>(
+    mut attempt: impl FnMut() -> Result<T, String>,
     budget: Duration,
     pause: Duration,
-) -> Result<(), String> {
+) -> Result<T, String> {
     let deadline = Instant::now() + budget;
     loop {
         match attempt() {
-            Ok(()) => return Ok(()),
+            Ok(value) => return Ok(value),
             Err(_) if Instant::now() + pause < deadline => thread::sleep(pause),
             Err(e) => return Err(e),
         }
@@ -201,24 +229,31 @@ mod tests {
         assert!(err.starts_with(UNAVAILABLE), "{err}");
         assert!(reported.borrow().iter().any(|l| l.contains(UNAVAILABLE)));
         assert!(path.is_dir(), "the file in place is untouched");
-        assert!(corrupt_copies(&path).unwrap().is_empty(), "nothing set aside");
+        assert!(
+            corrupt_copies(&path).unwrap().is_empty(),
+            "nothing set aside"
+        );
         assert_eq!(read_json(&backup_path(&path)), json!({ "a": "old" }));
 
         fs::remove_dir(&path).unwrap();
         fs::write(&path, r#"{"a":"new"}"#).unwrap();
-        let refused = data.write(place(&path), report, |s| {
+        let refused = data.write(place(&path), report, Caller::Page, |s| {
             s.set("a".into(), json!("stand-in"));
             s.save()
         });
         assert!(refused.expect_err("blocked").starts_with(UNAVAILABLE));
         assert_eq!(read_json(&path), json!({ "a": "new" }), "nothing written");
 
-        let got = data.read(place(&path), report, |s| s.get("a")).expect("read");
+        let got = data
+            .read(place(&path), report, Caller::Page, |s| s.get("a"))
+            .expect("read");
         assert_eq!(got, Some(json!("new")));
-        assert!(data.write(place(&path), report, |_| ()).is_err());
+        assert!(data
+            .write(place(&path), report, Caller::Page, |_| ())
+            .is_err());
 
         data.ready(place(&path), report).expect("ready");
-        data.write(place(&path), report, |s| {
+        data.write(place(&path), report, Caller::Page, |s| {
             s.set("a".into(), json!("newer"));
             s.save()
         })
@@ -236,11 +271,19 @@ mod tests {
             path: Err("failed to create E:\\StemDeck: the device is not ready".into()),
             legacy: None,
         };
-        let err = data.read(gone, |_| {}, |s| s.get("a")).expect_err("unavailable");
+        let err = data
+            .read(gone, |_| {}, Caller::Page, |s| s.get("a"))
+            .expect_err("unavailable");
         assert!(err.starts_with(UNAVAILABLE), "{err}");
-        assert!(data.write(place(&path), |_| {}, |_| ()).is_err(), "blocked");
+        assert!(
+            data.write(place(&path), |_| {}, Caller::Page, |_| ())
+                .is_err(),
+            "blocked"
+        );
         data.ready(place(&path), |_| {}).expect("ready");
-        assert!(data.write(place(&path), |_| {}, |_| ()).is_ok());
+        assert!(data
+            .write(place(&path), |_| {}, Caller::Page, |_| ())
+            .is_ok());
     }
 
     #[test]
@@ -252,13 +295,20 @@ mod tests {
         fs::write(&second, r#"{"where":"two"}"#).unwrap();
 
         let data = UserData::default();
-        data.write(place(&first), |_| {}, |s| {
-            s.set("where".into(), json!("one"));
-            s.save()
-        })
+        data.write(
+            place(&first),
+            |_| {},
+            Caller::Page,
+            |s| {
+                s.set("where".into(), json!("one"));
+                s.save()
+            },
+        )
         .expect("open")
         .expect("saved");
-        let seen = data.read(place(&second), |_| {}, |s| s.get("where")).expect("open");
+        let seen = data
+            .read(place(&second), |_| {}, Caller::Page, |s| s.get("where"))
+            .expect("open");
         assert_eq!(seen, Some(json!("two")));
         assert_eq!(read_json(&first), json!({ "where": "one" }));
     }
@@ -266,23 +316,32 @@ mod tests {
     #[test]
     fn the_exit_saves_what_a_failed_save_left_unsaved() {
         let dir = scratch();
-        // A file where the store's folder should be: every save fails.
         let blocker = dir.path().join("jobs");
-        fs::write(&blocker, "not a folder").unwrap();
         let path = blocker.join("user-data.json");
-
         let data = UserData::default();
         assert!(data.save_unsaved().is_none(), "nothing open");
+        data.read(place(&path), |_| {}, Caller::Page, |_| ())
+            .expect("open");
+
+        // A file where the store's folder should be: the save fails.
+        fs::write(&blocker, "not a folder").unwrap();
         let saved = data
-            .write(place(&path), |_| {}, |s| {
-                s.set("a".into(), json!(1));
-                s.save()
-            })
+            .write(
+                place(&path),
+                |_| {},
+                Caller::Page,
+                |s| {
+                    s.set("a".into(), json!(1));
+                    s.save()
+                },
+            )
             .expect("open");
         assert!(saved.is_err(), "the folder cannot be made");
 
         fs::remove_file(&blocker).unwrap();
-        data.save_unsaved().expect("unsaved").expect("saved at exit");
+        data.save_unsaved()
+            .expect("unsaved")
+            .expect("saved at exit");
         assert_eq!(read_json(&path), json!({ "a": 1 }));
         assert!(data.save_unsaved().is_none(), "saved once");
     }
@@ -303,16 +362,29 @@ mod tests {
             legacy: None,
         };
 
-        let got = data.get(unreachable, |_| {}, "stemdeck.folders");
+        let got = data.get(unreachable, |_| {}, Caller::Page, "stemdeck.folders");
         assert!(got.expect_err("unavailable").starts_with(UNAVAILABLE));
-        let set = data.set_all(place(&path), |_| {}, entries(json!({ "stemdeck.folders": [] })));
+        let set = data.set_all(
+            place(&path),
+            |_| {},
+            Caller::Page,
+            entries(json!({ "stemdeck.folders": [] })),
+        );
         assert!(set.expect_err("refused").starts_with(UNAVAILABLE));
         assert!(!path.exists(), "the stand-in was not written");
 
         data.ready(place(&path), |_| {}).expect("ready");
-        data.set_all(place(&path), |_| {}, entries(json!({ "a": 1, "b": 2 })))
-            .expect("saved");
-        assert_eq!(data.get(place(&path), |_| {}, "b"), Ok(Some(json!(2))));
+        data.set_all(
+            place(&path),
+            |_| {},
+            Caller::Page,
+            entries(json!({ "a": 1, "b": 2 })),
+        )
+        .expect("saved");
+        assert_eq!(
+            data.get(place(&path), |_| {}, Caller::Page, "b"),
+            Ok(Some(json!(2)))
+        );
         assert_eq!(read_json(&path), json!({ "a": 1, "b": 2 }));
     }
 
@@ -342,5 +414,43 @@ mod tests {
         );
         assert_eq!(result, Err(format!("{UNAVAILABLE}: locked")));
         assert!(started.elapsed() < Duration::from_secs(1));
+    }
+
+    /// A shell lookup (the exports folder) that fails before the page opened
+    /// the store does not refuse the page's saves afterwards.
+    #[test]
+    fn a_failed_shell_lookup_does_not_block_the_pages_writes() {
+        let dir = scratch();
+        let path = dir.path().join("user-data.json");
+        let data = UserData::default();
+        let gone = Place {
+            path: Err("failed to create E:\\jobs: not ready".into()),
+            legacy: None,
+        };
+        let got = data.get(gone, |_| {}, Caller::Shell, "exports_dir");
+        assert!(got.expect_err("unavailable").starts_with(UNAVAILABLE));
+        data.set_all(
+            place(&path),
+            |_| {},
+            Caller::Page,
+            entries(json!({ "a": 1 })),
+        )
+        .expect("not blocked");
+        assert_eq!(read_json(&path), json!({ "a": 1 }));
+    }
+
+    /// The page learns once that nothing could be recovered.
+    #[test]
+    fn ready_says_once_that_the_library_could_not_be_recovered() {
+        let dir = scratch();
+        let path = dir.path().join("user-data.json");
+        fs::write(&path, r#"{"a":"#).unwrap();
+        fs::write(backup_path(&path), "").unwrap();
+        let data = UserData::default();
+        assert_eq!(data.ready(place(&path), |_| {}), Ok(true));
+        assert_eq!(data.ready(place(&path), |_| {}), Ok(false));
+
+        let fine = dir.path().join("fine").join("user-data.json");
+        assert_eq!(data.ready(place(&fine), |_| {}), Ok(false));
     }
 }
