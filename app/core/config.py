@@ -237,6 +237,10 @@ SSL_KEYFILE = _env_path_opt("STEMDECK_SSL_KEY")
 # listener alongside the first; when it is not, there is only ever one server
 # and TLS (if configured at all) belongs to whoever launched uvicorn.
 HTTPS_PORT = _env_int("STEMDECK_HTTPS_PORT", 0) or None
+# The address the desktop shell told uvicorn to bind: 127.0.0.1 while network
+# access is off, 0.0.0.0 while it is on. None when anything else started the
+# server, which then decides its own bind.
+BIND_HOST = os.environ.get("STEMDECK_BIND_HOST", "").strip() or None
 FFMPEG_BIN = _env_path(
     "STEMDECK_FFMPEG",
     FFMPEG_DIR / ("ffmpeg.exe" if sys.platform.startswith("win") else "ffmpeg"),
