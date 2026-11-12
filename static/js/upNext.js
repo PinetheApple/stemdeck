@@ -113,6 +113,13 @@ function onPlaybackReady(e) {
   if (!transport()?.isPlaying()) togglePlayPause();
 }
 
+export const UP_NEXT_ADD_EVENT = "upnext:add";
+
+/** Queue a song from anywhere, without importing this module's state. */
+export function queueUpNext(trackId) {
+  document.dispatchEvent(new CustomEvent(UP_NEXT_ADD_EVENT, { detail: { id: trackId } }));
+}
+
 function onAddRequest(e) {
   const id = e.detail?.id;
   if (id) addToUpNext(id);
@@ -256,7 +263,7 @@ export function initUpNext() {
   wireUpNextRows();
   $("upNextClear")?.addEventListener("click", clearUpNext);
   $("t-next")?.addEventListener("click", playNextInUpNext);
-  document.addEventListener("upnext:add", onAddRequest);
+  document.addEventListener(UP_NEXT_ADD_EVENT, onAddRequest);
   document.addEventListener("trackended", onTrackEnded);
   document.addEventListener("playbackready", onPlaybackReady);
   document.addEventListener("trackopen", renderUpNext);
