@@ -2,6 +2,8 @@
 // attributes so the Content-Security-Policy can forbid inline script (#171).
 // Loaded as a module (deferred), so the DOM is parsed before this runs.
 
+import { disarmClearSections } from "./sections.js";
+
 // Upload button → trigger the hidden file input.
 document.getElementById("uploadFileBtn")?.addEventListener("click", () => {
   document.getElementById("fileInput")?.click();
@@ -96,6 +98,7 @@ function setPanel(name, shown) {
 
 // Focus goes to the Collapse toggle because that is the way back.
 function handleSectionsHideClick() {
+  disarmClearSections();
   setPanel(SECTIONS_PANEL, false);
   panelToggles.find((btn) => btn.dataset.panel === SECTIONS_PANEL)?.focus();
 }
