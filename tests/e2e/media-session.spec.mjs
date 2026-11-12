@@ -289,7 +289,8 @@ test.describe("system media controls", () => {
 
     await runAction(page, "play");
     await expectPlaying(page, true);
-    await page.locator("#t-speed-05").click();
+    await page.locator("#t-speed-value").fill("0.5");
+    await page.locator("#t-speed-value").press("Enter");
     await expect.poll(async () => (await lastPosition(page))?.playbackRate).toBe(0.5);
   });
 

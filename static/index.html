@@ -1095,13 +1095,25 @@
           <span class="footer-divider" aria-hidden="true"></span>
 
           <div class="footer-group footer-group-speed">
-            <span class="footer-group-label" data-i18n="speed.group">Speed</span>
+            <span class="footer-group-label" id="t-speed-label" data-i18n="speed.group">Speed</span>
             <div class="footer-group-body">
-              <div class="footer-seg speed-group" id="t-speed-wrap" role="radiogroup" aria-label="Playback speed" data-i18n-aria-label="speed.ariaLabel">
-                <button class="speed-btn" id="t-speed-05" type="button" role="radio" aria-checked="false" data-speed="0.5">0.5x</button>
-                <button class="speed-btn" id="t-speed-075" type="button" role="radio" aria-checked="false" data-speed="0.75">0.75x</button>
-                <button class="speed-btn active" id="t-speed-1" type="button" role="radio" aria-checked="true" data-speed="1">1x</button>
+              <div class="speed-fader" id="t-speed-wrap">
+                <input type="range" class="speed-fader-input" id="t-speed" min="0.5" max="1" step="0.01" value="1" aria-labelledby="t-speed-label" aria-valuetext="1.00x" title="Drag, scroll or use the arrow keys. Double-click to switch between 1x and your slow speed." data-i18n-title="speed.faderTitle">
+                <div class="speed-notches" aria-hidden="true">
+                  <span class="speed-notch major" style="--i: 0"></span>
+                  <span class="speed-notch" style="--i: 1"></span>
+                  <span class="speed-notch" style="--i: 2"></span>
+                  <span class="speed-notch" style="--i: 3"></span>
+                  <span class="speed-notch" style="--i: 4"></span>
+                  <span class="speed-notch major" style="--i: 5"></span>
+                  <span class="speed-notch" style="--i: 6"></span>
+                  <span class="speed-notch" style="--i: 7"></span>
+                  <span class="speed-notch" style="--i: 8"></span>
+                  <span class="speed-notch" style="--i: 9"></span>
+                  <span class="speed-notch major" style="--i: 10"></span>
+                </div>
               </div>
+              <input type="text" class="loop-time-input num speed-value" id="t-speed-value" inputmode="decimal" spellcheck="false" autocomplete="off" value="1.00x" aria-label="Exact playback speed" data-i18n-aria-label="speed.exactAria" title="Type a speed from 0.50 to 1.00" data-i18n-title="speed.exactTitle">
             </div>
           </div>
 

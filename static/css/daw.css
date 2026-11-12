@@ -3102,27 +3102,6 @@ input, textarea { font-family: inherit; }
 }
 
 /* ── Segmented controls (Speed, click rate) ── */
-/* One joined track rather than separate pills: the options are exclusive, and
-   butting them together says so (design 1b). */
-.footer-seg {
-  display: flex; height: 34px; overflow: hidden;
-  background: var(--panel); border: 1px solid var(--border-strong);
-  border-radius: 8px;
-}
-.footer-seg > button {
-  border: 0; background: transparent;
-  padding: 0 11px; cursor: pointer;
-  color: var(--muted);
-  font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1;
-  white-space: nowrap;
-  transition: background var(--t-fast), color var(--t-fast);
-}
-.footer-seg > button:hover { background: var(--panel-3); color: var(--fg); }
-.footer-seg > button + button { border-left: 1px solid var(--border); }
-.speed-btn.active,
-.speed-btn.active:hover {
-  background: color-mix(in srgb, var(--text-2) 16%, transparent); color: var(--accent);
-}
 /* Transpose stepper (#245): two icon buttons and the readout between them. */
 .pitch-value {
   display: flex; align-items: center; justify-content: center;

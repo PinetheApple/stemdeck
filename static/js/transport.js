@@ -3,7 +3,8 @@ import { MIN_LOOP_SEC, loopDragResult } from "./loopRegion.js";
 import { tickStepAt } from "./rulerTicks.js";
 import {
   playBtn, playMiniBtn, stopBtn, loopBtn, timeEl, masterFader,
-  speedBtns,
+  speedFader,
+  speedValueBox,
   pitchDownBtn,
   pitchUpBtn,
   pitchValueEl,
@@ -23,7 +24,7 @@ import {
   metronomeGrouping, setMetronomeGrouping,
   setMetronomeHasBars,
   setMetronomeEnabled, setMetronomeVolume, setMetronomeBeatsPerBar,
-  setLoopEnabled, setLoopStart, setLoopEnd, setMasterVolume, setPlaybackSpeed,
+  setLoopEnabled, setLoopStart, setLoopEnd, setMasterVolume, setPlaybackSpeed, playbackSpeed,
   waveZoom, setWaveZoom, overviewRerenderFn,
 } from "./state.js";
 import { applyMix, nudgeAllLanePitches, resetAllLanePitches } from "./mixer.js";
@@ -35,6 +36,7 @@ import {
 import { t, onLanguageChange } from "./i18n.js";
 import { pitchBlockedKey } from "./pitchBus.js";
 import { refitFooter } from "./footerFit.js";
+import { SPEED_MAX, SPEED_NOTCH, clampSpeed, nextNotch, parseSpeedInput } from "./speedInput.js";
 
 // Zoom range. 1 is the whole track fitted to the panel; there is nothing below
 // it to show, so it is the floor rather than a soft default.
@@ -969,56 +971,48 @@ export function wireTransportButtons() {
   wirePitchControl();
 }
 
-// Three buttons rather than a dial -- practice speeds for slowing a part
-// down, not a general-purpose tempo control (#269 follow-up): half speed,
-// a slow speed the player sets, and normal.
-//
-// The slow one is set by the player (#701): scroll over it, or press the up
-// and down arrow keys on it, to move it a hundredth at a time between
-// SLOW_MIN and SLOW_MAX. Some fills want 0.75x, some only a nudge to 0.9x.
-// It was fixed at 0.75x when the stretch was WSOLA, whose artefacts made
-// anything slower hard to follow (#433); Signalsmith Stretch (#729) holds up
-// further down, so the floor is 0.5x. Kept between sessions, and the footer
-// keeps its width: the button only ever reads "0.xxx".
-const SLOW_MIN = 0.5;
-const SLOW_MAX = 0.99;
+// A fader from 0.50x to 1.00x, for slowing a part down to practise it, with a
+// box for an exact speed. Signalsmith Stretch holds up down to 0.5x. Every
+// settled speed below 1x is kept between sessions, and a double-click toggles
+// between it and 1x.
 const SLOW_DEFAULT = 0.75;
 const _SLOW_SPEED_KEY = "stemdeck:slow-speed";
-// A turn of the wheel fires many events; the rate itself is applied once
-// they stop, since every change of rate flushes the tempo stage.
+// A drag or a turn of the wheel fires many events; the rate itself is applied
+// once they stop, since every change of rate flushes the tempo stage.
 const SLOW_APPLY_DELAY_MS = 150;
+const SLOWED_CLASS = "slowed";
+const SPEED_KEY_DIRECTIONS = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 };
 
-const clampSlow = (rate) => Math.round(Math.min(SLOW_MAX, Math.max(SLOW_MIN, rate)) * 100) / 100;
 let _slowRate = SLOW_DEFAULT;
-let _slowApplyTimer = 0;
-const halfBtn = () => document.getElementById("t-speed-05");
-const slowBtn = () => document.getElementById("t-speed-075");
-const normalBtn = () => document.getElementById("t-speed-1");
+let _speedApplyTimer = 0;
+let _speedBeforeClicks = { rate: SPEED_MAX, slow: SLOW_DEFAULT };
 
-function paintSlowButton() {
-  const btn = slowBtn();
-  if (!btn) return;
-  btn.dataset.speed = String(_slowRate);
-  btn.textContent = `${_slowRate.toFixed(2)}x`;
-  btn.title = t("speed.slowTitle");
+const shownSpeed = () => Number(speedFader?.value ?? playbackSpeed);
+
+/** Show `rate` on the fader and in the box, coral below 1x. */
+function paintSpeed(rate) {
+  const label = `${rate.toFixed(2)}x`;
+  if (speedFader) {
+    speedFader.value = String(rate);
+    speedFader.setAttribute("aria-valuetext", label);
+    speedFader.closest(".footer-group-speed")?.classList.toggle(SLOWED_CLASS, rate < SPEED_MAX);
+  }
+  if (speedValueBox) speedValueBox.value = label;
 }
 
-/**
- * Play at the speed of `btn`, one of the three buttons: half, the slow speed,
- * or normal. Without one, anything under 1 is the slow button's. The button
- * pressed is the one lit, so half speed and a slow speed set to 0.50x never
- * light together.
- */
-function applySpeed(rate, btn = null) {
-  const pressed = btn ?? (rate >= 1 ? normalBtn() : slowBtn());
-  const applied = pressed === halfBtn() ? 0.5 : pressed === slowBtn() ? _slowRate : 1;
+function rememberSlowSpeed(rate) {
+  if (rate >= SPEED_MAX || rate === _slowRate) return;
+  _slowRate = rate;
+  storeSet(_SLOW_SPEED_KEY, rate).catch((e) => console.warn("[transport] failed to save the slow speed:", e));
+}
+
+/** Play at `rate` now, clamped to the fader's range. */
+function applySpeed(rate) {
+  clearTimeout(_speedApplyTimer);
+  const applied = clampSpeed(rate);
+  paintSpeed(applied);
+  rememberSlowSpeed(applied);
   setPlaybackSpeed(applied);
-  for (const b of speedBtns) {
-    if (!b) continue;
-    const on = b === pressed;
-    b.classList.toggle("active", on);
-    b.setAttribute("aria-checked", on ? "true" : "false");
-  }
   audioEngine?.setPlaybackRate?.(applied);
   if (multitrack) {
     for (const a of (multitrack.audios ?? [])) {
@@ -1027,15 +1021,12 @@ function applySpeed(rate, btn = null) {
   }
 }
 
-/** Move the slow speed by `steps` hundredths, and play at it. */
-function nudgeSlowSpeed(steps) {
-  const next = clampSlow(_slowRate + steps / 100);
-  if (next === _slowRate) return;
-  _slowRate = next;
-  paintSlowButton();
-  storeSet(_SLOW_SPEED_KEY, _slowRate).catch((e) => console.warn("[transport] failed to save the slow speed:", e));
-  clearTimeout(_slowApplyTimer);
-  _slowApplyTimer = setTimeout(() => applySpeed(_slowRate, slowBtn()), SLOW_APPLY_DELAY_MS);
+/** Show `rate` at once, and play at it once the control has been still for a moment. */
+function settleSpeed(rate) {
+  const shown = clampSpeed(rate);
+  paintSpeed(shown);
+  clearTimeout(_speedApplyTimer);
+  _speedApplyTimer = setTimeout(() => applySpeed(shown), SLOW_APPLY_DELAY_MS);
 }
 
 
@@ -1132,33 +1123,60 @@ function wirePitchControl() {
 }
 
 export function resetSpeed() {
-  applySpeed(1.0);
+  applySpeed(SPEED_MAX);
+}
+
+function handleSpeedFaderInput() {
+  settleSpeed(Number(speedFader.value));
+}
+
+function handleSpeedFaderWheel(e) {
+  e.preventDefault();
+  if (e.deltaY) settleSpeed(nextNotch(shownSpeed(), e.deltaY < 0 ? 1 : -1));
+}
+
+function handleSpeedFaderKeydown(e) {
+  const direction = SPEED_KEY_DIRECTIONS[e.key];
+  if (!e.shiftKey || !direction) return;
+  e.preventDefault();
+  settleSpeed(shownSpeed() + direction * SPEED_NOTCH);
+}
+
+// The clicks of a double-click move the thumb first, so the toggle works from
+// what was playing, and remembered, before them.
+function handleSpeedFaderMousedown(e) {
+  if (e.detail <= 1) _speedBeforeClicks = { rate: playbackSpeed, slow: _slowRate };
+}
+
+function handleSpeedFaderDoubleClick() {
+  const { rate, slow } = _speedBeforeClicks;
+  rememberSlowSpeed(slow);
+  applySpeed(rate < SPEED_MAX ? SPEED_MAX : slow);
+}
+
+function handleSpeedBoxChange() {
+  const typed = parseSpeedInput(speedValueBox.value);
+  if (typed === null) paintSpeed(shownSpeed());
+  else applySpeed(typed);
+}
+
+async function loadSlowSpeed() {
+  const saved = await storeGet(_SLOW_SPEED_KEY, null);
+  if (typeof saved !== "number" || !Number.isFinite(saved)) return;
+  const slow = clampSpeed(saved);
+  if (slow < SPEED_MAX) _slowRate = slow;
 }
 
 function wireSpeedControl() {
-  for (const btn of speedBtns) {
-    btn?.addEventListener("click", () => applySpeed(parseFloat(btn.dataset.speed), btn));
-  }
-  const slow = slowBtn();
-  if (!slow) return;
-  paintSlowButton();
-  onLanguageChange(paintSlowButton);
-  slow.addEventListener("wheel", (e) => {
-    e.preventDefault();
-    if (e.deltaY) nudgeSlowSpeed(e.deltaY < 0 ? 1 : -1);
-  }, { passive: false });
-  slow.addEventListener("keydown", (e) => {
-    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
-    e.preventDefault();
-    nudgeSlowSpeed(e.key === "ArrowUp" ? 1 : -1);
-  });
-  storeGet(_SLOW_SPEED_KEY, null).then((saved) => {
-    if (typeof saved !== "number" || !Number.isFinite(saved)) return;
-    const wasSlow = slow.classList.contains("active");
-    _slowRate = clampSlow(saved);
-    paintSlowButton();
-    if (wasSlow) applySpeed(_slowRate, slow);
-  }).catch(() => {});
+  if (!speedFader || !speedValueBox) return;
+  speedFader.addEventListener("input", handleSpeedFaderInput);
+  speedFader.addEventListener("wheel", handleSpeedFaderWheel, { passive: false });
+  speedFader.addEventListener("keydown", handleSpeedFaderKeydown);
+  speedFader.addEventListener("mousedown", handleSpeedFaderMousedown);
+  speedFader.addEventListener("dblclick", handleSpeedFaderDoubleClick);
+  speedValueBox.addEventListener("change", handleSpeedBoxChange);
+  paintSpeed(playbackSpeed);
+  loadSlowSpeed().catch((e) => console.warn("[transport] failed to load the slow speed:", e));
 }
 
 // ─── Click track ────────────────────────────────────────────
