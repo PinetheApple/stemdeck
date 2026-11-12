@@ -1,5 +1,5 @@
 // Up Next: library track ids to play after the open song, kept in the store.
-// catalog.js queues songs via "upnext:add"; player.js reports "trackended" and "playbackready".
+// Songs are queued through queueUpNext (UP_NEXT_ADD_EVENT); player.js reports "trackended" and "playbackready".
 
 import {
   TRASH_CHANGE_EVENT,
