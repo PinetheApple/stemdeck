@@ -25,6 +25,7 @@ import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
 import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
 import { isModalOpen } from "./stageMode.js";
+import { queueUpNext } from "./upNext.js";
 import { ON_ROW, OUT_OF_TAB_ORDER, ROW_KEY, ROW_PLAY_CLASS, isShown, wireRovingRows } from "./rovingRows.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
@@ -1936,11 +1937,10 @@ function upNextButtonHtml(track) {
   return `<button class="cat-upnext" type="button" title="${esc(i18nT("upNext.add"))}" aria-label="${esc(label)}">${icon("listPlus")}</button>`;
 }
 
-// Queued by event rather than by import: upNext.js imports this module.
 function wireUpNextButton(el, trackId) {
   el.querySelector(".cat-upnext")?.addEventListener("click", function onAddToUpNext(e) {
     e.stopPropagation();
-    document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id: trackId } }));
+    queueUpNext(trackId);
   });
 }
 
