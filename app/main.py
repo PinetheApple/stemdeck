@@ -254,8 +254,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
     await tls_listener.stop()
     # Stop taking new work. Deliberately not cancelling the in-flight job: it is
-    # blocked in asyncio.to_thread, which cannot be cancelled, so it dies with
-    # the process exactly as it did before the queue existed.
+    # blocked in asyncio.to_thread, which cannot be cancelled. This also makes
+    # the runner keep the job the worker kill below interrupts, to resume.
     jobqueue.request_stop()
     # Tear down the persistent demucs worker (#309) so a clean shutdown never
     # leaves it as an orphaned process -- it has no parent-death watchdog of
