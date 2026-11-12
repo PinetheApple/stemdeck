@@ -1,33 +1,53 @@
 // ─── Persistent store (user-data.json, through the shell's store_* commands) ───
 //
 // Falls back to localStorage when running outside Tauri (browser dev mode).
-// The store is backed by ~/Library/Application Support/app.stemdeck.desktop/user-data.json
-// on macOS — outside WebKit's reach, so WebView resets can never destroy user data.
+// The store is user-data.json in the jobs folder, outside WebKit's reach, so
+// WebView resets can never destroy user data.
 
 // While the shell cannot open user-data.json every store command fails with this
 // prefix; the page then stops instead of going on with stand-ins it could save.
 const STORE_UNAVAILABLE = "user-data-unavailable";
 const NEVER = new Promise(() => {});
 let storeReadyPromise = null;
-let unavailableError = null;
-let unavailableHandler = null;
+
+// One-time store events: each is reported once, and a handler registered
+// later still gets an earlier report.
+function storeEvent() {
+  let reported = null;
+  let handler = null;
+  return {
+    listen(fn) {
+      handler = fn;
+      if (reported) fn(reported.value);
+    },
+    report(value) {
+      if (reported) return false;
+      reported = { value };
+      if (handler) handler(value);
+      return true;
+    },
+  };
+}
+
+const unavailable = storeEvent();
+const lost = storeEvent();
 
 function isStoreUnavailable(err) {
   return String(err?.message ?? err).startsWith(STORE_UNAVAILABLE);
 }
 
-/** What the page does when the store cannot be reached; an earlier report is
- * handed over on registration. */
+/** What the page does when the store cannot be reached. */
 export function onStoreUnavailable(handler) {
-  unavailableHandler = handler;
-  if (unavailableError !== null) handler(unavailableError);
+  unavailable.listen(handler);
+}
+
+/** What the page does when the store opened empty because nothing could be recovered. */
+export function onStoreLost(handler) {
+  lost.listen(handler);
 }
 
 function reportUnavailable(err) {
-  if (unavailableError !== null) return;
-  unavailableError = err;
-  console.warn("[store] the library list cannot be reached:", err);
-  if (unavailableHandler) unavailableHandler(err);
+  if (unavailable.report(err)) console.warn("[store] the library list cannot be reached:", err);
 }
 
 /** Resolves once the desktop store is open; never, when it cannot be. */
@@ -35,7 +55,9 @@ export function storeReady() {
   if (!window.__TAURI__?.core?.invoke) return Promise.resolve();
   if (!storeReadyPromise) {
     storeReadyPromise = window.__TAURI__.core.invoke("store_ready").then(
-      () => undefined,
+      (opened) => {
+        if (opened?.lost) lost.report(true);
+      },
       (err) => {
         reportUnavailable(err);
         return NEVER;
