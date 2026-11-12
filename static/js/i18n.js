@@ -1382,6 +1382,7 @@ const en = {
   "reimport.title": "Import this song again?",
   "reimport.body": "Its files are no longer on this computer. Importing downloads it again and stops what's playing.",
   "reimport.confirm": "Import again",
+  "list.separator": ", ",
 };
 
 const pl = {
@@ -2541,6 +2542,7 @@ const pl = {
   "reimport.title": "Zaimportować ten utwór ponownie?",
   "reimport.body": "Jego plików nie ma już na tym komputerze. Import pobierze go ponownie i zatrzyma odtwarzanie.",
   "reimport.confirm": "Importuj ponownie",
+  "list.separator": ", ",
 };
 
 const ja = {
@@ -3671,6 +3673,7 @@ const ja = {
   "reimport.title": "この曲をもう一度インポートしますか?",
   "reimport.body": "この曲のファイルはこのコンピューターにありません。インポートすると再ダウンロードし、再生中の曲は停止します。",
   "reimport.confirm": "もう一度インポート",
+  "list.separator": "、",
 };
 
 const zhHans = {
@@ -4801,6 +4804,7 @@ const zhHans = {
   "reimport.title": "要重新导入这首歌吗?",
   "reimport.body": "它的文件已不在这台电脑上。重新导入会再次下载，并停止当前播放。",
   "reimport.confirm": "重新导入",
+  "list.separator": "、",
 };
 
 const de = {
@@ -5944,6 +5948,7 @@ const de = {
   "reimport.title": "Diesen Song erneut importieren?",
   "reimport.body": "Seine Dateien sind nicht mehr auf diesem Computer. Der Import lädt ihn erneut herunter und stoppt die Wiedergabe.",
   "reimport.confirm": "Erneut importieren",
+  "list.separator": ", ",
 };
 
 const pt = {
@@ -7089,6 +7094,7 @@ const pt = {
   "reimport.title": "Importar esta música de novo?",
   "reimport.body": "Os arquivos dela não estão mais neste computador. Importar baixa a música de novo e para o que está tocando.",
   "reimport.confirm": "Importar de novo",
+  "list.separator": ", ",
 };
 
 const id = {
@@ -8219,6 +8225,7 @@ const id = {
   "reimport.title": "Impor lagu ini lagi?",
   "reimport.body": "File-nya sudah tidak ada di komputer ini. Mengimpor akan mengunduhnya lagi dan menghentikan yang sedang diputar.",
   "reimport.confirm": "Impor lagi",
+  "list.separator": ", ",
 };
 
 const fr = {
@@ -9364,6 +9371,7 @@ const fr = {
   "reimport.title": "Importer ce morceau à nouveau ?",
   "reimport.body": "Ses fichiers ne sont plus sur cet ordinateur. L'import le télécharge à nouveau et arrête la lecture en cours.",
   "reimport.confirm": "Importer à nouveau",
+  "list.separator": ", ",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -10825,6 +10833,7 @@ const es = {
   "reimport.title": "¿Importar esta canción de nuevo?",
   "reimport.body": "Sus archivos ya no están en este ordenador. Al importarla se descarga de nuevo y se detiene lo que suena.",
   "reimport.confirm": "Importar de nuevo",
+  "list.separator": ", ",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -11964,6 +11973,7 @@ const ko = {
   "reimport.title": "이 곡을 다시 가져올까요?",
   "reimport.body": "이 곡의 파일이 더 이상 이 컴퓨터에 없어요. 다시 가져오면 새로 다운로드하고 지금 재생 중인 곡은 멈춰요.",
   "reimport.confirm": "다시 가져오기",
+  "list.separator": ", ",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };

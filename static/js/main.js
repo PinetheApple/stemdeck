@@ -18,7 +18,7 @@ import { wireStemListControls, wireMixerToolbar, laneDragIcon } from "./mixer.js
 import { initCatalog, collectDiagnostics, isTextEditingTarget } from "./catalog.js";
 import { initNotifications, notifyFailure, dismissFailuresByJobId } from "./notifications.js";
 import { runStoreMigrationIfNeeded } from "./utils.js";
-import { initI18n, applyTranslations, t, plural, onLanguageChange } from "./i18n.js";
+import { initI18n, applyTranslations, t, onLanguageChange } from "./i18n.js";
 import { initFooterFit, refitFooter } from "./footerFit.js";
 import { initArtistInfo } from "./artistInfo.js";
 import { initLyrics } from "./lyrics.js";
@@ -870,10 +870,15 @@ function wireFileDrop() {
     }
     const skipped = all
       .filter((f) => !files.includes(f))
-      .map((f) => t("import.itemReason", {
-        name: f.name,
-        reason: t(isAudioFile(f) ? "upload.reasonOversized" : "upload.reasonNotAudio"),
-      }));
+      .map((f) =>
+        t(
+          "import.itemReason",
+          {
+            name: f.name,
+            reason: t(isAudioFile(f) ? "upload.reasonOversized" : "upload.reasonNotAudio"),
+          },
+        ),
+      );
     return { files, skipped };
   }
 
@@ -883,7 +888,7 @@ function wireFileDrop() {
   }
 
   /** Arms the import with files that have already passed screenFiles. */
-  function stageFiles({ files, skipped = [] }) {
+  function stageFiles({ files, skipped }) {
     if (fileName) {
       fileName.textContent =
         files.length === 1 ? files[0].name : `${files.length} files`;
@@ -908,7 +913,7 @@ function wireFileDrop() {
     urlInput.removeAttribute("required");
 
     if (skipped.length) {
-      showError(t("upload.skippedNamed"), skipped.join(t("playlist.listSep")), { onRetry: null });
+      showError(t("upload.skippedNamed"), skipped.join(t("list.separator")), { onRetry: null });
     }
   }
 

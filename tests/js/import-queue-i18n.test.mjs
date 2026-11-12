@@ -36,6 +36,7 @@ const KEYS = [
   "reimport.title",
   "reimport.body",
   "reimport.confirm",
+  "list.separator",
 ];
 const PLURAL_KEYS = ["playlist.skip.inLibrary"];
 const PLURAL_FORMS = { pl: ["one", "few", "many"] };

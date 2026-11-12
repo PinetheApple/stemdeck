@@ -613,7 +613,7 @@ async function submitFileBatch(batch, fileInput) {
   if (!refused.length) return;
   showError(
     t("upload.someNotAdded", { queued: batch.length - refused.length, total: batch.length }),
-    refused.join(t("playlist.listSep")),
+    refused.join(t("list.separator")),
     { onRetry: null },
   );
 }
