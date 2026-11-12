@@ -197,18 +197,6 @@
 .setlist-song.is-selected .setlist-song-actions { opacity: 1; pointer-events: auto; }
 .setlist-empty { margin: 0; padding: var(--s-1) var(--s-2); font-size: var(--fs-sm); color: var(--text-3); }
 
-.lib-setlists-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--s-2);
-  padding: var(--s-5) var(--s-3);
-  text-align: center;
-  color: var(--text-3);
-  font-size: var(--fs-sm);
-}
-.lib-setlists-empty .ic { width: var(--ctl-h-sm); height: var(--ctl-h-sm); }
-.lib-setlists-empty strong { color: var(--text-2); font-size: var(--fs-base); }
 .lib-setlists-empty[hidden],
 .setlist-new-btn[hidden] { display: none; }
 /* Every list's empty state, Setlists' included: an icon, a heading and a hint. */
