@@ -112,7 +112,6 @@ const SETTINGS = [
     ["settings.autoDelete.title", "help.set.autoDelete"],
     ["settings.device.title", "help.set.device"],
     ["settings.quality.title", "help.set.quality"],
-    ["settings.exportLogs.title", "help.set.exportLogs"],
     ["settings.resetData.title", "help.set.resetData"],
   ]],
   ["settings.tab.songDetails", [
@@ -128,8 +127,14 @@ const SETTINGS = [
     ["settings.export.sampleRate.title", "help.set.sampleRate"],
     ["settings.export.videoQuality.title", "help.set.videoQuality"],
   ]],
-  ["settings.tab.logs", [[null, "help.set.logs"]]],
-  ["settings.tab.registry", [[null, "help.set.registry"]]],
+  ["settings.tab.logs", [
+    [null, "help.set.logs"],
+    ["settings.exportLogs.title", "help.set.exportLogs"],
+  ]],
+  ["settings.tab.library", [
+    [null, "help.set.library"],
+    ["settings.outOfSync.subhead", "help.set.resync"],
+  ]],
 ];
 
 let on = false;

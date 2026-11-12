@@ -182,9 +182,28 @@ test.describe("help mode", () => {
     await openStudio(page);
     await helpOn(page);
     await page.locator("#settingsBtn").hover();
-    for (const text of ["General", "Song details", "Network", "Export", "Logs", "Registry", "Port", "Compute device", "Make StemDeck available on your network"]) {
+    for (const text of ["General", "Song details", "Network", "Export", "Logs", "Library", "Port", "Compute device", "Make StemDeck available on your network"]) {
       await expect(tip(page)).toContainText(text);
     }
+  });
+
+  test("Settings help puts each option under the tab that holds it", async ({ page }) => {
+    await openStudio(page);
+    await helpOn(page);
+    await page.locator("#settingsBtn").hover();
+    const sections = await tip(page).evaluate((el) => {
+      const byTab = {};
+      let tab = null;
+      for (const node of el.querySelectorAll(".help-tip-h, .help-tip-row")) {
+        if (node.classList.contains("help-tip-h")) tab = node.textContent;
+        else (byTab[tab] ??= []).push(node.textContent);
+      }
+      return byTab;
+    });
+    expect(Object.keys(sections)).not.toContain("Registry");
+    expect(sections.General.join(" ")).not.toContain("Export logs");
+    expect(sections.Logs.join(" ")).toContain("Export logs");
+    expect(sections.Library.join(" ")).toContain("Out of sync tracks");
   });
 
   test("every outlined control has a title and a real explanation", async ({ page }) => {

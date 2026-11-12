@@ -16,7 +16,7 @@ import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
 import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
 import { isModalOpen } from "./stageMode.js";
-import { ON_ROW, OUT_OF_TAB_ORDER, ROW_PLAY_CLASS, isShown, wireRovingRows } from "./rovingRows.js";
+import { ON_ROW, OUT_OF_TAB_ORDER, ROW_KEY, ROW_PLAY_CLASS, isShown, wireRovingRows } from "./rovingRows.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
@@ -4160,6 +4160,7 @@ function settleStaleProcessingTracks() {
 
 let libraryEditor = null;
 let libraryEditorOnKey = null;
+let settingsResizeObserver = null;
 let libraryEditorOpener = null;
 
 // The settings modal has a lot of server-fetched, dynamically-computed text
@@ -4213,6 +4214,8 @@ function closeLibraryEditor() {
     libraryEditorOnKey = null;
   }
   closeResetConfirm();
+  settingsResizeObserver?.disconnect();
+  settingsResizeObserver = null;
   libraryEditor?.remove();
   libraryEditor = null;
   libraryEditorOpener?.focus?.();
@@ -4230,16 +4233,12 @@ function renderLibraryRows(tbody) {
     .filter(([id, t]) => !trashIds.has(id) && t.status === "unavailable")
     .sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
 
-  if (!entries.length) {
-    const tr = document.createElement("tr");
-    const td = document.createElement("td");
-    td.colSpan = 3;
-    td.className = "library-editor-empty";
-    td.textContent = i18nT("settings.stemsLocation.inSync");
-    tr.appendChild(td);
-    tbody.appendChild(tr);
-    return;
-  }
+  const pane = tbody.closest(".settings-pane");
+  const tableWrap = pane?.querySelector(".library-editor-table-wrap");
+  const syncBtn = pane?.querySelector(".library-editor-sync");
+  if (tableWrap) tableWrap.hidden = !entries.length;
+  if (syncBtn) syncBtn.hidden = !entries.length;
+  if (!entries.length) return;
 
   for (const [id, t] of entries) {
     const tr = document.createElement("tr");
@@ -4291,7 +4290,7 @@ function networkSettingsHtml() {
         </label>
       </div>
       <div class="settings-net hidden">
-        <div class="settings-net-warn hidden"></div>
+        <div class="settings-help settings-net-warn hidden"></div>
         <div class="settings-net-qr"></div>
       </div>
     </div>
@@ -4307,6 +4306,14 @@ export function shortenPath(path, max = 52) {
   const text = String(path ?? "");
   if (text.length <= max) return text;
   return "…" + text.slice(text.length - (max - 1));
+}
+
+// Desktop home folders on Linux, macOS and Windows.
+const HOME_DIR_PREFIX = /^(?:\/home\/[^/]+|\/Users\/[^/]+|[A-Za-z]:\\Users\\[^\\]+)(?=[\\/]|$)/;
+
+/** The user's own home folder reads as "~": it is the part they already know. */
+function homeRelativePath(path) {
+  return String(path ?? "").replace(HOME_DIR_PREFIX, "~");
 }
 
 function formatSize(bytes) {
@@ -4338,7 +4345,7 @@ async function wireExportsLocation(overlay) {
   }
 
   const show = (dir) => {
-    pathEl.textContent = dir;
+    pathEl.textContent = shortenPath(homeRelativePath(dir));
     pathEl.title = dir;
   };
 
@@ -4394,7 +4401,7 @@ async function wireStemsLocation(overlay) {
 
   const apply = (d) => {
     current = d.path;
-    pathEl.textContent = shortenPath(d.path);
+    pathEl.textContent = shortenPath(homeRelativePath(d.path));
     pathEl.title = d.path;
     if (sizeEl) sizeEl.textContent = formatSize(d.bytes);
     // Reopening Settings after a move, before the restart, should still say so.
@@ -4699,13 +4706,12 @@ async function wireGeneralSettings(overlay) {
       }
     }
     if (deviceDesc) {
-      const resolved = d.demucs_device_resolved ? i18nT("settings.device.currently", { device: d.demucs_device_resolved }) : "";
       // torch installed but unloadable stops separation on every device, CPU
       // included, so this replaces the usual line rather than sitting under a
       // device list that looks healthy (#730).
       deviceDesc.textContent = d.torch_error
         ? i18nT("settings.device.torchBroken")
-        : i18nT("settings.device.desc", { resolved });
+        : i18nT("settings.device.desc");
       deviceDesc.classList.toggle("is-broken", !!d.torch_error);
     }
   };
@@ -4855,6 +4861,21 @@ async function wireGeneralSettings(overlay) {
   });
 }
 
+const QR_SIZE_PROPERTY = "--settings-qr-size";
+
+/** The host and port, which is what a person compares; the raw text if it is not a URL. */
+function addressCaption(url) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
+function onQrCardClick(e) {
+  e.currentTarget.classList.toggle("qr-blurred");
+}
+
 async function wireNetworkSetting(overlay) {
   const input = overlay.querySelector(".net-access-input");
   const netWrap = overlay.querySelector(".settings-net");
@@ -4898,6 +4919,7 @@ async function wireNetworkSetting(overlay) {
   }
 
   if (qrWrap) {
+    const qrSize = parseFloat(getComputedStyle(qrWrap).getPropertyValue(QR_SIZE_PROPERTY));
     qrWrap.textContent = "";
     if (addresses.length) {
       const hint = document.createElement("p");
@@ -4911,15 +4933,16 @@ async function wireNetworkSetting(overlay) {
         const card = document.createElement("div");
         card.className = "qr-card qr-blurred";
         card.title = i18nT("settings.network.tapToUnblur");
-        card.addEventListener("click", () => card.classList.toggle("qr-blurred"));
+        card.addEventListener("click", onQrCardClick);
         const img = document.createElement("img");
         img.src = `/api/qr?url=${encodeURIComponent(mobileUrl)}`;
         img.alt = i18nT("settings.network.qrCodeFor", { url: mobileUrl });
-        img.width = 130;
-        img.height = 130;
+        img.width = qrSize;
+        img.height = qrSize;
         const label = document.createElement("div");
         label.className = "qr-label";
-        label.textContent = mobileUrl;
+        label.textContent = addressCaption(mobileUrl);
+        label.title = mobileUrl;
         const imgWrap = document.createElement("div");
         imgWrap.className = "qr-img-wrap";
         imgWrap.appendChild(img);
@@ -4958,21 +4981,62 @@ async function wireNetworkSetting(overlay) {
   });
 }
 
+const JSON_MEDIA_TYPE = "application/json";
+const LIBRARY_FILE_PREFIX = "stemdeck-library-";
+const LOGS_FILE_PREFIX = "stemdeck-logs-";
+
+async function fetchRegistry() {
+  const r = await fetch("/api/registry", { cache: "no-store" });
+  if (!r.ok) throw new Error(`status ${r.status}`);
+  return r.text();
+}
+
+/** How many songs the library holds. The raw file stays behind Download. */
 async function loadRegistryView(overlay) {
-  // Scoped to the registry pane: the log viewers reuse .settings-registry-view
-  // for its read-only-textarea styling and sit earlier in the markup, so a bare
-  // class lookup returned the *application log* box. The registry JSON was
-  // being written into a hidden textarea while the registry pane sat on its
-  // literal "Loading…" placeholder for ever.
-  const view = overlay.querySelector('[data-pane="registry"] .settings-registry-view');
-  if (!view) return;
-  view.value = "Loading…";
+  const countEl = overlay.querySelector(".settings-library-count");
+  const msgEl = overlay.querySelector(".settings-library-msg");
+  if (!countEl || !msgEl) return;
+  countEl.textContent = "";
+  msgEl.textContent = "";
+  msgEl.classList.remove("error");
   try {
-    const r = await fetch("/api/registry", { cache: "no-store" });
-    view.value = r.ok ? await r.text() : `Failed to load registry (status ${r.status}).`;
-  } catch {
-    view.value = "Failed to load registry — check your connection.";
+    const jobs = JSON.parse(await fetchRegistry()).jobs;
+    countEl.textContent = String(Array.isArray(jobs) ? jobs.length : 0);
+  } catch (e) {
+    console.warn("[settings] could not load the library:", e);
+    msgEl.textContent = i18nT("settings.library.loadFailed");
+    msgEl.classList.add("error");
   }
+}
+
+async function downloadRegistry(overlay, btn) {
+  const msg = overlay.querySelector(".settings-registry-msg");
+  btn.disabled = true;
+  if (msg) msg.textContent = "";
+  try {
+    const blob = new Blob([await fetchRegistry()], { type: JSON_MEDIA_TYPE });
+    downloadBlob(blob, `${LIBRARY_FILE_PREFIX}${fileStamp()}.json`);
+  } catch (e) {
+    console.warn("[settings] library download failed:", e);
+    if (msg) msg.textContent = i18nT("settings.library.file.failed");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function fileStamp() {
+  return new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "");
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function _fmtBytes(n) {
@@ -4995,7 +5059,7 @@ async function loadLogsView(overlay) {
     const r = await fetch("/api/logs", { cache: "no-store" });
     if (!r.ok) throw new Error(`status ${r.status}`);
     const info = await r.json();
-    pathEl.textContent = info.dir;
+    pathEl.textContent = homeRelativePath(info.dir);
     const present = (info.files || []).filter((f) => f.exists);
     if (!present.length) {
       listEl.innerHTML = `<div class="settings-logs-empty">${esc(i18nT("settings.logs.noFilesYet", {
@@ -5010,10 +5074,10 @@ async function loadLogsView(overlay) {
           : "";
         return `<div class="settings-log-row">
             <div class="settings-log-main">
-              <code class="settings-log-name">${f.name}</code>
-              <span class="settings-log-meta">${_fmtBytes(f.size)}${when ? ` · ${when}` : ""}</span>
+              <code class="settings-log-name">${esc(f.name)}</code>
+              <span class="settings-log-meta">${_fmtBytes(f.size)}${when ? ` · ${esc(when)}` : ""}</span>
             </div>
-            <div class="settings-log-desc">${f.description}</div>
+            <div class="settings-log-desc">${esc(f.description)}</div>
           </div>`;
       })
       .join("");
@@ -5047,16 +5111,7 @@ async function exportLogs(btn) {
   try {
     const r = await fetch("/api/logs.zip", { cache: "no-store" });
     if (!r.ok) throw new Error(`status ${r.status}`);
-    const blob = await r.blob();
-    const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "");
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `stemdeck-logs-${stamp}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    downloadBlob(await r.blob(), `${LOGS_FILE_PREFIX}${fileStamp()}.zip`);
     // Log export isn't tied to a track/job, so a plain by-kind dismiss is the
     // right granularity — it never touches a per-track export failure (#401).
     dismissFailuresByKind("export");
@@ -5162,6 +5217,107 @@ function openResetConfirm() {
   input.focus();
 }
 
+const TAB_KEY_STEP = { ArrowRight: 1, ArrowLeft: -1 };
+// Scroll positions this close to an end count as the end (fractional pixels).
+const SCROLL_END_SLACK = 1;
+
+/** Select one tab of a tab bar; the selected tab is the bar's only Tab stop. */
+function selectSettingsTab(tab) {
+  for (const t of tab.parentElement.querySelectorAll('[role="tab"]')) {
+    t.setAttribute("aria-selected", String(t === tab));
+    t.tabIndex = t === tab ? 0 : -1;
+  }
+}
+
+/** The tab an arrow, Home or End leads to, wrapping like the inspector's; null for other keys. */
+function tabKeyTarget(key, index, count) {
+  if (key === ROW_KEY.FIRST) return 0;
+  if (key === ROW_KEY.LAST) return count - 1;
+  const step = TAB_KEY_STEP[key];
+  return step ? (index + step + count) % count : null;
+}
+
+function onSettingsTablistKeydown(e) {
+  const tabs = [...e.currentTarget.querySelectorAll('[role="tab"]')];
+  const at = tabs.indexOf(document.activeElement);
+  const target = at < 0 ? null : tabKeyTarget(e.key, at, tabs.length);
+  if (target === null) return;
+  e.preventDefault();
+  tabs[target].click();
+  tabs[target].focus();
+}
+
+function settingsOverlayOf(el) {
+  return el.closest(".library-editor-backdrop");
+}
+
+function onSettingsTabClick(e) {
+  const tab = e.currentTarget;
+  const overlay = settingsOverlayOf(tab);
+  const name = tab.dataset.tab;
+  selectSettingsTab(tab);
+  for (const pane of overlay.querySelectorAll(".settings-pane")) {
+    pane.classList.toggle("hidden", pane.dataset.pane !== name);
+    updateScrollCue(pane);
+  }
+  if (name === "registry") loadRegistryView(overlay);
+  if (name === "logs") loadLogsView(overlay);
+}
+
+function onLogsSubtabClick(e) {
+  const tab = e.currentTarget;
+  const overlay = settingsOverlayOf(tab);
+  const name = tab.dataset.sub;
+  selectSettingsTab(tab);
+  for (const pane of overlay.querySelectorAll(".settings-subpane")) {
+    pane.classList.toggle("hidden", pane.dataset.subpane !== name);
+  }
+  if (name === "location") loadLogsView(overlay);
+  else loadLogTail(overlay, name);
+}
+
+function onLogsRefreshClick(e) {
+  loadLogsView(settingsOverlayOf(e.currentTarget));
+}
+
+function onLogTailRefreshClick(e) {
+  loadLogTail(settingsOverlayOf(e.currentTarget), e.currentTarget.dataset.view);
+}
+
+function onExportLogsClick(e) {
+  exportLogs(e.currentTarget);
+}
+
+function onRegistryDownloadClick(e) {
+  downloadRegistry(settingsOverlayOf(e.currentTarget), e.currentTarget);
+}
+
+/** Mark which edges of a pane have more content past them, for the fade. */
+function updateScrollCue(pane) {
+  const below = pane.scrollHeight - pane.clientHeight - pane.scrollTop;
+  pane.classList.toggle("more-above", pane.scrollTop > SCROLL_END_SLACK);
+  pane.classList.toggle("more-below", below > SCROLL_END_SLACK);
+}
+
+function onSettingsPaneScroll(e) {
+  updateScrollCue(e.currentTarget);
+}
+
+function onSettingsContentResize(entries) {
+  const panes = new Set(entries.map((entry) => entry.target.closest(".settings-pane")));
+  panes.forEach((pane) => pane && updateScrollCue(pane));
+}
+
+/** Keep each pane's fade right as it scrolls and as its content loads or resizes. */
+function wireScrollCues(overlay) {
+  settingsResizeObserver = new ResizeObserver(onSettingsContentResize);
+  for (const pane of overlay.querySelectorAll(".settings-pane")) {
+    pane.addEventListener("scroll", onSettingsPaneScroll);
+    settingsResizeObserver.observe(pane);
+    for (const child of pane.children) settingsResizeObserver.observe(child);
+  }
+}
+
 function openLibraryEditor() {
   const opener = document.activeElement;
   closeFolderEditor();
@@ -5179,12 +5335,12 @@ function openLibraryEditor() {
         </button>
       </div>
       <div class="settings-tabs" role="tablist">
-        <button class="settings-tab active" type="button" data-tab="general" role="tab" data-i18n="settings.tab.general">General</button>
-        <button class="settings-tab" type="button" data-tab="details" role="tab" data-i18n="settings.tab.songDetails">Song details</button>
-        <button class="settings-tab" type="button" data-tab="network" role="tab" data-i18n="settings.tab.network">Network</button>
-        <button class="settings-tab" type="button" data-tab="export" role="tab" data-i18n="settings.tab.export">Export</button>
-        <button class="settings-tab" type="button" data-tab="logs" role="tab" data-i18n="settings.tab.logs">Logs</button>
-        <button class="settings-tab" type="button" data-tab="registry" role="tab" data-i18n="settings.tab.registry">Registry</button>
+        <button class="settings-tab" type="button" data-tab="general" role="tab" aria-selected="true" data-i18n="settings.tab.general">General</button>
+        <button class="settings-tab" type="button" data-tab="details" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.songDetails">Song details</button>
+        <button class="settings-tab" type="button" data-tab="network" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.network">Network</button>
+        <button class="settings-tab" type="button" data-tab="export" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.export">Export</button>
+        <button class="settings-tab" type="button" data-tab="logs" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.logs">Logs</button>
+        <button class="settings-tab" type="button" data-tab="registry" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.library">Library</button>
       </div>
       <div class="settings-pane" data-pane="general">
         <div class="settings-section">
@@ -5192,7 +5348,7 @@ function openLibraryEditor() {
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.language.title">Language</div>
             </div>
-            <select class="settings-select settings-select-wide set-language" aria-label="Language"></select>
+            <select class="settings-select set-language" aria-label="Language" data-i18n-aria-label="settings.language.title"></select>
           </div>
         </div>
         <div class="settings-section">
@@ -5264,7 +5420,7 @@ function openLibraryEditor() {
               <div class="settings-row-title" data-i18n="settings.device.title">Compute device</div>
               <div class="settings-row-desc set-demucs-desc">Device used for stem separation. Applies to the next track.</div>
             </div>
-            <select class="settings-select settings-select-wide set-demucs-device" aria-label="Compute device" data-i18n-aria-label="settings.device.title">
+            <select class="settings-select set-demucs-device" aria-label="Compute device" data-i18n-aria-label="settings.device.title">
               <option value="auto" data-i18n="settings.device.auto">Auto</option>
               <option value="cuda">CUDA (NVIDIA)</option>
               <option value="mps">MPS (Apple Silicon)</option>
@@ -5278,30 +5434,10 @@ function openLibraryEditor() {
               <div class="settings-row-title" data-i18n="settings.quality.title">Separation quality</div>
               <div class="settings-row-desc" data-i18n="settings.quality.desc">Cleaner stems, twice as slow.</div>
             </div>
-            <select class="settings-select settings-select-wide set-separation-quality" aria-label="Separation quality" data-i18n-aria-label="settings.quality.title">
+            <select class="settings-select set-separation-quality" aria-label="Separation quality" data-i18n-aria-label="settings.quality.title">
               <option value="standard" data-i18n="settings.quality.standard">Standard</option>
               <option value="best" data-i18n="settings.quality.best">Best (2× slower)</option>
             </select>
-          </div>
-        </div>
-        <div class="settings-subhead" data-i18n="settings.outOfSync.subhead">Out of sync tracks</div>
-        <div class="library-editor-table-wrap">
-          <table class="library-editor-table">
-            <thead><tr><th data-i18n="settings.outOfSync.colName">Name</th><th data-i18n="settings.outOfSync.colSource">Source</th><th data-i18n="settings.outOfSync.colLocation">Location</th></tr></thead>
-            <tbody class="library-editor-body"></tbody>
-          </table>
-        </div>
-        <div class="library-editor-foot">
-          <span class="library-editor-status" aria-live="polite"></span>
-          <button class="library-editor-sync" type="button" data-i18n="settings.outOfSync.resync">Resync out of sync tracks</button>
-        </div>
-        <div class="settings-section">
-          <div class="settings-row">
-            <div class="settings-row-text">
-              <div class="settings-row-title" data-i18n="settings.exportLogs.title">Export logs</div>
-              <div class="settings-row-desc" data-i18n="settings.exportLogs.desc">Every log in one zip, to attach to a bug report.</div>
-            </div>
-            <button class="settings-export-logs" type="button" data-i18n="settings.exportLogs.button">Export logs</button>
           </div>
         </div>
         <div class="settings-section settings-danger-zone">
@@ -5311,7 +5447,7 @@ function openLibraryEditor() {
               <div class="settings-row-title" data-i18n="settings.resetData.title">Reset app data</div>
               <div class="settings-row-desc" data-i18n="settings.resetData.desc">Permanently deletes every track, job, and library entry. On a shared server this affects everyone who uses it. Cannot be undone.</div>
             </div>
-            <button class="settings-reset-btn" type="button" data-i18n="settings.resetData.button">Reset app data…</button>
+            <button class="settings-btn settings-btn-danger settings-reset-btn" type="button" data-i18n="settings.resetData.button">Reset app data…</button>
           </div>
         </div>
       </div>
@@ -5352,7 +5488,7 @@ function openLibraryEditor() {
               <div class="settings-row-title" data-i18n="settings.transcribe.title">Transcribe lyrics</div>
               <div class="settings-row-desc" data-i18n="settings.transcribe.desc">When no lyrics are found, they are transcribed from the vocals on this computer. The first run downloads a speech model (1.6 GB for an NVIDIA GPU, 0.5 GB otherwise). Applies to the next track.</div>
             </div>
-            <select class="settings-select settings-select-wide set-transcribe-lyrics" aria-label="Transcribe lyrics" data-i18n-aria-label="settings.transcribe.title">
+            <select class="settings-select set-transcribe-lyrics" aria-label="Transcribe lyrics" data-i18n-aria-label="settings.transcribe.title">
               <option value="auto" data-i18n="settings.transcribe.auto">Auto (NVIDIA GPU only)</option>
               <option value="on" data-i18n="settings.transcribe.on">On</option>
               <option value="off" data-i18n="settings.transcribe.off">Off</option>
@@ -5393,7 +5529,7 @@ function openLibraryEditor() {
               <div class="settings-row-title" data-i18n="settings.export.videoQuality.title">MP4 video quality</div>
               <div class="settings-row-desc" data-i18n="settings.export.videoQuality.desc">Max resolution for MP4 export and YouTube video.</div>
             </div>
-            <select class="settings-select set-video-height">
+            <select class="settings-select set-video-height" aria-label="MP4 video quality" data-i18n-aria-label="settings.export.videoQuality.title">
               <option value="360">360p</option>
               <option value="480">480p</option>
               <option value="720">720p</option>
@@ -5404,10 +5540,10 @@ function openLibraryEditor() {
       </div>
       <div class="settings-pane hidden" data-pane="logs">
         <div class="settings-subtabs" role="tablist">
-          <button class="settings-subtab active" type="button" data-sub="location" role="tab" data-i18n="settings.logs.locationTab">Location</button>
-          <button class="settings-subtab" type="button" data-sub="application" role="tab" data-i18n="settings.logs.applicationTab">Application log</button>
-          <button class="settings-subtab" type="button" data-sub="backend" role="tab" data-i18n="settings.logs.backendTab">Backend log</button>
-          <button class="settings-subtab" type="button" data-sub="setup" role="tab" data-i18n="settings.logs.setupTab">Setup log</button>
+          <button class="settings-subtab" type="button" data-sub="location" role="tab" aria-selected="true" data-i18n="settings.logs.locationTab">Location</button>
+          <button class="settings-subtab" type="button" data-sub="application" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.logs.applicationTab">Application log</button>
+          <button class="settings-subtab" type="button" data-sub="backend" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.logs.backendTab">Backend log</button>
+          <button class="settings-subtab" type="button" data-sub="setup" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.logs.setupTab">Setup log</button>
         </div>
         <div class="settings-subpane" data-subpane="location">
           <div class="settings-row">
@@ -5415,47 +5551,77 @@ function openLibraryEditor() {
               <div class="settings-row-title" data-i18n="settings.logs.location.title">Log location</div>
               <div class="settings-row-desc" data-i18n="settings.logs.location.desc">Open the logs in a file manager, or use Export logs.</div>
             </div>
-            <button class="settings-registry-refresh settings-logs-refresh" type="button" data-i18n="settings.logs.refresh">Refresh</button>
+            <button class="settings-btn settings-logs-refresh" type="button" data-i18n="settings.logs.refresh">Refresh</button>
           </div>
           <div class="settings-logs-dir"><code class="settings-logs-path" data-i18n="settings.logs.loading">Loading…</code></div>
           <div class="settings-logs-list" data-i18n="settings.logs.loading">Loading…</div>
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <div class="settings-row-title" data-i18n="settings.exportLogs.title">Export logs</div>
+              <div class="settings-row-desc" data-i18n="settings.exportLogs.desc">Every log in one zip, to attach to a bug report.</div>
+            </div>
+            <button class="settings-btn settings-export-logs" type="button" data-i18n="settings.exportLogs.button">Export logs</button>
+          </div>
         </div>
         <div class="settings-subpane hidden" data-subpane="application">
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.logs.application.title">Application log</div>
             </div>
-            <button class="settings-registry-refresh settings-logtail-refresh" type="button" data-view="application" data-i18n="settings.logs.refresh">Refresh</button>
+            <button class="settings-btn settings-logtail-refresh" type="button" data-view="application" data-i18n="settings.logs.refresh">Refresh</button>
           </div>
-          <textarea class="settings-registry-view settings-logtail-view" data-view="application" readonly spellcheck="false" aria-label="Application log (read only)" data-i18n-aria-label="settings.logs.applicationAria" data-i18n="settings.logs.loading">Loading…</textarea>
+          <textarea class="settings-logtail-view" data-view="application" readonly spellcheck="false" aria-label="Application log (read only)" data-i18n-aria-label="settings.logs.applicationAria" data-i18n="settings.logs.loading">Loading…</textarea>
         </div>
         <div class="settings-subpane hidden" data-subpane="backend">
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.logs.backend.title">Backend log</div>
             </div>
-            <button class="settings-registry-refresh settings-logtail-refresh" type="button" data-view="backend" data-i18n="settings.logs.refresh">Refresh</button>
+            <button class="settings-btn settings-logtail-refresh" type="button" data-view="backend" data-i18n="settings.logs.refresh">Refresh</button>
           </div>
-          <textarea class="settings-registry-view settings-logtail-view" data-view="backend" readonly spellcheck="false" aria-label="Backend log (read only)" data-i18n-aria-label="settings.logs.backendAria" data-i18n="settings.logs.loading">Loading…</textarea>
+          <textarea class="settings-logtail-view" data-view="backend" readonly spellcheck="false" aria-label="Backend log (read only)" data-i18n-aria-label="settings.logs.backendAria" data-i18n="settings.logs.loading">Loading…</textarea>
         </div>
         <div class="settings-subpane hidden" data-subpane="setup">
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.logs.setup.title">Setup log</div>
             </div>
-            <button class="settings-registry-refresh settings-logtail-refresh" type="button" data-view="setup" data-i18n="settings.logs.refresh">Refresh</button>
+            <button class="settings-btn settings-logtail-refresh" type="button" data-view="setup" data-i18n="settings.logs.refresh">Refresh</button>
           </div>
-          <textarea class="settings-registry-view settings-logtail-view" data-view="setup" readonly spellcheck="false" aria-label="Setup log (read only)" data-i18n-aria-label="settings.logs.setupAria" data-i18n="settings.logs.loading">Loading…</textarea>
+          <textarea class="settings-logtail-view" data-view="setup" readonly spellcheck="false" aria-label="Setup log (read only)" data-i18n-aria-label="settings.logs.setupAria" data-i18n="settings.logs.loading">Loading…</textarea>
         </div>
       </div>
       <div class="settings-pane hidden" data-pane="registry">
-        <div class="settings-row">
-          <div class="settings-row-text">
-            <div class="settings-row-title" data-i18n="settings.registry.title">Job registry</div>
+        <div class="settings-section">
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <div class="settings-row-title" data-i18n="settings.library.songs">Saved songs</div>
+              <div class="settings-row-desc settings-library-msg" role="status" aria-live="polite"></div>
+            </div>
+            <span class="settings-stat settings-library-count"></span>
           </div>
-          <button class="settings-registry-refresh" type="button" data-i18n="settings.logs.refresh">Refresh</button>
         </div>
-        <textarea class="settings-registry-view" readonly spellcheck="false" aria-label="Job registry (read only)" data-i18n-aria-label="settings.registry.aria" data-i18n="settings.logs.loading">Loading…</textarea>
+        <div class="settings-subhead" data-i18n="settings.outOfSync.subhead">Out of sync tracks</div>
+        <div class="library-editor-table-wrap">
+          <table class="library-editor-table">
+            <thead><tr><th data-i18n="settings.outOfSync.colName">Name</th><th data-i18n="settings.outOfSync.colSource">Source</th><th data-i18n="settings.outOfSync.colLocation">Location</th></tr></thead>
+            <tbody class="library-editor-body"></tbody>
+          </table>
+        </div>
+        <div class="library-editor-foot">
+          <span class="library-editor-status" aria-live="polite"></span>
+          <button class="settings-btn settings-btn-accent library-editor-sync" type="button" data-i18n="settings.outOfSync.resync">Resync out of sync tracks</button>
+        </div>
+        <div class="settings-section">
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <div class="settings-row-title" data-i18n="settings.library.file.title">Library file</div>
+              <div class="settings-row-desc" data-i18n="settings.library.file.desc">The list of saved songs, to attach to a bug report.</div>
+              <div class="settings-msg error settings-registry-msg" role="status" aria-live="polite"></div>
+            </div>
+            <button class="settings-btn settings-registry-download" type="button" data-i18n="settings.library.file.download">Download</button>
+          </div>
+        </div>
       </div>
       <div class="settings-foot">
         <button class="settings-done" type="button" data-i18n="settings.done">Done</button>
@@ -5466,30 +5632,15 @@ function openLibraryEditor() {
 
   renderLibraryRows(overlay.querySelector(".library-editor-body"));
 
-  overlay.querySelectorAll(".settings-tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      const name = tab.dataset.tab;
-      overlay.querySelectorAll(".settings-tab").forEach((t) => t.classList.toggle("active", t === tab));
-      overlay.querySelectorAll(".settings-pane").forEach((p) => p.classList.toggle("hidden", p.dataset.pane !== name));
-      if (name === "registry") loadRegistryView(overlay);
-      if (name === "logs") loadLogsView(overlay);
-    });
+  overlay.querySelectorAll(".settings-tab").forEach((tab) => tab.addEventListener("click", onSettingsTabClick));
+  overlay.querySelectorAll(".settings-subtab").forEach((tab) => tab.addEventListener("click", onLogsSubtabClick));
+  overlay.querySelectorAll(".settings-tabs, .settings-subtabs").forEach((bar) => {
+    bar.addEventListener("keydown", onSettingsTablistKeydown);
   });
-  overlay.querySelector(".settings-registry-refresh:not(.settings-logs-refresh)")
-    ?.addEventListener("click", () => loadRegistryView(overlay));
-  overlay.querySelector(".settings-logs-refresh")?.addEventListener("click", () => loadLogsView(overlay));
-  overlay.querySelectorAll(".settings-subtab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      const name = tab.dataset.sub;
-      overlay.querySelectorAll(".settings-subtab").forEach((t) => t.classList.toggle("active", t === tab));
-      overlay.querySelectorAll(".settings-subpane").forEach((p) => p.classList.toggle("hidden", p.dataset.subpane !== name));
-      if (name === "location") loadLogsView(overlay);
-      else loadLogTail(overlay, name);
-    });
-  });
-  overlay.querySelectorAll(".settings-logtail-refresh").forEach((b) =>
-    b.addEventListener("click", () => loadLogTail(overlay, b.dataset.view)));
-  overlay.querySelector(".settings-export-logs")?.addEventListener("click", (e) => exportLogs(e.currentTarget));
+  overlay.querySelector(".settings-registry-download")?.addEventListener("click", onRegistryDownloadClick);
+  overlay.querySelector(".settings-logs-refresh")?.addEventListener("click", onLogsRefreshClick);
+  overlay.querySelectorAll(".settings-logtail-refresh").forEach((b) => b.addEventListener("click", onLogTailRefreshClick));
+  overlay.querySelector(".settings-export-logs")?.addEventListener("click", onExportLogsClick);
 
   overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) closeLibraryEditor(); });
   // (status summary is filled in after the overlay is in the DOM, below)
@@ -5516,10 +5667,11 @@ function openLibraryEditor() {
     overlay.querySelector(".set-port")?.setAttribute("readonly", "");
     overlay.querySelector(".set-port")?.setAttribute("disabled", "");
     const note = document.createElement("p");
-    note.className = "settings-server-note";
+    note.className = "settings-help settings-server-note";
     note.textContent = i18nT("settings.readOnlyServer");
     overlay.querySelector("[data-pane='network']")?.prepend(note);
   }
+  wireScrollCues(overlay);
   // Reset app data (#312): originally a "session keeps coming back across
   // desktop reinstalls" fix (the real persisted state lives in
   // ~/Documents/StemDeck, not the extracted package's own bundled data/

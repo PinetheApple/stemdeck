@@ -281,7 +281,7 @@ test.describe("artist box: only Wikipedia, or Discogs too", () => {
     await expect(dialog).toBeHidden();
     const settings = page.locator(".library-editor-backdrop");
     await expect(settings).toBeVisible();
-    await expect(settings.locator('.settings-tab[data-tab="details"]')).toHaveClass(/active/);
+    await expect(settings.locator('.settings-tab[data-tab="details"]')).toHaveAttribute("aria-selected", "true");
     await expect(settings.locator('.settings-pane[data-pane="details"]')).toBeVisible();
     await expect(settings.locator(".set-discogs-token")).toBeFocused();
   });
