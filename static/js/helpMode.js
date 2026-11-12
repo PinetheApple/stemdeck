@@ -42,6 +42,8 @@ const HELP = [
   ["#submit", "help.extract"],
   ["#fav-btn", "help.favorite"],
   ["#np-details-btn", "help.songDetails"],
+  ["#songUpNextBtn", "help.addToUpNext"],
+  ["#songMoreBtn", "help.songMenu"],
   ["#sidebarCollapseBtn", "help.toggleLibrary"],
   [".rail-favorites", "help.favorites"],
   [".rail-library", "help.library"],

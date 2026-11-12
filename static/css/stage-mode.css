@@ -136,7 +136,7 @@
 .stage-play.playing .stage-play-icon { display: none; }
 .stage-play.playing .stage-pause-icon { display: block; }
 
-/* The open song's Up Next and More: icon-only Exit buttons, kept at the right beside Exit. */
 .stage-song-actions { display: flex; gap: var(--s-2); margin-left: auto; flex: none; }
 .stage-icon-btn { width: var(--ctl-h); padding: 0; justify-content: center; }
 .stage-icon-btn[aria-expanded="true"] { background: var(--surface-3); color: var(--text); }
+.stage-icon-btn:disabled { opacity: var(--disabled-opacity); cursor: default; pointer-events: none; }
