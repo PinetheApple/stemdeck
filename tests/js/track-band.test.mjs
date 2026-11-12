@@ -277,10 +277,20 @@ check("no band on the server keeps the entry", action({ artist: null }) === HELD
 check("a malformed server band keeps the entry", action({ artist: { id: "x" } }) === HELD_KEEP);
 check("a featured artist added to the tag is the same name", action({ artist: SERVER, user_artist: "Local ft. Someone" }) === HELD_SEND);
 
+const refusedAction = (state) => heldBandAction(ENTRY, heldTrack, job("a", state), true);
+check("a refused entry keeps over a differing band", refusedAction({ artist: SERVER }) === HELD_KEEP);
+check("a refused entry still drops for a saved band", refusedAction({ user_band: SERVER, artist: SERVER }) === HELD_DROP);
+check("a refused entry still drops for a renamed artist", refusedAction({ artist: SERVER, user_artist: "New" }) === HELD_DROP);
+
 async function sendOutcome(send) {
   const dropped = [];
-  const answer = await sendHeldBand("a", ENTRY, { send, drop: (trackId) => dropped.push(trackId) });
-  return { dropped, answer };
+  const refused = [];
+  const answer = await sendHeldBand("a", ENTRY, {
+    send,
+    drop: (trackId) => dropped.push(trackId),
+    refuse: (trackId) => refused.push(trackId),
+  });
+  return { dropped, refused, answer };
 }
 
 const httpError = (status) => Object.assign(new Error(`HTTP ${status}`), { status });
@@ -295,6 +305,13 @@ const httpError = (status) => Object.assign(new Error(`HTTP ${status}`), { statu
   check("a saved held band drops the entry", same(dropped, ["a"]), dropped);
   check("a saved held band answers the state", same(answer?.user_band, LOCAL), answer);
 }
+for (const status of [200, 404, 422]) {
+  const { refused } = await sendOutcome(async () => {
+    if (status === 200) return { artist: LOCAL, user_band: LOCAL };
+    throw httpError(status);
+  });
+  check(`a ${status} marks nothing refused`, same(refused, []), refused);
+}
 {
   const { dropped, answer } = await sendOutcome(async () => { throw httpError(404); });
   check("a 404 drops the entry", same(dropped, ["a"]), dropped);
@@ -305,9 +322,10 @@ const httpError = (status) => Object.assign(new Error(`HTTP ${status}`), { statu
   check("a 422 drops the entry", same(dropped, ["a"]), dropped);
   check("a 422 answers no state", answer === null);
 }
-for (const failure of [httpError(500), httpError(409), new Error("offline")]) {
-  const { dropped, answer } = await sendOutcome(async () => { throw failure; });
+for (const failure of [httpError(500), httpError(409), httpError(503), new Error("offline")]) {
+  const { dropped, refused, answer } = await sendOutcome(async () => { throw failure; });
   check(`${failure.message} keeps the entry`, same(dropped, []), dropped);
+  check(`${failure.message} marks the entry refused`, same(refused, ["a"]), refused);
   check(`${failure.message} answers no state`, answer === null);
 }
 

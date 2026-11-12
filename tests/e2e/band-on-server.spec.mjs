@@ -495,7 +495,23 @@ test.describe("a band the upload left unsent", () => {
     expect(await heldBands(page)).toEqual({ [JOB_ID]: heldEntry });
   });
 
-  test("a refused save keeps it on show and on the list, and a later state retries", async ({ page }) => {
+  test("a refused save is not sent again on every open", async ({ page }) => {
+    const bands = {};
+    const server = await bootHolding(page, bands);
+
+    bands[JOB_ID] = { artist: FOUND };
+    server.patchStatus = 503;
+    await reboot(page);
+    await patchCount(page, server, 1);
+    await showsBand(page, EARLIER);
+    await openTrack(page);
+    await page.waitForTimeout(SECOND_PATCH_WOULD_HAVE_LEFT_MS);
+
+    expect(server.patches.length, "refused once, not re-sent on open").toBe(1);
+    expect(await heldBands(page)).toEqual({ [JOB_ID]: heldEntry });
+  });
+
+  test("a refused save keeps it on show and on the list, and the next boot retries", async ({ page }) => {
     const bands = {};
     const server = await bootHolding(page, bands);
 

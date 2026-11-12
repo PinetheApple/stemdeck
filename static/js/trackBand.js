@@ -85,27 +85,32 @@ function heldEntry(track, band, state) {
 
 /**
  * What a held band's entry does when a full job state arrives. No band on the server
- * is not a differing one: sending then would save every guess at the next boot.
+ * is not a differing one: sending then would save every guess at the next boot. A
+ * `refused` entry, one whose save failed this run, is kept unsent until the next run.
  */
-export function heldBandAction(entry, track, state) {
+export function heldBandAction(entry, track, state, refused = false) {
   if (state.user_band) return HELD_DROP;
   if (bandTagName(track, state) !== entry.tagName) return HELD_DROP;
   const server = libraryArtist(state.artist);
-  return server && server.id !== entry.band.id ? HELD_SEND : HELD_KEEP;
+  return server && server.id !== entry.band.id && !refused ? HELD_SEND : HELD_KEEP;
 }
 
 /**
  * Save a held band. Answers the job state, or null when there is none to take: a 404
- * or 422 drops the entry, any other failure keeps it for a later state to retry.
+ * or 422 drops the entry, any other failure keeps it and passes it to `refuse`.
  */
-export async function sendHeldBand(trackId, entry, { send, drop }) {
+export async function sendHeldBand(trackId, entry, { send, drop, refuse }) {
   try {
     const state = await send(trackId, entry.band);
     drop(trackId);
     return state;
   } catch (err) {
-    if (err?.status === HTTP_NOT_FOUND || err?.status === HTTP_UNPROCESSABLE) drop(trackId);
-    else console.warn("[catalog] a held band is left for a later retry:", trackId, err);
+    if (err?.status === HTTP_NOT_FOUND || err?.status === HTTP_UNPROCESSABLE) {
+      drop(trackId);
+      return null;
+    }
+    console.warn("[catalog] a held band is left for the next run:", trackId, err);
+    refuse(trackId);
     return null;
   }
 }
