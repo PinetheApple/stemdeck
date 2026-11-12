@@ -300,3 +300,90 @@ def test_every_created_job_is_enqueued(client, fake_ydl):
         ).json()
     assert seen == [j["job_id"] for j in body["jobs"]]
     assert jobqueue.running_id() is None
+
+
+# ── re-import and per-item skips ─────────────────────────────────────────────
+
+PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLabc"
+
+
+def _import(client) -> dict:
+    return client.post("/api/playlist", json={"url": PLAYLIST_URL}).json()
+
+
+def _finish_all() -> None:
+    for job in _jobs.values():
+        job.status = "done"
+
+
+def _reasons(body: dict) -> dict[str, str]:
+    return {item["title"]: item["reason"] for item in body["skipped"]}
+
+
+def test_reimport_queues_only_the_tracks_not_in_the_library(client, fake_ydl):
+    fake_ydl.info = {"title": "Grows", "entries": _entries(2)}
+    _import(client)
+    _finish_all()
+
+    fake_ydl.info = {"title": "Grows", "entries": _entries(3)}
+    body = _import(client)
+
+    assert [j["title"] for j in body["jobs"]] == ["Track 2"]
+    assert body["skipped_in_library"] == 2
+    assert _reasons(body) == {"Track 0": "in_library", "Track 1": "in_library"}
+    assert len(_jobs) == 3
+
+
+def test_a_track_still_importing_counts_as_in_the_library(client):
+    _import(client)
+    body = _import(client)
+    assert body["queued"] == 0
+    assert set(_reasons(body).values()) == {"in_library"}
+
+
+def test_failed_cancelled_and_trashed_copies_are_imported_again(client, fake_ydl):
+    _import(client)
+    first, second, third = _jobs.values()
+    first.status = "error"
+    second.status = "cancelled"
+    third.status = "done"
+    third.trashed_at = 1.0
+
+    body = _import(client)
+    assert body["queued"] == 3
+    assert body["skipped"] == []
+
+
+def test_a_track_listed_twice_is_imported_once(client, fake_ydl):
+    fake_ydl.info = {"title": "Twice", "entries": _entries(1) + _entries(1)}
+    body = _import(client)
+    assert body["queued"] == 1
+    assert _reasons(body) == {"Track 0": "in_library"}
+
+
+def test_a_full_queue_names_every_track_it_left_out(client, fake_ydl, monkeypatch):
+    import app.api.playlist as playlist_mod
+
+    monkeypatch.setattr(playlist_mod, "MAX_PENDING_URL_JOBS", 2)
+    fake_ydl.info = {"title": "Big", "entries": _entries(4)}
+    body = _import(client)
+    assert _reasons(body) == {"Track 2": "no_capacity", "Track 3": "no_capacity"}
+    assert body["skipped"][0]["source_url"].startswith("https://www.youtube.com/watch?v=")
+
+
+def test_tracks_over_the_length_limit_are_named(client, fake_ydl, monkeypatch):
+    import app.api.playlist as playlist_mod
+
+    monkeypatch.setattr(playlist_mod, "get_max_duration_sec", lambda: 1000)
+    fake_ydl.info = {"title": "Mixed", "entries": _entries(1) + _entries(2, duration=5000)[1:]}
+    body = _import(client)
+    assert body["queued"] == 1
+    assert _reasons(body) == {"Track 1": "too_long"}
+
+
+def test_preview_leaves_out_what_is_already_in_the_library(client):
+    _import(client)
+    _finish_all()
+    body = client.post("/api/playlist/preview", json={"url": PLAYLIST_URL}).json()
+    assert body["skipped_in_library"] == 3
+    assert body["will_queue"] == 0

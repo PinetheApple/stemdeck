@@ -19,7 +19,8 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from app.core.config import JOBS_DIR, MAX_PENDING_URL_JOBS, STEM_NAMES
-from app.core.models import Job
+from app.core.models import FINISHED_STATUSES, STATUS_DONE, Job
+from app.core.registry import all_jobs as registry_all_jobs
 from app.core.registry import pending_count as registry_pending_count
 from app.core.registry import persist as registry_persist
 from app.core.registry import register_if_capacity as registry_register_if_capacity
@@ -31,6 +32,14 @@ from app.pipeline.download import InvalidPlaylistURL, expand_playlist
 logger = logging.getLogger("stemdeck.api")
 
 router = APIRouter(tags=["playlist"])
+
+SKIP_IN_LIBRARY = "in_library"
+SKIP_TOO_LONG = "too_long"
+SKIP_NO_CAPACITY = "no_capacity"
+# A copy in any of these states no longer holds the song, so importing it again is wanted.
+_GONE_STATUSES = FINISHED_STATUSES - {STATUS_DONE}
+
+Track = dict[str, Any]
 
 
 class PlaylistRequest(BaseModel):
@@ -58,20 +67,43 @@ async def _expand(url: str) -> dict[str, Any]:
         raise HTTPException(status_code=502, detail="Could not read that playlist") from e
 
 
-def _partition(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+def _partition(items: list[Track]) -> tuple[list[Track], list[Track]]:
     """Split out tracks that are longer than the configured limit. They would be
     accepted here and then fail one by one in the pipeline, so the dialog is a
     better place to say so."""
     max_duration = get_max_duration_sec()
     cap = get_playlist_max_items()
-    keep, too_long = [], 0
+    keep, too_long = [], []
     for item in items:
         duration = item.get("duration")
         if isinstance(duration, int | float) and duration > max_duration:
-            too_long += 1
+            too_long.append(item)
             continue
         keep.append(item)
     return keep[:cap], too_long
+
+
+def _library_urls() -> set[str]:
+    return {
+        job.source_url
+        for job in registry_all_jobs().values()
+        if job.source_url and job.trashed_at is None and job.status not in _GONE_STATUSES
+    }
+
+
+def _split_in_library(items: list[Track]) -> tuple[list[Track], list[Track]]:
+    """Tracks the library has no live copy of, and those it has. A track listed
+    twice in the playlist counts as in the library from its second listing."""
+    known = _library_urls()
+    missing, present = [], []
+    for item in items:
+        (present if item["url"] in known else missing).append(item)
+        known.add(item["url"])
+    return missing, present
+
+
+def _skipped(items: list[Track], reason: str) -> list[dict[str, str]]:
+    return [{"title": i["title"] or "", "source_url": i["url"], "reason": reason} for i in items]
 
 
 @router.post("/preview")
@@ -88,6 +120,7 @@ async def preview_playlist(request: Request) -> dict[str, Any]:
 
     result = await _expand(payload.url)
     items, too_long = _partition(result["items"])
+    items, in_library = _split_in_library(items)
     capacity = _capacity_left()
 
     return {
@@ -95,7 +128,8 @@ async def preview_playlist(request: Request) -> dict[str, Any]:
         "total_found": len(result["items"]) + result["unavailable"],
         "will_queue": min(len(items), capacity),
         "skipped_unavailable": result["unavailable"],
-        "skipped_too_long": too_long,
+        "skipped_too_long": len(too_long),
+        "skipped_in_library": len(in_library),
         "capacity_left": capacity,
         "cap": get_playlist_max_items(),
         # The playlist has more tracks than the cap allows us to look at, so
@@ -111,7 +145,9 @@ async def create_playlist_jobs(request: Request) -> dict[str, Any]:
 
     Fills whatever capacity is available rather than failing the whole import:
     the preview already told the user how many would be queued, and a partial
-    fill with an honest count beats a 503 after they agreed to it.
+    fill with an honest count beats a 503 after they agreed to it. Tracks the
+    library already holds are left out, so importing a playlist again tops it
+    up. Every track left out is listed in ``skipped`` with its reason.
     """
     try:
         body = await request.json()
@@ -136,13 +172,15 @@ async def create_playlist_jobs(request: Request) -> dict[str, Any]:
     items, too_long = _partition(result["items"])
     if not items:
         raise HTTPException(status_code=422, detail="No importable tracks in that playlist")
-    if _capacity_left() == 0:
+    items, in_library = _split_in_library(items)
+    if items and _capacity_left() == 0:
         raise HTTPException(status_code=503, detail="Queue is full - wait or cancel a job")
 
     # Read once for the batch, so every job in one playlist import agrees, and
     # captured now rather than when each job reaches its sections stage.
     auto_sections = get_auto_sections()
     created: list[dict[str, Any]] = []
+    left_out: list[Track] = []
     for item in items:
         job = Job(
             id=uuid.uuid4().hex[:12],
@@ -155,7 +193,8 @@ async def create_playlist_jobs(request: Request) -> dict[str, Any]:
             auto_sections=auto_sections,
         )
         if not registry_register_if_capacity(job, MAX_PENDING_URL_JOBS):
-            break  # queue filled up mid-loop; report what did land
+            left_out = items[len(created) :]
+            break
         jobqueue.enqueue(job.id)
         created.append({"job_id": job.id, "title": job.title or "", "source_url": item["url"]})
 
@@ -165,6 +204,12 @@ async def create_playlist_jobs(request: Request) -> dict[str, Any]:
         "jobs": created,
         "queued": len(created),
         "skipped_unavailable": result["unavailable"],
-        "skipped_too_long": too_long,
-        "skipped_no_capacity": len(items) - len(created),
+        "skipped_too_long": len(too_long),
+        "skipped_in_library": len(in_library),
+        "skipped_no_capacity": len(left_out),
+        "skipped": [
+            *_skipped(in_library, SKIP_IN_LIBRARY),
+            *_skipped(too_long, SKIP_TOO_LONG),
+            *_skipped(left_out, SKIP_NO_CAPACITY),
+        ],
     }
