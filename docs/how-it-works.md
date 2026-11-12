@@ -41,6 +41,10 @@ song the track was identified as. If neither has any and **Transcribe lyrics** a
 are transcribed from the separated vocals on your computer with Whisper. **Auto** does this only
 on an NVIDIA GPU.
 
+Opening a song in the Lyrics view keeps the file's own lyrics on the server when it has none,
+and keeps what a lookup finds. If the server refuses, it is not asked again until you press
+**Look up again** or reload StemDeck.
+
 ## Separation quality
 
 **Best** runs the separator twice with randomized shifts and averages the two results. The

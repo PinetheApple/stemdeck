@@ -96,16 +96,21 @@ export function heldBandAction(entry, track, state) {
 
 /**
  * Save a held band. Answers the job state, or null when there is none to take: a 404
- * or 422 drops the entry, any other failure keeps it for a later state to retry.
+ * or 422 drops the entry, and any other failure keeps it: one the server answered
+ * is passed to `refuse`, one that never reached it is left for a later state.
  */
-export async function sendHeldBand(trackId, entry, { send, drop }) {
+export async function sendHeldBand(trackId, entry, { send, drop, refuse }) {
   try {
     const state = await send(trackId, entry.band);
     drop(trackId);
     return state;
   } catch (err) {
-    if (err?.status === HTTP_NOT_FOUND || err?.status === HTTP_UNPROCESSABLE) drop(trackId);
-    else console.warn("[catalog] a held band is left for a later retry:", trackId, err);
+    if (err?.status === HTTP_NOT_FOUND || err?.status === HTTP_UNPROCESSABLE) {
+      drop(trackId);
+      return null;
+    }
+    console.warn("[catalog] a held band is left for a later retry:", trackId, err);
+    if (Number.isInteger(err?.status)) refuse(trackId);
     return null;
   }
 }
