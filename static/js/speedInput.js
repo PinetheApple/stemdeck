@@ -1,9 +1,10 @@
-// The speed fader's range, and what a typed speed or a wheel notch means. No DOM.
+// The speed fader's range, and what a typed speed or a wheel notch means.
 
 export const SPEED_MIN = 0.5;
 export const SPEED_MAX = 1;
 const HUNDREDTHS = 100;
 const NOTCH_HUNDREDTHS = 5;
+export const SPEED_STEP = 1 / HUNDREDTHS;
 export const SPEED_NOTCH = NOTCH_HUNDREDTHS / HUNDREDTHS;
 // A bare number this big can only mean a percentage: nobody types 83 for 83x.
 const PERCENT_FROM = 10;

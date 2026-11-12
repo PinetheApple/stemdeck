@@ -10,7 +10,6 @@ import {
   pitchValueEl,
   pitchResetBtn,
   pitchWrap,
-  speedWrap,
   rulerTime, wavesGrid, loopRegionEl, playheadMarker,
   multitrack, audioEngine, totalDuration, loopEnabled, loopStart, loopEnd, masterVolume,
   waveScroll, waveCanvas, multitrackContainer,
@@ -36,7 +35,7 @@ import {
 import { t, onLanguageChange } from "./i18n.js";
 import { pitchBlockedKey } from "./pitchBus.js";
 import { refitFooter } from "./footerFit.js";
-import { SPEED_MAX, SPEED_NOTCH, clampSpeed, nextNotch, parseSpeedInput } from "./speedInput.js";
+import { SPEED_MIN, SPEED_MAX, SPEED_STEP, SPEED_NOTCH, clampSpeed, nextNotch, parseSpeedInput } from "./speedInput.js";
 
 // Zoom range. 1 is the whole track fitted to the panel; there is nothing below
 // it to show, so it is the floor rather than a soft default.
@@ -971,15 +970,11 @@ export function wireTransportButtons() {
   wirePitchControl();
 }
 
-// A fader from 0.50x to 1.00x, for slowing a part down to practise it, with a
-// box for an exact speed. Signalsmith Stretch holds up down to 0.5x. Every
-// settled speed below 1x is kept between sessions, and a double-click toggles
-// between it and 1x.
 const SLOW_DEFAULT = 0.75;
 const _SLOW_SPEED_KEY = "stemdeck:slow-speed";
 // A drag or a turn of the wheel fires many events; the rate itself is applied
 // once they stop, since every change of rate flushes the tempo stage.
-const SLOW_APPLY_DELAY_MS = 150;
+const SPEED_APPLY_DELAY_MS = 150;
 const SLOWED_CLASS = "slowed";
 const SPEED_KEY_DIRECTIONS = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 };
 
@@ -1026,7 +1021,7 @@ function settleSpeed(rate) {
   const shown = clampSpeed(rate);
   paintSpeed(shown);
   clearTimeout(_speedApplyTimer);
-  _speedApplyTimer = setTimeout(() => applySpeed(shown), SLOW_APPLY_DELAY_MS);
+  _speedApplyTimer = setTimeout(() => applySpeed(shown), SPEED_APPLY_DELAY_MS);
 }
 
 
@@ -1070,9 +1065,9 @@ function renderPitch() {
   // Without the pitch stage the sources resample instead, so speed drags the
   // key with it. That is the one degradation here that is otherwise silent:
   // the control still works, it just quietly does something else (#552).
-  if (speedWrap) {
-    if (_pitchAvailable) speedWrap.removeAttribute("title");
-    else speedWrap.title = t("speed.pitchFollows");
+  if (speedFader) {
+    speedFader.dataset.i18nTitle = _pitchAvailable ? "speed.faderTitle" : "speed.pitchFollows";
+    speedFader.title = t(speedFader.dataset.i18nTitle);
   }
 }
 
@@ -1169,6 +1164,9 @@ async function loadSlowSpeed() {
 
 function wireSpeedControl() {
   if (!speedFader || !speedValueBox) return;
+  speedFader.min = String(SPEED_MIN);
+  speedFader.max = String(SPEED_MAX);
+  speedFader.step = String(SPEED_STEP);
   speedFader.addEventListener("input", handleSpeedFaderInput);
   speedFader.addEventListener("wheel", handleSpeedFaderWheel, { passive: false });
   speedFader.addEventListener("keydown", handleSpeedFaderKeydown);

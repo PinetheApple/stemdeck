@@ -370,7 +370,7 @@ test.describe("transpose over an insecure origin", () => {
     await openStudio(page);
     // Speed still works here, it just resamples -- the one degradation that is
     // otherwise completely silent.
-    await expect(page.locator("#t-speed-wrap")).toHaveAttribute("title", /key|pitch/i);
+    await expect(page.locator("#t-speed")).toHaveAttribute("title", /changes the key/i);
   });
 
   test("a secure origin that still cannot build the worklet says something else", async ({ page }) => {
@@ -385,6 +385,6 @@ test.describe("transpose over an insecure origin", () => {
     await openStudio(page);
     await expect(up(page)).toBeEnabled();
     await expect(page.locator("#t-pitch-wrap")).not.toHaveAttribute("title", /.+/);
-    await expect(page.locator("#t-speed-wrap")).not.toHaveAttribute("title", /.+/);
+    await expect(page.locator("#t-speed")).toHaveAttribute("title", /double-click/i);
   });
 });
