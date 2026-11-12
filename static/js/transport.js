@@ -36,6 +36,7 @@ import { t, onLanguageChange } from "./i18n.js";
 import { pitchBlockedKey } from "./pitchBus.js";
 import { refitFooter } from "./footerFit.js";
 import { SPEED_MIN, SPEED_MAX, SPEED_STEP, SPEED_NOTCH, clampSpeed, nextNotch, parseSpeedInput } from "./speedInput.js";
+import { trackPlayhead, resumeFollowing } from "./autoScroll.js";
 
 // Zoom range. 1 is the whole track fitted to the panel; there is nothing below
 // it to show, so it is the floor rather than a soft default.
@@ -116,6 +117,8 @@ export function setPlayheadTime(sec) {
   const tx = audioEngine ?? multitrack;
   if (!tx || !totalDuration || loadingMultitrack(tx)) return;
   const next = Math.max(0, Math.min(totalDuration, sec));
+  // Before setTime, whose time report would otherwise follow the jump as plain playback.
+  trackPlayhead(next, true);
   tx.setTime(next);
   updatePlayheadMarker(next);
   updateFooterTimes(next);
@@ -571,6 +574,7 @@ export function togglePlayPause() {
   if (ctx && ctx.state === "suspended") {
     ctx.resume().catch(() => {});
   }
+  resumeFollowing();
   // Snap playhead to loopStart on play (DAW convention).
   if (loopEnabled && totalDuration > 0 && !loadingMultitrack(tx)) {
     tx.setTime(loopStart);

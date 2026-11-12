@@ -1,0 +1,38 @@
+
+.autoscroll-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-3);
+  flex: none;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-3);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+.autoscroll-toggle .ic { width: var(--icon-sm); height: var(--icon-sm); flex: none; }
+.autoscroll-toggle:hover { background: var(--surface-2); color: var(--text); }
+.autoscroll-toggle[aria-pressed="true"],
+.autoscroll-toggle[aria-pressed="true"]:hover {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.app.no-track .autoscroll-toggle { opacity: var(--disabled-opacity); pointer-events: none; }
+
+@container song-head (max-width: 900px) {
+  #songHead .autoscroll-toggle { width: var(--ctl-h-sm); padding: 0; justify-content: center; }
+  /* Clipped rather than display: none, so the label stays the accessible name. */
+  #songHead .autoscroll-toggle > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
