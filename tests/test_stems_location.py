@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api.jobs import LYRICS_RUNNING_BLOCKS_MOVE
 from app.core.config import SETLISTS_FILE
 from app.core.models import Job
 from app.core.registry import _jobs
@@ -537,3 +538,28 @@ def test_a_refused_move_reopens_the_door(client, tmp_path):
 
     assert r.status_code == 409
     assert stems_location.is_relocating() is False, "imports would be blocked forever"
+
+
+def test_refuses_while_a_lyrics_run_is_going(client, tmp_path, lyrics_board):
+    from app.core import stems_location
+
+    lyrics_board.claim("aaaaaaaaaaaa")
+    _job_dir(client.jobs_dir, "aaaaaaaaaaaa")
+
+    r = client.post("/api/settings/stems-location", json={"path": str(tmp_path / "elsewhere")})
+
+    assert r.status_code == 409
+    assert r.json()["detail"] == LYRICS_RUNNING_BLOCKS_MOVE
+    assert (client.jobs_dir / "aaaaaaaaaaaa").is_dir()
+    assert stems_location.is_relocating() is False, "imports would be blocked forever"
+
+
+def test_a_lyrics_run_that_ended_does_not_hold_up_the_move(client, tmp_path, lyrics_board):
+    from app.pipeline.runs import DONE
+
+    lyrics_board.claim("aaaaaaaaaaaa").state = DONE
+    _job_dir(client.jobs_dir, "aaaaaaaaaaaa")
+
+    r = client.post("/api/settings/stems-location", json={"path": str(tmp_path / "elsewhere")})
+
+    assert r.status_code == 200

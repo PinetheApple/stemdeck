@@ -5,6 +5,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api.jobs import LYRICS_RUNNING_BLOCKS_RESET
 from app.core.models import Job
 from app.core.registry import _jobs, _procs
 from app.core.registry import reset_all as reset_registry
@@ -114,6 +115,35 @@ def test_reset_endpoint_allows_only_terminal_jobs(client, monkeypatch, tmp_path)
     monkeypatch.setattr("app.main.JOBS_DIR", tmp_path)
     for i, status in enumerate(("done", "error", "cancelled")):
         _jobs[f"abcdefabcd{i:02x}"] = Job(id=f"abcdefabcd{i:02x}", status=status)
+
+    r = client.post("/api/reset")
+
+    assert r.status_code == 200
+
+
+def test_reset_endpoint_rejects_a_lyrics_run(client, monkeypatch, tmp_path, lyrics_board):
+    monkeypatch.setattr("app.main.JOBS_DIR", tmp_path)
+    job = Job(id="abcdefabcdeb", status="done")
+    _jobs[job.id] = job
+    (tmp_path / job.id).mkdir()
+    lyrics_board.claim(job.id)
+
+    r = client.post("/api/reset")
+
+    assert r.status_code == 409
+    assert r.json()["detail"] == LYRICS_RUNNING_BLOCKS_RESET
+    assert job.id in _jobs and (tmp_path / job.id).is_dir()
+
+
+def test_reset_endpoint_ignores_a_lyrics_run_that_ended(
+    client, monkeypatch, tmp_path, lyrics_board
+):
+    from app.pipeline.runs import FAILED
+
+    monkeypatch.setattr("app.main.JOBS_DIR", tmp_path)
+    job = Job(id="abcdefabcdeb", status="done")
+    _jobs[job.id] = job
+    lyrics_board.claim(job.id).state = FAILED
 
     r = client.post("/api/reset")
 

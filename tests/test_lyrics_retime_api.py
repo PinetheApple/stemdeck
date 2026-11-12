@@ -16,6 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.api.jobs as jobs_mod
+from app.core import stems_location
 from app.core.models import Job
 from app.core.registry import _jobs
 from app.pipeline import lyrics_retime as rt
@@ -155,6 +156,14 @@ def test_a_job_not_done_is_409(client):
     job = done_job(entry())
     job.status = "running"
     assert client.post(RETIME).status_code == 409
+
+
+def test_refused_while_the_stems_folder_moves(client, monkeypatch):
+    done_job(entry())
+    monkeypatch.setattr(stems_location, "_relocating", True)
+    r = client.post(RETIME)
+    assert r.status_code == 409 and r.json()["detail"] == jobs_mod.STEMS_FOLDER_MOVING
+    assert rt.RETIME_RUNS.current(JOB_ID) is None
 
 
 def test_a_body_that_is_not_lyrics_is_422(client):

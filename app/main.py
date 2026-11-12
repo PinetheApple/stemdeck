@@ -23,7 +23,12 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.jobs import settle_pending_replacements
+from app.api.jobs import (
+    LYRICS_RUNNING_BLOCKS_MOVE,
+    LYRICS_RUNNING_BLOCKS_RESET,
+    lyrics_run_active,
+    settle_pending_replacements,
+)
 from app.api.router import router
 from app.core import tls_listener
 from app.core.compression import COMPRESS_LEVEL, MINIMUM_SIZE, TextGZipMiddleware
@@ -677,6 +682,8 @@ async def set_stems_location(request: Request) -> dict[str, object]:
                 detail="Finish or cancel the imports in the queue before moving the stems folder",
             )
         _refuse_while_busy()
+        if lyrics_run_active():
+            raise HTTPException(status_code=409, detail=LYRICS_RUNNING_BLOCKS_MOVE)
         target = validate_target(Path(raw), JOBS_DIR)
     except StemsLocationError as e:
         abandon_relocation()
@@ -750,6 +757,8 @@ def reset_app_data() -> dict[str, object]:
     if active:
         raise HTTPException(status_code=409, detail="cannot reset while a job is in progress")
     _refuse_while_busy()
+    if lyrics_run_active():
+        raise HTTPException(status_code=409, detail=LYRICS_RUNNING_BLOCKS_RESET)
     # Clear the queue alongside the registry, or the worker would keep popping
     # ids that no longer resolve and the queue view would report ghosts.
     from app.pipeline import jobqueue

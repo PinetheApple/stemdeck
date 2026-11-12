@@ -185,3 +185,15 @@ def _isolate_network_settings(tmp_path, monkeypatch):
     _settings._state = None  # force a fresh load from the isolated path
     yield
     _settings._state = None
+
+
+@pytest.fixture(params=["transcription", "timing"])
+def lyrics_board(request):
+    """Each kind of lyrics run's board, empty before and after the test."""
+    from app.pipeline.lyrics_retime import RETIME_RUNS
+    from app.pipeline.transcribe_on_demand import TRANSCRIBE_RUNS
+
+    board = {"transcription": TRANSCRIBE_RUNS, "timing": RETIME_RUNS}[request.param]
+    board.runs.clear()
+    yield board
+    board.runs.clear()

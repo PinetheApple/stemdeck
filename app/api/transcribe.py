@@ -21,12 +21,14 @@ from app.api.jobs import (
     JOB_NOT_READY,
     LYRICS_TIMING_RUNNING,
     NO_VOCALS_STEM,
+    STEMS_FOLDER_MOVING,
     TRANSCRIPTION_RUNNING,
     _lyrics_job,
 )
 from app.core.config import JOBS_DIR
 from app.core.models import Job
 from app.core.registry import persist as registry_persist
+from app.core.stems_location import is_relocating
 from app.pipeline import transcribe_on_demand as tod
 from app.pipeline.lyrics_retime import RETIME_RUNS
 from app.pipeline.runs import DONE, IDLE, RUNNING, run_behind_lock, start_run_task
@@ -107,6 +109,8 @@ async def start_lyrics_transcribe(job_id: str) -> JSONResponse:
     if RETIME_RUNS.running(job_id):
         raise HTTPException(status_code=409, detail=LYRICS_TIMING_RUNNING)
     device = await asyncio.to_thread(tod.whisper_device_now)
+    if is_relocating():
+        raise HTTPException(status_code=409, detail=STEMS_FOLDER_MOVING)
     run = tod.TRANSCRIBE_RUNS.claim(job_id)
     if run is None:
         raise HTTPException(status_code=409, detail=TRANSCRIPTION_RUNNING)
