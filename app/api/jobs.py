@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import time
 import uuid
 from collections.abc import Callable
@@ -45,6 +46,7 @@ from app.core.config import (
 from app.core.models import (
     FINISHED_STATUSES,
     STATUS_DONE,
+    STATUS_ERROR,
     VOCAL_SPLIT_DONE,
     Job,
     VocalSplitChoice,
@@ -61,6 +63,7 @@ from app.core.registry import is_upload
 from app.core.registry import mark_deleted as registry_mark_deleted
 from app.core.registry import pending_count as registry_pending_count
 from app.core.registry import persist as registry_persist
+from app.core.registry import register as registry_register
 from app.core.registry import register_if_capacity as registry_register_if_capacity
 from app.core.registry import remove as registry_remove
 from app.core.registry import requeue_if_capacity as registry_requeue_if_capacity
@@ -114,7 +117,7 @@ from app.pipeline.lyrics_lookup import (
 )
 from app.pipeline.lyrics_retime import RETIME_RUNS, RetimeFailed, RetimeRun, lyric_pairs, retime_job
 from app.pipeline.lyrics_retime import saved_view as saved_retime_view
-from app.pipeline.runner import set_on_done
+from app.pipeline.runner import FAILED_RECORD_FILE, UPLOAD_VIDEO_FILE, set_on_done
 from app.pipeline.runs import FAILED, run_behind_lock, start_run_task
 from app.pipeline.tempo import MODE_CONSTANT, MODE_FOLLOW
 from app.pipeline.tempo_grid import (
@@ -150,9 +153,17 @@ LYRICS_RUNNING_BLOCKS_RESET = (
     "Lyrics are still being made. Wait for them or cancel them, then reset."
 )
 STEMS_FOLDER_MOVING = "Restart StemDeck to finish moving your stems folder, then make the lyrics."
+JOB_NOT_FAILED = "job has not failed"
+SOURCE_FILE_GONE = "source file is gone"
+RESTORE_FROM_TRASH_FIRST = "restore it from the Trash first"
+SOURCE_KIND_LINK = "link"
+SOURCE_KIND_FILE = "file"
 
 _MAX_UPLOAD_BYTES = 400 * 1024 * 1024  # 400 MB
+_SOURCE_NAME_MAX_CHARS = 255
+_FAILED_DIR_NAME = "failed"
 _WS_RE = re.compile(r"\s+")
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
 
 # Now that imports queue instead of running immediately, a full queue is a
 # capacity statement the user can act on, not a transient "try again".
@@ -169,6 +180,11 @@ def _sanitize_title(filename: str) -> str:
     """Strip extension, normalize whitespace, cap at 120 chars."""
     stem = Path(filename).stem
     return _WS_RE.sub(" ", stem).strip()[:120]
+
+
+def _clean_source_name(filename: str) -> str:
+    """The upload's file name as picked, without folders or control characters."""
+    return _CONTROL_CHARS_RE.sub(" ", Path(filename).name).strip()[:_SOURCE_NAME_MAX_CHARS]
 
 
 def _probe_duration(path: Path) -> float:
@@ -258,6 +274,10 @@ def _job_state(job: Job) -> dict:
     state = job.to_state()
     if job.status == "done" and _job_files_missing(job):
         state["status"] = "unavailable"
+    state["source_kind"] = SOURCE_KIND_FILE if is_upload(job) else SOURCE_KIND_LINK
+    state["retryable"] = job.status == STATUS_ERROR and (
+        not is_upload(job) or _kept_upload_source(job.id) is not None
+    )
     return state
 
 
@@ -284,7 +304,7 @@ def _checked_replaces(old_id: object) -> str | None:
         return None
     if not isinstance(old_id, str) or not JOB_ID_RE.match(old_id):
         raise HTTPException(status_code=422, detail="replaces must be a job id")
-    old = registry_get(old_id)
+    old = _known_job(old_id)
     if old is None:
         return None
     if old.status not in FINISHED_STATUSES:
@@ -446,6 +466,7 @@ async def _create_local_job(request: Request) -> dict[str, str]:
         duration_sec=duration,
         source_url=local_source_url,
         source_format=ext.removeprefix("."),
+        source_name=_clean_source_name(filename),
         audio_tags=audio_tags,
         auto_sections=get_auto_sections(),
         replaces=replaces,
@@ -534,7 +555,7 @@ def extract_stopped_job(job_id: str) -> dict:
     if job.status != "stopped":
         raise HTTPException(status_code=409, detail="only a stopped job can be extracted again")
     if job.trashed_at is not None:
-        raise HTTPException(status_code=409, detail="restore it from the Trash first")
+        raise HTTPException(status_code=409, detail=RESTORE_FROM_TRASH_FIRST)
     limit = MAX_PENDING_UPLOAD_JOBS if is_upload(job) else MAX_PENDING_URL_JOBS
     if not registry_requeue_if_capacity(job, JOBS_DIR / job_id, limit):
         raise HTTPException(
@@ -544,6 +565,109 @@ def extract_stopped_job(job_id: str) -> dict:
     registry_persist(JOBS_DIR)
     jobqueue.enqueue(job_id)
     return job.to_state()
+
+
+_ADOPT_LOCK = threading.Lock()
+_RETRY_LOCK = threading.Lock()
+
+
+def _failure_dir(job_id: str) -> Path:
+    return JOBS_DIR / _FAILED_DIR_NAME / job_id
+
+
+def _known_job(job_id: str) -> Job | None:
+    """The registered job, else a failed one read back from its failure record.
+
+    Failed jobs are not in the registry file, so after a restart this is the
+    only way to show one, retry it or delete it. One the user deleted stays
+    deleted."""
+    job = registry_get(job_id)
+    if job is not None or registry_is_deleted(job_id):
+        return job
+    with _ADOPT_LOCK:
+        job = registry_get(job_id)
+        if job is None:
+            job = _read_failure_record(job_id)
+            if job is not None:
+                registry_register(job)
+    return job
+
+
+def _read_failure_record(job_id: str) -> Job | None:
+    path = _failure_dir(job_id) / FAILED_RECORD_FILE
+    try:
+        job = Job.from_record(json.loads(path.read_text(encoding="utf-8")))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError, TypeError, AttributeError):
+        logger.warning("[%s] unreadable failure record", job_id, exc_info=True)
+        return None
+    if job.id != job_id or job.status != STATUS_ERROR:
+        return None
+    return job
+
+
+@router.post("/{job_id}/retry")
+def retry_job(job_id: str) -> dict:
+    """Run a failed import again, as the same job, from the source it kept.
+
+    A link is fetched again; an upload runs from the file its failure kept, and
+    410 says that file is gone, so the user picks it again. The same job id
+    goes back in the queue, so the library never gains a second entry. Like
+    Extract, a job in the Trash has to be restored first."""
+    if not JOB_ID_RE.match(job_id):
+        raise HTTPException(status_code=404, detail="job not found")
+    with _RETRY_LOCK:
+        job = _known_job(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        if job.status != STATUS_ERROR:
+            raise HTTPException(status_code=409, detail=JOB_NOT_FAILED)
+        if job.trashed_at is not None:
+            raise HTTPException(status_code=409, detail=RESTORE_FROM_TRASH_FIRST)
+        _requeue_failed(job, _stage_kept_upload(job))
+    jobqueue.enqueue(job_id)
+    return _job_state(job)
+
+
+def _stage_kept_upload(job: Job) -> list[str]:
+    """Move a failed upload's kept files back where the pipeline reads them.
+    Returns their names, so a refused requeue can put them back."""
+    if not is_upload(job):
+        return []
+    source = _kept_upload_source(job.id)
+    if source is None:
+        raise HTTPException(status_code=410, detail=SOURCE_FILE_GONE)
+    names = [source.name, UPLOAD_VIDEO_FILE]
+    try:
+        (JOBS_DIR / job.id).mkdir(parents=True, exist_ok=True)
+        _move_files(names, _failure_dir(job.id), JOBS_DIR / job.id)
+    except OSError:
+        logger.exception("[%s] retry could not stage the kept upload", job.id)
+        raise HTTPException(status_code=500, detail="could not start the retry") from None
+    return names
+
+
+def _requeue_failed(job: Job, staged: list[str]) -> None:
+    limit = MAX_PENDING_UPLOAD_JOBS if is_upload(job) else MAX_PENDING_URL_JOBS
+    if not registry_requeue_if_capacity(job, JOBS_DIR / job.id, limit):
+        _move_files(staged, JOBS_DIR / job.id, _failure_dir(job.id))
+        raise HTTPException(
+            status_code=503,
+            detail=_UPLOAD_QUEUE_FULL_DETAIL if is_upload(job) else _URL_QUEUE_FULL_DETAIL,
+        )
+    _set(job, error_detail=None, error_code=None)
+    # The old evidence and record go: a failure of this run writes its own, and a
+    # leftover record would bring the job back as failed after a restart.
+    if not remove_job_dir(_failure_dir(job.id)):
+        logger.warning("[%s] old failure evidence could not be removed", job.id)
+    registry_persist(JOBS_DIR)
+
+
+def _move_files(names: list[str], src_dir: Path, dest_dir: Path) -> None:
+    for name in names:
+        if (src_dir / name).is_file():
+            os.replace(src_dir / name, dest_dir / name)
 
 
 class FavoriteBody(BaseModel):
@@ -649,7 +773,7 @@ def rename_job(job_id: str, body: RenameBody) -> dict:
 @router.get("/{job_id}")
 def get_job(job_id: str) -> dict:
     """Get the current state of a job by ID."""
-    job = registry_get(job_id)
+    job = _known_job(job_id) if JOB_ID_RE.match(job_id) else None
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
     return _job_state(job)
@@ -739,7 +863,16 @@ def _retained_source(job_id: str) -> Path | None:
     it (see cleanup_source). Jobs finished before that change kept nothing,
     which is why absence is an ordinary answer here rather than an error.
     """
-    job_dir = (JOBS_DIR / job_id).resolve()
+    return _source_file_in(JOBS_DIR / job_id)
+
+
+def _kept_upload_source(job_id: str) -> Path | None:
+    """The upload a failed job kept beside its failure evidence, for a retry."""
+    return _source_file_in(_failure_dir(job_id))
+
+
+def _source_file_in(directory: Path) -> Path | None:
+    job_dir = directory.resolve()
     if not job_dir.is_dir() or not job_dir.is_relative_to(JOBS_DIR.resolve()):
         return None
     for candidate in sorted(job_dir.glob("source.*")):
@@ -835,6 +968,7 @@ async def resplit_job(job_id: str, body: ResplitBody) -> dict:
         # track it came from instead of replacing it.
         source_url=_resplit_source_url(job.source_url, new_id),
         source_format=source.suffix.lower().removeprefix("."),
+        source_name=job.source_name,
         # The same recording, so the same tags, identity and band.
         audio_tags=job.audio_tags,
         identity=job.identity,
@@ -2182,7 +2316,7 @@ def delete_job(job_id: str) -> dict[str, str]:
     """Delete a completed or failed job and remove its stem files from disk."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
-    job = registry_get(job_id)
+    job = _known_job(job_id)
     if job is None:
         return _retry_deleted_job_files(job_id)
     if job.status not in FINISHED_STATUSES:
@@ -2202,6 +2336,8 @@ def _remove_job(job: Job) -> bool:
     # A fingerprint of its audio may still have a file open (Windows).
     release_source(job_id)
     removed = _rmtree_job(job_id)
+    # A failed job's kept upload and record go with it, or a restart reads it back.
+    removed = remove_job_dir(_failure_dir(job_id)) and removed
     # Recorded whether or not the files went away. The user asked for this job
     # to be gone; without the record, a directory that outlived the delete is
     # re-adopted by restore() on the next start and the track reappears.
