@@ -106,9 +106,15 @@ export function transport() {
   return audioEngine ?? multitrack;
 }
 
+// Until the next engine starts, the transport is a multitrack still building
+// its <audio> elements: its setTime() throws and its play() plays nothing.
+function loadingMultitrack(tx) {
+  return tx === multitrack && tx.audios.length === 0;
+}
+
 export function setPlayheadTime(sec) {
   const tx = audioEngine ?? multitrack;
-  if (!tx || !totalDuration) return;
+  if (!tx || !totalDuration || loadingMultitrack(tx)) return;
   const next = Math.max(0, Math.min(totalDuration, sec));
   tx.setTime(next);
   updatePlayheadMarker(next);
@@ -456,7 +462,7 @@ function wireLoopInputs() {
 // this wait is skipped entirely (readyState is already >= 3 by the time play
 // is pressed after a seek).
 function _playWhenReady() {
-  if (!multitrack) return;
+  if (!multitrack || loadingMultitrack(multitrack)) return;
   const inTauri = Boolean(window.__TAURI__?.core?.invoke);
   if (!inTauri) { multitrack.play(); return; }
 
@@ -552,7 +558,7 @@ export function togglePlayPause() {
     ctx.resume().catch(() => {});
   }
   // Snap playhead to loopStart on play (DAW convention).
-  if (loopEnabled && totalDuration > 0) {
+  if (loopEnabled && totalDuration > 0 && !loadingMultitrack(tx)) {
     tx.setTime(loopStart);
   }
   if (eng) {
@@ -574,7 +580,7 @@ export function stopTransport() {
   if (!tx) return;
   tx.pause();
   _dropCountIn(); // a count-in in progress must not outlive Stop
-  tx.setTime(loopEnabled ? loopStart : 0); // engine: setTime → onTime → stop visual
+  if (!loadingMultitrack(tx)) tx.setTime(loopEnabled ? loopStart : 0); // engine: setTime → onTime → stop visual
   if (eng) playBtn.classList.remove("playing");
 }
 

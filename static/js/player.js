@@ -1108,6 +1108,13 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
     multitrack.destroy();
     setMultitrack(null);
   }
+  // Here, not on the engine path: the transport reads `audioEngine ??
+  // multitrack`, so a leftover engine would take Play on a streaming-path song.
+  if (audioEngine) {
+    teardownMetronome();
+    audioEngine.destroy();
+    setAudioEngine(null);
+  }
   playBtn.classList.remove("playing");
   stopBtn.classList.remove("stopped");
   resetPitch();
@@ -1482,7 +1489,6 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
         noteMediaPosition();
       };
       teardownMetronome();
-      if (audioEngine) { audioEngine.destroy(); setAudioEngine(null); }
       const onEnded = () => {
         playBtn.classList.remove("playing");
         updateStopVisual();
