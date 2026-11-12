@@ -27,7 +27,6 @@ export const pitchResetBtn = $("t-pitch-reset");
 // pointer events in every browser, so a title on it is unreadable exactly
 // when it has something to say.
 export const pitchWrap = $("t-pitch-wrap");
-export const speedWrap = $("t-speed-wrap");
 export const npArt = $("np-art");
 export const npThumb = $("np-thumb");
 
