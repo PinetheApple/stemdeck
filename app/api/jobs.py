@@ -53,6 +53,7 @@ from app.core.models import (
     _set,
     checked_name,
     clean_artist,
+    clean_user_name,
     settle_cancelled,
 )
 from app.core.registry import all_jobs as registry_all_jobs
@@ -298,6 +299,13 @@ class JobRequest(BaseModel):
     # clients pinning the old set.
     stems: list[str] | None = None
     replaces: str | None = None
+    # Shown in the queue until the download names the song from its source.
+    title: str | None = None
+
+    @field_validator("title")
+    @classmethod
+    def _clean_title(cls, value: str | None) -> str | None:
+        return clean_user_name(value)
 
 
 def _checked_replaces(old_id: object) -> str | None:
@@ -366,6 +374,7 @@ async def _create_youtube_job(request: Request) -> dict[str, str]:
         id=uuid.uuid4().hex[:12],
         selected_stems=selected,
         source_url=url,
+        title=payload.title,
         # Captured now, not when the sections stage is reached: that is the
         # last thing the pipeline does, and the toggle clears itself as soon
         # as the user opens another song.

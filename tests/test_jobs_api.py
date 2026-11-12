@@ -68,6 +68,24 @@ def test_post_accepts_youtube_url(client):
     assert len(r.json()["job_id"]) == 12
 
 
+def _queued_title(client, body: dict) -> str | None:
+    r = client.post("/api/jobs", json={"url": "https://youtu.be/dQw4w9WgXcQ", **body})
+    assert r.status_code == 200, r.text
+    return _jobs[r.json()["job_id"]].title
+
+
+def test_a_link_queued_with_a_title_shows_it_before_its_download(client):
+    assert _queued_title(client, {"title": "  Build My Life  "}) == "Build My Life"
+    assert _queued_title(client, {"title": "   "}) is None
+
+
+def test_a_queued_title_is_capped_at_the_song_name_limit(client):
+    from app.core.config import SONG_NAME_MAX_CHARS
+
+    title = _queued_title(client, {"title": "x" * (SONG_NAME_MAX_CHARS + 50)})
+    assert title == "x" * SONG_NAME_MAX_CHARS
+
+
 def test_get_unknown_job_returns_404(client):
     r = client.get("/api/jobs/000000000000")
     assert r.status_code == 404
