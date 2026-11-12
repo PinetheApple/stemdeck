@@ -1,5 +1,3 @@
-// The studio's one-key shortcuts (Space, [, ], L, K, I, O) leave Alt chords to
-// the browser and the OS, and leave a focused select its own keys.
 import { test, expect } from "@playwright/test";
 import { openClickOptions, openStudio, waitForClickTrack } from "./helpers.mjs";
 
@@ -18,7 +16,7 @@ async function watchKeys(page) {
   }, MODIFIER_KEYS);
 }
 
-const keysPrevented = (page) => page.evaluate(() => window.__keys.splice(0));
+const takePreventedKeys = (page) => page.evaluate(() => window.__keys.splice(0));
 
 const studioState = (page) => page.evaluate(async () => {
   const engine = (await import("/js/transport.js")).transport();
@@ -47,7 +45,7 @@ test.describe("one-key shortcuts and what they leave alone", () => {
 
     await pressAll(page, ALT_CHORDS);
 
-    expect(await keysPrevented(page)).toEqual(ALT_CHORDS.map(() => false));
+    expect(await takePreventedKeys(page)).toEqual(ALT_CHORDS.map(() => false));
     const after = await studioState(page);
     expect(after.playing).toBe(false);
     expect(after.time).toBeCloseTo(before.time, 2);
@@ -58,9 +56,9 @@ test.describe("one-key shortcuts and what they leave alone", () => {
     await page.keyboard.press("l");
     await expect(page.locator("#t-loop")).toHaveClass(/active/);
     const looped = await studioState(page);
-    await keysPrevented(page);
+    await takePreventedKeys(page);
     await pressAll(page, ALT_LOOP_CHORDS);
-    expect(await keysPrevented(page)).toEqual(ALT_LOOP_CHORDS.map(() => false));
+    expect(await takePreventedKeys(page)).toEqual(ALT_LOOP_CHORDS.map(() => false));
     const moved = await studioState(page);
     expect([moved.loopStart, moved.loopEnd]).toEqual([looped.loopStart, looped.loopEnd]);
   });
@@ -75,7 +73,7 @@ test.describe("one-key shortcuts and what they leave alone", () => {
     // Space last: if it opens the list, the list has the keys after it.
     await pressAll(page, SELECT_KEYS);
 
-    expect(await keysPrevented(page)).toEqual(SELECT_KEYS.map(() => false));
+    expect(await takePreventedKeys(page)).toEqual(SELECT_KEYS.map(() => false));
     await page.keyboard.press("Escape");
     expect((await studioState(page)).playing).toBe(false);
     await expect(page.locator("#t-loop")).not.toHaveClass(/active/);
@@ -84,5 +82,21 @@ test.describe("one-key shortcuts and what they leave alone", () => {
     await page.evaluate(() => document.activeElement?.blur());
     await page.keyboard.press("k");
     await expect(page.locator("#t-metro")).toHaveClass(/active/);
+  });
+
+  test("a focused editable element keeps its own keys", async ({ page }) => {
+    await setUp(page);
+    await page.evaluate(() => {
+      const editable = document.createElement("div");
+      editable.id = "shortcut-guard-editable";
+      editable.setAttribute("contenteditable", "");
+      document.body.append(editable);
+    });
+    await page.locator("#shortcut-guard-editable").focus();
+
+    await page.keyboard.press("k");
+
+    expect(await takePreventedKeys(page)).toEqual([false]);
+    await expect(page.locator("#t-metro")).not.toHaveClass(/active/);
   });
 });

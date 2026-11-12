@@ -2114,7 +2114,7 @@ function wireRailLibraryDrop() {
 }
 
 export function isTextEditingTarget(target) {
-  return Boolean(target?.closest?.("input, textarea, select, [contenteditable='true'], .folder-editor"));
+  return Boolean(target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false']), .folder-editor"));
 }
 
 const SONG_ROW_SELECTOR = ".cat-item:not(.in-trash):not(.queue-row)";
