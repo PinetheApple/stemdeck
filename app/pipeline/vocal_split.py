@@ -66,6 +66,7 @@ from app.core.models import (
 from app.core.registry import persist as registry_persist
 from app.core.registry import set_proc
 from app.core.settings import get_demucs_device
+from app.core.stem_files import StemDecodeError, decoded_wav, stem_path, stem_url
 from app.pipeline.collect import merge_stem_peaks, presence_for_split
 from app.pipeline.errors import (
     CAUSE_DISK_FULL,
@@ -75,6 +76,7 @@ from app.pipeline.errors import (
     classify_failure,
 )
 from app.pipeline.runs import Run, RunBoard, run_behind_lock
+from app.pipeline.stem_storage import store_split_stems
 
 logger = logging.getLogger("stemdeck.pipeline")
 
@@ -342,7 +344,7 @@ def split_vocals(
     success. Raises VocalSplitFailed (carrying its code and the stderr tail)
     on failure, and JobCancelled once ``cancelled()`` turned true. ``report``
     hears the worker's percentages. Never touches vocals.wav itself."""
-    vocals_path = stems_dir / "vocals.wav"
+    vocals_path = stem_path(stems_dir, "vocals")
     if not vocals_path.is_file():
         raise VocalSplitFailed(
             "vocals.wav not found -- job has no vocals stem to split",
@@ -354,8 +356,14 @@ def split_vocals(
     work = stems_dir / f".vocal_split.{uuid.uuid4().hex}.tmp"
     try:
         work.mkdir()
-        _split_into(job, vocals_path, work, cancelled=cancelled, report=report)
+        # audio-separator gets a WAV whatever the song keeps.
+        with decoded_wav(vocals_path, work) as wav_in:
+            _split_into(job, wav_in, work, cancelled=cancelled, report=report)
         return _move_in(work, stems_dir)
+    except StemDecodeError as exc:
+        raise VocalSplitFailed(
+            "could not read the vocals stem", code=VOCAL_SPLIT_FAILED_WORKER
+        ) from exc
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
@@ -441,14 +449,15 @@ def _record_failure(job: Job, stems_dir: Path, exc: Exception) -> None:
 
 
 def _keep(job: Job, stems_dir: Path, new_names: list[str]) -> None:
+    # "vocals" rides along so presence_for_split can recover the scale the base
+    # stems were normalised against; without it the two new cards would have no
+    # percentage to show. Read before the pair is stored like the song.
+    rms_values = merge_stem_peaks(stems_dir, ["vocals", *new_names])
+    store_split_stems(job, stems_dir, new_names)
     existing = {s["name"] for s in job.stems}
     for name in new_names:
         if name not in existing:
-            job.stems.append({"name": name, "url": f"/api/jobs/{job.id}/stems/{name}.wav"})
-    # "vocals" rides along so presence_for_split can recover the scale the base
-    # stems were normalised against; without it the two new cards would have no
-    # percentage to show.
-    rms_values = merge_stem_peaks(stems_dir, ["vocals", *new_names])
+            job.stems.append({"name": name, "url": stem_url(job.id, stems_dir, name)})
     extra_presence = presence_for_split(rms_values, job.stem_presence)
     if extra_presence:
         job.stem_presence = {**(job.stem_presence or {}), **extra_presence}

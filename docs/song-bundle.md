@@ -57,7 +57,7 @@ A reader ignores members it does not know. A missing optional member means StemD
 
 ## stems/*.flac
 
-FLAC at the song's own sample rate and channel count, as given in the manifest. Every stem starts at time zero and the stems are sample-aligned; play them from the same frame and they stay together.
+FLAC at the song's own sample rate and channel count, as given in the manifest. Every stem starts at time zero and the stems are sample-aligned; play them from the same frame and they stay together. A song stored as MP3 ships its decoded audio as FLAC.
 
 ## metadata.json
 

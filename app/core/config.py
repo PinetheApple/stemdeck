@@ -431,6 +431,27 @@ VOCAL_SPLIT_CANCEL_POLL_SEC = 0.5
 # so it gets its own, larger budget.
 TIMEOUT_BEATGRID = _env_int("STEMDECK_TIMEOUT_BEATGRID", 300)
 
+# How a finished song's stems are kept on disk (upstream PR 822): "wav" (16-bit
+# PCM, as separated) or "mp3" (CBR libmp3lame at one of STEM_MP3_KBPS_CHOICES).
+# The fork keeps WAV as the default: every song stays as it was unless the user
+# opts in. STEMDECK_STEM_FORMAT and STEMDECK_STEM_MP3_KBPS seed the setting.
+STEM_FORMAT_WAV = "wav"
+STEM_FORMAT_MP3 = "mp3"
+STEM_FORMAT_CHOICES: tuple[str, ...] = (STEM_FORMAT_WAV, STEM_FORMAT_MP3)
+STEM_MP3_KBPS_CHOICES: tuple[int, ...] = (128, 192, 256)
+DEFAULT_STEM_STORAGE: tuple[str, int] = (STEM_FORMAT_WAV, 128)
+# Before any WAV is deleted, each MP3 must line up with it: the loudest block
+# of this many seconds is cross-correlated within +-STEM_VERIFY_MAX_LAG samples
+# (past the 1105-sample delay a decoder that ignored the LAME header would add).
+STEM_VERIFY_BLOCK_SEC = 10
+STEM_VERIFY_MAX_LAG = 4096
+# A block quieter than this RMS is near silence, so only its length is checked.
+STEM_VERIFY_MIN_RMS = 0.01
+# A correct encode correlates at about 0.99 at lag 0 even at 128 kbps. Refused:
+# under the floor at lag 0, or below this ratio of the best lag (shifted).
+STEM_VERIFY_MIN_CORR = 0.5
+STEM_VERIFY_MIN_RATIO = 0.98
+
 # Reading an upload's tags (artist, title, album, lyrics) with ffprobe for the
 # Lyrics tab and the artist box (#699). Tags are a nicety, so a probe that
 # takes longer than this is abandoned and the upload goes ahead without them.
