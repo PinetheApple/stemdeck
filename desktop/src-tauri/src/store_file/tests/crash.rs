@@ -27,7 +27,10 @@ fn nine_megabytes() -> Entries {
                 })
             })
             .collect();
-        store.insert(format!("stemdeck:mix:{song:032x}"), json!({ "lanes": lanes }));
+        store.insert(
+            format!("stemdeck:mix:{song:032x}"),
+            json!({ "lanes": lanes }),
+        );
     }
     store
 }
@@ -88,6 +91,7 @@ fn kill_mid_save(versions: &[Vec<u8>; 2], delay: Duration) -> (Entries, Opened) 
 /// A kill leaves the OS cache intact, so this covers a crash, not a power loss;
 /// the sync before the rename covers that.
 #[test]
+#[ignore = "starts and kills 24 child processes writing 9 MB each; run on purpose"]
 fn a_process_killed_mid_save_always_leaves_a_store_to_open() {
     let versions = crash_versions();
     for step in 0..KILLS {

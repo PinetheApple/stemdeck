@@ -734,6 +734,7 @@ async fn pick_exports_folder(app: tauri::AppHandle) -> Result<Option<String>, St
     app.state::<user_data::UserData>().set_all(
         user_data_place(&app),
         report_user_data_problem,
+        user_data::Caller::Shell,
         entries,
     )?;
     Ok(Some(chosen))
@@ -750,7 +751,12 @@ fn current_exports_dir(app: tauri::AppHandle) -> Result<String, String> {
 fn stored_string(app: &tauri::AppHandle, key: &str) -> Option<String> {
     let value = app
         .state::<user_data::UserData>()
-        .get(user_data_place(app), report_user_data_problem, key)
+        .get(
+            user_data_place(app),
+            report_user_data_problem,
+            user_data::Caller::Shell,
+            key,
+        )
         .ok()??;
     value.as_str().map(|s| s.to_string())
 }
@@ -786,10 +792,17 @@ fn save_unsaved_user_data(app: &tauri::AppHandle) {
 const STORE_READY_WAIT: Duration = Duration::from_secs(10);
 const STORE_READY_PAUSE: Duration = Duration::from_millis(500);
 
+/// What store_ready tells the page: `lost` when the store started empty because
+/// neither user-data.json nor any copy of it could be read.
+#[derive(Serialize)]
+struct StoreOpened {
+    lost: bool,
+}
+
 /// Called by the page before its first read (static/js/utils.js): opens the
 /// store, waiting off the main thread, and lifts the block on writes.
 #[tauri::command]
-async fn store_ready(app: tauri::AppHandle) -> Result<(), String> {
+async fn store_ready(app: tauri::AppHandle) -> Result<StoreOpened, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let data = app.state::<user_data::UserData>();
         let last = std::cell::RefCell::new(String::new());
@@ -805,6 +818,7 @@ async fn store_ready(app: tauri::AppHandle) -> Result<(), String> {
             STORE_READY_WAIT,
             STORE_READY_PAUSE,
         )
+        .map(|lost| StoreOpened { lost })
     })
     .await
     .map_err(|e| e.to_string())?
@@ -813,8 +827,12 @@ async fn store_ready(app: tauri::AppHandle) -> Result<(), String> {
 /// Get a value from the persistent user-data store.
 #[tauri::command]
 fn store_get(app: tauri::AppHandle, key: String) -> Result<Option<serde_json::Value>, String> {
-    app.state::<user_data::UserData>()
-        .get(user_data_place(&app), report_user_data_problem, &key)
+    app.state::<user_data::UserData>().get(
+        user_data_place(&app),
+        report_user_data_problem,
+        user_data::Caller::Page,
+        &key,
+    )
 }
 
 /// Set a value in the persistent user-data store and immediately flush to disk.
@@ -825,6 +843,7 @@ fn store_set(app: tauri::AppHandle, key: String, value: serde_json::Value) -> Re
     app.state::<user_data::UserData>().set_all(
         user_data_place(&app),
         report_user_data_problem,
+        user_data::Caller::Page,
         entries,
     )
 }

@@ -88,9 +88,14 @@ pub enum Opened {
     /// No store file and no copy: a first start, or one after a reset.
     Fresh,
     /// The file was missing, empty or invalid, and a copy was good.
-    Recovered { from: PathBuf, problem: String },
+    Recovered {
+        from: PathBuf,
+        problem: String,
+    },
     /// The file was missing, empty or invalid, and so was every copy.
-    Lost { problem: String },
+    Lost {
+        problem: String,
+    },
 }
 
 impl Opened {
@@ -161,7 +166,13 @@ pub fn read_store(path: &Path) -> Result<(Entries, Opened), String> {
         match read_entries(&copy) {
             Ok(entries) => {
                 let problem = problem.describe();
-                return Ok((entries, Opened::Recovered { from: copy, problem }));
+                return Ok((
+                    entries,
+                    Opened::Recovered {
+                        from: copy,
+                        problem,
+                    },
+                ));
             }
             Err(Unreadable::Missing) => {}
             Err(Unreadable::Io(e)) => {
@@ -214,17 +225,17 @@ fn write_synced(path: &Path, bytes: &[u8]) -> io::Result<()> {
     file.sync_all()
 }
 
-fn sync_folder(dir: &Path) {
+fn sync_folder(dir: &Path) -> io::Result<()> {
     // Renames reach the disk with the folder on Linux and macOS; NTFS journals them.
     if cfg!(unix) {
-        if let Ok(folder) = fs::File::open(dir) {
-            let _ = folder.sync_all();
-        }
+        fs::File::open(dir)?.sync_all()?;
     }
+    Ok(())
 }
 
 /// Write `bytes` to `path` through a synced `.tmp` and a rename, keeping the
 /// current file as `.bak` when `keep_previous`. A failed rename puts it back.
+/// Err too when the folder could not be synced: the new file may not survive a power loss.
 pub fn write_replacing(path: &Path, bytes: &[u8], keep_previous: bool) -> io::Result<()> {
     let dir = path
         .parent()
@@ -251,8 +262,7 @@ pub fn write_replacing(path: &Path, bytes: &[u8], keep_previous: bool) -> io::Re
         }
         return Err(e);
     }
-    sync_folder(dir);
-    Ok(())
+    sync_folder(dir)
 }
 
 /// Move a damaged store file aside as `<name>.corrupt-<n>`, one above the
@@ -278,6 +288,9 @@ pub struct OpenStore {
     main_good: bool,
     /// Set after a failed save; the exit tries that save once more.
     unsaved: bool,
+    /// The open found the file and every copy damaged and started empty;
+    /// cleared once the page has been told.
+    lost: bool,
 }
 
 impl OpenStore {
@@ -312,6 +325,7 @@ impl OpenStore {
             entries,
             main_good,
             unsaved: false,
+            lost: matches!(opened, Opened::Lost { .. }),
         })
     }
 
@@ -332,8 +346,15 @@ impl OpenStore {
         self.unsaved
     }
 
+    /// Whether the open started empty because nothing could be recovered,
+    /// answered true once.
+    pub fn take_lost(&mut self) -> bool {
+        std::mem::take(&mut self.lost)
+    }
+
     pub fn save(&mut self) -> io::Result<()> {
-        // Pretty, as tauri-plugin-store wrote it, so an older build reads it the same.
+        // Pretty-printed as tauri-plugin-store 2.4.3 saved it (key order aside), so the
+        // file keeps the layout users and older builds have seen.
         let bytes = serde_json::to_vec_pretty(&self.entries).map_err(io::Error::other)?;
         write_replacing(&self.path, &bytes, self.main_good)?;
         self.main_good = true;
@@ -366,7 +387,11 @@ impl OpenStore {
 }
 
 /// On a first run only, copy in the store a build that kept it elsewhere left.
-fn copy_in_legacy(path: &Path, legacy: Option<&Path>, report: &impl Fn(&str)) -> Result<(), String> {
+fn copy_in_legacy(
+    path: &Path,
+    legacy: Option<&Path>,
+    report: &impl Fn(&str),
+) -> Result<(), String> {
     let Some(legacy) = legacy else {
         return Ok(());
     };
@@ -391,11 +416,11 @@ fn promote_temp(path: &Path, opened: &Opened) -> Result<bool, String> {
     if *from != temp_path(path) {
         return Ok(false);
     }
-    retrying(|| fs::rename(from, path))
-        .map_err(|e| format!("{} could not be put in place ({e})", from.display()))?;
-    if let Some(dir) = path.parent() {
-        sync_folder(dir);
-    }
+    let placed = retrying(|| fs::rename(from, path)).and_then(|()| match path.parent() {
+        Some(dir) => sync_folder(dir),
+        None => Ok(()),
+    });
+    placed.map_err(|e| format!("{} could not be put in place ({e})", from.display()))?;
     Ok(true)
 }
 

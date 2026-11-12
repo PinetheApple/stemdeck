@@ -47,16 +47,23 @@ fn a_save_writes_the_store_and_keeps_the_previous_one() {
     store.set("a".into(), json!(1));
     store.save().expect("first save");
     assert_eq!(read_json(&path), json!({ "a": 1 }));
-    assert!(!backup_path(&path).exists(), "nothing before the first save");
+    assert!(
+        !backup_path(&path).exists(),
+        "nothing before the first save"
+    );
 
     store.set("b".into(), json!({ "voice": "split" }));
     store.save().expect("second save");
-    assert_eq!(read_json(&path), json!({ "a": 1, "b": { "voice": "split" } }));
+    assert_eq!(
+        read_json(&path),
+        json!({ "a": 1, "b": { "voice": "split" } })
+    );
     assert_eq!(read_json(&backup_path(&path)), json!({ "a": 1 }));
     assert!(!temp_path(&path).exists(), "no .tmp left after a save");
 
-    let (reopened, reported) = open(&path);
+    let (mut reopened, reported) = open(&path);
     assert!(reported.is_empty());
+    assert!(!reopened.take_lost());
     assert_eq!(reopened.get("b"), Some(json!({ "voice": "split" })));
 }
 
@@ -81,8 +88,14 @@ fn a_truncated_store_with_a_good_backup_recovers_from_the_backup() {
     // The next save never moves the broken file over the good backup.
     store.set("songs".into(), json!(["one", "two", "three"]));
     store.save().expect("save");
-    assert_eq!(read_json(&path), json!({ "songs": ["one", "two", "three"] }));
-    assert_eq!(read_json(&backup_path(&path)), json!({ "songs": ["one", "two"] }));
+    assert_eq!(
+        read_json(&path),
+        json!({ "songs": ["one", "two", "three"] })
+    );
+    assert_eq!(
+        read_json(&backup_path(&path)),
+        json!({ "songs": ["one", "two"] })
+    );
 }
 
 #[test]
@@ -133,6 +146,8 @@ fn a_broken_store_and_backup_start_empty_and_say_so() {
         "{reported:?}"
     );
     assert_eq!(aside(&path).len(), 1, "the broken file is kept");
+    assert!(store.take_lost(), "the page is told");
+    assert!(!store.take_lost(), "once");
 
     store.set("a".into(), json!(1));
     store.save().expect("save");
@@ -205,7 +220,10 @@ fn only_the_two_newest_damaged_files_are_kept() {
     fs::write(&path, "{").unwrap();
     let _ = open(&path);
     let kept: Vec<String> = aside(&path).iter().map(|p| file_name(p)).collect();
-    assert_eq!(kept, ["user-data.json.corrupt-100", "user-data.json.corrupt-101"]);
+    assert_eq!(
+        kept,
+        ["user-data.json.corrupt-100", "user-data.json.corrupt-101"]
+    );
     assert_eq!(fs::read(with_suffix(&path, ".corrupt-101")).unwrap(), b"{");
 }
 
@@ -258,7 +276,9 @@ fn an_unreadable_store_is_an_error_and_never_falls_back() {
     fs::create_dir(&path).unwrap();
     fs::write(backup_path(&path), r#"{"a":"old"}"#).unwrap();
 
-    let err = OpenStore::open(&path, None, |_| {}).err().expect("not opened");
+    let err = OpenStore::open(&path, None, |_| {})
+        .err()
+        .expect("not opened");
     assert!(err.contains("could not be read"), "{err}");
     assert!(path.is_dir(), "left in place");
     assert!(aside(&path).is_empty());
@@ -344,8 +364,8 @@ fn what_a_save_writes_the_plugin_reads() {
         store.set(key, value);
     }
     store.save().unwrap();
-    let read: HashMap<String, Value> = serde_json::from_slice(&fs::read(&path).unwrap())
-        .expect("the plugin's reader accepts it");
+    let read: HashMap<String, Value> =
+        serde_json::from_slice(&fs::read(&path).unwrap()).expect("the plugin's reader accepts it");
     assert_eq!(read, plugin_store_entries());
 }
 
