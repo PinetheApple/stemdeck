@@ -4609,6 +4609,27 @@ function wireDiscogsSetting(overlay) {
   });
 }
 
+const DEVICE_CUDA = "cuda";
+const GPU_BACKEND_ROCM = "rocm";
+
+function deviceOptionLabel(opt, gpuBackend) {
+  return opt.value === DEVICE_CUDA && gpuBackend === GPU_BACKEND_ROCM ? i18nT("settings.device.rocm") : opt.dataset.baseLabel;
+}
+
+// Through data-i18n, so a language switch keeps the ROCm sentence.
+function applyTranscribeWording(overlay, gpuBackend) {
+  const rocm = gpuBackend === GPU_BACKEND_ROCM;
+  const wording = [
+    [overlay.querySelector(".set-transcribe-desc"), rocm ? "settings.transcribe.descRocm" : "settings.transcribe.desc"],
+    [overlay.querySelector('.set-transcribe-lyrics option[value="auto"]'), rocm ? "settings.transcribe.autoRocm" : "settings.transcribe.auto"],
+  ];
+  for (const [el, key] of wording) {
+    if (!el) continue;
+    el.dataset.i18n = key;
+    el.textContent = i18nT(key);
+  }
+}
+
 // General settings: max track length (minutes), playlist import limit, and
 // MP4 video quality. Read live
 // and POSTed on change to /api/settings (same runtime store as the toggle).
@@ -4660,6 +4681,7 @@ async function wireGeneralSettings(overlay) {
     if (portInput && d.port) portInput.value = String(d.port);
     if (qualitySel && d.separation_quality) qualitySel.value = d.separation_quality;
     if (transcribeSel && d.transcribe_lyrics) transcribeSel.value = d.transcribe_lyrics;
+    applyTranscribeWording(overlay, d.gpu_backend);
     // Unset is the normal case, so read the key rather than truthiness --
     // clearing the field must survive the round trip and not be repopulated.
     if (cookiesInput && "cookies_file" in d) cookiesInput.value = d.cookies_file || "";
@@ -4695,7 +4717,7 @@ async function wireGeneralSettings(overlay) {
       const avail = new Set(d.demucs_devices_available || []);
       for (const opt of deviceSel.options) {
         if (opt.dataset.baseLabel === undefined) opt.dataset.baseLabel = opt.textContent;
-        const base = opt.value === "cuda" && d.gpu_backend === "rocm" ? i18nT("settings.device.rocm") : opt.dataset.baseLabel;
+        const base = deviceOptionLabel(opt, d.gpu_backend);
         const ok = opt.value === "auto" || avail.has(opt.value);
         opt.disabled = !ok;
         opt.textContent = ok ? base : `${base}${i18nT("settings.device.notAvailable")}`;
@@ -5486,7 +5508,7 @@ function openLibraryEditor() {
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.transcribe.title">Transcribe lyrics</div>
-              <div class="settings-row-desc" data-i18n="settings.transcribe.desc">When no lyrics are found, they are transcribed from the vocals on this computer. The first run downloads a speech model (1.6 GB for an NVIDIA GPU, 0.5 GB otherwise). Applies to the next track.</div>
+              <div class="settings-row-desc set-transcribe-desc" data-i18n="settings.transcribe.desc">When no lyrics are found, they are transcribed from the vocals on this computer. The first run downloads a speech model (1.6 GB for an NVIDIA GPU, 0.5 GB otherwise). Applies to the next track.</div>
             </div>
             <select class="settings-select set-transcribe-lyrics" aria-label="Transcribe lyrics" data-i18n-aria-label="settings.transcribe.title">
               <option value="auto" data-i18n="settings.transcribe.auto">Auto (NVIDIA GPU only)</option>
