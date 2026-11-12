@@ -37,7 +37,6 @@ from app.core.config import (
 
 WAV_EXT = f".{STEM_FORMAT_WAV}"
 MP3_EXT = f".{STEM_FORMAT_MP3}"
-STEM_EXTS: tuple[str, ...] = (WAV_EXT, MP3_EXT)
 # Dot-prefixed, so no reader takes it for a stem, and no .tmp, so no sweep removes it.
 MP3_STEMS_MARKER = ".mp3-stems"
 
@@ -82,8 +81,9 @@ def stem_url(job_id: str, stems_dir: Path, name: str) -> str:
 
 
 def is_stem_audio(path: Path) -> bool:
-    """A stem file, WAV or MP3. Dot-prefixed temps are not stems."""
-    return path.suffix.lower() in STEM_EXTS and not path.name.startswith(".")
+    """A stem file: the one stem_path resolves for its name, so a WAV song's
+    download cache MP3 is not a stem. Dot-prefixed temps are not stems."""
+    return not path.name.startswith(".") and stem_path(path.parent, path.stem) == path
 
 
 def holds_stem_audio(stems_dir: Path) -> bool:

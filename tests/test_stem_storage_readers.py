@@ -183,6 +183,15 @@ def test_the_completion_marker_is_backfilled_for_an_mp3_only_song(mp3_song):
     assert (_stems(mp3_song) / STEMS_COMPLETE).is_file()
 
 
+def test_no_completion_marker_for_a_wav_folder_holding_only_cached_mp3s():
+    job = _wav_song(WAV_ID)
+    for name in NAMES:
+        (_stems(job) / f"{name}.wav").unlink()
+        (_stems(job) / f"{name}.mp3").write_bytes(b"cached download")
+    backfill_stems_complete(config.JOBS_DIR / job.id)
+    assert not (_stems(job) / STEMS_COMPLETE).exists()
+
+
 # ── Lyrics ──
 
 
