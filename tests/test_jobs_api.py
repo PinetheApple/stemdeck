@@ -79,6 +79,32 @@ def test_a_link_queued_with_a_title_shows_it_before_its_download(client):
     assert _queued_title(client, {"title": "   "}) is None
 
 
+def test_a_queued_title_loses_control_and_direction_override_characters(client):
+    assert _queued_title(client, {"title": "\u202eBuild\x07 My\u2066 Life\n"}) == "Build My Life"
+
+
+@pytest.mark.parametrize(("toggle", "sent"), [(False, True), (True, False)])
+def test_a_link_sent_with_auto_sections_keeps_it_over_the_toggle(client, toggle, sent):
+    with patch("app.api.jobs.get_auto_sections", return_value=toggle):
+        r = client.post(
+            "/api/jobs",
+            json={"url": "https://youtu.be/dQw4w9WgXcQ", "auto_sections": sent},
+        )
+    assert _jobs[r.json()["job_id"]].auto_sections is sent
+
+
+@pytest.mark.parametrize(("toggle", "sent"), [(False, "true"), (True, "false")])
+def test_an_upload_sent_with_auto_sections_keeps_it_over_the_toggle(upload_client, toggle, sent):
+    data = io.BytesIO(b"ID3" + b"\x00" * 128)
+    with patch("app.api.jobs.get_auto_sections", return_value=toggle):
+        r = upload_client.post(
+            "/api/jobs",
+            files={"file": ("track.mp3", data, "audio/mpeg")},
+            data={"auto_sections": sent},
+        )
+    assert _jobs[r.json()["job_id"]].auto_sections is (sent == "true")
+
+
 def test_a_queued_title_is_capped_at_the_song_name_limit(client):
     from app.core.config import SONG_NAME_MAX_CHARS
 
