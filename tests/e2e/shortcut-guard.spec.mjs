@@ -4,7 +4,9 @@ import { focusAddedInput, openClickOptions, openStudio, waitForClickTrack } from
 const MODIFIER_KEYS = ["Control", "Meta", "Alt", "Shift"];
 const ALT_CHORDS = ["Alt+Space", "Alt+[", "Alt+]", "Alt+l", "Alt+k"];
 const ALT_LOOP_CHORDS = ["Alt+i", "Alt+o"];
-const SELECT_KEYS = ["k", "l", "Space"];
+const TEXT_FIELD_KEYS = ["k", "l", "Space"];
+const SELECT_LETTERS = ["k", "l"];
+const SELECT_LIST = "#select-menu-list";
 const TEXT_ENTRY_TYPES = ["number", "search"];
 const ACTIVE = /\bactive\b/;
 const MIXER_FADER = ".mx-fader-input";
@@ -76,11 +78,12 @@ test.describe("one-key shortcuts and what they leave alone", () => {
     await select.focus();
     await expect(select).toBeFocused();
 
-    // Space last: if it opens the list, the list has the keys after it.
-    await pressAll(page, SELECT_KEYS);
-
-    expect(await takePreventedKeys(page)).toEqual(SELECT_KEYS.map(() => false));
+    await pressAll(page, SELECT_LETTERS);
+    expect(await takePreventedKeys(page)).toEqual(SELECT_LETTERS.map(() => false));
+    await page.keyboard.press("Space");
+    await expect(page.locator(SELECT_LIST)).toBeVisible();
     await page.keyboard.press("Escape");
+    await expect(page.locator(SELECT_LIST)).toHaveCount(0);
     expect((await studioState(page)).playing).toBe(false);
     await expect(page.locator("#t-loop")).not.toHaveClass(/active/);
     await expect(page.locator("#t-metro")).not.toHaveClass(/active/);
@@ -174,9 +177,9 @@ test.describe("one-key shortcuts and what they leave alone", () => {
       await setUp(page);
       await focusAddedInput(page, type);
 
-      await pressAll(page, SELECT_KEYS);
+      await pressAll(page, TEXT_FIELD_KEYS);
 
-      expect(await takePreventedKeys(page)).toEqual(SELECT_KEYS.map(() => false));
+      expect(await takePreventedKeys(page)).toEqual(TEXT_FIELD_KEYS.map(() => false));
       expect((await studioState(page)).playing).toBe(false);
       await expect(page.locator("#t-loop")).not.toHaveClass(ACTIVE);
       await expect(page.locator("#t-metro")).not.toHaveClass(ACTIVE);

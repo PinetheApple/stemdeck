@@ -234,12 +234,12 @@ function typeahead(key) {
 const isTypingKey = (e) => e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
 const isTypingSpace = () => performance.now() - typedAt <= TYPEAHEAD_RESET_MS;
 
-/** A key on a closed select: true when handled. Space and letters are left to
- * the app's shortcuts and the select's own type-ahead. */
+/** A key on a closed select: true when handled. Letters are left to the
+ * select's own type-ahead. */
 function keyOnClosedSelect(select, e) {
   if (e.ctrlKey || e.metaKey) return false;
   const flags = optionFlags(select);
-  if (e.key === KEY.ENTER || e.key === KEY.F4 || (e.altKey && isVertical(e.key))) {
+  if (e.key === KEY.ENTER || e.key === KEY.SPACE || e.key === KEY.F4 || (e.altKey && isVertical(e.key))) {
     openMenu(select);
   } else if (isVertical(e.key)) {
     commit(select, stepIndex(flags, select.selectedIndex, e.key === KEY.DOWN ? 1 : -1));
