@@ -17,6 +17,7 @@ at startup), so the Settings UI can change them without a restart:
 - `acoustid_api_key`  - the user's AcoustID key, for fingerprint identification.
 - `discogs_token`     - the user's Discogs token, for band profiles.
 - `transcribe_lyrics` - Whisper lyrics when none are found: auto | on | off.
+- `idle_unload_minutes` - idle minutes before the separation models unload (0 never).
 
 Defaults fall back to the config.py constants (which honor their env vars), so
 nothing changes until the user overrides a value.
@@ -35,6 +36,8 @@ from pathlib import Path
 
 from app.core.config import (
     DATA_DIR,
+    IDLE_UNLOAD_MINUTES_DEFAULT,
+    IDLE_UNLOAD_MINUTES_MAX,
     MAX_DURATION_SEC,
     PLAYLIST_MAX_ITEMS,
     VIDEO_MAX_HEIGHT,
@@ -345,6 +348,44 @@ def set_auto_delete_days(value: int) -> int:
         _ensure()["auto_delete_days"] = clamped
         _save()
         return clamped
+
+
+# ── idle_unload_minutes ──
+# Read on every look of the idle timer, so a change applies without a restart.
+def _clamp_idle_unload_minutes(value: int) -> int:
+    return max(0, min(IDLE_UNLOAD_MINUTES_MAX, value))
+
+
+def _default_idle_unload_minutes() -> int:
+    raw = os.environ.get("STEMDECK_IDLE_UNLOAD_MINUTES", "").strip()
+    try:
+        minutes = int(raw) if raw else IDLE_UNLOAD_MINUTES_DEFAULT
+    except ValueError:
+        return IDLE_UNLOAD_MINUTES_DEFAULT
+    return _clamp_idle_unload_minutes(minutes)
+
+
+def get_idle_unload_minutes() -> int:
+    with _LOCK:
+        v = _num(_ensure().get("idle_unload_minutes"))
+        return _default_idle_unload_minutes() if v is None else _clamp_idle_unload_minutes(v)
+
+
+def set_idle_unload_minutes(value: int) -> tuple[int, bool]:
+    """Returns (stored_value, persisted). A failed persist puts the previous
+    value back, so the error the caller reports means nothing changed."""
+    clamped = _clamp_idle_unload_minutes(int(value))
+    with _LOCK:
+        state = _ensure()
+        previous = state.get("idle_unload_minutes")
+        state["idle_unload_minutes"] = clamped
+        if _save():
+            return clamped, True
+        if previous is None:
+            state.pop("idle_unload_minutes", None)
+        else:
+            state["idle_unload_minutes"] = previous
+        return clamped, False
 
 
 # ── max_duration_sec ──

@@ -5,6 +5,7 @@ import functools
 import io
 import json
 import logging
+import math
 import mimetypes
 import os
 import re
@@ -32,6 +33,7 @@ from app.core.config import (
     DISCOGS_CHECK_TOKEN,
     FFMPEG_BIN,
     HTTPS_PORT,
+    IDLE_UNLOAD_MINUTES_MAX,
     JOBS_DIR,
     LOGS_DIR,
     SSL_CERTFILE,
@@ -66,6 +68,7 @@ from app.core.settings import (
     get_demucs_device,
     get_demucs_device_choice,
     get_export_sample_rate,
+    get_idle_unload_minutes,
     get_jobs_dir,
     get_max_duration_sec,
     get_playlist_max_items,
@@ -82,6 +85,7 @@ from app.core.settings import (
     set_demucs_device,
     set_discogs_token,
     set_export_sample_rate,
+    set_idle_unload_minutes,
     set_jobs_dir,
     set_max_duration_sec,
     set_playlist_max_items,
@@ -209,6 +213,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     qt = jobqueue.start_worker()
     _background_tasks.add(qt)
     qt.add_done_callback(_background_tasks.discard)
+    # Unloads the separation worker and the beat model once idle (#90).
+    from app.pipeline import idle_unload
+
+    idle_task = asyncio.create_task(idle_unload.run())
+    _background_tasks.add(idle_task)
+    idle_task.add_done_callback(_background_tasks.discard)
     # Jobs that were queued or in flight when the process last died. restore()
     # already put them back to "queued"; this puts them back in the queue.
     #
@@ -257,12 +267,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # blocked in asyncio.to_thread, which cannot be cancelled. This also makes
     # the runner keep the job the worker kill below interrupts, to resume.
     jobqueue.request_stop()
+    idle_task.cancel()
     # Tear down the persistent demucs worker (#309) so a clean shutdown never
     # leaves it as an orphaned process -- it has no parent-death watchdog of
-    # its own, unlike the desktop backend itself.
-    from app.pipeline.separate import _kill_worker
+    # its own, unlike the desktop backend itself. Waits for an idle unload
+    # already stopping it.
+    from app.pipeline.separate import shutdown_worker
 
-    _kill_worker()
+    shutdown_worker()
 
 
 # Phones hitting the self-hosted server URL get the mobile UI; everything
@@ -366,6 +378,9 @@ def _settings_payload() -> dict[str, object]:
         "auto_sections": get_auto_sections(),
         "auto_delete_days_min": AUTO_DELETE_DAYS_MIN,
         "auto_delete_days_max": AUTO_DELETE_DAYS_MAX,
+        # Idle minutes before the separation models unload (#90), 0 for never.
+        "idle_unload_minutes": get_idle_unload_minutes(),
+        "idle_unload_minutes_max": IDLE_UNLOAD_MINUTES_MAX,
         "max_duration_sec": get_max_duration_sec(),
         # The clamp bounds, so the UI does not need its own copy of them. It
         # had one, it was stale (20 min against a 60 min ceiling), and the
@@ -438,6 +453,28 @@ ACOUSTID_KEY_REFUSED = "AcoustID does not accept this key"
 DISCOGS_TOKEN_REFUSED = "Discogs does not accept this token"
 
 
+def _whole_minutes(value: object) -> bool:
+    """A JSON number with no fraction, 0 or more; not a bool and not a string."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    if isinstance(value, float) and not (math.isfinite(value) and value.is_integer()):
+        return False
+    return value >= 0
+
+
+def _save_idle_unload_minutes(value: object) -> None:
+    # Refused rather than clamped: true would be stored as 1 minute and -1 as
+    # 0, which turns the unload off, so a typo must not change it.
+    if not _whole_minutes(value):
+        raise HTTPException(
+            status_code=422,
+            detail="idle_unload_minutes must be a whole number of minutes, 0 or more",
+        )
+    _, persisted = set_idle_unload_minutes(int(value))
+    if not persisted:
+        raise HTTPException(status_code=500, detail="Could not save idle_unload_minutes")
+
+
 @app.post("/api/settings", tags=["settings"])
 async def update_settings(request: Request) -> dict[str, object]:
     """Update runtime settings. Reachable from the host machine always; from a
@@ -453,6 +490,8 @@ async def update_settings(request: Request) -> dict[str, object]:
         set_auto_delete_jobs(bool(body["auto_delete_jobs"]))
     if "auto_sections" in body:
         set_auto_sections(bool(body["auto_sections"]))
+    if "idle_unload_minutes" in body:
+        _save_idle_unload_minutes(body["idle_unload_minutes"])
     for key, setter in (
         ("auto_delete_days", set_auto_delete_days),
         ("max_duration_sec", set_max_duration_sec),

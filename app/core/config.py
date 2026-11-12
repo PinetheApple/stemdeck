@@ -313,6 +313,18 @@ PLAYLIST_MAX_ITEMS = max(1, min(200, _env_int("STEMDECK_PLAYLIST_MAX_ITEMS", 50)
 TIMEOUT_FFMPEG = _env_int("STEMDECK_TIMEOUT_FFMPEG", 300)
 TIMEOUT_ANALYZE = _env_int("STEMDECK_TIMEOUT_ANALYZE", 120)
 TIMEOUT_DEMUCS_STALL = _env_int("STEMDECK_TIMEOUT_DEMUCS_STALL", 1800)
+# Idle minutes before the separation models unload (#90): an idle worker holds
+# GBs of RAM and VRAM, and a reload costs only seconds. 0 never unloads.
+IDLE_UNLOAD_MINUTES_DEFAULT = 10
+IDLE_UNLOAD_MINUTES_MAX = 1440
+# How often the idle timer looks. An unload lands at most this late.
+IDLE_UNLOAD_CHECK_SEC = 30
+# Bounded worker stop, so one wedged in a CUDA call cannot hold the next job and
+# shutdown forever; a leftover holds GPU jobs back for at most these kills/seconds.
+WORKER_TERMINATE_TIMEOUT_SEC = 5
+WORKER_KILL_REAP_TIMEOUT_SEC = 10
+LEFT_BEHIND_WORKER_MAX_KILLS = 3
+LEFT_BEHIND_WORKER_MAX_SEC = 600
 # Automatic functional-section analysis. Inference stays on CPU because the
 # persistent Demucs worker deliberately keeps its model resident on the chosen
 # accelerator between jobs; loading a second model beside it would make VRAM
