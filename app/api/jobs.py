@@ -143,6 +143,12 @@ NO_VOCALS_STEM = "no vocals stem"
 LYRICS_TIMING_RUNNING = "lyrics timing already running"
 TRANSCRIPTION_RUNNING = "transcription already running"
 VOCAL_SPLIT_ALREADY_RUNNING = "vocal split already running"
+LYRICS_RUNNING_BLOCKS_MOVE = (
+    "Lyrics are still being made. Wait for them or cancel them, then move the stems folder."
+)
+LYRICS_RUNNING_BLOCKS_RESET = (
+    "Lyrics are still being made. Wait for them or cancel them, then reset."
+)
 
 _MAX_UPLOAD_BYTES = 400 * 1024 * 1024  # 400 MB
 _WS_RE = re.compile(r"\s+")
@@ -676,9 +682,7 @@ def _cancel_lyrics_runs(job_id: str) -> bool:
 
 
 def lyrics_run_active() -> bool:
-    """Whether a lyrics timing or transcription is running on any job: it
-    writes into its song's folder until it ends, so the library must not be
-    moved or reset under it (#132)."""
+    """Whether a lyrics timing or transcription is running on any job."""
     return RETIME_RUNS.any_running() or TRANSCRIBE_RUNS.any_running()
 
 

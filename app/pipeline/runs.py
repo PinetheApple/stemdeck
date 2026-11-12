@@ -82,8 +82,6 @@ class RunBoard(Generic[R]):
         return run is not None and run.state == RUNNING
 
     def any_running(self) -> bool:
-        """Whether a run of any job is running: one that ended stays on the
-        board, so this looks at the state, not at who is on it."""
         with self._lock:
             return any(run.state == RUNNING for run in self.runs.values())
 
