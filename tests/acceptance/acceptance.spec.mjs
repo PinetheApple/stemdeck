@@ -215,42 +215,42 @@ test(title("S3"), async ({ app }, testInfo) => {
 
 // ─── Needs no track: V3 ─────────────────────────────────────────────────────
 
-// Steps: with no track open, click Click track options. Expect: the box is
-// fully opaque and takes its own clicks; only the controls inside are dimmed.
+// The click-track options sit inline in the inspector's Tempo tab at every width.
+async function showClickOptions(page) {
+  if (!(await page.locator("#inspector").isVisible())) await page.locator("#inspectorToggleBtn").click();
+  await page.locator("#inspectorTabTempo").click();
+  await expect(page.locator("#t-metro-more")).toBeHidden();
+  const panel = page.locator("#t-metro-panel");
+  await expect(panel).toBeVisible();
+  return panel;
+}
+
+// Steps: with no track open, look at the click track options in the Tempo tab.
+// Expect: they are laid out in the tab, not floating over the lanes; a click on
+// them does not reach the lanes; the controls are dimmed and disabled.
 test(title("V3"), async ({ app }, testInfo) => {
   const { page } = app;
   await expect(page.locator(".app")).toHaveClass(/no-track/);
-  // The default window (1280 wide): the options fold behind the disclosure.
-  await setWindowWidth(page, 1296, 839);
-  const more = page.locator("#t-metro-more");
-  await expect(more).toBeVisible({ timeout: 10_000 });
-  await more.click();
-  const panel = page.locator("#t-metro-panel");
+  const panel = await showClickOptions(page);
   await expect(panel).toHaveClass(/\bunavailable\b/);
-  await expect(panel).toBeVisible();
   const geo = await page.evaluate(() => {
     const p = document.querySelector("#t-metro-panel");
     const pr = p.getBoundingClientRect();
-    const hit = document.elementFromPoint(pr.left + pr.width / 2, pr.top + 4);
-    const child = p.firstElementChild;
+    const hit = document.elementFromPoint(pr.left + pr.width / 2, pr.top + pr.height / 2);
     return {
-      opacity: getComputedStyle(p).opacity,
-      pointerEvents: getComputedStyle(p).pointerEvents,
-      background: getComputedStyle(p).backgroundColor,
-      childOpacity: child ? getComputedStyle(child).opacity : null,
-      hitsPanel: p.contains(hit),
+      position: getComputedStyle(p).position,
+      opacity: Number(getComputedStyle(p).opacity),
+      hitsLanes: document.querySelector("#lanes").contains(hit),
+      controls: p.querySelectorAll("button, select, input").length,
+      allDisabled: [...p.querySelectorAll("button, select, input")].every((el) => el.disabled),
     };
   });
-  expect(geo.opacity).toBe("1");
-  expect(geo.pointerEvents).not.toBe("none");
-  expect(geo.hitsPanel, "a click on the box lands on the box, not the lanes").toBe(true);
-  expect(geo.background, "a solid background").not.toMatch(/rgba\(.*,\s*0(\.\d+)?\)$/);
-  expect(Number(geo.childOpacity)).toBeLessThan(1);
+  expect(geo.position, "laid out in the tab, not floating").toBe("static");
+  expect(geo.hitsLanes, "not on the lanes").toBe(false);
+  expect(geo.opacity).toBeLessThan(1);
+  expect(geo.controls, "the box has controls").toBeGreaterThan(0);
+  expect(geo.allDisabled, "every control is disabled").toBe(true);
   await shot(page, testInfo, "options-no-track");
-  await panel.click({ position: { x: 6, y: 6 } });
-  await expect(more).toHaveAttribute("aria-expanded", "true");
-  await page.keyboard.press("Escape");
-  await wideWindow(page);
 });
 
 // ─── Settings: song identification ──────────────────────────────────────────
@@ -393,30 +393,21 @@ test(title("N1"), async ({ app }, testInfo) => {
   await shot(page, testInfo, "studio");
 });
 
-// Steps: with a song loaded, open Click track options. Expect: under Count-in,
-// a caption "Plays even with the click track off".
+// Steps: with a song loaded, read Count-in's tooltip in the Tempo tab. Expect:
+// it says it plays even with the click track off.
 test(title("V4"), async ({ app }, testInfo) => {
   const { page } = app;
   const id = await trackFor(page, "wicked");
   if (await page.locator(".app").evaluate((el) => el.classList.contains("no-track"))) await openTrack(page, id);
-  // The caption belongs to the popover, which the default window width shows.
-  await setWindowWidth(page, 1296, 839);
   await page.waitForFunction(() => document.querySelector("#t-metro") && !document.querySelector("#t-metro").disabled, null, { timeout: 60_000 });
-  const more = page.locator("#t-metro-more");
-  await expect(more).toBeVisible();
-  if ((await more.getAttribute("aria-expanded")) !== "true") await more.click();
-  const hint = page.locator("#t-metro-panel .metro-countin-hint");
-  await expect(hint).toBeVisible();
-  await expect(hint).toHaveText("Plays even with the click track off");
-  const below = await page.evaluate(() => {
-    const s = document.querySelector("#t-metro-countin").getBoundingClientRect();
-    const h = document.querySelector("#t-metro-panel .metro-countin-hint").getBoundingClientRect();
-    return h.top >= s.bottom - 2;
-  });
-  expect(below, "the caption sits under Count-in").toBe(true);
+  await showClickOptions(page);
+  const countIn = page.locator("#t-metro-countin");
+  await expect(countIn).toBeVisible();
+  await expect(countIn).toBeEnabled();
+  const hint = await tr(page, "en", "click.countInHint");
+  await expect(countIn).toHaveAttribute("title", await tr(page, "en", "click.countInTitle"));
+  expect(await countIn.getAttribute("title"), "the tooltip says it plays with the click off").toContain(hint);
   await shot(page, testInfo, "count-in");
-  await page.keyboard.press("Escape");
-  await wideWindow(page);
 });
 
 // Steps: import Wicked, Dancing Through Life; open About this song. Expect:
@@ -881,24 +872,25 @@ test(title("L5"), async ({ app }, testInfo) => {
 
 // ─── Local files ────────────────────────────────────────────────────────────
 
-// Steps: upload a local MP3 and open it; narrow the window until the card's
-// info line fills. Expect: the date moves to a second line whole; the format
-// chip reads just MP3, the source reads Local, and Local appears once.
+// Steps: upload a local MP3, open it and show the Details tab; narrow the window
+// until the File card's info line fills. Expect: the date moves to a second line
+// whole; the format chip reads just MP3, the source reads Local, and Local appears once.
 test(title("V1"), async ({ app }, testInfo) => {
   const { page } = app;
   await wideWindow(page);
   const id = await trackFor(page, "localMp3");
   await openTrack(page, id);
+  await page.locator("#inspectorTabDetails").click();
   await expect(page.locator("#track-quality")).toHaveText("MP3");
   await expect(page.locator("#track-source")).toHaveText("Local");
-  const line = page.locator("#nowPlayingPanel .daw-track-meta-line");
+  const line = page.locator("#inspector .details-song .daw-track-meta-line");
+  await expect(line).toBeVisible();
   expect((await line.innerText()).match(/\bLocal\b/g)?.length, "Local once").toBe(1);
   const measure = () => page.evaluate(() => {
-    const lineEl = document.querySelector("#nowPlayingPanel .daw-track-meta-line");
-    const first = lineEl.querySelector("#t-meta-duration").getBoundingClientRect();
+    const first = document.getElementById("t-stems-chip").getBoundingClientRect();
     const date = document.getElementById("track-extracted").parentElement;
     const rects = [...date.getClientRects()];
-    const card = document.getElementById("nowPlayingPanel").getBoundingClientRect();
+    const card = document.querySelector("#inspector .details-song").getBoundingClientRect();
     const r = date.getBoundingClientRect();
     return {
       wrapped: r.top > first.bottom - 2,
@@ -914,10 +906,10 @@ test(title("V1"), async ({ app }, testInfo) => {
     m = await measure();
   }
   note(testInfo, `Info line "${(await line.innerText()).replace(/\s+/g, " ")}"; the date wrapped at a ${m.width}px page: ${m.wrapped}.`);
-  expect(m.wrapped, "the date moved to a second line before the card was hidden").toBe(true);
+  expect(m.wrapped, "the date moved to a second line").toBe(true);
   expect(m.whole, "the date is whole on its line").toBe(true);
   expect(m.inside, "the date is inside the card, not cut off").toBe(true);
-  await shot(page, testInfo, "wrapped", { locator: page.locator("#nowPlayingPanel") });
+  await shot(page, testInfo, "wrapped", { locator: page.locator("#inspector .details-song") });
   await wideWindow(page);
 });
 
