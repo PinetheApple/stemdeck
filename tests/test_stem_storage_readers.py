@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import sys
 import time
 import zipfile
 from pathlib import Path
@@ -25,7 +26,7 @@ from app.core.models import Job, JobCancelled
 from app.core.registry import _jobs
 from app.core.song_folder import STEMS_COMPLETE, backfill_stems_complete
 from app.core.stem_files import decoded_wav
-from app.pipeline import collect, stem_storage, vocal_split
+from app.pipeline import collect, stem_storage, stem_verify, vocal_split
 from app.pipeline.lyrics_retime import _vocals_stamp, save_transcript, transcript_path
 from app.pipeline.transcribe import _vocals_reason
 from tests.ffmpeg_probe import skip_without_ffmpeg
@@ -260,3 +261,17 @@ def test_a_split_cancelled_while_compressing_leaves_no_pair(mp3_song, monkeypatc
     assert len(encoded) == 1
     names = [p.name for p in _stems(mp3_song).iterdir()]
     assert not [n for n in names if any(pair in n for pair in config.EXTRA_STEM_NAMES)]
+
+
+def test_a_failed_resplit_store_points_the_urls_at_the_wavs(mp3_song, monkeypatch):
+    monkeypatch.setattr(vocal_split, "_split_into", _fake_split)
+    vocal_split.split_now(mp3_song, _stems(mp3_song), cancelled=lambda: False, report=print)
+    monkeypatch.setattr(
+        stem_verify,
+        "encode_cmd",
+        lambda src, dest, kbps: [sys.executable, "-c", "raise SystemExit(1)"],
+    )
+    vocal_split.split_now(mp3_song, _stems(mp3_song), cancelled=lambda: False, report=print)
+    urls = {s["name"]: s["url"] for s in mp3_song.stems}
+    for name in config.EXTRA_STEM_NAMES:
+        assert urls[name].endswith(f"/{name}.wav")
