@@ -1,6 +1,4 @@
-/* Where a song was imported from (the Details tab's File card and a failed
-   row's panel), and a failed import's row: Retry at rest, the reason, source,
-   Retry and Trash once it is selected. */
+/* A song's import source, and a failed import's row and panel. */
 
 .import-source { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
 .details-song .import-source { margin-top: var(--s-3); }

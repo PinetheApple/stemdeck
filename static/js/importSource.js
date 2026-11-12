@@ -1,5 +1,13 @@
-// Where a library song came from, why its import failed, and what Retry does
-// next, as the library and the Details tab say them. No DOM: tests import it.
+// Where a song was imported from, and why its import failed. No DOM: tests import it.
+
+import { HTTP_NOT_FOUND } from "./libraryControls.js";
+import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
+
+export const FAILED_STATUS = "error";
+export const LOCAL_PREFIX = "local:";
+export const HTTP_QUEUE_FULL = 503;
+const HTTP_GONE = 410;
+const RESTORE_FIRST_DETAIL = "restore it from the Trash first";
 
 export const SOURCE_KIND = Object.freeze({ LINK: "link", FILE: "file" });
 
@@ -8,12 +16,11 @@ export const RETRY_OUTCOME = Object.freeze({
   REIMPORT_LINK: "reimport-link",
   FILE_GONE: "file-gone",
   REFRESH: "refresh",
+  RESTORE_FIRST: "restore-first",
   QUEUE_FULL: "queue-full",
   FAILED: "failed",
 });
 
-const HTTP = Object.freeze({ OK: 200, NOT_FOUND: 404, CONFLICT: 409, GONE: 410, UNAVAILABLE: 503 });
-const LOCAL_PREFIX = "local:";
 const WEB_SCHEME = /^https?:\/\//i;
 const LEADING_WWW = /^www\./i;
 
@@ -46,10 +53,7 @@ function fileSource(track) {
   return name ? { kind: SOURCE_KIND.FILE, text: name, full: name, href: null } : null;
 }
 
-/**
- * What a song's Source line shows: `text` on screen, `full` to copy and as the
- * tooltip, `href` to open (web links only). Null when it has no source.
- */
+/** The Source line: `text` shown, `full` copied, `href` opened (web links only); null with none. */
 export function importSource(track) {
   if (!track?.sourceUrl && !track?.sourceName) return null;
   if (sourceKindOf(track) === SOURCE_KIND.FILE) return fileSource(track);
@@ -69,27 +73,15 @@ export function needsFilePickedAgain(track) {
 }
 
 /** What the answer to POST /api/jobs/{id}/retry means for a song of this kind. */
-export function retryOutcome(status, kind) {
-  if (status === HTTP.OK) return RETRY_OUTCOME.QUEUED;
-  if (status === HTTP.NOT_FOUND) {
+export function retryOutcome({ ok, status, detail }, kind) {
+  if (ok) return RETRY_OUTCOME.QUEUED;
+  if (status === HTTP_NOT_FOUND) {
     return kind === SOURCE_KIND.LINK ? RETRY_OUTCOME.REIMPORT_LINK : RETRY_OUTCOME.FILE_GONE;
   }
-  if (status === HTTP.GONE) return RETRY_OUTCOME.FILE_GONE;
-  if (status === HTTP.CONFLICT) return RETRY_OUTCOME.REFRESH;
-  if (status === HTTP.UNAVAILABLE) return RETRY_OUTCOME.QUEUE_FULL;
+  if (status === HTTP_GONE) return RETRY_OUTCOME.FILE_GONE;
+  if (status === HTTP_CONFLICT) {
+    return detail === RESTORE_FIRST_DETAIL ? RETRY_OUTCOME.RESTORE_FIRST : RETRY_OUTCOME.REFRESH;
+  }
+  if (status === HTTP_QUEUE_FULL) return RETRY_OUTCOME.QUEUE_FULL;
   return RETRY_OUTCOME.FAILED;
-}
-
-// Lucide (ISC), drawn like libraryIcons.js's icon().
-const ICON_PATHS = Object.freeze({
-  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
-  file: '<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><circle cx="10" cy="16" r="2"/><path d="M12 16v-5l3 1"/>',
-  copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
-  external: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
-  alert: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
-  folderOpen: '<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>',
-});
-
-export function sourceIcon(name) {
-  return `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
 }

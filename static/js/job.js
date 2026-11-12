@@ -9,7 +9,7 @@ import { destroyPlayer, wireUpAudio, setWaveformLoading, updateFooterTrack } fro
 import { notifyFailure, dismissFailuresByJobId } from "./notifications.js";
 import { getStagePhrases } from "./phrases.js";
 import { addTrackToLibrary, replaceableTrackId, setCurrentTrack, updateTrackStatus, applyStemPresenceCards, paintKeyConfidence, libraryAudioTags, libraryArtist, libraryIdentity, libraryWork, paintFinishedTrackNames, armAutoOpen, refreshFailedImport, retryFailedImport } from "./catalog.js";
-import { SOURCE_KIND, failureReasonKey } from "./importSource.js";
+import { FAILED_STATUS, HTTP_QUEUE_FULL, LOCAL_PREFIX, SOURCE_KIND, failureReasonKey } from "./importSource.js";
 import { initSections } from "./sections.js";
 import { importPlaylist, looksLikePlaylist } from "./playlist.js";
 import { t } from "./i18n.js";
@@ -415,9 +415,9 @@ function applyState(state) {
   // The three terminal branches no longer clear the submit button: it is
   // released as soon as the POST returns, so the next import can be queued
   // while this one is still running.
-  if (state.status === "error") {
+  if (state.status === FAILED_STATUS) {
     stopJobPolling();
-    updateTrackStatus(state.job_id, "error");
+    updateTrackStatus(state.job_id, FAILED_STATUS);
     setWaveformLoading(false);
     const reason = t(failureReasonKey(state.error_code));
     showError(reason, null, { onRetry: retryFailedImport.bind(null, state.job_id) });
@@ -585,12 +585,19 @@ async function postFileJob(file) {
  *  rows the moment each file lands rather than only once every upload is done. */
 function registerUploadRow(jobId, file, { replaces = null, stems = [...selectedStems] } = {}) {
   const title = sanitizeFilename(file.name);
-  const sourceUrl = `local:${title}`;
-  jobSources.set(jobId, sourceUrl);
+  const sourceUrl = `${LOCAL_PREFIX}${title}`;
   if (replaces) carrySplitChoice(replaces, jobId);
   else storeImportSplitChoice(jobId);
+  registerQueuedRow({
+    id: jobId, replaces, title, stems, sourceUrl, sourceKind: SOURCE_KIND.FILE, sourceName: file.name,
+  });
+}
+
+/** A queued import's library row, before the server has said anything about it. */
+function registerQueuedRow({ id, replaces, title, stems, sourceUrl, sourceKind, sourceName = null }) {
+  jobSources.set(id, sourceUrl);
   addTrackToLibrary({
-    id: jobId,
+    id,
     ...replacesField(replaces),
     title,
     thumb: "",
@@ -605,10 +612,10 @@ function registerUploadRow(jobId, file, { replaces = null, stems = [...selectedS
     lufs: null,
     peakDb: null,
     sourceUrl,
-    sourceKind: SOURCE_KIND.FILE,
-    sourceName: file.name,
+    sourceKind,
+    sourceName,
   });
-  armAutoOpen(jobId);
+  armAutoOpen(id);
 }
 
 function sanitizeFilename(name) {
@@ -620,8 +627,6 @@ function sanitizeFilename(name) {
     .trim()
     .slice(0, 120);
 }
-
-const HTTP_QUEUE_FULL = 503;
 
 /** Why a retry or its replacement import did not start, in words. */
 export function showRetryError(status, detail) {
@@ -646,29 +651,19 @@ async function postReplacementImport(init) {
 
 const retryStems = (track) => (track.selectedStems?.length ? [...track.selectedStems] : [...selectedStems]);
 
-/** Import a failed link again when the server no longer has the failed job. */
+/** Import a failed link again when the server no longer has the failed job; the new job's id, or null. */
 export async function reimportFailedLink(track) {
   const stems = retryStems(track);
   const data = await postReplacementImport({
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url: track.sourceUrl, stems, replaces: track.id }),
   });
-  if (!data) return;
+  if (!data) return null;
   carrySplitChoice(track.id, data.job_id);
-  jobSources.set(data.job_id, track.sourceUrl);
-  addTrackToLibrary({
-    id: data.job_id,
-    replaces: track.id,
-    title: track.title,
-    thumb: "",
-    stems,
-    selectedStems: stems,
-    audioStems: [],
-    status: "queued",
-    sourceUrl: track.sourceUrl,
-    sourceKind: SOURCE_KIND.LINK,
+  registerQueuedRow({
+    id: data.job_id, replaces: track.id, title: track.title, stems, sourceUrl: track.sourceUrl, sourceKind: SOURCE_KIND.LINK,
   });
-  armAutoOpen(data.job_id);
+  return data.job_id;
 }
 
 /** Upload a file again for a failed import whose file was not kept, in its place. */

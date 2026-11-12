@@ -61,7 +61,6 @@ test("every fact on the File card has a label, and the duration is not repeated"
   await openDetails(page);
   await expect(source(page).locator(".inspector-label")).toHaveText(await uiText(page, "inspector.fileSource"));
   await expect(source(page).locator(".import-source-text")).toHaveText("e2e-fixture");
-  await expect(fact(page, "track-source")).toBeHidden();
   await expect(fact(page, "track-quality").locator(".details-fact-label")).toHaveText(await uiText(page, "inspector.fileFormat"));
   await expect(page.locator("#track-quality")).toHaveText("WAV");
   await expect(fact(page, "track-extracted").locator(".details-fact-label")).toHaveText(await uiText(page, "footer.extractedLabel"));

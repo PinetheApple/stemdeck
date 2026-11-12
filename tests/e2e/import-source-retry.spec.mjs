@@ -8,6 +8,7 @@ import {
   JOB_ID, SIBLING_JOB_ID, TRACK_TITLE, SIBLING_TITLE, JOB_LIST_URL, fixtureTrack, openInspectorTab,
   openStudio, seedCatalogState, stubUpdateCheck, uiText,
 } from "./helpers.mjs";
+import { ROW_KEY } from "../../static/js/rovingRows.js";
 
 const LINK_FAILED = "e2e0fa11ed01";
 const FILE_FAILED = "e2e0fa11ed02";
@@ -20,6 +21,8 @@ const STEMS = ["vocals", "drums", "bass", "other"];
 const HTTP_GONE = 410;
 const HTTP_NOT_FOUND = 404;
 const HTTP_UNAVAILABLE = 503;
+const HTTP_CONFLICT = 409;
+const RESTORE_FIRST_DETAIL = "restore it from the Trash first";
 const RETRY_URL = /\/api\/jobs\/(e2e0fa11ed0[0-9])\/retry$/;
 const FAILED_STATE_URL = /\/api\/jobs\/e2e0fa11ed0[0-9]$/;
 const NEW_IMPORT_URL = /\/api\/jobs$/;
@@ -56,11 +59,15 @@ function failedTrack(id, { status = "error", retryable = true } = {}) {
 
 /**
  * The fixture library plus both failed imports, and a server that knows them.
- * `retry` answers POST .../retry; `retryable` is what the server says of each.
- * Returns what the page asked for: retries, new imports and their bodies.
+ * `retry` and `retryDetail` answer POST .../retry, once `hold` (a promise) settles;
+ * `retryable` is what the server says of each. Returns the server: what the page
+ * asked for (retries, new imports and their bodies) and `hold` to set.
  */
-async function openFailedLibrary(page, { retry = 200, retryable = {}, stored = {} } = {}) {
-  const server = { retries: [], imports: [], retry, retryable: { [LINK_FAILED]: true, [FILE_FAILED]: true, ...retryable } };
+async function openFailedLibrary(page, { retry = 200, retryDetail = "stubbed", retryable = {}, stored = {} } = {}) {
+  const server = {
+    retries: [], imports: [], retry, retryDetail, hold: null,
+    retryable: { [LINK_FAILED]: true, [FILE_FAILED]: true, ...retryable },
+  };
   await seedCatalogState(page, {
     folders: [
       { id: "f-unsorted", name: "Unsorted", items: [JOB_ID, LINK_FAILED, SIBLING_JOB_ID, FILE_FAILED], color: null },
@@ -89,10 +96,11 @@ async function stubFailedServer(page, server) {
     const id = new URL(route.request().url()).pathname.split("/").pop();
     return route.fulfill({ json: failedState(id, server.retryable[id]) });
   });
-  await page.route(RETRY_URL, (route) => {
+  await page.route(RETRY_URL, async (route) => {
     const [, id] = new URL(route.request().url()).pathname.match(RETRY_URL);
     server.retries.push(id);
-    if (server.retry !== 200) return route.fulfill({ status: server.retry, json: { detail: "stubbed" } });
+    await server.hold;
+    if (server.retry !== 200) return route.fulfill({ status: server.retry, json: { detail: server.retryDetail } });
     return route.fulfill({ json: { ...failedState(id, false), status: "queued", error_code: null } });
   });
   await page.route(NEW_IMPORT_URL, (route) => {
@@ -144,7 +152,7 @@ test.describe("import source in Details", () => {
     await expectPointer(copy);
     await expectPointer(open);
     await expect(page.locator(".details-song .daw-track-meta-line")).not.toContainText("YouTube");
-    await expect(page.locator("#track-source").locator("xpath=..")).toBeHidden();
+    await expect(page.locator("#track-source")).toHaveCount(0);
   });
 
   test("an upload shows its original file name, with nothing to copy or open", async ({ page }) => {
@@ -260,5 +268,57 @@ test.describe("failed import rows", () => {
     await expect(failed.locator(".cat-sub")).toHaveText(await uiText(page, "job.processing"));
     expect(server.retries).toEqual([LINK_FAILED]);
     expect(server.imports).toHaveLength(0);
+  });
+
+  test("a second press while a retry is in flight sends nothing", async ({ page }) => {
+    const server = await openFailedLibrary(page);
+    let release;
+    server.hold = new Promise((resolve) => { release = resolve; });
+    await row(page, LINK_FAILED).locator(".cat-retry").click();
+    await expect.poll(() => server.retries.length).toBe(1);
+    await panel(page, LINK_FAILED).locator(".import-fail-primary").click();
+    await page.evaluate(async (id) => (await import("/js/catalog.js")).retryFailedImport(id), LINK_FAILED);
+    release();
+
+    await expect(row(page, LINK_FAILED).locator(".cat-sub")).toHaveText(await uiText(page, "job.processing"));
+    expect(server.retries).toEqual([LINK_FAILED]);
+  });
+
+  test("a failed job in the Trash says to restore it first", async ({ page }) => {
+    await openFailedLibrary(page, { retry: HTTP_CONFLICT, retryDetail: RESTORE_FIRST_DETAIL });
+    await row(page, LINK_FAILED).locator(".cat-retry").click();
+    await expect(page.locator("#error .error-msg")).toHaveText(await uiText(page, "importFail.restoreFirst"));
+  });
+
+  test("the panel's controls are the row's actions: arrow keys reach them, Tab does not stop on them", async ({ page }) => {
+    await openFailedLibrary(page);
+    await row(page, LINK_FAILED).click();
+    const controls = panel(page, LINK_FAILED).locator("button, a");
+    await expect(controls).toHaveCount(4);
+    for (const control of await controls.all()) await expect(control).toHaveAttribute("tabindex", "-1");
+
+    await row(page, LINK_FAILED).focus();
+    const reached = [];
+    for (let i = 0; i < 4; i++) {
+      await page.keyboard.press(ROW_KEY.INTO);
+      reached.push(await page.evaluate(() => document.activeElement.className));
+    }
+    expect(reached).toEqual([
+      expect.stringContaining("import-source-copy"), expect.stringContaining("import-source-open"),
+      expect.stringContaining("import-fail-primary"), expect.stringContaining("import-fail-trash"),
+    ]);
+  });
+
+  test("after Retry, focus is on the retried row", async ({ page }) => {
+    await openFailedLibrary(page);
+    await row(page, LINK_FAILED).locator(".cat-retry").click();
+    await expect(row(page, LINK_FAILED).locator(".cat-sub")).toHaveText(await uiText(page, "job.processing"));
+    await expect(row(page, LINK_FAILED)).toBeFocused();
+  });
+
+  test("after a Retry finds the file gone, focus is on Pick the file again", async ({ page }) => {
+    await openFailedLibrary(page, { retry: HTTP_GONE });
+    await row(page, FILE_FAILED).locator(".cat-retry").click();
+    await expect(panel(page, FILE_FAILED).locator(".import-fail-primary")).toBeFocused();
   });
 });

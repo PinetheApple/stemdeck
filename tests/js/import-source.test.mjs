@@ -37,7 +37,7 @@ check("a prototype name is not a code", failureReasonKey("constructor") === UNKN
 
 const UI_KEYS = [
   ...keys, FILE_GONE_REASON_KEY, "importFail.retry", "importFail.retryTitle", "importFail.pickAgain",
-  "importFail.pickAgainTitle", "source.copyLink", "source.openLink", "source.copied",
+  "importFail.pickAgainTitle", "importFail.restoreFirst", "source.copyLink", "source.openLink", "source.copied",
 ];
 for (const { code } of LANGUAGES) {
   const table = { ...(FALLBACK[code] ? TRANSLATIONS[FALLBACK[code]] : {}), ...TRANSLATIONS[code] };
@@ -64,13 +64,16 @@ check("a kept-file upload retries", !needsFilePickedAgain({ sourceUrl: "local:x"
 check("an upload whose file is gone is picked again", needsFilePickedAgain({ sourceUrl: "local:x", retryable: false }));
 check("a link is never picked again", !needsFilePickedAgain({ sourceUrl: LINK, retryable: false }));
 
-check("200 follows the same job", retryOutcome(200, "link") === RETRY_OUTCOME.QUEUED);
-check("404 on a link re-imports the link", retryOutcome(404, "link") === RETRY_OUTCOME.REIMPORT_LINK);
-check("404 on an upload asks for the file", retryOutcome(404, "file") === RETRY_OUTCOME.FILE_GONE);
-check("410 asks for the file", retryOutcome(410, "file") === RETRY_OUTCOME.FILE_GONE);
-check("409 refreshes the state", retryOutcome(409, "link") === RETRY_OUTCOME.REFRESH);
-check("503 says the queue is full", retryOutcome(503, "link") === RETRY_OUTCOME.QUEUE_FULL);
-check("anything else failed", retryOutcome(500, "link") === RETRY_OUTCOME.FAILED);
+const answer = (status, detail = "") => ({ ok: status < 300, status, detail });
+check("a 2xx follows the same job", retryOutcome(answer(200), "link") === RETRY_OUTCOME.QUEUED);
+check("404 on a link re-imports the link", retryOutcome(answer(404), "link") === RETRY_OUTCOME.REIMPORT_LINK);
+check("404 on an upload asks for the file", retryOutcome(answer(404), "file") === RETRY_OUTCOME.FILE_GONE);
+check("410 asks for the file", retryOutcome(answer(410), "file") === RETRY_OUTCOME.FILE_GONE);
+check("409 job has not failed refreshes the state", retryOutcome(answer(409, "job has not failed"), "link") === RETRY_OUTCOME.REFRESH);
+check("409 in the Trash says restore it first",
+  retryOutcome(answer(409, "restore it from the Trash first"), "link") === RETRY_OUTCOME.RESTORE_FIRST);
+check("503 says the queue is full", retryOutcome(answer(503), "link") === RETRY_OUTCOME.QUEUE_FULL);
+check("anything else failed", retryOutcome(answer(500), "link") === RETRY_OUTCOME.FAILED);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

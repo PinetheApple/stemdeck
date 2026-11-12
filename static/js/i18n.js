@@ -1349,6 +1349,7 @@ const en = {
   "source.copyLink": "Copy link",
   "source.openLink": "Open link",
   "source.copied": "Link copied",
+  "importFail.restoreFirst": "Restore it from the Trash first.",
 };
 
 const pl = {
@@ -2474,6 +2475,7 @@ const pl = {
   "source.copyLink": "Kopiuj link",
   "source.openLink": "Otwórz link",
   "source.copied": "Skopiowano link",
+  "importFail.restoreFirst": "Najpierw przywróć go z Kosza.",
 };
 
 const ja = {
@@ -3572,6 +3574,7 @@ const ja = {
   "source.copyLink": "リンクをコピー",
   "source.openLink": "リンクを開く",
   "source.copied": "リンクをコピーしました",
+  "importFail.restoreFirst": "先にゴミ箱から復元してください。",
 };
 
 const zhHans = {
@@ -4670,6 +4673,7 @@ const zhHans = {
   "source.copyLink": "复制链接",
   "source.openLink": "打开链接",
   "source.copied": "链接已复制",
+  "importFail.restoreFirst": "请先从回收站中恢复。",
 };
 
 const de = {
@@ -5780,6 +5784,7 @@ const de = {
   "source.copyLink": "Link kopieren",
   "source.openLink": "Link öffnen",
   "source.copied": "Link kopiert",
+  "importFail.restoreFirst": "Stelle es zuerst aus dem Papierkorb wieder her.",
 };
 
 const pt = {
@@ -6892,6 +6897,7 @@ const pt = {
   "source.copyLink": "Copiar link",
   "source.openLink": "Abrir link",
   "source.copied": "Link copiado",
+  "importFail.restoreFirst": "Restaure primeiro da Lixeira.",
 };
 
 const id = {
@@ -7990,6 +7996,7 @@ const id = {
   "source.copyLink": "Salin tautan",
   "source.openLink": "Buka tautan",
   "source.copied": "Tautan disalin",
+  "importFail.restoreFirst": "Pulihkan dulu dari Sampah.",
 };
 
 const fr = {
@@ -9102,6 +9109,7 @@ const fr = {
   "source.copyLink": "Copier le lien",
   "source.openLink": "Ouvrir le lien",
   "source.copied": "Lien copié",
+  "importFail.restoreFirst": "Restaurez-le d’abord depuis la Corbeille.",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -9390,6 +9398,7 @@ const ptPT = {
   "source.copyLink": "Copiar ligação",
   "source.openLink": "Abrir ligação",
   "source.copied": "Ligação copiada",
+  "importFail.restoreFirst": "Restaure-a primeiro a partir da Lixeira.",
 };
 
 const es = {
@@ -10514,6 +10523,7 @@ const es = {
   "source.copyLink": "Copiar enlace",
   "source.openLink": "Abrir enlace",
   "source.copied": "Enlace copiado",
+  "importFail.restoreFirst": "Restáurala primero desde la Papelera.",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -11621,6 +11631,7 @@ const ko = {
   "source.copyLink": "링크 복사",
   "source.openLink": "링크 열기",
   "source.copied": "링크를 복사했어요",
+  "importFail.restoreFirst": "먼저 휴지통에서 복원해 주세요.",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };
