@@ -4695,7 +4695,7 @@ async function wireGeneralSettings(overlay) {
       const avail = new Set(d.demucs_devices_available || []);
       for (const opt of deviceSel.options) {
         if (opt.dataset.baseLabel === undefined) opt.dataset.baseLabel = opt.textContent;
-        const base = opt.dataset.baseLabel;
+        const base = opt.value === "cuda" && d.gpu_backend === "rocm" ? i18nT("settings.device.rocm") : opt.dataset.baseLabel;
         const ok = opt.value === "auto" || avail.has(opt.value);
         opt.disabled = !ok;
         opt.textContent = ok ? base : `${base}${i18nT("settings.device.notAvailable")}`;
