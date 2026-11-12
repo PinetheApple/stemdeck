@@ -106,9 +106,15 @@ export function transport() {
   return audioEngine ?? multitrack;
 }
 
+// Until the next engine starts, the transport is a multitrack still building
+// its <audio> elements: its setTime() throws and its play() plays nothing.
+function loadingMultitrack(tx) {
+  return tx === multitrack && tx.audios.length === 0;
+}
+
 export function setPlayheadTime(sec) {
   const tx = audioEngine ?? multitrack;
-  if (!tx || !totalDuration) return;
+  if (!tx || !totalDuration || loadingMultitrack(tx)) return;
   const next = Math.max(0, Math.min(totalDuration, sec));
   tx.setTime(next);
   updatePlayheadMarker(next);
@@ -456,7 +462,7 @@ function wireLoopInputs() {
 // this wait is skipped entirely (readyState is already >= 3 by the time play
 // is pressed after a seek).
 function _playWhenReady() {
-  if (!multitrack) return;
+  if (!multitrack || loadingMultitrack(multitrack)) return;
   const inTauri = Boolean(window.__TAURI__?.core?.invoke);
   if (!inTauri) { multitrack.play(); return; }
 
@@ -496,8 +502,8 @@ function _dropCountIn() {
 
 // Arm a count-in when it is enabled and the engine + grid can support one.
 // Starts the audio late (engine.play(leadIn)) and schedules the count clicks in
-// the gap, whether or not the running click is on. Returns true when it took
-// over starting playback, so the caller does not also start it immediately.
+// the gap, whether or not the running click is on. Returns the start's promise
+// when it took over starting playback, so the caller does not also start it.
 function _armCountIn(eng, startPos) {
   if (metronomeCountInBars < 1 || !eng?.supportsCountIn || !metronome) return false;
   const grid = _currentGrid();
@@ -524,11 +530,25 @@ function _armCountIn(eng, startPos) {
   // this one's clicks belong to this one. A destroyed metronome ignores them.
   const generation = ++_countInGeneration;
   const clickTrack = metronome;
-  eng.play(leadIn).then((started) => {
+  const start = eng.play(leadIn);
+  start.then((started) => {
     if (!started || generation !== _countInGeneration) return;
     clickTrack.playCountIn(sourceClicks);
   });
-  return true;
+  return start;
+}
+
+// The button lights on the press, before a start that may wait for a fetch or
+// for the stems. One that never happens must not leave it lit over silence.
+function _unlightIfNotStarted(eng, start) {
+  start.then(
+    function unlightUnlessPlaying(started) {
+      if (!started && audioEngine === eng && !eng.isPlaying()) playBtn.classList.remove("playing");
+    },
+    function warnPlayFailed(err) {
+      console.warn("[transport] play failed:", err);
+    },
+  );
 }
 
 export function togglePlayPause() {
@@ -552,7 +572,7 @@ export function togglePlayPause() {
     ctx.resume().catch(() => {});
   }
   // Snap playhead to loopStart on play (DAW convention).
-  if (loopEnabled && totalDuration > 0) {
+  if (loopEnabled && totalDuration > 0 && !loadingMultitrack(tx)) {
     tx.setTime(loopStart);
   }
   if (eng) {
@@ -560,7 +580,7 @@ export function togglePlayPause() {
     // same position playback will actually start from.
     let startPos = eng.getCurrentTime?.() ?? 0;
     if (totalDuration > 0 && startPos >= totalDuration) startPos = 0;
-    if (!_armCountIn(eng, startPos)) eng.play();
+    _unlightIfNotStarted(eng, _armCountIn(eng, startPos) || eng.play());
     playBtn.classList.add("playing");
     stopBtn.classList.remove("stopped");
   } else {
@@ -574,7 +594,7 @@ export function stopTransport() {
   if (!tx) return;
   tx.pause();
   _dropCountIn(); // a count-in in progress must not outlive Stop
-  tx.setTime(loopEnabled ? loopStart : 0); // engine: setTime → onTime → stop visual
+  if (!loadingMultitrack(tx)) tx.setTime(loopEnabled ? loopStart : 0); // engine: setTime → onTime → stop visual
   if (eng) playBtn.classList.remove("playing");
 }
 

@@ -25,6 +25,7 @@ import {
 import { createPlaybackContext } from "./audioContext.js";
 import { createTickLoop } from "./tickLoop.js";
 import { loadStretchWorklet, pipelineLatencySeconds as stretchLatency } from "./tempoStage.js";
+import { hasKnownLength, reachedEnd } from "./playbackEnd.js";
 
 export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
   // Mobile/iOS only starts audio from a context resumed inside a user gesture.
@@ -101,6 +102,13 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
   const tickLoop = createTickLoop(tick);
   let destroyed = false;
   let loop = { enabled: false, start: 0, end: 0 };
+  // Stems arrive one by one as each decodes, so a start before ready() settles
+  // would play only those already in; play() waits for it instead.
+  let _loaded = false;
+  // The id of the play() waiting for ready(), 0 when none: a wait overtaken by
+  // a pause and a new play starts nothing.
+  let _pending = 0;
+  let _pendingSeq = 0;
 
   // A backgrounded tab can have its context suspended out from under it. The
   // sources stay scheduled, so nothing here notices; the audio just stops. Ask
@@ -126,6 +134,14 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
   // Decode all stems up front AND load the SoundTouch worklet in parallel.
   // Resolves true once at least one stem is ready (worklet load is best-effort).
   const ready = (async () => {
+    try {
+      return await _load();
+    } finally {
+      _loaded = true;
+    }
+  })();
+
+  async function _load() {
     // Counted so the failure can name a cause rather than arriving as a silent
     // console warning (#359). A fetch that never landed and a file the decoder
     // rejected are different problems for the user.
@@ -187,8 +203,9 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
           ? "Could not load this track's audio files."
           : "This track has no stem files to play.";
     }
+    if (startOffset > duration) startOffset = duration;
     return hasPlaybackTrack;
-  })();
+  }
 
   // Clamped so the reported playhead never reads before the start position.
   // During a count-in the sources are scheduled to begin in the future
@@ -281,11 +298,14 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
     if (loop.enabled && loop.end > loop.start && t >= loop.end) {
       seek(loop.start);
       t = loop.start;
-    } else if (t >= duration) {
+    } else if (reachedEnd(t, duration)) {
       pause();
       startOffset = duration;
       onTime?.(duration);
       onEnded?.();
+      return;
+    } else if (!hasKnownLength(duration)) {
+      pause();
       return;
     }
     onTime?.(t);
@@ -303,9 +323,11 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
   // engine can only say so after a fetch, and callers are written against the
   // promise so the two engines keep one contract.
   function play(leadIn = 0) {
-    if (playing || destroyed || !tracks.size) return Promise.resolve(false);
+    if (playing || _pending || destroyed) return Promise.resolve(false);
     // Safari: resume the context fire-and-forget within the user-gesture tick.
     if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    if (!_loaded) return _playWhenLoaded(leadIn);
+    if (!tracks.size) return Promise.resolve(false);
     let off = startOffset;
     if (off >= duration) off = 0;
     const lead = Math.max(0, leadIn);
@@ -316,7 +338,18 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
     return Promise.resolve(true);
   }
 
+  function _playWhenLoaded(leadIn) {
+    const seq = _pending = ++_pendingSeq;
+    const settle = (ok) => {
+      if (_pending !== seq || destroyed) return false;
+      _pending = 0;
+      return ok ? play(leadIn) : false;
+    };
+    return ready.then(settle, () => settle(false));
+  }
+
   function pause() {
+    _pending = 0;
     if (!playing) return;
     const t = now();
     stopSources();
@@ -328,7 +361,10 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
   }
 
   function seek(t) {
-    const clamped = Math.max(0, Math.min(t, duration || 0));
+    _pending = 0;
+    // Before ready() the length still grows as stems decode, so the position
+    // is kept as asked and clamped in _load once it is known.
+    const clamped = Math.max(0, _loaded ? Math.min(t, duration || 0) : t);
     if (playing) {
       stopSources();
       startSources(clamped); // bumps _epoch
@@ -406,11 +442,10 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
     destroyed = true;
     stopSources();
     resetProcessor();
-    // destroyPlayer() tears the engine down without pausing first, so an engine
-    // destroyed mid-playback used to leave `playing` true forever. isPlaying()
-    // then lied about a dead engine, and anything still holding a reference to
-    // the tick would have kept it alive on that stale flag.
+    // destroyPlayer() tears the engine down without pausing first, so a dead
+    // engine must not read as playing or keep its tick alive.
     playing = false;
+    _pending = 0;
     tickLoop.dispose();
     ctx.removeEventListener("statechange", onCtxStateChange);
     tracks.clear();
@@ -425,7 +460,7 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
     pause,
     seek,
     setTime: seek, // alias to match the multitrack interface used by transport.js
-    isPlaying: () => playing,
+    isPlaying: () => playing || _pending !== 0,
     // This engine honours play(leadIn) for a count-in; the streaming/chunked
     // paths do not, so the transport checks this before scheduling one.
     supportsCountIn: true,

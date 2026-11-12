@@ -376,7 +376,13 @@ export async function stubServerTrash(
 
 export async function openStudio(
   page,
-  { tauri = false, updateAvailable = false, serverFavorites = {}, catalog = null } = {},
+  {
+    tauri = false,
+    updateAvailable = false,
+    serverFavorites = {},
+    catalog = null,
+    waitForDuration = true,
+  } = {},
 ) {
   if (catalog) await seedCatalogState(page, catalog);
   else await seedLibrary(page);
@@ -387,6 +393,7 @@ export async function openStudio(
 
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
+  if (!waitForDuration) return { favoriteWrites };
   // The transport total only leaves 00:00 once an engine has reported a
   // duration, so it doubles as "the studio is actually ready".
   await page.waitForFunction(
