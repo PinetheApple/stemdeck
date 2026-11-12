@@ -119,5 +119,34 @@ const load = () => import(`../../static/js/utils.js?case=${++copies}`);
   check("not reported as unavailable", seen.length === 0);
 }
 
+// 5. The store opened but nothing could be recovered: said once, reads go on.
+{
+  bridge((cmd) => {
+    if (cmd === "store_ready") return { lost: true };
+    if (cmd === "store_get") return null;
+    return null;
+  });
+  const utils = await load();
+  const lost = [];
+  const unavailable = [];
+  utils.onStoreUnavailable((err) => unavailable.push(err));
+  const got = await settled(utils.storeGet("stemdeck.folders", "empty"));
+  check("a lost store still reads", got === "empty", String(got));
+  utils.onStoreLost(() => lost.push(1));
+  await utils.storeGet("k");
+  check("lost is said once, also to a late handler", lost.length === 1, String(lost.length));
+  check("lost is not unavailable", unavailable.length === 0);
+}
+
+// 6. A store that opened normally says nothing.
+{
+  bridge((cmd) => (cmd === "store_ready" ? { lost: false } : null));
+  const utils = await load();
+  const lost = [];
+  utils.onStoreLost(() => lost.push(1));
+  await utils.storeGet("k");
+  check("a normal open is not lost", lost.length === 0);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

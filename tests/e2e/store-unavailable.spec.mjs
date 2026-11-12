@@ -46,3 +46,19 @@ test("a store that cannot be opened stops the page, and Try again loads it", asy
   await expect(box).toBeHidden();
   expect((await counts()).ready).toBe(1);
 });
+
+test("a store that started empty because nothing could be recovered says so", async ({ page }) => {
+  await stubTauri(page);
+  await page.addInitScript(() => {
+    const invoke = window.__TAURI__.core.invoke;
+    window.__TAURI__.core.invoke = (cmd, args) =>
+      cmd === "store_ready" ? Promise.resolve({ lost: true }) : invoke(cmd, args);
+  });
+
+  await page.goto("/");
+
+  const box = page.locator("#error");
+  await expect(box).toBeVisible();
+  await expect(box).toContainText("couldn't be recovered");
+  await expect(box.locator(".retry-btn")).toHaveCount(0);
+});
