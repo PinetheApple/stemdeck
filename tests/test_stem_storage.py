@@ -25,7 +25,7 @@ import soundfile as sf
 from app.core import config, settings
 from app.core.models import Job, JobCancelled
 from app.core.registry import _jobs
-from app.core.stem_files import stem_path
+from app.core.stem_files import MP3_STEMS_MARKER, stem_path
 from app.pipeline import collect, stem_storage, stem_verify
 from tests.ffmpeg_probe import skip_without_ffmpeg
 
@@ -140,9 +140,10 @@ async def test_one_bad_value_is_refused_and_changes_nothing(client, body):
 # ── The lookup ──
 
 
-def test_lookup_prefers_wav_then_mp3_then_the_missing_wav_path(tmp_path):
+def test_lookup_prefers_wav_then_a_stored_mp3_then_the_missing_wav_path(tmp_path):
     assert stem_path(tmp_path, "vocals") == tmp_path / "vocals.wav"
     (tmp_path / "vocals.mp3").write_bytes(b"x")
+    (tmp_path / MP3_STEMS_MARKER).touch()
     assert stem_path(tmp_path, "vocals") == tmp_path / "vocals.mp3"
     (tmp_path / "vocals.wav").write_bytes(b"x")
     assert stem_path(tmp_path, "vocals") == tmp_path / "vocals.wav"
@@ -182,7 +183,9 @@ def test_mp3_storage_replaces_every_stem_and_records_the_job():
     skip_without_ffmpeg()
     job = _job()
     stems = _store(job, kbps=192)
-    assert sorted(p.name for p in stems.iterdir()) == sorted(f"{n}.mp3" for n in NAMES)
+    assert sorted(p.name for p in stems.iterdir()) == sorted(
+        [MP3_STEMS_MARKER, *(f"{n}.mp3" for n in NAMES)]
+    )
     assert (job.stem_format, job.stem_mp3_kbps) == ("mp3", 192)
     assert [s["url"] for s in job.stems] == [f"/api/jobs/{job.id}/stems/{n}.mp3" for n in NAMES]
     assert job.mix_url == f"/api/jobs/{job.id}/stems/vocals.mp3"
@@ -230,6 +233,7 @@ def test_split_stems_reach_the_disk_before_their_wavs_go(monkeypatch):
     first_unlink = next(i for i, e in enumerate(events) if e.startswith("unlink"))
     assert events.index("fsync dir") < first_unlink
     assert sorted(p.name for p in _stems(job).iterdir()) == [
+        MP3_STEMS_MARKER,
         "backing_vocals.mp3",
         "lead_vocals.mp3",
     ]

@@ -8,9 +8,11 @@ know which kind of song it has.
 The rule is the file on disk, WAV first:
 
 - A WAV song has `<name>.wav`. It may also have `<name>.mp3`, the download
-  cache GET /stems/{name}.mp3 writes beside the WAV, which must never shadow it.
-- An MP3 song has only `<name>.mp3`: its WAVs are deleted once the MP3s are
-  verified and on the disk (app/pipeline/stem_storage.py).
+  cache GET /stems/{name}.mp3 writes beside the WAV, which is never a stem:
+  not even when the WAV is gone.
+- An MP3 song has only `<name>.mp3`, and its stems folder holds the marker
+  MP3_STEMS_MARKER, written once the MP3s are in place and before any WAV is
+  deleted (app/pipeline/stem_storage.py). Only with it is an MP3 a stem.
 - While that step runs, and if it fails, the WAVs are still there and win.
 
 So the answer is right in every state a song's folder can be in, without
@@ -28,8 +30,9 @@ from app.core.config import STEM_FORMAT_MP3, STEM_FORMAT_WAV, TIMEOUT_FFMPEG, ff
 
 WAV_EXT = f".{STEM_FORMAT_WAV}"
 MP3_EXT = f".{STEM_FORMAT_MP3}"
-# In the order they are looked for. WAV first: see the module docstring.
 STEM_EXTS: tuple[str, ...] = (WAV_EXT, MP3_EXT)
+# Dot-prefixed, so no reader takes it for a stem, and no .tmp, so no sweep removes it.
+MP3_STEMS_MARKER = ".mp3-stems"
 
 _MEDIA_TYPES = {WAV_EXT: "audio/wav", MP3_EXT: "audio/mpeg"}
 _UNKNOWN_MEDIA_TYPE = "application/octet-stream"
@@ -41,15 +44,16 @@ class StemDecodeError(RuntimeError):
 
 def stem_path(stems_dir: Path, name: str) -> Path:
     """The file holding stem `name`: `<name>.wav` when it exists, else
-    `<name>.mp3` when that exists, else the `.wav` path, which does not exist,
-    so a caller's own is_file() check fails as it always did.
+    `<name>.mp3` when that exists in a folder stored as MP3, else the `.wav`
+    path, which does not exist, so a caller's own is_file() check fails as it
+    always did.
 
     `name` must already be whitelisted by the caller."""
-    for ext in STEM_EXTS:
-        path = stems_dir / f"{name}{ext}"
-        if path.is_file():
-            return path
-    return stems_dir / f"{name}{WAV_EXT}"
+    wav = stems_dir / f"{name}{WAV_EXT}"
+    mp3 = stems_dir / f"{name}{MP3_EXT}"
+    if not wav.is_file() and mp3.is_file() and (stems_dir / MP3_STEMS_MARKER).is_file():
+        return mp3
+    return wav
 
 
 def stem_exists(stems_dir: Path, name: str) -> bool:

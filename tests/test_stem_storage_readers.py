@@ -25,7 +25,7 @@ from app.core.folder_rebuild import recover_done_job
 from app.core.models import Job, JobCancelled
 from app.core.registry import _jobs
 from app.core.song_folder import STEMS_COMPLETE, backfill_stems_complete
-from app.core.stem_files import decoded_wav
+from app.core.stem_files import MP3_STEMS_MARKER, decoded_wav, stem_exists, stem_path
 from app.pipeline import collect, stem_storage, stem_verify, vocal_split
 from app.pipeline.lyrics_retime import _vocals_stamp, save_transcript, transcript_path
 from app.pipeline.transcribe import _vocals_reason
@@ -237,7 +237,8 @@ def test_the_split_reads_a_wav_and_stores_the_pair_like_the_song(mp3_song, monke
         assert not (_stems(mp3_song) / f"{name}.wav").exists()
     urls = {s["name"]: s["url"] for s in mp3_song.stems}
     assert urls["lead_vocals"].endswith("/lead_vocals.mp3")
-    assert not any(p.name.startswith(".") for p in _stems(mp3_song).iterdir())
+    dot_files = [p.name for p in _stems(mp3_song).iterdir() if p.name.startswith(".")]
+    assert dot_files == [MP3_STEMS_MARKER]
 
 
 def test_a_split_cancelled_while_compressing_leaves_no_pair(mp3_song, monkeypatch):
@@ -275,3 +276,12 @@ def test_a_failed_resplit_store_points_the_urls_at_the_wavs(mp3_song, monkeypatc
     urls = {s["name"]: s["url"] for s in mp3_song.stems}
     for name in config.EXTRA_STEM_NAMES:
         assert urls[name].endswith(f"/{name}.wav")
+
+
+def test_a_wav_song_missing_its_wav_never_resolves_the_cached_mp3():
+    job = _wav_song(WAV_ID)
+    stems = _stems(job)
+    (stems / "vocals.mp3").write_bytes(b"cached download")
+    (stems / "vocals.wav").unlink()
+    assert stem_path(stems, "vocals") == stems / "vocals.wav"
+    assert not stem_exists(stems, "vocals")

@@ -31,7 +31,7 @@ from pathlib import Path
 from app.core.config import EXTRA_STEM_NAMES, STEM_FORMAT_MP3, STEM_FORMAT_WAV, STEM_NAMES
 from app.core.models import Job, JobCancelled, _set
 from app.core.settings import fsync_dir, fsync_file, get_stem_format, get_stem_mp3_kbps
-from app.core.stem_files import MP3_EXT, WAV_EXT, stem_url
+from app.core.stem_files import MP3_EXT, MP3_STEMS_MARKER, WAV_EXT, stem_url
 from app.pipeline.cancel import check_cancel
 from app.pipeline.stem_verify import encode_mp3, verify_mp3
 
@@ -167,6 +167,7 @@ def _move_in(made: list[tuple[Path, Path]]) -> None:
             final = wav.with_suffix(MP3_EXT)
             os.replace(tmp, final)
             moved.append(final)
+        (made[0][0].parent / MP3_STEMS_MARKER).touch()
     except OSError:
         _discard([*(tmp for _wav, tmp in made), *moved])
         raise
