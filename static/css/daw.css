@@ -1923,11 +1923,11 @@ input, textarea { font-family: inherit; }
 }
 .daw-label-title { font-size: 12px; font-weight: 600; }
 .daw-label-sub { font-size: 9px; }
-.daw-sections-header { justify-content: space-between; }
-.daw-sections-title-group { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.daw-sections-header { justify-content: space-between; gap: var(--s-2); }
+.daw-sections-title-group { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; }
 /* Clear and Add belong together. The header is space-between, so without this
    group each control drifts to its own corner and Clear ends up marooned. */
-.sections-header-actions { display: inline-flex; align-items: center; gap: 6px; }
+.sections-header-actions { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .daw-sections-area {
   flex: 1;
   position: relative;
@@ -2064,11 +2064,13 @@ input, textarea { font-family: inherit; }
   caret-color: var(--sc, var(--accent));
 }
 
-/* Sections save indicator */
+/* Sections save indicator. The one part of the header that gives way: it is
+   cut with an ellipsis so the buttons keep their size. */
 .sections-save-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 10px;
   color: var(--muted);
   white-space: nowrap;
@@ -2078,10 +2080,18 @@ input, textarea { font-family: inherit; }
 .sections-save-indicator.saved { color: var(--success); }
 /* A refusal, not a failure of something already in flight. It borrows this
    element because it belongs beside the button that was pressed. */
-.sections-save-indicator.notice { color: var(--warn, var(--warn)); white-space: normal; }
+.sections-save-indicator.notice {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--warn, var(--warn));
+  white-space: normal;
+}
 .sections-save-indicator::before {
   content: "";
-  display: block;
+  display: inline-block;
+  vertical-align: -1px;
+  margin-right: var(--s-1);
   width: 8px; height: 8px;
   border-radius: 50%;
   border: 1.5px solid currentColor;
@@ -2132,6 +2142,13 @@ input, textarea { font-family: inherit; }
   border-color: color-mix(in srgb, var(--vocals) 55%, transparent);
   background: color-mix(in srgb, var(--vocals) 14%, transparent);
   color: var(--vocals);
+}
+/* Clear says its word only once armed, so the header holds Hide and a save word in every language. */
+.sections-clear-btn:not([data-armed="1"]) .sections-clear-label { display: none; }
+.sections-clear-btn:not([data-armed="1"]),
+.sections-hide-btn {
+  align-self: stretch;
+  padding: 0 var(--s-1);
 }
 
 /* Wave label (left column in wave header — Mixer label) */
