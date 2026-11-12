@@ -113,3 +113,26 @@ test("trashing an import that is still running refreshes the queue at once", asy
   // told the page the queue is empty, which hides the queue button.
   await expect(page.locator(".rail-queue")).toHaveClass(/(^| )hidden( |$)/);
 });
+
+test("the queue button is named by the label it shows, in every language", async ({ page }) => {
+  await seedRunningImport(page);
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".rail-queue")).toBeVisible();
+
+  // Speech-input users say the label they see; the name has to start with it.
+  const mismatches = await page.evaluate(async () => {
+    const { LANGUAGES, setLanguage } = await import("/js/i18n.js");
+    const btn = document.querySelector(".rail-queue");
+    const found = [];
+    for (const { code } of LANGUAGES) {
+      await setLanguage(code);
+      const label = btn.querySelector("[data-i18n]").textContent.trim();
+      for (const attr of ["aria-label", "title"]) {
+        const name = btn.getAttribute(attr);
+        if (!name.startsWith(label)) found.push(`${code} ${attr}: "${name}" vs "${label}"`);
+      }
+    }
+    return found;
+  });
+  expect(mismatches).toEqual([]);
+});
