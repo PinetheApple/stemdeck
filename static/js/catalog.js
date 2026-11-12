@@ -1,5 +1,6 @@
 // catalog.js — library panel: folders, tracks, collapse, drag-and-drop
 import { STEM_NAMES } from "./constants.js";
+import { STEM_EXT_MP3 } from "./playbackStems.js";
 import { wireUpAudio, updateFooterTrack } from "./player.js";
 import { initSections } from "./sections.js";
 import { audioEngine, bpmChip, foregroundJobId, keyChip, multitrack, saveSelectedStems, selectedStems, titleEl } from "./state.js";
@@ -4861,7 +4862,6 @@ function wireDiscogsSetting(overlay) {
 
 const DEVICE_CUDA = "cuda";
 const GPU_BACKEND_ROCM = "rocm";
-const STEM_FORMAT_MP3 = "mp3";
 
 function deviceOptionLabel(opt, gpuBackend) {
   return opt.value === DEVICE_CUDA && gpuBackend === GPU_BACKEND_ROCM ? i18nT("settings.device.rocm") : opt.dataset.baseLabel;
@@ -4930,7 +4930,7 @@ async function wireGeneralSettings(overlay) {
 
   // The bitrate only applies to MP3, so it is dimmed the same way while WAV is chosen.
   const setStemKbpsEnabled = (format) => {
-    const on = format === STEM_FORMAT_MP3;
+    const on = format === STEM_EXT_MP3;
     stemKbpsSel?.closest(".settings-row")?.classList.toggle("disabled", !on);
     if (stemKbpsSel) stemKbpsSel.disabled = !on;
   };
