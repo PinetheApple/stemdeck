@@ -1,0 +1,249 @@
+from __future__ import annotations
+
+from unittest.mock import patch
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.core.models import Job
+from app.core.registry import _jobs
+
+PREVIEW = "/api/import/preview"
+VIDEO_A = "https://www.youtube.com/watch?v=aaaaaaaaaaa"
+VIDEO_B = "https://www.youtube.com/watch?v=bbbbbbbbbbb"
+PLAYLIST = "https://www.youtube.com/playlist?list=PLabc"
+LIMIT_SEC = 1200
+
+
+class _FakeYDL:
+    """Stands in for YoutubeDL in both the link probe and the playlist expansion,
+    so nothing here touches the network. ``infos`` maps a URL to what yt-dlp
+    would return for it; a URL missing from it fails like a deleted video."""
+
+    infos: dict[str, dict] = {}
+    opts: list[dict] = []
+
+    def __init__(self, opts):
+        type(self).opts.append(opts)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def extract_info(self, url, download=False, process=True):
+        if url not in type(self).infos:
+            raise RuntimeError("Video unavailable")
+        return type(self).infos[url]
+
+
+def _video(title: str, duration: float | None = 200, **extra) -> dict:
+    return {"title": title, "duration": duration, "uploader": "Channel", **extra}
+
+
+def _track(video_id: str, title: str, duration: float | None = 200) -> dict:
+    return {
+        "url": f"https://www.youtube.com/watch?v={video_id}",
+        "title": title,
+        "duration": duration,
+    }
+
+
+@pytest.fixture
+def fake_ydl():
+    _FakeYDL.infos = {}
+    _FakeYDL.opts = []
+    with (
+        patch("app.pipeline.download.YoutubeDL", _FakeYDL),
+        patch("app.api.batch_import.YoutubeDL", _FakeYDL),
+        patch("app.api.batch_import.get_max_duration_sec", lambda: LIMIT_SEC),
+    ):
+        yield _FakeYDL
+
+
+@pytest.fixture
+def client(fake_ydl):
+    _jobs.clear()
+    from app.main import app
+
+    with TestClient(app) as c:
+        yield c
+    _jobs.clear()
+
+
+def _preview(client, links=(), files=()) -> dict:
+    res = client.post(PREVIEW, json={"links": list(links), "files": list(files)})
+    assert res.status_code == 200, res.text
+    return res.json()
+
+
+def _in_library(source_url: str, **fields) -> Job:
+    job = Job(id=f"lib{len(_jobs):09d}", source_url=source_url, **fields)
+    _jobs[job.id] = job
+    return job
+
+
+# ── single links ─────────────────────────────────────────────────────────────
+
+
+def test_a_link_reports_its_canonical_url_title_artist_and_length(client, fake_ydl):
+    fake_ydl.infos = {VIDEO_A: _video("Build My Life", 372, artist="Housefires")}
+
+    [item] = _preview(client, ["https://youtu.be/aaaaaaaaaaa"])["items"]
+
+    assert item == {
+        "input": "https://youtu.be/aaaaaaaaaaa",
+        "url": VIDEO_A,
+        "title": "Build My Life",
+        "artist": "Housefires",
+        "duration_sec": 372,
+        "status": "ok",
+        "existing_job_id": None,
+        "playlist": None,
+    }
+
+
+def test_the_uploader_stands_in_when_there_is_no_artist(client, fake_ydl):
+    fake_ydl.infos = {VIDEO_A: _video("Song")}
+    [item] = _preview(client, [VIDEO_A])["items"]
+    assert item["artist"] == "Channel"
+
+
+def test_text_and_unsupported_hosts_are_not_links(client):
+    items = _preview(client, ["setlist for sunday", "https://open.spotify.com/track/x"])["items"]
+    assert [(i["status"], i["url"]) for i in items] == [("not_a_link", None)] * 2
+
+
+def test_a_link_that_cannot_be_read_is_unavailable_not_an_error(client):
+    [item] = _preview(client, [VIDEO_A])["items"]
+    assert (item["status"], item["url"], item["title"]) == ("unavailable", VIDEO_A, None)
+
+
+def test_a_link_over_the_limit_is_too_long(client, fake_ydl):
+    fake_ydl.infos = {VIDEO_A: _video("Archive", LIMIT_SEC + 1), VIDEO_B: _video("Song", None)}
+    items = _preview(client, [VIDEO_A, VIDEO_B])["items"]
+    assert [i["status"] for i in items] == ["too_long", "ok"]
+
+
+def test_blank_lines_are_ignored_and_order_is_kept(client, fake_ydl):
+    fake_ydl.infos = {VIDEO_A: _video("A"), VIDEO_B: _video("B")}
+    items = _preview(client, [VIDEO_B, "  ", "nope", VIDEO_A])["items"]
+    assert [i["input"] for i in items] == [VIDEO_B, "nope", VIDEO_A]
+
+
+def test_the_same_song_twice_is_listed_once(client, fake_ydl):
+    fake_ydl.infos = {VIDEO_A: _video("A")}
+    items = _preview(client, [VIDEO_A, "https://youtu.be/aaaaaaaaaaa"])["items"]
+    assert [i["input"] for i in items] == [VIDEO_A]
+
+
+# ── library duplicates ───────────────────────────────────────────────────────
+
+
+def test_a_song_the_library_holds_is_in_library_with_its_job(client, fake_ydl):
+    fake_ydl.infos = {VIDEO_A: _video("A"), VIDEO_B: _video("B")}
+    held = _in_library(VIDEO_A)
+    _in_library(VIDEO_B, status="error")
+
+    items = _preview(client, [VIDEO_A, VIDEO_B])["items"]
+
+    assert [(i["status"], i["existing_job_id"]) for i in items] == [
+        ("in_library", held.id),
+        ("ok", None),
+    ]
+
+
+def test_too_long_wins_over_in_library_but_keeps_the_job(client, fake_ydl):
+    fake_ydl.infos = {VIDEO_A: _video("A", LIMIT_SEC + 1)}
+    held = _in_library(VIDEO_A)
+    [item] = _preview(client, [VIDEO_A])["items"]
+    assert (item["status"], item["existing_job_id"]) == ("too_long", held.id)
+
+
+def test_a_file_already_uploaded_is_in_library(client):
+    held = _in_library("local:01 Goodness of God")
+    files = _preview(client, files=["01 Goodness of God.flac", "02 Build My Life.mp3"])["files"]
+    assert files == [
+        {"name": "01 Goodness of God.flac", "status": "in_library", "existing_job_id": held.id},
+        {"name": "02 Build My Life.mp3", "status": "ok", "existing_job_id": None},
+    ]
+
+
+# ── playlists ────────────────────────────────────────────────────────────────
+
+
+def test_a_playlist_line_expands_to_its_tracks(client, fake_ydl):
+    fake_ydl.infos = {
+        PLAYLIST: {
+            "title": "Worship Nights",
+            "entries": [
+                _track("ccccccccccc", "Holy Forever"),
+                {"url": "", "title": "[Deleted video]"},
+                _track("ddddddddddd", "Same God", LIMIT_SEC + 1),
+            ],
+        }
+    }
+    _in_library("https://www.youtube.com/watch?v=ccccccccccc")
+
+    body = _preview(client, [PLAYLIST])
+
+    assert [(i["title"], i["status"], i["playlist"]["index"]) for i in body["items"]] == [
+        ("Holy Forever", "in_library", 1),
+        ("Same God", "too_long", 2),
+    ]
+    assert {i["input"] for i in body["items"]} == {PLAYLIST}
+    assert body["playlists"] == [
+        {
+            "input": PLAYLIST,
+            "url": PLAYLIST,
+            "title": "Worship Nights",
+            "found": 2,
+            "unavailable": 1,
+            "truncated": False,
+        }
+    ]
+
+
+def test_a_playlist_that_cannot_be_read_is_one_unavailable_item(client):
+    body = _preview(client, [PLAYLIST])
+    assert [(i["status"], i["playlist"]) for i in body["items"]] == [("unavailable", None)]
+    assert body["playlists"] == []
+
+
+def test_a_pasted_link_also_in_a_playlist_is_listed_once(client, fake_ydl):
+    fake_ydl.infos = {
+        VIDEO_A: _video("A"),
+        PLAYLIST: {"title": "P", "entries": [_track("aaaaaaaaaaa", "A")]},
+    }
+    items = _preview(client, [VIDEO_A, PLAYLIST])["items"]
+    assert [i["input"] for i in items] == [VIDEO_A]
+
+
+# ── the request ──────────────────────────────────────────────────────────────
+
+
+def test_preview_creates_nothing_and_reports_the_limits(client, fake_ydl):
+    fake_ydl.infos = {VIDEO_A: _video("A")}
+    body = _preview(client, [VIDEO_A], ["a.mp3"])
+    assert _jobs == {}
+    assert body["max_duration_sec"] == LIMIT_SEC
+    assert body["capacity_left"]["links"] > 0
+    assert body["capacity_left"]["files"] > 0
+
+
+def test_too_many_links_is_refused(client):
+    from app.api.batch_import import MAX_BATCH_LINKS
+
+    res = client.post(PREVIEW, json={"links": [VIDEO_A] * (MAX_BATCH_LINKS + 1)})
+    assert res.status_code == 422
+
+
+def test_the_link_probe_stays_on_the_supported_extractors(client, fake_ydl):
+    from app.pipeline.download import _ALLOWED_EXTRACTORS
+
+    fake_ydl.infos = {VIDEO_A: _video("A")}
+    _preview(client, [VIDEO_A])
+    [opts] = fake_ydl.opts
+    assert opts["allowed_extractors"] == _ALLOWED_EXTRACTORS
+    assert opts["noplaylist"] is True
