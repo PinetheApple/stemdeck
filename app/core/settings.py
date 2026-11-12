@@ -44,6 +44,7 @@ from app.core.config import (
     VIDEO_MAX_HEIGHT,
     available_torch_devices,
     detect_torch_device,
+    pinned_jobs_dir,
 )
 
 _log = logging.getLogger("stemdeck.settings")
@@ -492,13 +493,9 @@ class CookiesInLibraryError(ValueError):
 
 
 def library_folder() -> Path:
-    """Where the library is now: the moved-to folder once a move has run, even
-    before the restart that points JOBS_DIR at it."""
-    return Path(get_jobs_dir() or JOBS_DIR).resolve()
-
-
-def _in_library(path: Path) -> bool:
-    return path.resolve().is_relative_to(library_folder())
+    """Where the library is now, by config's precedence: a deployment's pin, then
+    the moved-to folder even before the restart that points JOBS_DIR at it."""
+    return (pinned_jobs_dir() or Path(get_jobs_dir() or JOBS_DIR)).resolve()
 
 
 def get_cookies_file() -> str | None:
@@ -509,7 +506,7 @@ def get_cookies_file() -> str | None:
 
 def cookies_file_in_library() -> bool:
     value = get_cookies_file()
-    return value is not None and _in_library(Path(value))
+    return value is not None and Path(value).resolve().is_relative_to(library_folder())
 
 
 def set_cookies_file(value: str | None) -> str | None:
@@ -526,7 +523,7 @@ def set_cookies_file(value: str | None) -> str | None:
             _save()
             return None
         resolved = Path(str(value)).expanduser().resolve()
-        if _in_library(resolved):
+        if resolved.is_relative_to(library_folder()):
             raise CookiesInLibraryError(
                 "Pick a cookies file outside the library folder; "
                 "moving or resetting the library would take it with it."

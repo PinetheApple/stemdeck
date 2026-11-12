@@ -166,3 +166,17 @@ def test_api_flag_follows_a_library_move(client, cookies_txt):
     _settings.set_cookies_file(str(cookies_txt))
     _settings.set_jobs_dir(str(cookies_txt.parent))
     assert client.get("/api/settings").json()["cookies_file_in_library"] is True
+
+
+def test_api_refuses_a_file_inside_a_pinned_library(client, tmp_path, monkeypatch):
+    """A deployment's STEMDECK_JOBS_DIR wins over a saved stems location."""
+    pinned = tmp_path / "pinned"
+    pinned.mkdir()
+    monkeypatch.setenv("STEMDECK_JOBS_DIR", str(pinned))
+    saved = tmp_path / "saved"
+    saved.mkdir()
+    _settings.set_jobs_dir(str(saved))
+    cookies = pinned / "cookies.txt"
+    cookies.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
+    resp = client.post("/api/settings", json={"cookies_file": str(cookies)})
+    _assert_refused_as_in_library(resp)
