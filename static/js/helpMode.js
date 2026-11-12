@@ -112,6 +112,7 @@ const SETTINGS = [
     ["settings.autoDelete.title", "help.set.autoDelete"],
     ["settings.device.title", "help.set.device"],
     ["settings.quality.title", "help.set.quality"],
+    ["settings.idleUnload.title", "help.set.idleUnload"],
     ["settings.resetData.title", "help.set.resetData"],
   ]],
   ["settings.tab.songDetails", [

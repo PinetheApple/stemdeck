@@ -202,6 +202,7 @@ test.describe("help mode", () => {
     });
     expect(Object.keys(sections)).not.toContain("Registry");
     expect(sections.General.join(" ")).not.toContain("Export logs");
+    expect(sections.General.join(" ")).toContain("Free memory when idle");
     expect(sections.Logs.join(" ")).toContain("Export logs");
     expect(sections.Library.join(" ")).toContain("Out of sync tracks");
   });
