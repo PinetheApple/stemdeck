@@ -45,6 +45,7 @@ test("a song re-imported from the library keeps its Lead + Backing choice", asyn
   const storedChoices = await stubReimport(page);
 
   await page.evaluate(async (id) => (await import("/js/catalog.js")).loadTrackIntoStudio(id), GONE_ID);
+  await page.locator(".reimport-confirm .playlist-confirm-go").click();
 
   await expect.poll(() => storedChoices).toEqual(["split"]);
 });

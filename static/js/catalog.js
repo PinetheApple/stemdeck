@@ -12,6 +12,7 @@ import {
   FILE_GONE_REASON_KEY, RETRY_OUTCOME, SOURCE_KIND, failureReasonKey, importSource, needsFilePickedAgain,
   retryOutcome, sourceKindOf, FAILED_STATUS,
 } from "./importSource.js";
+import { confirmDialog } from "./playlist.js";
 import {
   cancelQueuedJob, currentIds, getQueueSnapshot, isPaused, onJobSettled, onQueueChange,
   queueCount, queueRowStates, refreshQueue, reorderQueuedJob, runningLabel, startQueue,
@@ -1360,18 +1361,38 @@ function applyStoredStemSelection(track) {
 }
 
 // A track's files went missing (folder deleted or moved outside the app).
-// URL-sourced tracks can be rebuilt from the source, so trigger that
-// directly rather than making the user hunt for a "resync" button in
-// Settings. Local uploads have no source bytes left to rebuild from (#354's
-// cleanup deletes the upload once the pipeline is done with it), so the
-// only path back is a fresh re-upload.
-function reimportUnavailableTrack(trackId, track) {
+// URL-sourced tracks can be rebuilt from the source, once the user agrees:
+// that downloads the song again and takes over the studio. Local uploads have
+// no source bytes left to rebuild from (#354's cleanup deletes the upload once
+// the pipeline is done with it), so the only path back is a fresh re-upload.
+const _reimportsAsked = new Set();
+
+function confirmReimport(track) {
+  return confirmDialog({
+    title: i18nT("reimport.title"),
+    name: track.title || track.sourceUrl,
+    body: esc(i18nT("reimport.body")),
+    confirmLabel: i18nT("reimport.confirm"),
+    ariaLabel: i18nT("reimport.title"),
+    className: "playlist-confirm reimport-confirm",
+  });
+}
+
+async function reimportUnavailableTrack(trackId, track) {
   updateTrackStatus(trackId, "unavailable");
-  if (isReimportableSource(track.sourceUrl)) {
-    importFromUrl(track.sourceUrl, { title: track.title, stems: track.selectedStems, replaces: trackId });
+  if (!isReimportableSource(track.sourceUrl)) {
+    showError(i18nT("track.audioUnavailableError"));
     return;
   }
-  showError(i18nT("track.audioUnavailableError"));
+  // Asked once at a time per song, so a double click cannot start two imports.
+  if (_reimportsAsked.has(trackId)) return;
+  _reimportsAsked.add(trackId);
+  try {
+    if (!(await confirmReimport(track))) return;
+    await importFromUrl(track.sourceUrl, { title: track.title, stems: track.selectedStems, replaces: trackId });
+  } finally {
+    _reimportsAsked.delete(trackId);
+  }
 }
 
 export async function loadTrackIntoStudio(trackId) {
@@ -1432,34 +1453,18 @@ export async function loadTrackIntoStudio(trackId) {
   applyStoredStemSelection(track);
   setCurrentTrack(trackId);
 
-  // The composer is an input the Extract stems button submits, not a caption for
-  // the open track, so it may only ever hold something that can actually be
-  // imported. A `local:` source is a file that was uploaded once and is not
-  // reachable again; putting its bare filename here armed the button with a
-  // string that can never resolve, and pressing it POSTed "my song.mp3" as
-  // though it were a link (#635). Non-empty is also what let it through the
-  // browser's own required check.
+  // The composer is for new imports only: opening a track never puts its link
+  // there, so Extract stems cannot re-import it by accident. An upload has no
+  // link, so the button acts on the track itself and the server separates the
+  // source it kept beside it.
   //
-  // Cleared rather than left alone: whatever the previously opened track put
-  // there is still a live URL, and re-importing *that* on a click meant for
-  // this track is worse than doing nothing.
-  const importable = isReimportableSource(track.sourceUrl);
-  // A link-sourced track needs nothing new: its URL goes in the box and the
-  // button imports it again, which is what re-splitting one has always meant.
-  // An upload has no URL, so the button acts on the track itself and the
-  // server separates the source it kept beside it.
-  const resplittable = !importable && track.status === "done";
+  // `required` is the guard for "the button has nothing to act on", and it is a
+  // blunt one: the browser refuses the submit before any handler runs, so it
+  // must not be set while the button has a track to re-split.
+  const resplittable = !isReimportableSource(track.sourceUrl) && track.status === "done";
   const urlInput = document.getElementById("url");
-  if (urlInput) {
-    urlInput.value = importable ? track.sourceUrl : "";
-    // `required` is the guard for "the button has nothing to act on", and it
-    // is a blunt one: the browser refuses the submit before any handler runs,
-    // so it must not be set while the button has a track to re-split. Setting
-    // it there made pressing Extract stems on an upload answer "please fill out
-    // this field" instead of separating it.
-    if (importable || resplittable) urlInput.removeAttribute("required");
-    else urlInput.setAttribute("required", "");
-  }
+  if (resplittable) urlInput?.removeAttribute("required");
+  else urlInput?.setAttribute("required", "");
   setResplitTarget(resplittable ? track : null);
 
   applyTrackInfoToPanel(track);
