@@ -12,7 +12,9 @@
 // dialog or collide with the footer.
 
 import { test, expect } from "@playwright/test";
-import { seedLibrary } from "./helpers.mjs";
+import { seedLibrary, settleRoutes } from "./helpers.mjs";
+
+test.afterEach(settleRoutes);
 
 const TABS = ["general", "details", "network", "export", "logs", "registry"];
 

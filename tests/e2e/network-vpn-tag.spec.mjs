@@ -2,7 +2,9 @@
 // An address on a VPN only works for devices on that VPN, so its card says so.
 
 import { test, expect } from "@playwright/test";
-import { seedLibrary } from "./helpers.mjs";
+import { seedLibrary, settleRoutes, waitForNetworkRendered } from "./helpers.mjs";
+
+test.afterEach(settleRoutes);
 
 const LAN_URL = "http://192.168.1.50:8000";
 const VPN_URL = "http://100.64.0.7:8000";
@@ -16,6 +18,7 @@ async function openNetworkSettings(page) {
   await page.locator("#settingsBtn").click();
   await page.locator('.settings-tab[data-tab="network"]').click();
   await expect(page.locator(".net-access-input")).toBeVisible();
+  await waitForNetworkRendered(page);
 }
 
 /** Answer GET /api/settings with the given address fields merged in. */

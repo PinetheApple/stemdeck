@@ -406,6 +406,19 @@ export async function waitForPanesSettled(page) {
   await page.waitForFunction(() => document.querySelector(".sidebar").getAnimations().length === 0);
 }
 
+/** Wait until the Network pane has rendered what /api/settings gave it: cards or the empty note. */
+export async function waitForNetworkRendered(page) {
+  await page.locator(".settings-net-qr > *").first().waitFor({ state: "attached" });
+}
+
+/**
+ * afterEach hook for specs that rewrite /api/settings through route.fetch(). Several panes
+ * fetch it, and a handler still awaiting its response when the page closes throws.
+ */
+export async function settleRoutes({ page }) {
+  await page.unrouteAll({ behavior: "wait" });
+}
+
 /**
  * Wait until the click track is live.
  *

@@ -12,7 +12,9 @@
 // the setting looks perfectly fine either way.
 
 import { test, expect } from "@playwright/test";
-import { seedLibrary } from "./helpers.mjs";
+import { seedLibrary, settleRoutes, waitForNetworkRendered } from "./helpers.mjs";
+
+test.afterEach(settleRoutes);
 
 const warning = (page) => page.locator(".settings-net-warn");
 
@@ -23,6 +25,7 @@ async function openSettings(page) {
   // The overlay opens on General; this setting lives under Network.
   await page.locator('.settings-tab[data-tab="network"]').click();
   await expect(page.locator(".net-access-input")).toBeVisible();
+  await waitForNetworkRendered(page);
 }
 
 /** Answer /api/settings with a chosen set of LAN addresses. */
