@@ -1,8 +1,4 @@
-// The beat-grid toolbar has to fit the wave panel it sits in.
-//
-// The panel is overflow: hidden, so a toolbar wider than its space does not
-// scroll into view: its last controls are simply cut off. The panel is at its
-// narrowest in a small window where the user kept the library open.
+// The wave panel hides overflow, so a toolbar too wide for it is clipped, not scrolled.
 import { test, expect } from "@playwright/test";
 import { openStudio, waitForClickTrack, waitForPanesSettled } from "./helpers.mjs";
 
@@ -14,16 +10,28 @@ const COLLAPSED_CLASS = "cat-collapsed";
 const CONTROLS = "#beatgrid-toolbar button, #beatgrid-toolbar input";
 // Sub-pixel layout puts edges a fraction past each other even when they fit.
 const EDGE_SLACK = 0.5;
+// The library re-checks its room from a ResizeObserver that queues the fit for the next frame.
+const FRAMES_FOR_ROOM_CHECK = 3;
+
+async function expectLibrary(page, state) {
+  const app = page.locator(".app");
+  if (state === "collapsed") await expect(app).toHaveClass(new RegExp(COLLAPSED_CLASS));
+  else await expect(app).not.toHaveClass(new RegExp(COLLAPSED_CLASS));
+}
 
 async function setLibrary(page, state) {
-  const app = page.locator(".app");
-  const collapsed = await app.evaluate(
+  const collapsed = await page.locator(".app").evaluate(
     (el, cls) => el.classList.contains(cls),
     COLLAPSED_CLASS,
   );
   if (collapsed !== (state === "collapsed")) await page.locator("#sidebarCollapseBtn").click();
-  if (state === "collapsed") await expect(app).toHaveClass(new RegExp(COLLAPSED_CLASS));
-  else await expect(app).not.toHaveClass(new RegExp(COLLAPSED_CLASS));
+  await expectLibrary(page, state);
+}
+
+async function waitForRoomCheck(page) {
+  await page.evaluate(async (frames) => {
+    for (let i = 0; i < frames; i++) await new Promise(requestAnimationFrame);
+  }, FRAMES_FOR_ROOM_CHECK);
   await waitForPanesSettled(page);
 }
 
@@ -36,7 +44,6 @@ async function setInspector(page, state) {
   else await expect(inspector).toBeHidden();
 }
 
-// The grid editor opens from the inspector's click-track cluster.
 async function openGridEditor(page) {
   await setInspector(page, "shown");
   await page.locator("#t-metro-edit").click();
@@ -74,10 +81,13 @@ test.describe("beat-grid toolbar fit", () => {
           await waitForClickTrack(page, { revealOptions: false });
           await waitForPanesSettled(page);
           await openGridEditor(page);
-          await setLibrary(page, library);
           await setInspector(page, inspector);
+          await waitForRoomCheck(page);
+          await setLibrary(page, library);
+          await waitForRoomCheck(page);
 
           await expect(page.locator("#beatgrid-toolbar")).toBeVisible();
+          await expectLibrary(page, library);
           expect(await clippedControls(page)).toEqual([]);
         });
       }
