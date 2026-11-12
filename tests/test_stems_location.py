@@ -537,3 +537,31 @@ def test_a_refused_move_reopens_the_door(client, tmp_path):
 
     assert r.status_code == 409
     assert stems_location.is_relocating() is False, "imports would be blocked forever"
+
+
+def test_refuses_while_a_lyrics_run_is_going(client, tmp_path, lyrics_board):
+    """A transcription or timing writes into its song's folder until it ends:
+    moved from under it, it fails or leaves stray files behind (#132)."""
+    from app.core import stems_location
+
+    lyrics_board.claim("aaaaaaaaaaaa")
+    _job_dir(client.jobs_dir, "aaaaaaaaaaaa")
+
+    r = client.post("/api/settings/stems-location", json={"path": str(tmp_path / "elsewhere")})
+
+    assert r.status_code == 409
+    assert "cancel" in r.json()["detail"]
+    assert (client.jobs_dir / "aaaaaaaaaaaa").is_dir(), "nothing may move while busy"
+    assert stems_location.is_relocating() is False, "imports would be blocked forever"
+
+
+def test_a_lyrics_run_that_ended_does_not_hold_up_the_move(client, tmp_path, lyrics_board):
+    """The board keeps a run after it ends, so GET can tell how it ended."""
+    from app.pipeline.runs import DONE
+
+    lyrics_board.claim("aaaaaaaaaaaa").state = DONE
+    _job_dir(client.jobs_dir, "aaaaaaaaaaaa")
+
+    r = client.post("/api/settings/stems-location", json={"path": str(tmp_path / "elsewhere")})
+
+    assert r.status_code == 200

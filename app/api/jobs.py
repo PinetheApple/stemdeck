@@ -675,6 +675,13 @@ def _cancel_lyrics_runs(job_id: str) -> bool:
     return retiming or transcribing
 
 
+def lyrics_run_active() -> bool:
+    """Whether a lyrics timing or transcription is running on any job: it
+    writes into its song's folder until it ends, so the library must not be
+    moved or reset under it (#132)."""
+    return RETIME_RUNS.any_running() or TRANSCRIBE_RUNS.any_running()
+
+
 def _terminate_worker(job_id: str) -> None:
     proc = registry_get_proc(job_id)
     if proc is not None and proc.poll() is None:

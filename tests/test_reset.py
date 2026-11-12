@@ -118,3 +118,34 @@ def test_reset_endpoint_allows_only_terminal_jobs(client, monkeypatch, tmp_path)
     r = client.post("/api/reset")
 
     assert r.status_code == 200
+
+
+def test_reset_endpoint_rejects_a_lyrics_run(client, monkeypatch, tmp_path, lyrics_board):
+    """A transcription or timing still writing into a song's folder would fail
+    or leave stray files behind once reset deleted it (#132)."""
+    monkeypatch.setattr("app.main.JOBS_DIR", tmp_path)
+    job = Job(id="abcdefabcdeb", status="done")
+    _jobs[job.id] = job
+    (tmp_path / job.id).mkdir()
+    lyrics_board.claim(job.id)
+
+    r = client.post("/api/reset")
+
+    assert r.status_code == 409
+    assert "cancel" in r.json()["detail"]
+    assert job.id in _jobs and (tmp_path / job.id).is_dir()  # nothing was touched
+
+
+def test_reset_endpoint_ignores_a_lyrics_run_that_ended(
+    client, monkeypatch, tmp_path, lyrics_board
+):
+    from app.pipeline.runs import FAILED
+
+    monkeypatch.setattr("app.main.JOBS_DIR", tmp_path)
+    job = Job(id="abcdefabcdeb", status="done")
+    _jobs[job.id] = job
+    lyrics_board.claim(job.id).state = FAILED
+
+    r = client.post("/api/reset")
+
+    assert r.status_code == 200
