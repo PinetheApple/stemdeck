@@ -2081,11 +2081,18 @@ input, textarea { font-family: inherit; }
 /* A refusal, not a failure of something already in flight. It borrows this
    element because it belongs beside the button that was pressed. */
 .sections-save-indicator.notice {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  order: 1;
+  flex-basis: 100%;
+  overflow: visible;
   color: var(--warn, var(--warn));
   white-space: normal;
+}
+/* A notice says what to do next, so it is never cut: it takes its own line under the buttons. */
+.sections-header-actions:has(.sections-save-indicator.notice) {
+  flex: 1;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: var(--s-1);
 }
 .sections-save-indicator::before {
   content: "";
