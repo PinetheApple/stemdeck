@@ -37,6 +37,7 @@ SAVED_FIELDS = (
     "selected_stems",
     "source_url",
     "source_format",
+    "source_name",
     "created_at",
 )
 
@@ -73,7 +74,7 @@ def _clean_value(name: str, value: object) -> tuple[bool, object]:
     if name == "selected_stems":
         stems = _clean_stems(value)
         return stems is not None, stems
-    if name == "source_url":
+    if name in ("source_url", "source_name"):
         return value is None or isinstance(value, str), value
     # source_format: drawn as the upload's format icon, so only a known one.
     return value is None or (isinstance(value, str) and f".{value}" in UPLOAD_EXTS), value

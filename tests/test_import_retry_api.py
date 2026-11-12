@@ -11,14 +11,14 @@ from fastapi.testclient import TestClient
 
 from app.api import jobs as jobs_mod
 from app.api.jobs import RESTORE_FROM_TRASH_FIRST, SOURCE_FILE_GONE
-from app.core import config
+from app.core import config, registry
 from app.core.models import STATUS_DONE, STATUS_ERROR, Job
-from app.core.registry import _jobs, register
+from app.core.registry import _jobs, register, registry_path
 from app.core.song_folder import FAILED_DIR_NAME
 from app.main import app
 from app.pipeline import jobqueue
 from app.pipeline.errors import CAUSE_OUT_OF_MEMORY
-from app.pipeline.runner import FAILED_RECORD_FILE
+from app.pipeline.runner import FAILED_RECORD_FILE, _write_metadata
 
 LINK = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 UPLOAD_ID = "abcdef200001"
@@ -188,3 +188,24 @@ def test_a_reimport_replaces_a_failed_job_across_a_restart(client: TestClient, m
 
     assert not _failed_dir(LINK_ID).exists()
     assert client.get(f"/api/jobs/{LINK_ID}").status_code == 404
+
+
+def test_an_uploads_file_name_survives_a_registry_rebuilt_from_its_folder() -> None:
+    root = config.JOBS_DIR
+    job = Job(
+        id=UPLOAD_ID,
+        status=STATUS_DONE,
+        title="Song",
+        source_url="local:Song",
+        source_name="Song.mp3",
+    )
+    stems = root / UPLOAD_ID / "stems"
+    stems.mkdir(parents=True)
+    (stems / "vocals.wav").write_bytes(b"RIFF")
+    _write_metadata(job, root / UPLOAD_ID)
+    registry_path(root).unlink(missing_ok=True)
+    _jobs.clear()
+
+    registry.restore(root)
+
+    assert registry.get(UPLOAD_ID).source_name == "Song.mp3"
