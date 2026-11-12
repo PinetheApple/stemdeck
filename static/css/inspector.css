@@ -279,7 +279,14 @@
 /* The panel's own .unavailable fade already dims these. */
 .inspector #t-metro-panel.unavailable .tempo-btn:disabled { opacity: 1; }
 .inspector #t-metro-more { display: none; }
-.inspector .metro-countin-hint { display: none; }
+.inspector .metro-countin-hint {
+  display: block;
+  flex: 1 0 100%;
+  margin-top: calc(-1 * var(--s-1));
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  color: var(--text-3);
+}
 .inspector .metro-select-wrap { flex: 1 1 auto; min-width: 0; }
 .inspector .metro-select-wrap::after { content: none; }
 .inspector .metro-select-wrap > .ic {
