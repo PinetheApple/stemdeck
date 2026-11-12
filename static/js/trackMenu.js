@@ -1,9 +1,10 @@
 // A library row's … menu: rename the song, add it to a setlist, or move it to a folder.
 // catalog.js asks for it with a "trackmenu" event, since this module imports it.
+// The open song's Up Next and More buttons, in the song head and Stage, live here too.
 
 import { addSongToSetlist, createSetlistFrom, getSetlists } from "./setlists.js";
 import { startRowRename } from "./songRename.js";
-import { folderChoices, moveTrackToFolder, moveTrackToNewFolder } from "./catalog.js";
+import { folderChoices, getCurrentTrackInfo, moveTrackToFolder, moveTrackToNewFolder } from "./catalog.js";
 import { t } from "./i18n.js";
 import { iconButton } from "./libraryControls.js";
 
@@ -62,15 +63,23 @@ function folderSection(trackId, anchor) {
   ];
 }
 
-function buildMenu(trackId, anchor) {
+function renameItems(trackId, openSong) {
+  if (openSong) return [];
+  return [
+    menuItem(t("trackMenu.rename"), "pencil", function onRenameSong() {
+      startRowRename(trackId);
+    }),
+  ];
+}
+
+/** The open song's menu has no Rename: the song head has its own, and Stage has no row to edit in. */
+function buildMenu(trackId, anchor, openSong) {
   const el = document.createElement("div");
   el.className = "lib-menu";
   el.setAttribute("role", "menu");
   el.setAttribute("aria-label", t("trackMenu.open"));
   el.append(
-    menuItem(t("trackMenu.rename"), "pencil", function onRenameSong() {
-      startRowRename(trackId);
-    }),
+    ...renameItems(trackId, openSong),
     menuLabel(t("trackMenu.addToSetlist")),
     ...getSetlists().map((setlist) => setlistItem(setlist, trackId)),
     menuItem(t("trackMenu.newSetlist"), "plus", function onNewSetlistWithSong() {
@@ -142,12 +151,11 @@ function closeMenu() {
   window.removeEventListener("resize", closeMenu);
 }
 
-function onTrackMenuRequest(e) {
-  const { id, anchor } = e.detail || {};
+function toggleMenu(id, anchor, { openSong = false } = {}) {
   const reopening = menu && anchorEl === anchor;
   closeMenu();
   if (!id || !anchor || reopening) return;
-  menu = buildMenu(id, anchor);
+  menu = buildMenu(id, anchor, openSong);
   anchorEl = anchor;
   anchor.setAttribute("aria-expanded", "true");
   document.body.append(menu);
@@ -157,7 +165,37 @@ function onTrackMenuRequest(e) {
   window.addEventListener("resize", closeMenu);
 }
 
+function onTrackMenuRequest(e) {
+  const { id, anchor } = e.detail || {};
+  toggleMenu(id, anchor);
+}
+
+const openSongId = () => getCurrentTrackInfo()?.id;
+
+// The library row's own path into Up Next: upNext.js takes adds only by this event.
+function onAddOpenSongToUpNext() {
+  const id = openSongId();
+  if (id) document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id } }));
+}
+
+function onOpenSongMenuClick(e) {
+  toggleMenu(openSongId(), e.currentTarget, { openSong: true });
+}
+
+const OPEN_SONG_UP_NEXT_IDS = ["songUpNextBtn", "stageUpNextBtn"];
+const OPEN_SONG_MORE_IDS = ["songMoreBtn", "stageMoreBtn"];
+
+function wireOpenSongButtons() {
+  for (const id of OPEN_SONG_UP_NEXT_IDS) {
+    document.getElementById(id)?.addEventListener("click", onAddOpenSongToUpNext);
+  }
+  for (const id of OPEN_SONG_MORE_IDS) {
+    document.getElementById(id)?.addEventListener("click", onOpenSongMenuClick);
+  }
+}
+
 export function initTrackMenu() {
   document.addEventListener("trackmenu", onTrackMenuRequest);
   document.getElementById("catalogList")?.addEventListener("scroll", closeMenu, { passive: true });
+  wireOpenSongButtons();
 }
