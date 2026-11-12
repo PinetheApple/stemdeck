@@ -149,6 +149,7 @@ LYRICS_RUNNING_BLOCKS_MOVE = (
 LYRICS_RUNNING_BLOCKS_RESET = (
     "Lyrics are still being made. Wait for them or cancel them, then reset."
 )
+STEMS_FOLDER_MOVING = "Restart StemDeck to finish moving your stems folder, then make the lyrics."
 
 _MAX_UPLOAD_BYTES = 400 * 1024 * 1024  # 400 MB
 _WS_RE = re.compile(r"\s+")
@@ -1704,6 +1705,8 @@ async def start_lyrics_retime(job_id: str, request: Request) -> JSONResponse:
     await asyncio.to_thread(_retime_ready, job_dir, lyrics)
     if TRANSCRIBE_RUNS.running(job_id):
         raise HTTPException(status_code=409, detail=TRANSCRIPTION_RUNNING)
+    if is_relocating():
+        raise HTTPException(status_code=409, detail=STEMS_FOLDER_MOVING)
     run = RETIME_RUNS.claim(job_id)
     if run is None:
         raise HTTPException(status_code=409, detail=LYRICS_TIMING_RUNNING)

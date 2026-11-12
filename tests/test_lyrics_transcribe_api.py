@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 
 import app.api.jobs as jobs_mod
 from app.core import settings as settings_mod
+from app.core import stems_location
 from app.core.models import Job
 from app.core.registry import _jobs
 from app.pipeline import lyrics_retime as rt
@@ -181,6 +182,14 @@ def test_refused_while_the_lyrics_are_being_timed(client):
     rt.RETIME_RUNS.claim(JOB_ID)
     r = client.post(URL)
     assert r.status_code == 409 and r.json()["detail"] == "lyrics timing already running"
+
+
+def test_refused_while_the_stems_folder_moves(client, monkeypatch):
+    done_job()
+    monkeypatch.setattr(stems_location, "_relocating", True)
+    r = client.post(URL)
+    assert r.status_code == 409 and r.json()["detail"] == jobs_mod.STEMS_FOLDER_MOVING
+    assert tod.TRANSCRIBE_RUNS.current(JOB_ID) is None
 
 
 def test_timing_is_refused_while_a_transcription_runs(client, monkeypatch):
