@@ -570,6 +570,7 @@ function holdBand(trackId, entry) {
 
 function dropHeldBand(trackId) {
   if (!(trackId in _heldBands)) return;
+  _refusedHeldBands.delete(trackId);
   delete _heldBands[trackId];
   saveHeldBands();
 }

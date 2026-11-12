@@ -17,6 +17,8 @@ import {
 const API = /\/api\//;
 const CATALOG_MODULE = "/js/catalog.js";
 const LYRICS = /\/api\/jobs\/[a-f0-9]{12}\/lyrics$/;
+// A keep carries ?picked=false when it is not the user's pick.
+const KEEP = /\/api\/jobs\/[a-f0-9]{12}\/lyrics(\?.*)?$/;
 const WIKIMEDIA = /^https:\/\/((www|query)\.wikidata\.org|[a-z-]+\.wikipedia\.org)\//;
 const WRITES_REFUSED = 503;
 const READ_METHODS = new Set(["GET", "HEAD"]);
@@ -28,7 +30,6 @@ const A_REPEAT_WOULD_HAVE_LEFT_MS = 500;
 const LIBRARY_SHOWN_MS = 20000;
 const TRACK_OPEN_MS = 15000;
 const LOOKUP_REFUSED = "Could not look up lyrics right now. Try again later.";
-const LRCLIB_OUT_OF_REACH = "Could not reach LRCLIB. Check your connection and try again.";
 const NOTHING_KNOWN = "This track has no artist or song tags.";
 const NOT_FOUND = "No lyrics found";
 const REFUSED = { status: WRITES_REFUSED, json: { detail: "writes unavailable" } };
@@ -70,9 +71,20 @@ async function answerLookups(page, answers, writes) {
   });
 }
 
+/** Keeping lyrics never reaches the server, as on a dropped connection; each is recorded in `writes`. */
+async function dropKeeps(page, writes) {
+  await page.route(KEEP, (route) => {
+    const request = route.request();
+    if (request.method() !== "PUT") return route.fallback();
+    writes.push(`PUT ${new URL(request.url()).pathname}`);
+    return route.abort();
+  });
+}
+
 /** Boot with the fixture track tagged `audioTags`, the server keeping `kept` lyrics;
- * `lookups` answers its lookups in turn, else they are refused as every write is. */
-async function boot(page, { audioTags = TAGS, kept = null, lookups = null } = {}) {
+ * `lookups` answers its lookups in turn, else they are refused as every write is,
+ * and `keepsDropped` loses every keep on the way. */
+async function boot(page, { audioTags = TAGS, kept = null, lookups = null, keepsDropped = false } = {}) {
   await page.route(LYRICS, (route) => {
     if (route.request().method() !== "GET") return route.fallback();
     if (kept) return route.fulfill({ status: 200, json: kept });
@@ -88,6 +100,7 @@ async function boot(page, { audioTags = TAGS, kept = null, lookups = null } = {}
   await stubAudioTags(page, null);
   const writes = await refuseWrites(page);
   if (lookups) await answerLookups(page, lookups, writes);
+  if (keepsDropped) await dropKeeps(page, writes);
   await seedCatalogState(page, {
     folders: [
       { id: "f-unsorted", name: "Unsorted", items: [JOB_ID, SIBLING_JOB_ID], color: null },
@@ -158,6 +171,16 @@ test.describe("opening a song while the server refuses writes", () => {
     expect(lyricsWrites(writes)).toHaveLength(1);
   });
 
+  test("a keep that never reached the server is sent again on the next open", async ({ page }) => {
+    const writes = await boot(page, { audioTags: { ...TAGS, lyrics: EMBEDDED }, keepsDropped: true });
+    await expect(page.locator(".lyrics-line")).toHaveText(["Embedded one", "Embedded two"]);
+
+    await openAgain(page);
+
+    await expect(page.locator(".lyrics-line")).toHaveText(["Embedded one", "Embedded two"]);
+    expect(lyricsWrites(writes)).toHaveLength(3);
+  });
+
   test("a refused lookup is not asked again on each open, only by Look up again", async ({ page }) => {
     const writes = await boot(page);
     const lookups = lookupsIn(writes);
@@ -183,12 +206,12 @@ test.describe("opening a song while the server refuses writes", () => {
     await openAgain(page);
 
     await expect(lyricsStatus(page)).toContainText(NOTHING_KNOWN);
-    expect(lookupsIn(writes)().length).toBeGreaterThan(2);
+    expect(lookupsIn(writes)()).toHaveLength(4);
   });
 
   test("a lookup already running is asked again on the next open", async ({ page }) => {
     const writes = await boot(page, { lookups: [ALREADY_LOOKING, NO_LYRICS] });
-    await expect(lyricsStatus(page)).toHaveText(LRCLIB_OUT_OF_REACH);
+    await expect(lyricsStatus(page)).toHaveText(LOOKUP_REFUSED);
 
     await openAgain(page);
 

@@ -43,7 +43,7 @@ on an NVIDIA GPU.
 
 Opening a song in the Lyrics view keeps the file's own lyrics on the server when it has none,
 and keeps what a lookup finds. If the server refuses, it is not asked again until you press
-**Look up again** or restart StemDeck.
+**Look up again** or reload StemDeck.
 
 ## Separation quality
 
