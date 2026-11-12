@@ -39,6 +39,9 @@ def torch_load_error() -> str | None:
     return _torch_load_error
 
 
+TORCH_DEVICE_CUDA = "cuda"
+
+
 def available_torch_devices() -> list[str]:
     """Compute devices this machine can actually use, best-first. CPU is always
     present; cuda/mps depend on the hardware + installed torch build. The
@@ -50,7 +53,7 @@ def available_torch_devices() -> list[str]:
         import torch
 
         if torch.cuda.is_available():
-            devices.append("cuda")
+            devices.append(TORCH_DEVICE_CUDA)
         if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
             devices.append("mps")
         _torch_load_error = None
@@ -72,21 +75,14 @@ def available_torch_devices() -> list[str]:
     return devices
 
 
-# What drives torch's "cuda" device, as reported to Settings (gpu_backend).
 GPU_BACKEND_CUDA = "cuda"
 GPU_BACKEND_ROCM = "rocm"
 
 
 def torch_gpu_backend(devices: list[str]) -> str | None:
-    """What drives the "cuda" device in `devices` (an available_torch_devices()
-    result): GPU_BACKEND_CUDA for NVIDIA, GPU_BACKEND_ROCM for AMD, None
-    without one.
-
-    A ROCm build of torch serves an AMD GPU through torch.cuda, so the device
-    stays "cuda" and only what the user is shown tells them apart. Read off the
-    build (torch.version.hip is set on ROCm only), never by asking the card:
-    GPU work belongs to the worker processes."""
-    if "cuda" not in devices:
+    """NVIDIA or AMD behind the cuda device, read off the build: a ROCm torch
+    serves AMD as cuda and is the only build that sets torch.version.hip."""
+    if TORCH_DEVICE_CUDA not in devices:
         return None
     import torch
 

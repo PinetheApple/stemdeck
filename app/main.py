@@ -418,8 +418,6 @@ def _settings_payload() -> dict[str, object]:
         "demucs_device": get_demucs_device_choice(),
         "demucs_device_resolved": get_demucs_device(),
         "demucs_devices_available": devices,
-        # "cuda" (NVIDIA) | "rocm" (AMD) | None: a ROCm build serves an AMD GPU
-        # as "cuda", so the device alone cannot name the GPU to the user.
         "gpu_backend": torch_gpu_backend(devices),
         # Set when torch is installed but cannot load, which stops separation
         # on every device (#730). Read after the probe above refreshed it.

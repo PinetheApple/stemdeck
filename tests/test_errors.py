@@ -21,8 +21,7 @@ from app.pipeline.errors import (
         ("OSError: cannot allocate memory", CAUSE_OUT_OF_MEMORY),
         ("RuntimeError: no kernel image is available for execution", CAUSE_UNSUPPORTED_DEVICE),
         ("AssertionError: Torch not compiled with CUDA enabled", CAUSE_UNSUPPORTED_DEVICE),
-        # A ROCm build of torch on an AMD GPU, in HIP's and MIOpen's words. The
-        # first two match older patterns, kept so a reordering cannot lose them.
+        # A ROCm build of torch on an AMD GPU, in HIP's and MIOpen's words.
         (
             "torch.OutOfMemoryError: HIP out of memory. Tried to allocate 1.50 GiB",
             CAUSE_OUT_OF_MEMORY,

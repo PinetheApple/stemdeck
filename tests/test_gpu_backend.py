@@ -1,11 +1,4 @@
-"""Which kind of GPU drives torch's "cuda" device.
-
-A ROCm build of torch serves an AMD GPU through torch.cuda, so the device is
-"cuda" for NVIDIA and AMD alike, and every device setting, job record and
-worker stays as it is. Only what the user is shown needs to tell them apart.
-These swap in a stand-in torch, so they run whether the real torch here is a
-CPU, CUDA or ROCm build, or absent.
-"""
+"""Which GPU drives torch's "cuda" device, with a stand-in torch."""
 
 from __future__ import annotations
 
