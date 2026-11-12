@@ -277,11 +277,6 @@ check("no band on the server keeps the entry", action({ artist: null }) === HELD
 check("a malformed server band keeps the entry", action({ artist: { id: "x" } }) === HELD_KEEP);
 check("a featured artist added to the tag is the same name", action({ artist: SERVER, user_artist: "Local ft. Someone" }) === HELD_SEND);
 
-const refusedAction = (state) => heldBandAction(ENTRY, heldTrack, job("a", state), true);
-check("a refused entry keeps over a differing band", refusedAction({ artist: SERVER }) === HELD_KEEP);
-check("a refused entry still drops for a saved band", refusedAction({ user_band: SERVER, artist: SERVER }) === HELD_DROP);
-check("a refused entry still drops for a renamed artist", refusedAction({ artist: SERVER, user_artist: "New" }) === HELD_DROP);
-
 async function sendOutcome(send) {
   const dropped = [];
   const refused = [];
@@ -323,10 +318,17 @@ for (const status of [200, 404, 422]) {
   check("a 422 answers no state", answer === null);
 }
 for (const failure of [httpError(500), httpError(409), httpError(503), new Error("offline")]) {
-  const { dropped, refused, answer } = await sendOutcome(async () => { throw failure; });
+  const { dropped, answer } = await sendOutcome(async () => { throw failure; });
   check(`${failure.message} keeps the entry`, same(dropped, []), dropped);
-  check(`${failure.message} marks the entry refused`, same(refused, ["a"]), refused);
   check(`${failure.message} answers no state`, answer === null);
+}
+for (const failure of [httpError(500), httpError(409), httpError(503)]) {
+  const { refused } = await sendOutcome(async () => { throw failure; });
+  check(`${failure.message} marks the entry refused`, same(refused, ["a"]), refused);
+}
+{
+  const { refused } = await sendOutcome(async () => { throw new TypeError("Failed to fetch"); });
+  check("a failed connection is not a refusal", same(refused, []), refused);
 }
 
 console.log(`${pass} passed, ${fail} failed`);

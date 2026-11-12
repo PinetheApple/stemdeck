@@ -59,7 +59,7 @@ const _trashChangedAt = new Map();
 // Bands the upload left unsent, by track: { band, tagName }. See trackBand.js.
 let _heldBands = {};
 const _heldBandSends = new Set();
-// Held bands whose save failed this run: retried at the next boot, not on every open.
+// Held bands whose save the server refused this run: retried at the next boot.
 const _refusedHeldBands = new Set();
 // The newest save per track, and the band to go back to if it fails.
 const _bandSaves = new Map();
@@ -580,6 +580,7 @@ function refuseHeldBand(trackId) {
 
 function moveHeldBand(oldId, newId) {
   if (!(oldId in _heldBands)) return;
+  if (_refusedHeldBands.delete(oldId)) _refusedHeldBands.add(newId);
   _heldBands[newId] = _heldBands[oldId];
   dropHeldBand(oldId);
 }
@@ -602,9 +603,10 @@ function settleHeldBand(trackId, state) {
   const entry = _heldBands[trackId];
   // A save from the artist box is on its way, and its answer settles the entry.
   if (!entry || !tracks[trackId] || _bandSaves.has(trackId)) return;
-  const action = heldBandAction(entry, tracks[trackId], state, _refusedHeldBands.has(trackId));
+  const action = heldBandAction(entry, tracks[trackId], state);
   if (action === HELD_DROP) dropHeldBand(trackId);
-  if (action === HELD_SEND && !_heldBandSends.has(trackId)) saveHeldBand(trackId, entry);
+  const unsent = !_heldBandSends.has(trackId) && !_refusedHeldBands.has(trackId);
+  if (action === HELD_SEND && unsent) saveHeldBand(trackId, entry);
 }
 
 function rollBackBand(trackId, previous, title) {
