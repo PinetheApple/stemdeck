@@ -4636,6 +4636,15 @@ function applyTranscribeWording(overlay, gpuBackend) {
 // General settings: max track length (minutes), playlist import limit, and
 // MP4 video quality. Read live
 // and POSTed on change to /api/settings (same runtime store as the toggle).
+const COOKIES_IN_LIBRARY_CODE = "cookies_in_library";
+const COOKIES_INSIDE_LIBRARY_KEY = "settings.cookies.insideLibrary";
+const COOKIES_INVALID_KEY = "settings.cookies.invalid";
+
+async function cookiesRefusalKey(response) {
+  const body = await response.json().catch(() => ({}));
+  return body.code === COOKIES_IN_LIBRARY_CODE ? COOKIES_INSIDE_LIBRARY_KEY : COOKIES_INVALID_KEY;
+}
+
 async function wireGeneralSettings(overlay) {
   const durInput = overlay.querySelector(".set-max-duration");
   const durDesc = overlay.querySelector(".set-max-duration-desc");
@@ -4688,6 +4697,7 @@ async function wireGeneralSettings(overlay) {
     // Unset is the normal case, so read the key rather than truthiness --
     // clearing the field must survive the round trip and not be repopulated.
     if (cookiesInput && "cookies_file" in d) cookiesInput.value = d.cookies_file || "";
+    if (cookiesMsg && d.cookies_file_in_library) cookiesMsg.textContent = i18nT(COOKIES_INSIDE_LIBRARY_KEY);
     // Read the key, not truthiness: false is the normal value here and the
     // whole point of the setting, so `d.auto_delete_jobs &&` would leave the
     // switch showing whatever it showed last.
@@ -4795,7 +4805,7 @@ async function wireGeneralSettings(overlay) {
   });
   // Not routed through post(): a bad path gets its own message by the field,
   // or the user retypes it and never learns why nothing happened.
-  cookiesInput?.addEventListener("change", async () => {
+  const saveCookiesFile = async () => {
     if (cookiesMsg) cookiesMsg.textContent = "";
     try {
       const r = await fetch("/api/settings", {
@@ -4808,10 +4818,11 @@ async function wireGeneralSettings(overlay) {
       } else if (cookiesMsg) {
         // The server's detail is an English string; show the translated key
         // instead so this reads correctly in every locale.
-        cookiesMsg.textContent = i18nT("settings.cookies.invalid");
+        cookiesMsg.textContent = i18nT(await cookiesRefusalKey(r));
       }
     } catch { /* offline: leave the field as typed */ }
-  });
+  };
+  cookiesInput?.addEventListener("change", saveCookiesFile);
   heightSel?.addEventListener("change", () => {
     post({ video_max_height: parseInt(heightSel.value, 10) });
   });
