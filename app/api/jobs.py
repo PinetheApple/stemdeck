@@ -586,18 +586,26 @@ def _failure_dir(job_id: str) -> Path:
 def _set_trashed(job_id: str, trashed: bool) -> Job:
     """Trash or restore a job, a failed one in its failure record too, which is
     what it is read back from after a restart."""
-    if _known_job(job_id) is None:
-        raise HTTPException(status_code=404, detail="job not found")
+    _known_job(job_id)
     job = registry_set_trashed(job_id, trashed)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
-    record = _failure_dir(job_id) / FAILED_RECORD_FILE
-    if job.status == STATUS_ERROR and record.is_file():
-        try:
-            write_json_atomic(record, job.to_record())
-        except OSError:
-            logger.warning("[%s] could not save the Trash state of a failed job", job_id)
+    _save_trash_state(job)
     return job
+
+
+def _save_trash_state(job: Job) -> None:
+    """Only trashed_at is written: a failure still being kept has a record whose
+    status the job does not show yet."""
+    path = _failure_dir(job.id) / FAILED_RECORD_FILE
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+        record["trashed_at"] = job.trashed_at
+        write_json_atomic(path, record)
+    except FileNotFoundError:
+        return
+    except (OSError, ValueError, TypeError):
+        logger.warning("[%s] could not save the Trash state of a failed job", job.id)
 
 
 def _known_job(job_id: str) -> Job | None:

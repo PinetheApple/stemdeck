@@ -33,6 +33,7 @@ CAUSE_OUT_OF_MEMORY = "out-of-memory"
 CAUSE_UNSUPPORTED_DEVICE = "unsupported-device"
 CAUSE_DISK_FULL = "disk-full"
 CAUSE_SOURCE_UNAVAILABLE = "source-unavailable"
+CAUSE_UNKNOWN = "unknown"
 
 # Ordered, first match wins. Substring match against lowercased text.
 # Deliberately coarse: these route a user (or a bug report) to the right
@@ -120,4 +121,4 @@ def classify_failure(text: str) -> str:
     for cause, patterns in _CAUSE_PATTERNS:
         if any(p in low for p in patterns):
             return cause
-    return "unknown"
+    return CAUSE_UNKNOWN
