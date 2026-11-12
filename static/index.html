@@ -388,6 +388,12 @@
             <button class="daw-details-btn" type="button" id="np-details-btn" title="About this song" aria-label="About this song" data-i18n-title="artist.openTitle" data-i18n-aria-label="artist.openTitle">
               <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /> <path d="M12 16v-4" /> <path d="M12 8h.01" /></svg>
             </button>
+            <button class="daw-details-btn" type="button" id="songUpNextBtn" title="Add to Up Next" aria-label="Add to Up Next" data-i18n-title="upNext.add" data-i18n-aria-label="upNext.add">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M16 19H3"/><path d="M18 9v6"/><path d="M21 12h-6"/></svg>
+            </button>
+            <button class="daw-details-btn" type="button" id="songMoreBtn" title="More" aria-label="More" aria-haspopup="menu" aria-expanded="false" data-i18n-title="trackMenu.open" data-i18n-aria-label="trackMenu.open">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            </button>
           </div>
 
           <!-- Hidden spans for JS compat: written to, never shown. -->
@@ -705,6 +711,14 @@
               <div class="stage-song">
                 <div class="stage-title" id="stageTitle">—</div>
                 <div class="stage-artist" id="stageArtist"></div>
+              </div>
+              <div class="stage-song-actions">
+                <button class="stage-exit stage-icon-btn" id="stageUpNextBtn" type="button" title="Add to Up Next" aria-label="Add to Up Next" data-i18n-title="upNext.add" data-i18n-aria-label="upNext.add">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M16 19H3"/><path d="M18 9v6"/><path d="M21 12h-6"/></svg>
+                </button>
+                <button class="stage-exit stage-icon-btn" id="stageMoreBtn" type="button" title="More" aria-label="More" aria-haspopup="menu" aria-expanded="false" data-i18n-title="trackMenu.open" data-i18n-aria-label="trackMenu.open">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                </button>
               </div>
               <button class="stage-exit" id="stageExitBtn" type="button" title="Exit stage (Esc)" data-i18n-title="stage.exitTitle">
                 <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/></svg>
