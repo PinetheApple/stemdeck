@@ -5702,3 +5702,5 @@ input, textarea { font-family: inherit; }
 @container song-head (max-width: 760px) {
   #songHead #nowPlayingPanel .track-panel-head :is(#songUpNextBtn, #songMoreBtn) { width: var(--ctl-h-sm); }
 }
+/* Disabled as the library row hides its own: a trashed or unfinished song is queued nowhere. */
+#songHead #nowPlayingPanel .track-panel-head :is(#songUpNextBtn, #songMoreBtn):disabled { opacity: var(--disabled-opacity); cursor: default; pointer-events: none; }

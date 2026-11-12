@@ -4,7 +4,15 @@
 
 import { addSongToSetlist, createSetlistFrom, getSetlists } from "./setlists.js";
 import { startRowRename } from "./songRename.js";
-import { folderChoices, getCurrentTrackInfo, moveTrackToFolder, moveTrackToNewFolder } from "./catalog.js";
+import {
+  TRASH_CHANGE_EVENT,
+  folderChoices,
+  getCurrentTrackInfo,
+  isPlayableTrack,
+  moveTrackToFolder,
+  moveTrackToNewFolder,
+} from "./catalog.js";
+import { queueUpNext } from "./upNext.js";
 import { t } from "./i18n.js";
 import { iconButton } from "./libraryControls.js";
 
@@ -63,8 +71,9 @@ function folderSection(trackId, anchor) {
   ];
 }
 
-function renameItems(trackId, openSong) {
-  if (openSong) return [];
+/** The open song's menu has no Rename: the song head has its own, and Stage has no row to edit in. */
+function renameItems(trackId, rename) {
+  if (!rename) return [];
   return [
     menuItem(t("trackMenu.rename"), "pencil", function onRenameSong() {
       startRowRename(trackId);
@@ -72,14 +81,13 @@ function renameItems(trackId, openSong) {
   ];
 }
 
-/** The open song's menu has no Rename: the song head has its own, and Stage has no row to edit in. */
-function buildMenu(trackId, anchor, openSong) {
+function buildMenu(trackId, anchor, { rename }) {
   const el = document.createElement("div");
   el.className = "lib-menu";
   el.setAttribute("role", "menu");
   el.setAttribute("aria-label", t("trackMenu.open"));
   el.append(
-    ...renameItems(trackId, openSong),
+    ...renameItems(trackId, rename),
     menuLabel(t("trackMenu.addToSetlist")),
     ...getSetlists().map((setlist) => setlistItem(setlist, trackId)),
     menuItem(t("trackMenu.newSetlist"), "plus", function onNewSetlistWithSong() {
@@ -151,11 +159,11 @@ function closeMenu() {
   window.removeEventListener("resize", closeMenu);
 }
 
-function toggleMenu(id, anchor, { openSong = false } = {}) {
+function toggleMenu(id, anchor, { rename = true } = {}) {
   const reopening = menu && anchorEl === anchor;
   closeMenu();
   if (!id || !anchor || reopening) return;
-  menu = buildMenu(id, anchor, openSong);
+  menu = buildMenu(id, anchor, { rename });
   anchorEl = anchor;
   anchor.setAttribute("aria-expanded", "true");
   document.body.append(menu);
@@ -170,28 +178,44 @@ function onTrackMenuRequest(e) {
   toggleMenu(id, anchor);
 }
 
-const openSongId = () => getCurrentTrackInfo()?.id;
-
-// The library row's own path into Up Next: upNext.js takes adds only by this event.
-function onAddOpenSongToUpNext() {
-  const id = openSongId();
-  if (id) document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id } }));
-}
-
-function onOpenSongMenuClick(e) {
-  toggleMenu(openSongId(), e.currentTarget, { openSong: true });
-}
-
 const OPEN_SONG_UP_NEXT_IDS = ["songUpNextBtn", "stageUpNextBtn"];
 const OPEN_SONG_MORE_IDS = ["songMoreBtn", "stageMoreBtn"];
 
+function openSongButtons(ids = [...OPEN_SONG_UP_NEXT_IDS, ...OPEN_SONG_MORE_IDS]) {
+  return ids.map((id) => document.getElementById(id)).filter(Boolean);
+}
+
+/** The library row's rule: a trashed or unfinished open song is offered to nothing. */
+function playableOpenSongId() {
+  const id = getCurrentTrackInfo()?.id;
+  return isPlayableTrack(id) ? id : null;
+}
+
+function paintOpenSongButtons() {
+  const playable = Boolean(playableOpenSongId());
+  for (const button of openSongButtons()) button.disabled = !playable;
+}
+
+function onAddOpenSongToUpNext() {
+  const id = playableOpenSongId();
+  if (id) queueUpNext(id);
+}
+
+function onOpenSongMenuClick(e) {
+  toggleMenu(playableOpenSongId(), e.currentTarget, { rename: false });
+}
+
 function wireOpenSongButtons() {
-  for (const id of OPEN_SONG_UP_NEXT_IDS) {
-    document.getElementById(id)?.addEventListener("click", onAddOpenSongToUpNext);
+  for (const button of openSongButtons(OPEN_SONG_UP_NEXT_IDS)) {
+    button.addEventListener("click", onAddOpenSongToUpNext);
   }
-  for (const id of OPEN_SONG_MORE_IDS) {
-    document.getElementById(id)?.addEventListener("click", onOpenSongMenuClick);
+  for (const button of openSongButtons(OPEN_SONG_MORE_IDS)) {
+    button.addEventListener("click", onOpenSongMenuClick);
   }
+  for (const eventName of ["trackopen", "tracknames", TRASH_CHANGE_EVENT]) {
+    document.addEventListener(eventName, paintOpenSongButtons);
+  }
+  paintOpenSongButtons();
 }
 
 export function initTrackMenu() {
