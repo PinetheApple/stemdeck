@@ -1,8 +1,10 @@
 mod certs;
 mod dragout;
 mod dropin;
+mod store_file;
 #[cfg(any(not(target_os = "macos"), test))]
 mod torchswap;
+mod user_data;
 
 use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
@@ -24,7 +26,6 @@ use std::{
 };
 use tar::{Archive, EntryType};
 use tauri::{Emitter, Manager};
-use tauri_plugin_store::StoreExt;
 #[cfg(windows)]
 use zip::ZipArchive;
 
@@ -359,7 +360,6 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_store::Builder::default().build())
         .setup(|app| {
             // A portable folder the user cannot write to (Program Files, say)
             // cannot work at all: setup, the CUDA swap and the updater all
@@ -489,6 +489,7 @@ fn main() {
             Ok(())
         })
         .manage(BackendState::default())
+        .manage(user_data::UserData::default())
         .manage(dropin::DropInbox::default())
         // Only ever fires where the native drop handler is on, which is Linux
         // (see dropin::NATIVE_FILE_DROP). Elsewhere the page handles drops.
@@ -533,6 +534,7 @@ fn main() {
             pick_exports_folder,
             current_exports_dir,
             start_audio_drag,
+            store_ready,
             store_get,
             store_set,
             reset_user_data,
@@ -541,6 +543,9 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("failed to build StemDeck desktop app")
         .run(|app_handle, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                save_unsaved_user_data(app_handle);
+            }
             if let tauri::RunEvent::WindowEvent {
                 event: tauri::WindowEvent::CloseRequested { .. },
                 ..
@@ -606,22 +611,22 @@ fn current_jobs_dir(app: &tauri::AppHandle) -> PathBuf {
 /// which relocation never touched -- a stems move would "forget" favorites,
 /// folder layout, and per-job mixer state even though the audio moved fine.
 ///
-/// One-time migration: if the new location has nothing yet, copy (not move)
-/// any pre-#403 file found at the old parent-folder path. Copy rather than
-/// delete so a problem here can never lose the only copy of that data.
+/// The legacy file at the old parent-folder path is copied in, never moved,
+/// when the store opens on a first run (store_file::OpenStore::open).
 fn documents_store_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let jobs_dir = current_jobs_dir(app);
     fs::create_dir_all(&jobs_dir)
         .map_err(|e| format!("failed to create {}: {e}", jobs_dir.display()))?;
-    let new_path = jobs_dir.join("user-data.json");
-    if !new_path.is_file() {
-        if let Ok(old_path) = documents_stemdeck_dir(app).map(|d| d.join("user-data.json")) {
-            if old_path.is_file() && old_path != new_path {
-                let _ = fs::copy(&old_path, &new_path);
-            }
-        }
+    Ok(jobs_dir.join("user-data.json"))
+}
+
+fn user_data_place(app: &tauri::AppHandle) -> user_data::Place {
+    user_data::Place {
+        path: documents_store_path(app),
+        legacy: documents_stemdeck_dir(app)
+            .ok()
+            .map(|d| d.join("user-data.json")),
     }
-    Ok(new_path)
 }
 
 /// True if `path` exists and contains at least one entry. Used to tell an
@@ -721,10 +726,16 @@ async fn pick_exports_folder(app: tauri::AppHandle) -> Result<Option<String>, St
     };
 
     let chosen = picked.to_string();
-    let store_path = documents_store_path(&app)?;
-    let store = app.store(store_path).map_err(|e| e.to_string())?;
-    store.set(EXPORTS_DIR_KEY, serde_json::Value::String(chosen.clone()));
-    store.save().map_err(|e| e.to_string())?;
+    let mut entries = serde_json::Map::new();
+    entries.insert(
+        EXPORTS_DIR_KEY.to_string(),
+        serde_json::Value::String(chosen.clone()),
+    );
+    app.state::<user_data::UserData>().set_all(
+        user_data_place(&app),
+        report_user_data_problem,
+        entries,
+    )?;
     Ok(Some(chosen))
 }
 
@@ -737,9 +748,10 @@ fn current_exports_dir(app: tauri::AppHandle) -> Result<String, String> {
 /// Read a string out of the persistent store, or None if it is absent or is
 /// not a string. Never fails the caller: a missing store means "not chosen".
 fn stored_string(app: &tauri::AppHandle, key: &str) -> Option<String> {
-    let path = documents_store_path(app).ok()?;
-    let store = app.store(path).ok()?;
-    let value = store.get(key)?;
+    let value = app
+        .state::<user_data::UserData>()
+        .get(user_data_place(app), report_user_data_problem, key)
+        .ok()??;
     value.as_str().map(|s| s.to_string())
 }
 
@@ -754,34 +766,79 @@ fn exports_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+/// To stderr and setup.log, so a recovered or emptied library list is never silent.
+fn report_user_data_problem(line: &str) {
+    eprintln!("[stemdeck] {line}");
+    if let Ok(data_dir) = local_data_dir() {
+        append_to_setup_log(&data_dir, line);
+    }
+}
+
+/// At exit, the save a command could not make, tried once more.
+fn save_unsaved_user_data(app: &tauri::AppHandle) {
+    if let Some(Err(e)) = app.state::<user_data::UserData>().save_unsaved() {
+        report_user_data_problem(&format!("could not save user-data.json at exit: {e}"));
+    }
+}
+
+/// How long store_ready keeps trying to open a store a scanner or sync client
+/// holds, and the pause between tries.
+const STORE_READY_WAIT: Duration = Duration::from_secs(10);
+const STORE_READY_PAUSE: Duration = Duration::from_millis(500);
+
+/// Called by the page before its first read (static/js/utils.js): opens the
+/// store, waiting off the main thread, and lifts the block on writes.
+#[tauri::command]
+async fn store_ready(app: tauri::AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let data = app.state::<user_data::UserData>();
+        let last = std::cell::RefCell::new(String::new());
+        // Each distinct failure is logged once, not once per try.
+        let report = |line: &str| {
+            if *last.borrow() != line {
+                report_user_data_problem(line);
+                *last.borrow_mut() = line.to_string();
+            }
+        };
+        user_data::wait_until_ready(
+            || data.ready(user_data_place(&app), report),
+            STORE_READY_WAIT,
+            STORE_READY_PAUSE,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Get a value from the persistent user-data store.
 #[tauri::command]
 fn store_get(app: tauri::AppHandle, key: String) -> Result<Option<serde_json::Value>, String> {
-    let path = documents_store_path(&app)?;
-    let store = app.store(path).map_err(|e| e.to_string())?;
-    Ok(store.get(&key))
+    app.state::<user_data::UserData>()
+        .get(user_data_place(&app), report_user_data_problem, &key)
 }
 
 /// Set a value in the persistent user-data store and immediately flush to disk.
 #[tauri::command]
 fn store_set(app: tauri::AppHandle, key: String, value: serde_json::Value) -> Result<(), String> {
-    let path = documents_store_path(&app)?;
-    let store = app.store(path).map_err(|e| e.to_string())?;
-    store.set(key, value);
-    store.save().map_err(|e| e.to_string())
+    let mut entries = serde_json::Map::new();
+    entries.insert(key, value);
+    app.state::<user_data::UserData>().set_all(
+        user_data_place(&app),
+        report_user_data_problem,
+        entries,
+    )
 }
 
 /// Clear the persistent user-data store entirely (Settings -> General ->
 /// "Reset app data"). Complements the backend's own job-data wipe (POST
 /// /api/reset) -- together they fully clear a user's local StemDeck state,
 /// including the per-job mixer-state keys (stemdeck:mix:<job_id>) that have
-/// no fixed enumeration to clear individually.
+/// no fixed enumeration to clear individually. The store's copies go too, or
+/// a later recovery would bring the old library back.
 #[tauri::command]
 fn reset_user_data(app: tauri::AppHandle) -> Result<(), String> {
-    let path = documents_store_path(&app)?;
-    let store = app.store(path).map_err(|e| e.to_string())?;
-    store.clear();
-    store.save().map_err(|e| e.to_string())
+    app.state::<user_data::UserData>()
+        .reset(user_data_place(&app), report_user_data_problem)
 }
 
 /// Called by JS after the one-time localStorage → store migration completes.
