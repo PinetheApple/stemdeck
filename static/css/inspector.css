@@ -410,6 +410,7 @@
 .inspector .details-song .daw-track-meta-line > :not(.details-fact) { grid-column: 1 / -1; }
 .inspector .details-song .daw-track-sep { display: none; }
 .inspector .details-song .details-fact { display: contents; }
+.inspector .details-song .details-fact[hidden] { display: none; }
 .inspector .details-song .details-fact-label {
   color: var(--text-3);
   font-weight: var(--fw-semibold);
