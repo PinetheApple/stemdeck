@@ -9,7 +9,7 @@ import { destroyPlayer, wireUpAudio, setWaveformLoading, updateFooterTrack } fro
 import { notifyFailure, dismissFailuresByJobId } from "./notifications.js";
 import { getStagePhrases } from "./phrases.js";
 import { addTrackToLibrary, replaceableTrackId, setCurrentTrack, updateTrackStatus, applyStemPresenceCards, paintKeyConfidence, libraryAudioTags, libraryArtist, libraryIdentity, libraryWork, paintFinishedTrackNames, armAutoOpen, refreshFailedImport, retryFailedImport } from "./catalog.js";
-import { FAILED_STATUS, HTTP_QUEUE_FULL, LOCAL_PREFIX, SOURCE_KIND, failureReasonKey } from "./importSource.js";
+import { FAILED_STATUS, LOCAL_PREFIX, SOURCE_KIND, failureReasonKey, retryErrorText } from "./importSource.js";
 import { initSections } from "./sections.js";
 import { importPlaylist, looksLikePlaylist } from "./playlist.js";
 import { t } from "./i18n.js";
@@ -630,10 +630,8 @@ function sanitizeFilename(name) {
 
 /** Why a retry or its replacement import did not start, in words. */
 export function showRetryError(status, detail) {
-  let message = t("job.startFailed", { message: detail || t("job.unknownError") });
-  if (status === HTTP_QUEUE_FULL) message = t("playlist.queueFull");
-  else if (status === HTTP_CONFLICT) message = t("job.reimportBusy");
-  showError(message, null, { onRetry: null });
+  const { key, message } = retryErrorText(status, detail);
+  showError(t(key, { message: message || t("job.unknownError") }), null, { onRetry: null });
 }
 
 /** A new import in place of a failed one; its data, or null once the reason is shown. */

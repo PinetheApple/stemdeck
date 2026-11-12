@@ -5,9 +5,10 @@ import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 
 export const FAILED_STATUS = "error";
 export const LOCAL_PREFIX = "local:";
-export const HTTP_QUEUE_FULL = 503;
+const HTTP_QUEUE_FULL = 503;
 const HTTP_GONE = 410;
 const RESTORE_FIRST_DETAIL = "restore it from the Trash first";
+const STEMS_FOLDER_MOVING_DETAIL = "Restart StemDeck to finish moving your stems folder before importing";
 
 export const SOURCE_KIND = Object.freeze({ LINK: "link", FILE: "file" });
 
@@ -79,9 +80,15 @@ export function retryOutcome({ ok, status, detail }, kind) {
     return kind === SOURCE_KIND.LINK ? RETRY_OUTCOME.REIMPORT_LINK : RETRY_OUTCOME.FILE_GONE;
   }
   if (status === HTTP_GONE) return RETRY_OUTCOME.FILE_GONE;
-  if (status === HTTP_CONFLICT) {
-    return detail === RESTORE_FIRST_DETAIL ? RETRY_OUTCOME.RESTORE_FIRST : RETRY_OUTCOME.REFRESH;
-  }
+  if (status === HTTP_CONFLICT && detail === RESTORE_FIRST_DETAIL) return RETRY_OUTCOME.RESTORE_FIRST;
+  if (status === HTTP_CONFLICT && detail !== STEMS_FOLDER_MOVING_DETAIL) return RETRY_OUTCOME.REFRESH;
   if (status === HTTP_QUEUE_FULL) return RETRY_OUTCOME.QUEUE_FULL;
   return RETRY_OUTCOME.FAILED;
+}
+
+/** The i18n key, and the server's reason for job.startFailed, for a retry or replacement import that did not start. */
+export function retryErrorText(status, detail) {
+  if (status === HTTP_QUEUE_FULL) return { key: "playlist.queueFull" };
+  if (status === HTTP_CONFLICT && detail !== STEMS_FOLDER_MOVING_DETAIL) return { key: "job.reimportBusy" };
+  return { key: "job.startFailed", message: detail };
 }

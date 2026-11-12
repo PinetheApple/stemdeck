@@ -23,6 +23,7 @@ const HTTP_NOT_FOUND = 404;
 const HTTP_UNAVAILABLE = 503;
 const HTTP_CONFLICT = 409;
 const RESTORE_FIRST_DETAIL = "restore it from the Trash first";
+const STEMS_FOLDER_MOVING_DETAIL = "Restart StemDeck to finish moving your stems folder before importing";
 const RETRY_URL = /\/api\/jobs\/(e2e0fa11ed0[0-9])\/retry$/;
 const FAILED_STATE_URL = /\/api\/jobs\/e2e0fa11ed0[0-9]$/;
 const NEW_IMPORT_URL = /\/api\/jobs$/;
@@ -282,6 +283,13 @@ test.describe("failed import rows", () => {
 
     await expect(row(page, LINK_FAILED).locator(".cat-sub")).toHaveText(await uiText(page, "job.processing"));
     expect(server.retries).toEqual([LINK_FAILED]);
+  });
+
+  test("a retry while the stems folder moves says why", async ({ page }) => {
+    await openFailedLibrary(page, { retry: HTTP_CONFLICT, retryDetail: STEMS_FOLDER_MOVING_DETAIL });
+    await row(page, LINK_FAILED).locator(".cat-retry").click();
+    await expect(page.locator("#error .error-msg"))
+      .toHaveText(await uiText(page, "job.startFailed", { message: STEMS_FOLDER_MOVING_DETAIL }));
   });
 
   test("a failed job in the Trash says to restore it first", async ({ page }) => {

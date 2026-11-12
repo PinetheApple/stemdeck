@@ -9,7 +9,7 @@ globalThis.localStorage = { getItem: () => null, setItem: () => {} };
 const { LANGUAGES, TRANSLATIONS } = await import("../../static/js/i18n.js");
 const {
   FILE_GONE_REASON_KEY, RETRY_OUTCOME, SOURCE_KIND, failureReasonKey, importSource,
-  needsFilePickedAgain, retryOutcome, sourceKindOf,
+  needsFilePickedAgain, retryErrorText, retryOutcome, sourceKindOf,
 } = await import("../../static/js/importSource.js");
 
 let pass = 0,
@@ -72,6 +72,14 @@ check("410 asks for the file", retryOutcome(answer(410), "file") === RETRY_OUTCO
 check("409 job has not failed refreshes the state", retryOutcome(answer(409, "job has not failed"), "link") === RETRY_OUTCOME.REFRESH);
 check("409 in the Trash says restore it first",
   retryOutcome(answer(409, "restore it from the Trash first"), "link") === RETRY_OUTCOME.RESTORE_FIRST);
+const STEMS_MOVING = "Restart StemDeck to finish moving your stems folder before importing";
+check("409 while the stems folder moves is a refusal, not a refresh",
+  retryOutcome(answer(409, STEMS_MOVING), "link") === RETRY_OUTCOME.FAILED);
+check("the stems-folder refusal is shown in words", retryErrorText(409, STEMS_MOVING).key === "job.startFailed"
+  && retryErrorText(409, STEMS_MOVING).message === STEMS_MOVING);
+check("a replacement already importing says so", retryErrorText(409, "busy").key === "job.reimportBusy");
+check("a full queue says so", retryErrorText(503, "x").key === "playlist.queueFull");
+check("anything else names the server's reason", retryErrorText(500, "boom").message === "boom");
 check("503 says the queue is full", retryOutcome(answer(503), "link") === RETRY_OUTCOME.QUEUE_FULL);
 check("anything else failed", retryOutcome(answer(500), "link") === RETRY_OUTCOME.FAILED);
 
