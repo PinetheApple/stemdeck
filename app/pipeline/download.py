@@ -645,7 +645,7 @@ def download(job: Job, url: str, job_dir: Path) -> Path:
 
     _set(
         job,
-        title=info.get("title") or meta.get("title"),
+        title=info.get("title") or meta.get("title") or job.title,
         duration_sec=info.get("duration") or duration,
         thumbnail=info.get("thumbnail") or meta.get("thumbnail"),
     )
