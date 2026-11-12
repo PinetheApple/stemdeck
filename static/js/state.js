@@ -17,7 +17,8 @@ export const keyChip = $("t-key");
 export const stemsChip = $("t-stems-chip");
 export const timeEl = $("t-time");
 export const masterFader = $("t-master");
-export const speedBtns = ["t-speed-05", "t-speed-075", "t-speed-1"].map($);
+export const speedFader = $("t-speed");
+export const speedValueBox = $("t-speed-value");
 export const pitchDownBtn = $("t-pitch-down");
 export const pitchUpBtn = $("t-pitch-up");
 export const pitchValueEl = $("t-pitch-value");
@@ -26,7 +27,6 @@ export const pitchResetBtn = $("t-pitch-reset");
 // pointer events in every browser, so a title on it is unreadable exactly
 // when it has something to say.
 export const pitchWrap = $("t-pitch-wrap");
-export const speedWrap = $("t-speed-wrap");
 export const npArt = $("np-art");
 export const npThumb = $("np-thumb");
 

@@ -254,7 +254,8 @@ test.describe("stage mode counter", () => {
   test("keeps to the song's own time at a slowed speed", async ({ page }) => {
     await setUp(page, { grid: gridAnswer(fixtureBeats(), [{ beat: 0, beats_per_bar: 4 }]) });
     await waitForGrid(page);
-    await page.locator("#t-speed-075").click();
+    await page.locator("#t-speed-value").fill("0.75");
+    await page.locator("#t-speed-value").press("Enter");
     await enterStage(page);
     await page.locator("#stagePlayBtn").click();
     await expect(ui(page).count).toHaveText(/^2\./, { timeout: 15000 });

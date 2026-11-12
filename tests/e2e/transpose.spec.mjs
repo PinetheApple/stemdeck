@@ -167,13 +167,16 @@ test.describe("transpose", () => {
     // The two share a worklet, and the pitch stage changes the stretch ratio
     // the speed control also depends on. They have to stay independent.
     await openStudio(page);
-    await page.locator("#t-speed-075").click();
-    await expect(page.locator("#t-speed-075")).toHaveClass(/active/);
+    const speed = page.locator("#t-speed-value");
+    const appliedSpeed = () => page.evaluate(async () => (await import("/js/state.js")).playbackSpeed);
+    await speed.fill("0.75");
+    await speed.press("Enter");
+    await expect.poll(appliedSpeed).toBe(0.75);
 
     await up(page).click();
     await expect(value(page)).toHaveText("+1");
-    await expect(page.locator("#t-speed-075")).toHaveClass(/active/);
-    await expect(page.locator("#t-speed-1")).not.toHaveClass(/active/);
+    await expect(speed).toHaveValue("0.75x");
+    expect(await appliedSpeed()).toBe(0.75);
   });
 
   test("reopening a track resets its displayed and applied key", async ({ page }) => {
@@ -367,7 +370,7 @@ test.describe("transpose over an insecure origin", () => {
     await openStudio(page);
     // Speed still works here, it just resamples -- the one degradation that is
     // otherwise completely silent.
-    await expect(page.locator("#t-speed-wrap")).toHaveAttribute("title", /key|pitch/i);
+    await expect(page.locator("#t-speed")).toHaveAttribute("title", /changes the key/i);
   });
 
   test("a secure origin that still cannot build the worklet says something else", async ({ page }) => {
@@ -382,6 +385,6 @@ test.describe("transpose over an insecure origin", () => {
     await openStudio(page);
     await expect(up(page)).toBeEnabled();
     await expect(page.locator("#t-pitch-wrap")).not.toHaveAttribute("title", /.+/);
-    await expect(page.locator("#t-speed-wrap")).not.toHaveAttribute("title", /.+/);
+    await expect(page.locator("#t-speed")).toHaveAttribute("title", /double-click/i);
   });
 });

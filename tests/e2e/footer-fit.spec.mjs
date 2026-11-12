@@ -62,6 +62,16 @@ const singleRowFit = (page) =>
 // full-size Position cluster fits in, and one where the old levels hid every label.
 const NARROWEST_FIT_WIDTH = 620;
 
+const SPEED_FADER_WIDTHS = [NARROWEST_FIT_WIDTH, NARROW_WINDOW.width, ...ROOMY_WIDTHS];
+const SPEED_CONTROLS = ["#t-speed", "#t-speed-value"];
+
+const insideStrip = (page, selector) =>
+  page.evaluate((sel) => {
+    const strip = document.querySelector(".footer-clusters").getBoundingClientRect();
+    const el = document.querySelector(sel).getBoundingClientRect();
+    return el.width > 0 && el.left >= strip.left && el.right <= strip.right;
+  }, selector);
+
 const stripReports = (page) => page.evaluate(() => window.stripWidths.length);
 
 // Every footerfit event with the window width it fired at, and every strip width change.
@@ -223,6 +233,20 @@ test.describe("footer fit", () => {
     await expectLabelsReadable(page);
     expect(await collapseLevels(page)).toEqual([ROWS_LEVEL]);
   });
+
+  for (const width of SPEED_FADER_WIDTHS) {
+    test(`at ${width} the speed fader and its box sit wholly inside the strip`, async ({ page }) => {
+      await page.setViewportSize({ width, height: WINDOW_HEIGHT });
+      await openStudio(page, { tauri: true });
+      await waitForClickTrack(page, { revealOptions: false });
+
+      await expectLabelsReadable(page);
+      for (const selector of SPEED_CONTROLS) {
+        await expect(page.locator(selector)).toBeVisible();
+        expect(await insideStrip(page, selector)).toBe(true);
+      }
+    });
+  }
 
   // Deleted: "the page itself never scrolls sideways".
   //

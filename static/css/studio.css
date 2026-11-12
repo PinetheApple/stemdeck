@@ -365,26 +365,76 @@
   font-weight: var(--fw-medium);
 }
 
-.footer-seg {
+.speed-fader {
+  --speed-thumb: var(--icon-sm);
+  --speed-track: var(--s-1);
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: calc(var(--s-7) * 1.5);
   height: var(--ctl-h);
-  gap: var(--seg-inset);
-  padding: var(--seg-inset);
-  overflow: visible;
-  border-color: var(--line);
-  border-radius: var(--r-2);
-  background: none;
 }
-.footer-seg > button {
-  padding: 0 var(--s-2);
-  border-radius: var(--r-1);
-  color: var(--text-3);
-  font: var(--fw-medium) var(--fs-sm) / 1 var(--font-sans);
-  font-variant-numeric: tabular-nums;
+.speed-fader-input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: var(--target-min);
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
 }
-.footer-seg > button:hover { background: none; color: var(--text); }
-.footer-seg > button + button { border-left: 0; }
-.speed-btn.active,
-.speed-btn.active:hover { background: var(--surface-3); color: var(--text); }
+.speed-fader-input::-webkit-slider-runnable-track {
+  height: var(--speed-track);
+  border-radius: var(--r-pill);
+  background: var(--surface-4);
+}
+.speed-fader-input::-moz-range-track {
+  height: var(--speed-track);
+  border-radius: var(--r-pill);
+  background: var(--surface-4);
+}
+.speed-fader-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: var(--speed-thumb);
+  height: var(--speed-thumb);
+  margin-top: calc((var(--speed-track) - var(--speed-thumb)) / 2);
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.speed-fader-input::-moz-range-thumb {
+  width: var(--speed-thumb);
+  height: var(--speed-thumb);
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.speed-fader-input:hover::-webkit-slider-thumb { filter: brightness(var(--hover-brightness)); }
+.speed-fader-input:hover::-moz-range-thumb { filter: brightness(var(--hover-brightness)); }
+/* Below 1x the thumb and the number turn coral, as Global key does when transposed. */
+.footer-group-speed.slowed .speed-fader-input::-webkit-slider-thumb { background: var(--accent); }
+.footer-group-speed.slowed .speed-fader-input::-moz-range-thumb { background: var(--accent); }
+.footer-group-speed.slowed .speed-value { color: var(--accent); }
+/* Inset by half a thumb, so each notch sits under the thumb's centre at its value. */
+.speed-notches {
+  position: absolute;
+  left: calc(var(--speed-thumb) / 2);
+  right: calc(var(--speed-thumb) / 2);
+  top: calc(50% + var(--s-2));
+  pointer-events: none;
+}
+.speed-notch {
+  position: absolute;
+  left: calc(var(--i) * 10%);
+  width: 1px;
+  height: var(--s-1);
+  background: var(--text-4);
+  transform: translateX(-50%);
+}
+.speed-notch.major { height: var(--s-2); background: var(--text-3); }
+.speed-value { width: 5ch; cursor: text; }
 
 .pitch-group { display: flex; align-items: center; gap: var(--s-1); }
 .footer-group-key .daw-iconbtn {
