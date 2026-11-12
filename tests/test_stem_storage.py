@@ -125,6 +125,8 @@ async def test_settings_endpoint_reads_and_saves_both(client):
         {"stem_mp3_kbps": "192"},
         {"stem_mp3_kbps": True},
         {"stem_format": "mp3", "stem_mp3_kbps": 64},
+        {"stem_format": None},
+        {"stem_mp3_kbps": None},
     ],
 )
 async def test_one_bad_value_is_refused_and_changes_nothing(client, body):

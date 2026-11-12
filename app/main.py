@@ -68,6 +68,8 @@ from app.core.settings import (
     CookiesInLibraryError,
     acoustid_api_key_hint,
     acoustid_key_format_ok,
+    check_stem_format,
+    check_stem_mp3_kbps,
     cookies_file_in_library,
     discogs_token_format_ok,
     discogs_token_hint,
@@ -531,16 +533,21 @@ def _save_idle_unload_minutes(value: object) -> None:
         raise HTTPException(status_code=500, detail="Could not save idle_unload_minutes")
 
 
-_STEM_STORAGE_KEYS = ("stem_format", "stem_mp3_kbps")
+_STEM_FORMAT_KEY = "stem_format"
+_STEM_KBPS_KEY = "stem_mp3_kbps"
+_STEM_STORAGE_KEYS = (_STEM_FORMAT_KEY, _STEM_KBPS_KEY)
 
 
 def _update_stem_storage(body: dict) -> None:
-    """Both values are checked before either is kept: one bad value changes
-    nothing, and the 422 lists the choices without echoing what was sent."""
+    """Both values are checked before either is kept: one bad value, null
+    included, changes nothing, and the 422 lists the choices without echoing
+    what was sent."""
     if not isinstance(body, dict) or not any(key in body for key in _STEM_STORAGE_KEYS):
         return
     try:
-        set_stem_storage(*(body.get(key) for key in _STEM_STORAGE_KEYS))
+        fmt = check_stem_format(body[_STEM_FORMAT_KEY]) if _STEM_FORMAT_KEY in body else None
+        kbps = check_stem_mp3_kbps(body[_STEM_KBPS_KEY]) if _STEM_KBPS_KEY in body else None
+        set_stem_storage(fmt, kbps)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from None
 
