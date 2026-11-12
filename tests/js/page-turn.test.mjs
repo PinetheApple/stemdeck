@@ -88,6 +88,11 @@ const afterHeldTurn = followStep({ ...on, holdToEdge: true }, view(4000, 5010));
 check('after the held turn, turns go back to 90%',
   afterHeldTurn.holdToEdge === false
   && followStep({ ...on, holdToEdge: afterHeldTurn.holdToEdge }, view(4910, 4910 + 950)).target !== null);
+const seekAt95 = followStep({ ...on, resumed: true }, view(4000, 4950));
+check('a seek past the turn point but on the page leaves the view put and waits for the edge',
+  seekAt95.target === null && seekAt95.holdToEdge === true);
+check('a seek past the right edge still turns to it',
+  followStep({ ...on, resumed: true }, view(4000, 5500)).target === 5400);
 check('paused: back in view before the turn point resumes as normal',
   followStep({ ...on, paused: true }, view(4000, 4500)).holdToEdge === false);
 
