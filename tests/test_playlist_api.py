@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+import app.core.config as cfg
 from app.core.registry import _jobs
 from app.pipeline import jobqueue
 from app.pipeline.download import (
@@ -311,9 +312,17 @@ def _import(client) -> dict:
     return client.post("/api/playlist", json={"url": PLAYLIST_URL}).json()
 
 
+def _finish(job, *, with_stems: bool = True) -> None:
+    job.status = "done"
+    if with_stems:
+        stems = cfg.JOBS_DIR / job.id / "stems"
+        stems.mkdir(parents=True, exist_ok=True)
+        (stems / "vocals.wav").write_bytes(b"RIFF")
+
+
 def _finish_all() -> None:
     for job in _jobs.values():
-        job.status = "done"
+        _finish(job)
 
 
 def _reasons(body: dict) -> dict[str, str]:
@@ -346,12 +355,24 @@ def test_failed_cancelled_and_trashed_copies_are_imported_again(client, fake_ydl
     first, second, third = _jobs.values()
     first.status = "error"
     second.status = "cancelled"
-    third.status = "done"
+    _finish(third)
     third.trashed_at = 1.0
 
     body = _import(client)
     assert body["queued"] == 3
     assert body["skipped"] == []
+
+
+def test_a_finished_copy_whose_files_are_gone_is_imported_again(client):
+    _import(client)
+    gone, *kept = _jobs.values()
+    _finish(gone, with_stems=False)
+    for job in kept:
+        _finish(job)
+
+    body = _import(client)
+    assert [j["source_url"] for j in body["jobs"]] == [gone.source_url]
+    assert set(_reasons(body).values()) == {"in_library"}
 
 
 def test_a_track_listed_twice_is_imported_once(client, fake_ydl):

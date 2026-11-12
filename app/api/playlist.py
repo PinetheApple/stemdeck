@@ -18,6 +18,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from app.api.jobs import _job_files_missing
 from app.core.config import JOBS_DIR, MAX_PENDING_URL_JOBS, STEM_NAMES
 from app.core.models import FINISHED_STATUSES, STATUS_DONE, Job
 from app.core.registry import all_jobs as registry_all_jobs
@@ -83,12 +84,14 @@ def _partition(items: list[Track]) -> tuple[list[Track], list[Track]]:
     return keep[:cap], too_long
 
 
+def _holds_song(job: Job) -> bool:
+    if not job.source_url or job.trashed_at is not None or job.status in _GONE_STATUSES:
+        return False
+    return job.status != STATUS_DONE or not _job_files_missing(job)
+
+
 def _library_urls() -> set[str]:
-    return {
-        job.source_url
-        for job in registry_all_jobs().values()
-        if job.source_url and job.trashed_at is None and job.status not in _GONE_STATUSES
-    }
+    return {job.source_url for job in registry_all_jobs().values() if _holds_song(job)}
 
 
 def _split_in_library(items: list[Track]) -> tuple[list[Track], list[Track]]:
