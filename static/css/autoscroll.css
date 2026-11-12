@@ -25,7 +25,7 @@
 }
 .app.no-track .autoscroll-toggle { opacity: var(--disabled-opacity); pointer-events: none; }
 
-@container song-head (max-width: 680px) {
+@container song-head (max-width: 900px) {
   #songHead .autoscroll-toggle { width: var(--ctl-h-sm); padding: 0; justify-content: center; }
   /* Clipped rather than display: none, so the label stays the accessible name. */
   #songHead .autoscroll-toggle > span {
