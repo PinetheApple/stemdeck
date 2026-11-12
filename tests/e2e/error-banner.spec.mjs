@@ -23,7 +23,8 @@ test.describe("the error box", () => {
       const s = getComputedStyle(el);
       return { position: s.position, background: s.backgroundColor, color: s.color };
     });
-    expect(look.position).toBe("fixed");
+    // Floats over the page rather than pushing it about.
+    expect(look.position).not.toBe("static");
     // Opaque, so the page behind never shows through the words.
     expect(look.background).toMatch(/^rgb\(/);
     // The body text token (--text), not a tint of the error colour.

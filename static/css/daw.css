@@ -5666,3 +5666,14 @@ input, textarea { font-family: inherit; }
   border: 1px solid var(--line-strong); border-radius: var(--radius-xs);
   font-size: var(--fs-2xs); color: var(--text-2);
 }
+/* In the waveforms' corner, clear of Extract stems, the mixer and the transport. Not at
+   or below responsive.css's 900px breakpoint, where the lanes are too narrow for it. */
+@media (min-width: 901px) {
+  .daw:not(.stage-mode) #error {
+    position: absolute;
+    top: auto;
+    right: var(--s-4);
+    bottom: var(--s-4);
+    max-width: calc(100% - var(--daw-col-w) - 2 * var(--s-4));
+  }
+}
