@@ -4614,10 +4614,11 @@ function wireDiscogsSetting(overlay) {
 // and POSTed on change to /api/settings (same runtime store as the toggle).
 const COOKIES_IN_LIBRARY_CODE = "cookies_in_library";
 const COOKIES_INSIDE_LIBRARY_KEY = "settings.cookies.insideLibrary";
+const COOKIES_INVALID_KEY = "settings.cookies.invalid";
 
 async function cookiesRefusalKey(response) {
   const body = await response.json().catch(() => ({}));
-  return body.code === COOKIES_IN_LIBRARY_CODE ? COOKIES_INSIDE_LIBRARY_KEY : "settings.cookies.invalid";
+  return body.code === COOKIES_IN_LIBRARY_CODE ? COOKIES_INSIDE_LIBRARY_KEY : COOKIES_INVALID_KEY;
 }
 
 async function wireGeneralSettings(overlay) {
