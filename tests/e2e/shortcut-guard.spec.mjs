@@ -111,8 +111,9 @@ test.describe("one-key shortcuts and what they leave alone", () => {
 
   test("a focused mixer fader moves on its arrows and leaves K, L and Space to the shortcuts", async ({ page }) => {
     await setUp(page);
-    const fader = page.locator(MIXER_FADER).first();
+    const fader = page.locator(MIXER_FADER).filter({ visible: true }).first();
     await fader.focus();
+    await expect(fader).toBeFocused();
     const before = await studioState(page);
     const startValue = await fader.inputValue();
 
@@ -135,6 +136,7 @@ test.describe("one-key shortcuts and what they leave alone", () => {
     await setUp(page);
     const fader = page.locator(SPEED_FADER);
     await fader.focus();
+    await expect(fader).toBeFocused();
     const before = await studioState(page);
 
     await page.keyboard.press("ArrowLeft");
