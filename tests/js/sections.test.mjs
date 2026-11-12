@@ -90,6 +90,7 @@ const clearBtn = {
   },
   querySelector: () => null,
   addEventListener: () => {},
+  setAttribute: () => {},
 };
 // A failed save is recorded in the notification store, which falls back to localStorage.
 globalThis.window = {};
