@@ -21,6 +21,19 @@ from app.pipeline.errors import (
         ("OSError: cannot allocate memory", CAUSE_OUT_OF_MEMORY),
         ("RuntimeError: no kernel image is available for execution", CAUSE_UNSUPPORTED_DEVICE),
         ("AssertionError: Torch not compiled with CUDA enabled", CAUSE_UNSUPPORTED_DEVICE),
+        # A ROCm build of torch on an AMD GPU, in HIP's and MIOpen's words.
+        (
+            "torch.OutOfMemoryError: HIP out of memory. Tried to allocate 1.50 GiB",
+            CAUSE_OUT_OF_MEMORY,
+        ),
+        ("RuntimeError: HIP error: invalid device function", CAUSE_UNSUPPORTED_DEVICE),
+        (
+            "hipErrorNoBinaryForGpu: Unable to find code object for all current devices!",
+            CAUSE_UNSUPPORTED_DEVICE,
+        ),
+        ("RuntimeError: No HIP GPUs are available", CAUSE_UNSUPPORTED_DEVICE),
+        ("RuntimeError: miopenStatusUnknownError", CAUSE_UNSUPPORTED_DEVICE),
+        ("RuntimeError: miopenStatusAllocFailed", CAUSE_OUT_OF_MEMORY),
         ("OSError: [Errno 28] No space left on device", CAUSE_DISK_FULL),
         ("Invalid data found when processing input", "bad-input"),
         ("RuntimeError: no stems produced by demucs", "bad-input"),

@@ -46,6 +46,8 @@ _CAUSE_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "cannot allocate memory",
             "out of memory",
             "memoryerror",
+            # Here, so it wins over the "miopenstatus" catch-all below.
+            "miopenstatusallocfailed",
         ),
     ),
     (
@@ -57,6 +59,9 @@ _CAUSE_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "cudnn error",
             "not currently implemented for the mps device",
             "torch not compiled with cuda",
+            "hiperrornobinaryforgpu",
+            "no hip gpus are available",
+            "miopenstatus",
         ),
     ),
     (

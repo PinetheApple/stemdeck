@@ -39,6 +39,9 @@ def torch_load_error() -> str | None:
     return _torch_load_error
 
 
+TORCH_DEVICE_CUDA = "cuda"
+
+
 def available_torch_devices() -> list[str]:
     """Compute devices this machine can actually use, best-first. CPU is always
     present; cuda/mps depend on the hardware + installed torch build. The
@@ -50,7 +53,7 @@ def available_torch_devices() -> list[str]:
         import torch
 
         if torch.cuda.is_available():
-            devices.append("cuda")
+            devices.append(TORCH_DEVICE_CUDA)
         if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
             devices.append("mps")
         _torch_load_error = None
@@ -70,6 +73,20 @@ def available_torch_devices() -> list[str]:
         _torch_load_error = reason
     devices.append("cpu")
     return devices
+
+
+GPU_BACKEND_CUDA = "cuda"
+GPU_BACKEND_ROCM = "rocm"
+
+
+def torch_gpu_backend(devices: list[str]) -> str | None:
+    """NVIDIA or AMD behind the cuda device, read off the build: a ROCm torch
+    serves AMD as cuda and is the only build that sets torch.version.hip."""
+    if TORCH_DEVICE_CUDA not in devices:
+        return None
+    import torch
+
+    return GPU_BACKEND_ROCM if getattr(torch.version, "hip", None) else GPU_BACKEND_CUDA
 
 
 def detect_torch_device() -> str:
