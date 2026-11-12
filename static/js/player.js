@@ -31,7 +31,7 @@ import {
 import { createAudioEngine, estimateDecodedBytes } from "./audioEngine.js";
 import { createChunkedAudioEngine } from "./chunkedAudioEngine.js";
 import { createPlaybackContext } from "./audioContext.js";
-import { effectivePitch, globalPitchFromLanes } from "./pitchBus.js";
+import { effectivePitch } from "./pitchBus.js";
 import { addVisualOnlyStems, buildPlaybackStems } from "./playbackStems.js";
 import { vuLevel } from "./vuScale.js";
 import { createMetronome } from "./metronome.js";
@@ -42,7 +42,7 @@ import {
   loadMixIntoState, resetMixerState, refreshMixerVisuals,
   setLaneControlsEnabled, ensureMixerStateDefaults, applyMix,
   renderRealMiniWave, renderRealMiniWaveFromPeaks, renderMixerRow,
-  applyAllLanePitches, setLaneKeysAvailable,
+  applyAllLanePitches, setLaneKeysAvailable, mixGlobalPitch,
 } from "./mixer.js";
 import {
   buildRuler, updatePlayheadMarker, updateLoopRegionVisual,
@@ -1551,16 +1551,15 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
           // "playback failed" notification if one was sitting there (#401).
           resolvePlaybackSuccess(jobId);
           eng.setLoop(loopEnabled, loopStart, loopEnd);
-          updatePitchAvailability(eng.supportsPitchShift?.() === true);
           applyMix(); // push per-stem gains (incl. >1.0 boost) into the engine
-          // Lane keys ride on the same engine, so they are restored from the
-          // per-track store in the same breath as the gains.
-          setLaneKeysAvailable(eng.supportsPitchShift?.() === true);
-          applyAllLanePitches();
-          // The engine can come up before the saved mix is read, so the keys follow the record.
+          // The engine can come up before the saved mix is read; a key step
+          // taken before it would be overwritten, so the controls wait for it.
           mixReady.then(() => {
-            if (audioEngine !== eng || !eng.supportsPitchShift?.()) return;
-            resetPitch(globalPitchFromLanes(mixerState, stems.map((s) => s.name)));
+            if (audioEngine !== eng) return;
+            const pitchable = eng.supportsPitchShift?.() === true;
+            updatePitchAvailability(pitchable);
+            if (pitchable) resetPitch(mixGlobalPitch());
+            setLaneKeysAvailable(pitchable);
             applyAllLanePitches();
           });
           document.dispatchEvent(new CustomEvent("playbackready", { detail: { id: jobId } }));

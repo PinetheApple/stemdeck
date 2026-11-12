@@ -90,6 +90,42 @@ const recentInputs = (page) => page.evaluate(
   () => [...new Set(window.__routes || [])].sort((a, b) => a - b),
 );
 
+/**
+ * Hold every read of a song's saved mix until the test releases it, and note
+ * when playback is ready, so the gap between the two can be inspected.
+ * Goes through the desktop store bridge, the only store read that can wait.
+ */
+async function holdMixRead(page) {
+  await page.addInitScript(() => {
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    window.__releaseMix = () => release();
+    document.addEventListener("playbackready", function notePlaybackReady() {
+      window.__playbackReady = true;
+    });
+    let bridge;
+    Object.defineProperty(window, "__TAURI__", {
+      configurable: true,
+      get: () => bridge,
+      set(value) {
+        const invoke = value.core.invoke;
+        value.core.invoke = function holdMixInvoke(cmd, args) {
+          const isMixRead = cmd === "store_get" && String(args?.key).startsWith("stemdeck:mix:");
+          return isMixRead ? held.then(() => invoke(cmd, args)) : invoke(cmd, args);
+        };
+        bridge = value;
+      },
+    });
+  });
+}
+
+async function seedMix(page, jobId, record) {
+  await page.addInitScript(
+    ([key, value]) => localStorage.setItem(key, JSON.stringify(value)),
+    [`stemdeck:mix:${jobId}`, record],
+  );
+}
+
 test.describe("transpose", () => {
   test("the group is labelled as the global key", async ({ page }) => {
     await openStudio(page);
@@ -214,6 +250,49 @@ test.describe("transpose", () => {
     await expect(value(page)).toHaveText("-2");
     await expect(value(page)).toHaveClass(/active/);
     await expect(laneValue(page, "vocals")).toHaveText("-2");
+  });
+
+  test("the saved global key outranks lanes moved back on their own", async ({ page }) => {
+    await recordRouting(page);
+    await openStudio(page);
+    await settleRoutes(page);
+    await down(page).click();
+    await down(page).click();
+    for (const stem of ["vocals", "bass"]) {
+      await laneUp(page, stem).click();
+      await laneUp(page, stem).click();
+      await expect(laneValue(page, stem)).toHaveText("K");
+    }
+    await expect(value(page)).toHaveText("-2");
+
+    await clearRoutes(page);
+    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().dblclick();
+    await settleRoutes(page);
+    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
+    await expect.poll(() => recentInputs(page)).toContain(ZERO_INPUT - 2);
+    await expect(value(page)).toHaveText("-2");
+    await expect(laneValue(page, "other")).toHaveText("-2");
+  });
+
+  test("the key controls wait for the song's saved mix", async ({ page }) => {
+    const lane = (pitch) => ({ volume: 1, muted: false, soloed: false, pitch });
+    await seedMix(page, JOB_ID, {
+      vocals: lane(-2),
+      drums: lane(0),
+      bass: lane(-2),
+      other: lane(-2),
+      globalPitch: -2,
+    });
+    await holdMixRead(page);
+    await openStudio(page, { tauri: true });
+    await page.waitForFunction(() => window.__playbackReady === true);
+    await expect(up(page)).toBeDisabled();
+    await expect(laneUp(page, "vocals")).toBeDisabled();
+
+    await page.evaluate(() => window.__releaseMix());
+    await expect(up(page)).toBeEnabled();
+    await expect(laneUp(page, "vocals")).toBeEnabled();
+    await expect(value(page)).toHaveText("-2");
   });
 
   test("disables transpose when AudioWorklet setup is unavailable", async ({ page }) => {

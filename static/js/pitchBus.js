@@ -36,30 +36,48 @@ export function effectivePitch(name, semitones, pitchable) {
   return clampPitch(semitones);
 }
 
+// Where a saved mix keeps the transport's global key, beside its lanes.
+export const GLOBAL_PITCH_FIELD = "globalPitch";
+
 /**
- * The global key a saved mix was left at, read back from its lanes.
+ * The global key a saved mix was left at.
  *
- * The mix saves only absolute lane keys, and the global control moves every
- * lane but drums by the same amount, so the key most of the song's lanes are
- * in is where it was left; on a tie, the one nearer the original.
+ * The record says so itself under GLOBAL_PITCH_FIELD. One saved before that
+ * field has only the lanes, which are absolute, and the global control moves
+ * every lane but drums together, so it is read back from them instead.
+ */
+export function savedGlobalPitch(record, laneNames) {
+  const saved = record?.[GLOBAL_PITCH_FIELD];
+  return Number.isFinite(saved) ? clampPitch(saved) : globalPitchFromLanes(record, laneNames);
+}
+
+/**
+ * The key most of the song's pitched lanes are in. A tie goes to the key
+ * nearer the original, then to the lower one, so stem order never decides.
  */
 export function globalPitchFromLanes(record, laneNames) {
-  const counts = new Map();
+  const laneCounts = new Map();
   for (const name of laneNames || []) {
-    const p = record?.[name]?.pitch;
-    if (name === "drums" || !Number.isFinite(p)) continue;
-    const key = clampPitch(p);
-    counts.set(key, (counts.get(key) || 0) + 1);
+    const lanePitch = record?.[name]?.pitch;
+    if (name === "drums" || !Number.isFinite(lanePitch)) continue;
+    const semitones = clampPitch(lanePitch);
+    laneCounts.set(semitones, (laneCounts.get(semitones) || 0) + 1);
   }
   let best = 0;
   let bestCount = 0;
-  for (const [key, n] of counts) {
-    if (n > bestCount || (n === bestCount && Math.abs(key) < Math.abs(best))) {
-      best = key;
-      bestCount = n;
+  for (const [semitones, count] of laneCounts) {
+    if (beatsVote(semitones, count, best, bestCount)) {
+      best = semitones;
+      bestCount = count;
     }
   }
   return best;
+}
+
+function beatsVote(semitones, count, best, bestCount) {
+  if (count !== bestCount) return count > bestCount;
+  if (Math.abs(semitones) !== Math.abs(best)) return Math.abs(semitones) < Math.abs(best);
+  return semitones < best;
 }
 
 /** Worklet input index for a given shift. */

@@ -18,7 +18,9 @@ import {
 } from "./state.js";
 import { storeGet, storeSetDebounced, storeFlushPending } from "./utils.js";
 import { t } from "./i18n.js";
-import { PITCH_MAX, PITCH_MIN, clampPitch, pitchBlockedKey } from "./pitchBus.js";
+import {
+  GLOBAL_PITCH_FIELD, PITCH_MAX, PITCH_MIN, clampPitch, pitchBlockedKey, savedGlobalPitch,
+} from "./pitchBus.js";
 
 function defaultMixerEntry() {
   // `pitch` is the key this lane is actually in, in semitones from the
@@ -35,14 +37,21 @@ export function ensureMixerStateDefaults() {
   }
 }
 
+// The transport's global key, saved in the same record as the lanes it moved.
+let globalPitch = 0;
+
+export function mixGlobalPitch() {
+  return globalPitch;
+}
+
+const mixKey = (jobId) => `stemdeck:mix:${jobId}`;
+
 export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES) {
-  const key = `stemdeck:mix:${jobId}`;
   let stored = {};
   try {
-    // A change still waiting out the debounce would otherwise be read past,
-    // then land in the store behind the reopened song.
-    await storeFlushPending(key);
-    const data = await storeGet(key, {});
+    // Write any pending save for this song before reading it.
+    await storeFlushPending(mixKey(jobId));
+    const data = await storeGet(mixKey(jobId), {});
     if (data && typeof data === "object") stored = data;
   } catch (e) { console.warn("[mixer] failed to load mix state:", e); }
   for (const name of allTrackNames()) {
@@ -53,17 +62,19 @@ export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES) {
   if (loadedStems.length > 0 && loadedStems.every((n) => mixerState[n].muted)) {
     for (const name of loadedStems) mixerState[name].muted = false;
   }
+  globalPitch = savedGlobalPitch(stored, loadedStemNames);
 }
 
 export function resetMixerState() {
   for (const name of allTrackNames()) {
     Object.assign(mixerState[name], defaultMixerEntry());
   }
+  globalPitch = 0;
 }
 
 function saveMix() {
   if (!currentJobId) return;
-  storeSetDebounced(`stemdeck:mix:${currentJobId}`, mixerState);
+  storeSetDebounced(mixKey(currentJobId), { ...mixerState, [GLOBAL_PITCH_FIELD]: globalPitch });
 }
 
 /** Push one lane's transpose into whichever engine is playing. */
@@ -89,18 +100,22 @@ export function applyAllLanePitches() {
  */
 export function nudgeAllLanePitches(delta) {
   if (!delta) return;
+  globalPitch = clampPitch(globalPitch + delta);
   for (const name of allTrackNames()) {
     const state = mixerState[name];
     if (!state || name === "drums") continue;
     setLanePitch(name, state.pitch + delta);
   }
+  saveMix();
 }
 
-/** Put every lane back in the recording's own key. */
+/** Put the global key and every lane back in the recording's own key. */
 export function resetAllLanePitches() {
+  globalPitch = 0;
   for (const name of allTrackNames()) {
     if (mixerState[name]) setLanePitch(name, 0);
   }
+  saveMix();
 }
 
 /**

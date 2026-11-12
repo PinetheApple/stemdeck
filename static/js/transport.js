@@ -1114,7 +1114,7 @@ function applyPitch(semitones) {
  * reloaded from the store for whatever is being opened.
  */
 export function resetPitch(semitones = 0) {
-  _pitchSemitones = Math.max(PITCH_MIN, Math.min(PITCH_MAX, Math.round(semitones)));
+  _pitchSemitones = semitones;
   renderPitch();
 }
 
