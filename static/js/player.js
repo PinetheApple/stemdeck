@@ -86,9 +86,6 @@ function engineMode() {
   return "chunked"; // default — stream in 5s chunks, fast start, low RAM
 }
 
-const CHUNKED_MODE = "chunked";
-const FULL_DECODE_MODE = "fulldecode";
-
 // Only the full-decode engine holds all PCM in RAM, so only it needs a size cap.
 // Above this estimated decoded-PCM size it falls back to streaming. The chunked
 // engine has no such cap (it never holds more than ~2 chunks). ~1.2 GB ≈ 6 stems
@@ -1279,8 +1276,8 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
   const engineStemCount = fullDecodeStems.filter((s) => s.url).length;
   const preferredMode = engineMode();
   // The chunked engine parses WAV containers itself and rejects compressed stems.
-  const mode = preferredMode === CHUNKED_MODE && hasCompressedStems(fullDecodeStems)
-    ? FULL_DECODE_MODE
+  const mode = preferredMode === "chunked" && hasCompressedStems(fullDecodeStems)
+    ? "fulldecode"
     : preferredMode;
   // Only the full-decode engine holds all PCM in RAM, so only it is size-capped;
   // the chunked engine streams and is never "too large".
