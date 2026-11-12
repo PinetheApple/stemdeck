@@ -85,7 +85,8 @@ function applyPanel(name, shown) {
   }
 }
 
-function persistPanel(name, shown) {
+function setPanel(name, shown) {
+  applyPanel(name, shown);
   try {
     localStorage.setItem(PANEL_STORE_PREFIX + name, shown ? "1" : "0");
   } catch (e) {
@@ -95,9 +96,8 @@ function persistPanel(name, shown) {
 
 // Focus goes to the Collapse toggle because that is the way back.
 function handleSectionsHideClick() {
-  applyPanel(SECTIONS_PANEL, false);
-  persistPanel(SECTIONS_PANEL, false);
-  document.querySelector(`.daw-panel-toggle[data-panel="${SECTIONS_PANEL}"]`)?.focus();
+  setPanel(SECTIONS_PANEL, false);
+  panelToggles.find((btn) => btn.dataset.panel === SECTIONS_PANEL)?.focus();
 }
 
 function wirePanelToggles() {
@@ -113,9 +113,7 @@ function wirePanelToggles() {
     }
     applyPanel(name, shown);
     btn.addEventListener("click", () => {
-      const next = panelApp.classList.contains(`panel-${name}-off`);
-      applyPanel(name, next);
-      persistPanel(name, next);
+      setPanel(name, panelApp.classList.contains(`panel-${name}-off`));
     });
   }
   document.getElementById("sectionsHideBtn")?.addEventListener("click", handleSectionsHideClick);
