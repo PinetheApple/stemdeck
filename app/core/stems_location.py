@@ -260,9 +260,10 @@ def move_library(current: Path, target: Path) -> MoveResult:
     the desktop shell's user-data.json, #403) from `current` into `target`.
 
     Entry by entry rather than moving the folder itself: the folder may be one
-    the user picked in a native dialog and expects to keep. This also means
-    nothing here needs to know about user-data.json specifically -- it lives
-    inside the jobs folder like any other entry, so it comes along for free.
+    the user picked in a native dialog and expects to keep. user-data.json moves
+    like any other entry; only its copies (.bak, .tmp, .corrupt-<n>) need care:
+    they replace stale ones at the target once user-data.json is there, and the
+    shell's .tmp may vanish mid-listing.
 
     On the same drive an entry is renamed, which is atomic. Across drives it is
     copied under a temporary name, checked against the original, put on the
