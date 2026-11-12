@@ -1,12 +1,14 @@
 // The open song offers its library row's Up Next and setlist actions from the
 // song head and from Stage, where the library row is out of reach.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, openStudio, stubServerTrash, waitForPanesSettled } from "./helpers.mjs";
+import { JOB_ID, JOB_LIST_URL, openStudio, stubServerTrash, waitForPanesSettled } from "./helpers.mjs";
 
 const SETLIST_NAME = "Gig";
 const UP_NEXT_KEY = "stemdeck.upNext";
 const NARROW_WINDOW = { width: 1024, height: 860 };
 const OPEN_SONG_BUTTONS = ["#songUpNextBtn", "#songMoreBtn", "#stageUpNextBtn", "#stageMoreBtn"];
+// As trash-playback.spec: a refocus syncs the library only once this long has passed.
+const PAST_FOCUS_SYNC_WAIT_MS = 16_000;
 
 // The e2e server lives for the whole run, so each test leaves no setlist behind.
 test.afterEach(async ({ request }) => {
@@ -39,6 +41,18 @@ function stageBarEdges(page) {
       viewRight: box("#stageView").right,
     };
   });
+}
+
+/** Bring the window back into view past the focus-sync wait, and return once the list was read. */
+async function syncOnFocus(page) {
+  await page.clock.fastForward(PAST_FOCUS_SYNC_WAIT_MS);
+  const listRead = page.waitForResponse((r) => JOB_LIST_URL.test(r.url()));
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await listRead;
+}
+
+async function clickEvery(page, selectors) {
+  for (const selector of selectors) await page.locator(selector).click({ force: true });
 }
 
 async function openWithSetlist(page, request) {
@@ -114,11 +128,25 @@ test("a trashed open song is offered to neither Up Next nor a setlist", async ({
   await libraryRow(page).hover();
   await libraryRow(page).locator(".cat-del").click();
   for (const button of OPEN_SONG_BUTTONS) await expect(page.locator(button)).toBeDisabled();
-  await page.locator("#songUpNextBtn").click({ force: true });
-  await page.locator("#songMoreBtn").click({ force: true });
+  await clickEvery(page, OPEN_SONG_BUTTONS.slice(0, 2));
   await page.locator("#stageModeBtn").click();
-  await page.locator("#stageUpNextBtn").click({ force: true });
-  await page.locator("#stageMoreBtn").click({ force: true });
+  await clickEvery(page, OPEN_SONG_BUTTONS.slice(2));
+  await expect(page.locator(".lib-menu")).toHaveCount(0);
+  expect(await storedUpNext(page)).toEqual([]);
+  expect(await serverSongIds(request)).toEqual([]);
+});
+
+test("an open song the library finds unavailable is offered to neither Up Next nor a setlist", async ({ page, request }) => {
+  await page.clock.install();
+  const server = await stubServerTrash(page);
+  await openWithSetlist(page, request);
+  server.unavailable.add(JOB_ID);
+  await syncOnFocus(page);
+  await expect(libraryRow(page).locator(".cat-status")).toHaveClass(/unavailable/);
+
+  await clickEvery(page, OPEN_SONG_BUTTONS.slice(0, 2));
+  await page.locator("#stageModeBtn").click();
+  await clickEvery(page, OPEN_SONG_BUTTONS.slice(2));
   await expect(page.locator(".lib-menu")).toHaveCount(0);
   expect(await storedUpNext(page)).toEqual([]);
   expect(await serverSongIds(request)).toEqual([]);
