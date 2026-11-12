@@ -22,6 +22,9 @@ logger = logging.getLogger("stemdeck.registry")
 # without it was cut off part way (upstream PR 901).
 STEMS_COMPLETE = ".complete"
 
+# Where a failed job's evidence is kept, under the jobs folder.
+FAILED_DIR_NAME = "failed"
+
 # Held by every read-modify-write of a song's metadata.json (app/api/jobs.py and
 # the copy restore() makes), so neither replaces the other's change. Reentrant:
 # a caller that reads the job's fields under it then writes through a helper
@@ -128,7 +131,7 @@ def quarantine_dirs(jobs_dir: Path) -> list[Path]:
     """The job folders in failed/ that are StemDeck's quarantine: the runner
     writes error.txt into each before moving it there. Empty when failed/ is a
     link, or holds only someone else's folders."""
-    failed_root = jobs_dir / "failed"
+    failed_root = jobs_dir / FAILED_DIR_NAME
     if not failed_root.exists() or not is_real_entry(failed_root):
         return []
     return [d for d in job_dirs(failed_root) if (d / "error.txt").is_file()]
@@ -160,7 +163,7 @@ def own_entries(jobs_dir: Path, known: set[str]) -> list[Path]:
 
 def remove_empty_failed_root(jobs_dir: Path, failed: list[str]) -> None:
     """failed/ goes only once empty: anything still in it is not ours."""
-    failed_root = jobs_dir / "failed"
+    failed_root = jobs_dir / FAILED_DIR_NAME
     if not failed_root.is_dir() or not is_real_entry(failed_root) or any(failed_root.iterdir()):
         return
     try:

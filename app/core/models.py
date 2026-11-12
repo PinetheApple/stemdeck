@@ -334,9 +334,7 @@ class Job:
     # for a link, and for an upload older than this field until its state is
     # first served (see _job_state).
     source_format: str | None = None
-    # An upload's file name as the user picked it ("Hollow Veins.wav"), which
-    # the title cannot give back: it is cleaned and has no extension. None for a
-    # link, and for an upload older than this field.
+    # An upload's file name as picked ("Hollow Veins.wav"); the title drops the extension.
     source_name: str | None = None
     # What the source said about itself (#699): {"artist", "title", "album",
     # "lyrics"}, each only when present. An upload's container tags, read
@@ -386,8 +384,7 @@ class Job:
     # Shown by the UI as a secondary line under the generic error message so
     # failures are actionable instead of uniformly opaque.
     error_detail: str | None = None
-    # Why the job failed, as a stable code the UI maps to its own words: a
-    # classify_failure cause (app/pipeline/errors.py). None for older failures.
+    # Why the job failed: a classify_failure cause the UI maps to its own words.
     error_code: str | None = None
     # Device the separation actually ran on ("cuda" / "mps" / "cpu"), recorded
     # per job for diagnostics -- settings may change between jobs.

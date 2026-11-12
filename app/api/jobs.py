@@ -72,7 +72,13 @@ from app.core.registry import set_trashed as registry_set_trashed
 from app.core.setlists import remove_songs as setlists_remove_songs
 from app.core.setlists import replace_song as setlists_replace_song
 from app.core.settings import get_auto_sections, get_discogs_token, get_max_duration_sec
-from app.core.song_folder import copy_saved_fields, keep_added_time, metadata_lock, update_metadata
+from app.core.song_folder import (
+    FAILED_DIR_NAME,
+    copy_saved_fields,
+    keep_added_time,
+    metadata_lock,
+    update_metadata,
+)
 from app.core.song_folder import write_json_atomic as _write_json_atomic
 from app.core.stems_location import is_relocating
 from app.pipeline import discogs, jobqueue
@@ -156,12 +162,12 @@ STEMS_FOLDER_MOVING = "Restart StemDeck to finish moving your stems folder, then
 JOB_NOT_FAILED = "job has not failed"
 SOURCE_FILE_GONE = "source file is gone"
 RESTORE_FROM_TRASH_FIRST = "restore it from the Trash first"
+RETRY_NOT_STARTED = "could not start the retry"
 SOURCE_KIND_LINK = "link"
 SOURCE_KIND_FILE = "file"
 
 _MAX_UPLOAD_BYTES = 400 * 1024 * 1024  # 400 MB
 _SOURCE_NAME_MAX_CHARS = 255
-_FAILED_DIR_NAME = "failed"
 _WS_RE = re.compile(r"\s+")
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
 
@@ -512,9 +518,7 @@ def trash_job(job_id: str) -> dict:
     """
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
-    job = registry_set_trashed(job_id, True)
-    if job is None:
-        raise HTTPException(status_code=404, detail="job not found")
+    job = _set_trashed(job_id, True)
     if job.status not in FINISHED_STATUSES:
         job.stop_requested = True
         _cancel_pipeline(job)
@@ -530,9 +534,7 @@ def restore_job(job_id: str) -> dict:
     """Take a job back out of the Trash."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
-    job = registry_set_trashed(job_id, False)
-    if job is None:
-        raise HTTPException(status_code=404, detail="job not found")
+    job = _set_trashed(job_id, False)
     registry_persist(JOBS_DIR)
     copy_saved_fields(job, JOBS_DIR / job.id)
     return {"job_id": job.id, "trashed_at": job.trashed_at}
@@ -556,31 +558,51 @@ def extract_stopped_job(job_id: str) -> dict:
         raise HTTPException(status_code=409, detail="only a stopped job can be extracted again")
     if job.trashed_at is not None:
         raise HTTPException(status_code=409, detail=RESTORE_FROM_TRASH_FIRST)
-    limit = MAX_PENDING_UPLOAD_JOBS if is_upload(job) else MAX_PENDING_URL_JOBS
-    if not registry_requeue_if_capacity(job, JOBS_DIR / job_id, limit):
-        raise HTTPException(
-            status_code=503,
-            detail=_UPLOAD_QUEUE_FULL_DETAIL if is_upload(job) else _URL_QUEUE_FULL_DETAIL,
-        )
+    _requeue_or_refuse(job)
     registry_persist(JOBS_DIR)
     jobqueue.enqueue(job_id)
     return job.to_state()
 
 
+def _requeue_or_refuse(job: Job) -> None:
+    """Put a finished job back in the queue, or 503 when its kind's queue is full."""
+    limit = MAX_PENDING_UPLOAD_JOBS if is_upload(job) else MAX_PENDING_URL_JOBS
+    if not registry_requeue_if_capacity(job, JOBS_DIR / job.id, limit):
+        raise HTTPException(
+            status_code=503,
+            detail=_UPLOAD_QUEUE_FULL_DETAIL if is_upload(job) else _URL_QUEUE_FULL_DETAIL,
+        )
+
+
 _ADOPT_LOCK = threading.Lock()
+# Held by retry and delete, so a delete never removes a retry's staged source.
 _RETRY_LOCK = threading.Lock()
 
 
 def _failure_dir(job_id: str) -> Path:
-    return JOBS_DIR / _FAILED_DIR_NAME / job_id
+    return JOBS_DIR / FAILED_DIR_NAME / job_id
+
+
+def _set_trashed(job_id: str, trashed: bool) -> Job:
+    """Trash or restore a job, a failed one in its failure record too, which is
+    what it is read back from after a restart."""
+    if _known_job(job_id) is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    job = registry_set_trashed(job_id, trashed)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    record = _failure_dir(job_id) / FAILED_RECORD_FILE
+    if job.status == STATUS_ERROR and record.is_file():
+        try:
+            write_json_atomic(record, job.to_record())
+        except OSError:
+            logger.warning("[%s] could not save the Trash state of a failed job", job_id)
+    return job
 
 
 def _known_job(job_id: str) -> Job | None:
-    """The registered job, else a failed one read back from its failure record.
-
-    Failed jobs are not in the registry file, so after a restart this is the
-    only way to show one, retry it or delete it. One the user deleted stays
-    deleted."""
+    """The registered job, else a failed one read back from its failure record,
+    unless the user deleted it."""
     job = registry_get(job_id)
     if job is not None or registry_is_deleted(job_id):
         return job
@@ -609,12 +631,8 @@ def _read_failure_record(job_id: str) -> Job | None:
 
 @router.post("/{job_id}/retry")
 def retry_job(job_id: str) -> dict:
-    """Run a failed import again, as the same job, from the source it kept.
-
-    A link is fetched again; an upload runs from the file its failure kept, and
-    410 says that file is gone, so the user picks it again. The same job id
-    goes back in the queue, so the library never gains a second entry. Like
-    Extract, a job in the Trash has to be restored first."""
+    """Run a failed import again, as the same job, from the source it kept;
+    410 when an upload's kept file is gone."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
     with _RETRY_LOCK:
@@ -644,18 +662,16 @@ def _stage_kept_upload(job: Job) -> list[str]:
         _move_files(names, _failure_dir(job.id), JOBS_DIR / job.id)
     except OSError:
         logger.exception("[%s] retry could not stage the kept upload", job.id)
-        raise HTTPException(status_code=500, detail="could not start the retry") from None
+        raise HTTPException(status_code=500, detail=RETRY_NOT_STARTED) from None
     return names
 
 
 def _requeue_failed(job: Job, staged: list[str]) -> None:
-    limit = MAX_PENDING_UPLOAD_JOBS if is_upload(job) else MAX_PENDING_URL_JOBS
-    if not registry_requeue_if_capacity(job, JOBS_DIR / job.id, limit):
+    try:
+        _requeue_or_refuse(job)
+    except HTTPException:
         _move_files(staged, JOBS_DIR / job.id, _failure_dir(job.id))
-        raise HTTPException(
-            status_code=503,
-            detail=_UPLOAD_QUEUE_FULL_DETAIL if is_upload(job) else _URL_QUEUE_FULL_DETAIL,
-        )
+        raise
     _set(job, error_detail=None, error_code=None)
     # The old evidence and record go: a failure of this run writes its own, and a
     # leftover record would bring the job back as failed after a restart.
@@ -2113,8 +2129,8 @@ def get_failure(job_id: str) -> dict:
 
     # JOB_ID_RE rejects "failed", so the quarantine dir can never be addressed
     # as a job id; join it explicitly and re-verify the result stays inside.
-    failed_dir = (JOBS_DIR / "failed" / job_id).resolve()
-    if not failed_dir.is_relative_to((JOBS_DIR / "failed").resolve()):
+    failed_dir = _failure_dir(job_id).resolve()
+    if not failed_dir.is_relative_to((JOBS_DIR / FAILED_DIR_NAME).resolve()):
         raise HTTPException(status_code=404, detail="job not found")
     path = failed_dir / "error.txt"
     if not path.is_file():
@@ -2316,13 +2332,14 @@ def delete_job(job_id: str) -> dict[str, str]:
     """Delete a completed or failed job and remove its stem files from disk."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
-    job = _known_job(job_id)
-    if job is None:
-        return _retry_deleted_job_files(job_id)
-    if job.status not in FINISHED_STATUSES:
-        raise HTTPException(status_code=409, detail="job is still running")
-    if not _remove_job(job):
-        raise HTTPException(status_code=500, detail=_FILES_NOT_DELETED_DETAIL)
+    with _RETRY_LOCK:
+        job = _known_job(job_id)
+        if job is None:
+            return _retry_deleted_job_files(job_id)
+        if job.status not in FINISHED_STATUSES:
+            raise HTTPException(status_code=409, detail="job is still running")
+        if not _remove_job(job):
+            raise HTTPException(status_code=500, detail=_FILES_NOT_DELETED_DETAIL)
     return {"job_id": job_id, "status": "deleted"}
 
 
@@ -2400,7 +2417,7 @@ def _apply_replacement(job: Job) -> None:
 
 
 def _settle_old_copy(job: Job) -> None:
-    old = registry_get(job.replaces)
+    old = _known_job(job.replaces)
     if old is None or old.trashed_at is not None or old.status not in FINISHED_STATUSES:
         return
     # Before the delete below, which would take the old copy out of its setlists.

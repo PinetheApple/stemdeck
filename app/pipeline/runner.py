@@ -18,11 +18,12 @@ from app.core.config import (
     LYRICS_LOOKUP_GRACE_SEC,
     TIMEOUT_FFMPEG,
 )
-from app.core.models import Job, JobCancelled, _set, settle_cancelled
+from app.core.models import STATUS_ERROR, Job, JobCancelled, _set, settle_cancelled
 from app.core.redact import redact
 from app.core.registry import is_upload
 from app.core.registry import persist as persist_registry
 from app.core.song_folder import (
+    FAILED_DIR_NAME,
     keep_added_time,
     mark_stems_complete,
     metadata_lock,
@@ -406,11 +407,12 @@ def _metadata(job: Job) -> dict:
 # is what brings one back after a restart for the API to show and retry.
 FAILED_RECORD_FILE = "job.json"
 
-# Files worth keeping in a quarantined failure dir. Everything else (source
-# download, stem WAVs, video) is deleted first -- evidence must stay KB-scale,
-# not GB-scale. An upload's own file is the exception (_kept_for_retry).
+# The evidence a quarantined failure dir keeps. Everything else (stem WAVs, a
+# link's download) is deleted first, so a link's failure stays KB-scale; only
+# an upload also keeps its own file (_kept_for_retry).
 _QUARANTINE_KEEP = frozenset(("error.txt", "metadata.json", FAILED_RECORD_FILE))
 UPLOAD_VIDEO_FILE = "video.mp4"
+_FAILED_STAGE = "Error: Processing failed"
 
 
 def _kept_for_retry(job: Job, job_dir: Path) -> frozenset[str]:
@@ -421,15 +423,23 @@ def _kept_for_retry(job: Job, job_dir: Path) -> frozenset[str]:
     return frozenset((*(p.name for p in job_dir.glob("source.*")), UPLOAD_VIDEO_FILE))
 
 
-def _quarantine_failed_job(job: Job, job_dir: Path, jobs_dir: Path, exc: Exception) -> None:
-    """Preserve failure evidence instead of destroying it (#277).
+def _quarantine_failed_job(
+    job: Job,
+    job_dir: Path,
+    jobs_dir: Path,
+    exc: Exception,
+    error_msg: str,
+) -> None:
+    """Preserve failure evidence instead of destroying it (#277), then mark the
+    job failed.
 
     Writes error.txt (stage, device, model, timings, classified cause, stderr
     tail, full traceback) and the job's record, strips the heavy audio payloads
     but an upload's own file, which a retry needs, and moves the dir to
     jobs/failed/<id> where sweep_failed_jobs expires it after FAILED_TTL.
     Best-effort throughout: any step failing falls back to plain removal so a
-    pathological error can never leak disk."""
+    pathological error can never leak disk. The job shows failed only after
+    that, so whoever reads it then finds its cause and its kept file."""
     tail: list[str] = getattr(exc, "tail", None) or []
     cause = classify_failure("\n".join([*tail, repr(exc)]))
     detail = cause
@@ -444,8 +454,13 @@ def _quarantine_failed_job(job: Job, job_dir: Path, jobs_dir: Path, exc: Excepti
     message = redact(tail[-1]) if tail else redact(str(exc))
     if message.strip():
         detail += f" — {message[:200]}"
-    job.error_detail = detail
-    job.error_code = cause
+    failure = {
+        "status": STATUS_ERROR,
+        "stage_message": _FAILED_STAGE,
+        "error": error_msg,
+        "error_detail": detail,
+        "error_code": cause,
+    }
 
     try:
         # title/source stay unredacted: they never leave this file (the
@@ -461,7 +476,7 @@ def _quarantine_failed_job(job: Job, job_dir: Path, jobs_dir: Path, exc: Excepti
             f"job: {job.id}",
             f"title: {job.title or '(unknown)'}",
             f"source: {job.source_url or '(unknown)'}",
-            f"stage: {job.stage_message}",
+            f"stage: {_FAILED_STAGE}",
             f"device: {job.compute_device or getattr(exc, 'device', None) or '(not reached)'}",
             f"model: {DEMUCS_MODEL}",
             f"cause: {cause}",
@@ -474,7 +489,8 @@ def _quarantine_failed_job(job: Job, job_dir: Path, jobs_dir: Path, exc: Excepti
         if tb:
             lines += ["", "--- traceback ---", tb]
         (job_dir / "error.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
-        (job_dir / FAILED_RECORD_FILE).write_text(json.dumps(job.to_record()), encoding="utf-8")
+        record = {**job.to_record(), **failure}
+        (job_dir / FAILED_RECORD_FILE).write_text(json.dumps(record), encoding="utf-8")
 
         # Strip heavy payloads: the quarantine keeps diagnostics, not audio.
         keep = _QUARANTINE_KEEP | _kept_for_retry(job, job_dir)
@@ -486,7 +502,7 @@ def _quarantine_failed_job(job: Job, job_dir: Path, jobs_dir: Path, exc: Excepti
             else:
                 p.unlink(missing_ok=True)
 
-        failed_root = jobs_dir / "failed"
+        failed_root = jobs_dir / FAILED_DIR_NAME
         failed_root.mkdir(parents=True, exist_ok=True)
         dest = failed_root / job.id
         if dest.exists():
@@ -496,6 +512,7 @@ def _quarantine_failed_job(job: Job, job_dir: Path, jobs_dir: Path, exc: Excepti
     except Exception:
         logger.warning("[%s] quarantine failed; removing job dir", job.id, exc_info=True)
         _rmtree(job_dir)
+    _set(job, **failure)
 
 
 async def _run_async(
@@ -526,11 +543,10 @@ async def _run_async(
             # A fingerprint may still have the source open (Windows).
             release_source(job.id)
             # Off the loop: stripping and moving a big folder on a NAS stalled
-            # every stream and request. The status changes after it, so the
-            # first "error" a page sees already carries error_detail and nothing
-            # can delete the folder mid-move.
-            await asyncio.to_thread(_quarantine_failed_job, job, job_dir, jobs_dir, e)
-            _set(job, status="error", stage="Error: Processing failed", error=error_msg)
+            # every stream and request. The quarantine marks the job failed as
+            # its last step, so the first "error" a page sees already carries
+            # its cause and kept file, and nothing can delete the folder mid-move.
+            await asyncio.to_thread(_quarantine_failed_job, job, job_dir, jobs_dir, e, error_msg)
             await asyncio.to_thread(persist_registry, jobs_dir)
             return
         logger.info(
@@ -592,7 +608,7 @@ async def run_pipeline(job: Job, url: str, jobs_dir: Path) -> None:
         _set(
             job,
             status="error",
-            stage="Error: Processing failed",
+            stage=_FAILED_STAGE,
             error="Audio processing failed. Please try another video.",
         )
         await asyncio.to_thread(persist_registry, jobs_dir)
