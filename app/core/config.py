@@ -180,6 +180,10 @@ def usable_jobs_dir(value: object) -> Path | None:
     return path if path.is_dir() else None
 
 
+def pinned_jobs_dir() -> Path | None:
+    return _env_path_opt("STEMDECK_JOBS_DIR")
+
+
 # Where extracted stems live. Precedence, most explicit first:
 #   1. STEMDECK_JOBS_DIR         -- a deployment that pinned it (Docker, Unraid,
 #                                   CI, tests). Wins over everything: a mounted
@@ -192,10 +196,6 @@ def usable_jobs_dir(value: object) -> Path | None:
 #                                   default rather than a pin, so 2 can win.
 #   4. DATA_DIR/jobs             -- portable default
 #   5. <repo>/jobs               -- plain dev checkout
-def pinned_jobs_dir() -> Path | None:
-    return _env_path_opt("STEMDECK_JOBS_DIR")
-
-
 JOBS_DIR = (
     pinned_jobs_dir()
     or _stored_jobs_dir()
