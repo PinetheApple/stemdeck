@@ -105,6 +105,30 @@ def _read_json_dict(path: Path) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
+def fsync_file(path: Path) -> None:
+    """Put a written file's bytes on the disk. Opened for writing: Windows
+    refuses to flush a handle opened read-only."""
+    with open(path, "rb+") as fh:
+        os.fsync(fh.fileno())
+
+
+def fsync_dir(directory: Path) -> None:
+    """Make a rename in `directory` durable. POSIX only: Windows cannot open a
+    directory for fsync, and NTFS journals the rename itself."""
+    if os.name == "nt":
+        return
+    try:
+        fd = os.open(directory, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass  # some filesystems (network shares) refuse; the rename still happened
+    finally:
+        os.close(fd)
+
+
 def _atomic_write_json(path: Path, data: dict) -> bool:
     """Write `data` to `path` so an interrupted write cannot destroy what was
     there before.
@@ -114,15 +138,21 @@ def _atomic_write_json(path: Path, data: dict) -> bool:
     could not distinguish from a first run, and the next setting change
     persisted a one-key file over both this and the mirror (#509). Same
     same-directory temp + replace the registry already uses; the temp name is
-    unique per call so two concurrent writers cannot interleave on it."""
+    unique per call so two concurrent writers cannot interleave on it.
+
+    The bytes reach the disk before the rename: this file holds jobs_dir, and
+    torn after a library move it would bring the app back to the folder the
+    songs left."""
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
         try:
             tmp.write_text(json.dumps(data), encoding="utf-8")
+            fsync_file(tmp)
             tmp.replace(path)
         finally:
             tmp.unlink(missing_ok=True)
+        fsync_dir(path.parent)
     except Exception:
         _log.warning("could not persist settings to %s", path, exc_info=True)
         return False

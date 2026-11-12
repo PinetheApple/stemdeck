@@ -100,6 +100,7 @@ from app.core.stems_location import (
     begin_relocation,
     directory_size,
     move_library,
+    remove_moved,
     validate_target,
 )
 from app.pipeline.collect import sweep_failed_jobs, sweep_old_jobs
@@ -678,7 +679,11 @@ async def set_stems_location(request: Request) -> dict[str, object]:
         _log.exception("moving the stems library failed")
         raise HTTPException(status_code=500, detail="Could not move the stems folder") from None
 
-    _, persisted = set_jobs_dir(str(target))
+    _, persisted = await asyncio.to_thread(set_jobs_dir, str(target))
+    if persisted:
+        # Not before: until the new location is saved, a restart reads the old
+        # folder, so it has to stay whole.
+        await asyncio.to_thread(remove_moved, result)
     _log.info(
         "stems library moved to %s (%d entries, %d bytes, persisted=%s)",
         target,

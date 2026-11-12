@@ -11,6 +11,7 @@ both copies with only a warning in the log.
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 
 from app.core import settings as _settings
@@ -108,3 +109,27 @@ def test_atomic_write_leaves_no_temp_files_behind(tmp_path):
 
     assert _read(_settings._SETTINGS_PATH) == {"port": 8081}
     assert not list(tmp_path.glob("*.tmp")), "temp files must not accumulate next to settings"
+
+
+def test_settings_reach_the_disk_before_they_replace_the_old_file(monkeypatch):
+    # A library move saves the new jobs_dir here and then deletes the originals:
+    # a torn settings.json after a power cut would bring the app back to them.
+    calls = []
+    real_fsync, real_replace = os.fsync, os.replace
+
+    def fsync(fd):
+        calls.append("fsync")
+        real_fsync(fd)
+
+    def replace(src, dst):
+        calls.append(("replace", pathlib.Path(dst).name))
+        real_replace(src, dst)
+
+    monkeypatch.setattr(os, "fsync", fsync)
+    monkeypatch.setattr(os, "replace", replace)
+
+    assert _settings._atomic_write_json(_settings._SETTINGS_PATH, {"port": 8081}) is True
+
+    assert calls[:2] == ["fsync", ("replace", "settings.json")]
+    if os.name != "nt":
+        assert calls[2:] == ["fsync"], "the rename itself must reach the disk too"
