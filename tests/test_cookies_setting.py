@@ -106,3 +106,63 @@ def test_api_rejects_a_missing_file(client, tmp_path):
 
 def test_api_rejects_a_non_string(client):
     assert client.post("/api/settings", json={"cookies_file": 17}).status_code == 422
+
+
+# ── a cookies file inside the library folder ─────────────────────────────────
+# Moving or resetting the library takes everything in it, so a cookies file
+# there would vanish with it.
+
+
+@pytest.fixture
+def library():
+    return _settings.library_folder()
+
+
+@pytest.fixture
+def cookies_in_library(library):
+    p = library / "cookies.txt"
+    p.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
+    return p
+
+
+def _assert_refused_as_in_library(resp):
+    assert resp.status_code == 422
+    body = resp.json()
+    assert body["code"] == _settings.COOKIES_IN_LIBRARY
+    assert isinstance(body["detail"], str)
+
+
+def test_api_refuses_a_file_inside_the_library(client, cookies_txt, cookies_in_library):
+    _settings.set_cookies_file(str(cookies_txt))
+    resp = client.post("/api/settings", json={"cookies_file": str(cookies_in_library)})
+    _assert_refused_as_in_library(resp)
+    assert _settings.get_cookies_file() == str(cookies_txt.resolve())
+
+
+def test_api_refuses_a_symlink_outside_pointing_inside(client, tmp_path, cookies_in_library):
+    link = tmp_path / "outside-link.txt"
+    link.symlink_to(cookies_in_library)
+    resp = client.post("/api/settings", json={"cookies_file": str(link)})
+    _assert_refused_as_in_library(resp)
+    assert _settings.get_cookies_file() is None
+
+
+def test_api_refuses_the_library_folder_itself(client, library):
+    resp = client.post("/api/settings", json={"cookies_file": str(library)})
+    _assert_refused_as_in_library(resp)
+
+
+def test_api_flags_a_saved_file_inside_the_library(client, cookies_txt, cookies_in_library):
+    assert client.get("/api/settings").json()["cookies_file_in_library"] is False
+    _settings.set_cookies_file(str(cookies_txt))
+    assert client.get("/api/settings").json()["cookies_file_in_library"] is False
+    # Saved before the rule existed.
+    _settings._ensure()["cookies_file"] = str(cookies_in_library)
+    assert client.get("/api/settings").json()["cookies_file_in_library"] is True
+
+
+def test_api_flag_follows_a_library_move(client, cookies_txt):
+    """A file saved outside becomes inside when the library moves around it."""
+    _settings.set_cookies_file(str(cookies_txt))
+    _settings.set_jobs_dir(str(cookies_txt.parent))
+    assert client.get("/api/settings").json()["cookies_file_in_library"] is True

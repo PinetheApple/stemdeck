@@ -62,10 +62,13 @@ from app.core.registry import restore as restore_registry
 from app.core.settings import (
     AUTO_DELETE_DAYS_MAX,
     AUTO_DELETE_DAYS_MIN,
+    COOKIES_IN_LIBRARY,
     DURATION_MAX_SEC,
     DURATION_MIN_SEC,
+    CookiesInLibraryError,
     acoustid_api_key_hint,
     acoustid_key_format_ok,
+    cookies_file_in_library,
     discogs_token_format_ok,
     discogs_token_hint,
     get_allow_network,
@@ -418,6 +421,7 @@ def _settings_payload() -> dict[str, object]:
         # Absent unless the user set one. Only the path is exposed, never the
         # file's contents -- those are the user's YouTube session.
         "cookies_file": get_cookies_file(),
+        "cookies_file_in_library": cookies_file_in_library(),
         # Never the key itself: whether one is set, and its last four
         # characters so the field can show which one.
         "acoustid_api_key_set": acoustid_api_key_hint() is not None,
@@ -559,6 +563,11 @@ async def update_settings(request: Request) -> dict[str, object]:
     if "cookies_file" in body:
         try:
             set_cookies_file(body["cookies_file"])
+        except CookiesInLibraryError as e:
+            return JSONResponse(
+                {"detail": str(e), "code": COOKIES_IN_LIBRARY},
+                status_code=422,
+            )
         except ValueError as e:
             # "cookies file not found" / "not readable" -- both safe to show.
             raise HTTPException(status_code=422, detail=str(e)) from None
