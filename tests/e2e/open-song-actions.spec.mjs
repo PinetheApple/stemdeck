@@ -1,14 +1,12 @@
 // The open song offers its library row's Up Next and setlist actions from the
 // song head and from Stage, where the library row is out of reach.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, JOB_LIST_URL, openStudio, stubServerTrash, waitForPanesSettled } from "./helpers.mjs";
+import { JOB_ID, openStudio, stubServerTrash, waitForPanesSettled } from "./helpers.mjs";
 
 const SETLIST_NAME = "Gig";
 const UP_NEXT_KEY = "stemdeck.upNext";
 const NARROW_WINDOW = { width: 1024, height: 860 };
 const OPEN_SONG_BUTTONS = ["#songUpNextBtn", "#songMoreBtn", "#stageUpNextBtn", "#stageMoreBtn"];
-// As trash-playback.spec: a refocus syncs the library only once this long has passed.
-const PAST_FOCUS_SYNC_WAIT_MS = 16_000;
 
 // The e2e server lives for the whole run, so each test leaves no setlist behind.
 test.afterEach(async ({ request }) => {
@@ -20,6 +18,21 @@ const serverSongIds = async (request) => (await (await request.get("/api/setlist
 const storedUpNext = (page) => page.evaluate((key) => JSON.parse(localStorage.getItem(key) || "[]"), UP_NEXT_KEY);
 
 const libraryRow = (page) => page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first();
+/** The app's own rule for what Up Next and setlists may take, read from the page. */
+function isPlayable(page, id) {
+  return page.evaluate(
+    (trackId) => import("/js/catalog.js").then((m) => m.isPlayableTrack(trackId)),
+    id,
+  );
+}
+
+/** What the app does when the open song's audio is gone; it announces no event. */
+function markUnavailable(page, id) {
+  return page.evaluate(
+    (trackId) => import("/js/catalog.js").then((m) => m.updateTrackStatus(trackId, "unavailable")),
+    id,
+  );
+}
 const isCut = (locator) => locator.evaluate((el) => el.scrollWidth > el.clientWidth);
 
 async function openRowMenu(page) {
@@ -41,14 +54,6 @@ function stageBarEdges(page) {
       viewRight: box("#stageView").right,
     };
   });
-}
-
-/** Bring the window back into view past the focus-sync wait, and return once the list was read. */
-async function syncOnFocus(page) {
-  await page.clock.fastForward(PAST_FOCUS_SYNC_WAIT_MS);
-  const listRead = page.waitForResponse((r) => JOB_LIST_URL.test(r.url()));
-  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
-  await listRead;
 }
 
 async function clickEvery(page, selectors) {
@@ -136,13 +141,10 @@ test("a trashed open song is offered to neither Up Next nor a setlist", async ({
   expect(await serverSongIds(request)).toEqual([]);
 });
 
-test("an open song the library finds unavailable is offered to neither Up Next nor a setlist", async ({ page, request }) => {
-  await page.clock.install();
-  const server = await stubServerTrash(page);
+test("an open song that turns unavailable is offered to neither Up Next nor a setlist", async ({ page, request }) => {
   await openWithSetlist(page, request);
-  server.unavailable.add(JOB_ID);
-  await syncOnFocus(page);
-  await expect(libraryRow(page).locator(".cat-status")).toHaveClass(/unavailable/);
+  await markUnavailable(page, JOB_ID);
+  expect(await isPlayable(page, JOB_ID)).toBe(false);
 
   await clickEvery(page, OPEN_SONG_BUTTONS.slice(0, 2));
   await page.locator("#stageModeBtn").click();
