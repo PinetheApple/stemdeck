@@ -13,6 +13,7 @@ the header wrong never costs a song its WAVs.
 from __future__ import annotations
 
 import subprocess
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -130,16 +131,31 @@ def ffmpeg_frames(job: Job, path: Path, channels: int) -> int:
 
 
 def _drain(proc: subprocess.Popen) -> int:
+    """Bytes `proc` streams out. The read blocks for as long as ffmpeg hangs,
+    so the time limit kills it from a timer."""
+    timed_out = threading.Event()
+
+    def stop() -> None:
+        timed_out.set()
+        proc.kill()
+
+    timer = threading.Timer(TIMEOUT_FFMPEG, stop)
+    timer.start()
+    try:
+        total = _read_all(proc)
+        proc.wait()
+    finally:
+        timer.cancel()
+    if timed_out.is_set():
+        raise StemStorageError("the MP3 check did not finish")
+    return total
+
+
+def _read_all(proc: subprocess.Popen) -> int:
     total = 0
     assert proc.stdout is not None
     while chunk := proc.stdout.read(_READ_CHUNK_BYTES):
         total += len(chunk)
-    try:
-        proc.wait(timeout=TIMEOUT_FFMPEG)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.wait()
-        raise StemStorageError("the MP3 check did not finish") from None
     return total
 
 

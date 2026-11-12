@@ -33,6 +33,7 @@ SR = 44100
 SECONDS = 6.0
 NAMES = ("vocals", "drums", "bass")
 JOB_ID = "abcdef970001"
+HANG_SEC = 10
 
 
 def _signal(seed: int = 7, seconds: float = SECONDS) -> np.ndarray:
@@ -357,6 +358,18 @@ def test_a_crash_while_storing_leaves_recovery_the_real_title(monkeypatch):
     runner._run_local_blocking(job, job_dir / "source.wav", job_dir)
     assert recovered[0] is not None
     assert recovered[0].title == "Storage"
+
+
+def test_a_hanging_decoder_check_stops_at_the_time_limit(monkeypatch, tmp_path):
+    hang = tmp_path / "ffmpeg"
+    hang.write_text(f"#!/bin/sh\nexec sleep {HANG_SEC}\n", encoding="utf-8")
+    hang.chmod(0o755)
+    monkeypatch.setattr(stem_verify, "ffmpeg_executable", lambda: str(hang))
+    monkeypatch.setattr(stem_verify, "TIMEOUT_FFMPEG", 1)
+    started = time.monotonic()
+    with pytest.raises(stem_verify.StemStorageError):
+        stem_verify.ffmpeg_frames(_job(), tmp_path / "vocals.mp3", 2)
+    assert time.monotonic() - started < HANG_SEC / 2
 
 
 def test_a_crash_mid_storage_leaves_only_temps_the_startup_sweep_removes():
