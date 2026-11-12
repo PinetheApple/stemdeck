@@ -163,7 +163,11 @@ def _stored_jobs_dir() -> Path | None:
         raw = json.loads((DATA_DIR / "settings.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    value = raw.get("jobs_dir") if isinstance(raw, dict) else None
+    return usable_jobs_dir(raw.get("jobs_dir") if isinstance(raw, dict) else None)
+
+
+def usable_jobs_dir(value: object) -> Path | None:
+    """The saved stems location as a folder, or None when it cannot be used."""
     if not isinstance(value, str) or not value.strip():
         return None
     path = Path(value).expanduser()
@@ -174,6 +178,10 @@ def _stored_jobs_dir() -> Path | None:
     # the drive mounting under its own name later. Falling back to the default
     # leaves the library findable again as soon as the disk is plugged in.
     return path if path.is_dir() else None
+
+
+def pinned_jobs_dir() -> Path | None:
+    return _env_path_opt("STEMDECK_JOBS_DIR")
 
 
 # Where extracted stems live. Precedence, most explicit first:
@@ -188,13 +196,13 @@ def _stored_jobs_dir() -> Path | None:
 #                                   default rather than a pin, so 2 can win.
 #   4. DATA_DIR/jobs             -- portable default
 #   5. <repo>/jobs               -- plain dev checkout
-JOBS_DIR = _env_path(
-    "STEMDECK_JOBS_DIR",
-    _stored_jobs_dir()
+JOBS_DIR = (
+    pinned_jobs_dir()
+    or _stored_jobs_dir()
     or _env_path(
         "STEMDECK_DEFAULT_JOBS_DIR",
         (DATA_DIR / "jobs") if PORTABLE_DATA_DIR_ENABLED else (ROOT / "jobs"),
-    ),
+    )
 )
 CACHE_DIR = _env_path("STEMDECK_CACHE_DIR", DATA_DIR / "cache")
 DOWNLOADS_DIR = _env_path("STEMDECK_DOWNLOADS_DIR", DATA_DIR / "downloads")

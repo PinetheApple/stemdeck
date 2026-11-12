@@ -38,11 +38,14 @@ from app.core.config import (
     DATA_DIR,
     IDLE_UNLOAD_MINUTES_DEFAULT,
     IDLE_UNLOAD_MINUTES_MAX,
+    JOBS_DIR,
     MAX_DURATION_SEC,
     PLAYLIST_MAX_ITEMS,
     VIDEO_MAX_HEIGHT,
     available_torch_devices,
     detect_torch_device,
+    pinned_jobs_dir,
+    usable_jobs_dir,
 )
 
 _log = logging.getLogger("stemdeck.settings")
@@ -480,10 +483,31 @@ def set_jobs_dir(value: str | None) -> tuple[str | None, bool]:
 # client that does not support them, which removes the unauthenticated fallback
 # clients that work for most people today. Turning this on when you do not need
 # it makes imports worse, not better.
+#
+# It must live outside the library folder: moving or resetting the library takes
+# everything in it, and the cookies file would go with it.
+COOKIES_IN_LIBRARY = "cookies_in_library"
+
+
+class CookiesInLibraryError(ValueError):
+    """The chosen cookies file resolves inside the library folder."""
+
+
+def library_folder() -> Path:
+    """Where the library is now, by config's precedence: a deployment's pin, then
+    the moved-to folder even before the restart that points JOBS_DIR at it."""
+    return (pinned_jobs_dir() or usable_jobs_dir(get_jobs_dir()) or JOBS_DIR).resolve()
+
+
 def get_cookies_file() -> str | None:
     with _LOCK:
         value = _ensure().get("cookies_file")
         return value if isinstance(value, str) and value.strip() else None
+
+
+def cookies_file_in_library() -> bool:
+    value = get_cookies_file()
+    return value is not None and Path(value).resolve().is_relative_to(library_folder())
 
 
 def set_cookies_file(value: str | None) -> str | None:
@@ -491,7 +515,8 @@ def set_cookies_file(value: str | None) -> str | None:
 
     Raises ValueError when the path does not point at a readable file, so the
     Settings UI can say so immediately rather than the user discovering it as a
-    failed import an hour later.
+    failed import an hour later, and CookiesInLibraryError when it is inside the
+    library folder.
     """
     with _LOCK:
         if value is None or not str(value).strip():
@@ -499,6 +524,11 @@ def set_cookies_file(value: str | None) -> str | None:
             _save()
             return None
         resolved = Path(str(value)).expanduser().resolve()
+        if resolved.is_relative_to(library_folder()):
+            raise CookiesInLibraryError(
+                "Pick a cookies file outside the library folder; "
+                "moving or resetting the library would take it with it."
+            )
         if not resolved.is_file():
             raise ValueError("cookies file not found")
         try:
