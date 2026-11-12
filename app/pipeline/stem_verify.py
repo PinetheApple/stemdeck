@@ -20,7 +20,8 @@ import numpy as np
 import soundfile as sf
 
 from app.core.config import (
-    STEM_FORMAT_MP3,
+    FFMPEG_MUXER_MP3,
+    KBPS_SUFFIX,
     STEM_VERIFY_BLOCK_SEC,
     STEM_VERIFY_MAX_LAG,
     STEM_VERIFY_MIN_CORR,
@@ -56,11 +57,11 @@ def encode_cmd(src: Path, dest: Path, kbps: int) -> list[str]:
         "-c:a",
         "libmp3lame",
         "-b:a",
-        f"{kbps}k",
+        f"{kbps}{KBPS_SUFFIX}",
         "-write_xing",
         "1",
         "-f",
-        STEM_FORMAT_MP3,
+        FFMPEG_MUXER_MP3,
         "-y",
         str(dest),
     ]
@@ -116,7 +117,10 @@ def ffmpeg_frames(job: Job, path: Path, channels: int) -> int:
         "-",
     ]
     proc = subprocess.Popen(  # noqa: S603 -- list args, no shell, trusted ffmpeg
-        cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+        cmd,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
     )
     set_proc(job.id, proc)
     try:

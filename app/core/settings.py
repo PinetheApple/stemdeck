@@ -43,6 +43,7 @@ from app.core.config import (
     IDLE_UNLOAD_MINUTES_DEFAULT,
     IDLE_UNLOAD_MINUTES_MAX,
     JOBS_DIR,
+    KBPS_SUFFIX,
     MAX_DURATION_SEC,
     PLAYLIST_MAX_ITEMS,
     STEM_FORMAT_CHOICES,
@@ -707,9 +708,6 @@ def set_separation_quality(value: str) -> str:
 # ── stem_format / stem_mp3_kbps ──
 # Read when a job finishes, so a change applies to the next song without a
 # restart. The env seeds them for Docker and Unraid; a saved choice wins.
-_KBPS_SUFFIX = "k"
-
-
 def _default_stem_format() -> str:
     env = os.environ.get("STEMDECK_STEM_FORMAT", "").strip().lower()
     return env if env in STEM_FORMAT_CHOICES else DEFAULT_STEM_STORAGE[0]
@@ -718,7 +716,7 @@ def _default_stem_format() -> str:
 def _default_stem_mp3_kbps() -> int:
     raw = os.environ.get("STEMDECK_STEM_MP3_KBPS", "").strip().lower()
     try:
-        kbps = int(raw.removesuffix(_KBPS_SUFFIX))
+        kbps = int(raw.removesuffix(KBPS_SUFFIX))
     except ValueError:
         return DEFAULT_STEM_STORAGE[1]
     return kbps if kbps in STEM_MP3_KBPS_CHOICES else DEFAULT_STEM_STORAGE[1]

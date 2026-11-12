@@ -111,6 +111,8 @@ STEM_NAMES: tuple[str, ...] = ("vocals", "drums", "bass", "guitar", "piano", "ot
 # GET /api/config contract all assume "the 6 Demucs stems" and must not change
 # just because a job happened to request this extra pass.
 EXTRA_STEM_NAMES: tuple[str, ...] = ("lead_vocals", "backing_vocals")
+# Rendered beside the stems: the source re-encoded, and the picked stems mixed.
+RENDERED_TRACK_NAMES: tuple[str, ...] = ("original", "mix")
 # \Z, not $: $ also accepts a trailing newline.
 JOB_ID_RE = re.compile(r"^[a-f0-9]{12}\Z")
 # The file types an upload may be. A job keeps its upload as source<ext>.
@@ -437,6 +439,15 @@ STEM_FORMAT_MP3 = "mp3"
 STEM_FORMAT_CHOICES: tuple[str, ...] = (STEM_FORMAT_WAV, STEM_FORMAT_MP3)
 STEM_MP3_KBPS_CHOICES: tuple[int, ...] = (128, 192, 256)
 DEFAULT_STEM_STORAGE: tuple[str, int] = (STEM_FORMAT_WAV, 128)
+KBPS_SUFFIX = "k"
+FFMPEG_MUXER_WAV = "wav"
+FFMPEG_MUXER_MP3 = "mp3"
+AUDIO_MEDIA_TYPES: dict[str, str] = {
+    "wav": "audio/wav",
+    "mp3": "audio/mpeg",
+    "flac": "audio/flac",
+    "ogg": "audio/ogg",
+}
 # The lag window reaches past the 1105-sample delay of a decoder that ignored the
 # LAME header, so such a shift is seen and refused.
 STEM_VERIFY_BLOCK_SEC = 10

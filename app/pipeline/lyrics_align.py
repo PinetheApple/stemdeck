@@ -45,12 +45,10 @@ from app.core.config import (
 )
 from app.core.models import Job
 from app.core.stem_files import stem_path
-from app.pipeline.audio_stats import vocal_envelope
+from app.pipeline.audio_stats import VOCAL_ENVELOPE_FILE, vocal_envelope
 
 logger = logging.getLogger("stemdeck.lyrics")
 
-# Kept beside the stems by GET .../vocal-envelope (app/api/stems.py).
-_ENVELOPE_FILE = "vocal_envelope.json"
 _ENVELOPE_HOP_SEC = 0.04
 
 # What counts as singing, as the tab's wipe has it (lyricsLookup.js
@@ -198,7 +196,7 @@ def _envelope(stems_dir: Path) -> tuple[float, list[int]] | None:
     vocals = stem_path(stems_dir, "vocals")
     if not vocals.is_file():
         return None
-    kept = stems_dir / _ENVELOPE_FILE
+    kept = stems_dir / VOCAL_ENVELOPE_FILE
     try:
         if kept.is_file() and kept.stat().st_mtime_ns >= vocals.stat().st_mtime_ns:
             data = json.loads(kept.read_text(encoding="utf-8"))

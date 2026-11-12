@@ -46,6 +46,8 @@ def scan_stem(path: Path, buckets: int = 1500) -> tuple[list[list[float]], float
 # The level a frame of pure digital silence reports, and the floor every frame
 # is clamped to. Far below anything a vocals stem carries even as bleed.
 ENVELOPE_FLOOR_DB = -90
+# Kept beside the stems by GET .../vocal-envelope, and reused by lyrics alignment.
+VOCAL_ENVELOPE_FILE = "vocal_envelope.json"
 
 
 def vocal_envelope(path: Path, hop_sec: float = 0.04) -> tuple[float, list[int]]:

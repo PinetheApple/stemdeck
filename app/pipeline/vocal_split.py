@@ -362,7 +362,8 @@ def split_vocals(
         return _move_in(work, stems_dir)
     except StemDecodeError as exc:
         raise VocalSplitFailed(
-            "could not read the vocals stem", code=VOCAL_SPLIT_FAILED_WORKER
+            "could not read the vocals stem",
+            code=VOCAL_SPLIT_FAILED_WORKER,
         ) from exc
     finally:
         shutil.rmtree(work, ignore_errors=True)

@@ -27,23 +27,27 @@ import uuid
 from collections.abc import Callable
 from pathlib import Path
 
-from app.core.config import EXTRA_STEM_NAMES, STEM_FORMAT_MP3, STEM_FORMAT_WAV, STEM_NAMES
+from app.core.config import (
+    EXTRA_STEM_NAMES,
+    RENDERED_TRACK_NAMES,
+    STEM_FORMAT_MP3,
+    STEM_FORMAT_WAV,
+    STEM_NAMES,
+)
 from app.core.models import Job, JobCancelled, _set
 from app.core.settings import fsync_dir, fsync_file, get_stem_format, get_stem_mp3_kbps
 from app.core.stem_files import MP3_EXT, MP3_STEMS_MARKER, WAV_EXT, stem_url
+from app.pipeline.audio_stats import VOCAL_ENVELOPE_FILE
 from app.pipeline.cancel import check_cancel
 from app.pipeline.stem_verify import encode_mp3, verify_mp3
 
 logger = logging.getLogger("stemdeck.pipeline")
 
 # Every stem file a finished song can hold.
-STORED_NAMES: tuple[str, ...] = (*STEM_NAMES, *EXTRA_STEM_NAMES, "original", "mix")
+STORED_NAMES: tuple[str, ...] = (*STEM_NAMES, *EXTRA_STEM_NAMES, *RENDERED_TRACK_NAMES)
 _STAGE = "Compressing stems..."
 _TEMP_SUFFIX = ".tmp"
 _BYTES_PER_MB = 1e6
-# Kept beside the stems and valid while not older than the vocals stem
-# (lyrics_align._envelope, GET /vocal-envelope).
-_VOCAL_ENVELOPE_FILE = "vocal_envelope.json"
 
 
 def temp_mp3_path(wav: Path) -> Path:
@@ -213,7 +217,7 @@ def _keep_derived_files(job_dir: Path, vocals_wav_stamp: list[int] | None) -> No
     from app.pipeline.lyrics_retime import restamp_transcript
 
     restamp_transcript(job_dir, vocals_wav_stamp)
-    envelope = stems_dir / _VOCAL_ENVELOPE_FILE
+    envelope = stems_dir / VOCAL_ENVELOPE_FILE
     try:
         if envelope.is_file() and envelope.stat().st_mtime_ns >= vocals_wav_stamp[1]:
             os.utime(envelope)

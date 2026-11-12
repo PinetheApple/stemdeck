@@ -20,10 +20,12 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 
 from app.core.config import (
+    AUDIO_MEDIA_TYPES,
     CACHE_DIR,
     EXTRA_STEM_NAMES,
     JOB_ID_RE,
     JOBS_DIR,
+    RENDERED_TRACK_NAMES,
     STEM_NAMES,
     TEMPO_MAX_BEATS_PER_BAR,
     TIMEOUT_FFMPEG,
@@ -32,7 +34,7 @@ from app.core.config import (
 from app.core.registry import get as registry_get
 from app.core.settings import get_export_sample_rate
 from app.core.stem_files import MP3_EXT, stem_ext, stem_media_type, stem_path
-from app.pipeline.audio_stats import vocal_envelope
+from app.pipeline.audio_stats import VOCAL_ENVELOPE_FILE, vocal_envelope
 from app.pipeline.click_render import cache_key as click_cache_key
 from app.pipeline.click_render import count_in_beats, render_click_wav, render_count_in_wav
 from app.pipeline.tempo_grid import effective_grid, read_beat_edits, read_detected_grid
@@ -46,7 +48,9 @@ router = APIRouter(tags=["stems"])
 # (#275, EXTRA_STEM_NAMES) when a job has requested it. "original" is the
 # re-encoded source song (added when the user picked a strict subset), "mix"
 # is the ffmpeg amix of the user's selected stems.
-_ALLOWED_NAMES = frozenset(STEM_NAMES) | frozenset(EXTRA_STEM_NAMES) | {"original", "mix"}
+_ALLOWED_NAMES = (
+    frozenset(STEM_NAMES) | frozenset(EXTRA_STEM_NAMES) | frozenset(RENDERED_TRACK_NAMES)
+)
 
 # Lanes the dynamic mixdown may sum: the 6 stems plus "original" (the complement
 # track shown when the user picked a subset) plus lead/backing vocals when a
@@ -85,12 +89,6 @@ MIXDOWN_CODECS = {ext: [*args, "-f", ext] for ext, args in _ENCODE_ARGS.items()}
 # is patched afterwards. mp4 is handled separately by get_video_mixdown, which
 # already muxes fragmented (frag_keyframe+empty_moov) for exactly this reason.
 _SEEKABLE_OUTPUT_EXTS = frozenset({"wav", "flac", "mp3"})
-MIXDOWN_MEDIA_TYPES = {
-    "wav": "audio/wav",
-    "mp3": "audio/mpeg",
-    "flac": "audio/flac",
-    "ogg": "audio/ogg",
-}
 
 # Mixdown render cache (#290): identical render params re-run the full ffmpeg
 # graph on every request today. On a shared server, repeat downloads of the
@@ -886,7 +884,6 @@ async def get_stem_peaks(job_id: str, request: Request) -> Response:
 # is about 60 KB. peaks.json cannot serve instead: it is a fixed 3000 points
 # per track, 100ms apart on a five minute song and 200ms on a ten minute one.
 _VOCAL_ENVELOPE_HOP_SEC = 0.04
-_VOCAL_ENVELOPE_FILE = "vocal_envelope.json"
 
 
 def _write_vocal_envelope(src: Path, dest: Path) -> None:
@@ -923,7 +920,7 @@ async def get_vocal_envelope(job_id: str) -> Response:
         raise HTTPException(status_code=404, detail="job not ready")
     stems_dir = (JOBS_DIR / job_id / "stems").resolve()
     src = stem_path(stems_dir, "vocals")
-    dest = stems_dir / _VOCAL_ENVELOPE_FILE
+    dest = stems_dir / VOCAL_ENVELOPE_FILE
     jobs_root = JOBS_DIR.resolve()
     if not src.is_file() or not src.is_relative_to(jobs_root) or not dest.is_relative_to(jobs_root):
         raise HTTPException(status_code=404, detail="no vocals")
@@ -1189,7 +1186,7 @@ async def get_mixdown(
     render_lanes, unpitched = _expand_render_lanes(job_id, names, parsed_gains, parsed_pitches)
     paths = [lane.path for lane in render_lanes]
 
-    media_type = MIXDOWN_MEDIA_TYPES[ext]
+    media_type = AUDIO_MEDIA_TYPES[ext]
     click_lane = await asyncio.to_thread(
         _click_lane,
         job_id,

@@ -26,7 +26,14 @@ import subprocess
 from collections.abc import Iterator
 from pathlib import Path
 
-from app.core.config import STEM_FORMAT_MP3, STEM_FORMAT_WAV, TIMEOUT_FFMPEG, ffmpeg_executable
+from app.core.config import (
+    AUDIO_MEDIA_TYPES,
+    FFMPEG_MUXER_WAV,
+    STEM_FORMAT_MP3,
+    STEM_FORMAT_WAV,
+    TIMEOUT_FFMPEG,
+    ffmpeg_executable,
+)
 
 WAV_EXT = f".{STEM_FORMAT_WAV}"
 MP3_EXT = f".{STEM_FORMAT_MP3}"
@@ -34,7 +41,6 @@ STEM_EXTS: tuple[str, ...] = (WAV_EXT, MP3_EXT)
 # Dot-prefixed, so no reader takes it for a stem, and no .tmp, so no sweep removes it.
 MP3_STEMS_MARKER = ".mp3-stems"
 
-_MEDIA_TYPES = {WAV_EXT: "audio/wav", MP3_EXT: "audio/mpeg"}
 _UNKNOWN_MEDIA_TYPE = "application/octet-stream"
 
 
@@ -66,7 +72,7 @@ def stem_ext(path: Path) -> str:
 
 
 def stem_media_type(path: Path) -> str:
-    return _MEDIA_TYPES.get(path.suffix.lower(), _UNKNOWN_MEDIA_TYPE)
+    return AUDIO_MEDIA_TYPES.get(stem_ext(path), _UNKNOWN_MEDIA_TYPE)
 
 
 def stem_url(job_id: str, stems_dir: Path, name: str) -> str:
@@ -116,7 +122,7 @@ def _decode(src: Path, dest: Path) -> None:
         "-c:a",
         "pcm_f32le",
         "-f",
-        STEM_FORMAT_WAV,
+        FFMPEG_MUXER_WAV,
         "-y",
         str(dest),
     ]
