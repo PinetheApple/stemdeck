@@ -193,14 +193,14 @@ async def _dispatch(job: Job) -> None:
                 stage="Error: Source file missing",
                 error="The uploaded file is no longer available. Re-import it to finish.",
             )
-            registry_persist(JOBS_DIR)
+            await asyncio.to_thread(registry_persist, JOBS_DIR)
             return
         await run_local_pipeline(job, source, JOBS_DIR)
         return
     await run_pipeline(job, source_url, JOBS_DIR)
 
 
-def _finalise_dropped_job(job: Job) -> None:
+async def _finalise_dropped_job(job: Job) -> None:
     """Complete a cancellation the API could not finish itself.
 
     cancel_job can only finalise a job it still finds in the queue. Between
@@ -211,8 +211,8 @@ def _finalise_dropped_job(job: Job) -> None:
     if not job.cancel_requested or job.status in FINISHED_STATUSES:
         return
     if settle_cancelled(job):
-        cleanup_job_dir(job.id)
-    registry_persist(JOBS_DIR)
+        await asyncio.to_thread(cleanup_job_dir, job.id)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
 
 
 async def _worker_loop() -> None:
@@ -247,7 +247,7 @@ async def _worker_loop() -> None:
             # pending_count against the capacity limit, its uploaded source
             # never freed, and -- because "queued" is persisted -- re-queued
             # on every restart (#520).
-            _finalise_dropped_job(job)
+            await _finalise_dropped_job(job)
             continue
 
         # Claim it. No await between the pop and this status write, so a job is

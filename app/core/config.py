@@ -93,7 +93,10 @@ STEM_NAMES: tuple[str, ...] = ("vocals", "drums", "bass", "guitar", "piano", "ot
 # GET /api/config contract all assume "the 6 Demucs stems" and must not change
 # just because a job happened to request this extra pass.
 EXTRA_STEM_NAMES: tuple[str, ...] = ("lead_vocals", "backing_vocals")
-JOB_ID_RE = re.compile(r"^[a-f0-9]{12}$")
+# \Z, not $: $ also accepts a trailing newline.
+JOB_ID_RE = re.compile(r"^[a-f0-9]{12}\Z")
+# The file types an upload may be. A job keeps its upload as source<ext>.
+UPLOAD_EXTS = frozenset((".mp3", ".wav", ".flac", ".mp4", ".m4a", ".ogg", ".opus"))
 
 
 def _packaged_data_dir() -> Path | None:
@@ -297,6 +300,9 @@ JOB_TTL_SECONDS = max(300, _env_int("STEMDECK_JOB_TTL_SECONDS", 24 * 3600))  # 2
 # Swept unconditionally -- even deployments with a persistent library must not
 # accumulate failure evidence forever.
 FAILED_TTL_SECONDS = max(3600, _env_int("STEMDECK_FAILED_TTL_SECONDS", 7 * 24 * 3600))  # 7 d
+# How long a temp must have gone unwritten before the startup sweep takes it:
+# a second server sharing the jobs or cache folder may still be writing it.
+TEMP_MIN_AGE_SECONDS = 600
 # Depth of the import queue: jobs waiting for their turn, not counting the one
 # running. Counted separately by kind, because the two cost wildly different
 # things. A queued upload holds its source file on disk for the whole wait, so

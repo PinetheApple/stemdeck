@@ -22,6 +22,7 @@ import app.core.config as cfg
 from app.core import registry, setlists
 from app.core.models import Job, JobCancelled
 from app.core.registry import _jobs
+from app.core.song_folder import STEMS_COMPLETE
 from app.pipeline import runner
 from app.pipeline.runner import run_pipeline
 
@@ -236,6 +237,7 @@ def test_a_crash_before_the_done_persist_still_settles_the_old_copy():
     stems = cfg.JOBS_DIR / NEW_ID / "stems"
     stems.mkdir(parents=True)
     (stems / "vocals.wav").write_bytes(b"RIFF")
+    (stems / STEMS_COMPLETE).write_text("", encoding="utf-8")
     _restart()
     assert _jobs[NEW_ID].status == "done"
     with _started_app():

@@ -34,7 +34,8 @@ jobs/<job_id>/
     ├── piano.wav
     ├── other.wav
     ├── original.wav    # sum of un-selected stems (subset only)
-    └── mix.wav         # ffmpeg amix of selected stems (subset only)
+    ├── mix.wav         # ffmpeg amix of selected stems (subset only)
+    └── .complete       # written last: the separation finished
 ```
 
-The library itself is one file, `jobs/registry.json`, so it survives a restart. A song's folder is only removed when you empty the Trash, or by the opt-in **Automatically delete finished tracks** setting, which is off unless you turn it on.
+The library itself is one file, `jobs/registry.json`, so it survives a restart. If that file is lost or damaged, the next start rebuilds each song whose separation finished from its folder (an upload never separated comes back as a stopped song, ready to Extract), and the song's `metadata.json` keeps its favourite, Trash state, stem selection, source and date added for that. A damaged registry record is kept aside as `registry.json.bad-<time>`. A song's folder is only removed when you empty the Trash, or by the opt-in **Automatically delete finished tracks** setting, which is off unless you turn it on.

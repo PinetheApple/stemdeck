@@ -8,7 +8,6 @@ import os
 import re
 import shutil
 import subprocess
-import threading
 import time
 import uuid
 from collections.abc import Callable
@@ -40,6 +39,7 @@ from app.core.config import (
     TIMEOUT_IDENTIFY_BACKFILL,
     TIMEOUT_LYRICS_LOOKUP,
     TIMEOUT_WORK_BACKFILL,
+    UPLOAD_EXTS,
     ffprobe_executable,
 )
 from app.core.models import (
@@ -69,6 +69,8 @@ from app.core.registry import set_trashed as registry_set_trashed
 from app.core.setlists import remove_songs as setlists_remove_songs
 from app.core.setlists import replace_song as setlists_replace_song
 from app.core.settings import get_auto_sections, get_discogs_token, get_max_duration_sec
+from app.core.song_folder import copy_saved_fields, keep_added_time, metadata_lock, update_metadata
+from app.core.song_folder import write_json_atomic as _write_json_atomic
 from app.core.stems_location import is_relocating
 from app.pipeline import discogs, jobqueue
 from app.pipeline.artist_lookup import tagged_artist_name
@@ -142,7 +144,6 @@ LYRICS_TIMING_RUNNING = "lyrics timing already running"
 TRANSCRIPTION_RUNNING = "transcription already running"
 VOCAL_SPLIT_ALREADY_RUNNING = "vocal split already running"
 
-_ALLOWED_EXTS = frozenset((".mp3", ".wav", ".flac", ".mp4", ".m4a", ".ogg", ".opus"))
 _MAX_UPLOAD_BYTES = 400 * 1024 * 1024  # 400 MB
 _WS_RE = re.compile(r"\s+")
 
@@ -342,7 +343,7 @@ async def _create_youtube_job(request: Request) -> dict[str, str]:
     if not registry_register_if_capacity(job, MAX_PENDING_URL_JOBS):
         raise HTTPException(status_code=503, detail=_URL_QUEUE_FULL_DETAIL)
     jobqueue.enqueue(job.id)
-    registry_persist(JOBS_DIR)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
     return {"job_id": job.id}
 
 
@@ -374,7 +375,7 @@ async def _create_local_job(request: Request) -> dict[str, str]:
 
     filename: str = getattr(upload, "filename", "") or ""
     ext = Path(filename).suffix.lower()
-    if ext not in _ALLOWED_EXTS:
+    if ext not in UPLOAD_EXTS:
         raise HTTPException(
             status_code=422,
             detail=f"Unsupported file type '{ext}': accepted formats are .mp3, .wav, .flac, .mp4, .m4a, .ogg, and .opus",
@@ -442,11 +443,12 @@ async def _create_local_job(request: Request) -> dict[str, str]:
         auto_sections=get_auto_sections(),
         replaces=replaces,
     )
+    await asyncio.to_thread(keep_added_time, job, job_dir)
     if not registry_register_if_capacity(job, MAX_PENDING_UPLOAD_JOBS):
         shutil.rmtree(job_dir, ignore_errors=True)
         raise HTTPException(status_code=503, detail=_UPLOAD_QUEUE_FULL_DETAIL)
     jobqueue.enqueue(job.id)
-    registry_persist(JOBS_DIR)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
     return {"job_id": job.id}
 
 
@@ -491,6 +493,7 @@ def trash_job(job_id: str) -> dict:
     else:
         _stop_runs(job, with_lyrics=False)
     registry_persist(JOBS_DIR)
+    copy_saved_fields(job, JOBS_DIR / job.id)
     return {"job_id": job.id, "trashed_at": job.trashed_at}
 
 
@@ -503,6 +506,7 @@ def restore_job(job_id: str) -> dict:
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
     registry_persist(JOBS_DIR)
+    copy_saved_fields(job, JOBS_DIR / job.id)
     return {"job_id": job.id, "trashed_at": job.trashed_at}
 
 
@@ -551,6 +555,7 @@ def set_favorite(job_id: str, body: FavoriteBody) -> dict:
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
     registry_persist(JOBS_DIR)
+    copy_saved_fields(job, JOBS_DIR / job.id)
     return {"job_id": job.id, "favorite": job.favorite}
 
 
@@ -729,7 +734,7 @@ def _retained_source(job_id: str) -> Path | None:
         resolved = candidate.resolve()
         if (
             resolved.is_file()
-            and resolved.suffix.lower() in _ALLOWED_EXTS
+            and resolved.suffix.lower() in UPLOAD_EXTS
             and resolved.is_relative_to(JOBS_DIR.resolve())
         ):
             return resolved
@@ -827,11 +832,12 @@ async def resplit_job(job_id: str, body: ResplitBody) -> dict:
         auto_sections=get_auto_sections(),
         vocal_split_choice=job.vocal_split_choice,
     )
+    await asyncio.to_thread(keep_added_time, new_job, new_dir)
     if not registry_register_if_capacity(new_job, MAX_PENDING_UPLOAD_JOBS):
         shutil.rmtree(new_dir, ignore_errors=True)
         raise HTTPException(status_code=503, detail=_UPLOAD_QUEUE_FULL_DETAIL)
     jobqueue.enqueue(new_job.id)
-    registry_persist(JOBS_DIR)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
     # source_url comes back because the client cannot derive it: it is
     # deliberately not the one it asked with.
     return {"job_id": new_job.id, "source_url": new_job.source_url}
@@ -906,20 +912,6 @@ async def start_vocal_split(job_id: str) -> JSONResponse:
 
 _SECTION_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
 _COLOR_RE = re.compile(r"^#[0-9a-fA-F]{3,8}$")
-_SECTIONS_WRITE_LOCK = threading.Lock()
-
-
-def _write_json_atomic(path: Path, data: dict) -> None:
-    """Durably replace a JSON file without exposing a partial write."""
-    temp = path.parent / f".{path.name}.{uuid.uuid4().hex}.tmp"
-    try:
-        with temp.open("w", encoding="utf-8", newline="\n") as handle:
-            handle.write(json.dumps(data, indent=2) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temp, path)
-    finally:
-        temp.unlink(missing_ok=True)
 
 
 class SectionItem(BaseModel):
@@ -996,7 +988,7 @@ def update_sections(job_id: str, body: SectionsBody) -> dict:
         raise HTTPException(status_code=404, detail="job not found")
     meta_path = job_dir / "metadata.json"
 
-    with _SECTIONS_WRITE_LOCK:
+    with metadata_lock:
         meta: dict = {}
         try:
             if meta_path.is_file():
@@ -1041,23 +1033,10 @@ def _lookup_audio_tags(job: Job) -> dict[str, str] | None:
 
 def _write_metadata_fields(job_id: str, fields: dict[str, object]) -> None:
     """Put ``fields`` (the tags, the band) into metadata.json, if the job has
-    one, and change nothing else in it: restore() rebuilds a lost registry
-    entry from this file."""
-    meta_path = (JOBS_DIR / job_id / "metadata.json").resolve()
-    if not meta_path.is_relative_to(JOBS_DIR.resolve()):
-        return
-    # The same lock as the sections editor, the other read-modify-write here.
-    with _SECTIONS_WRITE_LOCK:
-        try:
-            if not meta_path.is_file():
-                return
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            if not isinstance(meta, dict):
-                return
-            meta.update(fields)
-            _write_json_atomic(meta_path, meta)
-        except (OSError, ValueError):
-            logger.warning("could not record audio tags in metadata for %s", job_id, exc_info=True)
+    one: restore() rebuilds a lost registry entry from this file."""
+    job_dir = (JOBS_DIR / job_id).resolve()
+    if job_dir.is_relative_to(JOBS_DIR.resolve()):
+        update_metadata(job_dir, fields)
 
 
 @router.post("/{job_id}/audio-tags")
@@ -1226,7 +1205,7 @@ async def refresh_audio_tags(job_id: str) -> dict:
         and not lyrics_path(job_dir).is_file()
         and await asyncio.to_thread(keep_answer, job, job_dir, lyrics)
     ):
-        registry_persist(JOBS_DIR)
+        await asyncio.to_thread(registry_persist, JOBS_DIR)
     found: dict[str, object] = {}
     if tags and not job.audio_tags:
         found["audio_tags"] = tags
@@ -1238,7 +1217,7 @@ async def refresh_audio_tags(job_id: str) -> dict:
         found["work"] = work
     if found:
         _set(job, **found)
-        registry_persist(JOBS_DIR)
+        await asyncio.to_thread(registry_persist, JOBS_DIR)
         await asyncio.to_thread(_write_metadata_fields, job_id, found)
     return {
         "audio_tags": job.audio_tags,
@@ -1488,7 +1467,7 @@ async def lookup_lyrics_route(job_id: str, body: LyricsLookupBody | None = None)
         and not lyrics_path(job_dir).is_file()
         and await asyncio.to_thread(keep_answer, job, job_dir, answer)
     ):
-        registry_persist(JOBS_DIR)
+        await asyncio.to_thread(registry_persist, JOBS_DIR)
     try:
         return await asyncio.to_thread(get_lyrics, job_id)
     except HTTPException:
@@ -1813,7 +1792,7 @@ async def put_user_text(job_id: str, request: Request) -> Response:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if entry is None:
         raise HTTPException(status_code=500, detail=LYRICS_NOT_SAVED)
-    registry_persist(JOBS_DIR)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
     return await asyncio.to_thread(get_lyrics, job_id)
 
 
@@ -1825,7 +1804,7 @@ async def delete_user_text(job_id: str) -> Response:
     job, job_dir = _lyrics_job(job_id)
     if not await asyncio.to_thread(restore_lyrics, job, job_dir):
         raise HTTPException(status_code=500, detail="could not restore lyrics")
-    registry_persist(JOBS_DIR)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
     return await asyncio.to_thread(get_lyrics, job_id)
 
 
@@ -1868,7 +1847,7 @@ async def put_lyrics(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     if not kept:
         raise HTTPException(status_code=500, detail=LYRICS_NOT_SAVED)
-    registry_persist(JOBS_DIR)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
     return await asyncio.to_thread(get_lyrics, job_id)
 
 
@@ -1884,7 +1863,7 @@ async def delete_lyrics(job_id: str, carry_over: bool = False) -> Response:
         raise HTTPException(status_code=409, detail=JOB_NOT_READY)
     if not await asyncio.to_thread(remove_lyrics, job, job_dir, carry_over=carry_over):
         raise HTTPException(status_code=500, detail=LYRICS_NOT_REMOVED)
-    registry_persist(JOBS_DIR)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
     return await asyncio.to_thread(get_lyrics, job_id)
 
 

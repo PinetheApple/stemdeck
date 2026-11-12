@@ -45,6 +45,7 @@ from app.core.config import (
     torch_load_error,
 )
 from app.core.logging_setup import configure_logging
+from app.core.models import JobBusy
 from app.core.process import process_exists as _process_exists
 from app.core.redact import redact
 from app.core.registry import all_jobs as registry_all_jobs
@@ -103,7 +104,7 @@ from app.core.stems_location import (
     remove_moved,
     validate_target,
 )
-from app.pipeline.collect import sweep_failed_jobs, sweep_old_jobs
+from app.pipeline.collect import sweep_crash_leftovers, sweep_failed_jobs, sweep_old_jobs
 from app.pipeline.sections import sweep_orphaned_workspaces as sweep_orphaned_section_workspaces
 
 # Set the stemdeck logger level (Python's default root level of WARNING would
@@ -233,6 +234,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await asyncio.to_thread(sweep_orphaned_section_workspaces, JOBS_DIR)
     except Exception:
         _log.exception("could not sweep orphaned section workspaces")
+    # The same for a mix, a split, a cached MP3, an export render and a zip.
+    try:
+        import app.api.stems as stems_api
+
+        caches = (stems_api._MIXDOWN_CACHE_DIR, stems_api._CLICK_CACHE_DIR)
+        await asyncio.to_thread(sweep_crash_leftovers, JOBS_DIR, caches)
+    except Exception:
+        _log.exception("could not sweep crash leftovers")
 
     resumed = take_pending_resume()
     if resumed:
@@ -661,6 +670,7 @@ async def set_stems_location(request: Request) -> dict[str, object]:
                 status_code=409,
                 detail="Finish or cancel the imports in the queue before moving the stems folder",
             )
+        _refuse_while_busy()
         target = validate_target(Path(raw), JOBS_DIR)
     except StemsLocationError as e:
         abandon_relocation()
@@ -714,7 +724,8 @@ async def set_stems_location(request: Request) -> dict[str, object]:
 @app.post("/api/reset", tags=["settings"])
 def reset_app_data() -> dict[str, object]:
     """Factory reset (Settings -> General -> "Reset app data"): delete every
-    job directory and the registry, so no old work session can resurface
+    job directory and the registry (only StemDeck's own entries: see
+    registry.reset_all), so no old work session can resurface
     across package reinstalls -- on desktop, the runtime state that actually
     persists (~/Documents/StemDeck, not the extracted package's own bundled
     data/ folder) survives a fresh install otherwise. The browser-side
@@ -732,6 +743,7 @@ def reset_app_data() -> dict[str, object]:
     active = [j for j in registry_all_jobs().values() if j.status in _ACTIVE_JOB_STATUSES]
     if active:
         raise HTTPException(status_code=409, detail="cannot reset while a job is in progress")
+    _refuse_while_busy()
     # Clear the queue alongside the registry, or the worker would keep popping
     # ids that no longer resolve and the queue view would report ghosts.
     from app.pipeline import jobqueue
@@ -1206,6 +1218,25 @@ def _secure_origin_required() -> bool:
     transpose on it.
     """
     return not _is_desktop_shell()
+
+
+def _refuse_while_busy() -> None:
+    """Raise JobBusy while a finished song is being worked on (upstream PR
+    878): the queue statuses the move and the reset check do not show it."""
+    if any(j.post_hoc_running() for j in registry_all_jobs().values()):
+        raise JobBusy()
+
+
+_JOB_BUSY_DETAIL = (
+    "A song is still being separated (Lead + Backing). Try again when it has finished."
+)
+
+
+# A library move or a reset refused while a Lead + Backing split runs. Its own
+# code, so a client can tell it from any other 409 and translate it.
+@app.exception_handler(JobBusy)
+async def refuse_while_busy(_request: Request, _exc: JobBusy) -> JSONResponse:
+    return JSONResponse({"detail": _JOB_BUSY_DETAIL, "code": "job_busy"}, status_code=409)
 
 
 @app.middleware("http")

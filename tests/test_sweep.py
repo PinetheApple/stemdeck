@@ -366,6 +366,8 @@ def test_orphan_dir_falls_back_to_mtime(tmp_path: Path):
     """Directories with no registry entry (e.g. left over from a prior
     server run) still get swept by mtime."""
     d = _mkdir(tmp_path, "abcdefabcdec")
+    # Only a folder holding something StemDeck writes is StemDeck's to remove.
+    (d / "metadata.json").write_text("{}", encoding="utf-8")
     # Backdate the directory.
     old = time.time() - 999_999
     import os
@@ -402,6 +404,9 @@ def test_sweep_failed_jobs_expires_old_keeps_fresh(tmp_path: Path):
 
     old_dir = _mkdir(tmp_path / "failed", "abcdefabcde1")
     fresh_dir = _mkdir(tmp_path / "failed", "abcdefabcde2")
+    # The runner writes error.txt into every quarantine it makes.
+    for d in (old_dir, fresh_dir):
+        (d / "error.txt").write_text("evidence", encoding="utf-8")
     old = time.time() - 999_999
     import os
 

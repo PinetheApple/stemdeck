@@ -30,19 +30,21 @@ def client():
 
 
 def test_reset_all_clears_registry_and_deletes_job_dirs(tmp_path):
+    jobs_dir = tmp_path / "jobs"
     job = Job(id="abcdefabcdef", status="done", title="Old song")
     _jobs[job.id] = job
-    job_dir = tmp_path / job.id
+    job_dir = jobs_dir / job.id
     (job_dir / "stems").mkdir(parents=True)
     (job_dir / "stems" / "vocals.wav").write_bytes(b"RIFF")
-    (tmp_path / "registry.json").write_text(json.dumps({"version": 1, "jobs": [job.to_record()]}))
-    (tmp_path / "failed").mkdir()
-    (tmp_path / "failed" / "somejob").mkdir()
+    (jobs_dir / "registry.json").write_text(json.dumps({"version": 1, "jobs": [job.to_record()]}))
+    # A quarantined failure, as the runner leaves it: error.txt in failed/<id>.
+    (jobs_dir / "failed" / "abcdefabcde1").mkdir(parents=True)
+    (jobs_dir / "failed" / "abcdefabcde1" / "error.txt").write_text("evidence")
 
-    reset_registry(tmp_path)
+    reset_registry(jobs_dir)
 
     assert _jobs == {}
-    assert list(tmp_path.iterdir()) == []  # every entry under jobs_dir is gone
+    assert list(jobs_dir.iterdir()) == []  # every entry StemDeck made is gone
 
 
 def test_reset_all_clears_active_procs(tmp_path):

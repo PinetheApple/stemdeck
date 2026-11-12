@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 import tempfile
+import threading
 import uuid
 import zipfile
 from collections import deque
@@ -752,6 +753,28 @@ def _unlink_later(path: Path) -> None:
         logger.debug("could not remove rendered export %s", path, exc_info=True)
 
 
+# The two sides that must both let go of a stems zip before it is removed.
+_ZIP_BUILD = "build"
+_ZIP_REQUEST = "request"
+
+
+class _ZipTemp:
+    """A stems zip, removed once both the request and the build thread let go:
+    a cancel does not stop the thread, and Windows cannot remove an open file."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._lock = threading.Lock()
+        self._ended: set[str] = set()
+
+    def end(self, side: str) -> None:
+        with self._lock:
+            self._ended.add(side)
+            both = self._ended == {_ZIP_BUILD, _ZIP_REQUEST}
+        if both:
+            _unlink_later(self.path)
+
+
 async def _ensure_cached_mp3(src: Path) -> Path:
     """Transcode `src` (a stem WAV) to a sibling `<name>.mp3`, cached on disk.
     Re-encoding a full song on every request is the slow part of loading a track
@@ -1408,7 +1431,9 @@ def _build_stems_zip(
                 zf.write(p, arcname=_arcname(prefix, name, "wav"))
         return
     encode = _ENCODE_ARGS[fmt]
-    with tempfile.TemporaryDirectory() as td, zipfile.ZipFile(dest, "w", zipfile.ZIP_STORED) as zf:
+    # Beside the zip, so the startup sweep finds what a killed build left.
+    work = tempfile.TemporaryDirectory(prefix=".zipwork-", dir=dest.parent)
+    with work as td, zipfile.ZipFile(dest, "w", zipfile.ZIP_STORED) as zf:
         for name, p in sources:
             out = os.path.join(td, f"{name}.{fmt}")
             cmd = [
@@ -1482,17 +1507,32 @@ async def get_all_stems_zip(
     if not sources:
         raise HTTPException(status_code=404, detail="no stems found")
 
-    fd, tmp = tempfile.mkstemp(prefix="stemdeck_zip_", suffix=".zip")
+    # In the export cache under a dot name, like a render: the cache prune
+    # leaves it alone, and the startup sweep removes it if the process dies.
+    _MIXDOWN_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=".stemdeck_zip_", suffix=".zip", dir=_MIXDOWN_CACHE_DIR)
     os.close(fd)
     tmp_path = Path(tmp)
+    temp = _ZipTemp(tmp_path)
+
+    def build() -> None:
+        try:
+            _build_stems_zip(sources, fmt, tmp_path, _title_slug(job.display_title))
+        except Exception:
+            # Logged here: after a cancel nobody awaits the thread.
+            logger.exception("failed to build stems zip for job %s", job_id)
+            raise
+        finally:
+            temp.end(_ZIP_BUILD)
+
     try:
-        await asyncio.to_thread(
-            _build_stems_zip, sources, fmt, tmp_path, _title_slug(job.display_title)
-        )
+        await asyncio.to_thread(build)
     except Exception:
-        tmp_path.unlink(missing_ok=True)
-        logger.exception("failed to build stems zip for job %s", job_id)
+        temp.end(_ZIP_REQUEST)
         raise HTTPException(status_code=500, detail="failed to build archive") from None
+    except BaseException:
+        temp.end(_ZIP_REQUEST)
+        raise
 
     filename = f"{_safe_title(job.display_title)}_stems.zip"
     return FileResponse(

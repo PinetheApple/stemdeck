@@ -117,6 +117,17 @@ def _isolate_jobs_dir(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_export_caches(tmp_path, monkeypatch):
+    """Point the export caches at a temp dir. Every TestClient lifespan runs
+    the startup sweep of crash leftovers, which must never reach a
+    developer's real cache."""
+    import app.api.stems as _stems
+
+    monkeypatch.setattr(_stems, "_MIXDOWN_CACHE_DIR", tmp_path / "_cache" / "mixdown")
+    monkeypatch.setattr(_stems, "_CLICK_CACHE_DIR", tmp_path / "_cache" / "click")
+
+
+@pytest.fixture(autouse=True)
 def _isolate_job_queue():
     """The queue is module-global, so a job left waiting by one test would be
     picked up by the next test's worker."""

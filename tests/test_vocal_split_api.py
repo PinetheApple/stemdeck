@@ -32,6 +32,7 @@ from app.core.models import (
     JobCancelled,
 )
 from app.core.registry import _jobs
+from app.core.song_folder import STEMS_COMPLETE
 from app.pipeline import vocal_split as vs_mod
 from tests.test_jobs_replaces import _finish, _new_job
 from tests.test_lyrics_retime_api import _release, hold_the_lock
@@ -204,6 +205,7 @@ def _orphan(tmp_path: Path, names: tuple[str, ...]) -> Path:
     stems.mkdir(parents=True)
     for name in names:
         (stems / f"{name}.wav").write_bytes(b"RIFF")
+    (stems / STEMS_COMPLETE).write_text("", encoding="utf-8")
     return stems
 
 

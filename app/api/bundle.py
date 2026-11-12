@@ -37,6 +37,7 @@ from app.core.config import (
     ffmpeg_executable,
 )
 from app.core.registry import get as registry_get
+from app.core.song_folder import SAVED_FIELDS
 from app.pipeline.lyrics_lookup import lyrics_path, shown_timing
 from app.pipeline.tempo_grid import EDITOR_ONLY_TEMPO_KEYS
 
@@ -232,7 +233,14 @@ async def export_bundle(
     if not sources:
         raise HTTPException(status_code=404, detail="no stems found")
 
-    metadata = _read_json(job_dir / "metadata.json") or {}
+    # As written, less the copy of registry-only fields kept for a lost
+    # registry (song_folder.SAVED_FIELDS): a shared bundle never carries the
+    # source, the favourite or the Trash.
+    metadata = {
+        key: value
+        for key, value in (_read_json(job_dir / "metadata.json") or {}).items()
+        if key not in SAVED_FIELDS
+    }
     if job.user_title:
         metadata["title"] = job.user_title
     members: dict[str, dict] = {"metadata.json": metadata}

@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
 import shutil
 import subprocess
 import time
+import uuid
+from collections.abc import Iterable
 from pathlib import Path
 
 from app.core.config import (
@@ -12,6 +16,7 @@ from app.core.config import (
     FAILED_TTL_SECONDS,
     JOB_TTL_SECONDS,
     STEM_NAMES,
+    TEMP_MIN_AGE_SECONDS,
     TIMEOUT_FFMPEG,
     ffmpeg_executable,
 )
@@ -21,6 +26,7 @@ from app.core.registry import persist as registry_persist
 from app.core.registry import remove as registry_remove
 from app.core.registry import set_proc
 from app.core.setlists import all_song_ids as setlists_all_song_ids
+from app.core.song_folder import holds_job_files, is_real_entry, job_dirs, quarantine_dirs
 from app.pipeline.audio_stats import scan_stem
 from app.pipeline.lyrics_retime import RETIME_RUNS
 from app.pipeline.transcribe_on_demand import TRANSCRIBE_RUNS
@@ -69,6 +75,24 @@ def _run_ffmpeg(job: Job, cmd: list[str]) -> bool:
         return True
     finally:
         set_proc(job.id, None)
+
+
+def _write_wav(job: Job, cmd: list[str], out: Path) -> Path | None:
+    """Run `cmd` with a WAV output at the dot temp name `.<name>.<hex>.tmp`
+    beside `out`, renamed to `out` only once ffmpeg succeeded. A kill mid-write
+    then leaves a temp file, never an `out` that a rebuild takes for a whole
+    stem (upstream PR 898)."""
+    tmp = out.with_name(f".{out.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        if not _run_ffmpeg(job, [*cmd, "-f", "wav", str(tmp)]):
+            return None
+        os.replace(tmp, out)
+        return out
+    finally:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("could not remove %s", tmp, exc_info=True)
 
 
 def remove_job_dir(job_dir: Path) -> bool:
@@ -158,7 +182,7 @@ def make_original_track(job: Job, job_dir: Path, stems_dir: Path) -> Path | None
         # Single complement stem -- copy as-is so we still produce a
         # canonical mix.wav-shaped output without invoking amix on a
         # 1-input graph (which is a no-op anyway).
-        cmd += ["-c:a", "pcm_s16le", str(out)]
+        cmd += ["-c:a", "pcm_s16le"]
     else:
         filter_inputs = "".join(f"[{i}:a]" for i in range(len(inputs)))
         cmd += [
@@ -166,9 +190,8 @@ def make_original_track(job: Job, job_dir: Path, stems_dir: Path) -> Path | None
             f"{filter_inputs}amix=inputs={len(inputs)}:normalize=0",
             "-c:a",
             "pcm_s16le",
-            str(out),
         ]
-    return out if _run_ffmpeg(job, cmd) else None
+    return _write_wav(job, cmd, out)
 
 
 def make_selected_mix(job: Job, stems_dir: Path, found: list[str]) -> Path | None:
@@ -207,9 +230,8 @@ def make_selected_mix(job: Job, stems_dir: Path, found: list[str]) -> Path | Non
         f"{filter_inputs}amix=inputs={len(inputs)}:normalize=0",
         "-c:a",
         "pcm_s16le",
-        str(out),
     ]
-    return out if _run_ffmpeg(job, cmd) else None
+    return _write_wav(job, cmd, out)
 
 
 # Enough points to back the deepest zoom, not the 1x bar count: a full-width
@@ -360,7 +382,7 @@ def _keep_reason(
     if job_dir.name in in_setlists:
         return "in a setlist"
     if job is None:
-        return None
+        return _unregistered_keep_reason(job_dir)
     if job.status not in _TERMINAL:
         return "still active"
     if _work_running(job):
@@ -370,6 +392,21 @@ def _keep_reason(
         return "stopped song"
     if job.favorite:
         return "favourite"
+    return None
+
+
+def _unregistered_keep_reason(job_dir: Path) -> str | None:
+    """A folder restore() did not adopt goes only when it is StemDeck's and holds
+    no audio: one with a source or stems may be the only copy of an upload."""
+    if not holds_job_files(job_dir):
+        return "holds nothing StemDeck writes"
+    try:
+        if any(p.is_file() for p in job_dir.glob("source.*")):
+            return "unregistered folder holds a source file"
+        if any((job_dir / "stems").glob("*.wav")):
+            return "unregistered folder holds stems"
+    except OSError:
+        return "folder cannot be read"
     return None
 
 
@@ -396,7 +433,9 @@ def sweep_old_jobs(jobs_dir: Path, ttl_seconds: int | None = None) -> None:
     user has said they want them, which outranks a retention limit. When the
     setlists cannot be read, nothing is swept. A stopped song is never swept
     either, nor a song with a vocal split, lyrics timing or transcription
-    running (upstream PR 862 and 998): only the user deletes those. Every song
+    running (upstream PR 862 and 998): only the user deletes those. Only StemDeck's own job
+    folders are looked at, and one with no registry entry is kept while it holds a
+    source or stems (upstream PR 886 and 889). Every song
     kept or removed is logged with the reason (_keep_reason)."""
     cutoff = time.time() - (JOB_TTL_SECONDS if ttl_seconds is None else ttl_seconds)
     if not jobs_dir.is_dir():
@@ -407,9 +446,9 @@ def sweep_old_jobs(jobs_dir: Path, ttl_seconds: int | None = None) -> None:
         return
     jobs = registry_all()
     removed = False
-    for d in jobs_dir.iterdir():
-        if not d.is_dir() or d.name == "failed":
-            continue  # the failure quarantine has its own TTL (sweep_failed_jobs)
+    # Only StemDeck's own folders: the jobs folder may be shared. Not failed/,
+    # whose quarantine has its own TTL (sweep_failed_jobs).
+    for d in job_dirs(jobs_dir):
         job = jobs.get(d.name)
         reason = _keep_reason(job, d, cutoff, in_setlists)
         if reason is not None:
@@ -431,13 +470,85 @@ def sweep_failed_jobs(jobs_dir: Path) -> None:
     FAILED_TTL_SECONDS. Runs unconditionally from the hourly sweep loop --
     unlike the job TTL sweep, which persistent-library deployments disable,
     failure evidence must never accumulate forever (#277)."""
-    failed_root = jobs_dir / "failed"
-    if not failed_root.is_dir():
-        return
     cutoff = time.time() - FAILED_TTL_SECONDS
-    for d in failed_root.iterdir():
+    # Only StemDeck's quarantines: failed/ may hold someone else's folders.
+    for d in quarantine_dirs(jobs_dir):
         try:
-            if d.is_dir() and d.stat().st_mtime < cutoff:
+            if d.stat().st_mtime < cutoff:
                 _rmtree(d)
         except OSError:
             logger.warning("failed-quarantine sweep could not stat %s", d, exc_info=True)
+
+
+# The dot temps a writer leaves when the process dies before its cleanup runs.
+# Nothing a song keeps has one of these names.
+_JOB_TEMP_FILE_RE = re.compile(r"\..+\.[0-9a-f]{32}\.tmp\Z")
+_STEMS_TEMP_RE = re.compile(r"\..+\.tmp\Z")
+# The same in the export caches: a render or a click written beside its cache
+# entry, a stems zip and the folder its stems are transcoded in.
+_CACHE_TEMP_DIR_RE = re.compile(r"\.zipwork-\w{8}\Z")
+_CACHE_TEMP_FILE_RE = re.compile(r"\..+\.[0-9a-f]{32}\.tmp(\.\w+)?\Z|\.stemdeck_zip_\w{8}\.zip\Z")
+
+
+def _matching(folder: Path, dir_re: re.Pattern[str], file_re: re.Pattern[str]) -> list[Path]:
+    if not folder.is_dir() or not is_real_entry(folder):
+        return []
+    return [
+        p
+        for p in folder.iterdir()
+        if (dir_re.match(p.name) and p.is_dir()) or (file_re.match(p.name) and p.is_file())
+    ]
+
+
+def _song_leftovers(jobs_dir: Path) -> list[Path]:
+    found: list[Path] = []
+    for job_dir in job_dirs(jobs_dir):
+        if not holds_job_files(job_dir):
+            continue
+        try:
+            found += [p for p in job_dir.iterdir() if _JOB_TEMP_FILE_RE.match(p.name)]
+            found += _matching(job_dir / "stems", _STEMS_TEMP_RE, _STEMS_TEMP_RE)
+        except OSError:
+            logger.warning("crash leftover sweep could not read %s", job_dir.name)
+    return found
+
+
+def _cache_leftovers(cache_dirs: Iterable[Path]) -> list[Path]:
+    found: list[Path] = []
+    for cache_dir in cache_dirs:
+        try:
+            found += _matching(cache_dir, _CACHE_TEMP_DIR_RE, _CACHE_TEMP_FILE_RE)
+        except OSError:
+            logger.warning("crash leftover sweep could not read %s", cache_dir.name)
+    return found
+
+
+def _unwritten_since(path: Path, cutoff: float) -> bool:
+    try:
+        return path.stat().st_mtime < cutoff
+    except OSError:
+        return False
+
+
+def sweep_crash_leftovers(jobs_dir: Path, cache_dirs: Iterable[Path]) -> int:
+    """Remove what a killed process left half-written in every song folder and
+    in the export caches (`cache_dirs`), upstream PR 900. Returns how many went.
+
+    Call this at startup only, before the queue runs anything: no writer is
+    alive then, so every temp found is dead. Only StemDeck's song folders are
+    looked in, and no link is followed or removed. A temp written in the last
+    TEMP_MIN_AGE_SECONDS is left alone: it may be another server's."""
+    cutoff = time.time() - TEMP_MIN_AGE_SECONDS
+    gone = 0
+    for path in _song_leftovers(jobs_dir) + _cache_leftovers(cache_dirs):
+        if not is_real_entry(path) or not _unwritten_since(path, cutoff):
+            continue
+        try:
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+            gone += 1
+        except OSError:
+            logger.warning("crash leftover not removed: %s", path.name)
+    return gone

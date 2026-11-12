@@ -61,7 +61,7 @@ FLAC at the song's own sample rate and channel count, as given in the manifest. 
 
 ## metadata.json
 
-StemDeck's `metadata.json` for the job, as written. The fields a player is most likely to want:
+StemDeck's `metadata.json` for the job, as written, less what only the library itself keeps there (the favourite, the Trash, the source, the stem selection and the date added). The fields a player is most likely to want:
 
 | Field | Type | Meaning |
 |---|---|---|

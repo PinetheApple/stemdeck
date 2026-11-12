@@ -22,6 +22,13 @@ from app.core.models import Job, JobCancelled, _set, settle_cancelled
 from app.core.redact import redact
 from app.core.registry import is_upload
 from app.core.registry import persist as persist_registry
+from app.core.song_folder import (
+    keep_added_time,
+    mark_stems_complete,
+    metadata_lock,
+    saved_fields,
+    write_json_atomic,
+)
 from app.pipeline import jobqueue
 from app.pipeline.analyze import analyze, refine_key_from_stems
 from app.pipeline.beatgrid import compute_beat_grid
@@ -160,11 +167,10 @@ def _prepare_local_source(job: Job, source: Path, job_dir: Path) -> Path:
 def _lap(job: Job, name: str, start: float) -> float:
     """Record a stage duration in job.stage_timings; returns a new start mark.
     Timings feed the one-line completion summary, metadata.json, and the
-    failure quarantine's error.txt (#293)."""
+    failure quarantine's error.txt (#293). A new dict each time: a registry
+    save reads the old one from another thread, without a lock this takes."""
     now = time.monotonic()
-    if job.stage_timings is None:
-        job.stage_timings = {}
-    job.stage_timings[name] = round(now - start, 1)
+    job.stage_timings = {**(job.stage_timings or {}), name: round(now - start, 1)}
     return now
 
 
@@ -326,12 +332,22 @@ def _run_with_band_lookup(job: Job, source: Path, job_dir: Path) -> None:
     _lap(job, "retime", mark)
 
 
+def _mark_stems_complete(job: Job, job_dir: Path) -> None:
+    """After the separation's last write. A failure costs the marker, not the
+    song: its metadata.json, written once done, still lets it be rebuilt."""
+    try:
+        mark_stems_complete(job_dir)
+    except OSError:
+        logger.exception("[%s] could not mark the stems complete", job.id)
+
+
 def _run_blocking(job: Job, url: str, job_dir: Path) -> None:
     _check_cancel(job)
     mark = time.monotonic()
     source = download(job, url, job_dir)
     _lap(job, "download", mark)
     _run_with_band_lookup(job, source, job_dir)
+    _mark_stems_complete(job, job_dir)
 
 
 def _run_local_blocking(job: Job, source_path: Path, job_dir: Path) -> None:
@@ -340,10 +356,21 @@ def _run_local_blocking(job: Job, source_path: Path, job_dir: Path) -> None:
     source = _prepare_local_source(job, source_path, job_dir)
     _lap(job, "prepare", mark)
     _run_with_band_lookup(job, source, job_dir)
+    _mark_stems_complete(job, job_dir)
 
 
 def _write_metadata(job: Job, job_dir: Path) -> None:
-    meta = {
+    """Blocking. Under metadata_lock, and the job's fields read inside it: a
+    favourite or a Trash set as the song finishes must not be overwritten."""
+    with metadata_lock:
+        try:
+            write_json_atomic(job_dir / "metadata.json", _metadata(job))
+        except OSError:
+            logger.warning("could not write metadata.json for job %s", job.id, exc_info=True)
+
+
+def _metadata(job: Job) -> dict:
+    return {
         "title": job.title,
         "user_title": job.user_title,
         "user_artist": job.user_artist,
@@ -371,11 +398,8 @@ def _write_metadata(job: Job, job_dir: Path) -> None:
         "compute_device": job.compute_device,
         "gpu_fallback": job.gpu_fallback,
         "stage_timings": job.stage_timings,
+        **saved_fields(job),
     }
-    try:
-        (job_dir / "metadata.json").write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
-    except OSError:
-        logger.warning("could not write metadata.json for job %s", job.id, exc_info=True)
 
 
 # Files worth keeping in a quarantined failure dir. Everything else (source
@@ -467,6 +491,10 @@ async def _run_async(
 ) -> None:
     """Common async wrapper: acquires the pipeline lock, runs blocking_fn in a
     thread, then handles success / cancel / error outcomes uniformly."""
+    # Before the run writes into the folder and moves its time: a link's
+    # folder is made just now, and a song added before the time was kept gets
+    # it here.
+    await asyncio.to_thread(keep_added_time, job, job_dir)
     try:
         async with _pipeline_lock:
             await asyncio.to_thread(blocking_fn, job, *fn_args, job_dir)
@@ -478,11 +506,15 @@ async def _run_async(
                 logger.info("[%s] interrupted by shutdown: %s", job.id, e)
                 return
             logger.exception("pipeline failed for job %s: %s", job.id, e)
-            _set(job, status="error", stage="Error: Processing failed", error=error_msg)
             # A fingerprint may still have the source open (Windows).
             release_source(job.id)
-            _quarantine_failed_job(job, job_dir, jobs_dir, e)
-            persist_registry(jobs_dir)
+            # Off the loop: stripping and moving a big folder on a NAS stalled
+            # every stream and request. The status changes after it, so the
+            # first "error" a page sees already carries error_detail and nothing
+            # can delete the folder mid-move.
+            await asyncio.to_thread(_quarantine_failed_job, job, job_dir, jobs_dir, e)
+            _set(job, status="error", stage="Error: Processing failed", error=error_msg)
+            await asyncio.to_thread(persist_registry, jobs_dir)
             return
         logger.info(
             "pipeline cancelled%s for job %s",
@@ -490,14 +522,14 @@ async def _run_async(
             job.id,
         )
         remove_files = settle_cancelled(job)
-        persist_registry(jobs_dir)
+        await asyncio.to_thread(persist_registry, jobs_dir)
         release_source(job.id)
         # A job stopped from the Trash keeps its files until the Trash is
         # emptied (#748). A plain cancel's folder is retried like delete_job's
         # removal: right after the cancel terminated ffmpeg or the demucs
         # worker, Windows can still hold one of its files, and a single attempt
         # left the folder behind for good.
-        if remove_files and not remove_job_dir(job_dir):
+        if remove_files and not await asyncio.to_thread(remove_job_dir, job_dir):
             logger.warning("[%s] cancelled job's folder could not be removed", job.id)
         return
     # A cancel or a trash that arrived after the last stage checked for it lost
@@ -507,8 +539,8 @@ async def _run_async(
     job.cancel_requested = False
     job.stop_requested = False
     _set(job, status="done", progress=1.0, stage="Done")
-    _write_metadata(job, job_dir)
-    persist_registry(jobs_dir)
+    await asyncio.to_thread(_write_metadata, job, job_dir)
+    await asyncio.to_thread(persist_registry, jobs_dir)
     # One-line per-job summary: the timing telemetry that makes performance
     # regressions (and the CPU-vs-GPU question) answerable from logs (#293).
     t = job.stage_timings or {}
@@ -546,7 +578,7 @@ async def run_pipeline(job: Job, url: str, jobs_dir: Path) -> None:
             stage="Error: Processing failed",
             error="Audio processing failed. Please try another video.",
         )
-        persist_registry(jobs_dir)
+        await asyncio.to_thread(persist_registry, jobs_dir)
         return
     await _run_async(
         job,
