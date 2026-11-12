@@ -191,7 +191,7 @@ import {
 import { createPlaybackContext } from "./audioContext.js";
 import { createTickLoop } from "./tickLoop.js";
 import { loadStretchWorklet, pipelineLatencySeconds as stretchLatency } from "./tempoStage.js";
-import { reachedEnd } from "./playbackEnd.js";
+import { hasKnownLength, reachedEnd } from "./playbackEnd.js";
 
 export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {}) {
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -269,7 +269,6 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
   let destroyed = false;
   // Before ready() settles there is no duration and no chunk to start from.
   let _loaded = false;
-  // Bumped by each play() that waits for ready(), so a stale wait starts nothing.
   let _pendingSeq = 0;
 
   // Per-stem state: url, parsed WAV header, gain node, analyser (VU tap), and
@@ -646,7 +645,7 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
       onEnded?.();
       return;
     }
-    if (!(_duration > 0)) {
+    if (!hasKnownLength(_duration)) {
       playing = false;
       _audioStarted = false;
       tickLoop.cancel();
@@ -726,8 +725,8 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
       });
   }
 
-  // Started at once, it ran one tick at 0 of a 0 s track: its end. `playing`
-  // is set meanwhile, as during a first chunk fetch, so a second press pauses.
+  // `playing` is set meanwhile, as during a first chunk fetch, so a second
+  // press pauses.
   function _playWhenLoaded(leadIn) {
     playing = true;
     const seq = ++_pendingSeq;
@@ -756,6 +755,7 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
     // and clamped in _load once it is known.
     const clamped = Math.max(0, _loaded ? Math.min(t, _duration || 0) : t);
     const wasPlaying = playing;
+    const wasWaiting = wasPlaying && !_loaded;
     if (wasPlaying) {
       _stopNodes();
       playing = false;
@@ -774,7 +774,7 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
       if (k < newIdx && k !== pin) _cache.delete(k);
     }
     onTime?.(clamped);
-    if (wasPlaying) play();
+    if (wasPlaying && !wasWaiting) play();
   }
 
   // Initialize: fetch all WAV headers in parallel and load the SoundTouch worklet.

@@ -1108,8 +1108,8 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
     multitrack.destroy();
     setMultitrack(null);
   }
-  // Here, not on the engine path: the transport reads `audioEngine ??
-  // multitrack`, so a leftover engine would take Play on a streaming-path song.
+  // The transport reads `audioEngine ?? multitrack`, so a leftover engine would
+  // take Play on a streaming-path song.
   if (audioEngine) {
     teardownMetronome();
     audioEngine.destroy();

@@ -1,6 +1,10 @@
-// When a playhead position counts as the end of a track, for both engines.
-// They start with a duration of 0 until the stems are read, and position 0 is
-// "at or past" that, so only a known positive duration has an end.
+// Track length and end checks shared by both engines, which hold a duration
+// of 0 until the stems are read.
+
+/** True when `duration` is a known, positive length in seconds. */
+export function hasKnownLength(duration) {
+  return Number.isFinite(duration) && duration > 0;
+}
 
 /**
  * @param {number} position  Playhead, in seconds.
@@ -9,5 +13,5 @@
  *   `position` has reached it.
  */
 export function reachedEnd(position, duration) {
-  return Number.isFinite(duration) && duration > 0 && position >= duration;
+  return hasKnownLength(duration) && position >= duration;
 }

@@ -540,12 +540,15 @@ function _armCountIn(eng, startPos) {
 
 // The button lights on the press, before a start that may wait for a fetch or
 // for the stems. One that never happens must not leave it lit over silence.
-function _unlightIfNotStarted(start) {
-  start.then(function unlightUnlessPlaying(started) {
-    if (!started && !audioEngine?.isPlaying()) playBtn.classList.remove("playing");
-  }, function warnPlayFailed(err) {
-    console.warn("[transport] play failed:", err);
-  });
+function _unlightIfNotStarted(eng, start) {
+  start.then(
+    function unlightUnlessPlaying(started) {
+      if (!started && audioEngine === eng && !eng.isPlaying()) playBtn.classList.remove("playing");
+    },
+    function warnPlayFailed(err) {
+      console.warn("[transport] play failed:", err);
+    },
+  );
 }
 
 export function togglePlayPause() {
@@ -577,7 +580,7 @@ export function togglePlayPause() {
     // same position playback will actually start from.
     let startPos = eng.getCurrentTime?.() ?? 0;
     if (totalDuration > 0 && startPos >= totalDuration) startPos = 0;
-    _unlightIfNotStarted(_armCountIn(eng, startPos) || eng.play());
+    _unlightIfNotStarted(eng, _armCountIn(eng, startPos) || eng.play());
     playBtn.classList.add("playing");
     stopBtn.classList.remove("stopped");
   } else {

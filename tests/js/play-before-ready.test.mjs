@@ -44,8 +44,7 @@ const FMT_CHUNK_BYTES = 16;
 const SEEK_SEC = 3;
 const PAST_END_SEC = 100;
 const EPSILON = 1e-9;
-// Without requestAnimationFrame the tick loop runs on a 100 ms timer, so this
-// is three ticks: the bug ended the song on the first.
+// Without requestAnimationFrame the tick loop runs on a 100 ms timer.
 const THREE_TICKS_MS = 350;
 const SETTLE_MS = 50;
 
@@ -147,8 +146,7 @@ class FakeCtx {
     };
   }
 
-  // The first stem decodes at once and the rest wait on decodeGate: the window
-  // the full-decode engine used to start in with one stem.
+  // The first stem decodes at once and the rest wait on decodeGate.
   async decodeAudioData() {
     decodes++;
     if (decodes > 1) await decodeGate;
@@ -252,10 +250,16 @@ async function chunkedSeekWhileLoading() {
   const play = eng.play();
   releaseFetch();
   await play;
-  check("chunked: a seek made while loading is where it starts",
-    Math.abs(eng.getCurrentTime() - SEEK_SEC) < EPSILON, String(eng.getCurrentTime()));
-  check("chunked: ...inside its chunk",
-    started.every((s) => Math.abs(s.offset - SEEK_SEC) < EPSILON), JSON.stringify(started));
+  check(
+    "chunked: a seek made while loading is where it starts",
+    Math.abs(eng.getCurrentTime() - SEEK_SEC) < EPSILON,
+    String(eng.getCurrentTime()),
+  );
+  check(
+    "chunked: ...inside its chunk",
+    started.every((s) => Math.abs(s.offset - SEEK_SEC) < EPSILON),
+    JSON.stringify(started),
+  );
   eng.destroy();
 
   holdFetches();
@@ -263,9 +267,31 @@ async function chunkedSeekWhileLoading() {
   late.seek(PAST_END_SEC);
   releaseFetch();
   await late.ready;
-  check("chunked: a seek past the end made while loading is clamped once known",
-    late.getCurrentTime() === late.getDuration(), `${late.getCurrentTime()} of ${late.getDuration()}`);
+  check(
+    "chunked: a seek past the end made while loading is clamped once known",
+    late.getCurrentTime() === late.getDuration(),
+    `${late.getCurrentTime()} of ${late.getDuration()}`,
+  );
   late.destroy();
+}
+
+async function chunkedSeekCancelsWait() {
+  holdFetches();
+  const { eng, ev } = chunked();
+  const play = eng.play();
+  eng.seek(SEEK_SEC);
+  check("chunked: a seek while Play waits reads as paused", eng.isPlaying() === false);
+  releaseFetch();
+  check("chunked: a wait cancelled by a seek resolves false", (await play) === false);
+  await ticks();
+  check("chunked: a wait cancelled by a seek starts nothing", started.length === 0, `${started.length} sources`);
+  check(
+    "chunked: a seek that cancelled the wait keeps its position",
+    Math.abs(eng.getCurrentTime() - SEEK_SEC) < EPSILON,
+    String(eng.getCurrentTime()),
+  );
+  check("chunked: a wait cancelled by a seek fires no onEnded", ev.ended === 0);
+  eng.destroy();
 }
 
 async function chunkedFailedLoad() {
@@ -275,6 +301,11 @@ async function chunkedFailedLoad() {
   releaseFetch();
   check("chunked: failed load, ready() is false", (await eng.ready) === false);
   check("chunked: failed load, a waiting Play resolves false", (await play) === false);
+  check(
+    "chunked: failed load, the error is reported",
+    /could not load/i.test(eng.getLoadError() || ""),
+    eng.getLoadError(),
+  );
   check("chunked: failed load, reads as not playing", eng.isPlaying() === false);
   await ticks();
   check("chunked: failed load, no onEnded", ev.ended === 0);
@@ -302,8 +333,11 @@ async function fullDecodePlayWhileLoading() {
   check("fulldecode: nothing started while it waits", started.length === 0, `${started.length} sources`);
   releaseDecode();
   check("fulldecode: play() resolves true once loaded", (await play) === true);
-  check("fulldecode: starts every stem, not just the first decoded",
-    started.length === STEMS.length, `${started.length} sources`);
+  check(
+    "fulldecode: starts every stem, not just the first decoded",
+    started.length === STEMS.length,
+    `${started.length} sources`,
+  );
   await ticks();
   check("fulldecode: no onEnded", ev.ended === 0);
   eng.destroy();
@@ -327,11 +361,58 @@ async function fullDecodePauseAndDestroyDropWait() {
   check("fulldecode: a destroyed engine's wait starts nothing", started.length === 0);
 }
 
+async function fullDecodeSeekWhileLoading() {
+  const { eng, releaseDecode } = fullDecode();
+  eng.seek(SEEK_SEC);
+  releaseDecode();
+  await eng.ready;
+  check(
+    "fulldecode: a seek made while loading keeps its position",
+    Math.abs(eng.getCurrentTime() - SEEK_SEC) < EPSILON,
+    String(eng.getCurrentTime()),
+  );
+  eng.destroy();
+
+  const late = fullDecode();
+  late.eng.seek(PAST_END_SEC);
+  late.releaseDecode();
+  await late.eng.ready;
+  check(
+    "fulldecode: a seek past the end made while loading is clamped once known",
+    late.eng.getCurrentTime() === late.eng.getDuration(),
+    `${late.eng.getCurrentTime()} of ${late.eng.getDuration()}`,
+  );
+  late.eng.destroy();
+}
+
+async function fullDecodeSeekCancelsWait() {
+  const { eng, ev, releaseDecode } = fullDecode();
+  const play = eng.play();
+  eng.seek(SEEK_SEC);
+  check("fulldecode: a seek while Play waits reads as paused", eng.isPlaying() === false);
+  releaseDecode();
+  check("fulldecode: a wait cancelled by a seek resolves false", (await play) === false);
+  await ticks();
+  check("fulldecode: a wait cancelled by a seek starts nothing", started.length === 0, `${started.length} sources`);
+  check(
+    "fulldecode: a seek that cancelled the wait keeps its position",
+    Math.abs(eng.getCurrentTime() - SEEK_SEC) < EPSILON,
+    String(eng.getCurrentTime()),
+  );
+  check("fulldecode: a wait cancelled by a seek fires no onEnded", ev.ended === 0);
+  eng.destroy();
+}
+
 async function fullDecodeFailedLoad() {
   const { eng, ev, releaseDecode } = fullDecode(MISSING_STEMS);
   releaseDecode();
   const play = eng.play();
   check("fulldecode: failed load, a waiting Play resolves false", (await play) === false);
+  check(
+    "fulldecode: failed load, the error is reported",
+    /could not load/i.test(eng.getLoadError() || ""),
+    eng.getLoadError(),
+  );
   check("fulldecode: failed load, reads as not playing", eng.isPlaying() === false);
   check("fulldecode: failed load, no onEnded", ev.ended === 0);
   eng.destroy();
@@ -342,10 +423,13 @@ await chunkedPauseDropsWait();
 await chunkedStaleWaitStartsNothing();
 await chunkedDestroyDropsWait();
 await chunkedSeekWhileLoading();
+await chunkedSeekCancelsWait();
 await chunkedFailedLoad();
 await chunkedReadyStartsAtOnce();
 await fullDecodePlayWhileLoading();
 await fullDecodePauseAndDestroyDropWait();
+await fullDecodeSeekWhileLoading();
+await fullDecodeSeekCancelsWait();
 await fullDecodeFailedLoad();
 
 console.log(`\n${passed}/${passed + failed} checks passed`);

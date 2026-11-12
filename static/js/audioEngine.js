@@ -25,7 +25,7 @@ import {
 import { createPlaybackContext } from "./audioContext.js";
 import { createTickLoop } from "./tickLoop.js";
 import { loadStretchWorklet, pipelineLatencySeconds as stretchLatency } from "./tempoStage.js";
-import { reachedEnd } from "./playbackEnd.js";
+import { hasKnownLength, reachedEnd } from "./playbackEnd.js";
 
 export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
   // Mobile/iOS only starts audio from a context resumed inside a user gesture.
@@ -304,7 +304,7 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
       onTime?.(duration);
       onEnded?.();
       return;
-    } else if (!(duration > 0)) {
+    } else if (!hasKnownLength(duration)) {
       pause();
       return;
     }
@@ -322,9 +322,6 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
   // started. Here that is always before play() returns, but the streaming
   // engine can only say so after a fetch, and callers are written against the
   // promise so the two engines keep one contract.
-  //
-  // Pressed before ready() has settled, the start waits for it; isPlaying()
-  // reads true meanwhile so a second press pauses. See _playWhenLoaded.
   function play(leadIn = 0) {
     if (playing || _pending || destroyed) return Promise.resolve(false);
     // Safari: resume the context fire-and-forget within the user-gesture tick.
@@ -341,8 +338,6 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
     return Promise.resolve(true);
   }
 
-  // A pause or destroy() clears _pending, and a wait it no longer names starts
-  // nothing, so a song change can never start the previous song.
   function _playWhenLoaded(leadIn) {
     const seq = _pending = ++_pendingSeq;
     const settle = (ok) => {
@@ -366,6 +361,7 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
   }
 
   function seek(t) {
+    _pending = 0;
     // Before ready() the length still grows as stems decode, so the position
     // is kept as asked and clamped in _load once it is known.
     const clamped = Math.max(0, _loaded ? Math.min(t, duration || 0) : t);
