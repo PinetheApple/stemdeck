@@ -4,6 +4,11 @@ import { test, expect } from "@playwright/test";
 import { openStudio, JOB_ID, uiText } from "./helpers.mjs";
 
 const ONE_SECTION = [{ id: "s1", name: "Verse", start: 0, end: 2, color: "#4a7fff" }];
+// seed.py writes a 6 second fixture; these two sections cover all of it.
+const FULL_TRACK = [
+  { id: "s1", name: "Verse", start: 0, end: 3, color: "#4a7fff" },
+  { id: "s2", name: "Chorus", start: 3, end: 6, color: "#ff7a59" },
+];
 const SECTIONS_OFF = /panel-sections-off/;
 const LANGUAGE_KEY = "stemdeck.language";
 // Sub-pixel layout rounding only.
@@ -16,11 +21,31 @@ test.afterEach(async ({ page }) => {
   await page.request.patch(`/api/jobs/${JOB_ID}/sections`, { data: { sections: [] } });
 });
 
-async function openWithOneSection(page) {
-  const res = await page.request.patch(`/api/jobs/${JOB_ID}/sections`, { data: { sections: ONE_SECTION } });
+async function openWithSections(page, sections = ONE_SECTION) {
+  const res = await page.request.patch(`/api/jobs/${JOB_ID}/sections`, { data: { sections } });
   expect(res.ok(), "seeding sections").toBe(true);
   await openStudio(page);
-  await expect(page.locator(".section-block")).toHaveCount(ONE_SECTION.length);
+  await expect(page.locator(".section-block")).toHaveCount(sections.length);
+}
+
+function inGerman(page) {
+  return page.addInitScript(
+    ([key, code]) => localStorage.setItem(key, JSON.stringify(code)),
+    [LANGUAGE_KEY, "de"],
+  );
+}
+
+/** Whether the notice's whole text is drawn inside the header. */
+function measureNotice() {
+  const el = document.getElementById("sectionsSaveIndicator");
+  const header = el.closest(".daw-sections-header").getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  return {
+    cutAcross: el.scrollWidth > el.clientWidth,
+    cutDown: el.scrollHeight > el.clientHeight,
+    insideHeader: r.left >= header.left && r.right <= header.right
+      && r.top >= header.top && r.bottom <= header.bottom,
+  };
 }
 
 /** Boxes of the header and the parts that share its row. */
@@ -69,7 +94,7 @@ test("Hide says what it does and how to undo it", async ({ page }) => {
 });
 
 test("Clear shows its word only once armed", async ({ page }) => {
-  await openWithOneSection(page);
+  await openWithSections(page);
   const label = page.locator("#sectionsClearBtn .sections-clear-label");
   await expect(page.locator("#sectionsClearBtn")).toBeVisible();
   await expect(label).toBeHidden();
@@ -78,14 +103,36 @@ test("Clear shows its word only once armed", async ({ page }) => {
 
   await expect(label).toBeVisible();
   await expect(label).toHaveText(await uiText(page, "sections.clearConfirm"));
+  await expect(page.locator("#sectionsClearBtn")).toHaveAttribute("aria-label", await uiText(page, "sections.clearConfirm"));
+});
+
+test("Hide disarms Clear, so the bar comes back without a pending clear", async ({ page }) => {
+  await openWithSections(page);
+  const clear = page.locator("#sectionsClearBtn");
+  await clear.click();
+  await expect(clear).toHaveAttribute("data-armed", "1");
+
+  await hideBtn(page).click();
+  await sectionsToggle(page).click();
+
+  await expect(clear).not.toHaveAttribute("data-armed", "1");
+  await expect(clear).toHaveAttribute("aria-label", await uiText(page, "sections.clearAria"));
+});
+
+test("a German notice is shown in full", async ({ page }) => {
+  await inGerman(page);
+  await openWithSections(page, FULL_TRACK);
+
+  await page.locator("#sectionsAddBtn").click();
+  const notice = page.locator("#sectionsSaveIndicator.notice");
+  await expect(notice).toHaveText(await uiText(page, "sections.noRoom"));
+
+  expect(await page.evaluate(measureNotice)).toEqual({ cutAcross: false, cutDown: false, insideHeader: true });
 });
 
 test("a long save word in German stays inside its slot", async ({ page }) => {
-  await page.addInitScript(
-    ([key, code]) => localStorage.setItem(key, JSON.stringify(code)),
-    [LANGUAGE_KEY, "de"],
-  );
-  await openWithOneSection(page);
+  await inGerman(page);
+  await openWithSections(page);
   await page.route("**/api/jobs/*/sections", () => new Promise(() => {}));
 
   await page.locator("#sectionsAddBtn").click();
