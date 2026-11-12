@@ -2196,17 +2196,30 @@ function wireRailLibraryDrop() {
 }
 
 // Inputs that take no typing, so a focused one leaves the app's keys alone.
-const NON_TEXT_INPUT_TYPES = ["range", "checkbox", "radio", "button", "submit", "reset", "color", "file", "image"];
+// Space is how a keyboard user presses the pressable ones, so they keep it.
+const PRESSABLE_INPUT_TYPES = ["checkbox", "radio", "button", "submit", "reset", "color", "file", "image"];
+const NON_TEXT_INPUT_TYPES = ["range", ...PRESSABLE_INPUT_TYPES];
+const typeSelectors = (types) => types.map((type) => `[type='${type}']`);
 const TEXT_EDITING_SELECTOR = [
-  `input:not(${NON_TEXT_INPUT_TYPES.map((type) => `[type='${type}']`).join(", ")})`,
+  `input:not(${typeSelectors(NON_TEXT_INPUT_TYPES).join(", ")})`,
   "textarea",
   "select",
   "[contenteditable]:not([contenteditable='false'])",
   ".folder-editor",
 ].join(", ");
 
+const NATIVE_SPACE_SELECTOR = [
+  "button",
+  "[role='button']",
+  ...typeSelectors(PRESSABLE_INPUT_TYPES).map((type) => `input${type}`),
+].join(", ");
+
 export function isTextEditingTarget(target) {
   return Boolean(target?.closest?.(TEXT_EDITING_SELECTOR));
+}
+
+export function isNativeSpaceTarget(target) {
+  return Boolean(target?.closest?.(NATIVE_SPACE_SELECTOR));
 }
 
 const SONG_ROW_SELECTOR = ".cat-item:not(.in-trash):not(.queue-row)";

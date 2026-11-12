@@ -4,14 +4,18 @@ import { focusAddedInput, openClickOptions, openStudio, waitForClickTrack } from
 const MODIFIER_KEYS = ["Control", "Meta", "Alt", "Shift"];
 const ALT_CHORDS = ["Alt+Space", "Alt+[", "Alt+]", "Alt+l", "Alt+k"];
 const ALT_LOOP_CHORDS = ["Alt+i", "Alt+o"];
-const TEXT_FIELD_KEYS = ["k", "l", "Space"];
-const SELECT_LETTERS = ["k", "l"];
+const SHORTCUT_LETTERS = ["k", "l"];
+const TEXT_FIELD_KEYS = [...SHORTCUT_LETTERS, "Space"];
 const SELECT_LIST = "#select-menu-list";
 const TEXT_ENTRY_TYPES = ["number", "search"];
 const ACTIVE = /\bactive\b/;
 const MIXER_FADER = ".mx-fader-input";
 const SPEED_FADER = "#t-speed";
 const SPEED_BOX = "#t-speed-value";
+const MUTE_CHIP = ".mx-btn.mute";
+const MUTED_LANE = ".lane-header.muted";
+const CLAIMING_CONTROL_ID = "shortcut-guard-claiming";
+const STAGE_MODE = /\bstage-mode\b/;
 const UNCHANGED_SPEED = "1.00x";
 
 /** Record, for each non-modifier keydown, whether a handler claimed it. */
@@ -57,12 +61,12 @@ test.describe("one-key shortcuts and what they leave alone", () => {
     const after = await studioState(page);
     expect(after.playing).toBe(false);
     expect(after.time).toBeCloseTo(before.time, 2);
-    await expect(page.locator("#t-loop")).not.toHaveClass(/active/);
-    await expect(page.locator("#t-metro")).not.toHaveClass(/active/);
+    await expect(page.locator("#t-loop")).not.toHaveClass(ACTIVE);
+    await expect(page.locator("#t-metro")).not.toHaveClass(ACTIVE);
 
     // I and O only act with a loop on, and the playhead at 0 sits outside it.
     await page.keyboard.press("l");
-    await expect(page.locator("#t-loop")).toHaveClass(/active/);
+    await expect(page.locator("#t-loop")).toHaveClass(ACTIVE);
     const looped = await studioState(page);
     await takePreventedKeys(page);
     await pressAll(page, ALT_LOOP_CHORDS);
@@ -78,19 +82,19 @@ test.describe("one-key shortcuts and what they leave alone", () => {
     await select.focus();
     await expect(select).toBeFocused();
 
-    await pressAll(page, SELECT_LETTERS);
-    expect(await takePreventedKeys(page)).toEqual(SELECT_LETTERS.map(() => false));
+    await pressAll(page, SHORTCUT_LETTERS);
+    expect(await takePreventedKeys(page)).toEqual(SHORTCUT_LETTERS.map(() => false));
     await page.keyboard.press("Space");
     await expect(page.locator(SELECT_LIST)).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.locator(SELECT_LIST)).toHaveCount(0);
     expect((await studioState(page)).playing).toBe(false);
-    await expect(page.locator("#t-loop")).not.toHaveClass(/active/);
-    await expect(page.locator("#t-metro")).not.toHaveClass(/active/);
+    await expect(page.locator("#t-loop")).not.toHaveClass(ACTIVE);
+    await expect(page.locator("#t-metro")).not.toHaveClass(ACTIVE);
 
     await page.evaluate(() => document.activeElement?.blur());
     await page.keyboard.press("k");
-    await expect(page.locator("#t-metro")).toHaveClass(/active/);
+    await expect(page.locator("#t-metro")).toHaveClass(ACTIVE);
   });
 
   test("a focused editable element keeps its own keys", async ({ page }) => {
@@ -106,7 +110,7 @@ test.describe("one-key shortcuts and what they leave alone", () => {
     await page.keyboard.press("k");
 
     expect(await takePreventedKeys(page)).toEqual([false]);
-    await expect(page.locator("#t-metro")).not.toHaveClass(/active/);
+    await expect(page.locator("#t-metro")).not.toHaveClass(ACTIVE);
   });
 
   test("a focused mixer fader moves on its arrows and leaves K, L and Space to the shortcuts", async ({ page }) => {
@@ -124,7 +128,7 @@ test.describe("one-key shortcuts and what they leave alone", () => {
     expect((await studioState(page)).time).toBeCloseTo(before.time, 2);
     await expect(page.locator("#t-loop")).not.toHaveClass(ACTIVE);
 
-    await pressAll(page, ["k", "l"]);
+    await pressAll(page, SHORTCUT_LETTERS);
     await expect(page.locator("#t-metro")).toHaveClass(ACTIVE);
     await expect(page.locator("#t-loop")).toHaveClass(ACTIVE);
     await page.keyboard.press("Space");
@@ -187,4 +191,50 @@ test.describe("one-key shortcuts and what they leave alone", () => {
       await expect(page.locator("#t-metro")).not.toHaveClass(ACTIVE);
     });
   }
+
+  test("Space on a focused mute chip mutes the stem and leaves playback alone", async ({ page }) => {
+    await setUp(page);
+    const mute = page.locator(MUTE_CHIP).filter({ visible: true }).first();
+    await mute.focus();
+    await expect(mute).toBeFocused();
+
+    await page.keyboard.press("Space");
+    await expect(page.locator(MUTED_LANE)).toHaveCount(1);
+
+    // Space off the chip plays, so a Space the chip let through would have paused it again.
+    await mute.blur();
+    await page.keyboard.press("Space");
+    await expect.poll(async () => (await studioState(page)).playing).toBe(true);
+  });
+
+  test("F on a focused slider turns Stage mode on", async ({ page }) => {
+    await setUp(page);
+    const fader = page.locator(SPEED_FADER);
+    await fader.focus();
+    await expect(fader).toBeFocused();
+
+    await page.keyboard.press("f");
+
+    await expect(page.locator(".app")).toHaveClass(STAGE_MODE);
+  });
+
+  test("a key a focused control has already handled is not also a shortcut", async ({ page }) => {
+    await setUp(page);
+    await page.evaluate((id) => {
+      const control = document.createElement("div");
+      control.id = id;
+      control.tabIndex = 0;
+      control.addEventListener("keydown", function claimKey(e) { e.preventDefault(); });
+      document.body.append(control);
+    }, CLAIMING_CONTROL_ID);
+    const control = page.locator(`#${CLAIMING_CONTROL_ID}`);
+    await control.focus();
+
+    await page.keyboard.press("l");
+
+    // L off the control turns the loop on, so an L that got through would have it off again.
+    await control.blur();
+    await page.keyboard.press("l");
+    await expect(page.locator("#t-loop")).toHaveClass(ACTIVE);
+  });
 });
