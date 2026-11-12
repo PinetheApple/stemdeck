@@ -71,6 +71,18 @@ test.describe("an unavailable song", () => {
     await expect(page.locator("#title")).toHaveText(TRACK_TITLE);
   });
 
+  test("a held Enter cannot answer the question: Cancel has the focus", async ({ page }) => {
+    await openStudio(page, { catalog: CATALOG });
+    const { posts } = await stubRestore(page);
+
+    await openGone(page);
+    await expect(dialog(page).locator(".reset-confirm-cancel")).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(dialog(page)).toHaveCount(0);
+    await page.waitForTimeout(300);
+    expect(posts).toHaveLength(0);
+  });
+
   test("opened twice, asks once and imports once", async ({ page }) => {
     await openStudio(page, { catalog: CATALOG });
     const { posts } = await stubRestore(page);
@@ -78,7 +90,7 @@ test.describe("an unavailable song", () => {
     await openGone(page);
     await openGone(page);
     await expect(dialog(page)).toHaveCount(1);
-    await dialog(page).locator(".playlist-confirm-go").click();
+    await dialog(page).locator(".reset-confirm-go").click();
 
     await expect.poll(() => posts.length).toBe(1);
     expect(posts[0]).toMatchObject({ url: GONE_URL, replaces: GONE_ID });
@@ -94,7 +106,7 @@ test.describe("an unavailable song", () => {
     });
 
     await openGone(page);
-    await dialog(page).locator(".playlist-confirm-go").click();
+    await dialog(page).locator(".reset-confirm-go").click();
 
     await expect(page.locator("#error")).toBeVisible();
     await expect(page.locator("#title")).toHaveText(TRACK_TITLE);
@@ -107,7 +119,7 @@ test.describe("an unavailable song", () => {
     await page.evaluate(async () => (await import("/js/queue.js")).refreshQueue());
 
     await openGone(page);
-    await dialog(page).locator(".playlist-confirm-go").click();
+    await dialog(page).locator(".reset-confirm-go").click();
 
     const box = page.locator("#job");
     await expect(box).toBeVisible();
@@ -117,6 +129,23 @@ test.describe("an unavailable song", () => {
     await expect(cancel).toBeVisible();
     await cancel.click();
     await expect.poll(() => cancels.length).toBe(1);
+  });
+
+  test("a running restore keeps its box while another gone song asks", async ({ page }) => {
+    await openStudio(page, { catalog: CATALOG });
+    await stubRestore(page);
+    await page.route(`**/api/jobs/${SIBLING_JOB_ID}`, async (route) => {
+      if (route.request().method() !== "GET") return route.fallback();
+      const real = await (await route.fetch()).json();
+      return route.fulfill({ json: { ...real, status: "unavailable", source_url: LINK_URL } });
+    });
+    await openGone(page);
+    await dialog(page).locator(".reset-confirm-go").click();
+    await expect(page.locator("#job")).toBeVisible();
+
+    await page.evaluate(async (id) => (await import("/js/catalog.js")).loadTrackIntoStudio(id), SIBLING_JOB_ID);
+    await expect(dialog(page)).toContainText(SIBLING_TITLE);
+    await expect(page.locator("#job")).toBeVisible();
   });
 });
 

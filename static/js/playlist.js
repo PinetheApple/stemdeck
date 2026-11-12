@@ -10,6 +10,7 @@
 import { addPlaylistToLibrary } from "./catalog.js";
 import { importResponse, readableError, showError } from "./job.js";
 import { notifyFailure } from "./notifications.js";
+import { confirmDialog } from "./confirmDialog.js";
 import { t, plural } from "./i18n.js";
 
 /** Does this URL look like a playlist we should offer to expand? Deliberately
@@ -73,81 +74,6 @@ function reportSkipped(result) {
   notifyFailure({ kind: "import", message: `${heading} ${lines.join(t("playlist.listSep"))}` });
 }
 
-let openDialog = null;
-let dialogOpener = null;
-let settleDialog = null;
-
-function closeDialog() {
-  openDialog?.remove();
-  openDialog = null;
-  document.removeEventListener("keydown", onDialogKeydown);
-  if (dialogOpener?.isConnected) dialogOpener.focus();
-  dialogOpener = null;
-}
-
-function finishDialog(confirmed) {
-  const settle = settleDialog;
-  settleDialog = null;
-  closeDialog();
-  settle?.(confirmed);
-}
-
-function onDialogKeydown(e) {
-  if (e.code === "Escape") finishDialog(false);
-}
-
-function onDialogCancel() {
-  finishDialog(false);
-}
-
-function onDialogConfirm() {
-  finishDialog(true);
-}
-
-function onDialogBackdrop(e) {
-  if (e.target === openDialog) finishDialog(false);
-}
-
-/** Ask a yes-or-no question about one named thing. Resolves true only for the
- *  confirm button; Cancel, Esc, a click outside or a newer dialog all say no.
- *  `body` is trusted markup; `name` may come from anywhere and is set as text. */
-export function confirmDialog({ title, name, body, confirmLabel, ariaLabel, className = "" }) {
-  finishDialog(false);
-  const overlay = document.createElement("div");
-  overlay.className = `reset-confirm-backdrop ${className}`.trim();
-  overlay.innerHTML = `
-    <div class="reset-confirm-card" role="dialog" aria-modal="true">
-      <div class="reset-confirm-title playlist-confirm-title"></div>
-      <p class="reset-confirm-body">
-        <strong class="playlist-name"></strong><br />
-        ${body}
-      </p>
-      <div class="reset-confirm-actions">
-        <button class="reset-confirm-cancel" type="button"></button>
-        <button class="playlist-confirm-go" type="button"></button>
-      </div>
-    </div>
-  `;
-  overlay.querySelector(".reset-confirm-card").setAttribute("aria-label", ariaLabel);
-  overlay.querySelector(".reset-confirm-title").textContent = title;
-  overlay.querySelector(".playlist-name").textContent = name;
-  overlay.querySelector(".reset-confirm-cancel").textContent = t("playlist.cancel");
-  const go = overlay.querySelector(".playlist-confirm-go");
-  go.textContent = confirmLabel;
-  overlay.querySelector(".reset-confirm-cancel").addEventListener("click", onDialogCancel);
-  go.addEventListener("click", onDialogConfirm);
-  overlay.addEventListener("mousedown", onDialogBackdrop);
-  document.addEventListener("keydown", onDialogKeydown);
-
-  dialogOpener = document.activeElement;
-  document.body.appendChild(overlay);
-  openDialog = overlay;
-  go.focus();
-  return new Promise((resolve) => {
-    settleDialog = resolve;
-  });
-}
-
 function confirmImport(preview) {
   const skipped = countLine(preview);
   return confirmDialog({
@@ -157,6 +83,9 @@ function confirmImport(preview) {
     confirmLabel: plural("playlist.import", preview.will_queue),
     ariaLabel: t("playlist.importAriaLabel"),
     className: "playlist-confirm",
+    titleClass: "playlist-confirm-title",
+    nameClass: "playlist-name",
+    confirmClass: "playlist-confirm-go",
   });
 }
 

@@ -12,7 +12,7 @@ import {
   FILE_GONE_REASON_KEY, RETRY_OUTCOME, SOURCE_KIND, failureReasonKey, importSource, needsFilePickedAgain,
   retryOutcome, sourceKindOf, FAILED_STATUS,
 } from "./importSource.js";
-import { confirmDialog } from "./playlist.js";
+import { confirmDialog } from "./confirmDialog.js";
 import {
   cancelQueuedJob, currentIds, getQueueSnapshot, isPaused, onJobSettled, onQueueChange,
   queueCount, queueRowStates, refreshQueue, reorderQueuedJob, runningLabel, startQueue,
@@ -1360,11 +1360,8 @@ function applyStoredStemSelection(track) {
   refreshStemChoiceVisuals();
 }
 
-// A track's files went missing (folder deleted or moved outside the app).
-// URL-sourced tracks can be rebuilt from the source, once the user agrees:
-// that downloads the song again and takes over the studio. Local uploads have
-// no source bytes left to rebuild from (#354's cleanup deletes the upload once
-// the pipeline is done with it), so the only path back is a fresh re-upload.
+// Re-downloading stops playback, so it waits for a yes; an upload has no source
+// left to fetch, so it can only be uploaded again.
 const _reimportsAsked = new Set();
 
 function confirmReimport(track) {
@@ -1373,8 +1370,8 @@ function confirmReimport(track) {
     name: track.title || track.sourceUrl,
     body: esc(i18nT("reimport.body")),
     confirmLabel: i18nT("reimport.confirm"),
-    ariaLabel: i18nT("reimport.title"),
-    className: "playlist-confirm reimport-confirm",
+    className: "reimport-confirm",
+    focusCancel: true,
   });
 }
 
@@ -1402,11 +1399,6 @@ export async function loadTrackIntoStudio(trackId) {
     reimportUnavailableTrack(trackId, track);
     return;
   }
-  // The user has chosen to look at something else, so the running import gives
-  // up the studio. It keeps running and keeps updating its own row; it just
-  // stops repainting this view (and, at completion, replacing the audio that
-  // is about to load here).
-  if (trackId !== foregroundJobId) detachForegroundJob();
   const hadStoredAudio = Boolean(track.audioStems?.length);
   const token = ++_loadTrackToken;
 
@@ -1444,6 +1436,11 @@ export async function loadTrackIntoStudio(trackId) {
   } catch (e) { console.warn("[catalog] server sync failed, using stored track:", e); }
 
   if (token !== _loadTrackToken) return;
+  // The user has chosen to look at something else, so the running import gives
+  // up the studio. It keeps running and keeps updating its own row; it just
+  // stops repainting this view (and, at completion, replacing the audio that
+  // is about to load here).
+  if (trackId !== foregroundJobId) detachForegroundJob();
   // A reprocessing track may still carry the previous extraction's stems
   // (hadStoredAudio), but it isn't ready — loading it would replace the live
   // job-progress overlay with stale audio. Leave the progress UI in place.
@@ -1453,14 +1450,8 @@ export async function loadTrackIntoStudio(trackId) {
   applyStoredStemSelection(track);
   setCurrentTrack(trackId);
 
-  // The composer is for new imports only: opening a track never puts its link
-  // there, so Extract stems cannot re-import it by accident. An upload has no
-  // link, so the button acts on the track itself and the server separates the
-  // source it kept beside it.
-  //
-  // `required` is the guard for "the button has nothing to act on", and it is a
-  // blunt one: the browser refuses the submit before any handler runs, so it
-  // must not be set while the button has a track to re-split.
+  // The box is for new imports only. `required` stays off while the button can
+  // re-split an upload, as the browser refuses an empty required box first.
   const resplittable = !isReimportableSource(track.sourceUrl) && track.status === "done";
   const urlInput = document.getElementById("url");
   if (resplittable) urlInput?.removeAttribute("required");
