@@ -650,6 +650,9 @@ const en = {
   "sections.add": "Add",
   "sections.addAria": "Add section",
   "sections.savingAria": "Saving sections",
+  "sections.hideAria": "Hide the sections bar",
+  "sections.hideTitle": "Hide the sections bar. Collapse > Sections brings it back.",
+  "help.sectionsHide": "Hides the sections bar. Press Sections next to Collapse to bring it back.",
 
   "mixer.title": "Mixer",
 
@@ -1766,6 +1769,9 @@ const pl = {
   "sections.add": "Dodaj",
   "sections.addAria": "Dodaj sekcję",
   "sections.savingAria": "Zapisywanie sekcji",
+  "sections.hideAria": "Ukryj pasek sekcji",
+  "sections.hideTitle": "Ukryj pasek sekcji. Zwiń > Sekcje przywraca go.",
+  "help.sectionsHide": "Ukrywa pasek sekcji. Aby go przywrócić, kliknij Sekcje obok Zwiń.",
 
   "mixer.title": "Mikser",
 
@@ -2873,6 +2879,9 @@ const ja = {
   "sections.add": "追加",
   "sections.addAria": "セクションを追加",
   "sections.savingAria": "セクションを保存中",
+  "sections.hideAria": "セクションバーを隠す",
+  "sections.hideTitle": "セクションバーを隠します。折りたたむ > セクション で再表示できます。",
+  "help.sectionsHide": "セクションバーを隠します。折りたたむ の横の セクション を押すと再表示されます。",
 
   "mixer.title": "ミキサー",
 
@@ -3953,6 +3962,9 @@ const zhHans = {
   "sections.add": "添加",
   "sections.addAria": "添加段落",
   "sections.savingAria": "正在保存段落",
+  "sections.hideAria": "隐藏段落栏",
+  "sections.hideTitle": "隐藏段落栏。折叠 > 段落 可将其恢复。",
+  "help.sectionsHide": "隐藏段落栏。点按“折叠”旁的“段落”即可恢复。",
 
   "mixer.title": "混音台",
 
@@ -5033,6 +5045,9 @@ const de = {
   "sections.add": "Hinzufügen",
   "sections.addAria": "Abschnitt hinzufügen",
   "sections.savingAria": "Abschnitte werden gespeichert",
+  "sections.hideAria": "Abschnittsleiste ausblenden",
+  "sections.hideTitle": "Abschnittsleiste ausblenden. Einklappen > Abschnitte holt sie zurück.",
+  "help.sectionsHide": "Blendet die Abschnittsleiste aus. Mit Abschnitte neben Einklappen holst du sie zurück.",
 
   "mixer.title": "Mixer",
 
@@ -6125,6 +6140,9 @@ const pt = {
   "sections.add": "Adicionar",
   "sections.addAria": "Adicionar seção",
   "sections.savingAria": "Salvando seções",
+  "sections.hideAria": "Ocultar a barra de seções",
+  "sections.hideTitle": "Ocultar a barra de seções. Recolher > Seções volta a mostrá-la.",
+  "help.sectionsHide": "Oculta a barra de seções. Para mostrá-la de novo, clique em Seções, ao lado de Recolher.",
 
   "mixer.title": "Mixer",
 
@@ -7219,6 +7237,9 @@ const id = {
   "sections.add": "Tambah",
   "sections.addAria": "Tambah bagian",
   "sections.savingAria": "Menyimpan bagian",
+  "sections.hideAria": "Sembunyikan bilah bagian",
+  "sections.hideTitle": "Sembunyikan bilah bagian. Ciutkan > Bagian menampilkannya kembali.",
+  "help.sectionsHide": "Menyembunyikan bilah bagian. Tekan Bagian di samping Ciutkan untuk menampilkannya kembali.",
 
   "mixer.title": "Mixer",
 
@@ -8299,6 +8320,9 @@ const fr = {
   "sections.add": "Ajouter",
   "sections.addAria": "Ajouter une section",
   "sections.savingAria": "Enregistrement des sections",
+  "sections.hideAria": "Masquer la barre de sections",
+  "sections.hideTitle": "Masquer la barre de sections. Réduire > Sections la réaffiche.",
+  "help.sectionsHide": "Masque la barre de sections. Cliquez sur Sections, à côté de Réduire, pour la réafficher.",
 
   "mixer.title": "Mixage",
 
@@ -9139,6 +9163,9 @@ const ptPT = {
   "folderEditor.save": "Guardar",
   "sections.savingAria": "A guardar secções",
   "sections.clearAria": "Limpar todas as secções",
+  "sections.hideAria": "Ocultar a barra de secções",
+  "sections.hideTitle": "Ocultar a barra de secções. Recolher > Seções volta a mostrá-la.",
+  "help.sectionsHide": "Oculta a barra de secções. Para a mostrar de novo, clique em Seções, ao lado de Recolher.",
   "aria.download": "Transferir {name}",
   "release.download": "Transferir",
   "release.fullDownload": "Clique em Transferir, descomprima e execute. A sua biblioteca fica como está.",
@@ -9664,6 +9691,9 @@ const es = {
   "sections.add": "Añadir",
   "sections.addAria": "Añadir sección",
   "sections.savingAria": "Guardando secciones",
+  "sections.hideAria": "Ocultar la barra de secciones",
+  "sections.hideTitle": "Ocultar la barra de secciones. Contraer > Secciones la vuelve a mostrar.",
+  "help.sectionsHide": "Oculta la barra de secciones. Pulsa Secciones, junto a Contraer, para volver a mostrarla.",
 
   "mixer.title": "Mezclador",
 
@@ -10779,6 +10809,9 @@ const ko = {
   "sections.add": "추가",
   "sections.addAria": "구간 추가",
   "sections.savingAria": "구간 저장 중",
+  "sections.hideAria": "구간 막대 숨기기",
+  "sections.hideTitle": "구간 막대를 숨겨요. 접기 > 구간으로 다시 표시할 수 있어요.",
+  "help.sectionsHide": "구간 막대를 숨겨요. 접기 옆의 구간을 누르면 다시 보여요.",
 
   "mixer.title": "믹서",
 

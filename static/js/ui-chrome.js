@@ -2,6 +2,8 @@
 // attributes so the Content-Security-Policy can forbid inline script (#171).
 // Loaded as a module (deferred), so the DOM is parsed before this runs.
 
+import { disarmClearSections } from "./sections.js";
+
 // Upload button → trigger the hidden file input.
 document.getElementById("uploadFileBtn")?.addEventListener("click", () => {
   document.getElementById("fileInput")?.click();
@@ -74,28 +76,37 @@ document.addEventListener("click", (e) => {
 // no state anywhere else. The lanes re-fit on their own because the wave panel
 // is already watched by a ResizeObserver.
 const PANEL_STORE_PREFIX = "stemdeck.panel.";
+const SECTIONS_PANEL = "sections";
+const panelApp = document.querySelector(".app");
+const panelToggles = [...document.querySelectorAll(".daw-panel-toggle[data-panel]")];
+
+function applyPanel(name, shown) {
+  panelApp.classList.toggle(`panel-${name}-off`, !shown);
+  for (const btn of panelToggles) {
+    if (btn.dataset.panel === name) btn.setAttribute("aria-pressed", String(shown));
+  }
+}
+
+function setPanel(name, shown) {
+  applyPanel(name, shown);
+  try {
+    localStorage.setItem(PANEL_STORE_PREFIX + name, shown ? "1" : "0");
+  } catch (e) {
+    console.warn("[panels] could not persist state:", e);
+  }
+}
+
+// Focus goes to the Collapse toggle because that is the way back.
+function handleSectionsHideClick() {
+  disarmClearSections();
+  setPanel(SECTIONS_PANEL, false);
+  panelToggles.find((btn) => btn.dataset.panel === SECTIONS_PANEL)?.focus();
+}
 
 function wirePanelToggles() {
-  const app = document.querySelector(".app");
-  const toggles = [...document.querySelectorAll(".daw-panel-toggle[data-panel]")];
-  if (!app || !toggles.length) return;
+  if (!panelApp || !panelToggles.length) return;
 
-  const apply = (name, shown) => {
-    app.classList.toggle(`panel-${name}-off`, !shown);
-    for (const btn of toggles) {
-      if (btn.dataset.panel === name) btn.setAttribute("aria-pressed", String(shown));
-    }
-  };
-
-  const persist = (name, shown) => {
-    try {
-      localStorage.setItem(PANEL_STORE_PREFIX + name, shown ? "1" : "0");
-    } catch (e) {
-      console.warn("[panels] could not persist state:", e);
-    }
-  };
-
-  for (const btn of toggles) {
+  for (const btn of panelToggles) {
     const name = btn.dataset.panel;
     let shown = true;
     try {
@@ -103,13 +114,12 @@ function wirePanelToggles() {
     } catch (e) {
       console.warn("[panels] could not read stored state:", e);
     }
-    apply(name, shown);
+    applyPanel(name, shown);
     btn.addEventListener("click", () => {
-      const next = app.classList.contains(`panel-${name}-off`);
-      apply(name, next);
-      persist(name, next);
+      setPanel(name, panelApp.classList.contains(`panel-${name}-off`));
     });
   }
+  document.getElementById("sectionsHideBtn")?.addEventListener("click", handleSectionsHideClick);
 }
 
 wirePanelToggles();

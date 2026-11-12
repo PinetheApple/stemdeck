@@ -178,6 +178,14 @@ test.describe("help mode", () => {
     await expect(fav).toHaveAttribute("aria-pressed", "true");
   });
 
+  test("the sections bar's Hide says how to bring the bar back", async ({ page }) => {
+    await openStudio(page);
+    await helpOn(page);
+    await page.locator("#sectionsHideBtn").click();
+    await expect(tip(page)).toContainText(await uiText(page, "help.sectionsHide"));
+    await expect(page.locator(".app")).not.toHaveClass(/panel-sections-off/);
+  });
+
   test("Settings lists every tab and its options", async ({ page }) => {
     await openStudio(page);
     await helpOn(page);
