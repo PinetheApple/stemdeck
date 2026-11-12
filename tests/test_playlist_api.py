@@ -143,6 +143,19 @@ def test_expansion_reports_a_playlist_longer_than_the_cap(fake_ydl):
     assert len(out["items"]) == 7, "the probe entry must not be imported"
 
 
+def test_expansion_names_each_tracks_uploader(fake_ydl):
+    fake_ydl.info = {
+        "title": "P",
+        "entries": [
+            {"url": "https://www.youtube.com/watch?v=aaaaaaaaaaa", "uploader": "Housefires"},
+            {"url": "https://www.youtube.com/watch?v=bbbbbbbbbbb", "channel": "Bethel Music"},
+            {"url": "https://www.youtube.com/watch?v=ccccccccccc"},
+        ],
+    }
+    out = expand_playlist("https://www.youtube.com/playlist?list=PLabc", 50)
+    assert [i["artist"] for i in out["items"]] == ["Housefires", "Bethel Music", None]
+
+
 def test_entries_are_revalidated(fake_ydl):
     """Entry URLs are data from an external service, not something to trust."""
     fake_ydl.info = {

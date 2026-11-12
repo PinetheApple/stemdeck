@@ -143,6 +143,7 @@ async def _read_playlist(line: str) -> tuple[list[Item], dict[str, Any] | None]:
             line,
             track["url"],
             title=track["title"],
+            artist=track["artist"],
             duration=track["duration"],
             playlist={**group, "index": index},
         )

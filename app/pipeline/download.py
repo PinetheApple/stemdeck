@@ -461,6 +461,7 @@ def expand_playlist(url: str, limit: int) -> dict:
             {
                 "url": normalized,
                 "title": entry.get("title") or "",
+                "artist": entry.get("uploader") or entry.get("channel"),
                 "duration": entry.get("duration"),
                 "thumbnail": entry.get("thumbnail"),
             }

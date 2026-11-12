@@ -47,6 +47,7 @@ def _track(video_id: str, title: str, duration: float | None = 200) -> dict:
         "url": f"https://www.youtube.com/watch?v={video_id}",
         "title": title,
         "duration": duration,
+        "uploader": f"{title} Band",
     }
 
 
@@ -188,9 +189,11 @@ def test_a_playlist_line_expands_to_its_tracks(client, fake_ydl):
 
     body = _preview(client, [PLAYLIST])
 
-    assert [(i["title"], i["status"], i["playlist"]["index"]) for i in body["items"]] == [
-        ("Holy Forever", "in_library", 1),
-        ("Same God", "too_long", 2),
+    assert [
+        (i["title"], i["artist"], i["status"], i["playlist"]["index"]) for i in body["items"]
+    ] == [
+        ("Holy Forever", "Holy Forever Band", "in_library", 1),
+        ("Same God", "Same God Band", "too_long", 2),
     ]
     assert {i["input"] for i in body["items"]} == {PLAYLIST}
     assert body["playlists"] == [
