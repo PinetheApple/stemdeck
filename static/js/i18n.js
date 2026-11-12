@@ -86,6 +86,8 @@ export function _detectDefault() {
 }
 
 export async function initI18n() {
+  // On the desktop the read below waits for the store, whose failure message shows meanwhile.
+  _lang = _detectDefault();
   const stored = await storeGet("stemdeck.language", null);
   _lang = stored && SUPPORTED_CODES.has(stored) ? stored : _detectDefault();
   document.documentElement.lang = _lang === "zh-Hans" ? "zh-Hans" : _lang;
@@ -1096,6 +1098,7 @@ const en = {
   "job.process": "Process",
   "job.tryAgain": "Try again",
   "job.dismiss": "Dismiss",
+  "store.unavailable": "StemDeck can't open your library list right now, so nothing was loaded or changed. Wait a moment, then press Try again.",
   "job.peakDb": "Peak {value} dB",
   "job.dr.compressed": "Compressed",
   "job.dr.moderate": "Moderate",
@@ -2232,6 +2235,7 @@ const pl = {
   "job.process": "Przetwórz",
   "job.tryAgain": "Spróbuj ponownie",
   "job.dismiss": "Odrzuć",
+  "store.unavailable": "StemDeck nie może teraz otworzyć listy biblioteki, więc nic nie zostało wczytane ani zmienione. Odczekaj chwilę i kliknij Spróbuj ponownie.",
   "job.peakDb": "Szczyt {value} dB",
   "job.dr.compressed": "Skompresowany",
   "job.dr.moderate": "Umiarkowany",
@@ -3350,6 +3354,7 @@ const ja = {
   "job.process": "処理",
   "job.tryAgain": "再試行",
   "job.dismiss": "閉じる",
+  "store.unavailable": "StemDeck は今ライブラリの一覧を開けないため、何も読み込まず、変更もしていません。少し待ってから「再試行」を押してください。",
   "job.peakDb": "ピーク {value} dB",
   "job.dr.compressed": "圧縮",
   "job.dr.moderate": "中程度",
@@ -4454,6 +4459,7 @@ const zhHans = {
   "job.process": "处理",
   "job.tryAgain": "重试",
   "job.dismiss": "忽略",
+  "store.unavailable": "StemDeck 现在无法打开你的音乐库列表，因此没有加载或更改任何内容。请稍等片刻，然后点按“重试”。",
   "job.peakDb": "峰值 {value} dB",
   "job.dr.compressed": "压缩",
   "job.dr.moderate": "中等",
@@ -5565,6 +5571,7 @@ const de = {
   "job.process": "Verarbeiten",
   "job.tryAgain": "Erneut versuchen",
   "job.dismiss": "Verwerfen",
+  "store.unavailable": "StemDeck kann deine Bibliotheksliste gerade nicht öffnen, daher wurde nichts geladen oder geändert. Warte einen Moment und klicke dann auf „Erneut versuchen“.",
   "job.peakDb": "Spitze {value} dB",
   "job.dr.compressed": "Komprimiert",
   "job.dr.moderate": "Moderat",
@@ -6681,6 +6688,7 @@ const pt = {
   "job.process": "Processar",
   "job.tryAgain": "Tentar novamente",
   "job.dismiss": "Descartar",
+  "store.unavailable": "O StemDeck não consegue abrir a lista da sua biblioteca agora, então nada foi carregado nem alterado. Aguarde um momento e clique em Tentar novamente.",
   "job.peakDb": "Pico {value} dB",
   "job.dr.compressed": "Comprimido",
   "job.dr.moderate": "Moderado",
@@ -7792,6 +7800,7 @@ const id = {
   "job.process": "Proses",
   "job.tryAgain": "Coba lagi",
   "job.dismiss": "Tutup",
+  "store.unavailable": "StemDeck tidak dapat membuka daftar pustaka Anda saat ini, jadi tidak ada yang dimuat atau diubah. Tunggu sebentar, lalu tekan Coba lagi.",
   "job.peakDb": "Puncak {value} dB",
   "job.dr.compressed": "Terkompresi",
   "job.dr.moderate": "Sedang",
@@ -8903,6 +8912,7 @@ const fr = {
   "job.process": "Traiter",
   "job.tryAgain": "Réessayer",
   "job.dismiss": "Ignorer",
+  "store.unavailable": "StemDeck ne peut pas ouvrir la liste de votre bibliothèque pour le moment : rien n'a été chargé ni modifié. Patientez un instant, puis cliquez sur Réessayer.",
   "job.peakDb": "Crête {value} dB",
   "job.dr.compressed": "Compressée",
   "job.dr.moderate": "Modérée",
@@ -9156,6 +9166,7 @@ const fr = {
 // through pt (see FALLBACK), so the two variants cannot drift and a key
 // added to pt later is picked up here rather than reverting to English.
 const ptPT = {
+  "store.unavailable": "O StemDeck não consegue abrir a lista da sua biblioteca neste momento, por isso nada foi carregado nem alterado. Aguarde um momento e clique em Tentar novamente.",
   "search.noMatchHint": "Experimente outra palavra ou comece com # para pesquisar por etiqueta.",
   "trash.emptyHint": "As músicas que elimina ficam aqui, para as poder restaurar.",
   "favorites.emptyHint": "Clique no ♥ de uma música para a guardar aqui.",
@@ -10320,6 +10331,7 @@ const es = {
   "job.process": "Procesar",
   "job.tryAgain": "Reintentar",
   "job.dismiss": "Descartar",
+  "store.unavailable": "StemDeck no puede abrir la lista de tu biblioteca ahora mismo, así que no se cargó ni cambió nada. Espera un momento y pulsa Reintentar.",
   "job.peakDb": "Pico {value} dB",
   "job.dr.compressed": "Comprimido",
   "job.dr.moderate": "Moderado",
@@ -11448,6 +11460,7 @@ const ko = {
   "job.process": "처리",
   "job.tryAgain": "다시 시도",
   "job.dismiss": "닫기",
+  "store.unavailable": "지금은 StemDeck이 라이브러리 목록을 열 수 없어 아무것도 불러오거나 바꾸지 않았습니다. 잠시 후 다시 시도를 누르세요.",
   "job.peakDb": "피크 {value} dB",
   "job.dr.compressed": "압축됨",
   "job.dr.moderate": "보통",

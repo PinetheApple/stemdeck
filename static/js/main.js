@@ -17,7 +17,7 @@ import { saveBeatGridOnPageClose } from "./beatgrid.js";
 import { wireStemListControls, wireMixerToolbar, laneDragIcon } from "./mixer.js";
 import { initCatalog, collectDiagnostics, isTextEditingTarget } from "./catalog.js";
 import { initNotifications, notifyFailure, dismissFailuresByJobId } from "./notifications.js";
-import { runStoreMigrationIfNeeded } from "./utils.js";
+import { runStoreMigrationIfNeeded, onStoreUnavailable } from "./utils.js";
 import { initI18n, applyTranslations, t, plural, onLanguageChange } from "./i18n.js";
 import { initFooterFit, refitFooter } from "./footerFit.js";
 import { initArtistInfo } from "./artistInfo.js";
@@ -426,6 +426,17 @@ function wireAllButton() {
 
 // First, so every request below is watched for a lost server.
 initConnection();
+
+function reloadPage() {
+  window.location.reload();
+}
+
+function showStoreUnavailable() {
+  showError(t("store.unavailable"), null, { onRetry: reloadPage });
+}
+
+// Before anything reads the store: Try again reloads, which opens it again.
+onStoreUnavailable(showStoreUnavailable);
 
 // Applied as early as possible in module execution, ahead of every other
 // top-level call below, to minimize the flash of English before the DOM
