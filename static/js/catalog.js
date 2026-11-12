@@ -3352,6 +3352,16 @@ function queuePausedBannerHtml(count) {
     </div>`;
 }
 
+// A started queue re-renders the list; a refused one leaves the button to recover.
+async function onQueueStartClick(e) {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  btn.textContent = i18nT("queue.starting");
+  if (await startQueue()) return;
+  btn.disabled = false;
+  btn.textContent = i18nT("queue.start");
+}
+
 function renderQueueList(listEl, snap = getQueueSnapshot()) {
   const entries = queueEntries(snap);
   listEl.innerHTML = "";
@@ -3362,11 +3372,7 @@ function renderQueueList(listEl, snap = getQueueSnapshot()) {
 
   if (isPaused(snap)) {
     section.insertAdjacentHTML("beforeend", queuePausedBannerHtml(entries.length));
-    section.querySelector(".queue-start-btn")?.addEventListener("click", async (e) => {
-      e.currentTarget.disabled = true;
-      e.currentTarget.textContent = i18nT("queue.starting");
-      await startQueue();
-    });
+    section.querySelector(".queue-start-btn")?.addEventListener("click", onQueueStartClick);
   }
 
   if (!entries.length) {

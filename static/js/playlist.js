@@ -8,7 +8,8 @@
 // smuggled in between the two calls.
 
 import { addPlaylistToLibrary } from "./catalog.js";
-import { showError } from "./job.js";
+import { importResponse, readableError, showError } from "./job.js";
+import { notifyFailure } from "./notifications.js";
 import { t, plural } from "./i18n.js";
 
 /** Does this URL look like a playlist we should offer to expand? Deliberately
@@ -32,66 +33,145 @@ export function looksLikePlaylist(url) {
   return !!list && !/^RD/i.test(list);
 }
 
+const SKIP_REASON_KEYS = {
+  in_library: "playlist.reason.inLibrary",
+  too_long: "playlist.reason.tooLong",
+  no_capacity: "playlist.reason.noCapacity",
+};
+
 function countLine(preview) {
   const parts = [];
+  if (preview.skipped_in_library) parts.push(plural("playlist.skip.inLibrary", preview.skipped_in_library));
   if (preview.skipped_unavailable) parts.push(plural("playlist.skip.unavailable", preview.skipped_unavailable));
   if (preview.skipped_too_long) parts.push(plural("playlist.skip.tooLong", preview.skipped_too_long));
   const overflow =
-    preview.total_found - preview.skipped_unavailable - preview.skipped_too_long - preview.will_queue;
+    preview.total_found -
+    preview.skipped_unavailable -
+    preview.skipped_too_long -
+    (preview.skipped_in_library || 0) -
+    preview.will_queue;
   if (overflow > 0) parts.push(plural("playlist.skip.overflow", overflow));
   if (preview.truncated) parts.push(t("playlist.skip.truncated", { cap: preview.cap }));
   if (!parts.length) return "";
   return t("playlist.skippingPrefix", { list: parts.join(t("playlist.listSep")) });
 }
 
+/** One line per track the import left out, saying why, plus the unavailable
+ *  ones, which the playlist lists without names. */
+export function skipLines(result) {
+  const lines = (result.skipped || []).map((item) =>
+    t("import.itemReason", { name: item.title || item.source_url, reason: t(SKIP_REASON_KEYS[item.reason]) }),
+  );
+  if (result.skipped_unavailable) lines.push(plural("playlist.skip.unavailable", result.skipped_unavailable));
+  return lines;
+}
+
+function reportSkipped(result) {
+  const lines = skipLines(result);
+  if (!lines.length) return;
+  const heading = t("playlist.notAdded", { name: result.playlist_title });
+  notifyFailure({ kind: "import", message: `${heading} ${lines.join(t("playlist.listSep"))}` });
+}
+
 let openDialog = null;
 let dialogOpener = null;
+let settleDialog = null;
 
 function closeDialog() {
   openDialog?.remove();
   openDialog = null;
+  document.removeEventListener("keydown", onDialogKeydown);
   if (dialogOpener?.isConnected) dialogOpener.focus();
   dialogOpener = null;
 }
 
-function confirmImport(preview) {
-  return new Promise((resolve) => {
-    closeDialog();
-    const overlay = document.createElement("div");
-    overlay.className = "reset-confirm-backdrop playlist-confirm";
-    const skipped = countLine(preview);
-    const confirmBody = plural("playlist.confirmBody", preview.will_queue, { skipped: skipped ? ` ${skipped}` : "" });
-    overlay.innerHTML = `
-      <div class="reset-confirm-card" role="dialog" aria-modal="true" aria-label="${t("playlist.importAriaLabel")}">
-        <div class="reset-confirm-title playlist-confirm-title">${t("playlist.confirmTitle")}</div>
-        <p class="reset-confirm-body">
-          <strong class="playlist-name"></strong><br />
-          ${confirmBody}
-        </p>
-        <div class="reset-confirm-actions">
-          <button class="reset-confirm-cancel" type="button">${t("playlist.cancel")}</button>
-          <button class="playlist-confirm-go" type="button">${plural("playlist.import", preview.will_queue)}</button>
-        </div>
+function finishDialog(confirmed) {
+  const settle = settleDialog;
+  settleDialog = null;
+  closeDialog();
+  settle?.(confirmed);
+}
+
+function onDialogKeydown(e) {
+  if (e.code === "Escape") finishDialog(false);
+}
+
+function onDialogCancel() {
+  finishDialog(false);
+}
+
+function onDialogConfirm() {
+  finishDialog(true);
+}
+
+function onDialogBackdrop(e) {
+  if (e.target === openDialog) finishDialog(false);
+}
+
+/** Ask a yes-or-no question about one named thing. Resolves true only for the
+ *  confirm button; Cancel, Esc, a click outside or a newer dialog all say no.
+ *  `body` is trusted markup; `name` may come from anywhere and is set as text. */
+export function confirmDialog({ title, name, body, confirmLabel, ariaLabel, className = "" }) {
+  finishDialog(false);
+  const overlay = document.createElement("div");
+  overlay.className = `reset-confirm-backdrop ${className}`.trim();
+  overlay.innerHTML = `
+    <div class="reset-confirm-card" role="dialog" aria-modal="true">
+      <div class="reset-confirm-title playlist-confirm-title"></div>
+      <p class="reset-confirm-body">
+        <strong class="playlist-name"></strong><br />
+        ${body}
+      </p>
+      <div class="reset-confirm-actions">
+        <button class="reset-confirm-cancel" type="button"></button>
+        <button class="playlist-confirm-go" type="button"></button>
       </div>
-    `;
-    // textContent, not innerHTML: the title comes from an external service.
-    overlay.querySelector(".playlist-name").textContent = preview.playlist_title;
+    </div>
+  `;
+  overlay.querySelector(".reset-confirm-card").setAttribute("aria-label", ariaLabel);
+  overlay.querySelector(".reset-confirm-title").textContent = title;
+  overlay.querySelector(".playlist-name").textContent = name;
+  overlay.querySelector(".reset-confirm-cancel").textContent = t("playlist.cancel");
+  const go = overlay.querySelector(".playlist-confirm-go");
+  go.textContent = confirmLabel;
+  overlay.querySelector(".reset-confirm-cancel").addEventListener("click", onDialogCancel);
+  go.addEventListener("click", onDialogConfirm);
+  overlay.addEventListener("mousedown", onDialogBackdrop);
+  document.addEventListener("keydown", onDialogKeydown);
 
-    const finish = (value) => { closeDialog(); resolve(value); };
-    overlay.querySelector(".reset-confirm-cancel").addEventListener("click", () => finish(false));
-    overlay.querySelector(".playlist-confirm-go").addEventListener("click", () => finish(true));
-    overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) finish(false); });
-    document.addEventListener("keydown", function onKey(e) {
-      if (e.code !== "Escape") return;
-      document.removeEventListener("keydown", onKey);
-      finish(false);
-    });
-
-    dialogOpener = document.activeElement;
-    document.body.appendChild(overlay);
-    openDialog = overlay;
-    overlay.querySelector(".playlist-confirm-go").focus();
+  dialogOpener = document.activeElement;
+  document.body.appendChild(overlay);
+  openDialog = overlay;
+  go.focus();
+  return new Promise((resolve) => {
+    settleDialog = resolve;
   });
+}
+
+function confirmImport(preview) {
+  const skipped = countLine(preview);
+  return confirmDialog({
+    title: t("playlist.confirmTitle"),
+    name: preview.playlist_title,
+    body: plural("playlist.confirmBody", preview.will_queue, { skipped: skipped ? ` ${skipped}` : "" }),
+    confirmLabel: plural("playlist.import", preview.will_queue),
+    ariaLabel: t("playlist.importAriaLabel"),
+    className: "playlist-confirm",
+  });
+}
+
+async function postPlaylist(path, body) {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return importResponse(res);
+}
+
+function nothingToQueueMessage(preview) {
+  if (preview.capacity_left === 0) return t("playlist.queueFull");
+  return t(preview.skipped_in_library ? "playlist.allInLibrary" : "playlist.nothingImportable");
 }
 
 /** Expand, confirm, queue, and file the results under a folder named after the
@@ -99,26 +179,14 @@ function confirmImport(preview) {
 export async function importPlaylist(url, stems) {
   let preview;
   try {
-    const res = await fetch("/api/playlist/preview", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-    });
-    preview = await res.json();
-    if (!res.ok) throw new Error(preview.detail || res.statusText);
+    preview = await postPlaylist("/api/playlist/preview", { url });
   } catch (err) {
-    showError(t("playlist.couldNotRead", { message: err.message }));
+    showError(t("playlist.couldNotRead", { message: readableError(err) }));
     return 0;
   }
 
   if (!preview.will_queue) {
-    showError(
-      preview.capacity_left === 0
-        ? t("playlist.queueFull")
-        : t("playlist.nothingImportable"),
-      countLine(preview) || null,
-      { onRetry: null },
-    );
+    showError(nothingToQueueMessage(preview), countLine(preview) || null, { onRetry: null });
     return 0;
   }
 
@@ -126,18 +194,13 @@ export async function importPlaylist(url, stems) {
 
   let result;
   try {
-    const res = await fetch("/api/playlist", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, stems }),
-    });
-    result = await res.json();
-    if (!res.ok) throw new Error(result.detail || res.statusText);
+    result = await postPlaylist("/api/playlist", { url, stems });
   } catch (err) {
-    showError(t("playlist.couldNotImport", { message: err.message }));
+    showError(t("playlist.couldNotImport", { message: readableError(err) }));
     return 0;
   }
 
-  addPlaylistToLibrary(result.playlist_title, result.jobs || []);
+  if (result.jobs?.length) addPlaylistToLibrary(result.playlist_title, result.jobs);
+  reportSkipped(result);
   return result.queued || 0;
 }
