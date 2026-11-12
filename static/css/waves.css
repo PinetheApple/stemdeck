@@ -537,6 +537,8 @@
 }
 
 .lanes-ruler-time {
+  --playhead-flag-h: 10px;
+  --playhead-layer: 8;
   position: relative;
   height: 100%;
   cursor: crosshair;
@@ -561,13 +563,22 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Labels sit below the playhead flag and above its line, so a passing
+   playhead never covers the time it is passing. */
+.lanes-ruler-time .tick { padding-top: var(--playhead-flag-h); }
+.lanes-ruler-time .tick-label {
+  position: relative;
+  z-index: calc(var(--playhead-layer) + 1);
+  background: var(--bg-2);
+}
+
 .playhead-marker {
   position: absolute;
   top: 0;
   left: 0;
   transform: translateX(-50%);
   pointer-events: none;
-  z-index: 8;
+  z-index: var(--playhead-layer);
 }
 
 .app:not(.is-import) .playhead-marker::after {

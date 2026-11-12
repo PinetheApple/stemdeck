@@ -58,13 +58,42 @@
 }
 .inspector-tab[aria-selected="true"] .inspector-count { background: var(--accent); color: var(--accent-ink); }
 .inspector-pane {
+  --inspector-pane-pad: var(--s-4);
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--s-4);
+  padding: var(--inspector-pane-pad);
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
+}
+@property --inspector-pane-fade { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes inspector-pane-fade-in {
+  from { --inspector-pane-fade: 0px; }
+  to { --inspector-pane-fade: var(--inspector-pane-pad); }
+}
+/* Scrolled content is hidden in the top padding instead of being sliced at the tab bar.
+   At rest that padding is empty, so the mask hides nothing. */
+@supports (animation-timeline: scroll()) {
+  .inspector-pane {
+    mask-image: linear-gradient(
+      to bottom,
+      transparent var(--inspector-pane-fade),
+      black calc(var(--inspector-pane-fade) * 2)
+    );
+    animation: inspector-pane-fade-in linear both;
+    animation-range: 0 var(--inspector-pane-pad);
+    animation-timeline: scroll(self);
+  }
+}
+@supports not (animation-timeline: scroll()) {
+  .inspector-pane {
+    mask-image: linear-gradient(
+      to bottom,
+      transparent var(--inspector-pane-pad),
+      black var(--inspector-pane-pad)
+    );
+  }
 }
 .inspector-pane[hidden] { display: none; }
 .inspector-card {
