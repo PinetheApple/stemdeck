@@ -4985,11 +4985,6 @@ async function wireGeneralSettings(overlay) {
     }
   };
 
-  // Keep the text inputs digit-only as the user types (maxlength caps the rest).
-  const digitsOnly = (input) => input?.addEventListener("input", () => {
-    const cleaned = input.value.replace(/\D/g, "");
-    if (cleaned !== input.value) input.value = cleaned;
-  });
   digitsOnly(durInput);
   digitsOnly(playlistInput);
   digitsOnly(portInput);
@@ -5129,6 +5124,78 @@ async function wireGeneralSettings(overlay) {
       deviceSel.value = lastDevice;
     }
   });
+}
+
+/** Keep a number field digit-only as the user types (maxlength caps the rest). */
+function digitsOnly(input) {
+  input?.addEventListener("input", function onDigitsOnlyInput() {
+    const cleaned = input.value.replace(/\D/g, "");
+    if (cleaned !== input.value) input.value = cleaned;
+  });
+}
+
+async function postIdleUnloadMinutes(minutes) {
+  try {
+    const r = await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idle_unload_minutes: minutes }),
+    });
+    if (r.ok) return await r.json();
+  } catch (e) {
+    console.warn("[settings] idle unload save failed:", e);
+  }
+  return null;
+}
+
+function sayIdleUnload(field, key, { vars = {}, isError = false } = {}) {
+  field.msg.textContent = key ? i18nT(key, vars) : "";
+  field.msg.classList.toggle("error", isError);
+}
+
+function showIdleUnload(field, settings) {
+  field.inUse = settings.idle_unload_minutes;
+  field.input.value = String(field.inUse);
+  field.desc.textContent = i18nT("settings.idleUnload.desc", { max: settings.idle_unload_minutes_max });
+}
+
+async function commitIdleUnload(field, minutes) {
+  sayIdleUnload(field, null);
+  const kept = await postIdleUnloadMinutes(minutes);
+  if (!kept) {
+    field.input.value = field.inUse === null ? "" : String(field.inUse);
+    sayIdleUnload(field, "settings.idleUnload.saveFailed", { isError: true });
+    return;
+  }
+  showIdleUnload(field, kept);
+  if (kept.idle_unload_minutes !== minutes) {
+    sayIdleUnload(field, "settings.idleUnload.clamped", { vars: { max: kept.idle_unload_minutes } });
+  }
+}
+
+/** Free memory when idle: saved on its own so a refused save is said by the field, not as a toast. */
+async function wireIdleUnloadSetting(overlay) {
+  const input = overlay.querySelector(".set-idle-unload");
+  if (!input) return;
+  const field = {
+    input,
+    desc: overlay.querySelector(".set-idle-unload-desc"),
+    msg: overlay.querySelector(".idle-unload-msg"),
+    inUse: null,
+  };
+  digitsOnly(input);
+  input.addEventListener("input", function onIdleUnloadInput() { sayIdleUnload(field, null); });
+  input.addEventListener("change", function onIdleUnloadChange() {
+    const minutes = parseInt(input.value, 10);
+    if (!Number.isNaN(minutes)) commitIdleUnload(field, minutes);
+    else if (field.inUse !== null) input.value = String(field.inUse);
+  });
+  try {
+    const r = await fetch("/api/settings", { cache: "no-store" });
+    if (r.ok) showIdleUnload(field, await r.json());
+  } catch (e) {
+    console.warn("[settings] could not read idle unload minutes:", e);
+  }
 }
 
 const QR_SIZE_PROPERTY = "--settings-qr-size";
@@ -5720,6 +5787,14 @@ function openLibraryEditor() {
               <option value="best" data-i18n="settings.quality.best">Best (2× slower)</option>
             </select>
           </div>
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <div class="settings-row-title" data-i18n="settings.idleUnload.title">Free memory when idle</div>
+              <div class="settings-row-desc set-idle-unload-desc">Minutes with no track being separated or analyzed before StemDeck unloads its separation models to free memory.</div>
+              <div class="settings-row-desc idle-unload-msg" role="status" aria-live="polite"></div>
+            </div>
+            <input type="text" class="settings-num-input set-idle-unload" inputmode="numeric" maxlength="4" aria-label="Free memory when idle" data-i18n-aria-label="settings.idleUnload.title" />
+          </div>
         </div>
         <div class="settings-section settings-danger-zone">
           <div class="settings-subhead settings-danger-subhead" data-i18n="settings.dangerZone">Danger zone</div>
@@ -5938,6 +6013,7 @@ function openLibraryEditor() {
   const isDesktop = Boolean(window.__TAURI__?.core?.invoke);
   wireLanguageSetting(overlay);
   wireGeneralSettings(overlay);
+  wireIdleUnloadSetting(overlay);
   wireAcoustidSetting(overlay);
   wireDiscogsSetting(overlay);
   wireStemsLocation(overlay);
