@@ -4384,6 +4384,17 @@ async function wireExportsLocation(overlay) {
   });
 }
 
+const JOB_BUSY_CODE = "job_busy";
+const STEMS_MOVE_ERROR_KEYS = {
+  [HTTP_CONFLICT]: "settings.stemsLocation.queueBusy",
+  [HTTP_UNPROCESSABLE]: "settings.stemsLocation.unusable",
+};
+
+function stemsMoveErrorKey(status, body) {
+  if (body.code === JOB_BUSY_CODE) return "settings.jobBusy";
+  return STEMS_MOVE_ERROR_KEYS[status] ?? "settings.stemsLocation.moveFailed";
+}
+
 async function wireStemsLocation(overlay) {
   const pathEl = overlay.querySelector(".stems-location-path");
   const sizeEl = overlay.querySelector(".stems-location-size");
@@ -4464,7 +4475,7 @@ async function wireStemsLocation(overlay) {
       });
       const data = await r.json();
       if (!r.ok) {
-        setMessage(data.detail || i18nT("settings.stemsLocation.moveFailed"), "error");
+        setMessage(i18nT(stemsMoveErrorKey(r.status, data)), "error");
         return;
       }
       // Re-read rather than trust the POST: the GET reports where the stems
@@ -5232,9 +5243,7 @@ function openResetConfirm() {
     try {
       const r = await fetch("/api/reset", { method: "POST" });
       if (!r.ok) {
-        let detail = i18nT("resetConfirm.failed");
-        try { detail = (await r.json()).detail || detail; } catch (err) { console.warn("reset error body parse failed:", err); }
-        msg.textContent = detail;
+        msg.textContent = i18nT(r.status === HTTP_CONFLICT ? "settings.jobBusy" : "resetConfirm.failed");
         goBtn.disabled = false;
         input.disabled = false;
         return;
