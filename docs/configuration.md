@@ -32,6 +32,21 @@
 
 `run.sh` also reads: `HOST` (default `127.0.0.1`), `PORT` (default `8765`), `RELOAD=1` (enable uvicorn auto-reload for development), `FOREGROUND=1` (run in foreground instead of backgrounding).
 
+### Who can reach StemDeck
+
+While **Make StemDeck available on your network** is off, the desktop app's
+backend listens on `127.0.0.1` only and there is no https listener, so other
+devices cannot connect. Turning the setting on or off restarts the backend on
+the same port, which takes a few seconds. If a separation is running, StemDeck
+asks first, because the restart stops it; the song then waits in the queue,
+paused.
+
+StemDeck also checks every request itself: while the setting is off, a request
+from another device gets a 403. On the desktop this covers the moment between
+saving the choice and the restart that applies it. Docker and `run.sh` listen
+on every interface whatever the setting says, so for them the 403 is the whole
+control.
+
 ### Serving other devices: why https is not optional
 
 Transpose is built on `AudioWorklet`, and browsers grant that only to a
@@ -69,7 +84,8 @@ two audiences that need opposite things.
   self-signed certificate would raise a warning page the app window has no way
   to click through.
 - **https on the LAN**, port 8443 by default, for phones and other computers.
-  This is the address Settings shows and the QR code points at.
+  This is the address Settings shows and the QR code points at. It runs only
+  while network access is on.
 
 Both listeners serve the same process, so there is one library, one queue and
 one Demucs worker either way.
