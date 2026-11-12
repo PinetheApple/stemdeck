@@ -4864,9 +4864,6 @@ function digitsOnly(input) {
   });
 }
 
-// A pasted number of minutes, thousands separators allowed ("1,440").
-const PASTED_MINUTES = /^\s*(?:\d+|\d{1,3}(?:[,.'\s]\d{3})+)\s*$/;
-
 async function postIdleUnloadMinutes(minutes) {
   try {
     const r = await fetch("/api/settings", {
@@ -4881,7 +4878,7 @@ async function postIdleUnloadMinutes(minutes) {
   return null;
 }
 
-function sayIdleUnload(field, key, vars = {}, isError = false) {
+function sayIdleUnload(field, key, { vars = {}, isError = false } = {}) {
   field.msg.textContent = key ? i18nT(key, vars) : "";
   field.msg.classList.toggle("error", isError);
 }
@@ -4897,12 +4894,12 @@ async function commitIdleUnload(field, minutes) {
   const kept = await postIdleUnloadMinutes(minutes);
   if (!kept) {
     field.input.value = field.inUse === null ? "" : String(field.inUse);
-    sayIdleUnload(field, "settings.idleUnload.saveFailed", {}, true);
+    sayIdleUnload(field, "settings.idleUnload.saveFailed", { isError: true });
     return;
   }
   showIdleUnload(field, kept);
   if (kept.idle_unload_minutes !== minutes) {
-    sayIdleUnload(field, "settings.idleUnload.clamped", { max: kept.idle_unload_minutes });
+    sayIdleUnload(field, "settings.idleUnload.clamped", { vars: { max: kept.idle_unload_minutes } });
   }
 }
 
@@ -4922,13 +4919,6 @@ async function wireIdleUnloadSetting(overlay) {
     const minutes = parseInt(input.value, 10);
     if (!Number.isNaN(minutes)) commitIdleUnload(field, minutes);
     else if (field.inUse !== null) input.value = String(field.inUse);
-  });
-  // Read whole: maxlength would cut "1,440" to "1,44" before the digit filter saw it.
-  input.addEventListener("paste", function onIdleUnloadPaste(e) {
-    e.preventDefault();
-    const text = e.clipboardData?.getData("text") ?? "";
-    if (PASTED_MINUTES.test(text)) commitIdleUnload(field, parseInt(text.replace(/\D/g, ""), 10));
-    else sayIdleUnload(field, "settings.idleUnload.notNumber", {}, true);
   });
   try {
     const r = await fetch("/api/settings", { cache: "no-store" });
