@@ -1,6 +1,5 @@
-// Every language has the batch import's words, with the same placeholders as
-// English. t() falls back to English, so a gap would not show on screen.
-//
+// Every language has the batch import's words with English's placeholders;
+// t() falls back to English, so a gap would not show on screen.
 // Run:  node tests/js/batch-import-i18n.test.mjs
 
 globalThis.window = {};
