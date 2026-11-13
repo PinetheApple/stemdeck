@@ -79,6 +79,7 @@ function playhead(page) {
 
 const storedMix = (page, key) => page.evaluate((k) => JSON.parse(window.localStorage.getItem(k) ?? "\"absent\""), key);
 const songRow = (page, id = JOB_ID) => page.locator(`#catalogList .cat-item[data-id="${id}"]`).first();
+const versionGroup = (page) => page.locator(`#catalogList .cat-versions[aria-label="Versions of ${TRACK_TITLE}"]`);
 const versionRows = (page, id = JOB_ID) => page.locator(`#catalogList .cat-version[data-id="${id}"]`);
 const versionRow = (page, vid, id = JOB_ID) => page.locator(`#catalogList .cat-version[data-id="${id}"][data-version="${vid}"]`);
 
@@ -117,7 +118,7 @@ test("version rows open, close and follow the library keyboard", async ({ page, 
 
   const toggle = songRow(page).locator(".cat-versions-toggle");
   await expect(toggle).toHaveText("2 versions");
-  await expect(versionRows(page)).toBeHidden();
+  await expect(versionGroup(page)).toBeHidden();
   await expandVersions(page);
   await expect(versionRows(page)).toHaveCount(2);
   await expect(versionRow(page, DEFAULT_ID)).toHaveClass(/\bactive\b/);
@@ -139,7 +140,7 @@ test("version rows open, close and follow the library keyboard", async ({ page, 
   await expect(page.locator("#npVersionBtn")).toHaveText("Two lanes");
 
   await toggle.click();
-  await expect(versionRows(page)).toBeHidden();
+  await expect(versionGroup(page)).toBeHidden();
   await expect(songRow(page)).toHaveClass(/\bactive\b/);
 });
 
