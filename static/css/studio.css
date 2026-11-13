@@ -491,3 +491,13 @@
 @container song-head (max-width: 560px) {
   #songHead .daw-panel-toggles-label { display: none; }
 }
+
+/* With Auto-scroll and the open song's Up Next and More beside it, the head's icons tighten so the title keeps its room. */
+@container song-head (max-width: 1000px) {
+  #songHead #nowPlayingPanel .track-panel-head { gap: var(--s-2); }
+  #songHead #nowPlayingPanel .track-panel-head :is(.daw-fav-btn, .daw-details-btn) { width: var(--ctl-h-sm); }
+}
+@container song-head (max-width: 760px) {
+  #songHead #nowPlayingPanel .track-panel-head,
+  #songHead .daw-panel-toggles { gap: var(--s-1); }
+}
