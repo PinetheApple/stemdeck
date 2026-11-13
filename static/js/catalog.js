@@ -4,7 +4,7 @@ import { STEM_EXT_MP3 } from "./playbackStems.js";
 import { wireUpAudio, updateFooterTrack } from "./player.js";
 import { initSections } from "./sections.js";
 import {
-  audioEngine, bpmChip, foregroundJobId, keyChip, multitrack, saveSelectedStems, selectedStems, setCurrentVersionId, titleEl,
+  audioEngine, bpmChip, foregroundJobId, keyChip, multitrack, saveSelectedStems, selectedStems, titleEl,
 } from "./state.js";
 import { DEFAULT_VERSION_ID, hasVersionRows, openVersionOf, sameLanes } from "./versionModel.js";
 import {
@@ -1495,8 +1495,18 @@ export async function loadTrackIntoStudio(trackId) {
   setResplitTarget(resplittable ? track : null);
 
   applyTrackInfoToPanel(track);
-  setCurrentVersionId(openVersionOf(track)?.id ?? DEFAULT_VERSION_ID);
-  wireUpAudio(trackId, track.audioStems, track.duration || 0, track.thumb, importMixUrl(track), track.title || "", peaksPromise, track.hasVideo ?? false, track.videoStatus ?? null);
+  wireUpAudio(
+    trackId,
+    track.audioStems,
+    track.duration || 0,
+    track.thumb,
+    importMixUrl(track),
+    track.title || "",
+    peaksPromise,
+    track.hasVideo ?? false,
+    track.videoStatus ?? null,
+    openVersionOf(track)?.id ?? DEFAULT_VERSION_ID,
+  );
   initSections(trackId, track.sections, track.duration || 0);
   // Not awaited: the track is already loading, and the answer arrives as a
   // "tracktags" event.
