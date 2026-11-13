@@ -145,8 +145,7 @@ const DEFAULT_LINUX_FFMPEG_SHA256: &str =
 struct BackendHandles {
     child: Child,
     url: String,
-    /// The port in `url`, which a restart asks for again so the page keeps
-    /// its origin.
+    /// The port in `url`.
     port: u16,
 }
 
@@ -155,6 +154,9 @@ struct BackendStateInner {
     handles: Option<BackendHandles>,
     /// True while start_backend is executing; prevents concurrent starts (#145).
     starting: bool,
+    /// The port the last backend answered on, which a restart asks for again
+    /// even after a failed one left no backend running.
+    last_port: Option<u16>,
     /// PID of an in-progress setup-time subprocess (pip install, or the model
     /// warmup download, #275); killed by stop_backend on window close (#140).
     setup_child_pid: Option<u32>,
@@ -1332,8 +1334,7 @@ fn not_writable_message(root: &Path) -> String {
 /// while a handle inside it is open, so starting the swap before the process is
 /// gone fails with a permission error, or worse, part-way through. Linux would
 /// tolerate it, but a backend still serving requests from a directory being
-/// swapped out is not something to rely on either. restart_backend uses it on
-/// every platform, so the new backend never races the old one for the port.
+/// swapped out is not something to rely on either. restart_backend uses it too.
 fn stop_backend_and_wait(state: &BackendState, timeout: Duration) -> Result<(), String> {
     let handles = match state.inner.lock() {
         Ok(mut guard) => guard.handles.take(),
@@ -1354,23 +1355,29 @@ fn stop_backend_and_wait(state: &BackendState, timeout: Duration) -> Result<(), 
             if handles.child.try_wait().ok().flatten().is_some() {
                 return Ok(());
             }
-            thread::sleep(Duration::from_millis(100));
+            thread::sleep(PORT_POLL_INTERVAL);
         }
     }
     let _ = handles.child.kill();
     let deadline = Instant::now() + timeout;
-    loop {
+    let failure = loop {
         match handles.child.try_wait() {
             Ok(Some(_)) => return Ok(()),
-            Ok(None) => {
-                if Instant::now() >= deadline {
-                    return Err("the audio backend did not shut down in time".to_string());
-                }
-                thread::sleep(Duration::from_millis(100));
+            Ok(None) if Instant::now() >= deadline => {
+                break "the audio backend did not shut down in time".to_string();
             }
-            Err(e) => return Err(format!("failed to wait for the audio backend to exit: {e}")),
+            Ok(None) => thread::sleep(PORT_POLL_INTERVAL),
+            Err(e) => break format!("failed to wait for the audio backend to exit: {e}"),
         }
-    }
+    };
+    // Kept, so the next stop kills this process again instead of a new
+    // backend racing it for the port.
+    state
+        .inner
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .handles = Some(handles);
+    Err(failure)
 }
 
 /// Rename, retrying briefly on Windows sharing violations.
@@ -1402,9 +1409,8 @@ fn rename_with_retry(from: &Path, to: &Path, what: &str) -> Result<(), String> {
     ))
 }
 
-/// Holds `starting` for the whole of an app update, so no backend is started
-/// or restarted from backend/ while the update renames it, and the update does
-/// not begin while one is. Released on every way out of apply_app_update.
+/// Holds `starting` for a whole app update, so no backend starts from backend/
+/// while the update renames it. Released on every way out of apply_app_update.
 #[cfg(any(windows, target_os = "linux"))]
 struct UpdateClaim<'a>(&'a BackendState);
 
@@ -1505,7 +1511,7 @@ fn apply_app_update(
         //
         // The backend must be gone first: it runs from backend/, and Windows
         // will not rename a directory with live handles inside it.
-        stop_backend_and_wait(&state, Duration::from_secs(15))
+        stop_backend_and_wait(&state, BACKEND_STOP_TIMEOUT)
             .map_err(|e| format!("{e}; update cancelled"))?;
 
         let backend_dir = root.join("backend");
@@ -1777,15 +1783,8 @@ fn start_backend(
     store_backend(&state, spawned)
 }
 
-/// Stops the backend and starts it again, so a change to "Make StemDeck
-/// available on your network" takes effect: the new backend listens where
-/// settings.json now says. It takes nothing from the page, which can only save
-/// the setting and ask for this. The same port is asked for again, because the
-/// page's origin, and with it everything it keeps in localStorage, is that
-/// port.
-///
-/// Off the main thread: the stop, the port wait and the health wait take
-/// seconds, and the window has to keep painting the dialog meanwhile.
+/// Restarts the backend on the same port, so a changed network setting applies
+/// without changing the page's origin. Off the main thread: it takes seconds.
 #[tauri::command]
 async fn restart_backend(app_handle: tauri::AppHandle) -> Result<BackendStarted, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -1796,7 +1795,7 @@ async fn restart_backend(app_handle: tauri::AppHandle) -> Result<BackendStarted,
     .map_err(|e| format!("the restart did not finish: {e}"))?
 }
 
-const RESTART_STOP_TIMEOUT: Duration = Duration::from_secs(15);
+const BACKEND_STOP_TIMEOUT: Duration = Duration::from_secs(15);
 const RESTART_PORT_WAIT: Duration = Duration::from_secs(5);
 const PORT_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
@@ -1810,26 +1809,31 @@ fn restart_backend_blocking(
             return Err("Backend startup already in progress".to_string());
         }
         inner.starting = true;
-        inner.handles.as_ref().map(|h| h.port)
+        inner.last_port
     };
-    let spawned = stop_backend_and_wait(state, RESTART_STOP_TIMEOUT).and_then(|()| {
+    let spawned = stop_backend_and_wait(state, BACKEND_STOP_TIMEOUT).and_then(|()| {
         let port = port.unwrap_or_else(configured_port);
-        if !wait_for_port_release(port, RESTART_PORT_WAIT) {
-            eprintln!("[stemdeck] port {port} is still held after the restart; using a free one");
+        let mut ports = vec![port];
+        if configured_bind_host() == ALL_INTERFACES {
+            ports.push(HTTPS_PORT);
+        }
+        if !wait_for_port_release(&ports, RESTART_PORT_WAIT) {
+            eprintln!("[stemdeck] ports {ports:?} still held after the restart; using free ones");
         }
         spawn_backend(app_handle, port, true)
     });
     store_backend(state, spawned)
 }
 
-/// Waits until nothing holds `port` on loopback or on every interface, for at
-/// most `timeout`. stop_backend_and_wait returns once the process it started
-/// has exited, but on Windows the interpreter the venv launcher started can
-/// outlive it briefly and hold the port until then.
-fn wait_for_port_release(port: u16, timeout: Duration) -> bool {
+/// Waits until nothing holds any of `ports`, for at most `timeout`: on Windows
+/// the interpreter the venv launcher started can outlive the stopped backend.
+fn wait_for_port_release(ports: &[u16], timeout: Duration) -> bool {
     let deadline = Instant::now() + timeout;
     loop {
-        if claim_port_on_both(ALL_INTERFACES, port, true).is_ok() {
+        if ports
+            .iter()
+            .all(|&port| claim_port_on_both(ALL_INTERFACES, port, true).is_ok())
+        {
             return true;
         }
         if Instant::now() >= deadline {
@@ -1839,8 +1843,7 @@ fn wait_for_port_release(port: u16, timeout: Duration) -> bool {
     }
 }
 
-/// Clears the starting flag whether the spawn succeeded or failed, and keeps
-/// the new backend's handles.
+/// Clears the starting flag whether the spawn succeeded or failed.
 fn store_backend(
     state: &BackendState,
     spawned: Result<BackendHandles, String>,
@@ -1849,23 +1852,20 @@ fn store_backend(
     inner.starting = false;
     let handles = spawned?;
     let url = handles.url.clone();
+    inner.last_port = Some(handles.port);
     inner.handles = Some(handles);
     Ok(BackendStarted { url })
 }
 
-/// Spawns the backend on `preferred_port` (or a free port when that is
-/// taken) and waits for it to answer /api/health. `after_stop`: see
-/// [`claim_port`].
+/// Spawns the backend on `preferred_port`, or a free one if that is taken, and
+/// waits for it to answer /api/health. `after_stop`: see [`claim_port`].
 fn spawn_backend(
     app_handle: &tauri::AppHandle,
     preferred_port: u16,
     after_stop: bool,
 ) -> Result<BackendHandles, String> {
-    // Loopback only while network access is off, so other devices cannot even
-    // connect; every interface once it is on. The backend's network gate still
-    // refuses other devices whenever the setting is off, which covers the time
-    // between saving the choice and the restart that applies it. The WebView
-    // itself connects via 127.0.0.1 regardless.
+    // Loopback while network access is off, so other devices cannot even
+    // connect; the backend's own gate covers the gap until a restart applies it.
     let bind_host = configured_bind_host();
     let root = app_root()?;
     let backend_dir = backend_dir(&root)?;
@@ -1899,7 +1899,7 @@ fn spawn_backend(
     } else {
         None
     };
-    let url = format!("http://127.0.0.1:{port}");
+    let url = format!("http://{LOOPBACK}:{port}");
     let log_path = data_dir.join("logs").join("backend.log");
     let (stdout, stderr) = prepare_backend_stdio(&log_path).unwrap_or_else(|_| {
         // Logging should help diagnose startup; it should not prevent startup.
@@ -1952,8 +1952,7 @@ fn spawn_backend(
         .env("STEMDECK_DATA_DIR", &data_dir)
         .env("STEMDECK_DEFAULT_JOBS_DIR", &jobs_dir)
         .env("STEMDECK_DESKTOP", "1")
-        // Reported back by /api/settings as network_listening, so the
-        // switch shows what is listening rather than what was saved.
+        // Reported back as network_listening: what listens, not what was saved.
         .env("STEMDECK_BIND_HOST", bind_host)
         // Where the backend keeps the per-user copy of settings.json that
         // survives extracting a new package into a fresh folder. Computed
@@ -1975,10 +1974,8 @@ fn spawn_backend(
         .stdout(stdout)
         .stderr(stderr);
 
-    // app/core/tls_listener reads these three together; any one missing
-    // means it stays off and the app is exactly what it was before. Removed
-    // otherwise, so a copy in the user's own environment cannot start the
-    // LAN listener while network access is off.
+    // tls_listener needs all three. Removed otherwise, so a copy in the user's
+    // own environment cannot start the LAN listener while access is off.
     if let Some((ref cert, https_port, _)) = https {
         cmd.env("STEMDECK_SSL_CERT", &cert.cert)
             .env("STEMDECK_SSL_KEY", &cert.key)
@@ -4805,25 +4802,22 @@ fn apply_ffmpeg_path(cmd: &mut Command, data_dir: &Path) -> Result<(), String> {
 /// The backend is the thing that should be answering that prompt, not the shell
 /// that starts it.
 ///
-/// `after_stop` is for a port the backend this shell just stopped was using.
-/// On Linux and macOS its closed connections sit in TIME_WAIT for up to a
-/// minute, which a plain bind refuses and uvicorn's own bind (SO_REUSEADDR)
-/// does not, so the claim sets SO_REUSEADDR to agree with uvicorn. Never on
-/// Windows: TIME_WAIT does not block a bind there, and SO_REUSEADDR would let
-/// this take a port another program is listening on.
+/// `after_stop` sets SO_REUSEADDR on Linux, as uvicorn does, so the stopped
+/// backend's TIME_WAIT does not refuse the port. Linux only: on Windows and
+/// macOS it would let this bind beside another program's live listener.
 fn claim_port(host: &str, port: u16, after_stop: bool) -> Result<(u16, Socket), String> {
     let addr: SocketAddr = format!("{host}:{port}")
         .parse()
         .map_err(|e| format!("bad bind address {host}:{port}: {e}"))?;
     let socket = Socket::new(Domain::for_address(addr), Type::STREAM, Some(Protocol::TCP))
         .map_err(|e| format!("socket failed: {e}"))?;
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     if after_stop {
         socket
             .set_reuse_address(true)
             .map_err(|e| format!("SO_REUSEADDR failed: {e}"))?;
     }
-    #[cfg(not(unix))]
+    #[cfg(not(target_os = "linux"))]
     let _ = after_stop;
     socket
         .bind(&addr.into())
@@ -4871,12 +4865,8 @@ fn configured_port() -> u16 {
 const LOOPBACK: &str = "127.0.0.1";
 const ALL_INTERFACES: &str = "0.0.0.0";
 
-/// Where the backend listens: loopback only until the user turns on "Make
-/// StemDeck available on your network", every interface once they have.
-/// Read from settings.json the way app/core/settings.py reads allow_network: a
-/// stored bool wins, else STEMDECK_ALLOW_NETWORK=1 means on, else the desktop
-/// default, off. A file that is missing or unreadable means loopback. The page
-/// never chooses this; it can only save the setting and ask for a restart.
+/// Loopback unless allow_network is on, with app/core/settings.py's precedence
+/// (stored bool, else STEMDECK_ALLOW_NETWORK=1); unreadable means loopback.
 fn bind_host_for(settings_json: Option<&str>, env_allow: Option<&str>) -> &'static str {
     let stored = settings_json
         .and_then(|text| serde_json::from_str::<serde_json::Value>(text).ok())
@@ -4902,15 +4892,8 @@ fn configured_bind_host() -> &'static str {
 /// Reserve the user's preferred port; fall back to any free port if it's taken,
 /// so a port conflict can never block startup.
 ///
-/// The port counts as free only if nothing holds it on loopback or on every
-/// interface, whichever of the two `host` is. On Windows, binding
-/// `127.0.0.1:8000` succeeds even while another process holds `0.0.0.0:8000`,
-/// and the reverse, because neither socket sets `SO_EXCLUSIVEADDRUSE`. Probing
-/// one address therefore reported a taken port as free, the fallback below
-/// never ran, and the backend we spawned either died with `10048` or shared the
-/// port with the *other* instance, which kept answering on it (#424). The other
-/// address is probed first and let go, because Linux refuses the second bind
-/// while this process holds the first.
+/// Free means free on both loopback and every interface: on Windows a bind to
+/// either succeeds while another process holds the other.
 fn reserve_port(host: &str, desired: u16, after_stop: bool) -> Result<(u16, Socket), String> {
     if let Ok(claimed) = claim_port_on_both(host, desired, after_stop) {
         return Ok(claimed);
@@ -4918,8 +4901,8 @@ fn reserve_port(host: &str, desired: u16, after_stop: bool) -> Result<(u16, Sock
     free_port(host)
 }
 
-/// Claim `host:port` once nothing holds `port` on the other of loopback and
-/// every interface either. See [`reserve_port`].
+/// The other address is probed first and let go, because Linux refuses the
+/// second bind while this process holds the first.
 fn claim_port_on_both(host: &str, port: u16, after_stop: bool) -> Result<(u16, Socket), String> {
     let other = if host == LOOPBACK {
         ALL_INTERFACES
@@ -7906,25 +7889,21 @@ b6052160df96b31c9b1e33854a4dcda3d4b57641b880270f31736fb9f445d384  ffmpeg-n7.1-la
 
     #[test]
     fn a_loopback_backend_is_not_given_a_port_held_on_every_interface() {
-        // On Windows a 127.0.0.1 bind succeeds while another process listens
-        // on 0.0.0.0 at the same port, so a loopback-only probe would hand a
-        // second StemDeck the first one's port.
-        let held = std::net::TcpListener::bind(("0.0.0.0", 0)).unwrap();
+        // Windows grants a loopback bind beside another process's wildcard one.
+        let held = std::net::TcpListener::bind((super::ALL_INTERFACES, 0)).unwrap();
         let taken = held.local_addr().unwrap().port();
 
-        let (got, _guard) = super::reserve_port("127.0.0.1", taken, false).unwrap();
+        let (got, _guard) = super::reserve_port(super::LOOPBACK, taken, false).unwrap();
 
         assert_ne!(got, taken, "loopback reservation ignored a wildcard holder");
     }
 
     #[test]
     fn an_every_interface_backend_is_not_given_a_port_held_on_loopback() {
-        // The reverse: Windows lets the wildcard bind succeed, and the
-        // loopback socket would keep answering 127.0.0.1.
-        let held = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let held = std::net::TcpListener::bind((super::LOOPBACK, 0)).unwrap();
         let taken = held.local_addr().unwrap().port();
 
-        let (got, _guard) = super::reserve_port("0.0.0.0", taken, false).unwrap();
+        let (got, _guard) = super::reserve_port(super::ALL_INTERFACES, taken, false).unwrap();
 
         assert_ne!(got, taken, "wildcard reservation ignored a loopback holder");
     }
@@ -7960,9 +7939,6 @@ b6052160df96b31c9b1e33854a4dcda3d4b57641b880270f31736fb9f445d384  ffmpeg-n7.1-la
         // parallel, so the window is narrowed rather than closed. Walking the
         // range absorbs a lost race. A reserve_port that genuinely ignored a
         // free port would have to lose all two hundred.
-        //
-        // Free means free on both addresses, which is what reserve_port asks,
-        // and it has to grant it to a backend bound to either one.
         for host in [super::LOOPBACK, super::ALL_INTERFACES] {
             let mut attempts = 0_u32;
             let granted = (21_000..21_200).find_map(|wanted| {
@@ -7981,21 +7957,16 @@ b6052160df96b31c9b1e33854a4dcda3d4b57641b880270f31736fb9f445d384  ffmpeg-n7.1-la
         }
     }
 
+    #[cfg(target_os = "linux")]
     #[test]
     fn a_restart_gets_back_the_port_its_backend_just_closed() {
-        // The page's origin, with everything it keeps in localStorage, is the
-        // port. The stopped backend closed its connections first, which leaves
-        // them in TIME_WAIT, and on Linux and macOS a plain bind refuses such
-        // a port for up to a minute.
-        //
+        // The backend closing first leaves TIME_WAIT, which a plain bind refuses.
         // A fixed range for the reason given in a_free_port_is_granted_as_asked.
-        // TcpListener sets SO_REUSEADDR on unix, as uvicorn does.
         let granted = (21_400..21_600).find_map(|wanted| {
             let listener = std::net::TcpListener::bind((super::LOOPBACK, wanted)).ok()?;
             let mut client = std::net::TcpStream::connect((super::LOOPBACK, wanted)).ok()?;
             let (served, _) = listener.accept().ok()?;
-            // The backend closes first, as uvicorn does when it shuts down;
-            // reading the end of stream means its close has arrived.
+            // Reading the end of stream means the server's close has arrived.
             drop(served);
             std::io::Read::read(&mut client, &mut [0_u8; 1]).ok()?;
             drop(client);
@@ -8011,20 +7982,19 @@ b6052160df96b31c9b1e33854a4dcda3d4b57641b880270f31736fb9f445d384  ffmpeg-n7.1-la
     }
 
     #[test]
-    fn only_a_claim_after_a_stop_reuses_the_address_and_never_on_windows() {
-        // SO_REUSEADDR on Windows lets a bind take a port another program
-        // listens on, so it must never be set there.
+    fn only_a_claim_after_a_stop_reuses_the_address_and_only_on_linux() {
         let (_, fresh) = super::claim_port(super::LOOPBACK, 0, false).unwrap();
         assert!(!fresh.reuse_address().unwrap());
         let (_, after_stop) = super::claim_port(super::LOOPBACK, 0, true).unwrap();
-        assert_eq!(after_stop.reuse_address().unwrap(), cfg!(unix));
+        assert_eq!(
+            after_stop.reuse_address().unwrap(),
+            cfg!(target_os = "linux")
+        );
     }
 
     #[cfg(any(windows, target_os = "linux"))]
     #[test]
     fn an_update_and_a_restart_never_overlap() {
-        // The update renames backend/, which a backend being started or
-        // restarted runs from. Each refuses while the other holds `starting`.
         let state = super::BackendState::default();
         state.inner.lock().unwrap().starting = true;
         assert!(
@@ -8048,19 +8018,15 @@ b6052160df96b31c9b1e33854a4dcda3d4b57641b880270f31736fb9f445d384  ffmpeg-n7.1-la
     #[test]
     fn the_backend_listens_beyond_loopback_only_once_network_access_is_on() {
         use super::{bind_host_for, ALL_INTERFACES as ALL, LOOPBACK as LO};
-        // (settings.json, STEMDECK_ALLOW_NETWORK, where the backend binds),
-        // with the same precedence as get_allow_network in app/core/settings.py.
+        // (settings.json, STEMDECK_ALLOW_NETWORK, where the backend binds).
         let cases = [
-            // First launch: no settings yet, the desktop default is off.
             (None, None, LO),
             (Some(r#"{"allow_network": true}"#), None, ALL),
             (Some(r#"{"allow_network": false}"#), None, LO),
             (Some(r#"{"port": 8000}"#), None, LO),
-            // Unreadable or not a bool: fail closed.
             (Some("{not json"), None, LO),
             (Some(r#"{"allow_network": "yes"}"#), None, LO),
             (Some("[]"), None, LO),
-            // The variable pre-enables it, but a stored choice wins.
             (Some(r#"{"port": 8000}"#), Some("1"), ALL),
             (None, Some(" 1 "), ALL),
             (Some(r#"{"allow_network": false}"#), Some("1"), LO),
