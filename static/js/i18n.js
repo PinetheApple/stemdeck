@@ -1452,6 +1452,7 @@ const en = {
   "batch.notChecked": "Not checked",
   "batch.notQueuedCount.one": "{count} not queued",
   "batch.notQueuedCount.other": "{count} not queued",
+  "batch.playlistTruncated": "rest of the list left out",
 };
 
 const pl = {
@@ -2694,6 +2695,7 @@ const pl = {
   "batch.notQueuedCount.one": "{count} poza kolejką",
   "batch.notQueuedCount.few": "{count} poza kolejką",
   "batch.notQueuedCount.many": "{count} poza kolejką",
+  "batch.playlistTruncated": "reszta listy pominięta",
 };
 
 const ja = {
@@ -3881,6 +3883,7 @@ const ja = {
   "batch.overCapFiles.other": "ファイルは一度に{max}件までです。{count}件は除外されました。",
   "batch.notChecked": "未確認",
   "batch.notQueuedCount.other": "{count}件未追加",
+  "batch.playlistTruncated": "残りは除外",
 };
 
 const zhHans = {
@@ -5068,6 +5071,7 @@ const zhHans = {
   "batch.overCapFiles.other": "一次最多 {max} 个文件。另外 {count} 个已略去。",
   "batch.notChecked": "未检查",
   "batch.notQueuedCount.other": "{count} 项未加入队列",
+  "batch.playlistTruncated": "其余已略去",
 };
 
 const de = {
@@ -6281,6 +6285,7 @@ const de = {
   "batch.notChecked": "Nicht geprüft",
   "batch.notQueuedCount.one": "{count} nicht eingereiht",
   "batch.notQueuedCount.other": "{count} nicht eingereiht",
+  "batch.playlistTruncated": "Rest der Liste ausgelassen",
 };
 
 const pt = {
@@ -7496,6 +7501,7 @@ const pt = {
   "batch.notChecked": "Não verificado",
   "batch.notQueuedCount.one": "{count} fora da fila",
   "batch.notQueuedCount.other": "{count} fora da fila",
+  "batch.playlistTruncated": "resto da lista ficou de fora",
 };
 
 const id = {
@@ -8683,6 +8689,7 @@ const id = {
   "batch.overCapFiles.other": "Paling banyak {max} file sekaligus. {count} file lainnya dilewati.",
   "batch.notChecked": "Belum diperiksa",
   "batch.notQueuedCount.other": "{count} tidak diantrekan",
+  "batch.playlistTruncated": "sisa daftar dilewati",
 };
 
 const fr = {
@@ -9898,6 +9905,7 @@ const fr = {
   "batch.notChecked": "Non vérifié",
   "batch.notQueuedCount.one": "{count} pas en file",
   "batch.notQueuedCount.other": "{count} pas en file",
+  "batch.playlistTruncated": "reste de la liste laissé de côté",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -11453,6 +11461,7 @@ const es = {
   "batch.notChecked": "Sin comprobar",
   "batch.notQueuedCount.one": "{count} sin poner en cola",
   "batch.notQueuedCount.other": "{count} sin poner en cola",
+  "batch.playlistTruncated": "resto de la lista omitido",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -12649,6 +12658,7 @@ const ko = {
   "batch.overCapFiles.other": "파일은 한 번에 {max}개까지입니다. {count}개는 제외되었습니다.",
   "batch.notChecked": "확인 안 됨",
   "batch.notQueuedCount.other": "{count}개 대기열에 없음",
+  "batch.playlistTruncated": "나머지는 제외됨",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };

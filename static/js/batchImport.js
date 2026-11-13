@@ -33,7 +33,11 @@ const urlInput = () => document.getElementById("url");
 const urlWrap = () => document.querySelector(".url-wrap");
 const structureOn = () => document.getElementById("autoSectionsBtn")?.getAttribute("aria-pressed") === "true";
 const isCurrent = (target) => batch === target;
-const liveChoice = () => ({ stems: [...selectedStems], autoSections: structureOn(), splitChoice: currentSplitChoice() });
+const liveChoice = () => ({
+  stems: [...selectedStems],
+  autoSections: structureOn(),
+  splitChoice: currentSplitChoice(),
+});
 
 // ─── the chip in the bar ───
 
@@ -99,6 +103,7 @@ export function startLinkBatch(text, { inBar = false } = {}) {
     droppedLines: new Set(),
     loading: true,
   };
+  setBatchNotQueued(0);
   begin(fetchLinkPreview);
 }
 
@@ -118,6 +123,7 @@ export function startFileBatch(entries, { folder = null } = {}) {
     groups: [],
     loading: true,
   };
+  setBatchNotQueued(0);
   begin(fetchFilePreview);
   readDurations(batch);
 }
@@ -265,7 +271,10 @@ function notes() {
 export function renderReview() {
   const panel = reviewPanel();
   if (!panel || !batch) return;
-  stemObserver.observe(document.getElementById("job-form"), { attributes: true, subtree: true, attributeFilter: ["aria-pressed"] });
+  stemObserver.observe(
+    document.getElementById("job-form"),
+    { attributes: true, subtree: true, attributeFilter: ["aria-pressed"] },
+  );
   const focus = focusedControl();
   const error = batch.error && !batch.loading ? t("batch.previewFailed", { message: batch.error }) : null;
   panel.replaceChildren(...reviewShell({ ...headText(), notes: notes(), error }));
@@ -334,15 +343,31 @@ function onReviewChange(e) {
   renderReview();
 }
 
+function closeReview() {
+  closePanel();
+}
+
+function retryRow(btn) {
+  return queueOnly(itemOf(btn));
+}
+
+function toggleSongs(btn) {
+  toggleGroup(groupOf(btn), "collapsed");
+}
+
+function showAllSongs(btn) {
+  toggleGroup(groupOf(btn), "showAll");
+}
+
 const REVIEW_ACTIONS = {
-  "batch-review-close": () => closePanel(),
-  "batch-cancel": () => closePanel(),
-  "batch-queue": () => queueTicked(),
-  "batch-preview-retry": () => retryPreview(),
-  "batch-item-drop": (btn) => dropRow(btn),
-  "batch-item-retry": (btn) => queueOnly(itemOf(btn)),
-  "batch-group-toggle": (btn) => toggleGroup(groupOf(btn), "collapsed"),
-  "batch-more-btn": (btn) => toggleGroup(groupOf(btn), "showAll"),
+  "batch-review-close": closeReview,
+  "batch-cancel": closeReview,
+  "batch-queue": queueTicked,
+  "batch-preview-retry": retryPreview,
+  "batch-item-drop": dropRow,
+  "batch-item-retry": retryRow,
+  "batch-group-toggle": toggleSongs,
+  "batch-more-btn": showAllSongs,
 };
 
 function onReviewClick(e) {
@@ -400,7 +425,7 @@ async function queueSome(target, items) {
     queueFullReason: t("upload.reasonQueueFull"),
   });
   addLibraryRows(target, outcome.queued);
-  recordBatch(outcome.queued.map((q) => q.jobId), target.choice);
+  recordBatch(outcome.queued.map((q) => q.jobId));
   target.queuing = false;
   target.capacity = null;
   for (const { item, reason } of outcome.notQueued) Object.assign(item, { status: ITEM_STATUS.NOT_QUEUED, reason, ticked: true });
@@ -446,8 +471,8 @@ function queueOnly(item) {
 
 /** "Retry failed" in the queue view: the items the queue did not take, sent again. */
 function resendLeftOut() {
-  if (!batch) return null;
-  const left = batch.items.filter((i) => i.status === ITEM_STATUS.NOT_QUEUED);
+  const left = batch?.items.filter((i) => i.status === ITEM_STATUS.NOT_QUEUED) ?? [];
+  if (!left.length) return null;
   return send(left, batch.items.filter((i) => !left.includes(i)));
 }
 

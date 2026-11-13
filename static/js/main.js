@@ -897,9 +897,7 @@ function wireFileDrop() {
     const all = [...(list || [])];
     if (!all.length) return null;
 
-    // Filter here rather than letting the server reject each one: dropping a
-    // folder, or a folder of mixed content, would otherwise mean one 422 per
-    // stray file. Only complain if nothing usable came through.
+    // Refused here, in the box, rather than by the server's 422 after an upload.
     const audio = all.filter(isAudioFile);
     if (!audio.length) {
       showDropError(t("upload.unsupportedFormat"));

@@ -158,7 +158,10 @@ export function groupRow(group, { count, ticked, tickable }) {
     "x",
     t("batch.removeTitle", { title: group.title }),
   );
-  const sub = t("batch.playlistSub", { songs: plural("batch.songs", count) });
+  const parts = [t("batch.playlistSub", { songs: plural("batch.songs", count) })];
+  if (group.unavailable) parts.push(plural("playlist.skip.unavailable", group.unavailable));
+  if (group.truncated) parts.push(t("batch.playlistTruncated"));
+  const sub = parts.join(SUB_SEP);
   li.append(box, iconSlot("listMusic", false), meta(group.title, sub, false), toggle, drop);
   return li;
 }
