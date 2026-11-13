@@ -188,6 +188,33 @@ test.describe("one-key shortcuts and what they leave alone", () => {
     await expect(metro).toHaveClass(ACTIVE);
   });
 
+  test("Space after a mouse click on a checkbox plays and does not untick it", async ({ page }) => {
+    await setUp(page);
+    const checkbox = await focusAddedInput(page, "checkbox");
+    await checkbox.blur();
+    await checkbox.click();
+    await expect(checkbox).toBeChecked();
+    await expect(checkbox).toBeFocused();
+
+    await page.keyboard.press("Space");
+
+    await expect.poll(async () => (await studioState(page)).playing).toBe(true);
+    await expect(checkbox).toBeChecked();
+  });
+
+  test("Space after a mouse click on a mute chip plays and does not unmute the stem", async ({ page }) => {
+    await setUp(page);
+    const mute = page.locator(MUTE_CHIP).filter({ visible: true }).first();
+    await mute.click();
+    await expect(page.locator(MUTED_LANE)).toHaveCount(1);
+    await expect(mute).toBeFocused();
+
+    await page.keyboard.press("Space");
+
+    await expect.poll(async () => (await studioState(page)).playing).toBe(true);
+    await expect(page.locator(MUTED_LANE)).toHaveCount(1);
+  });
+
   test("a checkbox reached by Tab takes Space as its own press and leaves K to the shortcut", async ({ page }) => {
     await setUp(page);
     const checkbox = await focusAddedInput(page, "checkbox");

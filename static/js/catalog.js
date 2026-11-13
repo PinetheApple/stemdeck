@@ -25,7 +25,7 @@ import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
 import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
 import { isModalOpen } from "./stageMode.js";
-import { ON_ROW, OUT_OF_TAB_ORDER, ROW_KEY, ROW_PLAY_CLASS, isShown, wireRovingRows } from "./rovingRows.js";
+import { KEYBOARD_FOCUS, ON_ROW, OUT_OF_TAB_ORDER, ROW_KEY, ROW_PLAY_CLASS, isShown, wireRovingRows } from "./rovingRows.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
@@ -2208,7 +2208,6 @@ const TEXT_EDITING_SELECTOR = [
   ".folder-editor",
 ].join(", ");
 
-const KEYBOARD_FOCUS = ":focus-visible";
 const NATIVE_SPACE_SELECTOR = [
   "button",
   "[role='button']",
@@ -2220,14 +2219,13 @@ export function isTextEditingTarget(target) {
 }
 
 // Read on focus: Chromium makes a clicked control :focus-visible on the first key pressed.
-let focusedByKeyboard = false;
+let keyboardFocusedEl = null;
 document.addEventListener("focusin", function noteFocusModality(e) {
-  focusedByKeyboard = e.target.matches(KEYBOARD_FOCUS);
+  keyboardFocusedEl = e.target.matches(KEYBOARD_FOCUS) ? e.target : null;
 });
 
-// A control focused by a mouse click shows no focus ring, so its Space goes to play/pause.
 export function isNativeSpaceTarget(target) {
-  return Boolean(target?.closest?.(NATIVE_SPACE_SELECTOR)) && focusedByKeyboard;
+  return Boolean(target?.closest?.(NATIVE_SPACE_SELECTOR)) && target === keyboardFocusedEl;
 }
 
 const SONG_ROW_SELECTOR = ".cat-item:not(.in-trash):not(.queue-row)";

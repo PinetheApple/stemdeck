@@ -20,7 +20,7 @@ const ROVING_STOP = 0;
 export const OUT_OF_TAB_ORDER = -1;
 export const ON_ROW = -1;
 const NOT_FOUND = -1;
-const KEYBOARD_FOCUS = ":focus-visible";
+export const KEYBOARD_FOCUS = ":focus-visible";
 const TEXT_FIELD = "input, textarea, select, [contenteditable='true']";
 const NOT_THE_ROW = `button, form, ${TEXT_FIELD}`;
 const SECOND_CLICK = 2;
