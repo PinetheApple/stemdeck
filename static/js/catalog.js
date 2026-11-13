@@ -3371,6 +3371,8 @@ async function onQueueStartClick(e) {
 const QUEUE_CONTROLS = [".queue-cancel", ".queue-top", ".queue-start-btn"];
 const QUEUE_SECTION = ".queue-section";
 const QUEUE_ROW = ".queue-row";
+const QUEUE_BANNER = ".queue-paused-banner";
+const DRAGGABLE = "draggable";
 const QUEUE_CONTROL_TEXT = ["title", "aria-label"];
 const QUEUE_KEYBOARD_FOCUS = ":focus-visible";
 // The queue control that last took focus, read as it is focused: by the time the
@@ -3445,50 +3447,68 @@ function restoreQueueFocus(section, saved) {
   focusQueueControl(queueFocusTarget(section, saved), saved);
 }
 
+function removeChildrenExcept(parent, kept) {
+  for (const node of [...parent.childNodes]) if (node !== kept) node.remove();
+}
+
 // Swap parent's children for `children` without detaching `kept`, which takes `standIn`'s place.
 function replaceChildrenAround(parent, kept, children, standIn) {
-  for (const node of [...parent.childNodes]) if (node !== kept) node.remove();
+  removeChildrenExcept(parent, kept);
   const at = children.indexOf(standIn);
   kept.before(...children.slice(0, at));
   kept.after(...children.slice(at + 1));
 }
 
-/** The focused control's row and its freshly drawn counterpart, when the job is still queued. */
-function keepableQueueRow(section, saved) {
-  const row = saved?.jobId ? saved.el.closest(QUEUE_ROW) : null;
-  const fresh = row && section.querySelector(`${QUEUE_ROW}[data-id="${CSS.escape(saved.jobId)}"]`);
+// A row is its job's; the paused banner, holding Start, has no job and is the only one.
+function queueBlockSelector(saved) {
+  return saved.jobId ? `${QUEUE_ROW}[data-id="${CSS.escape(saved.jobId)}"]` : QUEUE_BANNER;
+}
+
+/** The focused control's row or banner and its freshly drawn counterpart, when there still is one. */
+function keepableQueueBlock(section, saved) {
+  const block = saved?.el.closest(queueBlockSelector(saved));
+  const fresh = block && section.querySelector(queueBlockSelector(saved));
   const counterpart = fresh?.querySelector(`:scope > ${saved.control}`);
-  return counterpart ? { row, fresh, counterpart } : null;
+  return counterpart ? { block, fresh, counterpart } : null;
 }
 
-function adoptQueueRow({ row, fresh, counterpart }, control) {
-  row.className = fresh.className;
-  const draggable = fresh.getAttribute("draggable");
-  if (draggable) row.setAttribute("draggable", draggable);
-  else row.removeAttribute("draggable");
-  for (const name of QUEUE_CONTROL_TEXT) control.setAttribute(name, counterpart.getAttribute(name));
-  replaceChildrenAround(row, control, [...fresh.children], counterpart);
+function syncQueueControl(control, counterpart) {
+  for (const name of QUEUE_CONTROL_TEXT) {
+    const value = counterpart.getAttribute(name);
+    if (value === null) control.removeAttribute(name);
+    else control.setAttribute(name, value);
+  }
+  if (!counterpart.childElementCount) control.textContent = counterpart.textContent;
 }
 
-// The focused control keeps its node: the list is redrawn around its row, or, once
-// render() has already cleared the list, the row is put back and refocused.
+function adoptQueueBlock({ block, fresh, counterpart }, control) {
+  block.className = fresh.className;
+  const draggable = fresh.getAttribute(DRAGGABLE);
+  if (draggable) block.setAttribute(DRAGGABLE, draggable);
+  else block.removeAttribute(DRAGGABLE);
+  syncQueueControl(control, counterpart);
+  replaceChildrenAround(block, control, [...fresh.children], counterpart);
+}
+
+// The focused control keeps its node: the list is redrawn around its row or banner,
+// or, once render() has already cleared the list, that block is put back and refocused.
 function mountQueueSection(listEl, section, saved) {
-  const kept = keepableQueueRow(section, saved);
+  const kept = keepableQueueBlock(section, saved);
   if (!kept) {
     listEl.replaceChildren(section);
     restoreQueueFocus(section, saved);
     return;
   }
-  adoptQueueRow(kept, saved.el);
-  if (!listEl.contains(kept.row)) {
-    kept.fresh.replaceWith(kept.row);
+  adoptQueueBlock(kept, saved.el);
+  if (!listEl.contains(kept.block)) {
+    kept.fresh.replaceWith(kept.block);
     listEl.replaceChildren(section);
     focusQueueControl(saved.el, saved);
     return;
   }
-  const shown = kept.row.parentElement;
-  replaceChildrenAround(shown, kept.row, [...section.children], kept.fresh);
-  replaceChildrenAround(listEl, shown, [shown], shown);
+  const shown = kept.block.parentElement;
+  replaceChildrenAround(shown, kept.block, [...section.children], kept.fresh);
+  removeChildrenExcept(listEl, shown);
 }
 
 function appendQueueRows(listEl, section, entries, snap) {

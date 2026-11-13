@@ -635,21 +635,28 @@ export const LONG_QUEUE_WAITING_IDS = Object.freeze(["e2e0feed0001", "e2e0feed00
 
 /**
  * A running import and three waiting ones, so the last two waiting rows offer "extract next".
- * `setWaiting(ids)` changes which imports wait, then has the page read the queue again.
+ * `setWaiting(ids)` changes which imports wait and `setPaused(paused)` pauses the queue;
+ * each then has the page read the queue again.
  */
 export async function stubLongQueue(page) {
   const job = (id) => ({ job_id: id, status: "queued", title: id, source_url: `https://example.invalid/${id}` });
   const running = { ...job(LONG_QUEUE_RUNNING_ID), ...SEPARATING };
   let waiting = LONG_QUEUE_WAITING_IDS;
+  let paused = false;
   await page.route(
     "**/api/queue",
-    (route) => route.fulfill({ json: queueState(running, waiting.map(job)) }),
+    (route) => route.fulfill({ json: { ...queueState(running, waiting.map(job)), paused } }),
   );
   await page.route("**/api/queue/events", (route) => route.abort());
+  const read = () => page.evaluate(async () => (await import("/js/queue.js")).refreshQueue());
   return {
     async setWaiting(ids) {
       waiting = ids;
-      await page.evaluate(async () => (await import("/js/queue.js")).refreshQueue());
+      await read();
+    },
+    async setPaused(isPaused) {
+      paused = isPaused;
+      await read();
     },
   };
 }
