@@ -28,7 +28,7 @@ struct State {
 }
 
 /// Who asks. Only the page's failures block writes: it may hold stand-ins for
-/// what it could not read. A shell lookup that fails says nothing about that.
+/// what it could not read.
 #[derive(Clone, Copy, PartialEq)]
 pub enum Caller {
     Page,
