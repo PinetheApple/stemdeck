@@ -251,7 +251,7 @@ def _rmtree_job(job_id: str) -> bool:
     return remove_job_dir(JOBS_DIR / job_id)
 
 
-def _job_files_missing(job: Job) -> bool:
+def job_files_missing(job: Job) -> bool:
     """True when a "done" job's stem files are gone from disk: the folder was
     deleted or moved outside the app, not just an in-flight relocation (#354),
     which is a known, temporary absence and must not flap the library."""
@@ -280,7 +280,7 @@ def _job_state(job: Job) -> dict:
         if source is not None:
             job.source_format = source.suffix.lower().removeprefix(".")
     state = job.to_state()
-    if job.status == "done" and _job_files_missing(job):
+    if job.status == "done" and job_files_missing(job):
         state["status"] = "unavailable"
     state["source_kind"] = SOURCE_KIND_FILE if is_upload(job) else SOURCE_KIND_LINK
     state["retryable"] = job.status == STATUS_ERROR and (
@@ -2435,7 +2435,7 @@ def _settle_old_copy(job: Job) -> None:
         return
     # Before the delete below, which would take the old copy out of its setlists.
     setlists_replace_song(JOBS_DIR, old.id, job.id)
-    if _job_files_missing(old):
+    if job_files_missing(old):
         logger.info("[%s] replaces %s, whose files are gone: deleting it", job.id, old.id)
         if not _remove_job(old):
             logger.warning("[%s] replaced job %s left files behind", job.id, old.id)

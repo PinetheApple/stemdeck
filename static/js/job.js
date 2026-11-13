@@ -16,6 +16,7 @@ import { t } from "./i18n.js";
 import { formatKey } from "./keyLabel.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 import { carrySplitChoice, choiceToStore, storeSplitChoice } from "./vocalSplit.js";
+import { onQueueChange, queueRowStates } from "./queue.js";
 
 // Playful stage label rotation (Claude-Code-style flair). The backend
 // emits truthful stage strings; we surface them in the small #job-detail
@@ -411,6 +412,7 @@ function applyState(state) {
     else startPhraseRotation(state.status);
     lastStatus = state.status;
   }
+  refreshWaitingDetail();
 
   // The three terminal branches no longer clear the submit button: it is
   // released as soon as the POST returns, so the next import can be queued
@@ -576,9 +578,44 @@ async function postFileJob(file) {
   fd.append("file", file);
   fd.append("stems", JSON.stringify([...selectedStems]));
   const res = await fetch("/api/jobs", { method: "POST", body: fd });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || res.statusText);
-  return data.job_id;
+  return (await importResponse(res)).job_id;
+}
+
+const isQueueFull = (err) => err instanceof ServerRefusal && err.status === HTTP_SERVICE_UNAVAILABLE;
+
+const refusedFile = (file, reason) => t("import.itemReason", { name: file.name, reason });
+
+/** Upload each file in turn. A file the server refuses is passed over; a full
+ *  queue refuses the rest too, so it stops there. Returns why each file that
+ *  was not queued was left out. */
+async function queueFileBatch(batch) {
+  const refused = [];
+  for (const [index, file] of batch.entries()) {
+    try {
+      registerUploadRow(await postFileJob(file), file);
+    } catch (err) {
+      if (!isQueueFull(err)) {
+        refused.push(refusedFile(file, readableError(err)));
+        continue;
+      }
+      const reason = t("upload.reasonQueueFull");
+      refused.push(...batch.slice(index).map((left) => refusedFile(left, reason)));
+      break;
+    }
+  }
+  return refused;
+}
+
+async function submitFileBatch(batch, fileInput) {
+  const refused = await queueFileBatch(batch);
+  setSubmitProcessing(false);
+  fileInput._clear?.();
+  if (!refused.length) return;
+  showError(
+    t("upload.someNotAdded", { queued: batch.length - refused.length, total: batch.length }),
+    refused.join(t("list.separator")),
+    { onRetry: null },
+  );
 }
 
 /** Give an accepted upload its library row straight away, so a batch appears as
@@ -630,8 +667,9 @@ function sanitizeFilename(name) {
 
 /** Why a retry or its replacement import did not start, in words. */
 export function showRetryError(status, detail) {
-  const { key, message } = retryErrorText(status, detail);
-  showError(t(key, { message: message || t("job.unknownError") }), null, { onRetry: null });
+  const reason = typeof detail === "string" && detail ? detail : null;
+  const { key, message } = retryErrorText(status, reason);
+  showError(t(key, { message: message || t("job.unexpectedError") }), null, { onRetry: null });
 }
 
 /** A new import in place of a failed one; its data, or null once the reason is shown. */
@@ -642,7 +680,7 @@ async function postReplacementImport(init) {
     if (res.ok) return data;
     showRetryError(res.status, data.detail);
   } catch (err) {
-    showRetryError(null, err.message);
+    showRetryError(null, readableError(err));
   }
   return null;
 }
@@ -678,43 +716,88 @@ export async function reuploadFailedImport(file, track) {
 /** The song a re-import would replace is itself still importing. */
 class ReplaceBusyError extends Error {}
 
+export const HTTP_SERVICE_UNAVAILABLE = 503;
+
+/** A refusal the server explained in words written for the user. */
+export class ServerRefusal extends Error {
+  constructor(message, status) {
+    super(message);
+    this.status = status;
+  }
+}
+
+/** The JSON body of a successful call; otherwise throws the server's reason,
+ *  when it gave one in words. */
+export async function importResponse(res) {
+  if (res.ok) return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (typeof data.detail === "string" && data.detail) throw new ServerRefusal(data.detail, res.status);
+  throw new Error(res.statusText);
+}
+
+/** What a failed call says to the user: the server's own reason, or plain words
+ *  for a lost connection or anything else, never "Failed to fetch". */
+export function readableError(err) {
+  if (err instanceof ServerRefusal) return err.message;
+  return err instanceof TypeError ? t("job.networkError") : t("job.unexpectedError");
+}
+
 const replacesField = (replaces) => (replaces ? { replaces } : {});
 
 function showImportError(err, failedKey) {
   showError(
     err instanceof ReplaceBusyError
       ? t("job.reimportBusy")
-      : t(failedKey, { message: err.message }),
+      : t(failedKey, { message: readableError(err) }),
   );
+}
+
+async function postReimport(url, stems, replaces) {
+  const res = await fetch("/api/jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, stems, ...replacesField(replaces) }),
+  });
+  if (res.status === HTTP_CONFLICT) throw new ReplaceBusyError();
+  return (await importResponse(res)).job_id;
+}
+
+// The studio is the restore's to show: its stage, its progress and Cancel.
+function showForegroundBox(title) {
+  jobTitleEl.textContent = title;
+  progressEl.value = 0;
+  jobBox.classList.remove("hidden");
+  jobCancelBtn.classList.remove("hidden");
+  startPhraseRotation("queued");
+  lastStatus = "queued";
+  refreshWaitingDetail();
+}
+
+// A waiting job's own stage only says "Queued"; the queue knows its place in line.
+function refreshWaitingDetail() {
+  if (!foregroundJobId || lastStatus !== "queued") return;
+  const row = queueRowStates().get(foregroundJobId);
+  if (row) jobDetailEl.textContent = row.label;
 }
 
 // Re-imports a track through the studio pipeline, standing in for job `replaces`
 // until the server retires it. Returns the new job id, or null on failure.
 export async function importFromUrl(url, { title, stems, replaces } = {}) {
   if (!url || url.startsWith("local:")) return null; // local files can't auto-restore
-  reset();
-  setSubmitProcessing(true);
-  setWaveformLoading(true, "");
   const stemSel = stems?.length ? stems : [...selectedStems];
-
+  setSubmitProcessing(true);
   let jobId;
   try {
-    const res = await fetch("/api/jobs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, stems: stemSel, ...replacesField(replaces) }),
-    });
-    const data = await res.json();
-    if (res.status === HTTP_CONFLICT) throw new ReplaceBusyError();
-    if (!res.ok) throw new Error(data.detail || res.statusText);
-    jobId = data.job_id;
+    jobId = await postReimport(url, stemSel, replaces);
   } catch (err) {
     showImportError(err, "job.restoreFailed");
     setSubmitProcessing(false);
     return null;
   }
 
-  setSubmitProcessing(false);
+  // Only once the server has the job: a refused restore leaves playback alone.
+  reset();
+  setWaveformLoading(true, "");
   setCurrentJobId(jobId);
   setForegroundJobId(jobId);
   if (replaces) carrySplitChoice(replaces, jobId);
@@ -737,17 +820,14 @@ export async function importFromUrl(url, { title, stems, replaces } = {}) {
     sourceUrl: url,
   });
   setCurrentTrack(jobId);
-
-  jobBox.classList.add("hidden");
-  jobCancelBtn.classList.add("hidden");
-  startPhraseRotation("queued");
-  lastStatus = "queued";
+  showForegroundBox(title || url);
   connectEvents(jobId);
   return jobId;
 }
 
 export function wireJobForm() {
   jobCancelBtn.addEventListener("click", cancelCurrentJob);
+  onQueueChange(refreshWaitingDetail);
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -783,27 +863,7 @@ export function wireJobForm() {
     // in the background; the first to finish opens if the studio is still empty.
     const batch = fileInput?._files ?? null;
     if (batch && batch.length > 1) {
-      let queued = 0;
-      let failure = null;
-      for (const item of batch) {
-        try {
-          const id = await postFileJob(item);
-          registerUploadRow(id, item);
-          queued += 1;
-        } catch (err) {
-          failure = err;
-          break; // a full queue will reject the rest too; stop asking
-        }
-      }
-      setSubmitProcessing(false);
-      fileInput._clear?.();
-      if (failure) {
-        showError(
-          `Queued ${queued} of ${batch.length} files: ${failure.message}`,
-          null,
-          { onRetry: null },
-        );
-      }
+      await submitFileBatch(batch, fileInput);
       return;
     }
 
@@ -860,9 +920,8 @@ export function wireJobForm() {
     let newSourceUrl = sourceUrl;
     try {
       const res = await fetch(endpoint, fetchInit);
-      const data = await res.json();
       if (replaces && res.status === HTTP_CONFLICT) throw new ReplaceBusyError();
-      if (!res.ok) throw new Error(data.detail || res.statusText);
+      const data = await importResponse(res);
       jobId = data.job_id;
       if (data.source_url) newSourceUrl = data.source_url;
     } catch (err) {

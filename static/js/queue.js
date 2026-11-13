@@ -47,13 +47,19 @@ export function isPaused(snap = snapshot) {
   return !!snap.paused && queueCount(snap) > 0;
 }
 
+/** Resolves whether the server started the queue; a refusal is reported here. */
 export async function startQueue() {
   try {
     const r = await fetch("/api/queue/start", { method: "POST" });
-    if (r.ok) publish(await r.json());
+    if (r.ok) {
+      publish(await r.json());
+      return true;
+    }
   } catch (e) {
     console.warn("[queue] start failed:", e);
   }
+  notifyFailure({ kind: "import", message: t("notif.queueStartFailed") });
+  return false;
 }
 
 export function queueRowStates(snap = snapshot) {

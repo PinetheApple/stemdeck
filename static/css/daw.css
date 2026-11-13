@@ -5666,3 +5666,32 @@ input, textarea { font-family: inherit; }
   border: 1px solid var(--line-strong); border-radius: var(--radius-xs);
   font-size: var(--fs-2xs); color: var(--text-2);
 }
+/* Off the import bar. 620px of lanes leaves the waveforms (lanes less the mixer column)
+   room for the box; below 260px its text and buttons no longer fit, so it keeps its corner. */
+.daw-main { container: lanes / inline-size; }
+@container lanes (min-width: 620px) {
+  .daw:not(.stage-mode) #error {
+    position: absolute;
+    top: auto;
+    right: var(--s-4);
+    bottom: var(--s-4);
+    max-width: calc(100% - var(--daw-col-w) - 2 * var(--s-4));
+  }
+}
+@container lanes (260px <= width < 620px) {
+  .daw:not(.stage-mode) #error {
+    position: relative;
+    top: auto;
+    right: auto;
+    flex: none;
+    width: auto;
+    margin: var(--s-2);
+  }
+}
+/* Stage mode: under the stage header's Exit button, clear of the centred transport. */
+.daw.stage-mode #error {
+  position: absolute;
+  top: calc(var(--s-5) + var(--ctl-h) + var(--s-3));
+  right: var(--s-6);
+  max-width: calc(100% - 2 * var(--s-6));
+}

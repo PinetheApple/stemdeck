@@ -11,10 +11,8 @@
 // Being non-empty is what made it reachable at all -- an empty box is stopped
 // by the browser's own required check before any of our code runs.
 //
-// The other half of the rule -- a real link still lands in the box, ready to
-// re-import -- is tests/js/source-arming.test.mjs. Asserting it here meant
-// rewriting syncWithServer's own payload to fight the fixture's local source,
-// which tests the stub more than it tests the app.
+// A track from a link puts nothing in the box either: the box is for new
+// imports (tests/e2e/import-reimport.spec.mjs).
 import { expect, test } from "@playwright/test";
 import { openStudio, JOB_ID, TRACK_TITLE } from "./helpers.mjs";
 

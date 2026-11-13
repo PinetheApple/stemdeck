@@ -74,6 +74,7 @@ test("a finished Sync again restore puts every panel on the restored song", asyn
   await expect(page.locator("#stageTitle")).toContainText(TRACK_TITLE);
 
   await page.evaluate(async (id) => (await import("/js/catalog.js")).loadTrackIntoStudio(id), GONE_ID);
+  await page.locator(".reimport-confirm .playlist-confirm-go").click();
   await expect(page.locator("#t-time")).toHaveText(/\/\s*00:02\s*$/, { timeout: 20000 });
 
   await expect(page.locator("#stageTitle")).toContainText(SIBLING_TITLE);

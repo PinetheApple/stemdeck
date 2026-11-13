@@ -18,7 +18,7 @@ import { wireStemListControls, wireMixerToolbar, laneDragIcon } from "./mixer.js
 import { initCatalog, collectDiagnostics, isTextEditingTarget } from "./catalog.js";
 import { initNotifications, notifyFailure, dismissFailuresByJobId } from "./notifications.js";
 import { runStoreMigrationIfNeeded } from "./utils.js";
-import { initI18n, applyTranslations, t, plural, onLanguageChange } from "./i18n.js";
+import { initI18n, applyTranslations, t, onLanguageChange } from "./i18n.js";
 import { initFooterFit, refitFooter } from "./footerFit.js";
 import { initArtistInfo } from "./artistInfo.js";
 import { initLyrics } from "./lyrics.js";
@@ -864,12 +864,22 @@ function wireFileDrop() {
       return null;
     }
     const files = audio.filter((f) => f.size <= MAX_UPLOAD_BYTES);
-    const oversized = audio.length - files.length;
     if (!files.length) {
       showDropError(t("upload.fileTooLarge", { size: formatBytes(audio[0].size), max: formatBytes(MAX_UPLOAD_BYTES) }));
       return null;
     }
-    return { files, skipped: all.length - files.length, oversized };
+    const skipped = all
+      .filter((f) => !files.includes(f))
+      .map((f) =>
+        t(
+          "import.itemReason",
+          {
+            name: f.name,
+            reason: t(isAudioFile(f) ? "upload.reasonOversized" : "upload.reasonNotAudio"),
+          },
+        ),
+      );
+    return { files, skipped };
   }
 
   function applyFiles(fileList) {
@@ -878,7 +888,7 @@ function wireFileDrop() {
   }
 
   /** Arms the import with files that have already passed screenFiles. */
-  function stageFiles({ files, skipped, oversized }) {
+  function stageFiles({ files, skipped }) {
     if (fileName) {
       fileName.textContent =
         files.length === 1 ? files[0].name : `${files.length} files`;
@@ -902,11 +912,8 @@ function wireFileDrop() {
     urlInput.value = "";
     urlInput.removeAttribute("required");
 
-    if (skipped > 0) {
-      const reason = t(oversized > 0 ? "upload.reasonTooLarge" : "upload.reasonNotAudio");
-      showError(plural("upload.skippedFiles", skipped, { reason }), null, {
-        onRetry: null,
-      });
+    if (skipped.length) {
+      showError(t("upload.skippedNamed"), skipped.join(t("list.separator")), { onRetry: null });
     }
   }
 
