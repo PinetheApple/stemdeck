@@ -6,17 +6,20 @@ import shutil
 import subprocess
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from app.core.config import DEMUCS_MODEL, JOB_ID_RE
 from app.core.folder_rebuild import migrate_song_folders, stopped_from_source
 from app.core.folder_rebuild import recover_done_job as _recover_done_job
-from app.core.models import Job
+from app.core.models import STATUS_ERROR, Job
 from app.core.registry_records import keep_bad_records, read_record, record_id
 from app.core.song_folder import (
+    FAILED_DIR_NAME,
     SAVED_FIELDS,
     own_entries,
     remove_empty_failed_root,
+    write_json_atomic,
     write_text_atomic,
 )
 
@@ -48,6 +51,10 @@ _PERSISTED = _TERMINAL | _RESUMABLE | _STOPPED
 # the backend down with it) would otherwise be re-queued on every start,
 # wedging the queue forever.
 _MAX_RESUME_ATTEMPTS = 1
+_INTERRUPTED_STAGE = "Error: Interrupted"
+_INTERRUPTED_ERROR = "Interrupted by a restart twice."
+# The quarantine's evidence file: its sweep and GET /failure look for it.
+_EVIDENCE_FILE = "error.txt"
 
 
 # Ids restore() wants re-queued, drained once by the app lifespan.
@@ -409,13 +416,47 @@ def _resume_or_recover(job: Job, job_dir: Path, legacy: bool = False) -> Job | N
     # Counts the runs the queue started, never the restarts: a restored queue
     # waits for Start. Two starts are the first run and its resume.
     if job.resume_attempts > _MAX_RESUME_ATTEMPTS:
-        job.status = "error"
-        job.stage_message = "Error: Interrupted"
-        job.error = "Interrupted by a restart twice. Import it again to retry."
+        _fail_interrupted(job, job_dir)
         return job
 
     reset_for_rerun(job, job_dir)
     return job
+
+
+def _fail_interrupted(job: Job, job_dir: Path) -> None:
+    """Record a job interrupted twice as a failed import, kept whole under failed/."""
+    # Imported here: app.pipeline imports this module.
+    from app.pipeline.errors import CAUSE_INTERRUPTED
+    from app.pipeline.runner import FAILED_RECORD_FILE
+
+    job.status = STATUS_ERROR
+    job.stage_message = _INTERRUPTED_STAGE
+    job.error = _INTERRUPTED_ERROR
+    job.error_code = job.error_detail = CAUSE_INTERRUPTED
+    evidence = (
+        f"time: {datetime.now(timezone.utc).isoformat(timespec='seconds')}",
+        f"job: {job.id}",
+        f"stage: {_INTERRUPTED_STAGE}",
+        f"cause: {CAUSE_INTERRUPTED}",
+        f"exception: {_INTERRUPTED_ERROR}",
+    )
+    try:
+        job_dir.mkdir(parents=True, exist_ok=True)
+        write_text_atomic(job_dir / _EVIDENCE_FILE, "\n".join(evidence) + "\n")
+        write_json_atomic(job_dir / FAILED_RECORD_FILE, job.to_record())
+        _move_to_quarantine(job_dir)
+    except OSError:
+        logger.warning("[%s] could not keep the interrupted import", job.id, exc_info=True)
+
+
+def _move_to_quarantine(job_dir: Path) -> None:
+    dest = job_dir.parent / FAILED_DIR_NAME / job_dir.name
+    dest.parent.mkdir(exist_ok=True)
+    # A stale quarantine of the same id fails the move, and the job would come
+    # back as a recovered track.
+    if dest.exists():
+        shutil.rmtree(dest, ignore_errors=True)
+    job_dir.rename(dest)
 
 
 def reset_for_rerun(job: Job, job_dir: Path) -> None:
