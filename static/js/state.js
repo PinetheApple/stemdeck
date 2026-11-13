@@ -65,6 +65,7 @@ export const metroVolLabel = $("t-metro-vol-label");
 export const metroBarEl = $("t-metro-bar");
 export const metroNoteEl = $("t-metro-note");
 export const metroCountInEl = $("t-metro-countin");
+export const metroSoundEl = $("t-metro-sound");
 export const metroBarCustomEl = $("t-metro-bar-custom");
 export const metroGroupEl = $("t-metro-group");
 export const metroEditBtn = $("t-metro-edit");
