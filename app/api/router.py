@@ -15,10 +15,12 @@ from app.api.search import router as search_router
 from app.api.setlists import router as setlists_router
 from app.api.stems import router as stems_router
 from app.api.transcribe import router as transcribe_router
+from app.api.versions import router as versions_router
 
 router = APIRouter()
 router.include_router(config_router, tags=["config"])
 router.include_router(jobs_router, prefix="/jobs", tags=["jobs"])
+router.include_router(versions_router, prefix="/jobs", tags=["jobs"])
 router.include_router(transcribe_router, prefix="/jobs", tags=["jobs"])
 router.include_router(events_router, tags=["events"])
 router.include_router(stems_router, tags=["stems"])

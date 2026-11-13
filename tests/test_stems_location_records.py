@@ -15,8 +15,9 @@ import pytest
 
 from app.core.config import SETLISTS_FILE
 from app.core.models import Job
-from app.core.stems_location import StemsLocationError, validate_target
+from app.core.stems_location import StemsLocationError, move_library, validate_target
 from tests.test_stems_location import _isolate_registry, _job_dir, client  # noqa: F401
+from tests.test_versions_api import THREE_OPEN, THREE_VERSIONS
 
 _REFUSED = "already holds another StemDeck library"
 
@@ -179,3 +180,27 @@ def test_a_move_that_failed_after_the_registry_can_still_be_finished(
     assert (target / "user-data.json").read_text(encoding="utf-8") == '{"mine": 1}'
     assert list(client.jobs_dir.iterdir()) == []
     assert settings_mod.get_jobs_dir() == str(target.resolve())
+
+
+def test_versions_move_with_the_library(tmp_path):
+    from app.core import registry as _registry
+    from app.core.registry import _jobs as jobs
+
+    current = tmp_path / "old"
+    _job_dir(current, "aaaaaaaaaaaa")
+    song = Job(
+        id="aaaaaaaaaaaa",
+        status="done",
+        title="Mine",
+        versions=THREE_VERSIONS,
+        open_version=THREE_OPEN,
+    )
+    _write_registry(current, song)
+    target = tmp_path / "new"
+
+    move_library(current, target)
+    jobs.clear()
+    _registry.restore(target)
+
+    moved = _registry.get("aaaaaaaaaaaa")
+    assert (moved.versions, moved.open_version) == (THREE_VERSIONS, THREE_OPEN)
