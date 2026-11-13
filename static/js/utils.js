@@ -1,15 +1,86 @@
-// ─── Persistent store (tauri-plugin-store via custom commands) ───
+// ─── Persistent store (user-data.json, through the shell's store_* commands) ───
 //
 // Falls back to localStorage when running outside Tauri (browser dev mode).
-// The store is backed by ~/Library/Application Support/app.stemdeck.desktop/user-data.json
-// on macOS — outside WebKit's reach, so WebView resets can never destroy user data.
+// The store is user-data.json in the jobs folder, outside WebKit's reach, so
+// WebView resets can never destroy user data.
+
+// While the shell cannot open user-data.json every store command fails with this
+// prefix; the page then stops instead of going on with stand-ins it could save.
+const STORE_UNAVAILABLE = "user-data-unavailable";
+const NEVER = new Promise(() => {});
+let storeReadyPromise = null;
+
+// One-time store events: each is reported once, and a handler registered
+// later still gets an earlier report.
+function storeEvent() {
+  let reported = null;
+  let handler = null;
+  return {
+    listen(fn) {
+      handler = fn;
+      if (reported) fn(reported.value);
+    },
+    report(value) {
+      if (reported) return false;
+      reported = { value };
+      if (handler) handler(value);
+      return true;
+    },
+  };
+}
+
+const unavailable = storeEvent();
+const lost = storeEvent();
+
+function isStoreUnavailable(err) {
+  return String(err?.message ?? err).startsWith(STORE_UNAVAILABLE);
+}
+
+/** What the page does when the store cannot be reached. */
+export function onStoreUnavailable(handler) {
+  unavailable.listen(handler);
+}
+
+/** What the page does when the store opened empty because nothing could be recovered. */
+export function onStoreLost(handler) {
+  lost.listen(handler);
+}
+
+function reportUnavailable(err) {
+  if (unavailable.report(err)) console.warn("[store] the library list cannot be reached:", err);
+}
+
+/** Resolves once the desktop store is open; never, when it cannot be. */
+export function storeReady() {
+  if (!window.__TAURI__?.core?.invoke) return Promise.resolve();
+  if (!storeReadyPromise) {
+    storeReadyPromise = window.__TAURI__.core.invoke("store_ready").then(
+      (opened) => {
+        if (opened?.lost) lost.report(true);
+      },
+      (err) => {
+        reportUnavailable(err);
+        return NEVER;
+      },
+    );
+  }
+  return storeReadyPromise;
+}
 
 export async function storeGet(key, fallback = null) {
   if (window.__TAURI__?.core?.invoke) {
+    await storeReady();
     try {
       const val = await window.__TAURI__.core.invoke("store_get", { key });
       return val ?? fallback;
-    } catch (e) { console.warn("[store] get failed for", key, e); return fallback; }
+    } catch (e) {
+      if (isStoreUnavailable(e)) {
+        reportUnavailable(e);
+        return NEVER;
+      }
+      console.warn("[store] get failed for", key, e);
+      return fallback;
+    }
   }
   try {
     const raw = localStorage.getItem(key);
@@ -20,10 +91,14 @@ export async function storeGet(key, fallback = null) {
 /** Resolves whether the write landed; never rejects, since most callers do not wait. */
 export async function storeSet(key, value) {
   if (window.__TAURI__?.core?.invoke) {
+    await storeReady();
     try {
       await window.__TAURI__.core.invoke("store_set", { key, value });
       return true;
-    } catch (e) { console.warn("[store] set failed for", key, e); }
+    } catch (e) {
+      if (isStoreUnavailable(e)) reportUnavailable(e);
+      else console.warn("[store] set failed for", key, e);
+    }
     return false;
   }
   try {
@@ -69,6 +144,7 @@ const _MIGRATE_KEYS = [
 // the migration flag so future upgrades can safely clear WebKit.
 export async function runStoreMigrationIfNeeded() {
   if (!window.__TAURI__?.core?.invoke) return;
+  await storeReady();
   try {
     // Check if any critical key is absent from the store but present in localStorage.
     const needs = await Promise.all(

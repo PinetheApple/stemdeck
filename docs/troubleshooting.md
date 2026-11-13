@@ -22,6 +22,22 @@ Three ways to get a secure context, in order of least effort:
 
 **`./run.sh: Permission denied`:** run `chmod +x run.sh`.
 
+## Desktop library list
+
+The desktop app keeps the library list, folders, mixes and takes in `user-data.json` inside the jobs folder. Songs and stems are in the song folders beside it, and nothing below touches them.
+
+A save writes `user-data.json.tmp` first, then keeps the file it replaces as `user-data.json.bak`. You may see these next to `user-data.json`:
+
+- `user-data.json.bak`: the library as it was one save earlier.
+- `user-data.json.tmp`: a save that was interrupted. It is gone after the next save.
+- `user-data.json.corrupt-<number>`: a `user-data.json` that was empty or damaged when the app started (and its damaged copies, when none could be recovered), kept so it can be inspected. The two newest are kept.
+
+**The library list came back one change older after a crash:** on start, a `user-data.json` that is missing, empty or not valid JSON is restored from the `.tmp` (when that save was complete) or the `.bak`. `logs/setup.log` in the data directory names the file it restored from. If neither copy can be read, the app starts with an empty library list, says once that it couldn't be recovered, and `setup.log` says `starting with an empty library list`.
+
+**"StemDeck can't open your library list right now", with Try again:** `user-data.json` is there but could not be read for ten seconds, often because a virus scanner or a sync client (OneDrive, Dropbox) is holding it, or the jobs folder is on a drive that is not connected. Nothing is restored from a copy and nothing is saved over the file. `setup.log` has the reason, after `user-data-unavailable`. Let the sync finish or connect the drive, then press Try again.
+
+**Going back to a build without these copies:** it reads and saves `user-data.json` as before but never updates the copies, so they go stale. Delete `user-data.json.bak`, `user-data.json.tmp` and any `user-data.json.corrupt-*` by hand before returning to a newer build, or a later recovery could restore the older library.
+
 ## Layout on disk
 
 ```

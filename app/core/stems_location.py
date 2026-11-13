@@ -19,6 +19,7 @@ import errno
 import filecmp
 import logging
 import os
+import re
 import shutil
 import stat
 from dataclasses import dataclass
@@ -118,7 +119,7 @@ def validate_target(target: Path, current: Path) -> Path:
         # the jobs folder too (see desktop/src-tauri/src/main.rs's
         # documents_store_path), so re-selecting a folder StemDeck already
         # used must recognize it as "ours", same as registry.json.
-        if entries and not all(_is_ours(e, current) for e in entries):
+        if entries and not _used_by_stemdeck(entries, current):
             raise StemsLocationError("Pick an empty folder, or one StemDeck already uses.")
         if _holds_another_library(target, current) and _holds_songs(current):
             raise StemsLocationError(
@@ -139,6 +140,22 @@ def validate_target(target: Path, current: Path) -> Path:
 # both folders ours would stay behind, and its favourites, tags or setlists with it.
 _LIBRARY_RECORDS = ("registry.json", "user-data.json", SETLISTS_FILE)
 
+# What the desktop shell's save keeps beside user-data.json: the previous file,
+# a save that stopped partway, and damaged files it set aside.
+_STORE_COPY_RE = re.compile(r"user-data\.json\.(bak|tmp|corrupt-[0-9]+)\Z")
+_STORE_FILE = "user-data.json"
+
+
+def _is_store_copy(name: str) -> bool:
+    return bool(_STORE_COPY_RE.match(name))
+
+
+def _store_copies(folder: Path) -> list[str]:
+    try:
+        return sorted(e.name for e in folder.iterdir() if _is_store_copy(e.name))
+    except OSError:
+        return []
+
 
 def _holds_another_library(target: Path, current: Path) -> bool:
     """Whether the target has library records of its own that the move would
@@ -151,7 +168,7 @@ def _holds_another_library(target: Path, current: Path) -> bool:
     target's move marker names `current`.
     """
     ours = _moving_from(target) == str(current)
-    for name in _LIBRARY_RECORDS:
+    for name in (*_LIBRARY_RECORDS, *_store_copies(target)):
         theirs = target / name
         mine = current / name
         if not os.path.lexists(theirs) or not mine.is_file():
@@ -178,6 +195,13 @@ _MARKER_REFUSED = "That folder holds a file StemDeck did not expect. Pick an emp
 _OURS = frozenset({"registry.json", "failed", "user-data.json", SETLISTS_FILE, _MOVE_MARKER})
 # What Finder and Explorer write into any folder they show.
 _OS_FILES = frozenset({".ds_store", "desktop.ini", "thumbs.db"})
+
+
+def _used_by_stemdeck(entries: list[Path], current: Path) -> bool:
+    """Whether every entry leaves the target a folder StemDeck uses. The store's
+    copies count only beside a library: alone they are nobody's we can name."""
+    records_beside = any(e.name in _LIBRARY_RECORDS or _looks_like_job_dir(e) for e in entries)
+    return all(_is_ours(e, current) or (records_beside and _is_store_copy(e.name)) for e in entries)
 
 
 def _is_ours(entry: Path, current: Path) -> bool:
@@ -236,9 +260,10 @@ def move_library(current: Path, target: Path) -> MoveResult:
     the desktop shell's user-data.json, #403) from `current` into `target`.
 
     Entry by entry rather than moving the folder itself: the folder may be one
-    the user picked in a native dialog and expects to keep. This also means
-    nothing here needs to know about user-data.json specifically -- it lives
-    inside the jobs folder like any other entry, so it comes along for free.
+    the user picked in a native dialog and expects to keep. user-data.json moves
+    like any other entry; only its copies (.bak, .tmp, .corrupt-<n>) need care:
+    they replace stale ones at the target once user-data.json is there, and the
+    shell's .tmp may vanish mid-listing.
 
     On the same drive an entry is renamed, which is atomic. Across drives it is
     copied under a temporary name, checked against the original, put on the
@@ -266,14 +291,22 @@ def move_library(current: Path, target: Path) -> MoveResult:
     _mark_move(target, current)
     _clear_partial_copies(target, current)
     moved, moved_bytes, copied = 0, 0, []
+    # Sorted, user-data.json comes before its copies, which may replace stale
+    # ones at the target only once it is there.
+    store_placed = False
     for entry in sorted(current.iterdir()):
-        size = directory_size(entry) if entry.is_dir() else entry.stat().st_size
-        outcome = _move_entry(entry, target / entry.name, resumed)
+        try:
+            size = directory_size(entry) if entry.is_dir() else entry.stat().st_size
+        except FileNotFoundError:
+            # The shell renames its .tmp away at the end of every save.
+            continue
+        outcome = _move_entry(entry, target / entry.name, resumed, store_placed)
         if outcome in (_Moved.COPIED, _Moved.ALREADY_THERE):
             copied.append(entry.name)
         if outcome in (_Moved.RENAMED, _Moved.COPIED):
             moved += 1
             moved_bytes += size
+        store_placed = store_placed or (entry.name == _STORE_FILE and outcome != _Moved.LEFT)
     return MoveResult(str(current), str(target), moved, moved_bytes, same_fs, tuple(copied))
 
 
@@ -284,14 +317,19 @@ class _Moved(enum.Enum):
     LEFT = "left where it is"
 
 
-def _move_entry(entry: Path, destination: Path, resumed: bool) -> _Moved:
+def _move_entry(entry: Path, destination: Path, resumed: bool, store_placed: bool) -> _Moved:
     """`resumed`: records at the destination are an earlier copy of ours, which
-    the app may have written to since, so they are copied again."""
+    the app may have written to since, so they are copied again. `store_placed`:
+    our user-data.json is at the target, so its copies replace stale ones there."""
     try:
         if os.path.lexists(destination):
             if _holds_all_of(destination, entry):
                 return _Moved.ALREADY_THERE
-            ours = _looks_like_job_dir(entry) or (resumed and entry.name in _LIBRARY_RECORDS)
+            ours = (
+                _looks_like_job_dir(entry)
+                or (resumed and entry.name in _LIBRARY_RECORDS)
+                or (store_placed and _replaces_stale_copy(entry, destination))
+            )
             if _is_link(entry) or not ours:
                 # Such as the target's own .DS_Store: never written over.
                 logger.info("stems move: a different %s is at the target", entry.name)
@@ -301,12 +339,20 @@ def _move_entry(entry: Path, destination: Path, resumed: bool) -> _Moved:
             return _Moved.RENAMED
         _copy_verified(entry, destination)
     except OSError as e:
+        if isinstance(e, FileNotFoundError) and not os.path.lexists(entry):
+            return _Moved.LEFT  # gone since the listing, as the shell's .tmp can be
         # strerror only: str(e) of some OSErrors (shutil.SpecialFileError) holds a path.
         raise StemsLocationError(
             f"Could not move {entry.name}: {e.strerror or 'it could not be copied'}. "
             f"Anything already moved is in the new folder."
         ) from e
     return _Moved.COPIED
+
+
+def _replaces_stale_copy(entry: Path, destination: Path) -> bool:
+    """A different store copy at the target is a leftover only a recovery would
+    read, restoring the wrong library; never a link or a folder."""
+    return _is_store_copy(entry.name) and destination.is_file() and not _is_link(destination)
 
 
 def remove_moved(result: MoveResult) -> None:
