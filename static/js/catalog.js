@@ -25,7 +25,7 @@ import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
 import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
 import { isModalOpen } from "./stageMode.js";
-import { ON_ROW, OUT_OF_TAB_ORDER, ROW_KEY, ROW_PLAY_CLASS, isShown, wireRovingRows } from "./rovingRows.js";
+import { KEYBOARD_FOCUS, ON_ROW, OUT_OF_TAB_ORDER, ROW_KEY, ROW_PLAY_CLASS, isShown, wireRovingRows } from "./rovingRows.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
@@ -2195,8 +2195,37 @@ function wireRailLibraryDrop() {
   });
 }
 
+// Inputs that take no typing, so a focused one leaves the app's keys alone.
+// Space is how a keyboard user presses the pressable ones, so they keep it.
+const PRESSABLE_INPUT_TYPES = ["checkbox", "radio", "button", "submit", "reset", "color", "file", "image"];
+const NON_TEXT_INPUT_TYPES = ["range", ...PRESSABLE_INPUT_TYPES];
+const typeSelectors = (types) => types.map((type) => `[type='${type}']`);
+const TEXT_EDITING_SELECTOR = [
+  `input:not(${typeSelectors(NON_TEXT_INPUT_TYPES).join(", ")})`,
+  "textarea",
+  "select",
+  "[contenteditable]:not([contenteditable='false'])",
+  ".folder-editor",
+].join(", ");
+
+const NATIVE_SPACE_SELECTOR = [
+  "button",
+  "[role='button']",
+  ...typeSelectors(PRESSABLE_INPUT_TYPES).map((type) => `input${type}`),
+].join(", ");
+
 export function isTextEditingTarget(target) {
-  return Boolean(target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false']), .folder-editor"));
+  return Boolean(target?.closest?.(TEXT_EDITING_SELECTOR));
+}
+
+// Read on focus: Chromium makes a clicked control :focus-visible on the first key pressed.
+let keyboardFocusedEl = null;
+document.addEventListener("focusin", function noteFocusModality(e) {
+  keyboardFocusedEl = e.target.matches(KEYBOARD_FOCUS) ? e.target : null;
+});
+
+export function isNativeSpaceTarget(target) {
+  return Boolean(target?.closest?.(NATIVE_SPACE_SELECTOR)) && target === keyboardFocusedEl;
 }
 
 const SONG_ROW_SELECTOR = ".cat-item:not(.in-trash):not(.queue-row)";

@@ -15,7 +15,7 @@ import { togglePlayPause, updateLoopRegionVisual, toggleMetronome, transport, se
 import { setSectionsLoopBridge, saveSectionsOnPageClose } from "./sections.js";
 import { saveBeatGridOnPageClose } from "./beatgrid.js";
 import { wireStemListControls, wireMixerToolbar, laneDragIcon } from "./mixer.js";
-import { initCatalog, collectDiagnostics, isTextEditingTarget } from "./catalog.js";
+import { initCatalog, collectDiagnostics, isNativeSpaceTarget, isTextEditingTarget } from "./catalog.js";
 import { initNotifications, notifyFailure, dismissFailuresByJobId } from "./notifications.js";
 import { runStoreMigrationIfNeeded } from "./utils.js";
 import { initI18n, applyTranslations, t, onLanguageChange } from "./i18n.js";
@@ -1084,11 +1084,12 @@ function wireAppShellControls() {
 // ─── Keyboard shortcuts ───
 
 document.addEventListener("keydown", function onStudioShortcutKey(e) {
-  if (!transport()) return;
+  if (!transport() || e.defaultPrevented) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   // A focused field, select or editable keeps its own keys, Space included.
   if (isTextEditingTarget(e.target)) return;
   if (e.code === "Space") {
+    if (isNativeSpaceTarget(e.target)) return;
     e.preventDefault();
     togglePlayPause();
   } else if (e.code === "BracketLeft") {

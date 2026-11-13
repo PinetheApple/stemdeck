@@ -4,7 +4,7 @@
 import { metronomeBeatsPerBar, npScrubFill } from "./state.js";
 import { togglePlayPause, stopTransport, transport } from "./transport.js";
 import { getSections, sectionDisplayName } from "./sections.js";
-import { getCurrentTrackInfo } from "./catalog.js";
+import { getCurrentTrackInfo, isTextEditingTarget } from "./catalog.js";
 import { playNextInUpNext } from "./upNext.js";
 import { shownBpm } from "./tempoTools.js";
 import { isBeatGridEditing, getBeats, barPositionIndex, barLengthAt } from "./beatgrid.js";
@@ -216,7 +216,7 @@ export function isModalOpen() {
 
 function keysBelongElsewhere(e) {
   if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return true;
-  if (e.target.closest?.("input, textarea, select, [contenteditable]")) return true;
+  if (isTextEditingTarget(e.target)) return true;
   if (isBeatGridEditing()) return true;
   return isModalOpen();
 }
