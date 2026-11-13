@@ -48,11 +48,10 @@ fn crash_helper_saves_until_killed() {
     let versions: Vec<Vec<u8>> = (0..2)
         .map(|n| fs::read(dir.join(format!("version-{n}"))).expect("version"))
         .collect();
-    for n in 0usize.. {
-        write_replacing(&path, &versions[n % 2], true).expect("save");
-        if n == 0 {
-            println!("saved");
-        }
+    write_replacing(&path, &versions[0], true).expect("save");
+    println!("saved");
+    for version in versions.iter().cycle().skip(1) {
+        write_replacing(&path, version, true).expect("save");
     }
 }
 
