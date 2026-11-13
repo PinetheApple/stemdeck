@@ -357,8 +357,10 @@ export function libraryIdentity(identity) {
  * Give a re-import the place of the track it replaces, keeping that track in
  * `replaced` until the import settles (settleReplacement).
  */
+const canTakePlaceOf = (oldId) => Boolean(tracks[oldId]) && !getTrashFolder().items.includes(oldId);
+
 function takeReplacedPlace(newId, oldId) {
-  if (!tracks[oldId] || getTrashFolder().items.includes(oldId)) return;
+  if (!canTakePlaceOf(oldId)) return;
   const previous = { ...tracks[oldId] };
   delete previous.replaced;
   const savedBand = previous.bandSaved ? libraryArtist(previous.artist) : null;
@@ -1546,9 +1548,12 @@ export function addPlaylistToLibrary(playlistTitle, jobs) {
   }
 
   for (const job of jobs) {
-    if (!folder.items.includes(job.job_id)) folder.items.push(job.job_id);
+    // A replacement takes the gone song's row, wherever it is filed.
+    const replaces = job.replaces && canTakePlaceOf(job.replaces) ? job.replaces : null;
+    if (!replaces && !folder.items.includes(job.job_id)) folder.items.push(job.job_id);
     addTrackToLibrary({
       id: job.job_id,
+      replaces,
       title: job.title || job.source_url || i18nT("job.queuedTrack"),
       thumb: "",
       stems: [...selectedStems],

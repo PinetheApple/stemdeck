@@ -375,6 +375,25 @@ def test_a_finished_copy_whose_files_are_gone_is_imported_again(client):
     assert set(_reasons(body).values()) == {"in_library"}
 
 
+def test_a_gone_copy_is_replaced_not_doubled(client):
+    """Its new job names the old one in ``replaces``, as a single-song re-import does."""
+    _import(client)
+    gone, *kept = _jobs.values()
+    _finish(gone, with_stems=False)
+    for job in kept:
+        _finish(job)
+
+    created = _import(client)["jobs"]
+    assert [j["replaces"] for j in created] == [gone.id]
+    assert _jobs[created[0]["job_id"]].replaces == gone.id
+
+
+def test_a_new_track_replaces_nothing(client):
+    created = _import(client)["jobs"]
+    assert all(j["replaces"] is None for j in created)
+    assert all(_jobs[j["job_id"]].replaces is None for j in created)
+
+
 def test_a_track_listed_twice_is_imported_once(client, fake_ydl):
     fake_ydl.info = {"title": "Twice", "entries": _entries(1) + _entries(1)}
     body = _import(client)

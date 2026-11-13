@@ -18,7 +18,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from app.api.jobs import _job_files_missing
+from app.api.jobs import job_files_missing
 from app.core.config import JOBS_DIR, MAX_PENDING_URL_JOBS, STEM_NAMES
 from app.core.models import FINISHED_STATUSES, STATUS_DONE, Job
 from app.core.registry import all_jobs as registry_all_jobs
@@ -87,7 +87,19 @@ def _partition(items: list[Track]) -> tuple[list[Track], list[Track]]:
 def _holds_song(job: Job) -> bool:
     if not job.source_url or job.trashed_at is not None or job.status in _GONE_STATUSES:
         return False
-    return job.status != STATUS_DONE or not _job_files_missing(job)
+    return job.status != STATUS_DONE or not job_files_missing(job)
+
+
+def _gone_copies() -> dict[str, str]:
+    """Source URL to the done job whose files are gone, for a new import to replace."""
+    return {
+        job.source_url: job.id
+        for job in registry_all_jobs().values()
+        if job.source_url
+        and job.trashed_at is None
+        and job.status == STATUS_DONE
+        and job_files_missing(job)
+    }
 
 
 def _library_urls() -> set[str]:
@@ -184,6 +196,7 @@ async def create_playlist_jobs(request: Request) -> dict[str, Any]:
     auto_sections = get_auto_sections()
     created: list[dict[str, Any]] = []
     left_out: list[Track] = []
+    gone = _gone_copies()
     for item in items:
         job = Job(
             id=uuid.uuid4().hex[:12],
@@ -194,12 +207,20 @@ async def create_playlist_jobs(request: Request) -> dict[str, Any]:
             title=item["title"] or None,
             thumbnail=item.get("thumbnail"),
             auto_sections=auto_sections,
+            replaces=gone.get(item["url"]),
         )
         if not registry_register_if_capacity(job, MAX_PENDING_URL_JOBS):
             left_out = items[len(created) :]
             break
         jobqueue.enqueue(job.id)
-        created.append({"job_id": job.id, "title": job.title or "", "source_url": item["url"]})
+        created.append(
+            {
+                "job_id": job.id,
+                "title": job.title or "",
+                "source_url": item["url"],
+                "replaces": job.replaces,
+            }
+        )
 
     await asyncio.to_thread(registry_persist, JOBS_DIR)
     return {
