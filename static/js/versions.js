@@ -5,8 +5,9 @@ import {
   applyVersionsState, displayTitle, getLibraryTrack, libraryTitle, loadTrackIntoStudio, redrawLibrary,
   setVersionsExpanded,
 } from "./catalog.js";
-import { currentJobId, currentVersionId, mixerState, selectedStems, setCurrentVersionId } from "./state.js";
-import { applyAllLanePitches, applyMix, loadMixIntoState, refreshMixerVisuals } from "./mixer.js";
+import { audioEngine, currentJobId, currentVersionId, selectedStems, setCurrentVersionId } from "./state.js";
+import { applyAllLanePitches, applyMix, loadMixIntoState, mixGlobalPitch, refreshMixerVisuals } from "./mixer.js";
+import { resetPitch } from "./transport.js";
 import { plural, t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
 import { fetchJson, iconButton, textInput } from "./libraryControls.js";
@@ -15,7 +16,7 @@ import { ARM_TEXT_CLASS, confirmOnSecondClick, isArmed } from "./armConfirm.js";
 import { notifyFailure } from "./notifications.js";
 import { OUT_OF_TAB_ORDER, ROW_PLAY_CLASS } from "./rovingRows.js";
 import { STEM_NAMES } from "./constants.js";
-import { storeGet, storeSet } from "./utils.js";
+import { storeFlushPending, storeGet, storeSet } from "./utils.js";
 import {
   DEFAULT_VERSION_ID, addedName, hasVersionRows, missingStems, mixStoreKey, nextVersionName, openVersionOf,
   sameLanes, versionLabel,
@@ -62,10 +63,11 @@ function findVersion(track, versionId) {
   return track?.versions?.find((version) => version.id === versionId) ?? null;
 }
 
-/** The version's saved mix; the live one when it is what the studio plays. */
+/** The version's saved mix, with any save still pending written first. */
 async function versionMix(jobId, versionId) {
-  if (jobId === currentJobId && versionId === currentVersionId) return structuredClone(mixerState);
-  return storeGet(mixStoreKey(jobId, versionId), null);
+  const key = mixStoreKey(jobId, versionId);
+  await storeFlushPending(key);
+  return storeGet(key, null);
 }
 
 // ─── Opening ───
@@ -76,6 +78,7 @@ async function switchMix(jobId, versionId) {
   if (jobId !== currentJobId || currentVersionId !== versionId) return;
   refreshMixerVisuals();
   applyMix();
+  if (audioEngine?.supportsPitchShift?.() === true) resetPitch(mixGlobalPitch());
   applyAllLanePitches();
 }
 
@@ -140,7 +143,9 @@ async function deleteVersion(jobId, versionId) {
   const wasOpen = openVersionOf(getLibraryTrack(jobId))?.id === versionId;
   const answer = await request(versionsUrl(jobId, versionId), { method: "DELETE" });
   if (!answer) return;
-  await storeSet(mixStoreKey(jobId, versionId), null);
+  const key = mixStoreKey(jobId, versionId);
+  await storeFlushPending(key);
+  await storeSet(key, null);
   if (wasOpen && jobId === currentJobId) await showOpenedVersion(jobId, answer);
   else applyVersionsState(jobId, answer);
 }
