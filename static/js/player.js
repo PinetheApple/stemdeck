@@ -14,11 +14,11 @@ import {
   mixerEl, multitrackContainer, bpmChip, keyChip, stemsChip, timeEl,
   titleEl, npThumb, rulerTime, wavesGrid, playBtn,
   stopBtn, loopBtn, loopRegionEl,
-  multitrack, currentJobId, currentVersionId, trackIndex, totalDuration, loopEnabled,
+  multitrack, currentJobId, trackIndex, totalDuration, loopEnabled,
   loopStart, loopEnd, trackAnalysers,
   masterVolume, masterFader, mixerState,
   audioEngine, setAudioEngine,
-  setMultitrack, setCurrentJobId, setTrackIndex, setTotalDuration,
+  setMultitrack, setCurrentJobId, setCurrentVersionId, setTrackIndex, setTotalDuration,
   setLoopEnabled, setLoopStart, setLoopEnd, setMasterVolume,
   waveScroll, selectedStems,
   footerTitle, footerMeta, footerThumb,
@@ -61,6 +61,7 @@ import { destroySections } from "./sections.js";
 import { t, plural, onLanguageChange } from "./i18n.js";
 import { paintNowPlayingArt } from "./formatIcon.js";
 import { noteMediaPosition, clearMediaSession } from "./mediaSession.js";
+import { DEFAULT_VERSION_ID } from "./versionModel.js";
 
 // Playback-engine selection. All engines play decoded AudioBuffers off a single
 // AudioContext clock (no N streaming <audio> elements — that was the source of
@@ -1101,7 +1102,7 @@ function _fetchBeatGrid(jobId) {
     .finally(() => clearTimeout(timer));
 }
 
-export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, title = "", peaksPromise = null, hasVideo = false, videoStatus = null) {
+export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, title = "", peaksPromise = null, hasVideo = false, videoStatus = null, versionId = DEFAULT_VERSION_ID) {
   const rawStems = stems.filter((stem) => stem?.name && stem?.url);
   const app = document.querySelector(".app");
   app?.classList.remove("is-import");
@@ -1136,9 +1137,10 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
     if (token === visualRenderToken) setWaveformLoading(false);
   }, 60000);
   setCurrentJobId(jobId);
+  setCurrentVersionId(versionId);
   setTotalDuration(duration || 0);
   refreshMixerVisuals();
-  const mixReady = loadMixIntoState(jobId, stems.map((s) => s.name), currentVersionId)
+  const mixReady = loadMixIntoState(jobId, stems.map((s) => s.name), versionId)
     .then(() => { if (currentJobId === jobId) refreshMixerVisuals(); })
     .catch((e) => { console.warn("[player] mix state load failed:", e); });
   setLaneControlsEnabled(true);
