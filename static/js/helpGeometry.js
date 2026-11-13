@@ -66,24 +66,18 @@ export function isWhollyShown(el) {
     && EDGES.every((edge) => Math.abs(full[edge] - seen[edge]) <= EDGE_SLACK_PX);
 }
 
-/** A ring that hugs the drawing when it is clearly smaller than the box, else takes in both. */
+/** A ring that hugs the drawing when it is clearly smaller than the box, else the box. */
 function fitBox(box, drawing) {
   if (drawing.width <= 0 || drawing.height <= 0) return { fit: box, pad: BOX_RING_PAD_PX };
   const small = drawing.width < box.width * CONTENT_FIT_SHARE || drawing.height < box.height * CONTENT_FIT_SHARE;
   if (small) return { fit: drawing, pad: DRAWING_RING_PAD_PX };
-  const both = {
-    left: Math.min(box.left, drawing.left),
-    top: Math.min(box.top, drawing.top),
-    right: Math.max(box.right, drawing.right),
-    bottom: Math.max(box.bottom, drawing.bottom),
-  };
-  return { fit: both, pad: BOX_RING_PAD_PX };
+  return { fit: box, pad: BOX_RING_PAD_PX };
 }
 
 /**
  * What the eye sees of a control. A button is often much bigger than the icon
  * in it, and a ring around the whole box reads as a stray bar, so the ring goes
- * around the drawing; a rail label hanging below its button is taken in too.
+ * around the drawing.
  * Only the part left in view counts, and with the drawing out of view, the box's.
  */
 export function hoverRect(el) {
