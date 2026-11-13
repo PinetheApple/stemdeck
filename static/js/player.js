@@ -14,7 +14,7 @@ import {
   mixerEl, multitrackContainer, bpmChip, keyChip, stemsChip, timeEl,
   titleEl, npThumb, rulerTime, wavesGrid, playBtn,
   stopBtn, loopBtn, loopRegionEl,
-  multitrack, currentJobId, trackIndex, totalDuration, loopEnabled,
+  multitrack, currentJobId, currentVersionId, trackIndex, totalDuration, loopEnabled,
   loopStart, loopEnd, trackAnalysers,
   masterVolume, masterFader, mixerState,
   audioEngine, setAudioEngine,
@@ -1138,7 +1138,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
   setCurrentJobId(jobId);
   setTotalDuration(duration || 0);
   refreshMixerVisuals();
-  const mixReady = loadMixIntoState(jobId, stems.map((s) => s.name))
+  const mixReady = loadMixIntoState(jobId, stems.map((s) => s.name), currentVersionId)
     .then(() => { if (currentJobId === jobId) refreshMixerVisuals(); })
     .catch((e) => { console.warn("[player] mix state load failed:", e); });
   setLaneControlsEnabled(true);
