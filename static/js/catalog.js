@@ -2208,6 +2208,7 @@ const TEXT_EDITING_SELECTOR = [
   ".folder-editor",
 ].join(", ");
 
+const KEYBOARD_FOCUS = ":focus-visible";
 const NATIVE_SPACE_SELECTOR = [
   "button",
   "[role='button']",
@@ -2218,8 +2219,15 @@ export function isTextEditingTarget(target) {
   return Boolean(target?.closest?.(TEXT_EDITING_SELECTOR));
 }
 
+// Read on focus: Chromium makes a clicked control :focus-visible on the first key pressed.
+let focusedByKeyboard = false;
+document.addEventListener("focusin", function noteFocusModality(e) {
+  focusedByKeyboard = e.target.matches(KEYBOARD_FOCUS);
+});
+
+// A control focused by a mouse click shows no focus ring, so its Space goes to play/pause.
 export function isNativeSpaceTarget(target) {
-  return Boolean(target?.closest?.(NATIVE_SPACE_SELECTOR));
+  return Boolean(target?.closest?.(NATIVE_SPACE_SELECTOR)) && focusedByKeyboard;
 }
 
 const SONG_ROW_SELECTOR = ".cat-item:not(.in-trash):not(.queue-row)";

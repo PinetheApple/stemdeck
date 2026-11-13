@@ -44,6 +44,15 @@ async function pressAll(page, keys) {
   for (const key of keys) await page.keyboard.press(key);
 }
 
+/** Focus `target` the way a keyboard user does, so it shows a focus ring. */
+async function tabOnto(page, target) {
+  await target.focus();
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(target).toBeFocused();
+  expect(await target.evaluate((el) => el.matches(":focus-visible"))).toBe(true);
+}
+
 async function setUp(page) {
   await openStudio(page);
   await waitForClickTrack(page, { revealOptions: false });
@@ -154,9 +163,9 @@ test.describe("one-key shortcuts and what they leave alone", () => {
     await expect.poll(async () => (await studioState(page)).playing).toBe(true);
   });
 
-  test("a focused button takes Space as its own press and leaves L to the shortcut", async ({ page }) => {
+  test("a button reached by Tab takes Space as its own press and leaves L to the shortcut", async ({ page }) => {
     await setUp(page);
-    await page.locator("#t-metro").focus();
+    await tabOnto(page, page.locator("#t-metro"));
 
     await page.keyboard.press("l");
     await expect(page.locator("#t-loop")).toHaveClass(ACTIVE);
@@ -166,9 +175,23 @@ test.describe("one-key shortcuts and what they leave alone", () => {
     expect((await studioState(page)).playing).toBe(false);
   });
 
-  test("a focused checkbox takes Space as its own press and leaves K to the shortcut", async ({ page }) => {
+  test("Space after a mouse click on a button plays and does not press the button again", async ({ page }) => {
+    await setUp(page);
+    const metro = page.locator("#t-metro");
+    await metro.click();
+    await expect(metro).toHaveClass(ACTIVE);
+    await expect(metro).toBeFocused();
+
+    await page.keyboard.press("Space");
+
+    await expect.poll(async () => (await studioState(page)).playing).toBe(true);
+    await expect(metro).toHaveClass(ACTIVE);
+  });
+
+  test("a checkbox reached by Tab takes Space as its own press and leaves K to the shortcut", async ({ page }) => {
     await setUp(page);
     const checkbox = await focusAddedInput(page, "checkbox");
+    await tabOnto(page, checkbox);
 
     await page.keyboard.press("k");
     await expect(page.locator("#t-metro")).toHaveClass(ACTIVE);
@@ -192,11 +215,10 @@ test.describe("one-key shortcuts and what they leave alone", () => {
     });
   }
 
-  test("Space on a focused mute chip mutes the stem and leaves playback alone", async ({ page }) => {
+  test("Space on a mute chip reached by Tab mutes the stem and leaves playback alone", async ({ page }) => {
     await setUp(page);
     const mute = page.locator(MUTE_CHIP).filter({ visible: true }).first();
-    await mute.focus();
-    await expect(mute).toBeFocused();
+    await tabOnto(page, mute);
 
     await page.keyboard.press("Space");
     await expect(page.locator(MUTED_LANE)).toHaveCount(1);
