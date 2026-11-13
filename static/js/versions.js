@@ -25,11 +25,12 @@ import {
 
 // Mirrors VERSION_NAME_MAX_CHARS in app/core/config.py.
 const VERSION_NAME_MAX_CHARS = 60;
+const LAST_VERSION_KEPT_DETAIL = "a song keeps at least one version; move it to the Trash instead";
 const FAILURE_KEYS = {
   "this song has too many versions": "versions.tooMany",
   "this song is missing stem files; import it again": "versions.missingFiles",
   "the song is not ready": "versions.notReady",
-  "a song keeps at least one version; move it to the Trash instead": "versions.lastVersion",
+  [LAST_VERSION_KEPT_DETAIL]: "versions.lastVersion",
   [RESTORE_FIRST_DETAIL]: "importFail.restoreFirst",
 };
 const PILL_ID = "npVersionBtn";
@@ -49,14 +50,24 @@ function versionsUrl(jobId, ...parts) {
   return [`/api/jobs/${encodeURIComponent(jobId)}/versions`, ...parts.map(encodeURIComponent)].join("/");
 }
 
-/** The request's answer, or null once its failure is reported. */
-async function request(url, options) {
+/** The request's answer, or null once its failure is reported; `onRefused` then hears the server's detail. */
+async function request(url, options, onRefused = null) {
   try {
     return await fetchJson(url, options);
   } catch (err) {
     console.warn("[versions] request failed:", err);
     notifyFailure({ kind: "storage", message: t(FAILURE_KEYS[err?.detail] ?? "versions.failed") });
+    await onRefused?.(err?.detail);
     return null;
+  }
+}
+
+/** Show a song's versions as the server has them now. */
+async function reloadVersions(jobId) {
+  try {
+    applyVersionsState(jobId, await fetchJson(versionsUrl(jobId)));
+  } catch (err) {
+    console.warn("[versions] could not read the song's versions again:", err);
   }
 }
 
@@ -142,7 +153,9 @@ async function extractMore(jobId, from, added) {
 
 async function deleteVersion(jobId, versionId) {
   const wasOpen = openVersionOf(getLibraryTrack(jobId))?.id === versionId;
-  const answer = await request(versionsUrl(jobId, versionId), { method: "DELETE" });
+  const answer = await request(versionsUrl(jobId, versionId), { method: "DELETE" }, function onDeleteRefused(detail) {
+    return detail === LAST_VERSION_KEPT_DETAIL ? reloadVersions(jobId) : null;
+  });
   if (!answer) return;
   const key = mixStoreKey(jobId, versionId);
   await storeFlushPending(key);

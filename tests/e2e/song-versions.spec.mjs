@@ -2,8 +2,8 @@
 // Extract more stems and delete, each version keeping its own lanes and mix.
 import { test, expect } from "@playwright/test";
 import {
-  JOB_ID, KEY, SIBLING_JOB_ID, SIBLING_TITLE, TRACK_TITLE, fixtureTrack, openStudio, readCatalogState, seedLibrary,
-  stubServerTrash,
+  JOB_ID, KEY, SIBLING_JOB_ID, SIBLING_TITLE, TRACK_TITLE, failureMessages, fixtureTrack, openStudio, readCatalogState,
+  seedLibrary, stubServerTrash,
 } from "./helpers.mjs";
 import { STEM_NAMES as ALL_STEMS } from "../../static/js/constants.js";
 import { DEFAULT_VERSION_ID as DEFAULT_ID } from "../../static/js/versionModel.js";
@@ -11,6 +11,7 @@ import { DEFAULT_VERSION_ID as DEFAULT_ID } from "../../static/js/versionModel.j
 const TWO_STEMS = ["vocals", "drums"];
 const NEW_JOB_ID = "e2e0feedface";
 const IMPORT_DRUMS = 0.75;
+const LAST_VERSION_KEPT = "a song keeps at least one version; move it to the Trash instead";
 const MIX_KEY = `stemdeck:mix:${JOB_ID}`;
 const ORIGINAL_DRUMS = 0.5;
 const V2_DRUMS = 0.25;
@@ -346,4 +347,25 @@ test("a re-import's new job starts from the server's versions, not the old copy'
   expect(fresh).not.toHaveProperty("versions");
   expect(fresh).not.toHaveProperty("openVersion");
   expect(fresh).not.toHaveProperty("versionsExpanded");
+});
+
+test("a delete refused because another window left one version shows the song as it is now", async ({ page, request }) => {
+  const v2 = await createVersion(request, JOB_ID, { name: "Stale", stems: TWO_STEMS });
+  const original = (await serverVersions(request)).versions.find((v) => v.id === DEFAULT_ID);
+  await openStudio(page);
+  await expandVersions(page);
+  await page.route(`**/api/jobs/${JOB_ID}/versions/${v2.id}`, (route) => (route.request().method() === "DELETE"
+    ? route.fulfill({ status: 409, json: { detail: LAST_VERSION_KEPT } })
+    : route.fallback()));
+  await page.route(`**/api/jobs/${JOB_ID}/versions`, (route) => (route.request().method() === "GET"
+    ? route.fulfill({ json: { job_id: JOB_ID, versions: [original], open_version: DEFAULT_ID } })
+    : route.fallback()));
+
+  const menu = await openVersionMenu(page, v2.id);
+  await menu.getByRole("menuitem", { name: "Delete version" }).click();
+  await versionRow(page, v2.id).locator(".cat-version-del").click();
+
+  await expect.poll(() => failureMessages(page)).toContain("This is the song's only version.");
+  await expect(versionRows(page)).toHaveCount(0);
+  await expect(songRow(page).locator(".cat-versions-toggle")).toHaveCount(0);
 });
