@@ -94,12 +94,8 @@ function buildDialog({
   return { overlay, cancel, confirm };
 }
 
-/**
- * Resolves true only for the confirm button; Cancel, Esc, a click outside or a
- * newer dialog all say no. `body` is trusted markup; `name` may come from
- * anywhere and is set as text. `focusCancel` is for a question a held key
- * must not answer.
- */
+/** True only for the confirm button. `body` is trusted markup; `name` is set as text.
+ *  `focusCancel` is for a question a held key must not answer. */
 export function confirmDialog(options) {
   const settings = { ...DIALOG_DEFAULTS, ariaLabel: options.title, ...options };
   finishDialog(false);

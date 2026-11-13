@@ -90,7 +90,7 @@ test.describe("an unavailable song", () => {
     await openGone(page);
     await openGone(page);
     await expect(dialog(page)).toHaveCount(1);
-    await dialog(page).locator(".reset-confirm-go").click();
+    await dialog(page).locator(".playlist-confirm-go").click();
 
     await expect.poll(() => posts.length).toBe(1);
     expect(posts[0]).toMatchObject({ url: GONE_URL, replaces: GONE_ID });
@@ -106,7 +106,7 @@ test.describe("an unavailable song", () => {
     });
 
     await openGone(page);
-    await dialog(page).locator(".reset-confirm-go").click();
+    await dialog(page).locator(".playlist-confirm-go").click();
 
     await expect(page.locator("#error")).toBeVisible();
     await expect(page.locator("#title")).toHaveText(TRACK_TITLE);
@@ -119,7 +119,7 @@ test.describe("an unavailable song", () => {
     await page.evaluate(async () => (await import("/js/queue.js")).refreshQueue());
 
     await openGone(page);
-    await dialog(page).locator(".reset-confirm-go").click();
+    await dialog(page).locator(".playlist-confirm-go").click();
 
     const box = page.locator("#job");
     await expect(box).toBeVisible();
@@ -140,7 +140,7 @@ test.describe("an unavailable song", () => {
       return route.fulfill({ json: { ...real, status: "unavailable", source_url: LINK_URL } });
     });
     await openGone(page);
-    await dialog(page).locator(".reset-confirm-go").click();
+    await dialog(page).locator(".playlist-confirm-go").click();
     await expect(page.locator("#job")).toBeVisible();
 
     await page.evaluate(async (id) => (await import("/js/catalog.js")).loadTrackIntoStudio(id), SIBLING_JOB_ID);
@@ -157,6 +157,62 @@ async function stubLinkSibling(page) {
     return route.fulfill({ json: { ...real, source_url: LINK_URL } });
   });
 }
+
+const PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLe2egone";
+const PLAYLIST_TITLE = "Gone Mix";
+
+/** A playlist holding the gone song: preview, then a create whose job replaces it. */
+async function stubGonePlaylist(page) {
+  await page.route("**/api/playlist/preview", (route) =>
+    route.fulfill({
+      json: {
+        playlist_title: PLAYLIST_TITLE, total_found: 1, will_queue: 1, skipped_unavailable: 0,
+        skipped_too_long: 0, skipped_in_library: 0, capacity_left: 10, cap: 50, truncated: false, items: [],
+      },
+    }));
+  await page.route("**/api/playlist", (route) =>
+    route.fulfill({
+      json: {
+        playlist_title: PLAYLIST_TITLE,
+        jobs: [{ job_id: RESTORED_ID, title: GONE_TITLE, source_url: GONE_URL, replaces: GONE_ID }],
+        queued: 1, skipped_unavailable: 0, skipped_too_long: 0, skipped_in_library: 0, skipped_no_capacity: 0,
+        skipped: [],
+      },
+    }));
+}
+
+const songRows = (page, id) => page.locator(`#catalogList .cat-item[data-id="${id}"]`);
+
+test("a playlist re-import takes a gone song's row instead of adding one", async ({ page }) => {
+  await openStudio(page, { catalog: CATALOG });
+  await stubRestore(page);
+  await stubGonePlaylist(page);
+
+  await page.locator("#url").fill(PLAYLIST_URL);
+  await page.locator("#submit").click();
+  await page.locator(".playlist-confirm .playlist-confirm-go").click();
+
+  await expect(songRows(page, RESTORED_ID)).toHaveCount(1);
+  await expect(songRows(page, GONE_ID)).toHaveCount(0);
+});
+
+test("asking about a gone song uses no danger colouring", async ({ page }) => {
+  await openStudio(page, { catalog: CATALOG });
+  await stubRestore(page);
+  await openGone(page);
+
+  const colours = await dialog(page).evaluate((el) => {
+    const probe = document.createElement("span");
+    probe.style.color = "var(--danger)";
+    document.body.append(probe);
+    const danger = getComputedStyle(probe).color;
+    probe.remove();
+    const colourOf = (selector) => getComputedStyle(el.querySelector(selector)).color;
+    return { danger, title: colourOf(".reset-confirm-title"), confirm: colourOf(".reset-confirm-actions button:last-child") };
+  });
+  expect(colours.title).not.toBe(colours.danger);
+  expect(colours.confirm).not.toBe(colours.danger);
+});
 
 test.describe("the import box", () => {
   test("stays empty when a song from a link is opened", async ({ page }) => {

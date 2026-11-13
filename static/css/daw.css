@@ -5666,8 +5666,8 @@ input, textarea { font-family: inherit; }
   border: 1px solid var(--line-strong); border-radius: var(--radius-xs);
   font-size: var(--fs-2xs); color: var(--text-2);
 }
-/* The error box keeps off the import bar. Thresholds are the lanes' width: wide
-   lanes hold it over the waveforms, narrower ones in flow above the song head. */
+/* Off the import bar. 620px of lanes leaves the waveforms (lanes less the mixer column)
+   room for the box; below 260px its text and buttons no longer fit, so it keeps its corner. */
 .daw-main { container: lanes / inline-size; }
 @container lanes (min-width: 620px) {
   .daw:not(.stage-mode) #error {

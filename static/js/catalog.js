@@ -1376,6 +1376,8 @@ function confirmReimport(track) {
     body: esc(i18nT("reimport.body")),
     confirmLabel: i18nT("reimport.confirm"),
     className: "reimport-confirm",
+    titleClass: "playlist-confirm-title",
+    confirmClass: "playlist-confirm-go",
     focusCancel: true,
   });
 }

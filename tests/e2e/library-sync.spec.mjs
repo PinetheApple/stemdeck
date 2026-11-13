@@ -314,7 +314,7 @@ test.describe("the re-import request", () => {
     });
     await open(page);
     await page.locator(`#catalogList .cat-item[data-id="${LINKED_ID}"]`).first().dblclick();
-    await page.locator(".reimport-confirm .reset-confirm-go").click();
+    await page.locator(".reimport-confirm .playlist-confirm-go").click();
     await expect.poll(() => posted.length).toBe(1);
     return posted;
   }
