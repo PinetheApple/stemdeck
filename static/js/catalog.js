@@ -3300,14 +3300,16 @@ function onQueueCancelClick(e) {
   });
 }
 
+async function onQueueTopClick(e) {
+  e.stopPropagation();
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  await reorderQueuedJob(btn.closest(QUEUE_ROW).dataset.id, null);
+}
+
 function wireQueueRow(el, listEl) {
   el.querySelector(".queue-cancel")?.addEventListener("click", onQueueCancelClick);
-
-  el.querySelector(".queue-top")?.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    e.currentTarget.disabled = true;
-    await reorderQueuedJob(el.dataset.id, null);
-  });
+  el.querySelector(".queue-top")?.addEventListener("click", onQueueTopClick);
 
   if (el.getAttribute("draggable") !== "true") return;
 
@@ -3326,26 +3328,32 @@ function wireQueueRow(el, listEl) {
   });
 }
 
-function wireQueueListDrop(listEl) {
-  listEl.addEventListener("dragover", (e) => {
-    if (!_queueDragId) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    const anchor = dropAnchorId(listEl, _queueDragId, e.clientY);
-    for (const r of listEl.querySelectorAll(".queue-row")) {
-      r.classList.toggle("drop-below", !!anchor && r.dataset.id === anchor);
-    }
-  });
+function onQueueListDragOver(e) {
+  if (!_queueDragId) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+  const listEl = e.currentTarget;
+  const anchor = dropAnchorId(listEl, _queueDragId, e.clientY);
+  for (const r of listEl.querySelectorAll(".queue-row")) {
+    r.classList.toggle("drop-below", !!anchor && r.dataset.id === anchor);
+  }
+}
 
-  listEl.addEventListener("drop", async (e) => {
-    if (!_queueDragId) return;
-    e.preventDefault();
-    const dragged = _queueDragId;
-    const anchor = dropAnchorId(listEl, dragged, e.clientY);
-    _queueDragId = null;
-    for (const r of listEl.querySelectorAll(".queue-row")) r.classList.remove("drop-below");
-    if (anchor !== dragged) await reorderQueuedJob(dragged, anchor);
-  });
+async function onQueueListDrop(e) {
+  if (!_queueDragId) return;
+  e.preventDefault();
+  const listEl = e.currentTarget;
+  const dragged = _queueDragId;
+  const anchor = dropAnchorId(listEl, dragged, e.clientY);
+  _queueDragId = null;
+  for (const r of listEl.querySelectorAll(".queue-row")) r.classList.remove("drop-below");
+  if (anchor !== dragged) await reorderQueuedJob(dragged, anchor);
+}
+
+// The list element outlives every redraw; the same function references make re-adding a no-op.
+function wireQueueListDrop(listEl) {
+  listEl.addEventListener("dragover", onQueueListDragOver);
+  listEl.addEventListener("drop", onQueueListDrop);
 }
 
 function queuePausedBannerHtml(count) {

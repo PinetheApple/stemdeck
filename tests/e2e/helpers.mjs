@@ -633,10 +633,17 @@ export async function stubImportQueue(page, jobId, title = "Importing", { source
 const LONG_QUEUE_RUNNING_ID = "e2e0feed0000";
 export const LONG_QUEUE_WAITING_IDS = Object.freeze(["e2e0feed0001", "e2e0feed0002", "e2e0feed0003"]);
 
+/** `ids` with `id` moved to just after `after`, or to the front when `after` is null. */
+function moveAfter(ids, id, after) {
+  const rest = ids.filter((other) => other !== id);
+  rest.splice(after === null ? 0 : rest.indexOf(after) + 1, 0, id);
+  return rest;
+}
+
 /**
  * A running import and three waiting ones, so the last two waiting rows offer "extract next".
  * `setWaiting(ids)` changes which imports wait and `setPaused(paused)` pauses the queue;
- * each then has the page read the queue again.
+ * each then has the page read the queue again. A reorder is applied and recorded in `reorders`.
  */
 export async function stubLongQueue(page) {
   const job = (id) => ({ job_id: id, status: "queued", title: id, source_url: `https://example.invalid/${id}` });
@@ -648,8 +655,16 @@ export async function stubLongQueue(page) {
     (route) => route.fulfill({ json: { ...queueState(running, waiting.map(job)), paused } }),
   );
   await page.route("**/api/queue/events", (route) => route.abort());
+  const reorders = [];
+  await page.route("**/api/queue/reorder", (route) => {
+    const move = route.request().postDataJSON();
+    reorders.push(move);
+    waiting = moveAfter(waiting, move.job_id, move.after);
+    return route.fulfill({ json: { ...queueState(running, waiting.map(job)), paused } });
+  });
   const read = () => page.evaluate(async () => (await import("/js/queue.js")).refreshQueue());
   return {
+    reorders,
     async setWaiting(ids) {
       waiting = ids;
       await read();
