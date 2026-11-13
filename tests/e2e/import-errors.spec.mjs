@@ -53,32 +53,37 @@ async function stubUploads(page, statuses) {
   return posts;
 }
 
+/** Pick the files, then queue all three from the review list. */
 async function submitFiles(page) {
   await page.locator("#fileInput").setInputFiles(FILE_NAMES.map(wav));
-  await page.locator("#submit").click();
+  const queue = page.locator("#batchReview .batch-queue");
+  await expect(queue).toBeEnabled();
+  await queue.click();
 }
+
+const reviewRow = (page, name) => page.locator("#batchReview .batch-item", { hasText: name });
 
 test.describe("a batch of files", () => {
   test("goes past a file the server refuses, and names it", async ({ page }) => {
     await openStudio(page);
+    // The review lists files by name: one, three, two.
     const posts = await stubUploads(page, [200, 422, 200]);
     await submitFiles(page);
 
     await expect.poll(() => posts.length).toBe(3);
-    const error = page.locator("#error");
-    await expect(error).toContainText("two.wav (refused 422)");
-    await expect(error).not.toContainText("one.wav");
+    await expect(reviewRow(page, "three.wav")).toContainText("refused 422");
+    await expect(reviewRow(page, "one.wav")).toHaveCount(0);
+    await expect(reviewRow(page, "two.wav")).toHaveCount(0);
   });
 
-  test("stops at a full queue, and names every file left out", async ({ page }) => {
+  test("stops at a full queue, and keeps every file left out", async ({ page }) => {
     await openStudio(page);
     const posts = await stubUploads(page, [200, 503]);
     await submitFiles(page);
 
-    const reason = await uiText(page, "upload.reasonQueueFull");
-    const error = page.locator("#error");
-    await expect(error).toContainText(`two.wav (${reason})`);
-    await expect(error).toContainText(`three.wav (${reason})`);
+    const notQueued = await uiText(page, "batch.flag.notQueued");
+    await expect(reviewRow(page, "two.wav")).toContainText(notQueued);
+    await expect(reviewRow(page, "three.wav")).toContainText(notQueued);
     expect(posts).toHaveLength(2);
   });
 });

@@ -17,9 +17,9 @@ import {
 } from "./importSource.js";
 import { confirmDialog } from "./confirmDialog.js";
 import {
-  cancelQueuedJob, currentIds, getQueueSnapshot, isPaused, onJobSettled, onQueueChange,
-  queueCount, queueRowStates, refreshQueue, reorderQueuedJob, runningLabel, startQueue,
-  startQueueStream,
+  batchProgress, cancelQueuedJob, currentIds, dropFromBatch, getBatchJobIds, getQueueSnapshot, isPaused,
+  onJobSettled, onQueueChange, queueCount, queueRowStates, refreshQueue, reorderQueuedJob, runningLabel,
+  startQueue, startQueueStream,
 } from "./queue.js";
 import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
@@ -3511,13 +3511,90 @@ function mountQueueSection(listEl, section, saved) {
   removeChildrenExcept(listEl, shown);
 }
 
-function appendQueueRows(listEl, section, entries, snap) {
+// ─── Queue view: the batch a review list queued ───
+
+const PERCENT = 100;
+const SEVERAL_JOBS = 2;
+
+/** Where the last batch stands, or null when there is no batch of several. */
+function queueBatchProgress(snap) {
+  const ids = getBatchJobIds();
+  if (ids.length < SEVERAL_JOBS) return null;
+  return batchProgress(ids, snap, (id) => tracks[id]?.status);
+}
+
+const batchSignature = (progress) => (progress ? JSON.stringify(progress) : "");
+const share = (part, total) => (total ? Math.round((part / total) * PERCENT) : 0);
+
+function batchHeaderHtml(progress) {
+  const parts = [];
+  if (progress.failed) parts.push(`<span class="batch-failed-label">${esc(i18nPlural("batch.failedCount", progress.failed))}</span>`);
+  if (progress.waiting) parts.push(esc(i18nPlural("batch.waitingCount", progress.waiting)));
+  const retry = progress.failed
+    ? `<button class="batch-btn batch-retry-failed" type="button">${icon("restore")}<span>${esc(i18nT("batch.retryFailed"))}</span></button>`
+    : "";
+  return `<div class="batch-head">
+      <div class="batch-head-text"><b>${esc(i18nT("batch.doneOf", { done: progress.done, total: progress.total }))}</b><span>${parts.join(" · ")}</span></div>
+      <div class="batch-head-bar" aria-hidden="true"><span class="batch-head-done" style="width:${share(progress.done, progress.total)}%"></span><span class="batch-head-failed" style="width:${share(progress.failed, progress.total)}%"></span></div>
+      ${retry}
+    </div>`;
+}
+
+/** A batch's failed import, kept in the queue with its reason, Retry and ×. */
+function batchFailedRowHtml(trackId) {
+  const track = tracks[trackId];
+  const title = displayTitle(libraryTitle(track));
+  return `
+    <div class="cat-item batch-failed-row" data-id="${esc(trackId)}">
+      <div class="cat-thumb">${icon(sourceKindOf(track))}</div>
+      <div class="cat-meta">
+        <div class="cat-title">${esc(title)}</div>
+        <div class="cat-sub"><span class="batch-failed-label">${esc(i18nT(failureReasonKey(track.errorCode)))}</span></div>
+      </div>
+      <button class="batch-failed-retry" type="button" title="${esc(i18nT("importFail.retry"))}" aria-label="${esc(i18nT("batch.retryTitle", { title }))}">${icon("restore")}</button>
+      <button class="batch-failed-drop" type="button" title="${esc(i18nT("batch.remove"))}" aria-label="${esc(i18nT("batch.removeTitle", { title }))}">${CANCEL_ICON_SVG}</button>
+    </div>`;
+}
+
+function onBatchFailedRetryClick(e) {
+  e.stopPropagation();
+  e.currentTarget.disabled = true;
+  retryFailedImport(e.currentTarget.closest(".batch-failed-row").dataset.id);
+}
+
+function onBatchFailedDropClick(e) {
+  e.stopPropagation();
+  dropFromBatch(e.currentTarget.closest(".batch-failed-row").dataset.id);
+  renderQueueList(document.getElementById("catalogList"));
+}
+
+async function onRetryFailedClick(e) {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  const failed = queueBatchProgress(getQueueSnapshot())?.failedIds ?? [];
+  for (const id of failed) await retryFailedImport(id);
+}
+
+function wireBatchRows(section) {
+  section.querySelector(".batch-retry-failed")?.addEventListener("click", onRetryFailedClick);
+  for (const btn of section.querySelectorAll(".batch-failed-retry")) btn.addEventListener("click", onBatchFailedRetryClick);
+  for (const btn of section.querySelectorAll(".batch-failed-drop")) btn.addEventListener("click", onBatchFailedDropClick);
+}
+
+/** The queue's rows, with a batch's failed imports right after the running one. */
+function queueRowsHtml(entries, snap, progress) {
   const paused = isPaused(snap);
-  section.insertAdjacentHTML(
-    "beforeend",
-    entries.map((entry, i) => queueRowHtml(entry, i + 1, { paused })).join(""),
-  );
+  const rows = entries.map((entry, i) => queueRowHtml(entry, i + 1, { paused }));
+  const failed = (progress?.failedIds ?? []).filter((id) => tracks[id]).map(batchFailedRowHtml);
+  rows.splice(snap.running ? 1 : 0, 0, ...failed);
+  return rows.join("");
+}
+
+function appendQueueRows(listEl, section, entries, snap, progress) {
+  if (progress) section.insertAdjacentHTML("beforeend", batchHeaderHtml(progress));
+  section.insertAdjacentHTML("beforeend", queueRowsHtml(entries, snap, progress));
   for (const el of section.querySelectorAll(QUEUE_ROW)) wireQueueRow(el, listEl);
+  wireBatchRows(section);
   wireQueueListDrop(listEl);
 }
 
@@ -3525,9 +3602,11 @@ function renderQueueList(listEl, snap = getQueueSnapshot()) {
   const entries = queueEntries(snap);
   const focus = queueFocusToRestore();
   trackQueueFocus(listEl);
+  const progress = queueBatchProgress(snap);
 
   const section = document.createElement("div");
   section.className = "lib-section queue-section";
+  section.dataset.batch = batchSignature(progress);
   section.innerHTML = `<div class="lib-section-head"><span>${esc(i18nT("queue.importQueue"))}</span></div>`;
 
   if (isPaused(snap)) {
@@ -3541,7 +3620,7 @@ function renderQueueList(listEl, snap = getQueueSnapshot()) {
     return;
   }
 
-  appendQueueRows(listEl, section, entries, snap);
+  appendQueueRows(listEl, section, entries, snap, progress);
   mountQueueSection(listEl, section, focus);
   updateQueueRows(snap);
 }
@@ -3560,10 +3639,12 @@ function updateQueueRows(snap = getQueueSnapshot()) {
   const shown = [...listEl.querySelectorAll(".queue-row")].map((el) => el.dataset.id);
   const wanted = entries.map((e) => e.job.job_id);
   const bannerShown = !!listEl.querySelector(".queue-paused-banner");
+  const batchShown = listEl.querySelector(".queue-section")?.dataset.batch ?? "";
   if (
     shown.length !== wanted.length ||
     shown.some((id, i) => id !== wanted[i]) ||
-    bannerShown !== isPaused(snap)
+    bannerShown !== isPaused(snap) ||
+    batchShown !== batchSignature(queueBatchProgress(snap))
   ) {
     renderQueueList(listEl, snap);
     return;

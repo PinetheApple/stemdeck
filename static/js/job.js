@@ -12,11 +12,12 @@ import { addTrackToLibrary, replaceableTrackId, setCurrentTrack, updateTrackStat
 import { FAILED_STATUS, LOCAL_PREFIX, SOURCE_KIND, failureReasonKey, retryErrorText } from "./importSource.js";
 import { initSections } from "./sections.js";
 import { importPlaylist, looksLikePlaylist } from "./playlist.js";
-import { t } from "./i18n.js";
+import { t, plural } from "./i18n.js";
 import { formatKey } from "./keyLabel.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 import { carrySplitChoice, choiceToStore, storeSplitChoice } from "./vocalSplit.js";
 import { onQueueChange, queueRowStates } from "./queue.js";
+import { hasBatch, openReview, reviewCount, wireBatchImport } from "./batchImport.js";
 
 // Playful stage label rotation (Claude-Code-style flair). The backend
 // emits truthful stage strings; we surface them in the small #job-detail
@@ -32,6 +33,12 @@ const jobSources = new Map();
 function storeImportSplitChoice(jobId) {
   const choice = choiceToStore(selectedStems, vocalSplitMode);
   if (choice) storeSplitChoice(jobId, choice);
+}
+
+/** A new import keeps the split choice of the copy it replaces, else takes the bar's. */
+export function keepSplitChoice(jobId, replaces) {
+  if (replaces) carrySplitChoice(replaces, jobId);
+  else storeImportSplitChoice(jobId);
 }
 
 const TERMINAL_STATUSES = new Set(["done", "error", "cancelled", "stopped"]);
@@ -65,7 +72,17 @@ function setSubmitProcessing(processing) {
   // first submit of a session renamed the button for good, on success as much
   // as on failure, and nothing put it back short of a reload or a language
   // switch (#635).
-  if (label) label.textContent = processing ? t("job.processing") : t("process.extractStems");
+  if (label) label.textContent = processing ? t("job.processing") : idleSubmitLabel();
+}
+
+/** "Review N" while the bar holds a batch, else what the markup ships. */
+function idleSubmitLabel() {
+  return hasBatch() ? plural("batch.review", reviewCount()) : t("process.extractStems");
+}
+
+export function refreshSubmitLabel() {
+  const label = submitBtn.querySelector("span");
+  if (label && !submitBtn.classList.contains("loading")) label.textContent = idleSubmitLabel();
 }
 
 function pickPhrase(status) {
@@ -573,61 +590,36 @@ async function cancelCurrentJob() {
   }
 }
 
-async function postFileJob(file) {
+/** Upload one file as a new import; its job id. `autoSections` and `replaces`
+ *  go only when given, so the server's own defaults hold otherwise. */
+export async function postFileJob(file, { autoSections = null, replaces = null } = {}) {
   const fd = new FormData();
   fd.append("file", file);
   fd.append("stems", JSON.stringify([...selectedStems]));
+  if (autoSections !== null) fd.append("auto_sections", String(autoSections));
+  if (replaces) fd.append("replaces", replaces);
   const res = await fetch("/api/jobs", { method: "POST", body: fd });
   return (await importResponse(res)).job_id;
 }
 
-const isQueueFull = (err) => err instanceof ServerRefusal && err.status === HTTP_SERVICE_UNAVAILABLE;
-
-const refusedFile = (file, reason) => t("import.itemReason", { name: file.name, reason });
-
-/** Upload each file in turn. A file the server refuses is passed over; a full
- *  queue refuses the rest too, so it stops there. Returns why each file that
- *  was not queued was left out. */
-async function queueFileBatch(batch) {
-  const refused = [];
-  for (const [index, file] of batch.entries()) {
-    try {
-      registerUploadRow(await postFileJob(file), file);
-    } catch (err) {
-      if (!isQueueFull(err)) {
-        refused.push(refusedFile(file, readableError(err)));
-        continue;
-      }
-      const reason = t("upload.reasonQueueFull");
-      refused.push(...batch.slice(index).map((left) => refusedFile(left, reason)));
-      break;
-    }
-  }
-  return refused;
-}
-
-async function submitFileBatch(batch, fileInput) {
-  const refused = await queueFileBatch(batch);
-  setSubmitProcessing(false);
-  fileInput._clear?.();
-  if (!refused.length) return;
-  showError(
-    t("upload.someNotAdded", { queued: batch.length - refused.length, total: batch.length }),
-    refused.join(t("list.separator")),
-    { onRetry: null },
-  );
-}
+export const isQueueFull = (err) => err instanceof ServerRefusal && err.status === HTTP_SERVICE_UNAVAILABLE;
 
 /** Give an accepted upload its library row straight away, so a batch appears as
  *  rows the moment each file lands rather than only once every upload is done. */
-function registerUploadRow(jobId, file, { replaces = null, stems = [...selectedStems] } = {}) {
+export function registerUploadRow(jobId, file, { replaces = null, stems = [...selectedStems] } = {}) {
   const title = sanitizeFilename(file.name);
   const sourceUrl = `${LOCAL_PREFIX}${title}`;
-  if (replaces) carrySplitChoice(replaces, jobId);
-  else storeImportSplitChoice(jobId);
+  keepSplitChoice(jobId, replaces);
   registerQueuedRow({
     id: jobId, replaces, title, stems, sourceUrl, sourceKind: SOURCE_KIND.FILE, sourceName: file.name,
   });
+}
+
+/** A batch's link, queued: its row, named as the review list showed it. */
+export function registerLinkRow(jobId, { url, title, replaces = null }) {
+  const stems = [...selectedStems];
+  keepSplitChoice(jobId, replaces);
+  registerQueuedRow({ id: jobId, replaces, title: title || url, stems, sourceUrl: url, sourceKind: SOURCE_KIND.LINK });
 }
 
 /** A queued import's library row, before the server has said anything about it. */
@@ -828,9 +820,16 @@ export async function importFromUrl(url, { title, stems, replaces } = {}) {
 export function wireJobForm() {
   jobCancelBtn.addEventListener("click", cancelCurrentJob);
   onQueueChange(refreshWaitingDetail);
+  wireBatchImport();
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
+
+    // Several songs are reviewed first; the review list queues them.
+    if (hasBatch()) {
+      openReview();
+      return;
+    }
 
     // An import never takes the studio, loaded or empty (#747). It runs in the
     // background and reports on its library row and the queue; the card and the
@@ -857,16 +856,6 @@ export function wireJobForm() {
       if (queued) urlInput.value = "";
       return;
     }
-    // Several files dropped at once: upload them one after another. Parallel
-    // uploads of several 400 MB bodies would thrash memory on both ends, and
-    // the endpoint takes exactly one file per request anyway. All of them run
-    // in the background; the first to finish opens if the studio is still empty.
-    const batch = fileInput?._files ?? null;
-    if (batch && batch.length > 1) {
-      await submitFileBatch(batch, fileInput);
-      return;
-    }
-
     // Re-splitting a finished upload. The composer is empty for one by
     // design -- there is no URL to put in it -- so the button acts on the open
     // track and the server separates the source it kept beside it. A staged
