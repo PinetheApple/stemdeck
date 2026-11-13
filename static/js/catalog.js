@@ -3300,14 +3300,16 @@ function onQueueCancelClick(e) {
   });
 }
 
+async function onQueueTopClick(e) {
+  e.stopPropagation();
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  await reorderQueuedJob(btn.closest(QUEUE_ROW).dataset.id, null);
+}
+
 function wireQueueRow(el, listEl) {
   el.querySelector(".queue-cancel")?.addEventListener("click", onQueueCancelClick);
-
-  el.querySelector(".queue-top")?.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    e.currentTarget.disabled = true;
-    await reorderQueuedJob(el.dataset.id, null);
-  });
+  el.querySelector(".queue-top")?.addEventListener("click", onQueueTopClick);
 
   if (el.getAttribute("draggable") !== "true") return;
 
@@ -3322,30 +3324,30 @@ function wireQueueRow(el, listEl) {
   el.addEventListener("dragend", () => {
     _queueDragId = null;
     el.classList.remove("dragging");
-    for (const r of listEl.querySelectorAll(".queue-row")) r.classList.remove("drop-below");
+    for (const r of listEl.querySelectorAll(QUEUE_ROW)) r.classList.remove("drop-below");
   });
 }
 
-function wireQueueListDrop(listEl) {
-  listEl.addEventListener("dragover", (e) => {
-    if (!_queueDragId) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    const anchor = dropAnchorId(listEl, _queueDragId, e.clientY);
-    for (const r of listEl.querySelectorAll(".queue-row")) {
-      r.classList.toggle("drop-below", !!anchor && r.dataset.id === anchor);
-    }
-  });
+function onQueueListDragOver(e) {
+  if (!_queueDragId) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+  const listEl = e.currentTarget;
+  const anchor = dropAnchorId(listEl, _queueDragId, e.clientY);
+  for (const r of listEl.querySelectorAll(QUEUE_ROW)) {
+    r.classList.toggle("drop-below", !!anchor && r.dataset.id === anchor);
+  }
+}
 
-  listEl.addEventListener("drop", async (e) => {
-    if (!_queueDragId) return;
-    e.preventDefault();
-    const dragged = _queueDragId;
-    const anchor = dropAnchorId(listEl, dragged, e.clientY);
-    _queueDragId = null;
-    for (const r of listEl.querySelectorAll(".queue-row")) r.classList.remove("drop-below");
-    if (anchor !== dragged) await reorderQueuedJob(dragged, anchor);
-  });
+async function onQueueListDrop(e) {
+  if (!_queueDragId) return;
+  e.preventDefault();
+  const listEl = e.currentTarget;
+  const dragged = _queueDragId;
+  const anchor = dropAnchorId(listEl, dragged, e.clientY);
+  _queueDragId = null;
+  for (const r of listEl.querySelectorAll(QUEUE_ROW)) r.classList.remove("drop-below");
+  if (anchor !== dragged) await reorderQueuedJob(dragged, anchor);
 }
 
 function queuePausedBannerHtml(count) {
@@ -3387,7 +3389,7 @@ const QUEUE_KEYBOARD_FOCUS = ":focus-visible";
 // The queue control that last took focus, read as it is focused: by the time the
 // queue redraws, render() may already have cleared the list and focus is on <body>.
 let _queueFocus = null;
-const _queueFocusLists = new WeakSet();
+const _wiredQueueLists = new WeakSet();
 
 function describeQueueControl(el) {
   const control = QUEUE_CONTROLS.find((selector) => el.matches?.(selector));
@@ -3416,11 +3418,13 @@ function onQueueFocusOut(e) {
   });
 }
 
-function trackQueueFocus(listEl) {
-  if (_queueFocusLists.has(listEl)) return;
-  _queueFocusLists.add(listEl);
+function wireQueueList(listEl) {
+  if (_wiredQueueLists.has(listEl)) return;
+  _wiredQueueLists.add(listEl);
   listEl.addEventListener("focusin", onQueueFocusIn);
   listEl.addEventListener("focusout", onQueueFocusOut);
+  listEl.addEventListener("dragover", onQueueListDragOver);
+  listEl.addEventListener("drop", onQueueListDrop);
 }
 
 function queueFocusToRestore() {
@@ -3639,13 +3643,12 @@ function appendQueueRows(listEl, section, entries, snap, progress) {
   section.insertAdjacentHTML("beforeend", queueRowsHtml(entries, snap, progress));
   for (const el of section.querySelectorAll(QUEUE_ROW)) wireQueueRow(el, listEl);
   wireBatchRows(section);
-  wireQueueListDrop(listEl);
 }
 
 function renderQueueList(listEl, snap = getQueueSnapshot()) {
   const entries = queueEntries(snap);
   const focus = queueFocusToRestore();
-  trackQueueFocus(listEl);
+  wireQueueList(listEl);
   const progress = queueBatchProgress(snap);
 
   const section = document.createElement("div");
