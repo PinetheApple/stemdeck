@@ -396,6 +396,10 @@ class Job:
     # Wall-clock seconds per pipeline stage ({"download": 12.3, ...}); written
     # to metadata.json and the one-line completion summary in the log.
     stage_timings: dict[str, float] | None = None
+    # For diagnostics and the split only: readers find each file on disk
+    # (app.core.stem_files), which stays right after a crash.
+    stem_format: str | None = None
+    stem_mp3_kbps: int | None = None
     # On-demand lead/backing vocal split (#275) -- a post-hoc action on an
     # already-"done" job, not part of the main pipeline. "none" until the user
     # asks for it; "error" leaves the job's base stems untouched (see

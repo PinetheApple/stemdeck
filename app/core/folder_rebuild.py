@@ -5,8 +5,16 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
-from app.core.config import EXTRA_STEM_NAMES, LYRICS_FILE, STEM_NAMES, UPLOAD_EXTS
+from app.core.config import (
+    EXTRA_STEM_NAMES,
+    LYRICS_FILE,
+    STEM_FORMAT_CHOICES,
+    STEM_MP3_KBPS_CHOICES,
+    STEM_NAMES,
+    UPLOAD_EXTS,
+)
 from app.core.models import (
     STATUS_DONE,
     VOCAL_SPLIT_CHOICE_COMBINED,
@@ -34,6 +42,7 @@ from app.core.song_folder import (
     saved_from_meta,
     write_json_atomic,
 )
+from app.core.stem_files import stem_exists, stem_url
 
 logger = logging.getLogger("stemdeck.registry")
 
@@ -86,11 +95,11 @@ def _disk_stems(job_dir: Path) -> list[dict[str, str]]:
     worker writes the pair one file at a time, and a kill between them leaves
     a lead alone (upstream PR 901)."""
     stems_dir = job_dir / "stems"
-    has_split = all((stems_dir / f"{name}.wav").is_file() for name in EXTRA_STEM_NAMES)
+    has_split = all(stem_exists(stems_dir, name) for name in EXTRA_STEM_NAMES)
     return [
-        {"name": name, "url": f"/api/jobs/{job_dir.name}/stems/{name}.wav"}
+        {"name": name, "url": stem_url(job_dir.name, stems_dir, name)}
         for name in ("original", *STEM_NAMES, *(EXTRA_STEM_NAMES if has_split else ()))
-        if (stems_dir / f"{name}.wav").is_file()
+        if stem_exists(stems_dir, name)
     ]
 
 
@@ -134,8 +143,8 @@ def recover_done_job(job_dir: Path, legacy: bool = False) -> Job | None:
     if meta is None:
         return None
     mix_url = None
-    if (stems_dir / "mix.wav").is_file():
-        mix_url = f"/api/jobs/{job_dir.name}/stems/mix.wav"
+    if stem_exists(stems_dir, "mix"):
+        mix_url = stem_url(job_dir.name, stems_dir, "mix")
     selected = [stem["name"] for stem in stems if stem["name"] in STEM_NAMES] or list(STEM_NAMES)
     # A restart between the split finishing and its next registry persist
     # would otherwise report the job as never split -- derive from disk the
@@ -178,10 +187,17 @@ def recover_done_job(job_dir: Path, legacy: bool = False) -> Job | None:
         vocal_split=vocal_split,
         vocal_split_choice=vocal_split_choice,
         vocal_split_error=vocal_split_error,
+        stem_format=_choice(meta.get("stem_format"), STEM_FORMAT_CHOICES),
+        stem_mp3_kbps=_choice(meta.get("stem_mp3_kbps"), STEM_MP3_KBPS_CHOICES),
     )
     for name, value in saved_from_meta(meta).items():
         setattr(job, name, value)
     return job
+
+
+def _choice(value: object, choices: tuple) -> Any:
+    """`value` when it is one of `choices` (a bool is never a bitrate), else None."""
+    return value if not isinstance(value, bool) and value in choices else None
 
 
 def _recovered_vocal_split(
@@ -189,7 +205,7 @@ def _recovered_vocal_split(
 ) -> tuple[VocalSplitState, VocalSplitChoice, VocalSplitFailure | None]:
     """The split state, choice and failure code a job's stems folder shows:
     both split stems, a failed split's error file, or neither."""
-    if all((stems_dir / f"{name}.wav").is_file() for name in EXTRA_STEM_NAMES):
+    if all(stem_exists(stems_dir, name) for name in EXTRA_STEM_NAMES):
         return VOCAL_SPLIT_DONE, VOCAL_SPLIT_CHOICE_SPLIT, None
     # Imported here: app.pipeline imports this module.
     from app.pipeline.vocal_split import read_error_code

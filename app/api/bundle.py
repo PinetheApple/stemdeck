@@ -38,6 +38,7 @@ from app.core.config import (
 )
 from app.core.registry import get as registry_get
 from app.core.song_folder import SAVED_FIELDS
+from app.core.stem_files import stem_exists, stem_path
 from app.pipeline.lyrics_lookup import lyrics_path, shown_timing
 from app.pipeline.tempo_grid import EDITOR_ONLY_TEMPO_KEYS
 
@@ -229,7 +230,7 @@ async def export_bundle(
     if volumes and not stems:
         raise HTTPException(status_code=422, detail="a mix needs the stems it applies to")
     mix = _parse_mix(names, volumes, muted, soloed, pitches)
-    sources = [(n, stems_dir / f"{n}.wav") for n in names if (stems_dir / f"{n}.wav").is_file()]
+    sources = [(n, stem_path(stems_dir, n)) for n in names if stem_exists(stems_dir, n)]
     if not sources:
         raise HTTPException(status_code=404, detail="no stems found")
 

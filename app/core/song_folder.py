@@ -15,6 +15,7 @@ from typing import Any
 
 from app.core.config import JOB_ID_RE, STEM_NAMES, UPLOAD_EXTS
 from app.core.models import Job
+from app.core.stem_files import holds_stem_audio, is_stem_audio
 
 logger = logging.getLogger("stemdeck.registry")
 
@@ -207,7 +208,7 @@ def mark_stems_complete(job_dir: Path) -> None:
     """Record that the separation wrote every stem it makes: a kill before this
     leaves no marker. Stems are fsynced first so the marker never outlives them."""
     stems_dir = job_dir / "stems"
-    for path in sorted(stems_dir.glob("*.wav")):
+    for path in sorted(p for p in stems_dir.iterdir() if is_stem_audio(p)):
         # Opened for writing: Windows only flushes a handle that can write.
         with open(path, "r+b") as handle:
             os.fsync(handle.fileno())
@@ -221,7 +222,7 @@ def backfill_stems_complete(job_dir: Path) -> None:
     runs at import time."""
     stems_dir = job_dir / "stems"
     try:
-        if (stems_dir / STEMS_COMPLETE).is_file() or not any(stems_dir.glob("*.wav")):
+        if (stems_dir / STEMS_COMPLETE).is_file() or not holds_stem_audio(stems_dir):
             return
         write_text_atomic(stems_dir / STEMS_COMPLETE, "")
     except OSError:

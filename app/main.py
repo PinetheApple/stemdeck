@@ -68,6 +68,8 @@ from app.core.settings import (
     CookiesInLibraryError,
     acoustid_api_key_hint,
     acoustid_key_format_ok,
+    check_stem_format,
+    check_stem_mp3_kbps,
     cookies_file_in_library,
     discogs_token_format_ok,
     discogs_token_hint,
@@ -85,6 +87,8 @@ from app.core.settings import (
     get_playlist_max_items,
     get_port,
     get_separation_quality,
+    get_stem_format,
+    get_stem_mp3_kbps,
     get_transcribe_lyrics,
     get_video_max_height,
     set_acoustid_api_key,
@@ -102,6 +106,7 @@ from app.core.settings import (
     set_playlist_max_items,
     set_port,
     set_separation_quality,
+    set_stem_storage,
     set_transcribe_lyrics,
     set_video_max_height,
 )
@@ -415,6 +420,9 @@ def _settings_payload() -> dict[str, object]:
         "video_max_height": get_video_max_height(),
         "export_sample_rate": get_export_sample_rate(),
         "separation_quality": get_separation_quality(),
+        # How new songs' stems are stored; songs in the library keep their own.
+        "stem_format": get_stem_format(),
+        "stem_mp3_kbps": get_stem_mp3_kbps(),
         # Whisper lyrics for a job no lookup found any for: "auto" (on a GPU
         # only) | "on" | "off".
         "transcribe_lyrics": get_transcribe_lyrics(),
@@ -525,6 +533,25 @@ def _save_idle_unload_minutes(value: object) -> None:
         raise HTTPException(status_code=500, detail="Could not save idle_unload_minutes")
 
 
+_STEM_FORMAT_KEY = "stem_format"
+_STEM_KBPS_KEY = "stem_mp3_kbps"
+_STEM_STORAGE_KEYS = (_STEM_FORMAT_KEY, _STEM_KBPS_KEY)
+
+
+def _update_stem_storage(body: dict) -> None:
+    """Both values are checked before either is kept: one bad value, null
+    included, changes nothing, and the 422 lists the choices without echoing
+    what was sent."""
+    if not isinstance(body, dict) or not any(key in body for key in _STEM_STORAGE_KEYS):
+        return
+    try:
+        fmt = check_stem_format(body[_STEM_FORMAT_KEY]) if _STEM_FORMAT_KEY in body else None
+        kbps = check_stem_mp3_kbps(body[_STEM_KBPS_KEY]) if _STEM_KBPS_KEY in body else None
+        set_stem_storage(fmt, kbps)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from None
+
+
 @app.post("/api/settings", tags=["settings"])
 async def update_settings(request: Request) -> dict[str, object]:
     """Update runtime settings. Reachable from the host machine always; from a
@@ -620,6 +647,7 @@ async def update_settings(request: Request) -> dict[str, object]:
             set_separation_quality(str(body["separation_quality"]))
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e)) from None
+    _update_stem_storage(body)
     if "transcribe_lyrics" in body:
         try:
             set_transcribe_lyrics(str(body["transcribe_lyrics"]))

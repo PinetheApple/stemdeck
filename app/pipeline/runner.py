@@ -16,6 +16,7 @@ from app.core.config import (
     IDENTIFY_GRACE_SEC,
     LYRICS_IDENTITY_WAIT_SEC,
     LYRICS_LOOKUP_GRACE_SEC,
+    STEM_FORMAT_WAV,
     TIMEOUT_FFMPEG,
 )
 from app.core.models import STATUS_ERROR, Job, JobCancelled, _set, settle_cancelled
@@ -50,6 +51,7 @@ from app.pipeline.lyrics_lookup import LyricsLookup
 from app.pipeline.lyrics_retime import retime_after_separation
 from app.pipeline.sections import detect_sections
 from app.pipeline.separate import separate
+from app.pipeline.stem_storage import store_stems
 from app.pipeline.transcribe import transcribe_lyrics
 
 logger = logging.getLogger("stemdeck.pipeline")
@@ -342,13 +344,36 @@ def _mark_stems_complete(job: Job, job_dir: Path) -> None:
         logger.exception("[%s] could not mark the stems complete", job.id)
 
 
+def _store_stems(job: Job, job_dir: Path) -> None:
+    """WAV or MP3 storage of the stems, after the marker: a kill mid-way leaves
+    a marked song whose WAVs are all still there. Timed only when MP3 was chosen."""
+    mark = time.monotonic()
+    try:
+        if not store_stems(job, job_dir):
+            return
+    except JobCancelled:
+        raise
+    except Exception:
+        logger.exception("stem storage stage failed for job %s; stems kept as WAV", job.id)
+        _set(job, stem_format=STEM_FORMAT_WAV, stem_mp3_kbps=None)
+    _lap(job, "store", mark)
+
+
+def _finish_stems(job: Job, job_dir: Path) -> None:
+    """The metadata goes to disk before storage, so a crash while the stems are
+    being stored rebuilds the song with its title. Rewritten once done."""
+    _mark_stems_complete(job, job_dir)
+    _write_metadata(job, job_dir)
+    _store_stems(job, job_dir)
+
+
 def _run_blocking(job: Job, url: str, job_dir: Path) -> None:
     _check_cancel(job)
     mark = time.monotonic()
     source = download(job, url, job_dir)
     _lap(job, "download", mark)
     _run_with_band_lookup(job, source, job_dir)
-    _mark_stems_complete(job, job_dir)
+    _finish_stems(job, job_dir)
 
 
 def _run_local_blocking(job: Job, source_path: Path, job_dir: Path) -> None:
@@ -357,7 +382,7 @@ def _run_local_blocking(job: Job, source_path: Path, job_dir: Path) -> None:
     source = _prepare_local_source(job, source_path, job_dir)
     _lap(job, "prepare", mark)
     _run_with_band_lookup(job, source, job_dir)
-    _mark_stems_complete(job, job_dir)
+    _finish_stems(job, job_dir)
 
 
 def _write_metadata(job: Job, job_dir: Path) -> None:
@@ -399,6 +424,8 @@ def _metadata(job: Job) -> dict:
         "compute_device": job.compute_device,
         "gpu_fallback": job.gpu_fallback,
         "stage_timings": job.stage_timings,
+        "stem_format": job.stem_format,
+        "stem_mp3_kbps": job.stem_mp3_kbps,
         **saved_fields(job),
     }
 

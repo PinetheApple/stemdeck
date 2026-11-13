@@ -5,6 +5,20 @@
 // any drums inside it. Current jobs retain the individual Demucs stems, so the
 // engine can rebuild that lane as a control group and route drums separately.
 
+export const STEM_EXT_WAV = "wav";
+export const STEM_EXT_MP3 = "mp3";
+
+/** The stem's file format, read from its URL path: "mp3" or "wav". */
+export function stemFileExt(url) {
+  const path = String(url ?? "").split(/[?#]/)[0];
+  return path.endsWith(`.${STEM_EXT_MP3}`) ? STEM_EXT_MP3 : STEM_EXT_WAV;
+}
+
+/** True when any stem is stored compressed: the chunked engine parses WAV itself and rejects those. */
+export function hasCompressedStems(stems) {
+  return stems.some((stem) => stemFileExt(stem.url) === STEM_EXT_MP3);
+}
+
 function playable(stem) {
   return !!stem?.name && !!stem?.url;
 }

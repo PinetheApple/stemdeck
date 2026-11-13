@@ -28,6 +28,7 @@ from typing import Any, ClassVar
 
 from app.core.models import STATUS_DONE, Job, JobCancelled
 from app.core.settings import TRANSCRIBE_LYRICS_OFF, get_demucs_device, get_transcribe_lyrics
+from app.core.stem_files import stem_exists, stem_path
 from app.pipeline import transcribe
 from app.pipeline.lyrics_lookup import (
     _OFFSET_LOCK,
@@ -100,7 +101,7 @@ def unavailable_reason(job: Job, job_dir: Path) -> str | None:
     if lyrics_path(job_dir).is_file():
         entry = read_lyrics(job_dir)
         return USER_LYRICS if entry is not None and entry["source"] == USER_SOURCE else HAS_LYRICS
-    if not (job_dir / "stems" / "vocals.wav").is_file():
+    if not stem_exists(job_dir / "stems", "vocals"):
         return NO_VOCALS
     return None
 
@@ -138,7 +139,7 @@ def transcribe_now(
         logger.info("[%s] lyrics not transcribed: %s", job.id, reason)
         return NO_SINGING
     # Looked up on the module, where tests put their stub worker.
-    cmd = transcribe._spawn_worker_cmd(job_dir / "stems" / "vocals.wav", device)
+    cmd = transcribe._spawn_worker_cmd(stem_path(job_dir / "stems", "vocals"), device)
     result = _run_worker(job, cmd, cancelled=cancelled, report=report)
     if result is None:
         return FAILED

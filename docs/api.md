@@ -18,8 +18,8 @@ The endpoints the web app itself uses. They are not a stable public interface an
 | POST | `/api/jobs/{id}/vocal-split` | Split a done song's vocals into `lead_vocals` and `backing_vocals` in the background → 202 with the split state (the existing result once done); 409 without a vocals stem or while a split runs. The job's cancel stops it |
 | GET | `/api/jobs/{id}/vocal-split` | Split state `{state, choice, error}`: `state` is `none`, `running`, `done`, `error` or `cancelled`, `error` a failure code; adds `phase` (`queued` or `splitting`) and `progress` (0 to 1) while running |
 | PUT | `/api/jobs/{id}/vocal-split/choice` | `{choice: "combined" or "split"}` → job state; stores the song's Combined / Lead + Backing pick without splitting |
-| GET | `/api/jobs/{id}/stems/{name}.wav` | Stream a single stem WAV file |
-| GET | `/api/jobs/{id}/stems/{name}.mp3` | Transcode and stream a stem as MP3 |
+| GET | `/api/jobs/{id}/stems/{name}.wav` | Stream a single stem as the song stores it: WAV (`audio/wav`), or for a song stored as MP3 its MP3 (`audio/mpeg`, named `.mp3`). `?start=&end=` trims to a region, always WAV |
+| GET | `/api/jobs/{id}/stems/{name}.mp3` | A stem as MP3: a song stored as MP3 serves its own file; a WAV song gets a cached transcode |
 | GET | `/api/jobs/{id}/bundle.zip` | Pack a finished song as a [song bundle](song-bundle.md) for another player |
 | GET | `/api/jobs/{id}/video.mp4` | Mux the current mix with the source video (MP4 upload or YouTube) into an MP4 |
 | DELETE | `/api/jobs/{id}` | Remove job dir from disk (terminal jobs only); also takes the song out of every setlist. A 500 means the job left the library but its files stayed; repeating the DELETE retries removing them (200 or 500 again, not 404) |

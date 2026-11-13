@@ -18,6 +18,8 @@ at startup), so the Settings UI can change them without a restart:
 - `discogs_token`     - the user's Discogs token, for band profiles.
 - `transcribe_lyrics` - Whisper lyrics when none are found: auto | on | off.
 - `idle_unload_minutes` - idle minutes before the separation models unload (0 never).
+- `stem_format`       - how new songs' stems are stored: wav | mp3.
+- `stem_mp3_kbps`     - the MP3 bitrate when stem_format is mp3: 128 | 192 | 256.
 
 Defaults fall back to the config.py constants (which honor their env vars), so
 nothing changes until the user overrides a value.
@@ -33,14 +35,19 @@ import threading
 import time
 import uuid
 from pathlib import Path
+from typing import cast
 
 from app.core.config import (
     DATA_DIR,
+    DEFAULT_STEM_STORAGE,
     IDLE_UNLOAD_MINUTES_DEFAULT,
     IDLE_UNLOAD_MINUTES_MAX,
     JOBS_DIR,
+    KBPS_SUFFIX,
     MAX_DURATION_SEC,
     PLAYLIST_MAX_ITEMS,
+    STEM_FORMAT_CHOICES,
+    STEM_MP3_KBPS_CHOICES,
     VIDEO_MAX_HEIGHT,
     available_torch_devices,
     detect_torch_device,
@@ -696,6 +703,71 @@ def set_separation_quality(value: str) -> str:
         _ensure()["separation_quality"] = choice
         _save()
         return choice
+
+
+# ── stem_format / stem_mp3_kbps ──
+# Read when a job finishes, so a change applies to the next song without a
+# restart. The env seeds them for Docker and Unraid; a saved choice wins.
+def _default_stem_format() -> str:
+    env = os.environ.get("STEMDECK_STEM_FORMAT", "").strip().lower()
+    return env if env in STEM_FORMAT_CHOICES else DEFAULT_STEM_STORAGE[0]
+
+
+def _default_stem_mp3_kbps() -> int:
+    raw = os.environ.get("STEMDECK_STEM_MP3_KBPS", "").strip().lower()
+    try:
+        kbps = int(raw.removesuffix(KBPS_SUFFIX))
+    except ValueError:
+        return DEFAULT_STEM_STORAGE[1]
+    return kbps if kbps in STEM_MP3_KBPS_CHOICES else DEFAULT_STEM_STORAGE[1]
+
+
+def _is_kbps(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value in STEM_MP3_KBPS_CHOICES
+
+
+def get_stem_format() -> str:
+    with _LOCK:
+        v = _ensure().get("stem_format")
+        return v if isinstance(v, str) and v in STEM_FORMAT_CHOICES else _default_stem_format()
+
+
+def get_stem_mp3_kbps() -> int:
+    with _LOCK:
+        v = _ensure().get("stem_mp3_kbps")
+        return v if _is_kbps(v) else _default_stem_mp3_kbps()
+
+
+def check_stem_format(value: object) -> str:
+    """The whitelisted format for ``value``, or ValueError (never echoing it)."""
+    choice = value.strip().lower() if isinstance(value, str) else ""
+    if choice not in STEM_FORMAT_CHOICES:
+        raise ValueError("stem_format must be one of: " + ", ".join(STEM_FORMAT_CHOICES))
+    return choice
+
+
+def check_stem_mp3_kbps(value: object) -> int:
+    """The whitelisted bitrate for ``value``, or ValueError (never echoing it)."""
+    if not _is_kbps(value):
+        raise ValueError(
+            "stem_mp3_kbps must be one of: " + ", ".join(map(str, STEM_MP3_KBPS_CHOICES))
+        )
+    return cast(int, value)
+
+
+def set_stem_storage(fmt: object = None, kbps: object = None) -> tuple[str, int]:
+    """Persist either or both, after both are validated: a request with one
+    bad value changes nothing. Returns what now applies."""
+    choice = check_stem_format(fmt) if fmt is not None else None
+    rate = check_stem_mp3_kbps(kbps) if kbps is not None else None
+    with _LOCK:
+        if choice is not None:
+            _ensure()["stem_format"] = choice
+        if rate is not None:
+            _ensure()["stem_mp3_kbps"] = rate
+        if choice is not None or rate is not None:
+            _save()
+    return get_stem_format(), get_stem_mp3_kbps()
 
 
 # ── transcribe_lyrics ──

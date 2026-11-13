@@ -111,6 +111,8 @@ STEM_NAMES: tuple[str, ...] = ("vocals", "drums", "bass", "guitar", "piano", "ot
 # GET /api/config contract all assume "the 6 Demucs stems" and must not change
 # just because a job happened to request this extra pass.
 EXTRA_STEM_NAMES: tuple[str, ...] = ("lead_vocals", "backing_vocals")
+# Rendered beside the stems: the source re-encoded, and the picked stems mixed.
+RENDERED_TRACK_NAMES: tuple[str, ...] = ("original", "mix")
 # \Z, not $: $ also accepts a trailing newline.
 JOB_ID_RE = re.compile(r"^[a-f0-9]{12}\Z")
 # The file types an upload may be. A job keeps its upload as source<ext>.
@@ -430,6 +432,31 @@ VOCAL_SPLIT_CANCEL_POLL_SEC = 0.5
 # Beat-grid stage decodes the whole drums stem (not the 180 s analyze window),
 # so it gets its own, larger budget.
 TIMEOUT_BEATGRID = _env_int("STEMDECK_TIMEOUT_BEATGRID", 300)
+
+# WAV by default, so a song is stored differently only once the user opts in.
+STEM_FORMAT_WAV = "wav"
+STEM_FORMAT_MP3 = "mp3"
+STEM_FORMAT_CHOICES: tuple[str, ...] = (STEM_FORMAT_WAV, STEM_FORMAT_MP3)
+STEM_MP3_KBPS_CHOICES: tuple[int, ...] = (128, 192, 256)
+DEFAULT_STEM_STORAGE: tuple[str, int] = (STEM_FORMAT_WAV, 128)
+KBPS_SUFFIX = "k"
+FFMPEG_MUXER_WAV = "wav"
+FFMPEG_MUXER_MP3 = "mp3"
+AUDIO_MEDIA_TYPES: dict[str, str] = {
+    "wav": "audio/wav",
+    "mp3": "audio/mpeg",
+    "flac": "audio/flac",
+    "ogg": "audio/ogg",
+}
+# The lag window reaches past the 1105-sample delay of a decoder that ignored the
+# LAME header, so such a shift is seen and refused.
+STEM_VERIFY_BLOCK_SEC = 10
+STEM_VERIFY_MAX_LAG = 4096
+# Near silence has no shape to align, so only its length is checked.
+STEM_VERIFY_MIN_RMS = 0.01
+# A correct encode correlates at about 0.99 at lag 0 even at 128 kbps.
+STEM_VERIFY_MIN_CORR = 0.5
+STEM_VERIFY_MIN_RATIO = 0.98
 
 # Reading an upload's tags (artist, title, album, lyrics) with ffprobe for the
 # Lyrics tab and the artist box (#699). Tags are a nicety, so a probe that

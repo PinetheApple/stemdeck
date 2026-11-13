@@ -80,6 +80,7 @@ from app.core.song_folder import (
     update_metadata,
 )
 from app.core.song_folder import write_json_atomic as _write_json_atomic
+from app.core.stem_files import stem_exists, stem_path
 from app.core.stems_location import is_relocating
 from app.pipeline import discogs, jobqueue
 from app.pipeline.artist_lookup import tagged_artist_name
@@ -1069,7 +1070,7 @@ async def start_vocal_split(job_id: str) -> JSONResponse:
     if job.vocal_split == VOCAL_SPLIT_DONE:
         return JSONResponse(split_view(job), status_code=202)
     stems_dir = _vocal_split_stems_dir(job_id)
-    if not await asyncio.to_thread((stems_dir / "vocals.wav").is_file):
+    if not await asyncio.to_thread(stem_exists, stems_dir, "vocals"):
         raise HTTPException(status_code=409, detail=NO_VOCALS_STEM)
     run = VOCAL_SPLIT_RUNS.claim(job_id)
     if run is None:
@@ -1429,7 +1430,7 @@ def _fingerprint_audio(job: Job) -> list[Path]:
     stems_root = (JOBS_DIR / job.id / "stems").resolve()
     stems = []
     for name in STEM_NAMES:
-        path = (stems_root / f"{name}.wav").resolve()
+        path = stem_path(stems_root, name).resolve()
         if path.is_file() and path.is_relative_to(JOBS_DIR.resolve()):
             stems.append(path)
     return stems
@@ -1795,7 +1796,7 @@ def _retime_ready(job_dir: Path, lyrics: dict | None) -> None:
             raise HTTPException(status_code=404, detail="no lyrics")
     if not lyric_pairs(lyrics):
         raise HTTPException(status_code=409, detail="lyrics have no lines")
-    vocals = (job_dir / "stems" / "vocals.wav").resolve()
+    vocals = stem_path(job_dir / "stems", "vocals").resolve()
     if not vocals.is_relative_to(JOBS_DIR.resolve()) or not vocals.is_file():
         raise HTTPException(status_code=409, detail=NO_VOCALS_STEM)
 

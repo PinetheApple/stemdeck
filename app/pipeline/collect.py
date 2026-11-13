@@ -27,6 +27,7 @@ from app.core.registry import remove as registry_remove
 from app.core.registry import set_proc
 from app.core.setlists import all_song_ids as setlists_all_song_ids
 from app.core.song_folder import holds_job_files, is_real_entry, job_dirs, quarantine_dirs
+from app.core.stem_files import holds_stem_audio, stem_path
 from app.pipeline.audio_stats import scan_stem
 from app.pipeline.lyrics_retime import RETIME_RUNS
 from app.pipeline.transcribe_on_demand import TRANSCRIBE_RUNS
@@ -293,7 +294,7 @@ def merge_stem_peaks(stems_dir: Path, new_names: list[str]) -> dict[str, float]:
             logger.warning("could not read existing peaks.json in %s", stems_dir, exc_info=True)
 
     for name in new_names:
-        wav = stems_dir / f"{name}.wav"
+        wav = stem_path(stems_dir, name)
         if not wav.is_file():
             continue
         try:
@@ -403,7 +404,7 @@ def _unregistered_keep_reason(job_dir: Path) -> str | None:
     try:
         if any(p.is_file() for p in job_dir.glob("source.*")):
             return "unregistered folder holds a source file"
-        if any((job_dir / "stems").glob("*.wav")):
+        if holds_stem_audio(job_dir / "stems"):
             return "unregistered folder holds stems"
     except OSError:
         return "folder cannot be read"
