@@ -93,6 +93,8 @@ def requeue_if_capacity(job: Job, job_dir: Path, max_pending: int) -> bool:
         # lock; the job is not in the queue until the caller enqueues it.
         job.status = "queued"
     reset_for_rerun(job, job_dir)
+    # A new request: a crash in this run gets the one resume, whatever ran before.
+    job.resume_attempts = 0
     return True
 
 
@@ -330,10 +332,7 @@ def _place(
     to_add[recovered.id] = recovered
     if recovered.status in _RESUMABLE:
         resume.append(recovered)
-    # The bumped resume_attempts has to reach disk here. The next persist is
-    # whenever the job finishes, so without this a job that kills the process
-    # every time is read back with the same count on every start and retried
-    # forever -- the exact loop the cap exists to stop.
+    # Saved as decided here: queued again, done, or an error that leaves the file.
     return True
 
 
@@ -396,7 +395,8 @@ def _resume_or_recover(job: Job, job_dir: Path, legacy: bool = False) -> Job | N
         job.stage_message = "Stopped"
         return job
 
-    job.resume_attempts += 1
+    # Counts the runs the queue started (jobqueue), never the restarts: a restored
+    # queue waits for Start. Two starts are the first run and its resume.
     if job.resume_attempts > _MAX_RESUME_ATTEMPTS:
         job.status = "error"
         job.stage_message = "Error: Interrupted"

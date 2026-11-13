@@ -255,7 +255,11 @@ async def _worker_loop() -> None:
         # register_if_capacity keep counting only "queued" as the queue depth.
         _set_running(job_id)
         _set(job, status="processing", stage="Starting...", progress=0.0)
+        # On disk before the run: a job that takes the process down never
+        # reaches a save of its own. Not in a thread, so no await opens here.
+        job.resume_attempts += 1
         try:
+            registry_persist(JOBS_DIR)
             await _dispatch(job)
         except Exception:
             # A crash in one job must not take the queue down with it.
