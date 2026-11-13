@@ -1,16 +1,8 @@
-// The desktop network switch. The desktop backend listens on loopback only
-// while "Make StemDeck available on your network" is off, so a change applies
-// only once the shell has restarted it on the new address. The page saves the
-// choice, which the shell reads before spawning, asks for the restart, then
-// reloads on the URL the shell answers with: the same port, so nothing kept
-// per origin is lost.
-//
-// Turning it off is saved first, so other devices are refused at once even if
-// the restart waits. Turning it on is saved only once the restart goes ahead.
-// A restart stops a running separation, which then waits in the queue,
-// paused, so that is asked first.
+// The desktop backend listens on loopback while network access is off, so a
+// change applies only once the shell restarts it; a restart stops a separation.
 
 import { t as i18nT, applyTranslations } from "./i18n.js";
+import { JSON_MEDIA_TYPE } from "./catalog.js";
 
 const SETTINGS_URL = "/api/settings";
 const QUEUE_URL = "/api/queue";
@@ -26,6 +18,7 @@ const DIALOG_HTML = `
       <button class="reset-confirm-cancel net-restart-cancel" type="button" data-i18n="settings.network.restartCancel">Not now</button>
       <button class="reset-confirm-go net-restart-go" type="button" data-i18n="settings.network.restartNow">Restart now</button>
       <button class="reset-confirm-go net-restart-retry" type="button" data-i18n="settings.network.tryAgain">Try again</button>
+      <button class="reset-confirm-go net-restart-continue" type="button" data-i18n="settings.network.continue">Continue</button>
     </div>
   </div>
 `;
@@ -71,16 +64,19 @@ class NetworkRestartDialog {
     this.cancelBtn = find(".net-restart-cancel");
     this.goBtn = find(".net-restart-go");
     this.retryBtn = find(".net-restart-retry");
+    this.continueBtn = find(".net-restart-continue");
     this.onKeydown = this.onKeydown.bind(this);
     this.close = this.close.bind(this);
     this.onGo = this.onGo.bind(this);
     this.onRetry = this.onRetry.bind(this);
+    this.onContinue = this.onContinue.bind(this);
   }
 
   open() {
     this.cancelBtn.addEventListener("click", this.close);
     this.goBtn.addEventListener("click", this.onGo);
     this.retryBtn.addEventListener("click", this.onRetry);
+    this.continueBtn.addEventListener("click", this.onContinue);
     // Captured, so it is heard before Settings' own Esc closes everything behind it.
     document.addEventListener("keydown", this.onKeydown, true);
     document.body.appendChild(this.overlay);
@@ -89,14 +85,16 @@ class NetworkRestartDialog {
 
   // The attribute, not the class: .hidden only applies inside .daw, and this
   // dialog sits on body, above Settings.
-  show({ text = "", error = "", ask = false, retry = false }) {
+  show({ text = "", error = "", ask = false, retry = false, moved = false }) {
     this.title.hidden = !ask;
     this.goBtn.hidden = !ask;
     this.retryBtn.hidden = !retry;
+    this.continueBtn.hidden = !moved;
     this.cancelBtn.hidden = !ask && !retry;
     this.body.textContent = text;
     this.msg.textContent = error;
-    (ask ? this.goBtn : retry ? this.retryBtn : this.card).focus();
+    const shown = [this.goBtn, this.retryBtn, this.continueBtn].find((btn) => !btn.hidden);
+    (shown || this.card).focus();
   }
 
   close() {
@@ -122,18 +120,25 @@ class NetworkRestartDialog {
     else this.begin();
   }
 
+  onContinue() {
+    window.location.replace(this.movedUrl);
+  }
+
   async save() {
     try {
       const r = await fetch(SETTINGS_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": JSON_MEDIA_TYPE },
         body: JSON.stringify({ allow_network: this.want }),
       });
       if (!r.ok) throw new Error(`status ${r.status}`);
       this.saved = true;
     } catch (err) {
       console.warn("network setting save failed:", err);
-      this.show({ error: i18nT("settings.network.saveFailed", { error: errorText(err) }), retry: true });
+      this.show({
+        error: i18nT("settings.network.saveFailed", { error: errorText(err) }),
+        retry: true,
+      });
     }
     return this.saved;
   }
@@ -142,7 +147,9 @@ class NetworkRestartDialog {
     this.show({});
     if (!this.want && !this.saved && !(await this.save())) return;
     if (await separationRunning()) {
-      const key = this.want ? "settings.network.restartJobConfirm" : "settings.network.restartJobConfirmOff";
+      const key = this.want
+        ? "settings.network.restartJobConfirm"
+        : "settings.network.restartJobConfirmOff";
       this.show({ text: i18nT(key), ask: true });
       return;
     }
@@ -155,11 +162,29 @@ class NetworkRestartDialog {
     if (!this.saved && !(await this.save())) return;
     try {
       const { url } = await window.__TAURI__.core.invoke(RESTART_COMMAND);
-      window.location.replace(url);
+      this.reloadOn(url);
     } catch (err) {
       console.warn("network restart failed:", err);
-      this.show({ error: i18nT("settings.network.restartFailed", { error: errorText(err) }), retry: true });
+      this.show({
+        error: i18nT("settings.network.restartFailed", { error: errorText(err) }),
+        retry: true,
+      });
     }
+  }
+
+  // The port is the page's origin, so a restart that had to take another one
+  // loses what this window kept per origin; say so before going there.
+  reloadOn(url) {
+    const port = new URL(url).port;
+    if (port === window.location.port) {
+      window.location.replace(url);
+      return;
+    }
+    this.movedUrl = url;
+    this.show({
+      text: i18nT("settings.network.portChanged", { port }),
+      moved: true,
+    });
   }
 }
 
