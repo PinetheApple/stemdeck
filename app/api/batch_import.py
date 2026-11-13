@@ -17,6 +17,7 @@ from app.api.jobs import local_source_url
 from app.api.playlist import (
     SKIP_IN_LIBRARY,
     SKIP_TOO_LONG,
+    gone_copies,
     is_too_long,
     library_jobs,
     link_capacity_left,
@@ -91,6 +92,7 @@ def _item(
         "duration_sec": duration if isinstance(duration, int | float) else None,
         "status": status,
         "existing_job_id": None,
+        "replaces": None,
         "playlist": playlist,
     }
 
@@ -170,8 +172,9 @@ def _counted(summary: Summary, items: list[Item]) -> Summary:
     return {**summary, "found": len(rows)}
 
 
-def _judge(item: Item, library: dict[str, str], max_duration: int) -> None:
+def _judge(item: Item, library: dict[str, str], gone: dict[str, str], max_duration: int) -> None:
     item["existing_job_id"] = library.get(item["url"])
+    item["replaces"] = gone.get(item["url"])
     if item["status"] != STATUS_OK:
         return
     if is_too_long(item["duration_sec"], max_duration):
@@ -180,12 +183,14 @@ def _judge(item: Item, library: dict[str, str], max_duration: int) -> None:
         item["status"] = SKIP_IN_LIBRARY
 
 
-def _file_item(name: str, library: dict[str, str]) -> Item:
-    job_id = library.get(local_source_url(name))
+def _file_item(name: str, library: dict[str, str], gone: dict[str, str]) -> Item:
+    source_url = local_source_url(name)
+    job_id = library.get(source_url)
     return {
         "name": name,
         "status": STATUS_OK if job_id is None else SKIP_IN_LIBRARY,
         "existing_job_id": job_id,
+        "replaces": gone.get(source_url),
     }
 
 
@@ -216,15 +221,15 @@ async def preview_batch(request: Request) -> dict[str, Any]:
     results = await asyncio.gather(*(_read_line(n, line) for n, line in lines))
     items = _first_of_each_url([item for found, _ in results for item in found])
 
-    library = library_jobs()
+    library, gone = library_jobs(), gone_copies()
     max_duration = get_max_duration_sec()
     for item in items:
-        _judge(item, library, max_duration)
+        _judge(item, library, gone, max_duration)
 
     return {
         "items": items,
         "playlists": [_counted(s, items) for _, s in results if s is not None],
-        "files": [_file_item(name, library) for name in names],
+        "files": [_file_item(name, library, gone) for name in names],
         "max_duration_sec": max_duration,
         "capacity_left": {"links": link_capacity_left(), "files": upload_capacity_left()},
     }

@@ -112,6 +112,7 @@ def test_a_link_reports_its_canonical_url_title_artist_and_length(client, fake_y
         "duration_sec": 372,
         "status": "ok",
         "existing_job_id": None,
+        "replaces": None,
         "playlist": None,
     }
 
@@ -189,6 +190,23 @@ def test_a_song_the_library_holds_is_in_library_with_its_job(client, fake_ydl):
     ]
 
 
+def test_a_song_whose_files_are_gone_is_queued_to_replace_that_copy(client, fake_ydl):
+    fake_ydl.infos = {VIDEO_A: _video("A")}
+    gone = _in_library(VIDEO_A, status="done")
+
+    body = _preview(client, [VIDEO_A], ["Song.mp3"])
+    [item] = body["items"]
+
+    assert (item["status"], item["existing_job_id"], item["replaces"]) == ("ok", None, gone.id)
+    assert body["files"][0]["replaces"] is None
+
+
+def test_a_file_whose_copy_is_gone_is_queued_to_replace_it(client):
+    gone = _in_library("local:Song", status="done")
+    [file] = _preview(client, files=["Song.mp3"])["files"]
+    assert (file["status"], file["replaces"]) == ("ok", gone.id)
+
+
 def test_too_long_wins_over_in_library_but_keeps_the_job(client, fake_ydl):
     fake_ydl.infos = {VIDEO_A: _video("A", LIMIT_SEC + 1)}
     held = _in_library(VIDEO_A)
@@ -200,8 +218,13 @@ def test_a_file_already_uploaded_is_in_library(client):
     held = _in_library("local:01 Goodness of God")
     files = _preview(client, files=["01 Goodness of God.flac", "02 Build My Life.mp3"])["files"]
     assert files == [
-        {"name": "01 Goodness of God.flac", "status": "in_library", "existing_job_id": held.id},
-        {"name": "02 Build My Life.mp3", "status": "ok", "existing_job_id": None},
+        {
+            "name": "01 Goodness of God.flac",
+            "status": "in_library",
+            "existing_job_id": held.id,
+            "replaces": None,
+        },
+        {"name": "02 Build My Life.mp3", "status": "ok", "existing_job_id": None, "replaces": None},
     ]
 
 
