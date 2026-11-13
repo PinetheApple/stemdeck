@@ -1,7 +1,5 @@
-// A batch import's review list: what a paste or a folder holds, what can be
-// ticked, how much of it fits in the queue, and how the queuing goes on past
-// a refusal.
-//
+// A batch import's items: what a paste or a folder holds, what can be ticked,
+// what fits in the queue, and queuing past a refusal.
 // Run:  node tests/js/batch-import.test.mjs
 
 globalThis.window = {};
@@ -13,10 +11,10 @@ globalThis.document = {
 globalThis.localStorage = { getItem: () => null, setItem: () => {} };
 
 const {
-  ITEM_STATUS, MAX_BATCH_LINKS, capLines, fileItems, folderFiles, isPastedList, isTickable,
-  linkItems, lookingUpItems, pastedLines, previewNames, queuePlan, queueItems, walkEntries,
+  ITEM_STATUS, MAX_BATCH_FILES, MAX_BATCH_LINKS, capEntries, capLines, fileItems, folderFiles, isPastedList,
+  isTickable, linkItems, lookingUpItems, markUnchecked, pastedLines, previewNames, queuePlan, queueItems, walkEntries,
 } = await import("../../static/js/batchImportModel.js");
-const { batchProgress } = await import("../../static/js/queue.js");
+const { batchProgress, batchStillShown } = await import("../../static/js/queue.js");
 
 let pass = 0,
   fail = 0;
@@ -34,7 +32,8 @@ const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 // ─── pasted lines ───
 const pasted = "https://youtu.be/a\r\n\n  https://youtu.be/b  \nsetlist for sunday\n";
 check("lines keep blanks so line numbers match the paste", eq(pastedLines(pasted), ["https://youtu.be/a", "", "https://youtu.be/b", "setlist for sunday", ""]));
-check("two lines are a list", isPastedList("a\nb"));
+check("two lines with a link are a list", isPastedList("https://youtu.be/a\nb"));
+check("two lines of plain text are a search, not a list", !isPastedList("amazing grace\nchris tomlin"));
 check("one line with blank lines around it is not a list", !isPastedList("\n https://youtu.be/a \n\n"));
 
 const many = Array.from({ length: MAX_BATCH_LINKS + 3 }, (_, i) => `https://youtu.be/${i}`);
@@ -172,14 +171,26 @@ const outcome = await queueItems(
     },
     isQueueFull,
     reasonOf: (err) => err.message,
+    queueFullReason: "no room",
   },
 );
 check("a refused item does not stop the rest", sent.includes("f2"), JSON.stringify(sent));
 check("a full queue stops sending that kind only", !sent.includes("l3"), JSON.stringify(sent));
 check("what was queued keeps its job id", eq(outcome.queued.map((q) => q.jobId), ["job-l1", "job-f2"]));
 check("everything left out says why", eq(outcome.notQueued.map((n) => [n.item.key, n.reason]), [
-  ["f1", "refused"], ["l2", "the queue is full"], ["l3", "the queue is full"],
+  ["f1", "refused"], ["l2", "no room"], ["l3", "no room"],
 ]), JSON.stringify(outcome.notQueued.map((n) => [n.item.key, n.reason])));
+
+// ─── a folder over the server's cap, and a preview that failed ───
+const big = Array.from({ length: MAX_BATCH_FILES + 2 }, (_, i) => ({ dir: "Big", file: file(`${String(i).padStart(4, "0")}.wav`) }));
+const cappedFiles = capEntries([{ dir: "Big", file: file("notes.txt") }, ...big]);
+check("a folder is cut at the server's cap of uploadable files", previewNames(cappedFiles.entries).length === MAX_BATCH_FILES);
+check("what the cap left out is counted", cappedFiles.refused === 2, String(cappedFiles.refused));
+check("files that are not audio do not count against the cap", cappedFiles.entries.some((e) => e.file.name === "notes.txt"));
+
+const unchecked = markUnchecked(lookingUpItems(["https://youtu.be/a"]));
+check("a failed preview leaves no row looking up", unchecked.every((i) => i.status === ITEM_STATUS.UNCHECKED));
+check("a row nobody could check cannot be ticked", unchecked.every((i) => !isTickable(i)));
 
 // ─── the queue view's batch header ───
 const snap = { running: { job_id: "a" }, queued: [{ job_id: "b" }] };
@@ -187,6 +198,11 @@ const statuses = { c: "done", d: "error", e: "cancelled" };
 const progress = batchProgress(["a", "b", "c", "d", "e", "gone"], snap, (id) => statuses[id]);
 check("a batch counts done, failed and waiting", eq([progress.total, progress.done, progress.failed, progress.waiting], [4, 1, 1, 2]), JSON.stringify(progress));
 check("a batch names its failed items", eq(progress.failedIds, ["d"]));
+const idle = { running: null, queued: [] };
+check("a batch with a failure stays shown once the queue drains", batchStillShown(batchProgress(["c", "d"], idle, (id) => statuses[id]), 0));
+check("a batch with items not queued stays shown", batchStillShown(batchProgress(["c"], idle, (id) => statuses[id]), 1));
+check("a batch all done goes", !batchStillShown(batchProgress(["c"], idle, (id) => statuses[id]), 0));
+check("a batch down to one waiting job stays shown", batchStillShown(batchProgress(["a"], snap, (id) => statuses[id]), 0));
 
 console.log(fail ? `\n${fail} FAILED` : `\n${pass}/${pass} checks passed`);
 process.exit(fail ? 1 : 0);
