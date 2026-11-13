@@ -143,6 +143,19 @@ def test_expansion_reports_a_playlist_longer_than_the_cap(fake_ydl):
     assert len(out["items"]) == 7, "the probe entry must not be imported"
 
 
+def test_expansion_names_each_tracks_uploader(fake_ydl):
+    fake_ydl.info = {
+        "title": "P",
+        "entries": [
+            {"url": "https://www.youtube.com/watch?v=aaaaaaaaaaa", "uploader": "Housefires"},
+            {"url": "https://www.youtube.com/watch?v=bbbbbbbbbbb", "channel": "Bethel Music"},
+            {"url": "https://www.youtube.com/watch?v=ccccccccccc"},
+        ],
+    }
+    out = expand_playlist("https://www.youtube.com/playlist?list=PLabc", 50)
+    assert [i["artist"] for i in out["items"]] == ["Housefires", "Bethel Music", None]
+
+
 def test_entries_are_revalidated(fake_ydl):
     """Entry URLs are data from an external service, not something to trust."""
     fake_ydl.info = {
@@ -281,7 +294,7 @@ def test_partially_fills_when_the_queue_is_nearly_full(client, fake_ydl, monkeyp
 def test_503_only_when_there_is_no_room_at_all(client, monkeypatch):
     import app.api.playlist as playlist_mod
 
-    monkeypatch.setattr(playlist_mod, "_capacity_left", lambda: 0)
+    monkeypatch.setattr(playlist_mod, "link_capacity_left", lambda: 0)
     r = client.post("/api/playlist", json={"url": "https://www.youtube.com/playlist?list=PLabc"})
     assert r.status_code == 503
 

@@ -53,6 +53,7 @@ from app.core.models import (
     _set,
     checked_name,
     clean_artist,
+    clean_user_name,
     settle_cancelled,
 )
 from app.core.registry import all_jobs as registry_all_jobs
@@ -84,7 +85,7 @@ from app.core.stem_files import stem_exists, stem_path
 from app.core.stems_location import is_relocating
 from app.pipeline import discogs, jobqueue
 from app.pipeline.artist_lookup import tagged_artist_name
-from app.pipeline.audio_tags import probe_tags
+from app.pipeline.audio_tags import is_control, probe_tags
 from app.pipeline.collect import remove_job_dir
 from app.pipeline.download import InvalidYouTubeURL, fetch_audio_tags, validate_youtube_url
 from app.pipeline.identify import (
@@ -195,6 +196,40 @@ def _clean_source_name(filename: str) -> str:
     return _CONTROL_CHARS_RE.sub(" ", Path(filename).name).strip()[:_SOURCE_NAME_MAX_CHARS]
 
 
+def local_source_url(filename: str) -> str:
+    return f"local:{_sanitize_title(filename)}"
+
+
+# Direction overrides and isolates: they would reorder the text shown around a title.
+_BIDI_CONTROLS = frozenset("\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069")
+
+_FORM_BOOLS = {"true": True, "false": False}
+
+
+def _plain_title(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return clean_user_name(
+        "".join(ch for ch in value if not is_control(ch) and ch not in _BIDI_CONTROLS)
+    )
+
+
+def _form_auto_sections(raw: object) -> bool | None:
+    """The upload form's auto_sections: absent is None, anything but "true" or
+    "false" is refused, as the JSON route's StrictBool refuses it."""
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or raw not in _FORM_BOOLS:
+        raise HTTPException(status_code=422, detail="auto_sections must be true or false")
+    return _FORM_BOOLS[raw]
+
+
+def _auto_sections(requested: bool | None) -> bool:
+    """A batch's own choice when it sent one: the live toggle clears itself as
+    soon as the user opens another song, which can happen mid-batch."""
+    return get_auto_sections() if requested is None else requested
+
+
 def _probe_duration(path: Path) -> float:
     """Run ffprobe to get file duration in seconds."""
     result = subprocess.run(
@@ -298,6 +333,14 @@ class JobRequest(BaseModel):
     # clients pinning the old set.
     stems: list[str] | None = None
     replaces: str | None = None
+    # Shown in the queue until the download names the song from its source.
+    title: str | None = None
+    auto_sections: StrictBool | None = None
+
+    @field_validator("title")
+    @classmethod
+    def _clean_title(cls, value: str | None) -> str | None:
+        return _plain_title(value)
 
 
 def _checked_replaces(old_id: object) -> str | None:
@@ -366,10 +409,11 @@ async def _create_youtube_job(request: Request) -> dict[str, str]:
         id=uuid.uuid4().hex[:12],
         selected_stems=selected,
         source_url=url,
+        title=payload.title,
         # Captured now, not when the sections stage is reached: that is the
         # last thing the pipeline does, and the toggle clears itself as soon
         # as the user opens another song.
-        auto_sections=get_auto_sections(),
+        auto_sections=_auto_sections(payload.auto_sections),
         replaces=replaces,
     )
     if not registry_register_if_capacity(job, MAX_PENDING_URL_JOBS):
@@ -401,6 +445,7 @@ async def _create_local_job(request: Request) -> dict[str, str]:
     upload = form.get("file")
     stems_raw = form.get("stems", "[]")
     replaces = _checked_replaces(form.get("replaces"))
+    auto_sections = _form_auto_sections(form.get("auto_sections"))
 
     if upload is None or not hasattr(upload, "filename"):
         raise HTTPException(status_code=422, detail="No file provided")
@@ -463,17 +508,16 @@ async def _create_local_job(request: Request) -> dict[str, str]:
     audio_tags = await asyncio.to_thread(probe_tags, source_path)
 
     title = _sanitize_title(filename)
-    local_source_url = f"local:{title}"
     job = Job(
         id=job_id,
         selected_stems=selected,
         title=title,
         duration_sec=duration,
-        source_url=local_source_url,
+        source_url=local_source_url(filename),
         source_format=ext.removeprefix("."),
         source_name=_clean_source_name(filename),
         audio_tags=audio_tags,
-        auto_sections=get_auto_sections(),
+        auto_sections=_auto_sections(auto_sections),
         replaces=replaces,
     )
     await asyncio.to_thread(keep_added_time, job, job_dir)

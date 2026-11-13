@@ -467,6 +467,9 @@ TIMEOUT_PROBE_TAGS = _env_int("STEMDECK_TIMEOUT_PROBE_TAGS", 15)
 # it back for cookies), no download. Past this the lookup answers "nothing
 # found" rather than keep the page waiting.
 TIMEOUT_FETCH_TAGS = _env_int("STEMDECK_TIMEOUT_FETCH_TAGS", 45)
+# One link read or playlist expansion for the batch import review. Past this
+# the row says unavailable rather than hold up the whole list.
+TIMEOUT_BATCH_PROBE = _env_int("STEMDECK_TIMEOUT_BATCH_PROBE", 45)
 # Caps on what a tag may carry into the job record, which is rewritten whole
 # on every save: a name longer than this is not a name, and a lyrics tag
 # longer than this is not lyrics.

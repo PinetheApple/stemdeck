@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from app.api.batch_import import router as batch_import_router
 from app.api.bundle import router as bundle_router
 from app.api.config import router as config_router
 from app.api.discogs import router as discogs_router
@@ -25,6 +26,7 @@ router.include_router(bundle_router, tags=["bundle"])
 router.include_router(qr_router, tags=["qr"])
 router.include_router(queue_router, prefix="/queue", tags=["queue"])
 router.include_router(playlist_router, prefix="/playlist", tags=["playlist"])
+router.include_router(batch_import_router, prefix="/import", tags=["import"])
 router.include_router(search_router, prefix="/search", tags=["search"])
 router.include_router(discogs_router, prefix="/discogs", tags=["discogs"])
 router.include_router(setlists_router, prefix="/setlists", tags=["setlists"])

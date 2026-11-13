@@ -279,7 +279,7 @@ class _FakeYoutubeDL:
     def __exit__(self, *exc):
         return False
 
-    def extract_info(self, url, download=True):
+    def extract_info(self, url, download=True, process=True):
         type(self).calls.append((self.opts, url, download))
         reply = type(self).replies.pop(0)
         if isinstance(reply, Exception):
