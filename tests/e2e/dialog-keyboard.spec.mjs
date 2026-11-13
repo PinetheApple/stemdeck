@@ -14,6 +14,7 @@ import {
   stubFavorites,
   stubLongQueue,
   stubUpdateCheck,
+  tabTo,
 } from "./helpers.mjs";
 
 const MIN_TARGET_PX = 24;
@@ -237,16 +238,6 @@ test.describe("target sizes", () => {
 });
 
 test.describe("import queue by keyboard", () => {
-  const TAB_LIMIT = 60;
-
-  async function tabTo(page, selector) {
-    for (let press = 0; press < TAB_LIMIT; press++) {
-      await page.keyboard.press(KEY.TAB);
-      if (await page.evaluate((s) => document.activeElement?.matches(s), selector)) return;
-    }
-    throw new Error(`Tab never reached ${selector}`);
-  }
-
   const SHOWN = "1";
   // Opacity of the unfocused extract-next button inside a row that has keyboard focus.
   const SIBLING_IN_FOCUSED_ROW = "0.65";

@@ -3368,8 +3368,90 @@ async function onQueueStartClick(e) {
   btn.textContent = i18nT("queue.start");
 }
 
+const QUEUE_CONTROLS = [".queue-cancel", ".queue-top", ".queue-start-btn"];
+const QUEUE_SECTION = ".queue-section";
+const QUEUE_KEYBOARD_FOCUS = ":focus-visible";
+// The queue control that last took focus, read as it is focused: by the time the
+// queue redraws, render() may already have cleared the list and focus is on <body>.
+let _queueFocus = null;
+const _queueFocusLists = new WeakSet();
+
+function describeQueueControl(el) {
+  const control = QUEUE_CONTROLS.find((selector) => el.matches?.(selector));
+  const section = el.closest?.(QUEUE_SECTION);
+  if (!control || !section) return null;
+  return {
+    el,
+    control,
+    jobId: el.closest(".queue-row")?.dataset.id ?? null,
+    index: [...section.querySelectorAll(control)].indexOf(el),
+    byKeyboard: el.matches(QUEUE_KEYBOARD_FOCUS),
+  };
+}
+
+function onQueueFocusIn(e) {
+  _queueFocus = describeQueueControl(e.target);
+}
+
+// Still on the page once the blur settles: the user moved on, not a redraw.
+function onQueueFocusOut(e) {
+  const left = e.target;
+  queueMicrotask(function forgetMovedQueueFocus() {
+    if (left.isConnected && _queueFocus?.el === left) _queueFocus = null;
+  });
+}
+
+function trackQueueFocus(listEl) {
+  if (_queueFocusLists.has(listEl)) return;
+  _queueFocusLists.add(listEl);
+  listEl.addEventListener("focusin", onQueueFocusIn);
+  listEl.addEventListener("focusout", onQueueFocusOut);
+}
+
+function queueFocusToRestore() {
+  if (!_queueFocus) return null;
+  const active = document.activeElement;
+  const dropped = !_queueFocus.el.isConnected && (!active || active === document.body);
+  return _queueFocus.el === active || dropped ? _queueFocus : null;
+}
+
+function focusableQueueHead(section) {
+  const head = section.querySelector(".lib-section-head");
+  head.tabIndex = OUT_OF_TAB_ORDER;
+  return head;
+}
+
+// The same row's control, else the one now in its place, else anything in the section.
+function queueFocusTarget(section, saved) {
+  const enabled = `${saved.control}:not(:disabled)`;
+  const sameRow = saved.jobId ? `.queue-row[data-id="${CSS.escape(saved.jobId)}"] ${enabled}` : enabled;
+  const peers = [...section.querySelectorAll(enabled)];
+  return section.querySelector(sameRow)
+    ?? peers[Math.min(saved.index, peers.length - 1)]
+    ?? section.querySelector("button:not(:disabled)")
+    ?? focusableQueueHead(section);
+}
+
+function restoreQueueFocus(section, saved) {
+  if (!saved) return;
+  queueFocusTarget(section, saved).focus({ preventScroll: true, focusVisible: saved.byKeyboard });
+}
+
+function appendQueueRows(listEl, section, entries, snap) {
+  const paused = isPaused(snap);
+  section.insertAdjacentHTML(
+    "beforeend",
+    entries.map((entry, i) => queueRowHtml(entry, i + 1, { paused })).join(""),
+  );
+  listEl.appendChild(section);
+  for (const el of section.querySelectorAll(".queue-row")) wireQueueRow(el, listEl);
+  wireQueueListDrop(listEl);
+}
+
 function renderQueueList(listEl, snap = getQueueSnapshot()) {
   const entries = queueEntries(snap);
+  const focus = queueFocusToRestore();
+  trackQueueFocus(listEl);
   listEl.innerHTML = "";
 
   const section = document.createElement("div");
@@ -3384,17 +3466,12 @@ function renderQueueList(listEl, snap = getQueueSnapshot()) {
   if (!entries.length) {
     section.insertAdjacentHTML("beforeend", emptyStateHtml("queue", "queue.emptyTitle", "queue.emptyHint"));
     listEl.appendChild(section);
+    restoreQueueFocus(section, focus);
     return;
   }
 
-  const paused = isPaused(snap);
-  section.insertAdjacentHTML(
-    "beforeend",
-    entries.map((entry, i) => queueRowHtml(entry, i + 1, { paused })).join(""),
-  );
-  listEl.appendChild(section);
-  for (const el of section.querySelectorAll(".queue-row")) wireQueueRow(el, listEl);
-  wireQueueListDrop(listEl);
+  appendQueueRows(listEl, section, entries, snap);
+  restoreQueueFocus(section, focus);
   updateQueueRows(snap);
 }
 
