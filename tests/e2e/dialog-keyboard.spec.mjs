@@ -101,22 +101,24 @@ test.describe("dialogs and Esc", () => {
 });
 
 const PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLkeyboardnav";
+const PLAYLIST_TRACK = (n) => ({
+  input: PLAYLIST_URL, line: 1, url: `https://www.youtube.com/watch?v=keys${n}aaaaaa`, title: `Key ${n}`, artist: null,
+  duration_sec: 200, status: "ok", existing_job_id: null, replaces: null,
+  playlist: { url: PLAYLIST_URL, title: "Keys", index: n },
+});
 const PLAYLIST_PREVIEW = {
-  playlist_title: "Keys",
-  will_queue: 2,
-  total_found: 2,
-  skipped_unavailable: 0,
-  skipped_too_long: 0,
-  truncated: false,
-  cap: 50,
-  capacity_left: 10,
+  items: [PLAYLIST_TRACK(1), PLAYLIST_TRACK(2)],
+  playlists: [{ input: PLAYLIST_URL, line: 1, url: PLAYLIST_URL, title: "Keys", found: 2, unavailable: 0, truncated: false }],
+  files: [],
+  max_duration_sec: 1200,
+  capacity_left: { links: 10, files: 10 },
 };
 
-async function openPlaylistConfirm(page) {
+async function openPlaylistReview(page) {
   const url = page.locator("#url");
   await url.fill(PLAYLIST_URL);
   await url.press(KEY.ENTER);
-  await expect(page.locator(".playlist-confirm")).toBeVisible();
+  await expect(page.locator("#batchReview .batch-queue")).toBeEnabled();
 }
 
 test.describe("more dialogs and Esc", () => {
@@ -137,25 +139,29 @@ test.describe("more dialogs and Esc", () => {
     await expect(card).toBeFocused();
   });
 
-  test("the playlist confirmation hands focus back on Esc, Cancel and Import", async ({ page }) => {
-    await page.route("**/api/playlist/preview", (route) => route.fulfill({ json: PLAYLIST_PREVIEW }));
-    await page.route(
-      "**/api/playlist",
-      (route) => route.fulfill({ json: { playlist_title: "Keys", jobs: [], queued: 0 } }),
-    );
+  test("a playlist's review hands focus back on Esc, Cancel and Queue", async ({ page }) => {
     await openApp(page);
+    await page.route("**/api/import/preview", (route) => route.fulfill({ json: PLAYLIST_PREVIEW }));
+    const created = [];
+    await page.route(/\/api\/jobs$/, (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      created.push(route.request().postDataJSON().url);
+      return route.fulfill({ json: { job_id: `e2e0ce11000${created.length}` } });
+    });
 
-    await openPlaylistConfirm(page);
-    await page.keyboard.press(KEY.ESCAPE);
-    await expect(page.locator(".playlist-confirm")).toHaveCount(0);
-    await expect(page.locator("#url")).toBeFocused();
-
-    for (const button of [".reset-confirm-cancel", ".playlist-confirm-go"]) {
-      await openPlaylistConfirm(page);
-      await page.locator(`.playlist-confirm ${button}`).click();
-      await expect(page.locator(".playlist-confirm")).toHaveCount(0);
+    for (const close of [() => page.keyboard.press(KEY.ESCAPE), () => page.locator("#batchReview .batch-cancel").click()]) {
+      await openPlaylistReview(page);
+      await close();
+      await expect(page.locator("#batchReview")).toHaveCount(0);
       await expect(page.locator("#url")).toBeFocused();
+      await page.locator("#url").fill("");
     }
+
+    await openPlaylistReview(page);
+    await page.locator("#batchReview .batch-queue").click();
+    await expect(page.locator("#batchReview")).toHaveCount(0);
+    await expect(page.locator("#url")).toBeFocused();
+    expect(created).toHaveLength(PLAYLIST_PREVIEW.items.length);
   });
 });
 

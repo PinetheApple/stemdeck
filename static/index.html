@@ -73,9 +73,8 @@
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
               </svg>
-              <!-- A pasted list or a folder stands in the same chip, with its own icon. -->
-              <svg class="ic batch-pill-ic batch-pill-links" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg>
-              <svg class="ic batch-pill-ic batch-pill-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+              <span class="batch-pill-ic" data-kind-icon="links" data-batch-icon="list"></span>
+              <span class="batch-pill-ic" data-kind-icon="folder" data-batch-icon="folder"></span>
               <span class="file-name" id="fileName"></span>
               <span class="file-size" id="fileSize"></span>
               <button class="file-clear" id="fileClear" type="button" aria-label="Remove file" data-i18n-aria-label="topbar.removeFile">×</button>
@@ -96,9 +95,8 @@
               <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /> <path d="m17 8-5-5-5 5" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /></svg>
             </button>
             <input id="fileInput" type="file" multiple accept=".mp3,.wav,.flac,.mp4,.m4a,.ogg,.opus,audio/mpeg,audio/wav,audio/flac,video/mp4,audio/mp4,audio/ogg,audio/opus" style="display:none" aria-hidden="true" />
-            <!-- Hidden by main.js where the browser cannot pick a folder; a dropped one still works. -->
             <button class="daw-upload-btn batch-folder-btn" type="button" title="Add a folder" id="addFolderBtn" aria-label="Add a folder" data-i18n-title="batch.addFolder" data-i18n-aria-label="batch.addFolder">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+              <span class="batch-icon-slot" data-batch-icon="folder"></span>
             </button>
             <input id="folderInput" type="file" multiple webkitdirectory style="display:none" aria-hidden="true" />
           </div>
@@ -502,8 +500,8 @@
                 <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /> <path d="m17 8-5-5-5 5" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /></svg>
                 <span data-i18n="batch.chooseFiles">Choose files</span>
               </button>
-              <button class="empty-start-btn" id="emptyStartFolder" type="button">
-                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+              <button class="empty-start-btn batch-folder-btn" id="emptyStartFolder" type="button">
+                <span class="batch-icon-slot" data-batch-icon="folder"></span>
                 <span data-i18n="batch.chooseFolder">Choose a folder</span>
               </button>
               <button class="empty-start-btn" id="emptyStartLink" type="button">

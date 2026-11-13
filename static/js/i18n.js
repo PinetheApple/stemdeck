@@ -1383,7 +1383,7 @@ const en = {
   "reimport.body": "Its files are no longer on this computer. Importing downloads it again and stops what's playing.",
   "reimport.confirm": "Import again",
   "list.separator": ", ",
-  // ── Batch import: the bar, the review list and the queue's batch header (static/js/batchImport.js) ──
+  // ── Batch import: the bar, the review list and the queue's batch header ──
   "batch.placeholder": "Search, paste links, or drop files…",
   "batch.dropHere": "Drop files or a folder",
   "batch.addFiles": "Add files",
@@ -1447,6 +1447,11 @@ const en = {
   "batch.waitingCount.one": "{count} waiting",
   "batch.waitingCount.other": "{count} waiting",
   "batch.retryFailed": "Retry failed",
+  "batch.overCapFiles.one": "Only {max} files at a time. {count} more file was left out.",
+  "batch.overCapFiles.other": "Only {max} files at a time. {count} more files were left out.",
+  "batch.notChecked": "Not checked",
+  "batch.notQueuedCount.one": "{count} not queued",
+  "batch.notQueuedCount.other": "{count} not queued",
 };
 
 const pl = {
@@ -2607,7 +2612,7 @@ const pl = {
   "reimport.body": "Jego plików nie ma już na tym komputerze. Import pobierze go ponownie i zatrzyma odtwarzanie.",
   "reimport.confirm": "Importuj ponownie",
   "list.separator": ", ",
-  // ── Batch import: the bar, the review list and the queue's batch header (static/js/batchImport.js) ──
+  // ── Batch import: the bar, the review list and the queue's batch header ──
   "batch.placeholder": "Szukaj, wklej linki albo upuść pliki…",
   "batch.dropHere": "Upuść pliki lub folder",
   "batch.addFiles": "Dodaj pliki",
@@ -2682,6 +2687,13 @@ const pl = {
   "batch.waitingCount.few": "{count} czekają",
   "batch.waitingCount.many": "{count} czeka",
   "batch.retryFailed": "Ponów nieudane",
+  "batch.overCapFiles.one": "Najwyżej {max} plików naraz. Pominięto {count} plik.",
+  "batch.overCapFiles.few": "Najwyżej {max} plików naraz. Pominięto {count} pliki.",
+  "batch.overCapFiles.many": "Najwyżej {max} plików naraz. Pominięto {count} plików.",
+  "batch.notChecked": "Nie sprawdzono",
+  "batch.notQueuedCount.one": "{count} poza kolejką",
+  "batch.notQueuedCount.few": "{count} poza kolejką",
+  "batch.notQueuedCount.many": "{count} poza kolejką",
 };
 
 const ja = {
@@ -3813,7 +3825,7 @@ const ja = {
   "reimport.body": "この曲のファイルはこのコンピューターにありません。インポートすると再ダウンロードし、再生中の曲は停止します。",
   "reimport.confirm": "もう一度インポート",
   "list.separator": "、",
-  // ── Batch import: the bar, the review list and the queue's batch header (static/js/batchImport.js) ──
+  // ── Batch import: the bar, the review list and the queue's batch header ──
   "batch.placeholder": "検索、リンクを貼り付け、またはファイルをドロップ…",
   "batch.dropHere": "ファイルまたはフォルダをドロップ",
   "batch.addFiles": "ファイルを追加",
@@ -3866,6 +3878,9 @@ const ja = {
   "batch.failedCount.other": "{count}件失敗",
   "batch.waitingCount.other": "{count}件待機中",
   "batch.retryFailed": "失敗したものを再試行",
+  "batch.overCapFiles.other": "ファイルは一度に{max}件までです。{count}件は除外されました。",
+  "batch.notChecked": "未確認",
+  "batch.notQueuedCount.other": "{count}件未追加",
 };
 
 const zhHans = {
@@ -4997,7 +5012,7 @@ const zhHans = {
   "reimport.body": "它的文件已不在这台电脑上。重新导入会再次下载，并停止当前播放。",
   "reimport.confirm": "重新导入",
   "list.separator": "、",
-  // ── Batch import: the bar, the review list and the queue's batch header (static/js/batchImport.js) ──
+  // ── Batch import: the bar, the review list and the queue's batch header ──
   "batch.placeholder": "搜索、粘贴链接，或拖放文件…",
   "batch.dropHere": "拖放文件或文件夹",
   "batch.addFiles": "添加文件",
@@ -5050,6 +5065,9 @@ const zhHans = {
   "batch.failedCount.other": "{count} 项失败",
   "batch.waitingCount.other": "{count} 项等待中",
   "batch.retryFailed": "重试失败项",
+  "batch.overCapFiles.other": "一次最多 {max} 个文件。另外 {count} 个已略去。",
+  "batch.notChecked": "未检查",
+  "batch.notQueuedCount.other": "{count} 项未加入队列",
 };
 
 const de = {
@@ -6194,7 +6212,7 @@ const de = {
   "reimport.body": "Seine Dateien sind nicht mehr auf diesem Computer. Der Import lädt ihn erneut herunter und stoppt die Wiedergabe.",
   "reimport.confirm": "Erneut importieren",
   "list.separator": ", ",
-  // ── Batch import: the bar, the review list and the queue's batch header (static/js/batchImport.js) ──
+  // ── Batch import: the bar, the review list and the queue's batch header ──
   "batch.placeholder": "Suchen, Links einfügen oder Dateien ablegen…",
   "batch.dropHere": "Dateien oder einen Ordner ablegen",
   "batch.addFiles": "Dateien hinzufügen",
@@ -6258,6 +6276,11 @@ const de = {
   "batch.waitingCount.one": "{count} wartet",
   "batch.waitingCount.other": "{count} warten",
   "batch.retryFailed": "Fehlgeschlagene wiederholen",
+  "batch.overCapFiles.one": "Höchstens {max} Dateien auf einmal. {count} weitere Datei wurde ausgelassen.",
+  "batch.overCapFiles.other": "Höchstens {max} Dateien auf einmal. {count} weitere Dateien wurden ausgelassen.",
+  "batch.notChecked": "Nicht geprüft",
+  "batch.notQueuedCount.one": "{count} nicht eingereiht",
+  "batch.notQueuedCount.other": "{count} nicht eingereiht",
 };
 
 const pt = {
@@ -7404,7 +7427,7 @@ const pt = {
   "reimport.body": "Os arquivos dela não estão mais neste computador. Importar baixa a música de novo e para o que está tocando.",
   "reimport.confirm": "Importar de novo",
   "list.separator": ", ",
-  // ── Batch import: the bar, the review list and the queue's batch header (static/js/batchImport.js) ──
+  // ── Batch import: the bar, the review list and the queue's batch header ──
   "batch.placeholder": "Pesquise, cole links ou solte arquivos…",
   "batch.dropHere": "Solte arquivos ou uma pasta",
   "batch.addFiles": "Adicionar arquivos",
@@ -7468,6 +7491,11 @@ const pt = {
   "batch.waitingCount.one": "{count} aguardando",
   "batch.waitingCount.other": "{count} aguardando",
   "batch.retryFailed": "Repetir os que falharam",
+  "batch.overCapFiles.one": "No máximo {max} arquivos por vez. {count} arquivo a mais ficou de fora.",
+  "batch.overCapFiles.other": "No máximo {max} arquivos por vez. {count} arquivos a mais ficaram de fora.",
+  "batch.notChecked": "Não verificado",
+  "batch.notQueuedCount.one": "{count} fora da fila",
+  "batch.notQueuedCount.other": "{count} fora da fila",
 };
 
 const id = {
@@ -8599,7 +8627,7 @@ const id = {
   "reimport.body": "File-nya sudah tidak ada di komputer ini. Mengimpor akan mengunduhnya lagi dan menghentikan yang sedang diputar.",
   "reimport.confirm": "Impor lagi",
   "list.separator": ", ",
-  // ── Batch import: the bar, the review list and the queue's batch header (static/js/batchImport.js) ──
+  // ── Batch import: the bar, the review list and the queue's batch header ──
   "batch.placeholder": "Cari, tempel tautan, atau seret file…",
   "batch.dropHere": "Seret file atau folder",
   "batch.addFiles": "Tambah file",
@@ -8652,6 +8680,9 @@ const id = {
   "batch.failedCount.other": "{count} gagal",
   "batch.waitingCount.other": "{count} menunggu",
   "batch.retryFailed": "Coba lagi yang gagal",
+  "batch.overCapFiles.other": "Paling banyak {max} file sekaligus. {count} file lainnya dilewati.",
+  "batch.notChecked": "Belum diperiksa",
+  "batch.notQueuedCount.other": "{count} tidak diantrekan",
 };
 
 const fr = {
@@ -9798,7 +9829,7 @@ const fr = {
   "reimport.body": "Ses fichiers ne sont plus sur cet ordinateur. L'import le télécharge à nouveau et arrête la lecture en cours.",
   "reimport.confirm": "Importer à nouveau",
   "list.separator": ", ",
-  // ── Batch import: the bar, the review list and the queue's batch header (static/js/batchImport.js) ──
+  // ── Batch import: the bar, the review list and the queue's batch header ──
   "batch.placeholder": "Recherchez, collez des liens ou déposez des fichiers…",
   "batch.dropHere": "Déposez des fichiers ou un dossier",
   "batch.addFiles": "Ajouter des fichiers",
@@ -9862,6 +9893,11 @@ const fr = {
   "batch.waitingCount.one": "{count} en attente",
   "batch.waitingCount.other": "{count} en attente",
   "batch.retryFailed": "Réessayer les échecs",
+  "batch.overCapFiles.one": "{max} fichiers au plus à la fois. {count} fichier de plus a été laissé de côté.",
+  "batch.overCapFiles.other": "{max} fichiers au plus à la fois. {count} fichiers de plus ont été laissés de côté.",
+  "batch.notChecked": "Non vérifié",
+  "batch.notQueuedCount.one": "{count} pas en file",
+  "batch.notQueuedCount.other": "{count} pas en file",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -10166,7 +10202,7 @@ const ptPT = {
   "reimport.title": "Importar esta música novamente?",
   "reimport.body": "Os ficheiros dela já não estão neste computador. Importar transfere a música novamente e para o que está a tocar.",
   "reimport.confirm": "Importar novamente",
-  // ── Batch import: the bar, the review list and the queue's batch header (static/js/batchImport.js) ──
+  // ── Batch import: the bar, the review list and the queue's batch header ──
   "batch.placeholder": "Pesquise, cole ligações ou largue ficheiros…",
   "batch.dropHere": "Largue ficheiros ou uma pasta",
   "batch.addFiles": "Adicionar ficheiros",
@@ -10188,6 +10224,8 @@ const ptPT = {
   "batch.flag.tooLongTitle": "Mais longo do que o seu limite de {minutes} minutos. Altere nas Definições.",
   "batch.waitingCount.one": "{count} em espera",
   "batch.waitingCount.other": "{count} em espera",
+  "batch.overCapFiles.one": "No máximo {max} ficheiros de cada vez. {count} ficheiro a mais ficou de fora.",
+  "batch.overCapFiles.other": "No máximo {max} ficheiros de cada vez. {count} ficheiros a mais ficaram de fora.",
 };
 
 const es = {
@@ -11346,7 +11384,7 @@ const es = {
   "reimport.body": "Sus archivos ya no están en este ordenador. Al importarla se descarga de nuevo y se detiene lo que suena.",
   "reimport.confirm": "Importar de nuevo",
   "list.separator": ", ",
-  // ── Batch import: the bar, the review list and the queue's batch header (static/js/batchImport.js) ──
+  // ── Batch import: the bar, the review list and the queue's batch header ──
   "batch.placeholder": "Busca, pega enlaces o suelta archivos…",
   "batch.dropHere": "Suelta archivos o una carpeta",
   "batch.addFiles": "Añadir archivos",
@@ -11410,6 +11448,11 @@ const es = {
   "batch.waitingCount.one": "{count} en espera",
   "batch.waitingCount.other": "{count} en espera",
   "batch.retryFailed": "Reintentar los fallidos",
+  "batch.overCapFiles.one": "Como máximo {max} archivos a la vez. Se omitió {count} archivo más.",
+  "batch.overCapFiles.other": "Como máximo {max} archivos a la vez. Se omitieron {count} archivos más.",
+  "batch.notChecked": "Sin comprobar",
+  "batch.notQueuedCount.one": "{count} sin poner en cola",
+  "batch.notQueuedCount.other": "{count} sin poner en cola",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -12550,7 +12593,7 @@ const ko = {
   "reimport.body": "이 곡의 파일이 더 이상 이 컴퓨터에 없어요. 다시 가져오면 새로 다운로드하고 지금 재생 중인 곡은 멈춰요.",
   "reimport.confirm": "다시 가져오기",
   "list.separator": ", ",
-  // ── Batch import: the bar, the review list and the queue's batch header (static/js/batchImport.js) ──
+  // ── Batch import: the bar, the review list and the queue's batch header ──
   "batch.placeholder": "검색하거나 링크를 붙여넣거나 파일을 끌어다 놓으세요…",
   "batch.dropHere": "파일이나 폴더를 끌어다 놓으세요",
   "batch.addFiles": "파일 추가",
@@ -12603,6 +12646,9 @@ const ko = {
   "batch.failedCount.other": "{count}개 실패",
   "batch.waitingCount.other": "{count}개 대기 중",
   "batch.retryFailed": "실패한 항목 다시 시도",
+  "batch.overCapFiles.other": "파일은 한 번에 {max}개까지입니다. {count}개는 제외되었습니다.",
+  "batch.notChecked": "확인 안 됨",
+  "batch.notQueuedCount.other": "{count}개 대기열에 없음",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };

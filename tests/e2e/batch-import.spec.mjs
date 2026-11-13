@@ -1,9 +1,5 @@
-// Several songs at once: a pasted list of links or a folder becomes a chip in the
-// bar and a review list under it; Queue N sends one import per ticked item and
-// keeps going past a refusal. A single link still queues straight away.
-//
-// The review's preview and the imports are stubbed: the e2e backend reads no
-// links and separates nothing.
+// Several songs at once, through the review list. The preview and the imports are
+// stubbed: the e2e backend reads no links and separates nothing.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -208,10 +204,32 @@ test.describe("batch import", () => {
     await review(page).locator(".batch-more-btn").click();
     await expect(review(page).locator(".batch-item-retry")).toHaveCount(TICKED_BY_DEFAULT - 1);
 
+    // Detect structure turned on now does not reach a batch queued with it off.
+    await page.locator("#autoSectionsBtn").click();
+    await expect(page.locator("#autoSectionsBtn")).toHaveAttribute("aria-pressed", "true");
     await row(page, "Firm Foundation").locator(".batch-item-retry").click();
     await expect.poll(() => posts.length).toBe(3);
     expect(posts[2].url).toBe(LINE.other);
+    expect(posts[2].auto_sections).toBe(false);
+    expect(posts[2].stems).toEqual(posts[0].stems);
     await expect(row(page, "Firm Foundation")).toHaveCount(0);
+    await page.locator("#autoSectionsBtn").click();
+  });
+
+  test("the review is modal: Tab stays in it", async ({ page }) => {
+    await pasteList(page);
+    await expect(review(page)).toHaveAttribute("aria-modal", "true");
+    await queueButton(page).focus();
+    await page.keyboard.press("Tab");
+    await expect(review(page).locator(".batch-review-close")).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(queueButton(page)).toBeFocused();
+  });
+
+  test("plain text pasted over several lines stays a search", async ({ page }) => {
+    await openBar(page);
+    await paste(page, "amazing grace\nchris tomlin");
+    await expect(review(page)).toHaveCount(0);
   });
 
   test("Escape closes the review and gives the bar back its focus", async ({ page }) => {
@@ -237,9 +255,14 @@ test("a failed item stays in the queue with its reason and Retry", async ({ page
   });
   await stubImports(page);
   let queued = [WAITING_ID, FAILED_ID];
+  let running = true;
   const job = (id) => ({ job_id: id, status: "queued", title: id, source_url: LINE.ok });
   await page.route("**/api/queue", (route) => route.fulfill({
-    json: { running: { ...job(RUNNING_ID), status: "processing", stage: "Separating", progress: 0.4 }, queued: queued.map(job), paused: false },
+    json: {
+      running: running ? { ...job(RUNNING_ID), status: "processing", stage: "Separating", progress: 0.4 } : null,
+      queued: queued.map(job),
+      paused: false,
+    },
   }));
   await page.route("**/api/queue/events", (route) => route.abort());
   await page.route(`**/api/jobs/${FAILED_ID}`, (route) => route.fulfill({
@@ -267,6 +290,13 @@ test("a failed item stays in the queue with its reason and Retry", async ({ page
   await expect(head).toContainText(await uiText(page, "batch.doneOf", { done: 0, total: 3 }));
   await expect(head).toContainText(await uiText(page, "batch.failedCount.one", { count: 1 }));
   await expect(head.locator(".batch-retry-failed")).toBeVisible();
+
+  // The queue drains: the batch and its failure stay in view until dealt with.
+  running = false;
+  queued = [];
+  await refresh();
+  await expect(head).toBeVisible();
+  await expect(failed).toBeVisible();
   await failed.locator(".batch-failed-retry").click();
   await expect.poll(() => retries.length).toBe(1);
 });
@@ -329,4 +359,122 @@ test("Add a folder shows where the browser can pick one", async ({ page }) => {
   await openBar(page);
   await expect(page.locator("#addFolderBtn")).toBeVisible();
   await expect(page.locator("#emptyStartFolder")).toBeVisible();
+});
+
+test("a single playlist link opens the review and files its songs under its name", async ({ page }) => {
+  await openBar(page);
+  const answer = preview();
+  await stubPreview(page, {
+    ...answer,
+    items: answer.items.filter((i) => i.playlist).map((i) => ({ ...i, line: 1 })),
+    playlists: answer.playlists.map((p) => ({ ...p, line: 1 })),
+  });
+  const posts = await stubImports(page);
+  await page.locator("#url").fill(LINE.playlist);
+  await page.locator("#url").press("Enter");
+
+  await expect(review(page).locator(".batch-group")).toContainText(PLAYLIST_TITLE);
+  await expect(queueButton(page)).toHaveText(await uiText(page, "batch.queue.other", { count: PLAYLIST_SONGS.length }));
+  await queueButton(page).click();
+  await expect.poll(() => posts.length).toBe(PLAYLIST_SONGS.length);
+  await expect(page.locator("#url")).toBeFocused();
+  await expect(page.locator("#catalogList .folder-head", { hasText: PLAYLIST_TITLE })).toBeVisible();
+});
+
+test("several loose files are reviewed with what is wrong with each", async ({ page }) => {
+  await openBar(page);
+  await stubPreview(page, {
+    items: [], playlists: [], max_duration_sec: MAX_DURATION_SEC, capacity_left: { links: 20, files: 20 },
+    files: [{ name: "song.wav", status: "ok", existing_job_id: null, replaces: null }],
+  });
+  await page.locator("#fileInput").setInputFiles([
+    { name: "song.wav", mimeType: "audio/wav", buffer: Buffer.from("RIFF0000WAVE") },
+    { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hi") },
+  ]);
+  await expect(row(page, "notes.txt").locator(".batch-flag-block")).toHaveText(await uiText(page, "batch.flag.notAudio"));
+  await expect(row(page, "notes.txt").locator("input")).toBeDisabled();
+  await expect(row(page, "song.wav").locator("input")).toBeChecked();
+  await expect(page.locator("#error")).toBeHidden();
+});
+
+test("Retry failed in the queue sends again what the queue did not take", async ({ page }) => {
+  await pasteList(page);
+  const posts = await stubImports(page, [200, HTTP_FULL]);
+  await page.route("**/api/queue", (route) => route.fulfill({
+    json: { running: { job_id: "e2e0b0000001", status: "processing", stage: "Separating", progress: 0.4, title: "Build My Life", source_url: LINE.ok }, queued: [], paused: false },
+  }));
+  await page.route("**/api/queue/events", (route) => route.abort());
+  await queueButton(page).click();
+  await expect(review(page).locator(".batch-item-retry").first()).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.evaluate(async () => (await import("/js/queue.js")).refreshQueue());
+  await page.locator(".rail-queue").click();
+
+  const head = page.locator(".batch-head");
+  await expect(head).toContainText(await uiText(page, "batch.notQueuedCount.other", { count: TICKED_BY_DEFAULT - 1 }));
+  await head.locator(".batch-retry-failed").click();
+  await expect.poll(() => posts.length).toBe(TICKED_BY_DEFAULT + 1);
+});
+
+test("clearing the chip while the batch is being sent leaves nothing broken", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+  await pasteList(page);
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  const posts = [];
+  await page.route(/\/api\/jobs$/, async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    posts.push(route.request().postDataJSON());
+    await held;
+    return route.fulfill({ json: { job_id: `e2e0b00000${String(posts.length).padStart(2, "0")}` } });
+  });
+  await queueButton(page).click();
+  await expect.poll(() => posts.length).toBe(1);
+  await page.locator("#fileClear").click();
+  release();
+  await expect.poll(() => posts.length).toBe(TICKED_BY_DEFAULT);
+  await expect(page.locator('.cat-item[data-id="e2e0b0000001"]')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+/** Drop a folder of `count` wav files through a stand-in for the browser's entries. */
+async function dropFolderOf(page, count) {
+  await page.evaluate((n) => {
+    const files = Array.from({ length: n }, (_, i) => ({
+      isFile: true, isDirectory: false, name: `${String(i).padStart(4, "0")}.wav`,
+      file: (ok) => ok(new File(["RIFF"], `${String(i).padStart(4, "0")}.wav`)),
+    }));
+    let read = false;
+    const tree = { isFile: false, isDirectory: true, name: "Archive", createReader: () => ({ readEntries: (ok) => { ok(read ? [] : files); read = true; } }) };
+    DataTransferItem.prototype.webkitGetAsEntry = function webkitGetAsEntry() { return tree; };
+    const data = new DataTransfer();
+    data.items.add(new File([""], "Archive"));
+    document.body.dispatchEvent(new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true }));
+  }, count);
+}
+
+test("a folder over the server's limit is cut there, and says what it left out", async ({ page }) => {
+  await openBar(page);
+  const asked = await stubPreview(page, { items: [], playlists: [], files: [], max_duration_sec: MAX_DURATION_SEC, capacity_left: { links: 20, files: 20 } });
+  await dropFolderOf(page, 502);
+  await expect(review(page).locator(".batch-review-note")).toHaveText(await uiText(page, "batch.overCapFiles.other", { max: 500, count: 2 }));
+  await expect.poll(() => asked[0]?.files.length).toBe(500);
+});
+
+test("a review the server could not check says why, and Try again checks it", async ({ page }) => {
+  await openBar(page);
+  let fail = true;
+  await page.route("**/api/import/preview", (route) => (fail
+    ? route.fulfill({ status: 500, json: { detail: "lookup broke" } })
+    : route.fulfill({ json: preview() })));
+  await paste(page, PASTE);
+  await expect(review(page).locator(".batch-review-error")).toContainText("lookup broke");
+  await expect(review(page).locator(".batch-item-sub", { hasText: await uiText(page, "batch.lookingUp") })).toHaveCount(0);
+  await expect(queueButton(page)).toBeDisabled();
+
+  fail = false;
+  await review(page).locator(".batch-preview-retry").click();
+  await expect(row(page, "Build My Life")).toBeVisible();
+  await expect(queueButton(page)).toBeEnabled();
 });

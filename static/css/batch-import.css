@@ -1,32 +1,45 @@
-/* Batch import (#36): the bar's folder button and chip, the review list hung
-   under the bar, and the queue view's batch header. */
+/* Batch import: the bar's folder button and chip, the review list hung under
+   the bar, and the queue view's batch header. */
+
+:root {
+  --batch-z-scrim: 49;
+  --batch-z-review: 50;
+  --batch-review-w: 640px;
+  --batch-review-clearance: 160px; /* the top bar and a margin below the list */
+  --batch-row-h: 40px;
+  --batch-check: 16px;
+  --batch-bar-h: 3px;
+  --batch-flag-tint: 14%;
+  --batch-disabled-opacity: 0.5;
+}
 
 /* ── The bar ── */
-.daw-url-zone .daw-upload-btn .ic { width: var(--icon); height: var(--icon); }
-.batch-folder-btn[hidden],
-.empty-start-btn[hidden] { display: none; }
-.daw-composer > .daw-url-zone.drag-over {
+.batch-icon-slot,
+.batch-pill-ic { display: inline-grid; place-items: center; }
+.batch-icon-slot .ic { width: var(--icon); height: var(--icon); }
+.batch-folder-btn[hidden] { display: none; }
+.daw-url-zone.batch-drop-target {
   border-style: dashed;
   border-color: var(--accent);
   background: var(--accent-soft);
   box-shadow: none;
 }
-.daw-url-zone.drag-over #url::placeholder { color: var(--accent-hi); }
+.batch-drop-target #url::placeholder { color: var(--accent-hi); }
 
-.file-pill .batch-pill-ic { display: none; width: var(--icon-sm); height: var(--icon-sm); flex: none; }
-.file-pill[data-kind] > svg:first-child { display: none; }
-.file-pill[data-kind="links"] .batch-pill-links,
-.file-pill[data-kind="folder"] .batch-pill-folder { display: block; }
-.file-pill[data-kind] .file-name { max-width: none; }
+.batch-pill-ic { display: none; flex: none; }
+.batch-pill-ic .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.batch-pill > svg { display: none; }
+.batch-pill[data-kind="links"] [data-kind-icon="links"],
+.batch-pill[data-kind="folder"] [data-kind-icon="folder"] { display: inline-grid; }
+.batch-pill .file-name { max-width: none; }
 
 /* ── The review list ── */
-.batch-scrim { position: fixed; inset: 0; z-index: 49; background: var(--scrim); cursor: pointer; }
+.batch-scrim { position: fixed; inset: 0; z-index: var(--batch-z-scrim); background: var(--scrim); cursor: pointer; }
 .batch-review {
-  --batch-check: 16px;
   position: fixed;
-  z-index: 50;
-  width: min(640px, calc(100vw - 2 * var(--s-4)));
-  max-height: calc(100vh - 160px);
+  z-index: var(--batch-z-review);
+  width: min(var(--batch-review-w), calc(100vw - 2 * var(--s-4)));
+  max-height: calc(100vh - var(--batch-review-clearance));
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line-strong);
@@ -52,6 +65,8 @@
   font-size: var(--fs-sm);
   color: var(--warn);
 }
+.batch-review-error { display: flex; align-items: center; gap: var(--s-2); color: var(--danger); }
+.batch-review-error .batch-btn { margin-left: auto; }
 
 .batch-review-close,
 .batch-item-drop,
@@ -86,7 +101,7 @@
   display: flex;
   align-items: center;
   gap: var(--s-3);
-  min-height: 40px;
+  min-height: var(--batch-row-h);
   padding: var(--s-1) var(--s-2);
   border-radius: var(--r-1);
 }
@@ -119,8 +134,8 @@
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
-.batch-flag-dup { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }
-.batch-flag-block { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.batch-flag-dup { background: color-mix(in srgb, var(--warn) var(--batch-flag-tint), transparent); color: var(--warn); }
+.batch-flag-block { background: color-mix(in srgb, var(--danger) var(--batch-flag-tint), transparent); color: var(--danger); }
 
 .batch-folder {
   display: flex;
@@ -143,7 +158,7 @@
   color: var(--accent-hi);
 }
 
-.batch-spin { animation: batch-spin 1s linear infinite; }
+.batch-spin .ic { animation: batch-spin 1s linear infinite; }
 @keyframes batch-spin { to { transform: rotate(360deg); } }
 
 .batch-review-foot {
@@ -175,7 +190,7 @@
   cursor: pointer;
 }
 .batch-btn:hover { background: var(--surface-3); }
-.batch-btn:disabled { opacity: 0.5; cursor: default; }
+.batch-btn:disabled { opacity: var(--batch-disabled-opacity); cursor: default; }
 .batch-btn .ic { width: var(--icon-sm); height: var(--icon-sm); }
 .batch-btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .batch-btn-primary:hover:not(:disabled) { background: var(--accent-hi); }
@@ -187,7 +202,7 @@
 .batch-head-bar {
   align-self: stretch;
   display: flex;
-  height: 3px;
+  height: var(--batch-bar-h);
   overflow: hidden;
   border-radius: var(--r-pill);
   background: var(--surface-3);

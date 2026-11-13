@@ -17,9 +17,9 @@ import {
 } from "./importSource.js";
 import { confirmDialog } from "./confirmDialog.js";
 import {
-  batchProgress, cancelQueuedJob, currentIds, dropFromBatch, getBatchJobIds, getQueueSnapshot, isPaused,
-  onJobSettled, onQueueChange, queueCount, queueRowStates, refreshQueue, reorderQueuedJob, runningLabel,
-  startQueue, startQueueStream,
+  batchProgress, batchStillShown, cancelQueuedJob, currentIds, dropFromBatch, getBatch, getQueueSnapshot,
+  isPaused, onJobSettled, onQueueChange, queueCount, queueRowStates, refreshQueue, reorderQueuedJob,
+  resendNotQueued, runningLabel, startQueue, startQueueStream,
 } from "./queue.js";
 import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
@@ -3514,13 +3514,13 @@ function mountQueueSection(listEl, section, saved) {
 // ─── Queue view: the batch a review list queued ───
 
 const PERCENT = 100;
-const SEVERAL_JOBS = 2;
 
-/** Where the last batch stands, or null when there is no batch of several. */
+/** Where the last batch stands, or null once it is all done or dismissed. */
 function queueBatchProgress(snap) {
-  const ids = getBatchJobIds();
-  if (ids.length < SEVERAL_JOBS) return null;
-  return batchProgress(ids, snap, (id) => tracks[id]?.status);
+  const { jobIds, notQueued } = getBatch();
+  const progress = batchProgress(jobIds, snap, (id) => tracks[id]?.status);
+  if (!batchStillShown(progress, notQueued)) return null;
+  return { ...progress, notQueued, total: progress.total + notQueued };
 }
 
 const batchSignature = (progress) => (progress ? JSON.stringify(progress) : "");
@@ -3529,13 +3529,14 @@ const share = (part, total) => (total ? Math.round((part / total) * PERCENT) : 0
 function batchHeaderHtml(progress) {
   const parts = [];
   if (progress.failed) parts.push(`<span class="batch-failed-label">${esc(i18nPlural("batch.failedCount", progress.failed))}</span>`);
+  if (progress.notQueued) parts.push(`<span class="batch-failed-label">${esc(i18nPlural("batch.notQueuedCount", progress.notQueued))}</span>`);
   if (progress.waiting) parts.push(esc(i18nPlural("batch.waitingCount", progress.waiting)));
-  const retry = progress.failed
+  const retry = progress.failed || progress.notQueued
     ? `<button class="batch-btn batch-retry-failed" type="button">${icon("restore")}<span>${esc(i18nT("batch.retryFailed"))}</span></button>`
     : "";
   return `<div class="batch-head">
       <div class="batch-head-text"><b>${esc(i18nT("batch.doneOf", { done: progress.done, total: progress.total }))}</b><span>${parts.join(" · ")}</span></div>
-      <div class="batch-head-bar" aria-hidden="true"><span class="batch-head-done" style="width:${share(progress.done, progress.total)}%"></span><span class="batch-head-failed" style="width:${share(progress.failed, progress.total)}%"></span></div>
+      <div class="batch-head-bar" aria-hidden="true"><span class="batch-head-done" style="width:${share(progress.done, progress.total)}%"></span><span class="batch-head-failed" style="width:${share(progress.failed + progress.notQueued, progress.total)}%"></span></div>
       ${retry}
     </div>`;
 }
@@ -3565,14 +3566,18 @@ function onBatchFailedRetryClick(e) {
 function onBatchFailedDropClick(e) {
   e.stopPropagation();
   dropFromBatch(e.currentTarget.closest(".batch-failed-row").dataset.id);
-  renderQueueList(document.getElementById("catalogList"));
+  const snap = getQueueSnapshot();
+  if (queueCount(snap) === 0 && !queueBatchProgress(snap)) setCatalogView("library");
+  else renderQueueList(document.getElementById("catalogList"), snap);
 }
 
+/** Failed jobs retry as themselves; the items the queue did not take are sent again. */
 async function onRetryFailedClick(e) {
-  const btn = e.currentTarget;
-  btn.disabled = true;
+  e.currentTarget.disabled = true;
   const failed = queueBatchProgress(getQueueSnapshot())?.failedIds ?? [];
   for (const id of failed) await retryFailedImport(id);
+  await resendNotQueued();
+  renderQueueList(document.getElementById("catalogList"));
 }
 
 function wireBatchRows(section) {
@@ -3614,7 +3619,7 @@ function renderQueueList(listEl, snap = getQueueSnapshot()) {
     section.querySelector(".queue-start-btn")?.addEventListener("click", onQueueStartClick);
   }
 
-  if (!entries.length) {
+  if (!entries.length && !progress) {
     section.insertAdjacentHTML("beforeend", emptyStateHtml("queue", "queue.emptyTitle", "queue.emptyHint"));
     mountQueueSection(listEl, section, focus);
     return;
@@ -3672,7 +3677,7 @@ function updateQueueBadge(snap = getQueueSnapshot()) {
   const badge = document.getElementById("queueBadge");
   if (!btn) return;
   const count = queueCount(snap);
-  btn.classList.toggle("hidden", count === 0 && catalogView !== "queue");
+  btn.classList.toggle("hidden", count === 0 && catalogView !== "queue" && !queueBatchProgress(snap));
   if (badge) {
     badge.textContent = count > 99 ? "99+" : String(count);
     badge.classList.toggle("hidden", count === 0);
@@ -3685,7 +3690,7 @@ function onQueueFrame(snap) {
     applyQueueDecorations(snap);
     return;
   }
-  if (queueCount(snap) === 0) {
+  if (queueCount(snap) === 0 && !queueBatchProgress(snap)) {
     // Nothing left to manage. Fall back to the library rather than leaving the
     // user in a view that can only ever be empty from here. Deliberately not
     // done inside updateQueueBadge, which render() calls -- that would recurse.

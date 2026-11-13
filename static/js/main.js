@@ -18,7 +18,7 @@ import { wireStemListControls, wireMixerToolbar, laneDragIcon } from "./mixer.js
 import { initCatalog, collectDiagnostics, isTextEditingTarget } from "./catalog.js";
 import { initNotifications, notifyFailure, dismissFailuresByJobId } from "./notifications.js";
 import { runStoreMigrationIfNeeded } from "./utils.js";
-import { initI18n, applyTranslations, t, plural, onLanguageChange } from "./i18n.js";
+import { initI18n, applyTranslations, t, onLanguageChange } from "./i18n.js";
 import { initFooterFit, refitFooter } from "./footerFit.js";
 import { initArtistInfo } from "./artistInfo.js";
 import { initLyrics } from "./lyrics.js";
@@ -34,8 +34,10 @@ import { initSetlists } from "./setlists.js";
 import { initSongRename } from "./songRename.js";
 import { initTrackMenu } from "./trackMenu.js";
 import { initConnection } from "./connection.js";
-import { clearBatch, startFileBatch } from "./batchImport.js";
-import { MAX_UPLOAD_BYTES, folderFiles, formatBytes, isAudioName, walkEntries } from "./batchImportModel.js";
+import { clearBatch, setImportPill, startFileBatch, wireBatchImport } from "./batchImport.js";
+import {
+  MAX_UPLOAD_BYTES, PATH_SEP, folderFiles, formatBytes, isAudioName, isUploadable, walkEntries,
+} from "./batchImportModel.js";
 
 // ─── Stem choice toggles on the import page ───
 //
@@ -477,6 +479,7 @@ wireVocalModeToggle();
 wireStemChipsPopover();
 wireAutoSectionsToggle();
 wireFileDrop();
+wireBatchImport();
 wireEmptyStart();
 wireAppShellControls();
 initFooterFit();
@@ -808,7 +811,7 @@ function canPickFolder() {
 
 /** The folder's own name: the first part of every file's path below it. */
 function rootFolderName(entries) {
-  return entries.find((e) => e.dir)?.dir.split("/")[0] ?? null;
+  return entries.find((e) => e.dir)?.dir.split(PATH_SEP)[0] ?? null;
 }
 
 function stageFolder(entries, showDropError) {
@@ -850,8 +853,6 @@ function wireFileDrop() {
   const urlInput = document.getElementById("url");
   const fileInput = document.getElementById("fileInput");
   const filePill = document.getElementById("filePill");
-  const fileName = document.getElementById("fileName");
-  const fileSize = document.getElementById("fileSize");
   const fileClear = document.getElementById("fileClear");
   const dropError = document.getElementById("urlDropError");
   if (!urlWrap || !urlInput || !fileInput || !filePill) return;
@@ -885,13 +886,12 @@ function wireFileDrop() {
   const isAudioFile = (file) => isAudioName(file.name);
 
   /**
-   * Which of a set of picked or dropped files can be staged, and why the rest
-   * cannot.
+   * The one picked or dropped file, if it can be staged; null, having said why,
+   * when it cannot. Several go to the batch review instead, flagged there.
    *
    * Works on anything with a name and a size rather than on File objects, so a
    * native drop can be screened before any of its bytes are read: a file that
    * is going to be refused should not be loaded into memory to find that out.
-   * Returns null, having said why, when nothing can be staged.
    */
   function screenFiles(list) {
     const all = [...(list || [])];
@@ -910,39 +910,31 @@ function wireFileDrop() {
       showDropError(t("upload.fileTooLarge", { size: formatBytes(audio[0].size), max: formatBytes(MAX_UPLOAD_BYTES) }));
       return null;
     }
-    const skipped = all
-      .filter((f) => !files.includes(f))
-      .map((f) =>
-        t(
-          "import.itemReason",
-          {
-            name: f.name,
-            reason: t(isAudioFile(f) ? "upload.reasonOversized" : "upload.reasonNotAudio"),
-          },
-        ),
-      );
-    return { files, skipped };
+    return files;
   }
 
   function applyFiles(fileList) {
-    const screened = screenFiles(fileList);
+    const all = [...(fileList || [])];
+    if (all.length > 1) {
+      stageLooseFiles(all);
+      return;
+    }
+    const screened = screenFiles(all);
     if (screened) stageFiles(screened);
   }
 
-  /** Arms the import with files that have already passed screenFiles. */
-  function stageFiles({ files, skipped }) {
-    clearBatch();
-    if (fileName) {
-      fileName.textContent =
-        files.length === 1 ? files[0].name : plural("batch.files", files.length);
-    }
-    if (fileSize) {
-      const bytes = files.reduce((sum, f) => sum + f.size, 0);
-      fileSize.textContent = formatBytes(bytes);
-    }
+  /** Several files: the review lists each, with what is wrong with any of them. */
+  function stageLooseFiles(files) {
+    clearFile();
     clearDropError();
-    filePill.classList.remove("hidden");
-    urlWrap.classList.add("has-file");
+    startFileBatch(files.map((file) => ({ file, dir: "" })));
+  }
+
+  /** Arms the import with a file that has already passed screenFiles. */
+  function stageFiles(files) {
+    clearBatch();
+    clearDropError();
+    setImportPill({ name: files[0].name, size: formatBytes(files[0].size) });
     // Cache the File objects directly on the element so job.js can always
     // retrieve them even after the browser clears fileInput.files following
     // a fetch() submission (known WKWebView / Chromium behaviour). _file stays
@@ -952,13 +944,6 @@ function wireFileDrop() {
     const dt = new DataTransfer();
     for (const f of files) dt.items.add(f);
     fileInput.files = dt.files;
-    urlInput.value = "";
-    urlInput.removeAttribute("required");
-
-    if (skipped.length) {
-      showError(t("upload.skippedNamed"), skipped.join(t("list.separator")), { onRetry: null });
-    }
-    if (files.length > 1) startFileBatch(files.map((file) => ({ file, dir: "" })));
   }
 
   function clearFile() {
@@ -983,6 +968,7 @@ function wireFileDrop() {
   // Hovering says what a drop takes, in the box itself.
   function setDragHover(on) {
     urlWrap.classList.toggle("drag-over", on);
+    urlWrap.classList.toggle("batch-drop-target", on);
     urlInput.placeholder = t(on ? "batch.dropHere" : "batch.placeholder");
   }
 
@@ -1104,25 +1090,35 @@ function wireFileDrop() {
   }
 
   // `dropped` is [{ id, name, size }]: descriptions, not files. They are
-  // screened as they are, and only what is accepted is read.
+  // screened as they are, and only what can be uploaded is read.
   async function applyNativeDrop(invoke, dropped) {
+    if (dropped.length > 1) {
+      const read = await readDropped(invoke, dropped.filter(isUploadable));
+      if (read) stageLooseFiles(dropped.map((d) => read.get(d.id) ?? d));
+      return;
+    }
     const screened = screenFiles(dropped);
     if (!screened) return;
-    const files = [];
+    const read = await readDropped(invoke, screened);
+    if (read) stageFiles([...read.values()]);
+  }
+
+  /** The dropped files' bytes, by id; null, having said which, when one cannot be read. */
+  async function readDropped(invoke, descriptions) {
+    const files = new Map();
     // One at a time, so a single transfer of up to MAX_UPLOAD_BYTES is in
-    // flight rather than one per file. Every accepted file is still held until
-    // staging, as a picked one is: parallel reads would only raise the peak.
-    for (const d of screened.files) {
+    // flight rather than one per file: parallel reads would only raise the peak.
+    for (const d of descriptions) {
       try {
         const bytes = await invoke("read_dropped_file", { id: d.id });
-        files.push(new File([bytes], d.name));
+        files.set(d.id, new File([bytes], d.name));
       } catch (e) {
         console.warn("[drop] could not read a dropped file:", e);
         showDropError(t("upload.dropReadFailed", { name: d.name }));
-        return;
+        return null;
       }
     }
-    stageFiles({ ...screened, files });
+    return files;
   }
 }
 
