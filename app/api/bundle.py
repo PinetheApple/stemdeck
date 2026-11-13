@@ -21,14 +21,9 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
-from app.api.stems import (
-    _ENCODE_ARGS,
-    _VOCAL_DECOMPOSITION_NAMES,
-    _parse_pitches,
-    _read_beat_grid,
-    _title_slug,
-)
+from app.api.stems import _VOCAL_DECOMPOSITION_NAMES, _parse_pitches, _read_beat_grid, _title_slug
 from app.core.config import (
+    EXPORT_ENCODE_ARGS,
     EXTRA_STEM_NAMES,
     JOB_ID_RE,
     JOBS_DIR,
@@ -161,7 +156,7 @@ def _encode_flac(src: Path, dest: Path) -> None:
         "error",
         "-i",
         str(src),
-        *_ENCODE_ARGS["flac"],
+        *EXPORT_ENCODE_ARGS["flac"],
         "-f",
         "flac",
         str(dest),
