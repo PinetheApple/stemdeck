@@ -2959,8 +2959,7 @@ export function redrawLibrary() {
 export function applyVersionsState(trackId, state) {
   const track = tracks[trackId];
   if (!track) return;
-  track.versions = state.versions;
-  track.openVersion = state.open_version;
+  takeVersions(track, state);
   saveState();
   render();
   if (trackId === _currentTrackId) paintVersionPill(track);
@@ -2979,9 +2978,13 @@ function applyServerVersions(track, state) {
   if (!state.versions) return false;
   const same = JSON.stringify(track.versions) === JSON.stringify(state.versions);
   if (same && track.openVersion === state.open_version) return false;
+  takeVersions(track, state);
+  return true;
+}
+
+function takeVersions(track, state) {
   track.versions = state.versions;
   track.openVersion = state.open_version;
-  return true;
 }
 
 function drawCatalog() {
