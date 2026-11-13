@@ -58,6 +58,52 @@ async function queueWithFailure(page, { retryStatus = 200 } = {}) {
 
 const failedRow = (page) => page.locator(`.batch-failed-row[data-id="${FAILED_ID}"]`);
 
+/** Count the list's child insertions and removals from here on; read them with `redrawCount`. */
+async function countRedraws(page) {
+  await page.evaluate(() => {
+    window.queueRedraws = 0;
+    new MutationObserver(function countRedraw(records) {
+      window.queueRedraws += records.length;
+    }).observe(document.getElementById("catalogList"), { childList: true, subtree: true });
+  });
+}
+
+const redrawCount = (page) => page.evaluate(() => window.queueRedraws);
+
+async function finishRunningJob(page, queue, refresh) {
+  queue.running = false;
+  await refresh();
+  await expect(page.locator(`.queue-row[data-id="${RUNNING_ID}"]`)).toHaveCount(0);
+}
+
+test("a batch change with a queue control focused redraws once and settles", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+  const { queue, refresh } = await queueWithFailure(page);
+  const cancel = page.locator(`.queue-row[data-id="${WAITING_ID}"] .queue-cancel`);
+  await cancel.focus();
+  await countRedraws(page);
+
+  await finishRunningJob(page, queue, refresh);
+  const settled = await redrawCount(page);
+  await refresh();
+  await refresh();
+
+  expect(await redrawCount(page)).toBe(settled);
+  await expect(cancel).toBeFocused();
+  expect(errors).toEqual([]);
+});
+
+test("a failed row's Retry keeps focus through a batch redraw", async ({ page }) => {
+  const { queue, refresh } = await queueWithFailure(page);
+  const retry = failedRow(page).locator(".batch-failed-retry");
+  await retry.focus();
+
+  await finishRunningJob(page, queue, refresh);
+
+  await expect(retry).toBeFocused();
+});
+
 test("a failed item stays in the queue with its reason and Retry", async ({ page }) => {
   const { queue, refresh, retries } = await queueWithFailure(page);
   const failed = failedRow(page);
