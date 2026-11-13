@@ -3208,7 +3208,7 @@ input, textarea { font-family: inherit; }
 .bg-tool-label {
   font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--muted);
 }
-.bg-tools { display: flex; gap: 3px; }
+.bg-tools { display: flex; flex-wrap: wrap; gap: 3px; }
 .bg-btn {
   padding: 3px 9px;
   background: var(--panel); border: 1px solid var(--border-strong);
