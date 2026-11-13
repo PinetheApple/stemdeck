@@ -3,7 +3,14 @@ import { STEM_NAMES } from "./constants.js";
 import { STEM_EXT_MP3 } from "./playbackStems.js";
 import { wireUpAudio, updateFooterTrack } from "./player.js";
 import { initSections } from "./sections.js";
-import { audioEngine, bpmChip, foregroundJobId, keyChip, multitrack, saveSelectedStems, selectedStems, titleEl } from "./state.js";
+import {
+  audioEngine, bpmChip, foregroundJobId, keyChip, multitrack, saveSelectedStems, selectedStems, setCurrentVersionId, titleEl,
+} from "./state.js";
+import { DEFAULT_VERSION_ID, hasVersionRows, openVersionOf, sameLanes } from "./versionModel.js";
+import {
+  forgetVersionMixes, initVersions, openVersion, paintOpenVersion, paintVersionPill, versionExtras, versionToggleHtml,
+  wireVersionToggle,
+} from "./versions.js";
 import { refreshStemChoiceVisuals } from "./stemChoice.js";
 import { trackFormat, formatIconSvg, paintNowPlayingArt } from "./formatIcon.js";
 import { formatKey } from "./keyLabel.js";
@@ -182,9 +189,14 @@ function trackMatchesSearch(track) {
   ].some((value) => String(value || "").toLowerCase().includes(q));
 }
 
+// A re-import is a new job: the server's state says which versions it has.
+const VERSION_FIELDS = ["versions", "openVersion", "versionsExpanded"];
+
 function replaceTrackId(oldId, newId) {
   if (!oldId || !newId || oldId === newId || !tracks[oldId]) return;
-  tracks[newId] = { ...tracks[oldId], ...(tracks[newId] || {}), id: newId };
+  const carried = { ...tracks[oldId] };
+  for (const field of VERSION_FIELDS) delete carried[field];
+  tracks[newId] = { ...carried, ...(tracks[newId] || {}), id: newId };
   delete tracks[oldId];
   moveHeldBand(oldId, newId);
   for (const folder of folders) {
@@ -199,6 +211,7 @@ function purgeTrash(deletedIds) {
   if (!trash?.items.length) return false;
   const trashIds = new Set(trash.items.filter((id) => deletedIds.includes(id)));
   for (const id of trashIds) {
+    forgetVersionMixes(id, tracks[id]);
     delete tracks[id];
     dropHeldBand(id);
   }
@@ -735,6 +748,7 @@ function paintNowPlayingArtist(track) {
   // The whole name on hover, since a long title can leave it clipped.
   el.title = name;
   el.hidden = !name;
+  paintVersionPill(track);
 }
 
 // ─── Tags for tracks imported before they were read ───
@@ -969,6 +983,8 @@ function stateMetadataToTrack(state, fallbackTrack) {
     hasVideo: state.has_video ?? fallbackTrack.hasVideo ?? false,
     videoStatus: state.video_status ?? fallbackTrack.videoStatus ?? null,
     createdAt: fallbackTrack.createdAt ?? state.created_at,
+    versions: state.versions ?? fallbackTrack.versions ?? null,
+    openVersion: state.open_version ?? fallbackTrack.openVersion ?? null,
     favorite: fallbackTrack.favorite ?? false,
     artist: serverBand(state.job_id, fallbackTrack.artist, state),
     bandSaved: Boolean(state.user_band),
@@ -1351,8 +1367,15 @@ export function showLibraryView() {
   if (catalogView !== "library") setCatalogView("library");
 }
 
+// The default version alone plays the import's selection, read as before; the
+// server fills its stems with every stem when an old record has no selection.
+function playsVersionStems(track) {
+  const open = openVersionOf(track);
+  return Boolean(open) && (hasVersionRows(track) || open.id !== DEFAULT_VERSION_ID);
+}
+
 function applyStoredStemSelection(track) {
-  const stored = track.selectedStems || track.stems || [];
+  const stored = playsVersionStems(track) ? openVersionOf(track).stems : track.selectedStems || track.stems || [];
   const next = stored.filter((name) => STEM_NAMES.includes(name));
   if (!next.length) return;
   selectedStems.clear();
@@ -1397,6 +1420,12 @@ async function reimportUnavailableTrack(trackId, track) {
   } finally {
     _reimportsAsked.delete(trackId);
   }
+}
+
+/** mix.wav is the import's selection, so a version playing other stems has none. */
+function importMixUrl(track) {
+  if (!playsVersionStems(track)) return track.mixUrl ?? null;
+  return sameLanes(openVersionOf(track).stems, track.selectedStems || []) ? track.mixUrl ?? null : null;
 }
 
 export async function loadTrackIntoStudio(trackId) {
@@ -1466,7 +1495,8 @@ export async function loadTrackIntoStudio(trackId) {
   setResplitTarget(resplittable ? track : null);
 
   applyTrackInfoToPanel(track);
-  wireUpAudio(trackId, track.audioStems, track.duration || 0, track.thumb, track.mixUrl ?? null, track.title || "", peaksPromise, track.hasVideo ?? false, track.videoStatus ?? null);
+  setCurrentVersionId(openVersionOf(track)?.id ?? DEFAULT_VERSION_ID);
+  wireUpAudio(trackId, track.audioStems, track.duration || 0, track.thumb, importMixUrl(track), track.title || "", peaksPromise, track.hasVideo ?? false, track.videoStatus ?? null);
   initSections(trackId, track.sections, track.duration || 0);
   // Not awaited: the track is already loading, and the answer arrives as a
   // "tracktags" event.
@@ -1520,6 +1550,7 @@ export function setCurrentTrack(trackId) {
   for (const el of document.querySelectorAll(`.cat-item[data-id="${trackId}"]`)) el.classList.add("active");
   for (const el of document.querySelectorAll(".strip-thumb.active")) el.classList.remove("active");
   for (const el of document.querySelectorAll(`.strip-thumb[data-id="${trackId}"]`)) el.classList.add("active");
+  paintOpenVersion(trackId);
 }
 
 // ─── Folder operations ───
@@ -2203,6 +2234,7 @@ const SONG_ROW_SELECTOR = ".cat-item:not(.in-trash):not(.queue-row)";
 const TRASH_ROW_SELECTOR = ".cat-item.in-trash";
 const FOLDER_ROW_SELECTOR = ".folder-head";
 const LIBRARY_ROW_SELECTOR = `#catalogList ${SONG_ROW_SELECTOR}`;
+const VERSION_ROW_SELECTOR = ".cat-version:not(.queue-running):not(.renaming-row)";
 
 let libraryRows = null;
 
@@ -2216,13 +2248,15 @@ function toggleFolderCollapsed(folderEl) {
 }
 
 function libraryRowKey(row) {
-  return row.matches(FOLDER_ROW_SELECTOR) ? `folder:${row.parentElement.dataset.id}` : row.dataset.id;
+  if (row.matches(FOLDER_ROW_SELECTOR)) return `folder:${row.parentElement.dataset.id}`;
+  return row.dataset.version ? `${row.dataset.id}:${row.dataset.version}` : row.dataset.id;
 }
 
 // A Trash row's own Enter is hold-to-restore (wireTrashRow); it never opens the song.
 function openLibraryRow(row) {
   if (row.matches(TRASH_ROW_SELECTOR)) return;
   if (row.matches(FOLDER_ROW_SELECTOR)) toggleFolderCollapsed(row.parentElement);
+  else if (row.dataset.version) openVersion(row.dataset.id, row.dataset.version);
   else loadTrackIntoStudio(row.dataset.id);
 }
 
@@ -2236,12 +2270,18 @@ function wireLibraryRows() {
   libraryRows = wireRovingRows(
     list,
     {
-      rowSelector: `${SONG_ROW_SELECTOR}, ${TRASH_ROW_SELECTOR}, ${FOLDER_ROW_SELECTOR}`,
-      actionSelector: `${SONG_ROW_SELECTOR} .cat-actions button, ${SONG_ROW_SELECTOR} .import-fail-panel :is(button, a), ${FOLDER_ROW_SELECTOR} button`,
+      rowSelector: `${SONG_ROW_SELECTOR}, ${VERSION_ROW_SELECTOR}, ${TRASH_ROW_SELECTOR}, ${FOLDER_ROW_SELECTOR}`,
+      actionSelector: [
+        `${SONG_ROW_SELECTOR} .cat-actions button`,
+        `${SONG_ROW_SELECTOR} .import-fail-panel :is(button, a)`,
+        `${FOLDER_ROW_SELECTOR} button`,
+        ".cat-version .cat-actions button",
+        ".cat-item .cat-versions-toggle",
+      ].join(", "),
       keyOf: libraryRowKey,
       openRow: openLibraryRow,
       preferredRow: preferredLibraryRow,
-      selectableRow: SONG_ROW_SELECTOR,
+      selectableRow: `${SONG_ROW_SELECTOR}, ${VERSION_ROW_SELECTOR}`,
     },
   );
 }
@@ -2367,15 +2407,20 @@ function trackSublineHtml(track, { inTrash = false } = {}) {
     parts = [i18nT("track.stopped")];
   } else {
     // No stem count: forty rows saying "6 stems" says nothing (#699).
-    parts = [nowPlayingArtist(track), track.duration ? fmtTime(track.duration) : ""];
+    const timeShown = track.duration && !showsVersionRows(track, inTrash);
+    parts = [nowPlayingArtist(track), timeShown ? fmtTime(track.duration) : ""];
   }
   if (inTrash) parts.push(i18nT("track.removed"));
   // Spaced as text as well as by the row's flex gap, so what a screen reader
   // or a copy gets reads "05:57 · 6 stems" rather than "05:57·6 stems".
-  return parts
-    .filter(Boolean)
-    .map((part) => `<span>${esc(part)}</span>`)
-    .join(' <span class="dot">·</span> ');
+  return [
+    ...parts.filter(Boolean).map((part) => `<span>${esc(part)}</span>`),
+    ...(showsVersionRows(track, inTrash) ? [versionToggleHtml(track)] : []),
+  ].join(' <span class="dot">·</span> ');
+}
+
+function showsVersionRows(track, inTrash = false) {
+  return !inTrash && track.status === "done" && hasVersionRows(track);
 }
 
 function renderRecentItem(trackId) {
@@ -2383,7 +2428,7 @@ function renderRecentItem(trackId) {
   if (!track) return null;
   const el = document.createElement("div");
   const isUnavailable = track.status === "unavailable";
-  el.className = `cat-item${trackId === _currentTrackId ? " active" : ""}${isUnavailable ? " unavailable" : ""}${track.favorite ? " is-fav" : ""}`;
+  el.className = `cat-item${trackId === _currentTrackId ? " active" : ""}${isUnavailable ? " unavailable" : ""}${track.favorite ? " is-fav" : ""}${showsVersionRows(track) ? " has-versions" : ""}`;
   el.dataset.id = trackId;
   el.innerHTML = `
     <div class="cat-thumb">${thumbHtml(track)}${playButtonHtml(track)}</div>
@@ -2397,6 +2442,7 @@ function renderRecentItem(trackId) {
   wireFavButton(el, trackId);
   wireUpNextButton(el, trackId);
   wireMoreButton(el, trackId);
+  wireVersionToggle(el);
   wireTrackDrag(el, trackId);
   return el;
 }
@@ -2485,7 +2531,7 @@ function renderTrackItem(trackId, { inTrash = false } = {}) {
   const el = document.createElement("div");
   const isUnavailable = track.status === "unavailable";
   const isFailed = !inTrash && track.status === FAILED_STATUS;
-  el.className = `cat-item${trackId === _currentTrackId ? " active" : ""}${isUnavailable ? " unavailable" : ""}${!inTrash && track.favorite ? " is-fav" : ""}${!inTrash && track.status === "stopped" ? " is-stopped" : ""}${inTrash ? " in-trash" : ""}${inTrash && _trashSelection.has(trackId) ? " selected" : ""}${isFailed ? " is-failed" : ""}`;
+  el.className = `cat-item${trackId === _currentTrackId ? " active" : ""}${isUnavailable ? " unavailable" : ""}${!inTrash && track.favorite ? " is-fav" : ""}${!inTrash && track.status === "stopped" ? " is-stopped" : ""}${inTrash ? " in-trash" : ""}${inTrash && _trashSelection.has(trackId) ? " selected" : ""}${isFailed ? " is-failed" : ""}${showsVersionRows(track, inTrash) ? " has-versions" : ""}`;
   el.dataset.id = trackId;
 
   el.innerHTML = `
@@ -2513,6 +2559,7 @@ function renderTrackItem(trackId, { inTrash = false } = {}) {
   wireFavButton(el, trackId);
   wireUpNextButton(el, trackId);
   wireMoreButton(el, trackId);
+  wireVersionToggle(el);
   if (isFailed) wireFailedRow(el);
 
   if (inTrash) {
@@ -2751,7 +2798,7 @@ function renderFolder(folder) {
   } else {
     for (const id of visibleItems) {
       const item = renderTrackItem(id);
-      if (item) body.appendChild(item);
+      if (item) body.append(item, ...versionExtras(id));
     }
     for (const child of childFolders) {
       const childEl = renderFolder(child);
@@ -2900,7 +2947,41 @@ function renderStrip(strip, nonTrash) {
 function render() {
   const saved = libraryRows?.remember();
   drawCatalog();
+  paintOpenVersion(_currentTrackId);
   libraryRows?.restore(saved);
+}
+
+export function redrawLibrary() {
+  render();
+}
+
+/** A song's versions as the server answered them. */
+export function applyVersionsState(trackId, state) {
+  const track = tracks[trackId];
+  if (!track) return;
+  track.versions = state.versions;
+  track.openVersion = state.open_version;
+  saveState();
+  render();
+  if (trackId === _currentTrackId) paintVersionPill(track);
+}
+
+/** Show or hide a song's version rows; kept on this side only. */
+export function setVersionsExpanded(trackId, expanded) {
+  if (!tracks[trackId]) return;
+  tracks[trackId].versionsExpanded = expanded;
+  saveState();
+  render();
+}
+
+/** Take the server's versions for a known song; whether anything changed. */
+function applyServerVersions(track, state) {
+  if (!state.versions) return false;
+  const same = JSON.stringify(track.versions) === JSON.stringify(state.versions);
+  if (same && track.openVersion === state.open_version) return false;
+  track.versions = state.versions;
+  track.openVersion = state.open_version;
+  return true;
 }
 
 function drawCatalog() {
@@ -2994,7 +3075,7 @@ function drawCatalog() {
     } else {
       for (const id of favIds) {
         const item = renderRecentItem(id);
-        if (item) list.appendChild(item);
+        if (item) list.append(item, ...versionExtras(id));
       }
     }
     renderStrip(strip, nonTrash);
@@ -4527,6 +4608,7 @@ async function syncWithServer() {
           backfilled = true;
         }
         if (applyServerNames(known, state)) backfilled = true;
+        if (applyServerVersions(known, state)) backfilled = true;
         continue;
       }
       if (trashIds.has(state.job_id)) continue;   // soft-deleted, skip
@@ -6347,6 +6429,7 @@ export async function initCatalog() {
   wireRailLibraryDrop();
   wireLibraryDeleteKeys();
   wireLibraryRows();
+  initVersions();
   wireAboutDialog();
   wireReleaseDialog();
   wireSettingsMenu();
