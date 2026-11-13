@@ -13,24 +13,22 @@ import uuid
 import zipfile
 from collections import deque
 from pathlib import Path
-from typing import Annotated, NamedTuple
+from typing import NamedTuple
 
-import soundfile as sf
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 
+from app.api import stems_click
 from app.core.config import (
     AUDIO_MEDIA_TYPES,
     CACHE_DIR,
-    CLICK_SOUND_ID_MAX_CHARS,
-    CLICK_STEM_NAME,
+    EXPORT_ENCODE_ARGS,
     EXTRA_STEM_NAMES,
     JOB_ID_RE,
     JOBS_DIR,
     RENDERED_TRACK_NAMES,
     STEM_NAMES,
-    TEMPO_MAX_BEATS_PER_BAR,
     TIMEOUT_FFMPEG,
     ffmpeg_executable,
 )
@@ -38,14 +36,9 @@ from app.core.registry import get as registry_get
 from app.core.settings import get_export_sample_rate
 from app.core.stem_files import MP3_EXT, stem_ext, stem_media_type, stem_path
 from app.pipeline.audio_stats import VOCAL_ENVELOPE_FILE, vocal_envelope
-from app.pipeline.click_render import (
-    CLICK_TO_STEREO,
-    count_in_beats,
-    render_click_wav,
-    render_count_in_wav,
-)
 from app.pipeline.click_render import cache_key as click_cache_key
-from app.pipeline.click_sounds import CLICK_SOUND_IDS, DEFAULT_CLICK_SOUND
+from app.pipeline.click_render import count_in_beats, render_click_wav, render_count_in_wav
+from app.pipeline.click_sounds import DEFAULT_CLICK_SOUND
 from app.pipeline.tempo_grid import effective_grid, read_beat_edits, read_detected_grid
 
 logger = logging.getLogger("stemdeck.api")
@@ -73,16 +66,7 @@ _MIXDOWN_MAX_GAIN = 4.0
 # energy in the mix (#275).
 _VOCAL_DECOMPOSITION_NAMES = frozenset(EXTRA_STEM_NAMES)
 
-# Output encoders by container/extension, shared by the dynamic mixdown and the
-# stems zip. WAV is lossless PCM, FLAC is lossless compressed, MP3 is VBR ~190 kbps,
-# OGG is Vorbis VBR q6 (~192 kbps) — the quality tier matching the MP3 setting.
-_ENCODE_ARGS = {
-    "wav": ["-c:a", "pcm_s16le"],
-    "mp3": ["-q:a", "2"],
-    "flac": ["-c:a", "flac"],
-    "ogg": ["-c:a", "libvorbis", "-q:a", "6"],
-}
-MIXDOWN_CODECS = {ext: [*args, "-f", ext] for ext, args in _ENCODE_ARGS.items()}
+MIXDOWN_CODECS = {ext: [*args, "-f", ext] for ext, args in EXPORT_ENCODE_ARGS.items()}
 
 # Containers whose muxer finishes the file by seeking back to a header it wrote
 # earlier, which is impossible on a pipe (#458):
@@ -108,30 +92,6 @@ _SEEKABLE_OUTPUT_EXTS = frozenset({"wav", "flac", "mp3"})
 _MIXDOWN_CACHE_DIR = CACHE_DIR / "mixdown"
 _CLICK_CACHE_DIR = CACHE_DIR / "click"
 _MIXDOWN_CACHE_MAX_FILES = 20
-
-# The stems zip's click entry shares the zip's namespace with the stems, so
-# refuse to start rather than let it overwrite one.
-if CLICK_STEM_NAME in (*STEM_NAMES, *EXTRA_STEM_NAMES, "original", "mix"):
-    raise RuntimeError("CLICK_STEM_NAME collides with a stem name")
-
-CLICK_SOUND_QUERY_DESCRIPTION = (
-    "Click sound preset id (static/js/clickSounds.js). Defaults to the classic click, "
-    "which is what a client that predates presets sends."
-)
-
-
-def check_click_sound(sound: str) -> str:
-    """The click sound id, validated against the preset whitelist.
-
-    The id is only ever used as a key into the preset table and a cache-key
-    suffix, never in a path or a command, but it is still refused outright
-    rather than defaulted: a client asking for a sound it cannot have should
-    hear about it, not get the classic click without a word."""
-    if sound not in CLICK_SOUND_IDS:
-        raise HTTPException(status_code=422, detail="unknown click sound")
-    return sound
-
-
 _MIXDOWN_CACHE_MAX_BYTES = 500 * 1024 * 1024  # 500 MB
 
 
@@ -173,10 +133,8 @@ def _mixdown_cache_key(
             "" if start is None else f"{start:.6f}",
             "" if end is None else f"{end:.6f}",
             str(get_export_sample_rate()),
-            # The click's own cache key already encodes the grid, rate, accent
-            # mode and sound, so its filename plus gain fully identifies it.
-            # ":u" (click on both channels at unity): a mix cached with the click
-            # at -3 dB per channel misses; a mix without a click keeps its key.
+            # The click's own cache key already encodes the grid, rate, accent mode
+            # and sound. ":u": the click level changed, so cached click mixes re-render.
             "" if click_lane is None else f"{click_lane[0].name}:{click_lane[1]:.6f}:u",
             # Appended only when something is actually transposed, so every
             # export made before #592 keeps the exact key it already had and
@@ -1012,12 +970,10 @@ async def get_stem(
     name: str,
     start: float | None = Query(default=None, ge=0, description="Trim start in seconds"),
     end: float | None = Query(default=None, gt=0, description="Trim end in seconds"),
-    click: bool = Query(default=False, description="Mix the click track into the export"),
-    click_mult: float = Query(default=1.0, description="Click rate: 0.5, 1 or 2"),
-    click_accent: int = Query(
-        default=-1, ge=-1, le=TEMPO_MAX_BEATS_PER_BAR, description="-1 auto, 0 off, N per bar"
-    ),
-    click_gain: float = Query(default=0.6, ge=0, le=4, description="Click level"),
+    click: bool = stems_click.CLICK_MIX_QUERY,
+    click_mult: float = stems_click.CLICK_MULT_QUERY,
+    click_accent: int = stems_click.CLICK_ACCENT_QUERY,
+    click_gain: float = stems_click.CLICK_GAIN_QUERY,
 ) -> FileResponse | StreamingResponse:
     """A stem as the song stores it: WAV, or MP3 for a song stored as MP3, with
     its own type and file name whatever this URL says. Optional ?start=&end=
@@ -1160,22 +1116,12 @@ async def get_mixdown(
     ),
     start: float | None = Query(default=None, ge=0, description="Trim start in seconds"),
     end: float | None = Query(default=None, gt=0, description="Trim end in seconds"),
-    click: bool = Query(default=False, description="Mix the click track into the export"),
-    click_mult: float = Query(default=1.0, description="Click rate: 0.5, 1 or 2"),
-    click_accent: int = Query(
-        default=-1, ge=-1, le=TEMPO_MAX_BEATS_PER_BAR, description="-1 auto, 0 off, N per bar"
-    ),
-    click_gain: float = Query(default=0.6, ge=0, le=4, description="Click level"),
-    click_groups: str = Query(
-        default="",
-        max_length=64,
-        description='Beat grouping for an explicit meter, e.g. "3+2+2". Blank uses the default.',
-    ),
-    click_sound: str = Query(
-        default=DEFAULT_CLICK_SOUND,
-        max_length=CLICK_SOUND_ID_MAX_CHARS,
-        description=CLICK_SOUND_QUERY_DESCRIPTION,
-    ),
+    click: bool = stems_click.CLICK_MIX_QUERY,
+    click_mult: float = stems_click.CLICK_MULT_QUERY,
+    click_accent: int = stems_click.CLICK_ACCENT_QUERY,
+    click_gain: float = stems_click.CLICK_GAIN_QUERY,
+    click_groups: str = stems_click.CLICK_GROUPS_QUERY,
+    click_sound: str = stems_click.CLICK_SOUND_QUERY,
     count_in: int = Query(
         # Ceiling matches MAX_COUNT_IN_BARS in static/js/state.js, the longest
         # count-in the UI can ask for (#587). The lead-in it prepends is
@@ -1207,7 +1153,7 @@ async def get_mixdown(
 
     names, parsed_gains = _parse_lane_gains(stems, gains)
     parsed_pitches = _parse_pitches(pitches, names)
-    check_click_sound(click_sound)
+    stems_click.check_click_sound(click_sound)
     if (start is None) != (end is None) or (start is not None and start >= end):
         raise HTTPException(
             status_code=422,
@@ -1293,10 +1239,8 @@ async def get_mixdown(
         # silent lead-in padding for nothing.
         filters.append(f"[{i}:a]{_pitch_filter(lane.pitch)}{delay}volume={lane.gain:.6f}[a{i}]")
     if click_lane is not None:
-        # The mono click to stereo at unity, as the app plays it.
-        filters.append(
-            f"[{stem_count}:a]volume={click_lane.gain:.6f},{CLICK_TO_STEREO}[a{stem_count}]"
-        )
+        level = stems_click.click_level_filter(click_lane.gain)
+        filters.append(f"[{stem_count}:a]{level}[a{stem_count}]")
     n = stem_count + (1 if click_lane is not None else 0)
     if n > 1:
         labels = "".join(f"[a{i}]" for i in range(n))
@@ -1368,17 +1312,11 @@ async def get_video_mixdown(
         max_length=128,
         description="Comma-separated semitone shifts parallel to stems (-6..6). Empty = none.",
     ),
-    click: bool = Query(default=False, description="Mix the click track into the export"),
-    click_mult: float = Query(default=1.0, description="Click rate: 0.5, 1 or 2"),
-    click_accent: int = Query(
-        default=-1, ge=-1, le=TEMPO_MAX_BEATS_PER_BAR, description="-1 auto, 0 off, N per bar"
-    ),
-    click_gain: float = Query(default=0.6, ge=0, le=4, description="Click level"),
-    click_sound: str = Query(
-        default=DEFAULT_CLICK_SOUND,
-        max_length=CLICK_SOUND_ID_MAX_CHARS,
-        description=CLICK_SOUND_QUERY_DESCRIPTION,
-    ),
+    click: bool = stems_click.CLICK_MIX_QUERY,
+    click_mult: float = stems_click.CLICK_MULT_QUERY,
+    click_accent: int = stems_click.CLICK_ACCENT_QUERY,
+    click_gain: float = stems_click.CLICK_GAIN_QUERY,
+    click_sound: str = stems_click.CLICK_SOUND_QUERY,
 ) -> StreamingResponse:
     """Mux a fresh audio mixdown of the current mixer state with the job's preserved
     video into an MP4 (issue #219). Mirrors get_mixdown's audio graph (encoded
@@ -1422,7 +1360,7 @@ async def get_video_mixdown(
         click_mult,
         click_accent,
         click_gain,
-        sound=check_click_sound(click_sound),
+        sound=stems_click.check_click_sound(click_sound),
     )
     if click_lane is not None:
         paths = [*paths, click_lane[0]]
@@ -1434,14 +1372,14 @@ async def get_video_mixdown(
     cmd += ["-i", str(video_path)]
     video_idx = len(paths)
     # Per-lane gain then amix (normalize=0 keeps levels faithful). A single audible
-    # lane skips amix (a 1-input amix is a no-op), matching get_mixdown. The
-    # click lane goes to stereo at unity, as in get_mixdown.
-    click_idx = len(render_lanes) - 1 if click_lane is not None else -1
+    # lane skips amix (a 1-input amix is a no-op), matching get_mixdown.
     filters = [
-        f"[{i}:a]{_pitch_filter(lane.pitch)}volume={lane.gain:.6f}"
-        f"{',' + CLICK_TO_STEREO if i == click_idx else ''}[a{i}]"
+        f"[{i}:a]{_pitch_filter(lane.pitch)}volume={lane.gain:.6f}[a{i}]"
         for i, lane in enumerate(render_lanes)
     ]
+    if click_lane is not None:
+        last = len(render_lanes) - 1
+        filters[last] = f"[{last}:a]{stems_click.click_level_filter(click_lane.gain)}[a{last}]"
     n = len(paths)
     if n > 1:
         labels = "".join(f"[a{i}]" for i in range(n))
@@ -1498,156 +1436,15 @@ def _build_stems_zip(
             for name, p in sources:
                 zf.write(p, arcname=_arcname(prefix, name, fmt))
         return
-    encode = _ENCODE_ARGS[fmt]
-    # Beside the zip, so the startup sweep finds what a killed build left.
-    work = tempfile.TemporaryDirectory(prefix=".zipwork-", dir=dest.parent)
-    with work as td, zipfile.ZipFile(dest, "w", zipfile.ZIP_STORED) as zf:
+    encode = [*EXPORT_ENCODE_ARGS[fmt], "-f", fmt]
+    with stems_click.zip_work_dir(dest) as td, zipfile.ZipFile(dest, "w", zipfile.ZIP_STORED) as zf:
         for name, p in sources:
             if stem_ext(p) == fmt:
                 zf.write(p, arcname=_arcname(prefix, name, fmt))
                 continue
-            out = os.path.join(td, f"{name}.{fmt}")
-            cmd = [
-                ffmpeg_executable(),
-                "-nostdin",
-                "-loglevel",
-                "error",
-                "-i",
-                str(p),
-                *encode,
-                "-f",
-                fmt,
-                out,
-            ]
-            proc = subprocess.run(  # noqa: S603 — list args, no shell, trusted ffmpeg
-                cmd,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                timeout=TIMEOUT_FFMPEG,
-            )
-            if proc.returncode != 0:
-                tail = proc.stderr[-2000:].decode("utf-8", "replace")
-                raise RuntimeError(f"ffmpeg failed for {name}: {tail}")
+            out = Path(td) / f"{name}.{fmt}"
+            stems_click.run_ffmpeg(p, out, encode)
             zf.write(out, arcname=_arcname(prefix, name, fmt))
-
-
-class _ClickStem(NamedTuple):
-    """What the stems zip's click file is rendered from: the same choices the
-    click in a mix export is, so the two click identically."""
-
-    grid: dict
-    gain: float
-    multiplier: float
-    accent_mode: int
-    groups: list[int] | None
-    sound: str
-
-
-def _render_click_stem(click: _ClickStem, reference: Path, workdir: Path) -> Path | None:
-    """Blocking: the isolated click track for the stems zip, as a WAV that
-    _build_stems_zip then stores or transcodes exactly like a stem.
-
-    Sample-aligned with the stems by construction: rendered from the beat grid
-    in song time from sample 0 (the stems' own origin), at the reference stem's
-    rate and channel count, and exactly its length in frames. Its level is what
-    the click contributes to a mix export (`click_gain`, then the mono click on
-    both channels at unity), so the zip's files sum to that mix.
-
-    Returns None when the grid has no beats."""
-    beats = click.grid.get("beats") or []
-    if not beats:
-        return None
-    info = sf.info(str(reference))
-    frames, rate = int(info.frames), int(info.samplerate)
-    raw = render_click_wav(
-        workdir / "click_mono.wav",
-        beats,
-        click.grid.get("bars") or [],
-        frames / rate,
-        sample_rate=rate,
-        multiplier=click.multiplier,
-        accent_mode=click.accent_mode,
-        groups=click.groups,
-        sound=click.sound,
-        frames=frames,
-    )
-    if raw is None:
-        return None
-    upmix = f",{CLICK_TO_STEREO}" if info.channels == 2 else ""
-    out = workdir / f"{CLICK_STEM_NAME}.wav"
-    _run_ffmpeg_filter(raw, f"volume={click.gain:.6f}{upmix}", out)
-    return out
-
-
-def _run_ffmpeg_filter(src: Path, chain: str, out: Path) -> None:
-    """Blocking: `src` through the audio filter `chain` into a 16-bit WAV."""
-    cmd = [
-        ffmpeg_executable(),
-        "-nostdin",
-        "-loglevel",
-        "error",
-        "-i",
-        str(src),
-        "-af",
-        chain,
-        *_ENCODE_ARGS["wav"],
-        "-f",
-        "wav",
-        str(out),
-    ]
-    proc = subprocess.run(  # noqa: S603 — list args, no shell, trusted ffmpeg
-        cmd,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        timeout=TIMEOUT_FFMPEG,
-    )
-    if proc.returncode != 0:
-        tail = proc.stderr[-2000:].decode("utf-8", "replace")
-        raise RuntimeError(f"ffmpeg failed for {out.name}: {tail}")
-
-
-def _build_stems_zip_with_click(
-    sources: list[tuple[str, Path]],
-    fmt: str,
-    dest: Path,
-    prefix: str,
-    click: _ClickStem | None,
-) -> None:
-    """Blocking: _build_stems_zip, plus the click file when one is asked for.
-    The first source is the length reference: every stem shares the song's
-    frame count."""
-    if click is None:
-        _build_stems_zip(sources, fmt, dest, prefix)
-        return
-    # Beside the zip, so the startup sweep finds what a killed build left.
-    with tempfile.TemporaryDirectory(prefix=".zipwork-", dir=dest.parent) as td:
-        path = _render_click_stem(click, sources[0][1], Path(td))
-        extra = [(CLICK_STEM_NAME, path)] if path is not None else []
-        _build_stems_zip([*sources, *extra], fmt, dest, prefix)
-
-
-async def _zip_click_stem(
-    job_id: str,
-    click: bool,
-    multiplier: float,
-    accent_mode: int,
-    gain: float,
-    groups: str,
-    sound: str,
-) -> _ClickStem | None:
-    """The click file's inputs, or None when it is off or the song has no grid.
-    The grid is the one the app clicks to, the user's beat and tempo edits
-    included (_read_beat_grid), as for the mix export."""
-    if not click:
-        return None
-    grid = await asyncio.to_thread(_read_beat_grid, job_id)
-    if grid is None:
-        return None
-    return _ClickStem(
-        grid, gain, multiplier, accent_mode, _parse_groups(groups, accent_mode), sound
-    )
 
 
 @router.get("/jobs/{job_id}/stems/all.zip")
@@ -1655,41 +1452,24 @@ async def get_all_stems_zip(
     job_id: str,
     fmt: str = Query(default="wav", alias="format"),
     stems: str | None = Query(default=None, description="Comma-separated stems; default all"),
-    click: Annotated[bool, Query(description="Add the click track as its own file")] = False,
-    click_mult: Annotated[float, Query(description="Click rate: 0.5, 1 or 2")] = 1.0,
-    click_accent: Annotated[
-        int, Query(ge=-1, le=TEMPO_MAX_BEATS_PER_BAR, description="-1 auto, 0 off, N per bar")
-    ] = -1,
-    click_gain: Annotated[float, Query(ge=0, le=4, description="Click level")] = 0.6,
-    click_groups: Annotated[
-        str,
-        Query(
-            max_length=64,
-            description='Beat grouping for an explicit meter, e.g. "3+2+2". Blank uses the default.',
-        ),
-    ] = "",
-    click_sound: Annotated[
-        str,
-        Query(max_length=CLICK_SOUND_ID_MAX_CHARS, description=CLICK_SOUND_QUERY_DESCRIPTION),
-    ] = DEFAULT_CLICK_SOUND,
+    click: bool = stems_click.CLICK_FILE_QUERY,
+    click_mult: float = stems_click.CLICK_MULT_QUERY,
+    click_accent: int = stems_click.CLICK_ACCENT_QUERY,
+    click_gain: float = stems_click.CLICK_GAIN_QUERY,
+    click_groups: str = stems_click.CLICK_GROUPS_QUERY,
+    click_sound: str = stems_click.CLICK_SOUND_QUERY,
 ) -> FileResponse:
     """Bundle the requested stems into a single ZIP, named after the song.
 
     `stems` is the active subset selected in the DAW (whitelisted). When omitted,
-    every available stem is included.
-
-    `click` adds the click track as one more file, `<song>_click.<format>`,
-    rendered from the grid the app clicks to with the same rate, accents,
-    grouping, level and sound as the click in a mix export. It starts at the
-    song's first sample like every stem, with the stems' length, rate and
-    channels, so it lines up with them in any player. A count-in is not part
-    of it: the stems in a zip are not delayed, so it stays a mix-export option.
-    Without `click` the zip is exactly as before."""
+    every available stem is included. `click` adds the click track as one more
+    file, `<song>_click.<format>` (stems_click.py); without it the zip is
+    exactly as before."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
     if fmt not in ("wav", "mp3", "flac", "ogg"):
         raise HTTPException(status_code=422, detail="format must be 'wav', 'mp3', 'flac', or 'ogg'")
-    check_click_sound(click_sound)
+    stems_click.check_click_sound(click_sound)
     job = registry_get(job_id)
     if job is None or job.status != "done":
         raise HTTPException(status_code=404, detail="job not ready")
@@ -1721,9 +1501,17 @@ async def get_all_stems_zip(
             sources.append((name, p))
     if not sources:
         raise HTTPException(status_code=404, detail="no stems found")
-    click_stem = await _zip_click_stem(
-        job_id, click, click_mult, click_accent, click_gain, click_groups, click_sound
-    )
+    click_stem = None
+    if click:
+        click_stem = stems_click.ClickStem(
+            grid=await asyncio.to_thread(_read_beat_grid, job_id),
+            gain=click_gain,
+            multiplier=click_mult,
+            accent_mode=click_accent,
+            groups=_parse_groups(click_groups, click_accent),
+            sound=click_sound,
+        )
+    prefix = _title_slug(job.display_title)
 
     # In the export cache under a dot name, like a render: the cache prune
     # leaves it alone, and the startup sweep removes it if the process dies.
@@ -1735,9 +1523,10 @@ async def get_all_stems_zip(
 
     def build() -> None:
         try:
-            _build_stems_zip_with_click(
-                sources, fmt, tmp_path, _title_slug(job.display_title), click_stem
-            )
+            with stems_click.click_stem_sources(
+                click_stem, sources[0][1], tmp_path
+            ) as click_sources:
+                _build_stems_zip([*sources, *click_sources], fmt, tmp_path, prefix)
         except Exception:
             # Logged here: after a cancel nobody awaits the thread.
             logger.exception("failed to build stems zip for job %s", job_id)
