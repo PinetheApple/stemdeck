@@ -1,5 +1,6 @@
 import { $, storeGet, storeSet } from "./utils.js";
 import { STEM_NAMES } from "./constants.js";
+import { DEFAULT_VERSION_ID } from "./versionModel.js";
 
 // ─── DOM refs ───
 
@@ -95,6 +96,7 @@ export let multitrack = null;
 // Web Audio decode-and-mix engine (Safari-safe playback). Null = legacy streaming path.
 export let audioEngine = null;
 export let currentJobId = null;
+export let currentVersionId = DEFAULT_VERSION_ID;
 // The import whose progress owns the #job box and the studio view. Distinct
 // from currentJobId, which is the track loaded in the studio: with a queue the
 // two come apart the moment a background import runs while the user browses
@@ -192,6 +194,7 @@ export function setEventSource(v) { eventSource = v; }
 export function setMultitrack(v) { multitrack = v; }
 export function setAudioEngine(v) { audioEngine = v; }
 export function setCurrentJobId(v) { currentJobId = v; }
+export function setCurrentVersionId(v) { currentVersionId = v; }
 export function setForegroundJobId(v) { foregroundJobId = v; }
 export function setTrackIndex(v) { trackIndex = v; }
 export function setTotalDuration(v) { totalDuration = v; }
