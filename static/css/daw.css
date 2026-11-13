@@ -5695,3 +5695,34 @@ input, textarea { font-family: inherit; }
   right: var(--s-6);
   max-width: calc(100% - 2 * var(--s-6));
 }
+
+/* ── The open version, after the artist in the studio head ── */
+#songHead .np-subline {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: 100%;
+  min-width: 0;
+}
+.np-version {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 14em;
+  height: var(--target-min);
+  padding: 0 var(--s-1) 0 var(--s-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-2);
+  font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-sans);
+  cursor: pointer;
+}
+.np-version[hidden] { display: none; }
+.np-version span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.np-version .ic { flex-shrink: 0; width: var(--icon-sm); height: var(--icon-sm); color: var(--text-3); }
+.np-version:hover,
+.np-version[aria-expanded="true"] { background: var(--surface-2); color: var(--text); }
+.np-version:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
