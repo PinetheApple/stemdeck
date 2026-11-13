@@ -145,7 +145,6 @@ const DEFAULT_LINUX_FFMPEG_SHA256: &str =
 struct BackendHandles {
     child: Child,
     url: String,
-    /// The port in `url`.
     port: u16,
 }
 
@@ -1334,7 +1333,7 @@ fn not_writable_message(root: &Path) -> String {
 /// while a handle inside it is open, so starting the swap before the process is
 /// gone fails with a permission error, or worse, part-way through. Linux would
 /// tolerate it, but a backend still serving requests from a directory being
-/// swapped out is not something to rely on either. restart_backend uses it too.
+/// swapped out is not something to rely on either.
 fn stop_backend_and_wait(state: &BackendState, timeout: Duration) -> Result<(), String> {
     let handles = match state.inner.lock() {
         Ok(mut guard) => guard.handles.take(),
@@ -4802,22 +4801,23 @@ fn apply_ffmpeg_path(cmd: &mut Command, data_dir: &Path) -> Result<(), String> {
 /// The backend is the thing that should be answering that prompt, not the shell
 /// that starts it.
 ///
-/// `after_stop` sets SO_REUSEADDR on Linux, as uvicorn does, so the stopped
-/// backend's TIME_WAIT does not refuse the port. Linux only: on Windows and
-/// macOS it would let this bind beside another program's live listener.
+/// `after_stop` sets SO_REUSEADDR like uvicorn, so TIME_WAIT does not refuse the
+/// port; never on Windows, and on macOS only once no listener answers there.
 fn claim_port(host: &str, port: u16, after_stop: bool) -> Result<(u16, Socket), String> {
     let addr: SocketAddr = format!("{host}:{port}")
         .parse()
         .map_err(|e| format!("bad bind address {host}:{port}: {e}"))?;
     let socket = Socket::new(Domain::for_address(addr), Type::STREAM, Some(Protocol::TCP))
         .map_err(|e| format!("socket failed: {e}"))?;
-    #[cfg(target_os = "linux")]
+    #[cfg(unix)]
     if after_stop {
+        #[cfg(target_os = "macos")]
+        refuse_live_listener(port)?;
         socket
             .set_reuse_address(true)
             .map_err(|e| format!("SO_REUSEADDR failed: {e}"))?;
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(unix))]
     let _ = after_stop;
     socket
         .bind(&addr.into())
@@ -4829,6 +4829,22 @@ fn claim_port(host: &str, port: u16, after_stop: bool) -> Result<(u16, Socket), 
         .ok_or_else(|| "bound socket has no address".to_string())?
         .port();
     Ok((granted, socket))
+}
+
+#[cfg(target_os = "macos")]
+const LISTENER_PROBE_TIMEOUT: Duration = Duration::from_millis(250);
+
+/// macOS lets SO_REUSEADDR bind beside a live listener, so a connect decides:
+/// refused leaves only TIME_WAIT, accepted means another program serves there.
+#[cfg(target_os = "macos")]
+fn refuse_live_listener(port: u16) -> Result<(), String> {
+    let addr: SocketAddr = format!("{LOOPBACK}:{port}")
+        .parse()
+        .map_err(|e| format!("bad probe address for port {port}: {e}"))?;
+    match TcpStream::connect_timeout(&addr, LISTENER_PROBE_TIMEOUT) {
+        Ok(_) => Err(format!("port {port} has a live listener")),
+        Err(_) => Ok(()),
+    }
 }
 
 /// Bind to port 0 and return both the chosen port and the held reservation.
@@ -4892,8 +4908,7 @@ fn configured_bind_host() -> &'static str {
 /// Reserve the user's preferred port; fall back to any free port if it's taken,
 /// so a port conflict can never block startup.
 ///
-/// Free means free on both loopback and every interface: on Windows a bind to
-/// either succeeds while another process holds the other.
+/// Free on both loopback and every interface, or a free port instead.
 fn reserve_port(host: &str, desired: u16, after_stop: bool) -> Result<(u16, Socket), String> {
     if let Ok(claimed) = claim_port_on_both(host, desired, after_stop) {
         return Ok(claimed);
@@ -7957,7 +7972,6 @@ b6052160df96b31c9b1e33854a4dcda3d4b57641b880270f31736fb9f445d384  ffmpeg-n7.1-la
         }
     }
 
-    #[cfg(target_os = "linux")]
     #[test]
     fn a_restart_gets_back_the_port_its_backend_just_closed() {
         // The backend closing first leaves TIME_WAIT, which a plain bind refuses.
@@ -7982,14 +7996,19 @@ b6052160df96b31c9b1e33854a4dcda3d4b57641b880270f31736fb9f445d384  ffmpeg-n7.1-la
     }
 
     #[test]
-    fn only_a_claim_after_a_stop_reuses_the_address_and_only_on_linux() {
+    fn only_a_claim_after_a_stop_reuses_the_address_and_never_on_windows() {
         let (_, fresh) = super::claim_port(super::LOOPBACK, 0, false).unwrap();
         assert!(!fresh.reuse_address().unwrap());
         let (_, after_stop) = super::claim_port(super::LOOPBACK, 0, true).unwrap();
-        assert_eq!(
-            after_stop.reuse_address().unwrap(),
-            cfg!(target_os = "linux")
-        );
+        assert_eq!(after_stop.reuse_address().unwrap(), cfg!(unix));
+    }
+
+    #[test]
+    fn a_claim_after_a_stop_never_binds_beside_a_live_listener() {
+        let held = std::net::TcpListener::bind((super::LOOPBACK, 0)).unwrap();
+        let taken = held.local_addr().unwrap().port();
+
+        assert!(super::claim_port_on_both(super::ALL_INTERFACES, taken, true).is_err());
     }
 
     #[cfg(any(windows, target_os = "linux"))]

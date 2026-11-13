@@ -263,7 +263,10 @@ test("a restart that had to take another port says so before going there", async
   const here = new URL(page.url());
   const movedPort = String(Number(here.port) + 1);
   const target = `http://127.0.0.1:${movedPort}/`;
-  await page.route(`${target}**`, (route) => route.fulfill({ contentType: "text/html", body: "<p>moved</p>" }));
+  await page.route(
+    `${target}**`,
+    (route) => route.fulfill({ contentType: "text/html", body: "<p>moved</p>" }),
+  );
   await page.evaluate((url) => window.__e2e.finishRestart(url), target);
 
   await expect(dialogText(page)).toContainText(movedPort);
