@@ -424,10 +424,7 @@ def _resume_or_recover(job: Job, job_dir: Path, legacy: bool = False) -> Job | N
 
 
 def _fail_interrupted(job: Job, job_dir: Path) -> None:
-    """Fail a job the process died during twice, kept the way the runner keeps
-    a failed import: its folder moved whole into the quarantine with its record
-    and evidence, written before the move so it lands complete or not at all.
-    Nothing of the job is deleted."""
+    """Record a job interrupted twice as a failed import, kept whole under failed/."""
     # Imported here: app.pipeline imports this module.
     from app.pipeline.errors import CAUSE_INTERRUPTED
     from app.pipeline.runner import FAILED_RECORD_FILE
