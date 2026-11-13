@@ -26,6 +26,13 @@ export function menuItem(text, iconName, onChoose, { disabled = false } = {}) {
   return item;
 }
 
+export function menuSeparator() {
+  const sep = document.createElement("div");
+  sep.className = "lib-menu-sep";
+  sep.setAttribute("role", "separator");
+  return sep;
+}
+
 function menuLabel(text) {
   const label = document.createElement("div");
   label.className = "lib-menu-label";
@@ -113,6 +120,13 @@ function placeMenu(el, anchor) {
   const top = fitsBeside ? Math.min(row.top, lowest) : topOffRow(row, height);
   el.style.left = `${Math.max(VIEWPORT_MARGIN_PX, left)}px`;
   el.style.top = `${Math.max(VIEWPORT_MARGIN_PX, top)}px`;
+}
+
+/** Under the anchor, left edges level. */
+export function placeBelow(el, anchor) {
+  const rect = anchor.getBoundingClientRect();
+  el.style.left = `${rect.left}px`;
+  el.style.top = `${rect.bottom + MENU_GAP_PX}px`;
 }
 
 function focusableItems() {
