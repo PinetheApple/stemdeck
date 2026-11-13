@@ -30,7 +30,7 @@
 | `STEMDECK_HTTPS_PORT` | (none) | Serve https on this port *in addition* to the main listener. Set by the desktop app; see below. |
 | `STEMDECK_PUBLIC_URL` | (none) | The `http(s)://` address Settings > Network shows and turns into a QR code, in place of the detected LAN addresses. Set it when other devices reach StemDeck through an address the server cannot see: a container on a bridge network, a reverse proxy, or a tunnel. Anything other than an http(s) URL with a host is ignored with a warning in the log. |
 
-`run.sh` also reads: `HOST` (default `127.0.0.1`), `PORT` (default `8765`), `RELOAD=1` (enable uvicorn auto-reload for development), `FOREGROUND=1` (run in foreground instead of backgrounding).
+`run.sh` also reads: `HOST` (default `0.0.0.0`), `PORT` (default `8000`), `RELOAD=1` (enable uvicorn auto-reload for development), `FOREGROUND=1` (run in foreground instead of backgrounding).
 
 ### Who can reach StemDeck
 
