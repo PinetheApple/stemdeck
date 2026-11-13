@@ -667,8 +667,9 @@ function sanitizeFilename(name) {
 
 /** Why a retry or its replacement import did not start, in words. */
 export function showRetryError(status, detail) {
-  const { key, message } = retryErrorText(status, detail);
-  showError(t(key, { message: message || t("job.unknownError") }), null, { onRetry: null });
+  const reason = typeof detail === "string" && detail ? detail : null;
+  const { key, message } = retryErrorText(status, reason);
+  showError(t(key, { message: message || t("job.unexpectedError") }), null, { onRetry: null });
 }
 
 /** A new import in place of a failed one; its data, or null once the reason is shown. */
@@ -679,7 +680,7 @@ async function postReplacementImport(init) {
     if (res.ok) return data;
     showRetryError(res.status, data.detail);
   } catch (err) {
-    showRetryError(null, err.message);
+    showRetryError(null, readableError(err));
   }
   return null;
 }

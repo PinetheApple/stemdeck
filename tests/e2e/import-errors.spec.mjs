@@ -2,7 +2,7 @@
 // batch of files the server takes only some of, a playlist that skips tracks,
 // and a lost connection. Each names what was left out and why, in words.
 import { test, expect } from "@playwright/test";
-import { failureMessages, openStudio, uiText } from "./helpers.mjs";
+import { JOB_ID, failureMessages, fixtureTrack, openStudio, uiText } from "./helpers.mjs";
 
 const PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLe2eskips";
 const PLAYLIST_TITLE = "Skips";
@@ -160,4 +160,63 @@ test("a queue that will not start says so, and Start comes back", async ({ page 
   await expect(start).toHaveText(await uiText(page, "queue.start"));
   await expect(start).toBeEnabled();
   expect(await failureMessages(page)).toContain(await uiText(page, "notif.queueStartFailed"));
+});
+
+const FAILED_ID = "e2e0fa11ed09";
+
+/** The fixture song plus a failed link import the server still knows. */
+const FAILED_LIBRARY = {
+  folders: [
+    { id: "f-unsorted", name: "Unsorted", items: [JOB_ID, FAILED_ID], color: null },
+    { id: "trash", name: "Trash", items: [], color: null },
+  ],
+  tracks: {
+    [JOB_ID]: fixtureTrack(JOB_ID, "E2E Fixture Track"),
+    [FAILED_ID]: {
+      ...fixtureTrack(FAILED_ID, YOUTUBE_URL),
+      status: "error",
+      sourceUrl: YOUTUBE_URL,
+      sourceKind: "link",
+      retryable: true,
+    },
+  },
+};
+
+const retryFailed = (page) =>
+  page.evaluate(async (id) => (await import("/js/catalog.js")).retryFailedImport(id), FAILED_ID);
+
+test.describe("retrying a failed import", () => {
+  test("with no connection reads as words", async ({ page }) => {
+    await openStudio(page, { catalog: FAILED_LIBRARY });
+    await page.route(`**/api/jobs/${FAILED_ID}/retry`, (route) => route.abort("connectionrefused"));
+    await retryFailed(page);
+
+    const error = page.locator("#error");
+    await expect(error).toContainText(await uiText(page, "job.networkError"));
+    await expect(error).not.toContainText(/failed to fetch/i);
+  });
+
+  test("whose replacement import loses the connection reads as words", async ({ page }) => {
+    await openStudio(page, { catalog: FAILED_LIBRARY });
+    await page.route(`**/api/jobs/${FAILED_ID}/retry`, (route) =>
+      route.fulfill({ status: 404, json: { detail: "job not found" } }));
+    await page.route("**/api/jobs", (route) =>
+      route.request().method() === "POST" ? route.abort("connectionrefused") : route.fallback());
+    await retryFailed(page);
+
+    const error = page.locator("#error");
+    await expect(error).toContainText(await uiText(page, "job.networkError"));
+    await expect(error).not.toContainText(/failed to fetch/i);
+  });
+
+  test("refused without a reason in words says so plainly", async ({ page }) => {
+    await openStudio(page, { catalog: FAILED_LIBRARY });
+    await page.route(`**/api/jobs/${FAILED_ID}/retry`, (route) =>
+      route.fulfill({ status: 422, json: { detail: [{ loc: ["body"], msg: "field required" }] } }));
+    await retryFailed(page);
+
+    const error = page.locator("#error");
+    await expect(error).toContainText(await uiText(page, "job.unexpectedError"));
+    await expect(error).not.toContainText("object");
+  });
 });

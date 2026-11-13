@@ -7,7 +7,10 @@ import { audioEngine, bpmChip, foregroundJobId, keyChip, multitrack, saveSelecte
 import { refreshStemChoiceVisuals } from "./stemChoice.js";
 import { trackFormat, formatIconSvg, paintNowPlayingArt } from "./formatIcon.js";
 import { formatKey } from "./keyLabel.js";
-import { showError, importFromUrl, detachForegroundJob, reimportFailedLink, reuploadFailedImport, showRetryError } from "./job.js";
+import {
+  showError, importFromUrl, detachForegroundJob, reimportFailedLink, reuploadFailedImport, showRetryError,
+  readableError,
+} from "./job.js";
 import {
   FILE_GONE_REASON_KEY, RETRY_OUTCOME, SOURCE_KIND, failureReasonKey, importSource, needsFilePickedAgain,
   retryOutcome, sourceKindOf, FAILED_STATUS,
@@ -2591,7 +2594,7 @@ async function runRetry(trackId) {
   try {
     res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/retry`, { method: "POST" });
   } catch (err) {
-    showRetryError(null, err.message);
+    showRetryError(null, readableError(err));
     render();
     return;
   }
