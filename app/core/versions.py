@@ -1,28 +1,6 @@
-"""Versions of a song (#96, after upstream 5530a0b): named choices of stems
-over the song's one set of stem files.
-
-A song keeps every base stem it was separated into. A version is only
-settings: an id, a name, the stems it shows and when it was made. Its saved
-mix lives where every saved mix already lives, in the page's store, under a
-key the page derives from the song and the version id
-(static/js/versionModel.js). So a version costs a few bytes on the job record
-and in metadata.json (song_folder.SAVED_FIELDS), and deleting one never
-touches a stem file.
-
-Every song has at least one version. A song made before versions existed has
-none recorded: it reads as one implicit default (DEFAULT_VERSION_ID) built
-from its import selection, and nothing is written until a version is created,
-renamed, deleted or opened as a different one. The default's mix is the
-song's mix as it was before versions, under the same store key, so nothing
-moves.
-
-A version's `name` is None for that untouched default, which the page shows
-as its localized "Original"; any other name is the text the user saw.
-
-Everything read back from disk goes through clean_versions: a damaged or
-hand-edited record loses only the entries that are not a version, never the
-song.
-"""
+"""Versions of a song: named choices of the song's stems, kept as settings
+over its one set of stem files. A song with none recorded reads as one
+implicit default."""
 
 from __future__ import annotations
 

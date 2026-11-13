@@ -1,14 +1,5 @@
-"""Versions of a song (#96): list, open, rename, save as new, extract more
-stems, delete. The model is app/core/versions.py.
-
-Versions are kept on the job record and copied into the song's metadata.json
-(song_folder.SAVED_FIELDS), so a rebuilt registry keeps them. Every write
-reads and writes them under metadata_lock. No route here reads, writes or
-deletes a stem file: "Extract more stems" only makes a version of stems the
-song already keeps, and refuses when one of their files is gone.
-
-Opening the version that is already open, and every GET, writes nothing (#91).
-"""
+"""The routes that list, open, rename, save, extract and delete a song's
+versions. Every GET, and opening the open version, writes nothing."""
 
 from __future__ import annotations
 
@@ -62,14 +53,16 @@ class VersionNameBody(BaseModel):
         return checked_name(value, VERSION_NAME_MAX_CHARS)
 
 
-class NewVersionBody(VersionNameBody):
+class VersionStemsBody(VersionNameBody):
     stems: list[str] = Field(max_length=len(STEM_NAMES))
+
+
+class NewVersionBody(VersionStemsBody):
     open: StrictBool = False
 
 
-class ExtractBody(VersionNameBody):
+class ExtractBody(VersionStemsBody):
     source: str = Field(alias="from")
-    stems: list[str] = Field(max_length=len(STEM_NAMES))
 
 
 def _song(job_id: str) -> Job:
