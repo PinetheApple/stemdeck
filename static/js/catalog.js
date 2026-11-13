@@ -3324,7 +3324,7 @@ function wireQueueRow(el, listEl) {
   el.addEventListener("dragend", () => {
     _queueDragId = null;
     el.classList.remove("dragging");
-    for (const r of listEl.querySelectorAll(".queue-row")) r.classList.remove("drop-below");
+    for (const r of listEl.querySelectorAll(QUEUE_ROW)) r.classList.remove("drop-below");
   });
 }
 
@@ -3334,7 +3334,7 @@ function onQueueListDragOver(e) {
   e.dataTransfer.dropEffect = "move";
   const listEl = e.currentTarget;
   const anchor = dropAnchorId(listEl, _queueDragId, e.clientY);
-  for (const r of listEl.querySelectorAll(".queue-row")) {
+  for (const r of listEl.querySelectorAll(QUEUE_ROW)) {
     r.classList.toggle("drop-below", !!anchor && r.dataset.id === anchor);
   }
 }
@@ -3346,14 +3346,8 @@ async function onQueueListDrop(e) {
   const dragged = _queueDragId;
   const anchor = dropAnchorId(listEl, dragged, e.clientY);
   _queueDragId = null;
-  for (const r of listEl.querySelectorAll(".queue-row")) r.classList.remove("drop-below");
+  for (const r of listEl.querySelectorAll(QUEUE_ROW)) r.classList.remove("drop-below");
   if (anchor !== dragged) await reorderQueuedJob(dragged, anchor);
-}
-
-// The list element outlives every redraw; the same function references make re-adding a no-op.
-function wireQueueListDrop(listEl) {
-  listEl.addEventListener("dragover", onQueueListDragOver);
-  listEl.addEventListener("drop", onQueueListDrop);
 }
 
 function queuePausedBannerHtml(count) {
@@ -3395,7 +3389,7 @@ const QUEUE_KEYBOARD_FOCUS = ":focus-visible";
 // The queue control that last took focus, read as it is focused: by the time the
 // queue redraws, render() may already have cleared the list and focus is on <body>.
 let _queueFocus = null;
-const _queueFocusLists = new WeakSet();
+const _wiredQueueLists = new WeakSet();
 
 function describeQueueControl(el) {
   const control = QUEUE_CONTROLS.find((selector) => el.matches?.(selector));
@@ -3424,11 +3418,13 @@ function onQueueFocusOut(e) {
   });
 }
 
-function trackQueueFocus(listEl) {
-  if (_queueFocusLists.has(listEl)) return;
-  _queueFocusLists.add(listEl);
+function wireQueueList(listEl) {
+  if (_wiredQueueLists.has(listEl)) return;
+  _wiredQueueLists.add(listEl);
   listEl.addEventListener("focusin", onQueueFocusIn);
   listEl.addEventListener("focusout", onQueueFocusOut);
+  listEl.addEventListener("dragover", onQueueListDragOver);
+  listEl.addEventListener("drop", onQueueListDrop);
 }
 
 function queueFocusToRestore() {
@@ -3647,13 +3643,12 @@ function appendQueueRows(listEl, section, entries, snap, progress) {
   section.insertAdjacentHTML("beforeend", queueRowsHtml(entries, snap, progress));
   for (const el of section.querySelectorAll(QUEUE_ROW)) wireQueueRow(el, listEl);
   wireBatchRows(section);
-  wireQueueListDrop(listEl);
 }
 
 function renderQueueList(listEl, snap = getQueueSnapshot()) {
   const entries = queueEntries(snap);
   const focus = queueFocusToRestore();
-  trackQueueFocus(listEl);
+  wireQueueList(listEl);
   const progress = queueBatchProgress(snap);
 
   const section = document.createElement("div");

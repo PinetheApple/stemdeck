@@ -630,6 +630,9 @@ export async function stubImportQueue(page, jobId, title = "Importing", { source
   };
 }
 
+export const QUEUE_ROW = ".queue-row";
+export const EXTRACT_NEXT = ".queue-top";
+export const queueRow = (jobId) => `${QUEUE_ROW}[data-id="${jobId}"]`;
 const LONG_QUEUE_RUNNING_ID = "e2e0feed0000";
 export const LONG_QUEUE_WAITING_IDS = Object.freeze(["e2e0feed0001", "e2e0feed0002", "e2e0feed0003"]);
 
@@ -650,17 +653,15 @@ export async function stubLongQueue(page) {
   const running = { ...job(LONG_QUEUE_RUNNING_ID), ...SEPARATING };
   let waiting = LONG_QUEUE_WAITING_IDS;
   let paused = false;
-  await page.route(
-    "**/api/queue",
-    (route) => route.fulfill({ json: { ...queueState(running, waiting.map(job)), paused } }),
-  );
+  const fulfillSnapshot = (route) => route.fulfill({ json: { ...queueState(running, waiting.map(job)), paused } });
+  await page.route("**/api/queue", fulfillSnapshot);
   await page.route("**/api/queue/events", (route) => route.abort());
   const reorders = [];
   await page.route("**/api/queue/reorder", (route) => {
     const move = route.request().postDataJSON();
     reorders.push(move);
     waiting = moveAfter(waiting, move.job_id, move.after);
-    return route.fulfill({ json: { ...queueState(running, waiting.map(job)), paused } });
+    return fulfillSnapshot(route);
   });
   const read = () => page.evaluate(async () => (await import("/js/queue.js")).refreshQueue());
   return {
