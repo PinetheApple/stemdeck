@@ -3,9 +3,10 @@
 
 import { addSongToSetlist, createSetlistFrom, getSetlists } from "./setlists.js";
 import { startRowRename } from "./songRename.js";
-import { folderChoices, moveTrackToFolder, moveTrackToNewFolder } from "./catalog.js";
+import { folderChoices, getLibraryTrack, moveTrackToFolder, moveTrackToNewFolder } from "./catalog.js";
 import { t } from "./i18n.js";
 import { iconButton } from "./libraryControls.js";
+import { missingStems, openVersionOf } from "./versionModel.js";
 
 const MENU_GAP_PX = 4;
 const VIEWPORT_MARGIN_PX = 8;
@@ -13,7 +14,7 @@ const VIEWPORT_MARGIN_PX = 8;
 let menu = null;
 let anchorEl = null;
 
-function menuItem(text, iconName, onChoose, { disabled = false } = {}) {
+export function menuItem(text, iconName, onChoose, { disabled = false } = {}) {
   const item = iconButton("lib-menu-item", iconName, { text });
   item.setAttribute("role", "menuitem");
   item.disabled = disabled;
@@ -62,27 +63,35 @@ function folderSection(trackId, anchor) {
   ];
 }
 
+function canExtractMore(trackId) {
+  const track = getLibraryTrack(trackId);
+  const open = openVersionOf(track);
+  return track?.status === "done" && Boolean(open) && missingStems(open.stems).length > 0;
+}
+
+// versions.js draws the form; an event, since it imports this module.
+function extractMoreItem(trackId, anchor) {
+  return menuItem(t("versions.extractMore"), "plus", function onExtractMoreStems() {
+    document.dispatchEvent(new CustomEvent("versions:extract", { detail: { id: trackId, anchor } }));
+  });
+}
+
 function buildMenu(trackId, anchor) {
-  const el = document.createElement("div");
-  el.className = "lib-menu";
-  el.setAttribute("role", "menu");
-  el.setAttribute("aria-label", t("trackMenu.open"));
-  el.append(
+  return [
     menuItem(t("trackMenu.rename"), "pencil", function onRenameSong() {
       startRowRename(trackId);
     }),
+    ...(canExtractMore(trackId) ? [extractMoreItem(trackId, anchor)] : []),
     menuLabel(t("trackMenu.addToSetlist")),
     ...getSetlists().map((setlist) => setlistItem(setlist, trackId)),
     menuItem(t("trackMenu.newSetlist"), "plus", function onNewSetlistWithSong() {
       createSetlistFrom([trackId]);
     }),
     ...folderSection(trackId, anchor),
-  );
-  el.addEventListener("keydown", onMenuKeydown);
-  return el;
+  ];
 }
 
-const ROW_SELECTOR = ".cat-item";
+const ROW_SELECTOR = ".cat-item, .cat-version";
 
 /** Above the row, or under it when the window has no room above; held inside the window when neither fits. */
 function topOffRow(row, height) {
@@ -142,19 +151,33 @@ function closeMenu() {
   window.removeEventListener("resize", closeMenu);
 }
 
-function onTrackMenuRequest(e) {
-  const { id, anchor } = e.detail || {};
+/** Open a menu of `items` from `anchor`, or close it when it is already open from there. */
+export function openMenu(anchor, items, { label, place = placeMenu }) {
   const reopening = menu && anchorEl === anchor;
   closeMenu();
-  if (!id || !anchor || reopening) return;
-  menu = buildMenu(id, anchor);
+  if (reopening) return;
+  menu = document.createElement("div");
+  menu.className = "lib-menu";
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", label);
+  menu.append(...items);
+  menu.addEventListener("keydown", onMenuKeydown);
   anchorEl = anchor;
   anchor.setAttribute("aria-expanded", "true");
   document.body.append(menu);
-  placeMenu(menu, anchor);
+  place(menu, anchor);
   focusableItems()[0]?.focus();
   document.addEventListener("pointerdown", onOutsidePointerDown, true);
   window.addEventListener("resize", closeMenu);
+}
+
+function onTrackMenuRequest(e) {
+  const { id, anchor } = e.detail || {};
+  if (!id || !anchor) {
+    closeMenu();
+    return;
+  }
+  openMenu(anchor, buildMenu(id, anchor), { label: t("trackMenu.open") });
 }
 
 export function initTrackMenu() {
