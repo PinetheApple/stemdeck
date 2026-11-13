@@ -2,14 +2,13 @@
 // reload, a switch while playing leaves nothing queued behind, and every
 // export that renders a click asks for the chosen sound.
 //
-// No picker yet: the tests drive transport.setClickSound, the call the picker
-// will make. Whether a preset sounds right is a listening check; that the
-// browser synthesis matches the export renderer is pinned in
-// tests/js/click-sounds.test.mjs.
+// Whether a preset sounds right is a listening check; that the browser
+// synthesis matches the export renderer is pinned in tests/js/click-sounds.test.mjs.
 
 import { test, expect } from "@playwright/test";
 import { openStudio, waitForClickTrack, exportUi } from "./helpers.mjs";
 
+const soundSelect = (page) => page.locator("#t-metro-sound");
 const choosePath = (page) => page.evaluate(() => window.__e2e.choosePath());
 const finishSave = (page) => page.evaluate(() => window.__e2e.finishSave());
 const lastExportUrl = (page) =>
@@ -44,9 +43,15 @@ async function tickExportClick(page) {
 }
 
 test.describe("click sound", () => {
-  test("Classic is the default, live and saved", async ({ page }) => {
+  test("the picker lists the presets, Classic first and chosen by default", async ({ page }) => {
     await openStudio(page, { tauri: true });
     await waitForClickTrack(page);
+    await expect(soundSelect(page)).toBeEnabled();
+    await expect(soundSelect(page)).toHaveValue("classic");
+    await expect(soundSelect(page).locator("option")).toHaveText([
+      "Sound: Classic", "Sound: Woodblock", "Sound: Rimshot", "Sound: Soft", "Sound: Cowbell",
+    ]);
+    await expect(soundSelect(page)).toHaveAccessibleName("Click sound");
     expect(await savedSound(page)).toBe("classic");
     expect(await liveSound(page)).toBe("classic");
   });
@@ -54,11 +59,12 @@ test.describe("click sound", () => {
   test("a chosen sound reaches the live click and survives a reload", async ({ page }) => {
     await openStudio(page, { tauri: true });
     await waitForClickTrack(page);
-    await chooseSound(page, "cowbell");
+    await soundSelect(page).selectOption("cowbell");
     expect(await liveSound(page)).toBe("cowbell");
 
     await openStudio(page, { tauri: true });
     await waitForClickTrack(page);
+    await expect(soundSelect(page)).toHaveValue("cowbell");
     expect(await savedSound(page)).toBe("cowbell");
     expect(await liveSound(page)).toBe("cowbell");
   });
@@ -97,7 +103,7 @@ test.describe("click sound", () => {
   test("the stems zip asks for the click only with the box ticked, in the chosen sound", async ({ page }) => {
     await openStudio(page, { tauri: true });
     await waitForClickTrack(page);
-    await chooseSound(page, "rimshot");
+    await soundSelect(page).selectOption("rimshot");
 
     const plain = await exportQuery(page, "stems");
     expect([...plain.keys()].filter((k) => k.startsWith("click"))).toEqual([]);

@@ -89,6 +89,7 @@ const HELP = [
   ["#t-metro", "help.click"],
   ["#t-metro-vol-btn", "help.clickVolume"],
   ["#t-metro-more", "help.clickMore"],
+  ["#t-metro-sound", "help.clickSound", null, "click.soundAria"],
   ["#t-export-btn", "help.export"],
   ["#stageModeBtn", "help.stageMode"],
   ['.inspector-tab[data-tab="tempo"]', "help.inspectorTempo"],

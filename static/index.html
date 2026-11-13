@@ -880,6 +880,12 @@
                   <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>
                   <span data-i18n="click.grid">Grid</span>
                 </button>
+                <!-- Options are the presets in js/clickSounds.js, filled in by transport.js. -->
+                <span class="metro-select-wrap metro-sound-wrap">
+                  <svg class="ic metro-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 2 8 8"/><path d="m22 2-8 8"/><ellipse cx="12" cy="9" rx="10" ry="5"/><path d="M7 13.4v7.9"/><path d="M12 14v8"/><path d="M17 13.4v7.9"/><path d="M2 9v8a10 5 0 0 0 20 0V9"/></svg>
+                  <select id="t-metro-sound" class="metro-select" title="The sound of the click, for playback, the count-in and exports" data-i18n-title="click.soundTitle" aria-label="Click sound" data-i18n-aria-label="click.soundAria"></select>
+                  <svg class="ic metro-select-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </span>
               </div>
               <!-- The footer popover's disclosure. The options always fit in
                    this tab, so studio.css keeps it hidden here. -->

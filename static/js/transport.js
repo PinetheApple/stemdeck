@@ -17,7 +17,7 @@ import {
   footerTimeElapsed, footerTimeTotal, footerWaveTicks, npScrubFill, footerWaveDrawFn,
   loopStartInput, loopEndInput,
   metroBtn, metroPanel, metroMoreBtn, metroVolEl, metroVolBtn, metroVolPanel, metroVolLabel, metroBarEl, metroBarCustomEl, metroGroupEl, metroNoteEl,
-  metroCountInEl,
+  metroCountInEl, metroSoundEl,
   metronome, metronomeEnabled, metronomeVolume, metronomeBeatsPerBar, metronomeHasBars,
   metronomeCountInBars, setMetronomeCountInBars,
   metronomeGrouping, setMetronomeGrouping,
@@ -33,6 +33,7 @@ import {
   accentOverride, computeCountIn, defaultGrouping, normaliseGrouping,
   OVERRIDE_LENGTH, OVERRIDE_OFF, OVERRIDE_UNALIGNED,
 } from "./metronome.js";
+import { CLICK_SOUNDS } from "./clickSounds.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { pitchBlockedKey } from "./pitchBus.js";
 import { refitFooter } from "./footerFit.js";
@@ -1229,7 +1230,26 @@ export function getClickSound() {
 export function setClickSound(id) {
   setMetronomeSound(id);
   metronome?.setSound(metronomeSound);
+  if (metroSoundEl) metroSoundEl.value = metronomeSound;
   _saveMetroPrefs();
+}
+
+// One option per preset, in the table's order, so a new preset needs no markup.
+function _renderMetroSound() {
+  if (!metroSoundEl) return;
+  metroSoundEl.replaceChildren(...CLICK_SOUNDS.presets.map(_metroSoundOption));
+  metroSoundEl.value = metronomeSound;
+}
+
+function _metroSoundOption(preset) {
+  const option = document.createElement("option");
+  option.value = preset.id;
+  option.textContent = t("click.soundOption", { name: t(preset.label) });
+  return option;
+}
+
+function _onMetroSoundChange() {
+  setClickSound(metroSoundEl.value);
 }
 
 /**
@@ -1677,6 +1697,9 @@ function wireMetronomeControl() {
   wireFooterPopovers();
   onLanguageChange(_renderMetroVolume);
   onLanguageChange(renderAccentState);
+  onLanguageChange(_renderMetroSound);
+  _renderMetroSound();
+  metroSoundEl?.addEventListener("change", _onMetroSoundChange);
   $("tempoAccentUseAuto")?.addEventListener("click", _onAccentUseAutoClick);
 
   // Restore preferences before the first track loads so the click comes back
@@ -1695,6 +1718,7 @@ function wireMetronomeControl() {
       if (typeof prefs.sound === "string") setMetronomeSound(prefs.sound);
       metronome?.setSound(metronomeSound);
     }
+    _renderMetroSound();
     _renderMetroVolume();
     _renderMetroBar();
     applyMetronomeAccent();
