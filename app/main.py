@@ -34,6 +34,7 @@ from app.core import lan_interfaces, tls_listener
 from app.core.compression import COMPRESS_LEVEL, MINIMUM_SIZE, TextGZipMiddleware
 from app.core.config import (
     ACOUSTID_CHECK_KEY,
+    BIND_HOST,
     DEMUCS_MODEL,
     DISCOGS_CHECK_TOKEN,
     FFMPEG_BIN,
@@ -477,11 +478,15 @@ def get_settings(request: Request) -> dict[str, object]:
     # Show the port the server is actually running on rather than the stored
     # preference (which only takes effect on the next restart) -- so the field
     # reflects reality. Editing it still saves the preference via POST.
+    # Likewise network_listening: what this process listens on, which changes
+    # only when the desktop shell restarts it (None outside the shell).
+    listening = None if BIND_HOST is None else not _is_loopback(BIND_HOST)
     return {
         **_settings_payload(),
         "port": port,
         "lan_addresses": [entry["url"] for entry in entries],
         "network_addresses": entries,
+        "network_listening": listening,
     }
 
 
@@ -1334,6 +1339,8 @@ async def secure_origin_gate(request: Request, call_next):
 # refuses requests from OTHER devices when availability is off. The host machine
 # (loopback or its own LAN IP) is always served, so the app keeps working
 # locally regardless of this setting.
+# On desktop the shell also binds loopback while it is off; this covers the gap
+# between saving the choice and the restart that applies it.
 @app.middleware("http")
 async def network_gate(request: Request, call_next):
     if not get_allow_network():

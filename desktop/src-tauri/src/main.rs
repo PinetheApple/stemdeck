@@ -145,6 +145,7 @@ const DEFAULT_LINUX_FFMPEG_SHA256: &str =
 struct BackendHandles {
     child: Child,
     url: String,
+    port: u16,
 }
 
 #[derive(Default)]
@@ -152,6 +153,9 @@ struct BackendStateInner {
     handles: Option<BackendHandles>,
     /// True while start_backend is executing; prevents concurrent starts (#145).
     starting: bool,
+    /// The port the last backend answered on, which a restart asks for again
+    /// even after a failed one left no backend running.
+    last_port: Option<u16>,
     /// PID of an in-progress setup-time subprocess (pip install, or the model
     /// warmup download, #275); killed by stop_backend on window close (#140).
     setup_child_pid: Option<u32>,
@@ -520,6 +524,7 @@ fn main() {
             ensure_torch_device,
             warmup_models,
             start_backend,
+            restart_backend,
             local_ip,
             build_target,
             open_url,
@@ -1329,7 +1334,6 @@ fn not_writable_message(root: &Path) -> String {
 /// gone fails with a permission error, or worse, part-way through. Linux would
 /// tolerate it, but a backend still serving requests from a directory being
 /// swapped out is not something to rely on either.
-#[cfg(any(windows, target_os = "linux"))]
 fn stop_backend_and_wait(state: &BackendState, timeout: Duration) -> Result<(), String> {
     let handles = match state.inner.lock() {
         Ok(mut guard) => guard.handles.take(),
@@ -1350,25 +1354,29 @@ fn stop_backend_and_wait(state: &BackendState, timeout: Duration) -> Result<(), 
             if handles.child.try_wait().ok().flatten().is_some() {
                 return Ok(());
             }
-            thread::sleep(Duration::from_millis(100));
+            thread::sleep(PORT_POLL_INTERVAL);
         }
     }
     let _ = handles.child.kill();
     let deadline = Instant::now() + timeout;
-    loop {
+    let failure = loop {
         match handles.child.try_wait() {
             Ok(Some(_)) => return Ok(()),
-            Ok(None) => {
-                if Instant::now() >= deadline {
-                    return Err(
-                        "the audio backend did not shut down in time; update cancelled".to_string(),
-                    );
-                }
-                thread::sleep(Duration::from_millis(100));
+            Ok(None) if Instant::now() >= deadline => {
+                break "the audio backend did not shut down in time".to_string();
             }
-            Err(e) => return Err(format!("failed to wait for the audio backend to exit: {e}")),
+            Ok(None) => thread::sleep(PORT_POLL_INTERVAL),
+            Err(e) => break format!("failed to wait for the audio backend to exit: {e}"),
         }
-    }
+    };
+    // Kept, so the next stop kills this process again instead of a new
+    // backend racing it for the port.
+    state
+        .inner
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .handles = Some(handles);
+    Err(failure)
 }
 
 /// Rename, retrying briefly on Windows sharing violations.
@@ -1400,6 +1408,31 @@ fn rename_with_retry(from: &Path, to: &Path, what: &str) -> Result<(), String> {
     ))
 }
 
+/// Holds `starting` for a whole app update, so no backend starts from backend/
+/// while the update renames it. Released on every way out of apply_app_update.
+#[cfg(any(windows, target_os = "linux"))]
+struct UpdateClaim<'a>(&'a BackendState);
+
+#[cfg(any(windows, target_os = "linux"))]
+impl<'a> UpdateClaim<'a> {
+    fn take(state: &'a BackendState) -> Result<Self, String> {
+        let mut inner = state.inner.lock().map_err(|e| e.to_string())?;
+        if inner.starting {
+            return Err("StemDeck is restarting; try the update again in a moment".to_string());
+        }
+        inner.starting = true;
+        Ok(UpdateClaim(state))
+    }
+}
+
+#[cfg(any(windows, target_os = "linux"))]
+impl Drop for UpdateClaim<'_> {
+    fn drop(&mut self) {
+        let mut inner = self.0.inner.lock().unwrap_or_else(|e| e.into_inner());
+        inner.starting = false;
+    }
+}
+
 /// Applies a previously downloaded+verified app update in place, then
 /// relaunches. This is the one piece of the updater with no existing analog in
 /// the runtime-pack machinery above: it replaces the *running* exe, not an idle
@@ -1423,6 +1456,7 @@ fn apply_app_update(
     }
     #[cfg(any(windows, target_os = "linux"))]
     {
+        let _claim = UpdateClaim::take(&state)?;
         let root = app_root()?;
         let data_dir = local_data_dir()?;
         let downloads = data_dir.join("downloads");
@@ -1476,7 +1510,8 @@ fn apply_app_update(
         //
         // The backend must be gone first: it runs from backend/, and Windows
         // will not rename a directory with live handles inside it.
-        stop_backend_and_wait(&state, Duration::from_secs(15))?;
+        stop_backend_and_wait(&state, BACKEND_STOP_TIMEOUT)
+            .map_err(|e| format!("{e}; update cancelled"))?;
 
         let backend_dir = root.join("backend");
         let backend_old = root.join("backend.old");
@@ -1730,11 +1765,6 @@ fn start_backend(
     app_handle: tauri::AppHandle,
     state: tauri::State<BackendState>,
 ) -> Result<BackendStarted, String> {
-    // Always bind all interfaces; whether other devices are actually served is
-    // controlled live by the backend's network gate (Settings → "Make StemDeck
-    // available on your network"), which defaults off and always allows
-    // loopback. The WebView itself connects via 127.0.0.1 regardless.
-    let bind_host = "0.0.0.0";
     // Gate concurrent calls: return immediately if already running or starting (#145).
     {
         let mut inner = state.inner.lock().map_err(|e| e.to_string())?;
@@ -1748,165 +1778,247 @@ fn start_backend(
     }
 
     // Spawn and wait for health outside the lock; update state atomically on completion.
-    let spawn_result = (|| {
-        let root = app_root()?;
-        let backend_dir = backend_dir(&root)?;
-        let data_dir = local_data_dir()?;
-        let python = python_path(&root).filter(|p| p.is_file()).ok_or_else(|| {
-            "Python runtime not found. Expected python/ or .venv/ under StemDeck.".to_string()
-        })?;
-        patch_pyvenv_cfg(&python);
-        let (port, port_guard) = reserve_port(bind_host, configured_port())?;
-        // The LAN half of the pair. The webview talks plain http to the
-        // loopback listener above, because a self-signed certificate would
-        // raise an interstitial a Tauri window has no way to click through;
-        // phones get this one, because without TLS their origin is insecure
-        // and the browser withholds the AudioWorklet transpose runs on.
-        // Best-effort throughout: no certificate, no free port, or a backend
-        // too old to read the variables all mean LAN transpose is unavailable,
-        // never that StemDeck fails to start.
-        let https = certs::ensure(&data_dir)
+    let spawned = spawn_backend(&app_handle, configured_port(), false);
+    store_backend(&state, spawned)
+}
+
+/// Restarts the backend on the same port, so a changed network setting applies
+/// without changing the page's origin. Off the main thread: it takes seconds.
+#[tauri::command]
+async fn restart_backend(app_handle: tauri::AppHandle) -> Result<BackendStarted, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app_handle.state::<BackendState>();
+        restart_backend_blocking(&app_handle, &state)
+    })
+    .await
+    .map_err(|e| format!("the restart did not finish: {e}"))?
+}
+
+const BACKEND_STOP_TIMEOUT: Duration = Duration::from_secs(15);
+const RESTART_PORT_WAIT: Duration = Duration::from_secs(5);
+const PORT_POLL_INTERVAL: Duration = Duration::from_millis(100);
+
+fn restart_backend_blocking(
+    app_handle: &tauri::AppHandle,
+    state: &BackendState,
+) -> Result<BackendStarted, String> {
+    let port = {
+        let mut inner = state.inner.lock().map_err(|e| e.to_string())?;
+        if inner.starting {
+            return Err("Backend startup already in progress".to_string());
+        }
+        inner.starting = true;
+        inner.last_port
+    };
+    let spawned = stop_backend_and_wait(state, BACKEND_STOP_TIMEOUT).and_then(|()| {
+        let port = port.unwrap_or_else(configured_port);
+        let mut ports = vec![port];
+        if configured_bind_host() == ALL_INTERFACES {
+            ports.push(HTTPS_PORT);
+        }
+        if !wait_for_port_release(&ports, RESTART_PORT_WAIT) {
+            eprintln!("[stemdeck] ports {ports:?} still held after the restart; using free ones");
+        }
+        spawn_backend(app_handle, port, true)
+    });
+    store_backend(state, spawned)
+}
+
+/// Waits until nothing holds any of `ports`, for at most `timeout`: on Windows
+/// the interpreter the venv launcher started can outlive the stopped backend.
+fn wait_for_port_release(ports: &[u16], timeout: Duration) -> bool {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if ports
+            .iter()
+            .all(|&port| claim_port_on_both(ALL_INTERFACES, port, true).is_ok())
+        {
+            return true;
+        }
+        if Instant::now() >= deadline {
+            return false;
+        }
+        thread::sleep(PORT_POLL_INTERVAL);
+    }
+}
+
+/// Clears the starting flag whether the spawn succeeded or failed.
+fn store_backend(
+    state: &BackendState,
+    spawned: Result<BackendHandles, String>,
+) -> Result<BackendStarted, String> {
+    let mut inner = state.inner.lock().map_err(|e| e.to_string())?;
+    inner.starting = false;
+    let handles = spawned?;
+    let url = handles.url.clone();
+    inner.last_port = Some(handles.port);
+    inner.handles = Some(handles);
+    Ok(BackendStarted { url })
+}
+
+/// Spawns the backend on `preferred_port`, or a free one if that is taken, and
+/// waits for it to answer /api/health. `after_stop`: see [`claim_port`].
+fn spawn_backend(
+    app_handle: &tauri::AppHandle,
+    preferred_port: u16,
+    after_stop: bool,
+) -> Result<BackendHandles, String> {
+    // Loopback while network access is off, so other devices cannot even
+    // connect; the backend's own gate covers the gap until a restart applies it.
+    let bind_host = configured_bind_host();
+    let root = app_root()?;
+    let backend_dir = backend_dir(&root)?;
+    let data_dir = local_data_dir()?;
+    let python = python_path(&root).filter(|p| p.is_file()).ok_or_else(|| {
+        "Python runtime not found. Expected python/ or .venv/ under StemDeck.".to_string()
+    })?;
+    patch_pyvenv_cfg(&python);
+    let (port, port_guard) = reserve_port(bind_host, preferred_port, after_stop)?;
+    // The LAN half of the pair, so only while the backend is on the LAN at
+    // all. The webview talks plain http to the loopback listener above,
+    // because a self-signed certificate would raise an interstitial a Tauri
+    // window has no way to click through; phones get this one, because
+    // without TLS their origin is insecure and the browser withholds the
+    // AudioWorklet transpose runs on. Best-effort throughout: no certificate,
+    // no free port, or a backend too old to read the variables all mean LAN
+    // transpose is unavailable, never that StemDeck fails to start.
+    let https = if bind_host == ALL_INTERFACES {
+        certs::ensure(&data_dir)
             .map_err(|e| {
                 eprintln!("stemdeck: no LAN certificate, https disabled: {e}");
                 e
             })
             .ok()
             .and_then(|cert| {
-                reserve_port(bind_host, HTTPS_PORT)
+                reserve_port(bind_host, HTTPS_PORT, after_stop)
                     .map_err(|e| eprintln!("stemdeck: no port for https: {e}"))
                     .ok()
                     .map(|(https_port, guard)| (cert, https_port, guard))
-            });
-        let url = format!("http://127.0.0.1:{port}");
-        let log_path = data_dir.join("logs").join("backend.log");
-        let (stdout, stderr) = prepare_backend_stdio(&log_path).unwrap_or_else(|_| {
-            // Logging should help diagnose startup; it should not prevent startup.
-            (Stdio::null(), Stdio::null())
-        });
+            })
+    } else {
+        None
+    };
+    let url = format!("http://{LOOPBACK}:{port}");
+    let log_path = data_dir.join("logs").join("backend.log");
+    let (stdout, stderr) = prepare_backend_stdio(&log_path).unwrap_or_else(|_| {
+        // Logging should help diagnose startup; it should not prevent startup.
+        (Stdio::null(), Stdio::null())
+    });
 
-        // On macOS and Linux, python-build-standalone detects its own prefix by
-        // walking up from bin/ — PYTHONHOME is not needed and actively breaks
-        // startup when mis-computed (it would point at python/bin, whose
-        // lib/python3.X has no stdlib, so even `encodings` fails to import).
-        // Only Windows, whose portable venv keeps the stdlib under base/Lib,
-        // needs PYTHONHOME to locate the bundled stdlib.
-        // Compute before moving python into Command::new.
-        #[cfg(windows)]
-        let pythonhome = python
-            .parent()
-            .and_then(|bin_dir| bin_dir.parent().map(|venv| (venv, bin_dir)))
-            .and_then(|(venv, bin_dir)| bundled_python_home(venv, bin_dir).map(|(home, _)| home));
+    // On macOS and Linux, python-build-standalone detects its own prefix by
+    // walking up from bin/ — PYTHONHOME is not needed and actively breaks
+    // startup when mis-computed (it would point at python/bin, whose
+    // lib/python3.X has no stdlib, so even `encodings` fails to import).
+    // Only Windows, whose portable venv keeps the stdlib under base/Lib,
+    // needs PYTHONHOME to locate the bundled stdlib.
+    // Compute before moving python into Command::new.
+    #[cfg(windows)]
+    let pythonhome = python
+        .parent()
+        .and_then(|bin_dir| bin_dir.parent().map(|venv| (venv, bin_dir)))
+        .and_then(|(venv, bin_dir)| bundled_python_home(venv, bin_dir).map(|(home, _)| home));
 
-        let instance_token = new_instance_token();
-        let mut cmd = Command::new(python);
-        cmd.args([
-            "-m",
-            "uvicorn",
-            "app.main:app",
-            "--host",
-            bind_host,
-            "--port",
-            &port.to_string(),
-            // Bound how long uvicorn waits for open connections on shutdown.
-            // The import queue's SSE stream stays open for as long as the app
-            // window is on screen, and uvicorn drains connections before it
-            // runs the lifespan teardown -- so without this the backend never
-            // finishes draining, we escalate to SIGKILL below, and the teardown
-            // that reaps the demucs worker never runs. Kept under the 3 s
-            // SIGKILL deadline so the clean path wins.
-            "--timeout-graceful-shutdown",
-            "2",
-        ]);
-        #[cfg(windows)]
-        if let Some(ref pythonhome) = pythonhome {
-            cmd.env("PYTHONHOME", pythonhome);
-        }
-
-        // Jobs (stem audio files) live in ~/Documents/StemDeck/jobs/ so the user's
-        // library is visible in Finder, backed up by iCloud, and survives app reinstalls.
-        let jobs_dir = documents_dir_for_jobs(&app_handle);
-
-        cmd.current_dir(&backend_dir)
-            .env("STEMDECK_DATA_DIR", &data_dir)
-            .env("STEMDECK_DEFAULT_JOBS_DIR", &jobs_dir)
-            .env("STEMDECK_DESKTOP", "1")
-            // Where the backend keeps the per-user copy of settings.json that
-            // survives extracting a new package into a fresh folder. Computed
-            // here so the write half and ensure_workspace's restore half can
-            // never point at different places.
-            .envs(
-                shared_settings_dir()
-                    .map(|dir| ("STEMDECK_SETTINGS_MIRROR", dir.join("settings.json"))),
-            )
-            .env("STEMDECK_PARENT_PID", std::process::id().to_string())
-            // How the backend proves it is ours when it answers /api/health.
-            // The environment is the only channel that survives the Windows
-            // venv launcher re-execing into python/base (#457), which is why
-            // this exists rather than a PID comparison. See wait_for_health.
-            .env("STEMDECK_INSTANCE_TOKEN", &instance_token)
-            .env("PYTHONUNBUFFERED", "1")
-            .env("XDG_CACHE_HOME", data_dir.join("cache"))
-            .env("TORCH_HOME", data_dir.join("models").join("torch"))
-            .stdout(stdout)
-            .stderr(stderr);
-
-        // app/core/tls_listener reads these three together; any one missing
-        // means it stays off and the app is exactly what it was before.
-        if let Some((ref cert, https_port, _)) = https {
-            cmd.env("STEMDECK_SSL_CERT", &cert.cert)
-                .env("STEMDECK_SSL_KEY", &cert.key)
-                .env("STEMDECK_HTTPS_PORT", https_port.to_string());
-        }
-
-        apply_ffmpeg_path(&mut cmd, &data_dir)?;
-        // fpcalc for song fingerprinting, fetched in the background once the
-        // FFmpeg it stands in for is settled. Never waited for.
-        #[cfg(unix)]
-        spawn_fpcalc_setup(data_dir.clone());
-
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
-
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| format!("failed to start backend: {e}"))?;
-        // Release the reserved ports immediately after spawn so uvicorn can
-        // bind them. Both, or the companion listener finds its own port held.
-        drop(port_guard);
-        drop(https);
-
-        if let Err(err) = wait_for_health(
-            &mut child,
-            port,
-            &instance_token,
-            Duration::from_secs(90),
-            &log_path,
-        ) {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(err);
-        }
-
-        Ok((child, url))
-    })();
-
-    // Atomically update state: clear starting flag whether spawn succeeded or failed.
-    let mut inner = state.inner.lock().map_err(|e| e.to_string())?;
-    inner.starting = false;
-    match spawn_result {
-        Ok((child, url)) => {
-            inner.handles = Some(BackendHandles {
-                child,
-                url: url.clone(),
-            });
-            Ok(BackendStarted { url })
-        }
-        Err(e) => Err(e),
+    let instance_token = new_instance_token();
+    let mut cmd = Command::new(python);
+    cmd.args([
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        bind_host,
+        "--port",
+        &port.to_string(),
+        // Bound how long uvicorn waits for open connections on shutdown.
+        // The import queue's SSE stream stays open for as long as the app
+        // window is on screen, and uvicorn drains connections before it
+        // runs the lifespan teardown -- so without this the backend never
+        // finishes draining, we escalate to SIGKILL below, and the teardown
+        // that reaps the demucs worker never runs. Kept under the 3 s
+        // SIGKILL deadline so the clean path wins.
+        "--timeout-graceful-shutdown",
+        "2",
+    ]);
+    #[cfg(windows)]
+    if let Some(ref pythonhome) = pythonhome {
+        cmd.env("PYTHONHOME", pythonhome);
     }
+
+    // Jobs (stem audio files) live in ~/Documents/StemDeck/jobs/ so the user's
+    // library is visible in Finder, backed up by iCloud, and survives app reinstalls.
+    let jobs_dir = documents_dir_for_jobs(app_handle);
+
+    cmd.current_dir(&backend_dir)
+        .env("STEMDECK_DATA_DIR", &data_dir)
+        .env("STEMDECK_DEFAULT_JOBS_DIR", &jobs_dir)
+        .env("STEMDECK_DESKTOP", "1")
+        // Reported back as network_listening: what listens, not what was saved.
+        .env("STEMDECK_BIND_HOST", bind_host)
+        // Where the backend keeps the per-user copy of settings.json that
+        // survives extracting a new package into a fresh folder. Computed
+        // here so the write half and ensure_workspace's restore half can
+        // never point at different places.
+        .envs(
+            shared_settings_dir()
+                .map(|dir| ("STEMDECK_SETTINGS_MIRROR", dir.join("settings.json"))),
+        )
+        .env("STEMDECK_PARENT_PID", std::process::id().to_string())
+        // How the backend proves it is ours when it answers /api/health.
+        // The environment is the only channel that survives the Windows
+        // venv launcher re-execing into python/base (#457), which is why
+        // this exists rather than a PID comparison. See wait_for_health.
+        .env("STEMDECK_INSTANCE_TOKEN", &instance_token)
+        .env("PYTHONUNBUFFERED", "1")
+        .env("XDG_CACHE_HOME", data_dir.join("cache"))
+        .env("TORCH_HOME", data_dir.join("models").join("torch"))
+        .stdout(stdout)
+        .stderr(stderr);
+
+    // tls_listener needs all three. Removed otherwise, so a copy in the user's
+    // own environment cannot start the LAN listener while access is off.
+    if let Some((ref cert, https_port, _)) = https {
+        cmd.env("STEMDECK_SSL_CERT", &cert.cert)
+            .env("STEMDECK_SSL_KEY", &cert.key)
+            .env("STEMDECK_HTTPS_PORT", https_port.to_string());
+    } else {
+        cmd.env_remove("STEMDECK_SSL_CERT")
+            .env_remove("STEMDECK_SSL_KEY")
+            .env_remove("STEMDECK_HTTPS_PORT");
+    }
+
+    apply_ffmpeg_path(&mut cmd, &data_dir)?;
+    // fpcalc for song fingerprinting, fetched in the background once the
+    // FFmpeg it stands in for is settled. Never waited for.
+    #[cfg(unix)]
+    spawn_fpcalc_setup(data_dir.clone());
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("failed to start backend: {e}"))?;
+    // Release the reserved ports immediately after spawn so uvicorn can
+    // bind them. Both, or the companion listener finds its own port held.
+    drop(port_guard);
+    drop(https);
+
+    if let Err(err) = wait_for_health(
+        &mut child,
+        port,
+        &instance_token,
+        Duration::from_secs(90),
+        &log_path,
+    ) {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(err);
+    }
+
+    Ok(BackendHandles { child, url, port })
 }
 
 /// Reports the running build's OS/arch/GPU variant so the frontend can pick the
@@ -4688,12 +4800,25 @@ fn apply_ffmpeg_path(cmd: &mut Command, data_dir: &Path) -> Result<(), String> {
 /// and a server on `0.0.0.0` is what makes Windows Firewall interrupt the user.
 /// The backend is the thing that should be answering that prompt, not the shell
 /// that starts it.
-fn claim_port(host: &str, port: u16) -> Result<(u16, Socket), String> {
+///
+/// `after_stop` sets SO_REUSEADDR like uvicorn, so TIME_WAIT does not refuse the
+/// port; never on Windows, and on macOS only once no listener answers there.
+fn claim_port(host: &str, port: u16, after_stop: bool) -> Result<(u16, Socket), String> {
     let addr: SocketAddr = format!("{host}:{port}")
         .parse()
         .map_err(|e| format!("bad bind address {host}:{port}: {e}"))?;
     let socket = Socket::new(Domain::for_address(addr), Type::STREAM, Some(Protocol::TCP))
         .map_err(|e| format!("socket failed: {e}"))?;
+    #[cfg(unix)]
+    if after_stop {
+        #[cfg(target_os = "macos")]
+        refuse_live_listener(port)?;
+        socket
+            .set_reuse_address(true)
+            .map_err(|e| format!("SO_REUSEADDR failed: {e}"))?;
+    }
+    #[cfg(not(unix))]
+    let _ = after_stop;
     socket
         .bind(&addr.into())
         .map_err(|e| format!("port bind failed: {e}"))?;
@@ -4706,6 +4831,22 @@ fn claim_port(host: &str, port: u16) -> Result<(u16, Socket), String> {
     Ok((granted, socket))
 }
 
+#[cfg(target_os = "macos")]
+const LISTENER_PROBE_TIMEOUT: Duration = Duration::from_millis(250);
+
+/// macOS lets SO_REUSEADDR bind beside a live listener, so a connect decides:
+/// refused leaves only TIME_WAIT, accepted means another program serves there.
+#[cfg(target_os = "macos")]
+fn refuse_live_listener(port: u16) -> Result<(), String> {
+    let addr: SocketAddr = format!("{LOOPBACK}:{port}")
+        .parse()
+        .map_err(|e| format!("bad probe address for port {port}: {e}"))?;
+    match TcpStream::connect_timeout(&addr, LISTENER_PROBE_TIMEOUT) {
+        Ok(_) => Err(format!("port {port} has a live listener")),
+        Err(_) => Ok(()),
+    }
+}
+
 /// Bind to port 0 and return both the chosen port and the held reservation.
 /// Caller must hold it until just after the child process is spawned, then drop
 /// it so the child can bind the same port.  Holding the socket until spawn
@@ -4715,7 +4856,7 @@ fn claim_port(host: &str, port: u16) -> Result<(u16, Socket), String> {
 /// `host` must be the address the backend itself will bind. Probing a
 /// different one proves nothing: see [`reserve_port`].
 fn free_port(host: &str) -> Result<(u16, Socket), String> {
-    claim_port(host, 0)
+    claim_port(host, 0, false)
 }
 
 /// The user's preferred port (Settings -> port), read from the backend's
@@ -4737,21 +4878,54 @@ fn configured_port() -> u16 {
     }
 }
 
+const LOOPBACK: &str = "127.0.0.1";
+const ALL_INTERFACES: &str = "0.0.0.0";
+
+/// Loopback unless allow_network is on, with app/core/settings.py's precedence
+/// (stored bool, else STEMDECK_ALLOW_NETWORK=1); unreadable means loopback.
+fn bind_host_for(settings_json: Option<&str>, env_allow: Option<&str>) -> &'static str {
+    let stored = settings_json
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(text).ok())
+        .and_then(|json| {
+            json.get("allow_network")
+                .and_then(serde_json::Value::as_bool)
+        });
+    if stored.unwrap_or_else(|| env_allow.map(str::trim) == Some("1")) {
+        ALL_INTERFACES
+    } else {
+        LOOPBACK
+    }
+}
+
+fn configured_bind_host() -> &'static str {
+    let settings = local_data_dir()
+        .ok()
+        .and_then(|dir| fs::read_to_string(dir.join("settings.json")).ok());
+    let env_allow = env::var("STEMDECK_ALLOW_NETWORK").ok();
+    bind_host_for(settings.as_deref(), env_allow.as_deref())
+}
+
 /// Reserve the user's preferred port; fall back to any free port if it's taken,
 /// so a port conflict can never block startup.
 ///
-/// `host` must be the address the backend will bind (`0.0.0.0`), not loopback.
-/// The two are not interchangeable: on Windows, binding `127.0.0.1:8000`
-/// succeeds even while another process holds `0.0.0.0:8000`, because neither
-/// socket sets `SO_EXCLUSIVEADDRUSE`. Probing loopback therefore reported a
-/// taken port as free, the fallback below never ran, and the backend we spawned
-/// died with `10048` while the *other* instance kept answering on that port
-/// (#424).
-fn reserve_port(host: &str, desired: u16) -> Result<(u16, Socket), String> {
-    if let Ok(claimed) = claim_port(host, desired) {
+/// Free on both loopback and every interface, or a free port instead.
+fn reserve_port(host: &str, desired: u16, after_stop: bool) -> Result<(u16, Socket), String> {
+    if let Ok(claimed) = claim_port_on_both(host, desired, after_stop) {
         return Ok(claimed);
     }
     free_port(host)
+}
+
+/// The other address is probed first and let go, because Linux refuses the
+/// second bind while this process holds the first.
+fn claim_port_on_both(host: &str, port: u16, after_stop: bool) -> Result<(u16, Socket), String> {
+    let other = if host == LOOPBACK {
+        ALL_INTERFACES
+    } else {
+        LOOPBACK
+    };
+    drop(claim_port(other, port, after_stop)?);
+    claim_port(host, port, after_stop)
 }
 
 /// A fresh identity for the backend this launch is about to spawn, handed to
@@ -7720,12 +7894,33 @@ b6052160df96b31c9b1e33854a4dcda3d4b57641b880270f31736fb9f445d384  ffmpeg-n7.1-la
         let held = std::net::TcpListener::bind(("0.0.0.0", 0)).unwrap();
         let taken = held.local_addr().unwrap().port();
 
-        let (got, _guard) = super::reserve_port("0.0.0.0", taken).unwrap();
+        let (got, _guard) = super::reserve_port("0.0.0.0", taken, false).unwrap();
 
         assert_ne!(
             got, taken,
             "handed back a port another socket already holds"
         );
+    }
+
+    #[test]
+    fn a_loopback_backend_is_not_given_a_port_held_on_every_interface() {
+        // Windows grants a loopback bind beside another process's wildcard one.
+        let held = std::net::TcpListener::bind((super::ALL_INTERFACES, 0)).unwrap();
+        let taken = held.local_addr().unwrap().port();
+
+        let (got, _guard) = super::reserve_port(super::LOOPBACK, taken, false).unwrap();
+
+        assert_ne!(got, taken, "loopback reservation ignored a wildcard holder");
+    }
+
+    #[test]
+    fn an_every_interface_backend_is_not_given_a_port_held_on_loopback() {
+        let held = std::net::TcpListener::bind((super::LOOPBACK, 0)).unwrap();
+        let taken = held.local_addr().unwrap().port();
+
+        let (got, _guard) = super::reserve_port(super::ALL_INTERFACES, taken, false).unwrap();
+
+        assert_ne!(got, taken, "wildcard reservation ignored a loopback holder");
     }
 
     #[test]
@@ -7759,19 +7954,106 @@ b6052160df96b31c9b1e33854a4dcda3d4b57641b880270f31736fb9f445d384  ffmpeg-n7.1-la
         // parallel, so the window is narrowed rather than closed. Walking the
         // range absorbs a lost race. A reserve_port that genuinely ignored a
         // free port would have to lose all two hundred.
-        let mut attempts = 0_u32;
-        let granted = (21_000..21_200).find_map(|wanted| {
-            drop(super::claim_port("0.0.0.0", wanted).ok()?);
-            attempts += 1;
-            let (got, guard) = super::reserve_port("0.0.0.0", wanted).ok()?;
+        for host in [super::LOOPBACK, super::ALL_INTERFACES] {
+            let mut attempts = 0_u32;
+            let granted = (21_000..21_200).find_map(|wanted| {
+                drop(super::claim_port(super::LOOPBACK, wanted, false).ok()?);
+                drop(super::claim_port(super::ALL_INTERFACES, wanted, false).ok()?);
+                attempts += 1;
+                let (got, guard) = super::reserve_port(host, wanted, false).ok()?;
+                (got == wanted).then_some(guard)
+            });
+
+            assert!(attempts > 0, "no free port in 21000..21200 to test with");
+            assert!(
+                granted.is_some(),
+                "reserve_port({host}) fell back on all {attempts} ports it had just been shown were free"
+            );
+        }
+    }
+
+    #[test]
+    fn a_restart_gets_back_the_port_its_backend_just_closed() {
+        // The backend closing first leaves TIME_WAIT, which a plain bind refuses.
+        // A fixed range for the reason given in a_free_port_is_granted_as_asked.
+        let granted = (21_400..21_600).find_map(|wanted| {
+            let listener = std::net::TcpListener::bind((super::LOOPBACK, wanted)).ok()?;
+            let mut client = std::net::TcpStream::connect((super::LOOPBACK, wanted)).ok()?;
+            let (served, _) = listener.accept().ok()?;
+            // Reading the end of stream means the server's close has arrived.
+            drop(served);
+            std::io::Read::read(&mut client, &mut [0_u8; 1]).ok()?;
+            drop(client);
+            drop(listener);
+            let (got, guard) = super::reserve_port(super::LOOPBACK, wanted, true).ok()?;
             (got == wanted).then_some(guard)
         });
 
-        assert!(attempts > 0, "no free port in 21000..21200 to test with");
         assert!(
             granted.is_some(),
-            "reserve_port fell back on all {attempts} ports it had just been shown were free"
+            "every port the stopped backend had closed went to another port on restart"
         );
+    }
+
+    #[test]
+    fn only_a_claim_after_a_stop_reuses_the_address_and_never_on_windows() {
+        let (_, fresh) = super::claim_port(super::LOOPBACK, 0, false).unwrap();
+        assert!(!fresh.reuse_address().unwrap());
+        let (_, after_stop) = super::claim_port(super::LOOPBACK, 0, true).unwrap();
+        assert_eq!(after_stop.reuse_address().unwrap(), cfg!(unix));
+    }
+
+    #[test]
+    fn a_claim_after_a_stop_never_binds_beside_a_live_listener() {
+        let held = std::net::TcpListener::bind((super::LOOPBACK, 0)).unwrap();
+        let taken = held.local_addr().unwrap().port();
+
+        assert!(super::claim_port_on_both(super::ALL_INTERFACES, taken, true).is_err());
+    }
+
+    #[cfg(any(windows, target_os = "linux"))]
+    #[test]
+    fn an_update_and_a_restart_never_overlap() {
+        let state = super::BackendState::default();
+        state.inner.lock().unwrap().starting = true;
+        assert!(
+            super::UpdateClaim::take(&state).is_err(),
+            "update ran during a restart"
+        );
+
+        state.inner.lock().unwrap().starting = false;
+        let claim = super::UpdateClaim::take(&state).unwrap();
+        assert!(
+            state.inner.lock().unwrap().starting,
+            "a restart could begin mid-update"
+        );
+        drop(claim);
+        assert!(
+            !state.inner.lock().unwrap().starting,
+            "a failed update left the backend unstartable"
+        );
+    }
+
+    #[test]
+    fn the_backend_listens_beyond_loopback_only_once_network_access_is_on() {
+        use super::{bind_host_for, ALL_INTERFACES as ALL, LOOPBACK as LO};
+        // (settings.json, STEMDECK_ALLOW_NETWORK, where the backend binds).
+        let cases = [
+            (None, None, LO),
+            (Some(r#"{"allow_network": true}"#), None, ALL),
+            (Some(r#"{"allow_network": false}"#), None, LO),
+            (Some(r#"{"port": 8000}"#), None, LO),
+            (Some("{not json"), None, LO),
+            (Some(r#"{"allow_network": "yes"}"#), None, LO),
+            (Some("[]"), None, LO),
+            (Some(r#"{"port": 8000}"#), Some("1"), ALL),
+            (None, Some(" 1 "), ALL),
+            (Some(r#"{"allow_network": false}"#), Some("1"), LO),
+            (None, Some("0"), LO),
+        ];
+        for (settings, env, want) in cases {
+            assert_eq!(bind_host_for(settings, env), want, "{settings:?}, {env:?}");
+        }
     }
 
     #[test]
