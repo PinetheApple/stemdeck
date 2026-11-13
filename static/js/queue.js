@@ -113,17 +113,15 @@ export const batchStillShown = (progress, notQueued) => progress.waiting + progr
 
 // ─── state ───────────────────────────────────────────────────────────────────
 
-// The batch the queue view sums up: its jobs, the stems and Detect structure it
-// was queued with, and how many of its items the queue did not take.
-let batch = { jobIds: [], choice: null, notQueued: 0 };
+// The batch the queue view sums up: its jobs and how many of its items the queue did not take.
+let batch = { jobIds: [], notQueued: 0 };
 let resendHandler = null;
 
-/** A batch queued while the last one still has jobs in the queue joins it. */
-export function recordBatch(jobIds, choice) {
+/** A batch queued while the last one still has jobs in the queue joins it; nothing queued changes nothing. */
+export function recordBatch(jobIds) {
+  if (!jobIds.length) return;
   const running = batch.jobIds.some((id) => currentIds().has(id));
-  batch = running
-    ? { ...batch, jobIds: [...batch.jobIds, ...jobIds] }
-    : { jobIds: [...jobIds], choice, notQueued: batch.notQueued };
+  batch = { ...batch, jobIds: running ? [...batch.jobIds, ...jobIds] : [...jobIds] };
 }
 
 export const getBatch = () => batch;

@@ -129,6 +129,8 @@ export function linkItems(preview) {
     key: groupKey(p.line, p.url),
     title: p.title,
     count: p.found,
+    unavailable: p.unavailable,
+    truncated: p.truncated,
     collapsed: false,
     showAll: false,
   }));

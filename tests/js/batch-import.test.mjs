@@ -14,7 +14,7 @@ const {
   ITEM_STATUS, MAX_BATCH_FILES, MAX_BATCH_LINKS, capEntries, capLines, fileItems, folderFiles, isPastedList,
   isTickable, linkItems, lookingUpItems, markUnchecked, pastedLines, previewNames, queuePlan, queueItems, walkEntries,
 } = await import("../../static/js/batchImportModel.js");
-const { batchProgress, batchStillShown } = await import("../../static/js/queue.js");
+const { batchProgress, batchStillShown, getBatch, recordBatch } = await import("../../static/js/queue.js");
 
 let pass = 0,
   fail = 0;
@@ -69,6 +69,8 @@ check("too long cannot be ticked", !isTickable(byUrl("u4")) && byUrl("u4").ticke
 const notLink = items.find((i) => i.status === ITEM_STATUS.NOT_A_LINK);
 check("not a link cannot be ticked and keeps its line", !isTickable(notLink) && notLink.line === 7);
 check("a playlist becomes one group", groups.length === 1 && groups[0].title === "Worship");
+const withGaps = linkItems({ ...PREVIEW, playlists: [{ ...PREVIEW.playlists[0], unavailable: 2, truncated: true }] }).groups[0];
+check("a playlist group keeps its unavailable count and whether it was cut", withGaps.unavailable === 2 && withGaps.truncated === true);
 check("a playlist's tracks belong to its group", byUrl("u3").group === groups[0].key && byUrl("u4").group === groups[0].key);
 check("a track pasted alone belongs to no group", byUrl("u2").group === null);
 
@@ -203,6 +205,10 @@ check("a batch with a failure stays shown once the queue drains", batchStillShow
 check("a batch with items not queued stays shown", batchStillShown(batchProgress(["c"], idle, (id) => statuses[id]), 1));
 check("a batch all done goes", !batchStillShown(batchProgress(["c"], idle, (id) => statuses[id]), 0));
 check("a batch down to one waiting job stays shown", batchStillShown(batchProgress(["a"], snap, (id) => statuses[id]), 0));
+
+recordBatch(["kept"]);
+recordBatch([]);
+check("recording nothing never empties the batch", eq(getBatch().jobIds, ["kept"]), JSON.stringify(getBatch()));
 
 console.log(fail ? `\n${fail} FAILED` : `\n${pass}/${pass} checks passed`);
 process.exit(fail ? 1 : 0);
