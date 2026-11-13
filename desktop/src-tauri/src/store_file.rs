@@ -228,9 +228,25 @@ fn write_synced(path: &Path, bytes: &[u8]) -> io::Result<()> {
 fn sync_folder(dir: &Path) -> io::Result<()> {
     // Renames reach the disk with the folder on Linux and macOS; NTFS journals them.
     if cfg!(unix) {
-        fs::File::open(dir)?.sync_all()?;
+        tolerate_unsyncable(fs::File::open(dir)?.sync_all())?;
     }
     Ok(())
+}
+
+/// Network and FUSE mounts refuse a folder sync (EINVAL, ENOTSUP) though the
+/// rename has happened; any other failure stands.
+fn tolerate_unsyncable(synced: io::Result<()>) -> io::Result<()> {
+    match synced {
+        Err(e)
+            if matches!(
+                e.kind(),
+                io::ErrorKind::InvalidInput | io::ErrorKind::Unsupported
+            ) =>
+        {
+            Ok(())
+        }
+        other => other,
+    }
 }
 
 /// Write `bytes` to `path` through a synced `.tmp` and a rename, keeping the
@@ -265,13 +281,14 @@ pub fn write_replacing(path: &Path, bytes: &[u8], keep_previous: bool) -> io::Re
     sync_folder(dir)
 }
 
-/// Move a damaged store file aside as `<name>.corrupt-<n>`, one above the
-/// highest there, keeping only the newest `CORRUPT_KEPT`. Returns the new name.
-fn set_aside(path: &Path) -> io::Result<PathBuf> {
+/// Move `damaged`, the store at `path` or one of its copies, aside as
+/// `<name>.corrupt-<n>`, one above the highest there, keeping only the newest
+/// `CORRUPT_KEPT`. Returns the new name.
+fn set_aside(path: &Path, damaged: &Path) -> io::Result<PathBuf> {
     let existing = corrupt_copies(path)?;
     let next = existing.last().map_or(1, |(n, _)| n + 1);
     let aside = with_suffix(path, &format!("{CORRUPT_SUFFIX}{next}"));
-    retrying(|| fs::rename(path, &aside))?;
+    retrying(|| fs::rename(damaged, &aside))?;
     let surplus = (existing.len() + 1).saturating_sub(CORRUPT_KEPT);
     for (_, old) in existing.iter().take(surplus) {
         let _ = fs::remove_file(old);
@@ -288,8 +305,8 @@ pub struct OpenStore {
     main_good: bool,
     /// Set after a failed save; the exit tries that save once more.
     unsaved: bool,
-    /// The open found the file and every copy damaged and started empty;
-    /// cleared once the page has been told.
+    /// Nothing could be read, so the open set the damaged files aside and
+    /// started empty; cleared once the page has been told.
     lost: bool,
 }
 
@@ -303,19 +320,7 @@ impl OpenStore {
     ) -> Result<OpenStore, String> {
         copy_in_legacy(path, legacy, &report)?;
         let (entries, opened) = read_store(path)?;
-        if opened != Opened::Main && path.exists() {
-            let aside = set_aside(path).map_err(|e| {
-                format!(
-                    "{} is damaged and could not be set aside ({e})",
-                    path.display()
-                )
-            })?;
-            report(&format!(
-                "{} could not be opened; kept it as {}",
-                path.display(),
-                aside.display()
-            ));
-        }
+        set_aside_damaged(path, &opened, &report)?;
         let main_good = opened == Opened::Main || promote_temp(path, &opened)?;
         if let Some(warning) = opened.warning(path) {
             report(&warning);
@@ -384,6 +389,30 @@ impl OpenStore {
         self.main_good = false;
         self.save()
     }
+}
+
+/// Set aside what the open could not use, so no save writes over it: the store
+/// file, and when nothing was recovered the damaged copies too, newest kept.
+fn set_aside_damaged(path: &Path, opened: &Opened, report: &impl Fn(&str)) -> Result<(), String> {
+    let candidates = match opened {
+        Opened::Main => vec![],
+        Opened::Lost { .. } => vec![backup_path(path), temp_path(path), path.to_path_buf()],
+        _ => vec![path.to_path_buf()],
+    };
+    for damaged in candidates.into_iter().filter(|p| p.exists()) {
+        let aside = set_aside(path, &damaged).map_err(|e| {
+            format!(
+                "{} is damaged and could not be set aside ({e})",
+                damaged.display()
+            )
+        })?;
+        report(&format!(
+            "{} could not be opened; kept it as {}",
+            damaged.display(),
+            aside.display()
+        ));
+    }
+    Ok(())
 }
 
 /// On a first run only, copy in the store a build that kept it elsewhere left.

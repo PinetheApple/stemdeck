@@ -145,13 +145,46 @@ fn a_broken_store_and_backup_start_empty_and_say_so() {
         mentions(&reported, "starting with an empty library list"),
         "{reported:?}"
     );
-    assert_eq!(aside(&path).len(), 1, "the broken file is kept");
+    assert_eq!(aside(&path).len(), 2, "the broken file and backup are kept");
     assert!(store.take_lost(), "the page is told");
     assert!(!store.take_lost(), "once");
 
     store.set("a".into(), json!(1));
     store.save().expect("save");
     assert_eq!(read_json(&path), json!({ "a": 1 }));
+}
+
+/// No store file and only damaged copies: they are kept, never saved over.
+#[test]
+fn damaged_copies_are_set_aside_when_nothing_is_recovered() {
+    let dir = scratch();
+    let path = dir.path().join("user-data.json");
+    fs::write(temp_path(&path), r#"{"a":"#).unwrap();
+    fs::write(backup_path(&path), r#"{"b":"#).unwrap();
+
+    let (mut store, reported) = open(&path);
+    assert!(store.take_lost());
+    assert!(
+        mentions(&reported, "starting with an empty library list"),
+        "{reported:?}"
+    );
+    assert!(!temp_path(&path).exists() && !backup_path(&path).exists());
+
+    store.set("c".into(), json!(1));
+    store.save().expect("save");
+    store.save().expect("second save");
+    let kept: Vec<Vec<u8>> = aside(&path).iter().map(|p| fs::read(p).unwrap()).collect();
+    assert_eq!(kept, [br#"{"b":"#.to_vec(), br#"{"a":"#.to_vec()]);
+}
+
+#[test]
+fn a_folder_that_refuses_to_sync_is_not_a_failed_save() {
+    let refused = |kind| Err(io::Error::from(kind));
+    assert!(tolerate_unsyncable(refused(io::ErrorKind::InvalidInput)).is_ok());
+    assert!(tolerate_unsyncable(refused(io::ErrorKind::Unsupported)).is_ok());
+    assert!(tolerate_unsyncable(Ok(())).is_ok());
+    let failed = tolerate_unsyncable(refused(io::ErrorKind::PermissionDenied));
+    assert_eq!(failed.unwrap_err().kind(), io::ErrorKind::PermissionDenied);
 }
 
 #[test]

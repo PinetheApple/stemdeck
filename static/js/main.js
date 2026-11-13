@@ -436,7 +436,7 @@ function showStoreUnavailable() {
 }
 
 function showStoreLost() {
-  showError(t("store.lost"), null, { retry: false });
+  showError(t("store.lost"), null, { onRetry: null });
 }
 
 // Before anything reads the store: Try again reloads, which opens it again.
