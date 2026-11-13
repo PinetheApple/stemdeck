@@ -18,7 +18,7 @@ import { wireStemListControls, wireMixerToolbar, laneDragIcon } from "./mixer.js
 import { initCatalog, collectDiagnostics, isNativeSpaceTarget, isTextEditingTarget } from "./catalog.js";
 import { initNotifications, notifyFailure, dismissFailuresByJobId } from "./notifications.js";
 import { runStoreMigrationIfNeeded, onStoreUnavailable, onStoreLost } from "./utils.js";
-import { initI18n, applyTranslations, t, onLanguageChange } from "./i18n.js";
+import { initI18n, applyTranslations, t, plural, onLanguageChange } from "./i18n.js";
 import { initFooterFit, refitFooter } from "./footerFit.js";
 import { initArtistInfo } from "./artistInfo.js";
 import { initLyrics } from "./lyrics.js";
@@ -35,6 +35,8 @@ import { initSetlists } from "./setlists.js";
 import { initSongRename } from "./songRename.js";
 import { initTrackMenu } from "./trackMenu.js";
 import { initConnection } from "./connection.js";
+import { clearBatch, startFileBatch } from "./batchImport.js";
+import { MAX_UPLOAD_BYTES, folderFiles, formatBytes, isAudioName, walkEntries } from "./batchImportModel.js";
 
 // ─── Stem choice toggles on the import page ───
 //
@@ -807,8 +809,55 @@ function wireEmptyStart() {
   document.getElementById("emptyStartUpload")?.addEventListener("click", function onEmptyStartUpload() {
     document.getElementById("uploadFileBtn")?.click();
   });
+  document.getElementById("emptyStartFolder")?.addEventListener("click", function onEmptyStartFolder() {
+    document.getElementById("folderInput")?.click();
+  });
   document.getElementById("emptyStartLink")?.addEventListener("click", function onEmptyStartLink() {
     document.getElementById("url")?.focus();
+  });
+}
+
+// ─── Folders: picked, or dropped with their subfolders ───
+
+// Function declarations, not consts: wireFileDrop runs above, at load.
+function canPickFolder() {
+  return "webkitdirectory" in HTMLInputElement.prototype;
+}
+
+/** The folder's own name: the first part of every file's path below it. */
+function rootFolderName(entries) {
+  return entries.find((e) => e.dir)?.dir.split("/")[0] ?? null;
+}
+
+function stageFolder(entries, showDropError) {
+  document.getElementById("fileInput")?._clear?.();
+  if (!entries.length) {
+    showDropError(t("batch.emptyFolder"));
+    return;
+  }
+  startFileBatch(entries, { folder: rootFolderName(entries) });
+}
+
+/** The drop's entries, read while the drop event lasts, or null when it holds no folder. */
+function droppedFolderEntries(dataTransfer) {
+  const entries = [...(dataTransfer?.items ?? [])]
+    .map((item) => item.webkitGetAsEntry?.())
+    .filter(Boolean);
+  return entries.some((entry) => entry.isDirectory) ? entries : null;
+}
+
+function wireFolderPicker(showDropError) {
+  const folderInput = document.getElementById("folderInput");
+  if (!canPickFolder()) {
+    for (const id of ["addFolderBtn", "emptyStartFolder"]) document.getElementById(id)?.setAttribute("hidden", "");
+    return;
+  }
+  document.getElementById("addFolderBtn")?.addEventListener("click", function onAddFolderClick() {
+    folderInput?.click();
+  });
+  folderInput?.addEventListener("change", function onFolderPicked() {
+    stageFolder(folderFiles(folderInput.files), showDropError);
+    folderInput.value = "";
   });
 }
 
@@ -851,14 +900,7 @@ function wireFileDrop() {
   }
   urlInput.addEventListener("input", clearDropError);
 
-  function formatBytes(n) {
-    return n < 1024 * 1024 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
-  }
-
-  const MAX_UPLOAD_BYTES = 400 * 1024 * 1024; // must match server _MAX_UPLOAD_BYTES
-
-  const AUDIO_EXTS = [".mp3", ".wav", ".flac", ".mp4", ".m4a", ".ogg", ".opus"];
-  const isAudioFile = (file) => AUDIO_EXTS.some((ext) => file.name.toLowerCase().endsWith(ext));
+  const isAudioFile = (file) => isAudioName(file.name);
 
   /**
    * Which of a set of picked or dropped files can be staged, and why the rest
@@ -907,9 +949,10 @@ function wireFileDrop() {
 
   /** Arms the import with files that have already passed screenFiles. */
   function stageFiles({ files, skipped }) {
+    clearBatch();
     if (fileName) {
       fileName.textContent =
-        files.length === 1 ? files[0].name : `${files.length} files`;
+        files.length === 1 ? files[0].name : plural("batch.files", files.length);
     }
     if (fileSize) {
       const bytes = files.reduce((sum, f) => sum + f.size, 0);
@@ -933,6 +976,7 @@ function wireFileDrop() {
     if (skipped.length) {
       showError(t("upload.skippedNamed"), skipped.join(t("list.separator")), { onRetry: null });
     }
+    if (files.length > 1) startFileBatch(files.map((file) => ({ file, dir: "" })));
   }
 
   function clearFile() {
@@ -942,6 +986,7 @@ function wireFileDrop() {
     fileInput._files = null;
     fileInput.value = "";
     urlInput.setAttribute("required", "");
+    clearBatch();
   }
 
   fileClear?.addEventListener("click", clearFile);
@@ -953,15 +998,21 @@ function wireFileDrop() {
 
   const draggingFiles = (e) => !!e.dataTransfer?.types?.includes("Files");
 
+  // Hovering says what a drop takes, in the box itself.
+  function setDragHover(on) {
+    urlWrap.classList.toggle("drag-over", on);
+    urlInput.placeholder = t(on ? "batch.dropHere" : "batch.placeholder");
+  }
+
   // The URL zone keeps its own hover affordance. It is no longer the only place
   // a file can land, so this is now about showing where it will go rather than
   // about being the only target that works.
   urlWrap.addEventListener("dragover", (e) => {
     if (!draggingFiles(e)) return;
-    urlWrap.classList.add("drag-over");
+    setDragHover(true);
   });
   urlWrap.addEventListener("dragleave", (e) => {
-    if (!urlWrap.contains(e.relatedTarget)) urlWrap.classList.remove("drag-over");
+    if (!urlWrap.contains(e.relatedTarget)) setDragHover(false);
   });
 
   // A file dropped anywhere in the window is treated as a drop on the URL zone.
@@ -993,13 +1044,25 @@ function wireFileDrop() {
   document.addEventListener("drop", (e) => {
     if (!draggingFiles(e)) return;
     e.preventDefault();
-    urlWrap.classList.remove("drag-over");
-    applyFiles(e.dataTransfer.files);
+    setDragHover(false);
+    const folderEntries = droppedFolderEntries(e.dataTransfer);
+    if (folderEntries) walkEntries(folderEntries).then(onFolderWalked, onFolderUnreadable);
+    else applyFiles(e.dataTransfer.files);
   });
+
+  function onFolderWalked(entries) {
+    stageFolder(entries, showDropError);
+  }
+
+  function onFolderUnreadable(err) {
+    console.warn("[drop] could not read a dropped folder:", err);
+    showDropError(t("batch.folderUnreadable"));
+  }
 
   fileInput.addEventListener("change", () => {
     applyFiles(fileInput.files);
   });
+  wireFolderPicker(showDropError);
 
   watchNativeDrops();
 
@@ -1048,11 +1111,11 @@ function wireFileDrop() {
       const signal = next.signal;
       if (!signal) continue;
       if (signal.kind === "enter") {
-        urlWrap.classList.add("drag-over");
+        setDragHover(true);
       } else if (signal.kind === "leave") {
-        urlWrap.classList.remove("drag-over");
+        setDragHover(false);
       } else if (signal.kind === "drop") {
-        urlWrap.classList.remove("drag-over");
+        setDragHover(false);
         await applyNativeDrop(invoke, signal.files);
       }
     }
