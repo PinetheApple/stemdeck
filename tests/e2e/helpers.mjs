@@ -631,17 +631,45 @@ export async function stubImportQueue(page, jobId, title = "Importing", { source
 }
 
 const LONG_QUEUE_RUNNING_ID = "e2e0feed0000";
-const LONG_QUEUE_WAITING_IDS = ["e2e0feed0001", "e2e0feed0002", "e2e0feed0003"];
+export const LONG_QUEUE_WAITING_IDS = Object.freeze(["e2e0feed0001", "e2e0feed0002", "e2e0feed0003"]);
 
-/** A running import and three waiting ones, so the last two waiting rows offer "extract next". */
+/**
+ * A running import and three waiting ones, so the last two waiting rows offer "extract next".
+ * `setWaiting(ids)` changes which imports wait and `setPaused(paused)` pauses the queue;
+ * each then has the page read the queue again.
+ */
 export async function stubLongQueue(page) {
   const job = (id) => ({ job_id: id, status: "queued", title: id, source_url: `https://example.invalid/${id}` });
   const running = { ...job(LONG_QUEUE_RUNNING_ID), ...SEPARATING };
+  let waiting = LONG_QUEUE_WAITING_IDS;
+  let paused = false;
   await page.route(
     "**/api/queue",
-    (route) => route.fulfill({ json: queueState(running, LONG_QUEUE_WAITING_IDS.map(job)) }),
+    (route) => route.fulfill({ json: { ...queueState(running, waiting.map(job)), paused } }),
   );
   await page.route("**/api/queue/events", (route) => route.abort());
+  const read = () => page.evaluate(async () => (await import("/js/queue.js")).refreshQueue());
+  return {
+    async setWaiting(ids) {
+      waiting = ids;
+      await read();
+    },
+    async setPaused(isPaused) {
+      paused = isPaused;
+      await read();
+    },
+  };
+}
+
+const TAB_LIMIT = 60;
+
+/** Press Tab until focus lands on an element matching `selector`. */
+export async function tabTo(page, selector) {
+  for (let press = 0; press < TAB_LIMIT; press++) {
+    await page.keyboard.press(KEY.TAB);
+    if (await page.evaluate((s) => document.activeElement?.matches(s), selector)) return;
+  }
+  throw new Error(`Tab never reached ${selector}`);
 }
 
 const JOB_URL = /\/api\/jobs\/[a-f0-9]{12}$/;
