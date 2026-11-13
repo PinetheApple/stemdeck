@@ -13,7 +13,7 @@ import uuid
 import zipfile
 from collections import deque
 from pathlib import Path
-from typing import NamedTuple
+from typing import Annotated, NamedTuple
 
 import soundfile as sf
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -1655,22 +1655,23 @@ async def get_all_stems_zip(
     job_id: str,
     fmt: str = Query(default="wav", alias="format"),
     stems: str | None = Query(default=None, description="Comma-separated stems; default all"),
-    click: bool = Query(default=False, description="Add the click track as its own file"),
-    click_mult: float = Query(default=1.0, description="Click rate: 0.5, 1 or 2"),
-    click_accent: int = Query(
-        default=-1, ge=-1, le=TEMPO_MAX_BEATS_PER_BAR, description="-1 auto, 0 off, N per bar"
-    ),
-    click_gain: float = Query(default=0.6, ge=0, le=4, description="Click level"),
-    click_groups: str = Query(
-        default="",
-        max_length=64,
-        description='Beat grouping for an explicit meter, e.g. "3+2+2". Blank uses the default.',
-    ),
-    click_sound: str = Query(
-        default=DEFAULT_CLICK_SOUND,
-        max_length=CLICK_SOUND_ID_MAX_CHARS,
-        description=CLICK_SOUND_QUERY_DESCRIPTION,
-    ),
+    click: Annotated[bool, Query(description="Add the click track as its own file")] = False,
+    click_mult: Annotated[float, Query(description="Click rate: 0.5, 1 or 2")] = 1.0,
+    click_accent: Annotated[
+        int, Query(ge=-1, le=TEMPO_MAX_BEATS_PER_BAR, description="-1 auto, 0 off, N per bar")
+    ] = -1,
+    click_gain: Annotated[float, Query(ge=0, le=4, description="Click level")] = 0.6,
+    click_groups: Annotated[
+        str,
+        Query(
+            max_length=64,
+            description='Beat grouping for an explicit meter, e.g. "3+2+2". Blank uses the default.',
+        ),
+    ] = "",
+    click_sound: Annotated[
+        str,
+        Query(max_length=CLICK_SOUND_ID_MAX_CHARS, description=CLICK_SOUND_QUERY_DESCRIPTION),
+    ] = DEFAULT_CLICK_SOUND,
 ) -> FileResponse:
     """Bundle the requested stems into a single ZIP, named after the song.
 
