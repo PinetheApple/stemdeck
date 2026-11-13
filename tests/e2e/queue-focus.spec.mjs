@@ -3,8 +3,10 @@
 
 import { test, expect } from "@playwright/test";
 import {
+  EXTRACT_NEXT,
   JOB_ID,
   LONG_QUEUE_WAITING_IDS,
+  queueRow,
   seedLibrary,
   stubFavorites,
   stubLongQueue,
@@ -16,7 +18,6 @@ const [FIRST_WAITING, SECOND_WAITING, THIRD_WAITING] = LONG_QUEUE_WAITING_IDS;
 const NEW_WAITING = "e2e0feed0004";
 const OTHER_LANGUAGE = "de";
 const CANCEL = ".queue-cancel";
-const EXTRACT_NEXT = ".queue-top";
 const START = ".queue-start-btn";
 
 async function openQueue(page) {
@@ -34,7 +35,7 @@ async function openQueue(page) {
 
 const MARKER = "data-before-redraw";
 
-const rowControl = (jobId, control) => `.queue-row[data-id="${jobId}"] ${control}`;
+const rowControl = (jobId, control) => `${queueRow(jobId)} ${control}`;
 
 /** Tab to a control and tag it, so a test can tell it from a rebuilt copy. */
 async function focusByKeyboard(page, selector) {
@@ -74,7 +75,7 @@ test.describe("import queue focus across redraws", () => {
 
     await queue.setWaiting([...LONG_QUEUE_WAITING_IDS, NEW_WAITING]);
 
-    await expect(page.locator(`.queue-row[data-id="${NEW_WAITING}"]`)).toBeAttached();
+    await expect(page.locator(queueRow(NEW_WAITING))).toBeAttached();
     await expectSameControlFocused(page, selector);
     expect(await blurCount(page)).toBe(0);
   });
@@ -87,7 +88,7 @@ test.describe("import queue focus across redraws", () => {
 
     await queue.setWaiting([...LONG_QUEUE_WAITING_IDS, NEW_WAITING]);
 
-    await expect(page.locator(`.queue-row[data-id="${NEW_WAITING}"]`)).toBeAttached();
+    await expect(page.locator(queueRow(NEW_WAITING))).toBeAttached();
     await expectSameControlFocused(page, selector);
     expect(await blurCount(page)).toBe(0);
   });
@@ -118,7 +119,7 @@ test.describe("import queue focus across redraws", () => {
 
     await queue.setWaiting([SECOND_WAITING, THIRD_WAITING]);
 
-    await expect(page.locator(`.queue-row[data-id="${FIRST_WAITING}"]`)).toHaveCount(0);
+    await expect(page.locator(queueRow(FIRST_WAITING))).toHaveCount(0);
     await expectFocusedByKeyboard(page, rowControl(SECOND_WAITING, CANCEL));
   });
 });
