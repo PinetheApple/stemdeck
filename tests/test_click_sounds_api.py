@@ -321,6 +321,8 @@ def test_the_click_lane_renders_the_chosen_sound(jobs_dir):
     a = stems_mod._click_lane(JOB, True, 1.0, -1, 0.6)
     b = stems_mod._click_lane(JOB, True, 1.0, -1, 0.6, sound="soft")
     ci = stems_mod._click_lane(JOB, False, 1.0, -1, 0.6, count_in_bars=1, sound="soft")
+    named = stems_mod._click_lane(JOB, True, 1.0, -1, 0.6, sound="classic")
+    assert named.path == a.path, "a client that sends classic reuses the cached click"
     assert a.path != b.path
     assert a.path.read_bytes() != b.path.read_bytes()
     assert ci is not None and ci.path not in (a.path, b.path)
