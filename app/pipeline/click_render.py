@@ -282,7 +282,7 @@ def count_in_beats(
     a player into 7/8 gives them the 3+2+2 pulse they are about to play rather
     than seven flat clicks.
 
-    Pure and side-effect free so playback (metronome.js) and export
+    Pure and side-effect free so playback (countIn.js) and export
     (render_click_wav) can share one definition -- pinned by
     tests/test_click_render.py, exactly like rescale/source_index/is_downbeat.
     """

@@ -1,6 +1,6 @@
 // Parity + behaviour test for computeCountIn (issue #269).
 //
-// The live count-in (metronome.js) and the exported one (app/pipeline/
+// The live count-in (countIn.js) and the exported one (app/pipeline/
 // click_render.py::count_in_beats) MUST agree beat-for-beat, or a player hears
 // one thing while monitoring and gets another in the file. This pins the JS
 // side; the Python side is pinned by tests/test_click_render.py. The expected
@@ -9,8 +9,8 @@
 //
 // Run:  node tests/js/count-in.test.mjs
 
+import { computeCountIn } from "../../static/js/countIn.js";
 import {
-  computeCountIn,
   defaultGrouping,
   normaliseGrouping,
   levelAt,

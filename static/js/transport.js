@@ -30,9 +30,10 @@ import {
 import { applyMix, nudgeAllLanePitches, resetAllLanePitches } from "./mixer.js";
 import { isDownbeatIndex, barPositionIndex, getBeats as getGridBeats, getBars as getGridBars } from "./beatgrid.js";
 import {
-  accentOverride, computeCountIn, defaultGrouping, normaliseGrouping,
+  accentOverride, defaultGrouping, normaliseGrouping,
   OVERRIDE_LENGTH, OVERRIDE_OFF, OVERRIDE_UNALIGNED,
 } from "./metronome.js";
+import { computeCountIn } from "./countIn.js";
 import { CLICK_SOUNDS } from "./clickSounds.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { pitchBlockedKey } from "./pitchBus.js";

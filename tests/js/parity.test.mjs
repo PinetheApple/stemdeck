@@ -20,7 +20,8 @@
 // Run:  node tests/js/parity.test.mjs
 
 import { readFileSync } from "node:fs";
-import { levelAt, defaultGrouping, computeCountIn } from "../../static/js/metronome.js";
+import { levelAt, defaultGrouping } from "../../static/js/metronome.js";
+import { computeCountIn } from "../../static/js/countIn.js";
 
 const fixture = JSON.parse(
   readFileSync(new URL("../fixtures/click_levels.json", import.meta.url), "utf8"),
