@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en"><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mockup: Click sound | StemDeck</title>
+    <!-- Icons: Lucide (ISC, static/vendor/LICENSE-lucide.txt). Fonts: Manrope and IBM Plex Mono (OFL, static/fonts/). -->
+    <style>
+/* Self-hosted so the desktop build renders the same offline.
+   Manrope and IBM Plex Mono, both SIL OFL 1.1: see static/fonts/OFL-*.txt. */
+
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url("../../static/fonts/manrope-latin-ext-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url("../../static/fonts/manrope-latin-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("../../static/fonts/ibm-plex-mono-latin-ext-400-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("../../static/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("../../static/fonts/ibm-plex-mono-latin-ext-500-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("../../static/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("../../static/fonts/ibm-plex-mono-latin-ext-600-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("../../static/fonts/ibm-plex-mono-latin-600-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+    </style>
+    <link rel="stylesheet" href="../../static/css/variables.css">
+    <link rel="stylesheet" href="../../static/css/waves.css">
+    <link rel="stylesheet" href="../../static/css/daw.css">
+    <link rel="stylesheet" href="../../static/css/studio.css">
+    <link rel="stylesheet" href="../../static/css/footer-fit.css">
+    <link rel="stylesheet" href="../../static/css/inspector.css">
+    <link rel="stylesheet" href="../../static/css/forms.css">
+  <!-- Mockup chrome, not part of the proposal: the state switcher and the studio stand-in. ?bare hides the switcher. -->
+  <style>
+.mock-frame { flex-direction: row; }
+.mock-studio {
+  flex: 1 1 auto;
+  display: grid;
+  place-items: center;
+  color: var(--text-4);
+  font-size: var(--fs-sm);
+}
+.mock-states {
+  position: fixed;
+  left: var(--s-3);
+  bottom: var(--s-3);
+  z-index: 2000;
+  display: flex;
+  gap: var(--s-1);
+  padding: var(--s-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  font: var(--fw-medium) var(--fs-sm) / 1 var(--font-sans);
+}
+.mock-states span { padding: var(--s-2); color: var(--accent); }
+.mock-states a {
+  padding: var(--s-2);
+  border-radius: var(--r-1);
+  color: var(--text-2);
+  text-decoration: none;
+  cursor: pointer;
+}
+.mock-states a:hover { background: var(--surface-3); color: var(--text); }
+.mock-states a[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
+.mock-bare .mock-states { display: none; }
+  </style>
+</head>
+<body>
+<div class="daw mock-frame">
+  <div class="mock-studio">Studio</div>
+        <aside class="inspector" id="inspector" aria-label="Song tools" data-i18n-aria-label="inspector.aria">
+          <div class="inspector-tabs" role="tablist" aria-label="Song tools" data-i18n-aria-label="inspector.aria">
+            <button class="inspector-tab" type="button" role="tab" id="inspectorTabTempo" data-tab="tempo" aria-controls="inspectorPaneTempo" aria-selected="true">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 11.4V9.1"/><path d="m12 17 6.59-6.59"/><path d="m15.05 5.7-.218-.691a3 3 0 0 0-5.663 0L4.418 19.695A1 1 0 0 0 5.37 21h13.253a1 1 0 0 0 .951-1.31L18.45 16.2"/><circle cx="20" cy="9" r="2"/></svg>
+              <span data-i18n="inspector.tempo">Tempo</span>
+            </button>
+            <button class="inspector-tab" type="button" role="tab" id="inspectorTabUpNext" data-tab="upnext" aria-controls="inspectorPaneUpNext" aria-selected="false" tabindex="-1">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/></svg>
+              <span data-i18n="inspector.upNext">Up Next</span>
+              <span class="inspector-count num" id="upNextCount" hidden>0</span>
+            </button>
+            <button class="inspector-tab" type="button" role="tab" id="inspectorTabDetails" data-tab="details" aria-controls="inspectorPaneDetails" aria-selected="false" tabindex="-1">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              <span data-i18n="inspector.details">Details</span>
+            </button>
+          </div>
+
+          <section class="inspector-pane" id="inspectorPaneTempo" role="tabpanel" aria-labelledby="inspectorTabTempo" data-pane="tempo">
+            <div class="inspector-card tempo-card">
+              <div class="tempo-card-head">
+                <span class="inspector-label" data-i18n="tempo.readout">Tempo</span>
+                <span class="tempo-source" id="tempoSource" data-source="detected" hidden>Detected</span>
+              </div>
+              <span class="tempo-card-value"><span class="num" id="tempoReadout">120</span> <span class="tempo-card-unit" data-i18n="meta.bpm">BPM</span></span>
+            </div>
+            <div class="tempo-tools" id="tempoTools" role="group" aria-label="Tempo tools" data-i18n-aria-label="tempo.toolsAria">
+              <div class="tempo-mode" id="tempoModeSwitch" role="radiogroup" aria-label="Tempo mode" data-i18n-aria-label="tempo.modeAria">
+                <button class="tempo-mode-btn" id="tempoModeConstant" type="button" role="radio" aria-checked="true" data-tempo-mode="constant" data-i18n="tempo.constant">Constant tempo</button>
+                <button class="tempo-mode-btn" id="tempoModeFollow" type="button" role="radio" aria-checked="false" data-tempo-mode="follow" data-i18n="tempo.follow">Follow the band</button>
+              </div>
+              <div class="tempo-row">
+                <label class="tempo-row-label" for="tempoBpm" data-i18n="meta.bpm">BPM</label>
+                <div class="tempo-bpm-edit">
+                  <button class="daw-iconbtn" id="tempoBpmDown" type="button" data-step="-1"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+                  <input class="tempo-field num" id="tempoBpm" type="number" inputmode="decimal" value="120">
+                  <button class="daw-iconbtn" id="tempoBpmUp" type="button" data-step="1"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+                </div>
+                <button class="tempo-detected" id="tempoBpmDetected" type="button" data-tempo-field="bpm" title="Back to the detected value" data-i18n-title="tempo.resetFieldTitle" hidden><span></span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+              </div>
+              <div class="tempo-tool-grid">
+                <button class="tempo-btn" id="tempoTap" type="button" title="Tap along to set the tempo" data-i18n-title="tempo.tapTitle">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
+                  <span data-i18n="tempo.tap">Tap</span>
+                </button>
+                <button class="tempo-btn num" id="tempoHalf" type="button" data-scale="0.5" aria-pressed="false" title="Half time" aria-label="Half time" data-i18n-title="click.half" data-i18n-aria-label="click.half"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="6" r="1"/><line x1="5" x2="19" y1="12" y2="12"/><circle cx="12" cy="18" r="1"/></svg><span>2</span></button>
+                <button class="tempo-btn num" id="tempoDouble" type="button" data-scale="2" aria-pressed="false" title="Double time" aria-label="Double time" data-i18n-title="click.double" data-i18n-aria-label="click.double"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span>2</span></button>
+                <button class="tempo-btn num" id="tempoNudgeEarlier" type="button" data-nudge="-1"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg><span>10 ms</span></button>
+                <button class="tempo-btn" id="tempoBeatOne" type="button" title="Make the playhead beat 1 of a bar" data-i18n-title="tempo.beatOneTitle"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg><span data-i18n="tempo.beatOne">Beat 1 here</span></button>
+                <button class="tempo-btn num" id="tempoNudgeLater" type="button" data-nudge="1"><span>10 ms</span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button>
+              </div>
+              <div class="tempo-row">
+                <span class="tempo-row-label" data-i18n="tempo.beatOneLabel">Beat 1</span>
+                <span class="tempo-value num" id="tempoAnchor">0:00.48</span>
+                <button class="tempo-detected" id="tempoAnchorDetected" type="button" data-tempo-field="anchor" title="Back to the detected value" data-i18n-title="tempo.resetFieldTitle" hidden><span></span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+              </div>
+              <div class="tempo-row">
+                <label class="tempo-row-label" for="tempoBeatsPerBar" data-i18n="tempo.beatsPerBar">Beats per bar</label>
+                <input class="tempo-field num" id="tempoBeatsPerBar" type="number" step="1" inputmode="numeric" value="4">
+                <button class="tempo-detected" id="tempoBeatsPerBarDetected" type="button" data-tempo-field="beats_per_bar" title="Back to the detected value" data-i18n-title="tempo.resetFieldTitle" hidden><span></span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+              </div>
+              <div class="tempo-row tempo-accent-override" id="tempoAccentOverride" hidden>
+                <p class="tempo-accent-override-text" id="tempoAccentOverrideText" role="status"></p>
+                <button class="inspector-quiet-btn" id="tempoAccentUseAuto" type="button" data-i18n="tempo.accentUseAuto">Use Auto</button>
+              </div>
+              <div class="tempo-row">
+                <p class="tempo-status" id="tempoStatus" role="status" hidden></p>
+                <button class="inspector-quiet-btn tempo-reset" id="tempoReset" type="button" title="Go back to the detected tempo, beat 1 and meter" aria-label="Reset to detected tempo" data-i18n-title="tempo.resetTitle" data-i18n-aria-label="tempo.resetAria" data-i18n="tempo.reset">Reset to detected</button>
+              </div>
+            </div>
+          <div class="footer-group footer-group-click" id="t-metro-wrap">
+            <span class="footer-group-label" data-i18n="click.group">Click track</span>
+            <div class="footer-group-body">
+              <!-- The icon alone (#681). It used to carry the word ON, which never
+                   changed, so with the click off it still said ON. The gold
+                   highlight is the state; the name is in the aria-label and the
+                   tooltip. -->
+              <button class="tempo-btn tempo-btn-icon active" id="t-metro" type="button" title="Click track (K)" aria-label="Click track" data-i18n-title="click.toggleTitle" data-i18n-aria-label="click.toggleAria" aria-pressed="true">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 11.4V9.1"/><path d="m12 17 6.59-6.59"/><path d="m15.05 5.7-.218-.691a3 3 0 0 0-5.663 0L4.418 19.695A1 1 0 0 0 5.37 21h13.253a1 1 0 0 0 .951-1.31L18.45 16.2"/><circle cx="20" cy="9" r="2"/></svg>
+              </button>
+              <!-- Beside the on/off pill rather than among the options: how
+                   loud the click is belongs with whether it is running, and it
+                   stays reachable at the widths where the rest goes behind the
+                   disclosure. A pill like its neighbours, opening a vertical
+                   fader -- inline it was a 116px slider with a percentage after
+                   it, the one control on a row of 34px pills that was neither,
+                   so nothing lined up with it. -->
+              <div class="metro-vol-wrap">
+                <button class="tempo-btn tempo-btn-icon" id="t-metro-vol-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="t-metro-vol-panel" title="Click volume" aria-label="Click volume" data-i18n-aria-label="click.volumeAria">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/></svg>
+                </button>
+                <div class="metro-vol-panel hidden" id="t-metro-vol-panel">
+                  <span class="metro-val num" id="t-metro-vol-label">60%</span>
+                  <input type="range" id="t-metro-vol" class="metro-vol-slider" min="0" max="1" step="0.05" value="0.6" aria-label="Click volume" data-i18n-aria-label="click.volumeAria">
+                </div>
+              </div>
+              <div class="footer-metro-panel" id="t-metro-panel" role="group" aria-label="Click track options" data-i18n-aria-label="click.optionsAria">
+                <span class="metro-select-wrap">
+                  <svg class="ic metro-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg>
+                  <select id="t-metro-countin" class="metro-select" title="Bars of click before the song starts when you press play. Plays even with the click track off." data-i18n-title="click.countInTitle" aria-label="Count-in" data-i18n-aria-label="click.countIn">
+                    <option value="0" selected data-i18n="click.countInOff">Count-in: off</option>
+                    <option value="1" data-i18n="click.countIn1">Count-in: 1 bar</option>
+                    <option value="2" data-i18n="click.countIn2">Count-in: 2 bars</option>
+                    <option value="3" data-i18n="click.countIn3">Count-in: 3 bars</option>
+                    <option value="4" data-i18n="click.countIn4">Count-in: 4 bars</option>
+                  </select>
+                  <svg class="ic metro-select-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </span>
+                <!-- The count-in plays with the click off as well as on (#696),
+                     which reads as a fault in a popover titled for the click.
+                     Popover only (see .metro-countin-hint in daw.css): inline,
+                     the tooltip says it and the row has no room for a caption. -->
+                <span class="metro-countin-hint" data-i18n="click.countInHint">Plays even with the click track off</span>
+                <span class="metro-select-wrap">
+                  <svg class="ic metro-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V3a1 1 0 0 0-1.28-.96l-10 2.917a1 1 0 0 0-.72.96V19"/><circle cx="18" cy="16" r="3"/><circle cx="6" cy="19" r="3"/></svg>
+                  <select id="t-metro-bar" class="metro-select" aria-label="Accent every N beats" data-i18n-aria-label="click.barAccentAria">
+                    <option value="-1" selected data-i18n="click.auto">Auto · 4</option>
+                    <option value="0" data-i18n="click.off">Off</option>
+                    <option value="2">2/4</option>
+                    <option value="3">3/4</option>
+                    <option value="4">4/4</option>
+                    <option value="5">5/4</option>
+                    <option value="6">6/8</option>
+                    <option value="7">7/8</option>
+                    <option value="9">9/8</option>
+                    <option value="12">12/8</option>
+                    <option value="custom" data-i18n="click.barCustom">Custom...</option>
+                  </select>
+                  <svg class="ic metro-select-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </span>
+                <input type="number" id="t-metro-bar-custom" class="metro-custom-beats hidden" min="1" max="32" step="1" value="4" title="Beats between accents" data-i18n-title="click.barCustomTitle" aria-label="Beats between accents" data-i18n-aria-label="click.barCustomTitle">
+                <input type="text" id="t-metro-group" class="metro-group hidden" inputmode="numeric" size="7" placeholder="3+2+2" title="How the bar divides, e.g. 3+2+2. Blank uses the usual grouping for the meter." data-i18n-title="click.groupTitle" aria-label="Beat grouping" data-i18n-aria-label="click.groupAria">
+                <button class="tempo-btn" id="t-metro-edit" type="button" title="Edit the beat grid" data-i18n-title="click.editTitle" aria-pressed="false">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>
+                  <span data-i18n="click.grid">Grid</span>
+                </button>
+                <!-- New (#93): the click's sound, a global preference saved with the other click settings. -->
+                <span class="metro-select-wrap" id="mockSoundWrap">
+                  <svg class="ic metro-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 2 8 8"/><path d="m22 2-8 8"/><ellipse cx="12" cy="9" rx="10" ry="5"/><path d="M7 13.4v7.9"/><path d="M12 14v8"/><path d="M17 13.4v7.9"/><path d="M2 9v8a10 5 0 0 0 20 0V9"/></svg>
+                  <select id="t-metro-sound" class="metro-select" title="Click sound" aria-label="Click sound">
+                    <option value="classic" data-i18n="click.soundClassic">Sound: Classic</option>
+                    <option value="woodblock" data-i18n="click.soundWoodblock">Sound: Woodblock</option>
+                    <option value="rimshot" data-i18n="click.soundRimshot">Sound: Rimshot</option>
+                    <option value="soft" data-i18n="click.soundSoft">Sound: Soft</option>
+                    <option value="cowbell" data-i18n="click.soundCowbell">Sound: Cowbell</option>
+                  </select>
+                  <svg class="ic metro-select-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </span>
+              </div>
+              <!-- The footer popover's disclosure. The options always fit in
+                   this tab, so studio.css keeps it hidden here. -->
+              <button class="click-more-btn" id="t-metro-more" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="t-metro-panel" title="Click track options" data-i18n-title="click.optionsAria" aria-label="Click track options" data-i18n-aria-label="click.optionsAria">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                  <polyline points="6 15 12 9 18 15"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="metro-note" id="t-metro-note"></div>
+          </section>
+
+        </aside>
+</div>
+<ul class="select-menu" id="mockSoundMenu" role="listbox" aria-label="Click sound" hidden>
+  <li class="select-menu-option" role="option" data-value="classic" aria-selected="false">Sound: Classic</li>
+  <li class="select-menu-option" role="option" data-value="woodblock" aria-selected="false">Sound: Woodblock</li>
+  <li class="select-menu-option" role="option" data-value="rimshot" aria-selected="false">Sound: Rimshot</li>
+  <li class="select-menu-option" role="option" data-value="soft" aria-selected="false">Sound: Soft</li>
+  <li class="select-menu-option" role="option" data-value="cowbell" aria-selected="false">Sound: Cowbell</li>
+</ul>
+<nav class="mock-states" aria-label="Mockup states">
+  <span>#93 click sound</span>
+  <a href="?state=closed">Closed</a>
+  <a href="?state=open">Open</a>
+  <a href="?state=picked">Woodblock picked</a>
+</nav>
+<script>
+  const params = new URLSearchParams(location.search);
+  const state = params.get("state") || "closed";
+  const MENU_GAP = 4;
+  if (params.has("bare")) document.body.classList.add("mock-bare");
+  document.querySelector(`.mock-states a[href="?state=${state}"]`)?.setAttribute("aria-current", "page");
+  const select = document.getElementById("t-metro-sound");
+  const menu = document.getElementById("mockSoundMenu");
+  select.value = state === "picked" ? "woodblock" : "classic";
+  if (state === "open") {
+    select.setAttribute("aria-expanded", "true");
+    const rect = select.getBoundingClientRect();
+    menu.hidden = false;
+    menu.style.minWidth = `${rect.width}px`;
+    menu.style.top = `${rect.bottom + MENU_GAP}px`;
+    menu.style.left = `${rect.left}px`;
+    menu.querySelector('[data-value="classic"]').setAttribute("aria-selected", "true");
+    menu.querySelector('[data-value="woodblock"]').classList.add("active");
+  }
+</script>
+</body>
+</html>
