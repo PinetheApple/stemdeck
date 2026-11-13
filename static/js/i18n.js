@@ -1029,6 +1029,8 @@ const en = {
   "settings.network.restarting": "Restarting StemDeck…",
   "settings.network.restartFailed": "StemDeck could not restart: {error}. The setting is saved and applies at the next start.",
   "settings.network.tryAgain": "Try again",
+  "settings.network.portChanged": "The old port was busy, so StemDeck now uses port {port}. What this window saved for the old port is not carried over.",
+  "settings.network.continue": "Continue",
 
   "settings.export.sampleRate.title": "Sample rate",
   "settings.export.sampleRate.desc": "44.1 kHz suits most DAWs and samplers.",
@@ -2207,6 +2209,8 @@ const pl = {
   "settings.network.restarting": "Ponowne uruchamianie StemDeck…",
   "settings.network.restartFailed": "Nie udało się ponownie uruchomić StemDeck: {error}. Ustawienie jest zapisane i zacznie działać przy następnym uruchomieniu.",
   "settings.network.tryAgain": "Spróbuj ponownie",
+  "settings.network.portChanged": "Poprzedni port był zajęty, więc StemDeck używa teraz portu {port}. To, co to okno zapisało dla starego portu, nie zostanie przeniesione.",
+  "settings.network.continue": "Dalej",
 
   "settings.export.sampleRate.title": "Częstotliwość próbkowania",
   "settings.export.sampleRate.desc": "44.1 kHz pasuje do większości DAW-ów i samplerów.",
@@ -3367,6 +3371,8 @@ const ja = {
   "settings.network.restarting": "StemDeck を再起動しています…",
   "settings.network.restartFailed": "StemDeck を再起動できませんでした: {error}。設定は保存されており、次回の起動時に反映されます。",
   "settings.network.tryAgain": "もう一度試す",
+  "settings.network.portChanged": "以前のポートが使用中だったため、StemDeck はポート {port} を使用しています。このウィンドウが以前のポートで保存した内容は引き継がれません。",
+  "settings.network.continue": "続ける",
 
   "settings.export.sampleRate.title": "サンプルレート",
   "settings.export.sampleRate.desc": "44.1kHzはほとんどのDAWやサンプラーに適しています。",
@@ -4507,6 +4513,8 @@ const zhHans = {
   "settings.network.restarting": "正在重启 StemDeck…",
   "settings.network.restartFailed": "StemDeck 无法重启：{error}。设置已保存，会在下次启动时生效。",
   "settings.network.tryAgain": "重试",
+  "settings.network.portChanged": "原端口被占用，StemDeck 现在使用端口 {port}。此窗口为原端口保存的内容不会保留。",
+  "settings.network.continue": "继续",
 
   "settings.export.sampleRate.title": "采样率",
   "settings.export.sampleRate.desc": "44.1 kHz 适合大多数 DAW 和采样器。",
@@ -5652,6 +5660,8 @@ const de = {
   "settings.network.restarting": "StemDeck wird neu gestartet…",
   "settings.network.restartFailed": "StemDeck konnte nicht neu starten: {error}. Die Einstellung ist gespeichert und gilt beim nächsten Start.",
   "settings.network.tryAgain": "Erneut versuchen",
+  "settings.network.portChanged": "Der alte Port war belegt, daher nutzt StemDeck jetzt Port {port}. Was dieses Fenster für den alten Port gespeichert hat, wird nicht übernommen.",
+  "settings.network.continue": "Weiter",
 
   "settings.export.sampleRate.title": "Abtastrate",
   "settings.export.sampleRate.desc": "44,1 kHz passt für die meisten DAWs und Sampler.",
@@ -6805,6 +6815,8 @@ const pt = {
   "settings.network.restarting": "Reiniciando o StemDeck…",
   "settings.network.restartFailed": "Não foi possível reiniciar o StemDeck: {error}. A configuração está salva e passa a valer na próxima vez que o StemDeck abrir.",
   "settings.network.tryAgain": "Tentar de novo",
+  "settings.network.portChanged": "A porta anterior estava ocupada, então o StemDeck agora usa a porta {port}. O que esta janela salvou para a porta anterior não é mantido.",
+  "settings.network.continue": "Continuar",
 
   "settings.export.sampleRate.title": "Taxa de amostragem",
   "settings.export.sampleRate.desc": "44,1 kHz atende à maioria dos DAWs e samplers.",
@@ -7955,6 +7967,8 @@ const id = {
   "settings.network.restarting": "Memulai ulang StemDeck…",
   "settings.network.restartFailed": "StemDeck tidak bisa dimulai ulang: {error}. Pengaturan sudah disimpan dan berlaku saat StemDeck dibuka lagi.",
   "settings.network.tryAgain": "Coba lagi",
+  "settings.network.portChanged": "Port sebelumnya sedang dipakai, jadi StemDeck sekarang memakai port {port}. Yang disimpan jendela ini untuk port lama tidak ikut dibawa.",
+  "settings.network.continue": "Lanjutkan",
 
   "settings.export.sampleRate.title": "Laju sampel",
   "settings.export.sampleRate.desc": "44,1 kHz cocok untuk sebagian besar DAW dan sampler.",
@@ -9100,6 +9114,8 @@ const fr = {
   "settings.network.restarting": "Redémarrage de StemDeck…",
   "settings.network.restartFailed": "StemDeck n'a pas pu redémarrer : {error}. Le réglage est enregistré et s'appliquera au prochain démarrage.",
   "settings.network.tryAgain": "Réessayer",
+  "settings.network.portChanged": "L'ancien port était occupé, StemDeck utilise donc maintenant le port {port}. Ce que cette fenêtre avait enregistré pour l'ancien port n'est pas conservé.",
+  "settings.network.continue": "Continuer",
 
   "settings.export.sampleRate.title": "Fréquence d'échantillonnage",
   "settings.export.sampleRate.desc": "44,1 kHz convient à la plupart des DAW et samplers.",
@@ -9457,6 +9473,7 @@ const ptPT = {
   "settings.network.restarting": "A reiniciar o StemDeck…",
   "settings.network.restartFailed": "Não foi possível reiniciar o StemDeck: {error}. A definição está guardada e aplica-se da próxima vez que o StemDeck abrir.",
   "settings.network.tryAgain": "Tentar outra vez",
+  "settings.network.portChanged": "A porta anterior estava ocupada, por isso o StemDeck usa agora a porta {port}. O que esta janela guardou para a porta anterior não é mantido.",
   "search.noMatchHint": "Experimente outra palavra ou comece com # para pesquisar por etiqueta.",
   "trash.emptyHint": "As músicas que elimina ficam aqui, para as poder restaurar.",
   "favorites.emptyHint": "Clique no ♥ de uma música para a guardar aqui.",
@@ -10567,6 +10584,8 @@ const es = {
   "settings.network.restarting": "Reiniciando StemDeck…",
   "settings.network.restartFailed": "StemDeck no se pudo reiniciar: {error}. El ajuste está guardado y se aplicará la próxima vez que se abra StemDeck.",
   "settings.network.tryAgain": "Reintentar",
+  "settings.network.portChanged": "El puerto anterior estaba ocupado, así que StemDeck usa ahora el puerto {port}. Lo que esta ventana guardó para el puerto anterior no se conserva.",
+  "settings.network.continue": "Continuar",
 
   "settings.export.sampleRate.title": "Frecuencia de muestreo",
   "settings.export.sampleRate.desc": "44,1 kHz sirve para la mayoría de DAW y samplers.",
@@ -11737,6 +11756,8 @@ const ko = {
   "settings.network.restarting": "StemDeck을 다시 시작하는 중…",
   "settings.network.restartFailed": "StemDeck을 다시 시작하지 못했어요: {error}. 설정은 저장되었고 다음에 StemDeck을 켤 때 적용돼요.",
   "settings.network.tryAgain": "다시 시도",
+  "settings.network.portChanged": "이전 포트가 사용 중이라 StemDeck이 이제 포트 {port}을(를) 사용해요. 이 창이 이전 포트에 저장한 내용은 옮겨지지 않아요.",
+  "settings.network.continue": "계속",
 
   "settings.export.sampleRate.title": "샘플레이트",
   "settings.export.sampleRate.desc": "대부분의 DAW와 샘플러에는 44.1 kHz가 잘 맞아요.",

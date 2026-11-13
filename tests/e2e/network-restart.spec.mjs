@@ -252,3 +252,23 @@ test("a failed save keeps the switch disabled meanwhile and puts it back as it w
   await expect(sw(page)).not.toBeChecked();
   await expect(sw(page)).toBeEnabled();
 });
+
+test("a restart that had to take another port says so before going there", async ({ page }) => {
+  await desktopSettings(page, { listening: false });
+  await queue(page, "idle");
+  await openNetworkSettings(page);
+  await toggle(page);
+  await restartPending(page);
+
+  const here = new URL(page.url());
+  const movedPort = String(Number(here.port) + 1);
+  const target = `http://127.0.0.1:${movedPort}/`;
+  await page.route(`${target}**`, (route) => route.fulfill({ contentType: "text/html", body: "<p>moved</p>" }));
+  await page.evaluate((url) => window.__e2e.finishRestart(url), target);
+
+  await expect(dialogText(page)).toContainText(movedPort);
+  expect(new URL(page.url()).port).toBe(here.port);
+  const moved = page.waitForURL(target);
+  await page.locator(".net-restart-continue").click();
+  await moved;
+});

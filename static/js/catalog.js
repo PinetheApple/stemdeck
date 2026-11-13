@@ -5512,7 +5512,7 @@ async function wireNetworkSetting(overlay) {
   input.addEventListener("change", onNetworkSwitchChange);
 }
 
-const JSON_MEDIA_TYPE = "application/json";
+export const JSON_MEDIA_TYPE = "application/json";
 const LIBRARY_FILE_PREFIX = "stemdeck-library-";
 const LOGS_FILE_PREFIX = "stemdeck-logs-";
 
