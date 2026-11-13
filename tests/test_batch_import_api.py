@@ -24,6 +24,7 @@ class _FakeYDL:
     infos: dict[str, dict] = {}
     opts: list[dict] = []
     stall_url: str | None = None
+    stalled_on: str | None = None
     release = threading.Event()
 
     def __init__(self, opts):
@@ -37,6 +38,7 @@ class _FakeYDL:
 
     def extract_info(self, url, download=False, process=True):
         if url == type(self).stall_url:
+            type(self).stalled_on = threading.current_thread().name
             type(self).release.wait()
         if url not in type(self).infos:
             raise RuntimeError("Video unavailable")
@@ -61,6 +63,7 @@ def fake_ydl():
     _FakeYDL.infos = {}
     _FakeYDL.opts = []
     _FakeYDL.stall_url = None
+    _FakeYDL.stalled_on = None
     _FakeYDL.release = threading.Event()
     with (
         patch("app.pipeline.download.YoutubeDL", _FakeYDL),
@@ -150,6 +153,18 @@ def test_a_link_that_takes_too_long_to_read_is_unavailable(client, fake_ydl):
         finally:
             fake_ydl.release.set()
     assert [i["status"] for i in items] == ["unavailable", "ok"]
+
+
+def test_a_stuck_read_holds_a_probe_thread_not_a_shared_one(client, fake_ydl):
+    from app.api.batch_import import PROBE_THREAD_PREFIX
+
+    fake_ydl.stall_url = VIDEO_A
+    with patch("app.api.batch_import.TIMEOUT_BATCH_PROBE", 0.2):
+        try:
+            _preview(client, [VIDEO_A])
+        finally:
+            fake_ydl.release.set()
+    assert fake_ydl.stalled_on.startswith(PROBE_THREAD_PREFIX)
 
 
 def test_the_same_song_twice_is_listed_once(client, fake_ydl):

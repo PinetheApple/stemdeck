@@ -105,6 +105,17 @@ def test_an_upload_sent_with_auto_sections_keeps_it_over_the_toggle(upload_clien
     assert _jobs[r.json()["job_id"]].auto_sections is (sent == "true")
 
 
+def test_an_upload_with_an_auto_sections_other_than_true_or_false_is_refused(upload_client):
+    data = io.BytesIO(b"ID3" + b"\x00" * 128)
+    r = upload_client.post(
+        "/api/jobs",
+        files={"file": ("track.mp3", data, "audio/mpeg")},
+        data={"auto_sections": "yes"},
+    )
+    assert r.status_code == 422
+    assert _jobs == {}
+
+
 def test_a_queued_title_is_capped_at_the_song_name_limit(client):
     from app.core.config import SONG_NAME_MAX_CHARS
 

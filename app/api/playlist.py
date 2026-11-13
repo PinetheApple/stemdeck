@@ -48,7 +48,7 @@ class PlaylistRequest(BaseModel):
     stems: list[str] | None = None
 
 
-def _capacity_left() -> int:
+def link_capacity_left() -> int:
     # Playlist tracks are links, so only other waiting links count against
     # them -- a backlog of file uploads is bounded separately and holds disk
     # rather than a registry record.
@@ -76,7 +76,7 @@ def _partition(items: list[Track]) -> tuple[list[Track], list[Track]]:
     cap = get_playlist_max_items()
     keep, too_long = [], []
     for item in items:
-        if _too_long(item.get("duration"), max_duration):
+        if is_too_long(item.get("duration"), max_duration):
             too_long.append(item)
             continue
         keep.append(item)
@@ -101,16 +101,16 @@ def _gone_copies() -> dict[str, str]:
     }
 
 
-def _too_long(duration: object, limit: int) -> bool:
+def is_too_long(duration: object, limit: int) -> bool:
     return isinstance(duration, int | float) and duration > limit
 
 
-def _library_jobs() -> dict[str, str]:
+def library_jobs() -> dict[str, str]:
     return {job.source_url: job.id for job in registry_all_jobs().values() if _holds_song(job)}
 
 
 def _library_urls() -> set[str]:
-    return set(_library_jobs())
+    return set(library_jobs())
 
 
 def _split_in_library(items: list[Track]) -> tuple[list[Track], list[Track]]:
@@ -143,7 +143,7 @@ async def preview_playlist(request: Request) -> dict[str, Any]:
     result = await _expand(payload.url)
     items, too_long = _partition(result["items"])
     items, in_library = _split_in_library(items)
-    capacity = _capacity_left()
+    capacity = link_capacity_left()
 
     return {
         "playlist_title": result["playlist_title"],
@@ -195,7 +195,7 @@ async def create_playlist_jobs(request: Request) -> dict[str, Any]:
     if not items:
         raise HTTPException(status_code=422, detail="No importable tracks in that playlist")
     items, in_library = _split_in_library(items)
-    if items and _capacity_left() == 0:
+    if items and link_capacity_left() == 0:
         raise HTTPException(status_code=503, detail="Queue is full - wait or cancel a job")
 
     # Read once for the batch, so every job in one playlist import agrees, and

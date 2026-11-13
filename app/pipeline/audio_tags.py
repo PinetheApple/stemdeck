@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 _LYRICS_KEYS = ("lyrics", "unsyncedlyrics", "syncedlyrics")
 
 
-def _is_control(ch: str) -> bool:
+def is_control(ch: str) -> bool:
     """C0 and C1 control characters, and lone surrogates (raw bytes that
     were not UTF-8, which nothing downstream could encode)."""
     code = ord(ch)
@@ -57,7 +57,7 @@ def _clean(value: Any, limit: int) -> str:
     this text ends up in the page."""
     if not isinstance(value, str):
         return ""
-    text = "".join(ch for ch in value if ch in "\n\t" or not _is_control(ch))
+    text = "".join(ch for ch in value if ch in "\n\t" or not is_control(ch))
     return text.replace("\r\n", "\n").strip()[:limit]
 
 
@@ -186,7 +186,7 @@ def _as_utf8(raw: bytes, from_file: bool) -> str | None:
         if not from_file or exc.reason != "unexpected end of data":
             return None
         text = raw[: exc.start].decode("utf-8", "strict")
-    if text.isascii() or any(_is_control(ch) for ch in text if ch not in "\n\r\t"):
+    if text.isascii() or any(is_control(ch) for ch in text if ch not in "\n\r\t"):
         return None
     return text
 

@@ -4,20 +4,22 @@ import. Creates nothing; the client queues each kept item through POST /api/jobs
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from app.api.jobs import _local_source_url
+from app.api.jobs import local_source_url
 from app.api.playlist import (
     SKIP_IN_LIBRARY,
     SKIP_TOO_LONG,
-    _capacity_left,
-    _library_jobs,
-    _too_long,
+    is_too_long,
+    library_jobs,
+    link_capacity_left,
 )
 from app.api.queue import upload_capacity_left
 from app.core.config import TIMEOUT_BATCH_PROBE
@@ -45,6 +47,11 @@ MAX_BATCH_FILES = 500
 # pasted list of 30 links quick without opening 30 connections to YouTube.
 _PROBE_CONCURRENCY = 4
 _probe_semaphore = asyncio.Semaphore(_PROBE_CONCURRENCY)
+PROBE_THREAD_PREFIX = "batch-probe"
+_probe_pool = ThreadPoolExecutor(
+    max_workers=_PROBE_CONCURRENCY,
+    thread_name_prefix=PROBE_THREAD_PREFIX,
+)
 
 Item = dict[str, Any]
 Summary = dict[str, Any]
@@ -56,10 +63,12 @@ class BatchPreviewRequest(BaseModel):
 
 
 async def _read(fn: Callable[..., Any], *args: Any) -> Any:
-    # A timeout abandons the wait, not the thread: yt-dlp's own socket timeout
-    # ends that, and its answer is then dropped.
+    # A timeout abandons the wait, not the thread, and yt-dlp's socket_timeout bounds
+    # each socket operation, not the call: a stuck read holds a probe thread, never a shared one.
+    loop = asyncio.get_running_loop()
     async with _probe_semaphore:
-        return await asyncio.wait_for(asyncio.to_thread(fn, *args), timeout=TIMEOUT_BATCH_PROBE)
+        work = loop.run_in_executor(_probe_pool, functools.partial(fn, *args))
+        return await asyncio.wait_for(work, timeout=TIMEOUT_BATCH_PROBE)
 
 
 def _item(
@@ -165,14 +174,14 @@ def _judge(item: Item, library: dict[str, str], max_duration: int) -> None:
     item["existing_job_id"] = library.get(item["url"])
     if item["status"] != STATUS_OK:
         return
-    if _too_long(item["duration_sec"], max_duration):
+    if is_too_long(item["duration_sec"], max_duration):
         item["status"] = SKIP_TOO_LONG
     elif item["existing_job_id"] is not None:
         item["status"] = SKIP_IN_LIBRARY
 
 
 def _file_item(name: str, library: dict[str, str]) -> Item:
-    job_id = library.get(_local_source_url(name))
+    job_id = library.get(local_source_url(name))
     return {
         "name": name,
         "status": STATUS_OK if job_id is None else SKIP_IN_LIBRARY,
@@ -201,14 +210,13 @@ async def _parse(request: Request) -> BatchPreviewRequest:
 
 @router.post("/preview")
 async def preview_batch(request: Request) -> dict[str, Any]:
-    """Creates nothing."""
     payload = await _parse(request)
     lines = _numbered(payload.links, MAX_BATCH_LINKS, "links")
     names = [name for _, name in _numbered(payload.files, MAX_BATCH_FILES, "files")]
     results = await asyncio.gather(*(_read_line(n, line) for n, line in lines))
     items = _first_of_each_url([item for found, _ in results for item in found])
 
-    library = _library_jobs()
+    library = library_jobs()
     max_duration = get_max_duration_sec()
     for item in items:
         _judge(item, library, max_duration)
@@ -218,5 +226,5 @@ async def preview_batch(request: Request) -> dict[str, Any]:
         "playlists": [_counted(s, items) for _, s in results if s is not None],
         "files": [_file_item(name, library) for name in names],
         "max_duration_sec": max_duration,
-        "capacity_left": {"links": _capacity_left(), "files": upload_capacity_left()},
+        "capacity_left": {"links": link_capacity_left(), "files": upload_capacity_left()},
     }
