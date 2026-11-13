@@ -88,7 +88,42 @@ export function queueRowStates(snap = snapshot) {
   return rows;
 }
 
+const DONE_STATUS = "done";
+const FAILED_STATUS = "error";
+
+/** Where a batch stands: what is done, failed or still in the queue. An item
+ *  cancelled, trashed or gone counts as none of them. */
+export function batchProgress(ids, snap, statusOf) {
+  const inQueue = currentIds(snap);
+  const progress = { total: 0, done: 0, failed: 0, waiting: 0, failedIds: [] };
+  for (const id of ids) {
+    const status = inQueue.has(id) ? null : statusOf(id);
+    if (inQueue.has(id)) progress.waiting += 1;
+    else if (status === DONE_STATUS) progress.done += 1;
+    else if (status === FAILED_STATUS) progress.failedIds.push(id);
+    else continue;
+    progress.total += 1;
+  }
+  progress.failed = progress.failedIds.length;
+  return progress;
+}
+
 // ─── state ───────────────────────────────────────────────────────────────────
+
+let batchJobIds = [];
+
+/** The jobs of the batch the queue view sums up. A batch queued while the last
+ *  one still has jobs in the queue joins it. */
+export function recordBatch(jobIds) {
+  const running = batchJobIds.some((id) => currentIds().has(id));
+  batchJobIds = running ? [...batchJobIds, ...jobIds] : [...jobIds];
+}
+
+export const getBatchJobIds = () => batchJobIds;
+
+export function dropFromBatch(jobId) {
+  batchJobIds = batchJobIds.filter((id) => id !== jobId);
+}
 
 export function getQueueSnapshot() {
   return snapshot;
