@@ -1,13 +1,16 @@
-// A song's versions (#96): rows under the song, the studio pill, Save as new,
+// A song's versions: rows under the song, the studio pill, Save as new,
 // Extract more stems and delete, each version keeping its own lanes and mix.
 import { test, expect } from "@playwright/test";
 import {
-  JOB_ID, KEY, SIBLING_JOB_ID, SIBLING_TITLE, TRACK_TITLE, fixtureTrack, openStudio, seedLibrary, stubServerTrash,
+  JOB_ID, KEY, SIBLING_JOB_ID, SIBLING_TITLE, TRACK_TITLE, fixtureTrack, openStudio, readCatalogState, seedLibrary,
+  stubServerTrash,
 } from "./helpers.mjs";
+import { STEM_NAMES as ALL_STEMS } from "../../static/js/constants.js";
+import { DEFAULT_VERSION_ID as DEFAULT_ID } from "../../static/js/versionModel.js";
 
-const ALL_STEMS = ["vocals", "drums", "bass", "guitar", "piano", "other"];
 const TWO_STEMS = ["vocals", "drums"];
-const DEFAULT_ID = "main";
+const NEW_JOB_ID = "e2e0feedface";
+const IMPORT_DRUMS = 0.75;
 const MIX_KEY = `stemdeck:mix:${JOB_ID}`;
 const ORIGINAL_DRUMS = 0.5;
 const V2_DRUMS = 0.25;
@@ -255,6 +258,15 @@ test("a setlist and Up Next play the version opened last", async ({ page, reques
     await page.locator("#t-next").click();
     await expect(page.locator("#title")).toHaveText(TRACK_TITLE);
     await expect.poll(() => studioState(page)).toMatchObject({ lanes: [...TWO_STEMS].sort() });
+
+    await page.locator("#libTabSongs").click();
+    await songRow(page, SIBLING_JOB_ID).dblclick();
+    await expect(page.locator("#title")).toContainText("again");
+    await songRow(page).hover();
+    await songRow(page).locator(".cat-upnext").click();
+    await page.locator("#t-next").click();
+    await expect(page.locator("#title")).toHaveText(TRACK_TITLE);
+    await expect.poll(() => studioState(page)).toMatchObject({ lanes: [...TWO_STEMS].sort() });
   } finally {
     await request.delete(`/api/setlists/${setlist.id}`);
   }
@@ -286,4 +298,52 @@ test("Trash shows no version rows", async ({ page, request }) => {
   await page.locator(".rail-trash").click();
   await expect(page.locator(`#catalogList .cat-item.in-trash[data-id="${SIBLING_JOB_ID}"]`)).toBeVisible();
   await expect(page.locator("#catalogList .cat-versions-toggle, #catalogList .cat-version")).toHaveCount(0);
+});
+
+test("a finished import opens on its own mix, not under the version open before it", async ({ page, request }) => {
+  const v2 = await createVersion(request, JOB_ID, { name: "Two lanes", stems: TWO_STEMS, open: true });
+  const finished = await (await request.get(`/api/jobs/${SIBLING_JOB_ID}`)).json();
+  await openStudio(page);
+  await expect.poll(() => studioState(page)).toMatchObject({ versionId: v2.id });
+  await page.route(/\/api\/jobs$/, (route) => (route.request().method() === "POST"
+    ? route.fulfill({ status: 200, json: { job_id: SIBLING_JOB_ID } })
+    : route.fallback()));
+  await page.route(`**/api/jobs/${SIBLING_JOB_ID}/events`, (route) => route.fulfill({
+    status: 200,
+    contentType: "text/event-stream",
+    body: `data: ${JSON.stringify(finished)}\n\n`,
+  }));
+
+  await page.evaluate(async () => (await import("/js/job.js")).importFromUrl("https://example.com/song"));
+  await expect.poll(() => page.evaluate(async () => (await import("/js/state.js")).currentJobId)).toBe(SIBLING_JOB_ID);
+  await expect.poll(() => studioState(page)).toMatchObject({ versionId: DEFAULT_ID });
+  await page.evaluate(async (v) => (await import("/js/mixer.js")).setLaneVolume("drums", v), IMPORT_DRUMS);
+
+  const siblingKey = `stemdeck:mix:${SIBLING_JOB_ID}`;
+  await expect.poll(() => storedMix(page, siblingKey)).toMatchObject(laneMix(IMPORT_DRUMS));
+  expect(await storedMix(page, `${siblingKey}:${v2.id}`)).toBe("absent");
+});
+
+test("a re-import's new job starts from the server's versions, not the old copy's", async ({ page }) => {
+  const oldVersions = [{ id: DEFAULT_ID, name: null, stems: ALL_STEMS }, { id: "1a2b3c4d", name: "Old", stems: TWO_STEMS }];
+  await openStudio(page, {
+    catalog: {
+      ...TAGS_CHECKED_CATALOG,
+      tracks: {
+        ...TAGS_CHECKED_CATALOG.tracks,
+        [JOB_ID]: { ...TAGS_CHECKED_CATALOG.tracks[JOB_ID], versions: oldVersions, openVersion: "1a2b3c4d", versionsExpanded: true },
+      },
+    },
+    waitForDuration: false,
+  });
+  await page.evaluate(async ([id, replaces]) => {
+    (await import("/js/catalog.js")).addTrackToLibrary({ id, replaces, title: "Again", status: "processing", stems: [] });
+  }, [NEW_JOB_ID, JOB_ID]);
+
+  const stored = await readCatalogState(page);
+  const fresh = stored.tracks[NEW_JOB_ID];
+  expect(fresh).toBeTruthy();
+  expect(fresh).not.toHaveProperty("versions");
+  expect(fresh).not.toHaveProperty("openVersion");
+  expect(fresh).not.toHaveProperty("versionsExpanded");
 });
