@@ -36,6 +36,43 @@ export function effectivePitch(name, semitones, pitchable) {
   return clampPitch(semitones);
 }
 
+export const GLOBAL_PITCH_FIELD = "globalPitch";
+
+/** Saved global key; older records fall back to the lane vote. */
+export function savedGlobalPitch(record, laneNames) {
+  const saved = record?.[GLOBAL_PITCH_FIELD];
+  return Number.isFinite(saved) ? clampPitch(saved) : globalPitchFromLanes(record, laneNames);
+}
+
+/**
+ * The key most of the song's pitched lanes are in. A tie goes to the key
+ * nearer the original, then to the lower one, so stem order never decides.
+ */
+export function globalPitchFromLanes(record, laneNames) {
+  const laneCounts = new Map();
+  for (const name of laneNames || []) {
+    const lanePitch = record?.[name]?.pitch;
+    if (name === "drums" || !Number.isFinite(lanePitch)) continue;
+    const semitones = clampPitch(lanePitch);
+    laneCounts.set(semitones, (laneCounts.get(semitones) || 0) + 1);
+  }
+  let best = 0;
+  let bestCount = 0;
+  for (const [semitones, count] of laneCounts) {
+    if (beatsVote(semitones, count, best, bestCount)) {
+      best = semitones;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+function beatsVote(semitones, count, best, bestCount) {
+  if (count !== bestCount) return count > bestCount;
+  if (Math.abs(semitones) !== Math.abs(best)) return Math.abs(semitones) < Math.abs(best);
+  return semitones < best;
+}
+
 /** Worklet input index for a given shift. */
 export function inputForPitch(semitones) {
   return clampPitch(semitones) + ZERO_INPUT;
