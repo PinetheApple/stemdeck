@@ -23,6 +23,7 @@ import {
   metronomeGrouping, setMetronomeGrouping,
   setMetronomeHasBars,
   setMetronomeEnabled, setMetronomeVolume, setMetronomeBeatsPerBar,
+  metronomeSound, setMetronomeSound,
   setLoopEnabled, setLoopStart, setLoopEnd, setMasterVolume, setPlaybackSpeed, playbackSpeed,
   waveZoom, setWaveZoom, overviewRerenderFn,
 } from "./state.js";
@@ -1214,7 +1215,21 @@ function _saveMetroPrefs() {
     beatsPerBar: metronomeBeatsPerBar,
     grouping: metronomeGrouping,
     countInBars: metronomeCountInBars,
+    sound: metronomeSound,
   }).catch((e) => console.warn("[transport] failed to save metronome prefs:", e));
+}
+
+/** The click sound preset in use (an id from clickSounds.js). */
+export function getClickSound() {
+  return metronomeSound;
+}
+
+/** Choose the click sound: the live click switches on its next beat, exports
+ *  read it when they are built, and it is saved with the other click prefs. */
+export function setClickSound(id) {
+  setMetronomeSound(id);
+  metronome?.setSound(metronomeSound);
+  _saveMetroPrefs();
 }
 
 /**
@@ -1677,6 +1692,8 @@ function wireMetronomeControl() {
       // rather than silently turning it off.
       if (typeof prefs.countInBars === "number") setMetronomeCountInBars(prefs.countInBars);
       else if (typeof prefs.countIn === "boolean") setMetronomeCountInBars(prefs.countIn ? 1 : 0);
+      if (typeof prefs.sound === "string") setMetronomeSound(prefs.sound);
+      metronome?.setSound(metronomeSound);
     }
     _renderMetroVolume();
     _renderMetroBar();

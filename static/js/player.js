@@ -24,7 +24,7 @@ import {
   footerTitle, footerMeta, footerThumb,
   setFooterWaveDrawFn, setOverviewRerenderFn, autoSectionsResetFn,
   metronome, setMetronome, metronomeEnabled, metronomeVolume, metronomeBeatsPerBar,
-  metronomeCountInBars, metronomeGrouping,
+  metronomeCountInBars, metronomeGrouping, metronomeSound,
   exportClickEl, exportClickWrap, exportCountInEl, exportCountInWrap,
   setMetronomeHasBars,
 } from "./state.js";
@@ -1574,6 +1574,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
             const m = createMetronome(eng, beats, {
               volume: metronomeVolume,
               beatsPerBar: metronomeBeatsPerBar,
+              sound: metronomeSound,
             });
             setMetronome(m);
             updateMetronomeAvailability(m ? grid : null,
@@ -1916,10 +1917,16 @@ function _effectiveMixGains() {
 function _clickParams(q) {
   if (!exportClickEl?.checked || exportClickEl.disabled) return;
   q.set("click", "1");
+  _clickVoiceParams(q);
+}
+
+// The click as the user monitors it: rate, accents, grouping, level and sound.
+function _clickVoiceParams(q) {
   q.set("click_mult", String(metronome?.getMultiplier?.() ?? 1));
   q.set("click_accent", String(metronomeBeatsPerBar));
   q.set("click_gain", metronomeVolume.toFixed(3));
   if (metronomeGrouping) q.set("click_groups", metronomeGrouping.join("+"));
+  q.set("click_sound", metronomeSound);
 }
 
 // Count-in export param (issue #269). Independent of the running click track:
@@ -1936,10 +1943,7 @@ function _countInParam(q) {
   q.set("count_in", String(metronomeCountInBars > 0 ? metronomeCountInBars : 1));
   // The count-in's tempo/meter follow the same rate and accent the click uses,
   // so pass them even when the click itself is not being baked in.
-  q.set("click_mult", String(metronome?.getMultiplier?.() ?? 1));
-  q.set("click_accent", String(metronomeBeatsPerBar));
-  q.set("click_gain", metronomeVolume.toFixed(3));
-  if (metronomeGrouping) q.set("click_groups", metronomeGrouping.join("+"));
+  _clickVoiceParams(q);
 }
 
 /** Whether this track can export a click / count-in at all (needs a beat grid). */
@@ -2043,6 +2047,9 @@ export function downloadAllStemsZip(format = "wav", onTransferStart) {
     .replace(/^_+|_+$/g, "");
   const name = safe ? `${safe}_stems.zip` : "stems.zip";
   const q = new URLSearchParams({ format, stems: names.join(",") });
+  // The click goes in as its own file, lined up with the stems. No count-in:
+  // the stems start at the song's first sample, so it has nowhere to go.
+  _clickParams(q);
   return _triggerDownload(`/api/jobs/${currentJobId}/stems/all.zip?${q}`, name, onTransferStart);
 }
 
