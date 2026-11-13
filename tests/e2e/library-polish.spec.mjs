@@ -310,11 +310,11 @@ test("with no song open the main area says how to start", async ({ page }) => {
   await expect(start).toBeVisible();
   await expect(start.locator("strong")).toHaveText(await uiText(page, "start.title"));
 
-  await start.getByRole("button", { name: await uiText(page, "start.link") }).click();
+  await start.getByRole("button", { name: await uiText(page, "batch.pasteLinks") }).click();
   await expect(page.locator("#url")).toBeFocused();
 
   const chooser = page.waitForEvent("filechooser");
-  await start.getByRole("button", { name: await uiText(page, "start.upload") }).click();
+  await start.getByRole("button", { name: await uiText(page, "batch.chooseFiles") }).click();
   await chooser;
 
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).dblclick();

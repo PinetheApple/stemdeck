@@ -161,22 +161,20 @@ async function stubLinkSibling(page) {
 const PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLe2egone";
 const PLAYLIST_TITLE = "Gone Mix";
 
-/** A playlist holding the gone song: preview, then a create whose job replaces it. */
+/** A playlist holding the gone song: its review names the copy the import replaces. */
 async function stubGonePlaylist(page) {
-  await page.route("**/api/playlist/preview", (route) =>
+  const playlist = { url: PLAYLIST_URL, title: PLAYLIST_TITLE, index: 1 };
+  await page.route("**/api/import/preview", (route) =>
     route.fulfill({
       json: {
-        playlist_title: PLAYLIST_TITLE, total_found: 1, will_queue: 1, skipped_unavailable: 0,
-        skipped_too_long: 0, skipped_in_library: 0, capacity_left: 10, cap: 50, truncated: false, items: [],
-      },
-    }));
-  await page.route("**/api/playlist", (route) =>
-    route.fulfill({
-      json: {
-        playlist_title: PLAYLIST_TITLE,
-        jobs: [{ job_id: RESTORED_ID, title: GONE_TITLE, source_url: GONE_URL, replaces: GONE_ID }],
-        queued: 1, skipped_unavailable: 0, skipped_too_long: 0, skipped_in_library: 0, skipped_no_capacity: 0,
-        skipped: [],
+        items: [{
+          input: PLAYLIST_URL, line: 1, url: GONE_URL, title: GONE_TITLE, artist: null, duration_sec: 200,
+          status: "ok", existing_job_id: null, replaces: GONE_ID, playlist,
+        }],
+        playlists: [{ input: PLAYLIST_URL, line: 1, url: PLAYLIST_URL, title: PLAYLIST_TITLE, found: 1, unavailable: 0, truncated: false }],
+        files: [],
+        max_duration_sec: 1200,
+        capacity_left: { links: 10, files: 10 },
       },
     }));
 }
@@ -185,13 +183,14 @@ const songRows = (page, id) => page.locator(`#catalogList .cat-item[data-id="${i
 
 test("a playlist re-import takes a gone song's row instead of adding one", async ({ page }) => {
   await openStudio(page, { catalog: CATALOG });
-  await stubRestore(page);
+  const { posts } = await stubRestore(page);
   await stubGonePlaylist(page);
 
   await page.locator("#url").fill(PLAYLIST_URL);
   await page.locator("#submit").click();
-  await page.locator(".playlist-confirm .playlist-confirm-go").click();
+  await page.locator("#batchReview .batch-queue").click();
 
+  await expect.poll(() => posts.at(-1)?.replaces).toBe(GONE_ID);
   await expect(songRows(page, RESTORED_ID)).toHaveCount(1);
   await expect(songRows(page, GONE_ID)).toHaveCount(0);
 });

@@ -11,7 +11,6 @@ import { getStagePhrases } from "./phrases.js";
 import { addTrackToLibrary, replaceableTrackId, setCurrentTrack, updateTrackStatus, applyStemPresenceCards, paintKeyConfidence, libraryAudioTags, libraryArtist, libraryIdentity, libraryWork, paintFinishedTrackNames, armAutoOpen, refreshFailedImport, retryFailedImport } from "./catalog.js";
 import { FAILED_STATUS, LOCAL_PREFIX, SOURCE_KIND, failureReasonKey, retryErrorText } from "./importSource.js";
 import { initSections } from "./sections.js";
-import { importPlaylist, looksLikePlaylist } from "./playlist.js";
 import { t } from "./i18n.js";
 import { formatKey } from "./keyLabel.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
@@ -28,10 +27,18 @@ let jobPollTimerId = null;
 const renderedJobs = new Set();
 const jobSources = new Map();
 
+/** The bar's lead/backing split choice as it is now, to store with an import. */
+export const currentSplitChoice = () => choiceToStore(selectedStems, vocalSplitMode);
+
 // The song's Details card starts the split once it is done and opens.
-function storeImportSplitChoice(jobId) {
-  const choice = choiceToStore(selectedStems, vocalSplitMode);
+function storeImportSplitChoice(jobId, choice = currentSplitChoice()) {
   if (choice) storeSplitChoice(jobId, choice);
+}
+
+/** A new import keeps the split choice of the copy it replaces, else takes `choice`. */
+export function keepSplitChoice(jobId, replaces, choice = currentSplitChoice()) {
+  if (replaces) carrySplitChoice(replaces, jobId);
+  else storeImportSplitChoice(jobId, choice);
 }
 
 const TERMINAL_STATUSES = new Set(["done", "error", "cancelled", "stopped"]);
@@ -65,7 +72,25 @@ function setSubmitProcessing(processing) {
   // first submit of a session renamed the button for good, on success as much
   // as on failure, and nothing put it back short of a reload or a language
   // switch (#635).
-  if (label) label.textContent = processing ? t("job.processing") : t("process.extractStems");
+  if (label) label.textContent = processing ? t("job.processing") : idleSubmitLabel();
+}
+
+let idleSubmitLabel = () => t("process.extractStems");
+let submitInterceptor = () => false;
+
+/** What the button reads when no submit is in flight, as the batch import sees it. */
+export function setIdleSubmitLabel(label) {
+  idleSubmitLabel = label;
+}
+
+/** `intercept` returns true when a submit is the batch import's to handle. */
+export function interceptSubmit(intercept) {
+  submitInterceptor = intercept;
+}
+
+export function refreshSubmitLabel() {
+  const label = submitBtn.querySelector("span");
+  if (label && !submitBtn.classList.contains("loading")) label.textContent = idleSubmitLabel();
 }
 
 function pickPhrase(status) {
@@ -573,60 +598,54 @@ async function cancelCurrentJob() {
   }
 }
 
-async function postFileJob(file) {
+/** Upload one file as a new import; its job id. `autoSections` and `replaces`
+ *  go only when given, so the server's own defaults hold otherwise. */
+export async function postFileJob(file, { stems = [...selectedStems], autoSections = null, replaces = null } = {}) {
   const fd = new FormData();
   fd.append("file", file);
-  fd.append("stems", JSON.stringify([...selectedStems]));
+  fd.append("stems", JSON.stringify(stems));
+  if (autoSections !== null) fd.append("auto_sections", String(autoSections));
+  if (replaces) fd.append("replaces", replaces);
   const res = await fetch("/api/jobs", { method: "POST", body: fd });
   return (await importResponse(res)).job_id;
 }
 
-const isQueueFull = (err) => err instanceof ServerRefusal && err.status === HTTP_SERVICE_UNAVAILABLE;
-
-const refusedFile = (file, reason) => t("import.itemReason", { name: file.name, reason });
-
-/** Upload each file in turn. A file the server refuses is passed over; a full
- *  queue refuses the rest too, so it stops there. Returns why each file that
- *  was not queued was left out. */
-async function queueFileBatch(batch) {
-  const refused = [];
-  for (const [index, file] of batch.entries()) {
-    try {
-      registerUploadRow(await postFileJob(file), file);
-    } catch (err) {
-      if (!isQueueFull(err)) {
-        refused.push(refusedFile(file, readableError(err)));
-        continue;
-      }
-      const reason = t("upload.reasonQueueFull");
-      refused.push(...batch.slice(index).map((left) => refusedFile(left, reason)));
-      break;
-    }
-  }
-  return refused;
-}
-
-async function submitFileBatch(batch, fileInput) {
-  const refused = await queueFileBatch(batch);
-  setSubmitProcessing(false);
-  fileInput._clear?.();
-  if (!refused.length) return;
-  showError(
-    t("upload.someNotAdded", { queued: batch.length - refused.length, total: batch.length }),
-    refused.join(t("list.separator")),
-    { onRetry: null },
-  );
-}
+export const isQueueFull = (err) => err instanceof ServerRefusal && err.status === HTTP_SERVICE_UNAVAILABLE;
 
 /** Give an accepted upload its library row straight away, so a batch appears as
  *  rows the moment each file lands rather than only once every upload is done. */
-function registerUploadRow(jobId, file, { replaces = null, stems = [...selectedStems] } = {}) {
+export function registerUploadRow(
+  jobId,
+  file,
+  { replaces = null, stems = [...selectedStems], splitChoice = currentSplitChoice() } = {},
+) {
   const title = sanitizeFilename(file.name);
-  const sourceUrl = `${LOCAL_PREFIX}${title}`;
-  if (replaces) carrySplitChoice(replaces, jobId);
-  else storeImportSplitChoice(jobId);
+  keepSplitChoice(jobId, replaces, splitChoice);
   registerQueuedRow({
-    id: jobId, replaces, title, stems, sourceUrl, sourceKind: SOURCE_KIND.FILE, sourceName: file.name,
+    id: jobId,
+    replaces,
+    title,
+    stems,
+    sourceUrl: `${LOCAL_PREFIX}${title}`,
+    sourceKind: SOURCE_KIND.FILE,
+    sourceName: file.name,
+  });
+}
+
+/** A batch's link, queued: its row, named as the review list showed it. */
+export function registerLinkRow(
+  jobId,
+  { url, title, replaces = null },
+  { stems = [...selectedStems], splitChoice = currentSplitChoice() } = {},
+) {
+  keepSplitChoice(jobId, replaces, splitChoice);
+  registerQueuedRow({
+    id: jobId,
+    replaces,
+    title: title || url,
+    stems,
+    sourceUrl: url,
+    sourceKind: SOURCE_KIND.LINK,
   });
 }
 
@@ -697,7 +716,12 @@ export async function reimportFailedLink(track) {
   if (!data) return null;
   carrySplitChoice(track.id, data.job_id);
   registerQueuedRow({
-    id: data.job_id, replaces: track.id, title: track.title, stems, sourceUrl: track.sourceUrl, sourceKind: SOURCE_KIND.LINK,
+    id: data.job_id,
+    replaces: track.id,
+    title: track.title,
+    stems,
+    sourceUrl: track.sourceUrl,
+    sourceKind: SOURCE_KIND.LINK,
   });
   return data.job_id;
 }
@@ -739,6 +763,7 @@ export async function importResponse(res) {
  *  for a lost connection or anything else, never "Failed to fetch". */
 export function readableError(err) {
   if (err instanceof ServerRefusal) return err.message;
+  if (err instanceof ReplaceBusyError) return t("job.reimportBusy");
   return err instanceof TypeError ? t("job.networkError") : t("job.unexpectedError");
 }
 
@@ -752,13 +777,20 @@ function showImportError(err, failedKey) {
   );
 }
 
-async function postReimport(url, stems, replaces) {
+/** Import a link; its job id. `title` and `autoSections` go only when given. */
+export async function postLinkImport({ url, stems, replaces = null, title = null, autoSections = null }) {
   const res = await fetch("/api/jobs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, stems, ...replacesField(replaces) }),
+    body: JSON.stringify({
+      url,
+      stems,
+      ...replacesField(replaces),
+      ...(title ? { title } : {}),
+      ...(autoSections === null ? {} : { auto_sections: autoSections }),
+    }),
   });
-  if (res.status === HTTP_CONFLICT) throw new ReplaceBusyError();
+  if (replaces && res.status === HTTP_CONFLICT) throw new ReplaceBusyError();
   return (await importResponse(res)).job_id;
 }
 
@@ -788,7 +820,7 @@ export async function importFromUrl(url, { title, stems, replaces } = {}) {
   setSubmitProcessing(true);
   let jobId;
   try {
-    jobId = await postReimport(url, stemSel, replaces);
+    jobId = await postLinkImport({ url, stems: stemSel, replaces });
   } catch (err) {
     showImportError(err, "job.restoreFailed");
     setSubmitProcessing(false);
@@ -831,6 +863,7 @@ export function wireJobForm() {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (submitInterceptor()) return;
 
     // An import never takes the studio, loaded or empty (#747). It runs in the
     // background and reports on its library row and the queue; the card and the
@@ -847,25 +880,6 @@ export function wireJobForm() {
     // Prefer _file cache: browsers (WKWebView, Chromium) silently clear
     // fileInput.files after a fetch() submission, breaking re-submits.
     const file = fileInput?._file ?? fileInput?.files?.[0] ?? null;
-
-    // A playlist is its own flow: expand, confirm the count, then queue every
-    // track into a folder named after it. Nothing takes the studio.
-    if (!file && looksLikePlaylist(urlInput.value)) {
-      const url = urlInput.value;
-      const queued = await importPlaylist(url, [...selectedStems]);
-      setSubmitProcessing(false);
-      if (queued) urlInput.value = "";
-      return;
-    }
-    // Several files dropped at once: upload them one after another. Parallel
-    // uploads of several 400 MB bodies would thrash memory on both ends, and
-    // the endpoint takes exactly one file per request anyway. All of them run
-    // in the background; the first to finish opens if the studio is still empty.
-    const batch = fileInput?._files ?? null;
-    if (batch && batch.length > 1) {
-      await submitFileBatch(batch, fileInput);
-      return;
-    }
 
     // Re-splitting a finished upload. The composer is empty for one by
     // design -- there is no URL to put in it -- so the button acts on the open

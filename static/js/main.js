@@ -34,6 +34,10 @@ import { initSetlists } from "./setlists.js";
 import { initSongRename } from "./songRename.js";
 import { initTrackMenu } from "./trackMenu.js";
 import { initConnection } from "./connection.js";
+import { clearBatch, setImportPill, startFileBatch, wireBatchImport } from "./batchImport.js";
+import {
+  MAX_UPLOAD_BYTES, PATH_SEP, folderFiles, formatBytes, isAudioName, isUploadable, walkEntries,
+} from "./batchImportModel.js";
 
 // ─── Stem choice toggles on the import page ───
 //
@@ -475,6 +479,7 @@ wireVocalModeToggle();
 wireStemChipsPopover();
 wireAutoSectionsToggle();
 wireFileDrop();
+wireBatchImport();
 wireEmptyStart();
 wireAppShellControls();
 initFooterFit();
@@ -789,8 +794,55 @@ function wireEmptyStart() {
   document.getElementById("emptyStartUpload")?.addEventListener("click", function onEmptyStartUpload() {
     document.getElementById("uploadFileBtn")?.click();
   });
+  document.getElementById("emptyStartFolder")?.addEventListener("click", function onEmptyStartFolder() {
+    document.getElementById("folderInput")?.click();
+  });
   document.getElementById("emptyStartLink")?.addEventListener("click", function onEmptyStartLink() {
     document.getElementById("url")?.focus();
+  });
+}
+
+// ─── Folders: picked, or dropped with their subfolders ───
+
+// Function declarations, not consts: wireFileDrop runs above, at load.
+function canPickFolder() {
+  return "webkitdirectory" in HTMLInputElement.prototype;
+}
+
+/** The folder's own name: the first part of every file's path below it. */
+function rootFolderName(entries) {
+  return entries.find((e) => e.dir)?.dir.split(PATH_SEP)[0] ?? null;
+}
+
+function stageFolder(entries, showDropError) {
+  document.getElementById("fileInput")?._clear?.();
+  if (!entries.length) {
+    showDropError(t("batch.emptyFolder"));
+    return;
+  }
+  startFileBatch(entries, { folder: rootFolderName(entries) });
+}
+
+/** The drop's entries, read while the drop event lasts, or null when it holds no folder. */
+function droppedFolderEntries(dataTransfer) {
+  const entries = [...(dataTransfer?.items ?? [])]
+    .map((item) => item.webkitGetAsEntry?.())
+    .filter(Boolean);
+  return entries.some((entry) => entry.isDirectory) ? entries : null;
+}
+
+function wireFolderPicker(showDropError) {
+  const folderInput = document.getElementById("folderInput");
+  if (!canPickFolder()) {
+    for (const id of ["addFolderBtn", "emptyStartFolder"]) document.getElementById(id)?.setAttribute("hidden", "");
+    return;
+  }
+  document.getElementById("addFolderBtn")?.addEventListener("click", function onAddFolderClick() {
+    folderInput?.click();
+  });
+  folderInput?.addEventListener("change", function onFolderPicked() {
+    stageFolder(folderFiles(folderInput.files), showDropError);
+    folderInput.value = "";
   });
 }
 
@@ -801,8 +853,6 @@ function wireFileDrop() {
   const urlInput = document.getElementById("url");
   const fileInput = document.getElementById("fileInput");
   const filePill = document.getElementById("filePill");
-  const fileName = document.getElementById("fileName");
-  const fileSize = document.getElementById("fileSize");
   const fileClear = document.getElementById("fileClear");
   const dropError = document.getElementById("urlDropError");
   if (!urlWrap || !urlInput || !fileInput || !filePill) return;
@@ -833,31 +883,21 @@ function wireFileDrop() {
   }
   urlInput.addEventListener("input", clearDropError);
 
-  function formatBytes(n) {
-    return n < 1024 * 1024 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
-  }
-
-  const MAX_UPLOAD_BYTES = 400 * 1024 * 1024; // must match server _MAX_UPLOAD_BYTES
-
-  const AUDIO_EXTS = [".mp3", ".wav", ".flac", ".mp4", ".m4a", ".ogg", ".opus"];
-  const isAudioFile = (file) => AUDIO_EXTS.some((ext) => file.name.toLowerCase().endsWith(ext));
+  const isAudioFile = (file) => isAudioName(file.name);
 
   /**
-   * Which of a set of picked or dropped files can be staged, and why the rest
-   * cannot.
+   * The one picked or dropped file, if it can be staged; null, having said why,
+   * when it cannot. Several go to the batch review instead, flagged there.
    *
    * Works on anything with a name and a size rather than on File objects, so a
    * native drop can be screened before any of its bytes are read: a file that
    * is going to be refused should not be loaded into memory to find that out.
-   * Returns null, having said why, when nothing can be staged.
    */
   function screenFiles(list) {
     const all = [...(list || [])];
     if (!all.length) return null;
 
-    // Filter here rather than letting the server reject each one: dropping a
-    // folder, or a folder of mixed content, would otherwise mean one 422 per
-    // stray file. Only complain if nothing usable came through.
+    // Refused here, in the box, rather than by the server's 422 after an upload.
     const audio = all.filter(isAudioFile);
     if (!audio.length) {
       showDropError(t("upload.unsupportedFormat"));
@@ -868,38 +908,31 @@ function wireFileDrop() {
       showDropError(t("upload.fileTooLarge", { size: formatBytes(audio[0].size), max: formatBytes(MAX_UPLOAD_BYTES) }));
       return null;
     }
-    const skipped = all
-      .filter((f) => !files.includes(f))
-      .map((f) =>
-        t(
-          "import.itemReason",
-          {
-            name: f.name,
-            reason: t(isAudioFile(f) ? "upload.reasonOversized" : "upload.reasonNotAudio"),
-          },
-        ),
-      );
-    return { files, skipped };
+    return files;
   }
 
   function applyFiles(fileList) {
-    const screened = screenFiles(fileList);
+    const all = [...(fileList || [])];
+    if (all.length > 1) {
+      stageLooseFiles(all);
+      return;
+    }
+    const screened = screenFiles(all);
     if (screened) stageFiles(screened);
   }
 
-  /** Arms the import with files that have already passed screenFiles. */
-  function stageFiles({ files, skipped }) {
-    if (fileName) {
-      fileName.textContent =
-        files.length === 1 ? files[0].name : `${files.length} files`;
-    }
-    if (fileSize) {
-      const bytes = files.reduce((sum, f) => sum + f.size, 0);
-      fileSize.textContent = formatBytes(bytes);
-    }
+  /** Several files: the review lists each, with what is wrong with any of them. */
+  function stageLooseFiles(files) {
+    clearFile();
     clearDropError();
-    filePill.classList.remove("hidden");
-    urlWrap.classList.add("has-file");
+    startFileBatch(files.map((file) => ({ file, dir: "" })));
+  }
+
+  /** Arms the import with a file that has already passed screenFiles. */
+  function stageFiles(files) {
+    clearBatch();
+    clearDropError();
+    setImportPill({ name: files[0].name, size: formatBytes(files[0].size) });
     // Cache the File objects directly on the element so job.js can always
     // retrieve them even after the browser clears fileInput.files following
     // a fetch() submission (known WKWebView / Chromium behaviour). _file stays
@@ -909,12 +942,6 @@ function wireFileDrop() {
     const dt = new DataTransfer();
     for (const f of files) dt.items.add(f);
     fileInput.files = dt.files;
-    urlInput.value = "";
-    urlInput.removeAttribute("required");
-
-    if (skipped.length) {
-      showError(t("upload.skippedNamed"), skipped.join(t("list.separator")), { onRetry: null });
-    }
   }
 
   function clearFile() {
@@ -924,6 +951,7 @@ function wireFileDrop() {
     fileInput._files = null;
     fileInput.value = "";
     urlInput.setAttribute("required", "");
+    clearBatch();
   }
 
   fileClear?.addEventListener("click", clearFile);
@@ -935,15 +963,22 @@ function wireFileDrop() {
 
   const draggingFiles = (e) => !!e.dataTransfer?.types?.includes("Files");
 
+  // Hovering says what a drop takes, in the box itself.
+  function setDragHover(on) {
+    urlWrap.classList.toggle("drag-over", on);
+    urlWrap.classList.toggle("batch-drop-target", on);
+    urlInput.placeholder = t(on ? "batch.dropHere" : "batch.placeholder");
+  }
+
   // The URL zone keeps its own hover affordance. It is no longer the only place
   // a file can land, so this is now about showing where it will go rather than
   // about being the only target that works.
   urlWrap.addEventListener("dragover", (e) => {
     if (!draggingFiles(e)) return;
-    urlWrap.classList.add("drag-over");
+    setDragHover(true);
   });
   urlWrap.addEventListener("dragleave", (e) => {
-    if (!urlWrap.contains(e.relatedTarget)) urlWrap.classList.remove("drag-over");
+    if (!urlWrap.contains(e.relatedTarget)) setDragHover(false);
   });
 
   // A file dropped anywhere in the window is treated as a drop on the URL zone.
@@ -975,13 +1010,25 @@ function wireFileDrop() {
   document.addEventListener("drop", (e) => {
     if (!draggingFiles(e)) return;
     e.preventDefault();
-    urlWrap.classList.remove("drag-over");
-    applyFiles(e.dataTransfer.files);
+    setDragHover(false);
+    const folderEntries = droppedFolderEntries(e.dataTransfer);
+    if (folderEntries) walkEntries(folderEntries).then(onFolderWalked, onFolderUnreadable);
+    else applyFiles(e.dataTransfer.files);
   });
+
+  function onFolderWalked(entries) {
+    stageFolder(entries, showDropError);
+  }
+
+  function onFolderUnreadable(err) {
+    console.warn("[drop] could not read a dropped folder:", err);
+    showDropError(t("batch.folderUnreadable"));
+  }
 
   fileInput.addEventListener("change", () => {
     applyFiles(fileInput.files);
   });
+  wireFolderPicker(showDropError);
 
   watchNativeDrops();
 
@@ -1030,36 +1077,46 @@ function wireFileDrop() {
       const signal = next.signal;
       if (!signal) continue;
       if (signal.kind === "enter") {
-        urlWrap.classList.add("drag-over");
+        setDragHover(true);
       } else if (signal.kind === "leave") {
-        urlWrap.classList.remove("drag-over");
+        setDragHover(false);
       } else if (signal.kind === "drop") {
-        urlWrap.classList.remove("drag-over");
+        setDragHover(false);
         await applyNativeDrop(invoke, signal.files);
       }
     }
   }
 
   // `dropped` is [{ id, name, size }]: descriptions, not files. They are
-  // screened as they are, and only what is accepted is read.
+  // screened as they are, and only what can be uploaded is read.
   async function applyNativeDrop(invoke, dropped) {
+    if (dropped.length > 1) {
+      const read = await readDropped(invoke, dropped.filter(isUploadable));
+      if (read) stageLooseFiles(dropped.map((d) => read.get(d.id) ?? d));
+      return;
+    }
     const screened = screenFiles(dropped);
     if (!screened) return;
-    const files = [];
+    const read = await readDropped(invoke, screened);
+    if (read) stageFiles([...read.values()]);
+  }
+
+  /** The dropped files' bytes, by id; null, having said which, when one cannot be read. */
+  async function readDropped(invoke, descriptions) {
+    const files = new Map();
     // One at a time, so a single transfer of up to MAX_UPLOAD_BYTES is in
-    // flight rather than one per file. Every accepted file is still held until
-    // staging, as a picked one is: parallel reads would only raise the peak.
-    for (const d of screened.files) {
+    // flight rather than one per file: parallel reads would only raise the peak.
+    for (const d of descriptions) {
       try {
         const bytes = await invoke("read_dropped_file", { id: d.id });
-        files.push(new File([bytes], d.name));
+        files.set(d.id, new File([bytes], d.name));
       } catch (e) {
         console.warn("[drop] could not read a dropped file:", e);
         showDropError(t("upload.dropReadFailed", { name: d.name }));
-        return;
+        return null;
       }
     }
-    stageFiles({ ...screened, files });
+    return files;
   }
 }
 

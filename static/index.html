@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="/css/vocal-split.css" />
     <link rel="stylesheet" href="/css/forms.css" />
 <link rel="stylesheet" href="/css/import-source.css" />
+    <link rel="stylesheet" href="/css/batch-import.css" />
   </head>
   <body>
 
@@ -57,8 +58,8 @@
             <input
               id="url"
               type="text"
-              placeholder="Search or drop an audio file…"
-              data-i18n-placeholder="topbar.urlPlaceholder"
+              placeholder="Search, paste links, or drop files…"
+              data-i18n-placeholder="batch.placeholder"
               spellcheck="false"
               autocomplete="off"
             />
@@ -72,6 +73,8 @@
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
               </svg>
+              <span class="batch-pill-ic" data-kind-icon="links" data-batch-icon="list"></span>
+              <span class="batch-pill-ic" data-kind-icon="folder" data-batch-icon="folder"></span>
               <span class="file-name" id="fileName"></span>
               <span class="file-size" id="fileSize"></span>
               <button class="file-clear" id="fileClear" type="button" aria-label="Remove file" data-i18n-aria-label="topbar.removeFile">×</button>
@@ -88,10 +91,14 @@
               </svg>
               <span class="file-name" id="trackPillName"></span>
             </div>
-            <button class="daw-upload-btn" type="button" title="Upload audio file" id="uploadFileBtn" aria-label="Upload audio file" data-i18n-title="topbar.uploadFile" data-i18n-aria-label="topbar.uploadFile">
+            <button class="daw-upload-btn" type="button" title="Add files" id="uploadFileBtn" aria-label="Add files" data-i18n-title="batch.addFiles" data-i18n-aria-label="batch.addFiles">
               <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /> <path d="m17 8-5-5-5 5" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /></svg>
             </button>
             <input id="fileInput" type="file" multiple accept=".mp3,.wav,.flac,.mp4,.m4a,.ogg,.opus,audio/mpeg,audio/wav,audio/flac,video/mp4,audio/mp4,audio/ogg,audio/opus" style="display:none" aria-hidden="true" />
+            <button class="daw-upload-btn batch-folder-btn" type="button" title="Add a folder" id="addFolderBtn" aria-label="Add a folder" data-i18n-title="batch.addFolder" data-i18n-aria-label="batch.addFolder">
+              <span class="batch-icon-slot" data-batch-icon="folder"></span>
+            </button>
+            <input id="folderInput" type="file" multiple webkitdirectory style="display:none" aria-hidden="true" />
           </div>
 
           <!-- Divider -->
@@ -487,15 +494,19 @@
           <section class="empty-start" id="emptyStart" aria-labelledby="emptyStartTitle">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
             <strong id="emptyStartTitle" data-i18n="start.title">Start with a song</strong>
-            <span data-i18n="start.hint">Paste a link or drop an audio file in the bar above, or pick a song from your library.</span>
+            <span data-i18n="batch.startHint">Paste links, or drop files or a folder in the bar above.</span>
             <div class="empty-start-actions">
               <button class="empty-start-btn" id="emptyStartUpload" type="button">
                 <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /> <path d="m17 8-5-5-5 5" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /></svg>
-                <span data-i18n="start.upload">Choose a file</span>
+                <span data-i18n="batch.chooseFiles">Choose files</span>
+              </button>
+              <button class="empty-start-btn batch-folder-btn" id="emptyStartFolder" type="button">
+                <span class="batch-icon-slot" data-batch-icon="folder"></span>
+                <span data-i18n="batch.chooseFolder">Choose a folder</span>
               </button>
               <button class="empty-start-btn" id="emptyStartLink" type="button">
                 <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                <span data-i18n="start.link">Paste a link</span>
+                <span data-i18n="batch.pasteLinks">Paste links</span>
               </button>
             </div>
           </section>

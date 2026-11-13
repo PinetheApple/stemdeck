@@ -156,7 +156,7 @@ test.describe("a file dropped on the Linux desktop app", () => {
     expect((await state(page)).reads).toEqual([]);
   });
 
-  test("of a mixed drop, only the audio is read", async ({ page }) => {
+  test("of a mixed drop, only the audio is read, and the rest is flagged in the review", async ({ page }) => {
     await openDesktop(page);
     await drop(page, [
       { id: 1, name: "a.wav", size: 1000 },
@@ -164,10 +164,11 @@ test.describe("a file dropped on the Linux desktop app", () => {
       { id: 3, name: "b.mp3", size: 1000 },
     ]);
 
-    await expect.poll(() => state(page).then((s) => s.armed.length)).toBe(2);
-    const s = await state(page);
-    expect(s.armed.map((f) => f.name)).toEqual(["a.wav", "b.mp3"]);
-    expect(s.reads).toEqual([1, 3]);
+    const row = (name) => page.locator("#batchReview .batch-item", { hasText: name });
+    await expect(row("cover.jpg").locator(".batch-flag-block")).toBeVisible();
+    await expect(row("a.wav").locator("input")).toBeEnabled();
+    await expect(row("b.mp3").locator("input")).toBeEnabled();
+    expect((await state(page)).reads).toEqual([1, 3]);
   });
 
   test("a file that has gone by the time it is read says so, by name", async ({ page }) => {
