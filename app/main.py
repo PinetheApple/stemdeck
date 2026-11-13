@@ -478,9 +478,8 @@ def get_settings(request: Request) -> dict[str, object]:
     # Show the port the server is actually running on rather than the stored
     # preference (which only takes effect on the next restart) -- so the field
     # reflects reality. Editing it still saves the preference via POST.
-    # The same for the desktop network switch: allow_network is the saved
-    # choice, network_listening whether this process listens beyond loopback,
-    # which changes only when the shell restarts it. None outside the shell.
+    # Likewise network_listening: what this process listens on, which changes
+    # only when the desktop shell restarts it (None outside the shell).
     listening = None if BIND_HOST is None else not _is_loopback(BIND_HOST)
     return {
         **_settings_payload(),
@@ -1340,9 +1339,7 @@ async def secure_origin_gate(request: Request, call_next):
 # refuses requests from OTHER devices when availability is off. The host machine
 # (loopback or its own LAN IP) is always served, so the app keeps working
 # locally regardless of this setting.
-#
-# In server mode this is the whole control. The desktop shell also binds
-# loopback only while the setting is off, so there this covers the moment
+# On desktop the shell also binds loopback while it is off; this covers the gap
 # between saving the choice and the restart that applies it.
 @app.middleware("http")
 async def network_gate(request: Request, call_next):
