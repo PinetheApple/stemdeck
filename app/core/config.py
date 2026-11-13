@@ -113,6 +113,15 @@ STEM_NAMES: tuple[str, ...] = ("vocals", "drums", "bass", "guitar", "piano", "ot
 EXTRA_STEM_NAMES: tuple[str, ...] = ("lead_vocals", "backing_vocals")
 # Rendered beside the stems: the source re-encoded, and the picked stems mixed.
 RENDERED_TRACK_NAMES: tuple[str, ...] = ("original", "mix")
+# The click-sound presets, defined once for the browser and the export
+# renderer: app/pipeline/click_sounds.py parses the JSON block in this file.
+CLICK_SOUNDS_TABLE = STATIC_DIR / "js" / "clickSounds.js"
+# The longest preset id the table accepts, and so the longest `click_sound`
+# query value an export takes.
+CLICK_SOUND_ID_MAX_CHARS = 32
+# The isolated click track's name in the stems zip. Never a stem name:
+# asserted in app/api/stems.py, so the click cannot overwrite a stem's entry.
+CLICK_STEM_NAME = "click"
 # \Z, not $: $ also accepts a trailing newline.
 JOB_ID_RE = re.compile(r"^[a-f0-9]{12}\Z")
 # The file types an upload may be. A job keeps its upload as source<ext>.
