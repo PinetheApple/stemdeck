@@ -549,6 +549,8 @@ def extract_stopped_job(job_id: str) -> dict:
     """
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
+    if is_relocating():
+        raise HTTPException(status_code=409, detail=STEMS_FOLDER_MOVING_IMPORT)
     job = registry_get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
