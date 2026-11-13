@@ -11,11 +11,12 @@ import { resetPitch } from "./transport.js";
 import { plural, t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
 import { fetchJson, iconButton, textInput } from "./libraryControls.js";
-import { menuItem, openMenu } from "./trackMenu.js";
+import { menuItem, menuSeparator, openMenu, placeBelow } from "./trackMenu.js";
 import { ARM_TEXT_CLASS, confirmOnSecondClick, isArmed } from "./armConfirm.js";
 import { notifyFailure } from "./notifications.js";
 import { OUT_OF_TAB_ORDER, ROW_PLAY_CLASS } from "./rovingRows.js";
 import { STEM_NAMES } from "./constants.js";
+import { RESTORE_FIRST_DETAIL } from "./importSource.js";
 import { storeFlushPending, storeGet, storeSet } from "./utils.js";
 import {
   DEFAULT_VERSION_ID, addedName, hasVersionRows, missingStems, mixStoreKey, nextVersionName, openVersionOf,
@@ -24,12 +25,12 @@ import {
 
 // Mirrors VERSION_NAME_MAX_CHARS in app/core/config.py.
 const VERSION_NAME_MAX_CHARS = 60;
-const MENU_GAP_PX = 4;
 const FAILURE_KEYS = {
   "this song has too many versions": "versions.tooMany",
   "this song is missing stem files; import it again": "versions.missingFiles",
   "the song is not ready": "versions.notReady",
-  "restore it from the Trash first": "importFail.restoreFirst",
+  "a song keeps at least one version; move it to the Trash instead": "versions.lastVersion",
+  [RESTORE_FIRST_DETAIL]: "importFail.restoreFirst",
 };
 const PILL_ID = "npVersionBtn";
 const SUBLINE_CLASS = "np-subline";
@@ -286,13 +287,6 @@ function onVersionMoreClick(e) {
   openMenu(button, versionMenuItems(button, jobId, version), { label: versionLabel(version, t) });
 }
 
-function menuSeparator() {
-  const sep = document.createElement("div");
-  sep.className = "lib-menu-sep";
-  sep.setAttribute("role", "separator");
-  return sep;
-}
-
 function renameForm(jobId, version, row) {
   const form = document.createElement("div");
   form.className = "rename-form";
@@ -432,12 +426,6 @@ function onExtractRequest(e) {
 }
 
 // ─── The studio pill ───
-
-function placeBelow(menu, anchor) {
-  const rect = anchor.getBoundingClientRect();
-  menu.style.left = `${rect.left}px`;
-  menu.style.top = `${rect.bottom + MENU_GAP_PX}px`;
-}
 
 function pillMenuItems(jobId, track) {
   const open = openVersionOf(track);
