@@ -52,7 +52,7 @@ _PERSISTED = _TERMINAL | _RESUMABLE | _STOPPED
 # wedging the queue forever.
 _MAX_RESUME_ATTEMPTS = 1
 _INTERRUPTED_STAGE = "Error: Interrupted"
-_INTERRUPTED_ERROR = "Interrupted by a restart twice. Import it again to retry."
+_INTERRUPTED_ERROR = "Interrupted by a restart twice."
 # The quarantine's evidence file: its sweep and GET /failure look for it.
 _EVIDENCE_FILE = "error.txt"
 
@@ -426,33 +426,40 @@ def _resume_or_recover(job: Job, job_dir: Path, legacy: bool = False) -> Job | N
 def _fail_interrupted(job: Job, job_dir: Path) -> None:
     """Fail a job the process died during twice, kept the way the runner keeps
     a failed import: its folder moved whole into the quarantine with its record
-    beside it, so it shows, retries and expires like one. Nothing is deleted."""
+    and evidence, written before the move so it lands complete or not at all.
+    Nothing of the job is deleted."""
     # Imported here: app.pipeline imports this module.
-    from app.pipeline.errors import CAUSE_UNKNOWN
+    from app.pipeline.errors import CAUSE_INTERRUPTED
     from app.pipeline.runner import FAILED_RECORD_FILE
 
     job.status = STATUS_ERROR
     job.stage_message = _INTERRUPTED_STAGE
     job.error = _INTERRUPTED_ERROR
-    job.error_code = job.error_detail = CAUSE_UNKNOWN
-    dest = job_dir.parent / FAILED_DIR_NAME / job.id
+    job.error_code = job.error_detail = CAUSE_INTERRUPTED
     evidence = (
         f"time: {datetime.now(timezone.utc).isoformat(timespec='seconds')}",
         f"job: {job.id}",
         f"stage: {_INTERRUPTED_STAGE}",
-        f"cause: {CAUSE_UNKNOWN}",
+        f"cause: {CAUSE_INTERRUPTED}",
         f"exception: {_INTERRUPTED_ERROR}",
     )
     try:
-        dest.parent.mkdir(exist_ok=True)
-        if job_dir.is_dir():
-            job_dir.rename(dest)
-        else:
-            dest.mkdir()
-        write_text_atomic(dest / _EVIDENCE_FILE, "\n".join(evidence) + "\n")
-        write_json_atomic(dest / FAILED_RECORD_FILE, job.to_record())
+        job_dir.mkdir(parents=True, exist_ok=True)
+        write_text_atomic(job_dir / _EVIDENCE_FILE, "\n".join(evidence) + "\n")
+        write_json_atomic(job_dir / FAILED_RECORD_FILE, job.to_record())
+        _move_to_quarantine(job_dir)
     except OSError:
         logger.warning("[%s] could not keep the interrupted import", job.id, exc_info=True)
+
+
+def _move_to_quarantine(job_dir: Path) -> None:
+    dest = job_dir.parent / FAILED_DIR_NAME / job_dir.name
+    dest.parent.mkdir(exist_ok=True)
+    # A stale quarantine of the same id fails the move, and the job would come
+    # back as a recovered track.
+    if dest.exists():
+        shutil.rmtree(dest, ignore_errors=True)
+    job_dir.rename(dest)
 
 
 def reset_for_rerun(job: Job, job_dir: Path) -> None:
