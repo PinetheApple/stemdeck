@@ -10,6 +10,7 @@
 
 import { t } from "./i18n.js";
 import { notifyFailure } from "./notifications.js";
+import { FAILED_STATUS } from "./importSource.js";
 
 const POLL_MS = 2000;
 const MAX_SSE_ATTEMPTS = 6;
@@ -89,7 +90,6 @@ export function queueRowStates(snap = snapshot) {
 }
 
 const DONE_STATUS = "done";
-const FAILED_STATUS = "error";
 
 /** Where a batch stands: what is done, failed or still in the queue. An item
  *  cancelled, trashed or gone counts as none of them. */
@@ -108,22 +108,40 @@ export function batchProgress(ids, snap, statusOf) {
   return progress;
 }
 
+/** A batch stays in the queue view until it is all done with nothing failed or left out. */
+export const batchStillShown = (progress, notQueued) => progress.waiting + progress.failed + notQueued > 0;
+
 // ─── state ───────────────────────────────────────────────────────────────────
 
-let batchJobIds = [];
+// The batch the queue view sums up: its jobs, the stems and Detect structure it
+// was queued with, and how many of its items the queue did not take.
+let batch = { jobIds: [], choice: null, notQueued: 0 };
+let resendHandler = null;
 
-/** The jobs of the batch the queue view sums up. A batch queued while the last
- *  one still has jobs in the queue joins it. */
-export function recordBatch(jobIds) {
-  const running = batchJobIds.some((id) => currentIds().has(id));
-  batchJobIds = running ? [...batchJobIds, ...jobIds] : [...jobIds];
+/** A batch queued while the last one still has jobs in the queue joins it. */
+export function recordBatch(jobIds, choice) {
+  const running = batch.jobIds.some((id) => currentIds().has(id));
+  batch = running
+    ? { ...batch, jobIds: [...batch.jobIds, ...jobIds] }
+    : { jobIds: [...jobIds], choice, notQueued: batch.notQueued };
 }
 
-export const getBatchJobIds = () => batchJobIds;
+export const getBatch = () => batch;
+
+export function setBatchNotQueued(count) {
+  batch = { ...batch, notQueued: count };
+}
 
 export function dropFromBatch(jobId) {
-  batchJobIds = batchJobIds.filter((id) => id !== jobId);
+  batch = { ...batch, jobIds: batch.jobIds.filter((id) => id !== jobId) };
 }
+
+/** Whoever holds the not-queued items (the review list) sends them again from here. */
+export function onResendNotQueued(fn) {
+  resendHandler = fn;
+}
+
+export const resendNotQueued = () => resendHandler?.();
 
 export function getQueueSnapshot() {
   return snapshot;
