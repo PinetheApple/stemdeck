@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
+import threading
 
 import pytest
 
+from app.core import registry as _registry
 from app.core.models import Job
 from app.core.registry import _jobs
 from app.pipeline import jobqueue
@@ -318,3 +321,108 @@ async def test_pausing_does_not_touch_a_running_job(worker, monkeypatch):
 
 async def test_start_worker_begins_unpaused(worker):
     assert jobqueue.is_paused() is False
+
+
+# ── the one resume after a crash ─────────────────────────────────────────────
+
+
+async def test_a_job_that_kills_the_process_gets_one_resume(worker, monkeypatch, tmp_path):
+    """Counted when the job starts, and on disk before it runs: a job that
+    takes the process down never reaches a save of its own. Restarts while the
+    restored queue waits for Start do not use the resume up."""
+    on_disk: list[int] = []
+
+    async def _dies(job, url, jobs_dir):
+        # The process dies here: registry.json is all the next start has.
+        saved = json.loads(_registry.registry_path(tmp_path).read_text(encoding="utf-8"))
+        on_disk.append(saved["jobs"][0]["resume_attempts"])
+
+    monkeypatch.setattr("app.pipeline.runner.run_pipeline", _dies)
+    job = _job("aaaaaaaaaaaa")
+    _registry.persist(tmp_path)
+
+    def restart() -> Job:
+        _jobs.clear()
+        _registry.restore(tmp_path)
+        assert _registry.take_pending_resume() == [job.id]
+        return _jobs[job.id]
+
+    jobqueue.enqueue(job.id)
+    await _drain(lambda: on_disk == [1] and jobqueue.running_id() is None)
+
+    for _ in range(3):  # restarted, never started
+        assert restart().status == "queued"
+    jobqueue.enqueue(job.id)  # Start: the resume
+    await _drain(lambda: on_disk == [1, 2] and jobqueue.running_id() is None)
+
+    _jobs.clear()
+    _registry.restore(tmp_path)
+    assert _jobs[job.id].status == "error"
+    assert _registry.take_pending_resume() == []
+
+
+SAVE_HOLD_SECONDS = 3.0
+
+
+def _held_save(monkeypatch, tmp_path) -> tuple[threading.Event, threading.Event]:
+    """Hold the worker's first save in its thread until released, so a test can
+    act from the loop while the save is in flight. Returns (entered, release)."""
+    entered, release = threading.Event(), threading.Event()
+
+    def _save(jobs_dir):
+        if threading.current_thread() is not threading.main_thread() and not entered.is_set():
+            entered.set()
+            release.wait(SAVE_HOLD_SECONDS)
+        _registry.persist(tmp_path)
+
+    monkeypatch.setattr(jobqueue, "registry_persist", _save)
+    return entered, release
+
+
+async def _start_and_hold(monkeypatch, tmp_path) -> tuple[Job, list[str], threading.Event]:
+    """A job claimed by the worker, its start save held. Records any run."""
+    ran: list[str] = []
+
+    async def _fake(job, url, jobs_dir):
+        ran.append(job.id)
+
+    monkeypatch.setattr("app.pipeline.runner.run_pipeline", _fake)
+    entered, release = _held_save(monkeypatch, tmp_path)
+    job = _job("aaaaaaaaaaaa")
+    jobqueue.enqueue(job.id)
+    await _drain(entered.is_set)
+    return job, ran, release
+
+
+@pytest.mark.parametrize(("trash", "status"), [(False, "cancelled"), (True, "stopped")])
+async def test_a_cancel_during_the_start_save_never_runs_the_job(
+    worker,
+    monkeypatch,
+    tmp_path,
+    trash,
+    status,
+):
+    """The job ends as one cancelled while it waited would."""
+    from app.api.jobs import _cancel_pipeline
+
+    job, ran, release = await _start_and_hold(monkeypatch, tmp_path)
+    job.stop_requested = trash
+    _cancel_pipeline(job)
+    release.set()
+
+    await _drain(lambda: jobqueue.running_id() is None)
+    assert (job.status, ran) == (status, [])
+
+
+async def test_a_shutdown_during_the_start_save_never_runs_the_job(worker, monkeypatch, tmp_path):
+    """A clean stop: the job stays resumable with its resume, on disk too."""
+    job, ran, release = await _start_and_hold(monkeypatch, tmp_path)
+    jobqueue.request_stop()
+    release.set()
+
+    await _drain(lambda: jobqueue.running_id() is None)
+    saved = json.loads(_registry.registry_path(tmp_path).read_text(encoding="utf-8"))
+    assert ran == []
+    assert [(r["status"] in _registry._RESUMABLE, r["resume_attempts"]) for r in saved["jobs"]] == [
+        (True, 0)
+    ]

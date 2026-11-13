@@ -451,9 +451,8 @@ class Job:
     # submission order after a restart; the position the UI shows is derived
     # from the live deque. Old records default to 0, where created_at decides.
     queue_position: int = 0
-    # How many times a restart has put this job back in the queue. Persisted,
-    # so a job that reliably kills the process is failed rather than retried on
-    # every start. Old records without the field default to 0 via from_record.
+    # Counted when the queue starts the job, never by a restart, so a job that
+    # keeps killing the process fails instead of looping.
     resume_attempts: int = 0
     # Wall-clock timestamps for metadata-based sweep -- more predictable
     # than directory mtime, which can be touched by unrelated FS events.

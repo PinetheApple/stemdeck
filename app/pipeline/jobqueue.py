@@ -28,6 +28,7 @@ from pathlib import Path
 from app.core.config import JOBS_DIR
 from app.core.models import FINISHED_STATUSES, Job, _set, settle_cancelled
 from app.core.registry import get as registry_get
+from app.core.registry import mark_started, reset_resume_count
 from app.core.registry import persist as registry_persist
 
 logger = logging.getLogger("stemdeck.queue")
@@ -215,6 +216,19 @@ async def _finalise_dropped_job(job: Job) -> None:
     await asyncio.to_thread(registry_persist, JOBS_DIR)
 
 
+async def _start(job: Job) -> None:
+    """Counts the start on disk before the run; a cancel or shutdown can land in
+    the save, and the job then never runs."""
+    mark_started(job)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
+    if _stopping:
+        return
+    if job.cancel_requested:
+        await _finalise_dropped_job(job)
+        return
+    await _dispatch(job)
+
+
 async def _worker_loop() -> None:
     assert _wake is not None
     while not _stopping:
@@ -256,7 +270,7 @@ async def _worker_loop() -> None:
         _set_running(job_id)
         _set(job, status="processing", stage="Starting...", progress=0.0)
         try:
-            await _dispatch(job)
+            await _start(job)
         except Exception:
             # A crash in one job must not take the queue down with it.
             logger.exception("[%s] queue worker: job raised", job_id)
@@ -306,7 +320,7 @@ def request_stop() -> None:
     running = running_id()
     job = registry_get(running) if running else None
     if job is not None:
-        job.resume_attempts = 0
+        reset_resume_count(job)
         registry_persist(JOBS_DIR)
     _notify()
 

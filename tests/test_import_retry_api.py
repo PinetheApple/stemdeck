@@ -114,6 +114,16 @@ def test_retry_after_a_restart_reads_the_failure_record(client: TestClient) -> N
     assert jobqueue.snapshot() == (None, [LINK_ID])
 
 
+def test_retry_gives_the_job_its_resume_back(client: TestClient) -> None:
+    """Retry is a new request: the run that failed was counted when it started,
+    and a crash in the retry still gets the one resume."""
+    register(_failed(LINK_ID, LINK, resume_attempts=1))
+
+    assert client.post(f"/api/jobs/{LINK_ID}/retry").status_code == 200
+
+    assert _jobs[LINK_ID].resume_attempts == 0
+
+
 def test_retry_refuses_a_job_that_has_not_failed(client: TestClient) -> None:
     register(Job(id=LINK_ID, status=STATUS_DONE, source_url=LINK))
     res = client.post(f"/api/jobs/{LINK_ID}/retry")

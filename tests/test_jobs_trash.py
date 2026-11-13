@@ -20,7 +20,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.models import Job
-from app.core.registry import _jobs, register
+from app.core.registry import _MAX_RESUME_ATTEMPTS, _jobs, register
 from app.main import app
 
 
@@ -286,6 +286,19 @@ def test_resplit_waits_for_the_stems_folder_to_finish_moving(
     monkeypatch.setattr(stems_location, "_relocating", False)
 
     assert client.post(f"/api/jobs/{job.id}/resplit", json={"stems": ["vocals"]}).status_code == 200
+
+
+def test_extract_gives_the_job_its_resume_back(client: TestClient) -> None:
+    """Extract is a new request: a crash in that run still gets the one resume,
+    however often the job started before it was stopped."""
+    job, _ = _queued_upload("888888888881")
+    client.post(f"/api/jobs/{job.id}/trash")
+    client.post(f"/api/jobs/{job.id}/restore")
+    job.resume_attempts = _MAX_RESUME_ATTEMPTS + 1
+
+    assert client.post(f"/api/jobs/{job.id}/extract").status_code == 200
+
+    assert job.resume_attempts == 0
 
 
 def test_restore_alone_does_not_queue_a_stopped_job(client: TestClient) -> None:
