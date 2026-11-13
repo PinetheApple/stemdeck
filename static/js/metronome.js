@@ -17,6 +17,9 @@
 // clock, which is sample-accurate. Late or jittery wake-ups cost scheduling
 // headroom, never accuracy.
 
+import { LEVEL_DOWNBEAT, LEVEL_WEAK, levelAt } from "./clickAccents.js";
+import { DEFAULT_CLICK_SOUND, normaliseClickSound, renderVoice } from "./clickSounds.js";
+
 // How far ahead clicks are handed to the audio clock, and how often we wake to
 // do it. The gap between them is the jitter budget for the timer: a wake-up up
 // to ~200 ms late still schedules on time. Background tabs throttle timers to
@@ -24,76 +27,11 @@
 const LOOKAHEAD_SEC = 0.25;
 const TICK_MS = 50;
 
-// The click's voice is a preset from clickSounds.js, the table the export
-// renderer reads too. Each voice is rendered once per sound and level into an
-// AudioBuffer; Classic is the old oscillator click, computed up front.
-import { DEFAULT_CLICK_SOUND, normaliseClickSound, renderVoice } from "./clickSounds.js";
-
 // A click due sooner than this keeps its voice on a sound change: it may already
 // be sounding, and stopping it mid-voice pops.
 const REVOICE_MARGIN_SEC = 0.02;
 
-// Click strength at one beat. click_render.py defines the same three.
-export const LEVEL_WEAK = 0;
-export const LEVEL_GROUP = 1;
-export const LEVEL_DOWNBEAT = 2;
-
-/**
- * How a bar of `beatsPerBar` divides when the user has not said.
- *
- * Mirror of default_grouping() in app/pipeline/click_render.py -- keep both in
- * step. 2, 3 and 4 deliberately return one group so they sound exactly as they
- * did; 4/4's real secondary stress on beat 3 is a choice for the user, not a
- * default that changes the commonest meter for everyone.
- * @param {number} beatsPerBar
- * @returns {number[]}
- */
-export function defaultGrouping(beatsPerBar) {
-  if (!Number.isInteger(beatsPerBar) || beatsPerBar < 1) return [];
-  if (beatsPerBar === 5 || beatsPerBar === 7) {
-    // Long group first: Take Five is 3+2, and 7/8 is more often 3+2+2.
-    return [3, ...Array((beatsPerBar - 3) >> 1).fill(2)];
-  }
-  // Compound: 6, 9 and 12 are felt in dotted-quarter groups of three.
-  if (beatsPerBar >= 6 && beatsPerBar % 3 === 0) return Array(beatsPerBar / 3).fill(3);
-  return [beatsPerBar];
-}
-
-/**
- * A grouping safe to index a bar with, or the default. Anything that is not a
- * list of positive integers summing to the bar length is rejected wholesale
- * rather than repaired: a half-understood grouping would accent beats the user
- * never asked for, so falling back to the default is the honest failure.
- * @param {number[]|null|undefined} groups
- * @param {number} beatsPerBar
- * @returns {number[]}
- */
-export function normaliseGrouping(groups, beatsPerBar) {
-  if (!Number.isInteger(beatsPerBar) || beatsPerBar < 1) return [];
-  if (!Array.isArray(groups) || !groups.length) return defaultGrouping(beatsPerBar);
-  if (!groups.every((g) => Number.isInteger(g) && g >= 1)) return defaultGrouping(beatsPerBar);
-  if (groups.reduce((a, b) => a + b, 0) !== beatsPerBar) return defaultGrouping(beatsPerBar);
-  return groups.slice();
-}
-
-/** Beat offsets inside a bar that start a group, excluding the downbeat. */
-export function groupOffsets(groups) {
-  const out = new Set();
-  let at = 0;
-  for (let i = 0; i < groups.length - 1; i++) {
-    at += groups[i];
-    out.add(at);
-  }
-  return out;
-}
-
-/** The click level for a beat `offset` into a bar of `beatsPerBar`. */
-export function levelAt(offset, beatsPerBar, groups) {
-  if (offset === 0) return LEVEL_DOWNBEAT;
-  return groupOffsets(normaliseGrouping(groups, beatsPerBar)).has(offset)
-    ? LEVEL_GROUP
-    : LEVEL_WEAK;
-}
+export const DEFAULT_CLICK_VOLUME = 0.6;
 
 export const OVERRIDE_OFF = "off";
 export const OVERRIDE_LENGTH = "length";
@@ -120,7 +58,7 @@ export function accentOverride(accentMode, bars) {
 export function createMetronome(
   engine,
   beats,
-  { volume = 0.6, beatsPerBar = 0, sound = DEFAULT_CLICK_SOUND } = {},
+  { volume = DEFAULT_CLICK_VOLUME, beatsPerBar = 0, sound = DEFAULT_CLICK_SOUND } = {},
 ) {
   const ctx = engine?.audioContext;
   const master = engine?.getMasterNode?.();
@@ -358,11 +296,6 @@ export function createMetronome(
       else _stop();
     },
     isEnabled: () => enabled,
-    /**
-     * Change the click's sound. Clicks already handed to the audio clock are
-     * re-voiced at their own times and the one sounding finishes, so a switch
-     * neither pops nor drops or doubles a beat. A running count-in follows too.
-     */
     setSound(id) {
       const next = normaliseClickSound(id);
       if (destroyed || next === _sound) return;
@@ -370,7 +303,6 @@ export function createMetronome(
       _revoice(queued);
       _revoice(countInQueued);
     },
-    getSound: () => _sound,
     /** Clicks handed to the audio clock and not yet ended (tests, leak checks). */
     pendingCount: () => queued.length + countInQueued.length,
     setVolume(v) {

@@ -2060,8 +2060,7 @@ export function downloadAllStemsZip(format = "wav", onTransferStart) {
     .replace(/^_+|_+$/g, "");
   const name = safe ? `${safe}_stems.zip` : "stems.zip";
   const q = new URLSearchParams({ format, stems: names.join(",") });
-  // The click goes in as its own file, lined up with the stems. No count-in:
-  // the stems start at the song's first sample, so it has nowhere to go.
+  // No count-in: the stems start at the song's first sample.
   _clickParams(q);
   return _triggerDownload(`/api/jobs/${currentJobId}/stems/all.zip?${q}`, name, onTransferStart);
 }

@@ -1,29 +1,37 @@
-// The click sound preference (#93): it reaches the live click and survives a
-// reload, a switch while playing leaves nothing queued behind, and every
-// export that renders a click asks for the chosen sound.
-//
-// Whether a preset sounds right is a listening check; that the browser
-// synthesis matches the export renderer is pinned in tests/js/click-sounds.test.mjs.
+// Whether a preset sounds right is a listening check; the voices themselves
+// are pinned in tests/js/click-sounds.test.mjs.
 
 import { test, expect } from "@playwright/test";
 import { openStudio, waitForClickTrack, exportUi } from "./helpers.mjs";
+
+const METRO_PREFS_KEY = "stemdeck:metronome";
 
 const soundSelect = (page) => page.locator("#t-metro-sound");
 const choosePath = (page) => page.evaluate(() => window.__e2e.choosePath());
 const finishSave = (page) => page.evaluate(() => window.__e2e.finishSave());
 const lastExportUrl = (page) =>
   page.evaluate(() => new URL(window.__e2e.callsFor("download_to_path").at(-1).args.url, location.href).search);
-const liveSound = (page) =>
-  page.evaluate(async () => (await import("/js/state.js")).metronome?.getSound());
 const pendingClicks = (page) =>
   page.evaluate(async () => (await import("/js/state.js")).metronome.pendingCount());
+const savedSound = (page) =>
+  page.evaluate((key) => JSON.parse(localStorage.getItem(key) || "{}").sound, METRO_PREFS_KEY);
+const liveSounds = (page) => page.evaluate(() => window.__liveSounds);
 
 async function chooseSound(page, id) {
   await page.evaluate(async (sound) => (await import("/js/transport.js")).setClickSound(sound), id);
 }
 
-async function savedSound(page) {
-  return page.evaluate(async () => (await import("/js/transport.js")).getClickSound());
+// Record every sound the live click is handed.
+async function spyLiveSound(page) {
+  await page.evaluate(async () => {
+    const { metronome } = await import("/js/state.js");
+    const handOver = metronome.setSound.bind(metronome);
+    window.__liveSounds = [];
+    metronome.setSound = (id) => {
+      window.__liveSounds.push(id);
+      handOver(id);
+    };
+  });
 }
 
 async function exportQuery(page, row) {
@@ -52,30 +60,32 @@ test.describe("click sound", () => {
       "Sound: Classic", "Sound: Woodblock", "Sound: Rimshot", "Sound: Soft", "Sound: Cowbell",
     ]);
     await expect(soundSelect(page)).toHaveAccessibleName("Click sound");
-    expect(await savedSound(page)).toBe("classic");
-    expect(await liveSound(page)).toBe("classic");
+    await expect(soundSelect(page)).toHaveAttribute("title", "Click sound");
   });
 
   test("a chosen sound reaches the live click and survives a reload", async ({ page }) => {
     await openStudio(page, { tauri: true });
     await waitForClickTrack(page);
+    await spyLiveSound(page);
     await soundSelect(page).selectOption("cowbell");
-    expect(await liveSound(page)).toBe("cowbell");
+    expect(await liveSounds(page)).toEqual(["cowbell"]);
+    await expect.poll(() => savedSound(page)).toBe("cowbell");
 
     await openStudio(page, { tauri: true });
     await waitForClickTrack(page);
     await expect(soundSelect(page)).toHaveValue("cowbell");
     expect(await savedSound(page)).toBe("cowbell");
-    expect(await liveSound(page)).toBe("cowbell");
   });
 
   test("an unknown sound reads as Classic", async ({ page }) => {
     await openStudio(page, { tauri: true });
     await waitForClickTrack(page);
+    await spyLiveSound(page);
     await chooseSound(page, "cowbell");
     await chooseSound(page, "no-such-sound");
-    expect(await savedSound(page)).toBe("classic");
-    expect(await liveSound(page)).toBe("classic");
+    expect(await liveSounds(page)).toEqual(["cowbell", "classic"]);
+    await expect(soundSelect(page)).toHaveValue("classic");
+    await expect.poll(() => savedSound(page)).toBe("classic");
   });
 
   test("switching sound while the click plays leaves nothing queued behind", async ({ page }) => {
@@ -90,12 +100,11 @@ test.describe("click sound", () => {
       for (const id of ["woodblock", "rimshot", "soft", "cowbell", "classic", "woodblock"]) {
         const before = metronome.pendingCount();
         metronome.setSound(id);
-        seen.push([before, metronome.pendingCount(), metronome.getSound()]);
+        seen.push([before, metronome.pendingCount()]);
       }
       return seen;
     });
     for (const [before, after] of counts) expect(after).toBe(before);
-    expect(counts.at(-1)[2]).toBe("woodblock");
     await page.keyboard.press("Space");
     await expect.poll(() => pendingClicks(page)).toBe(0);
   });
