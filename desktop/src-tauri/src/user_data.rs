@@ -407,7 +407,7 @@ mod tests {
         assert_eq!(tries.get(), 3);
 
         let started = Instant::now();
-        let result = wait_until_ready(
+        let result: Result<(), String> = wait_until_ready(
             || Err(format!("{UNAVAILABLE}: locked")),
             Duration::from_millis(60),
             Duration::from_millis(10),
