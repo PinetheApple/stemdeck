@@ -20,7 +20,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.models import Job
-from app.core.registry import _jobs, register
+from app.core.registry import _MAX_RESUME_ATTEMPTS, _jobs, register
 from app.main import app
 
 
@@ -294,7 +294,7 @@ def test_extract_gives_the_job_its_resume_back(client: TestClient) -> None:
     job, _ = _queued_upload("888888888881")
     client.post(f"/api/jobs/{job.id}/trash")
     client.post(f"/api/jobs/{job.id}/restore")
-    job.resume_attempts = 2
+    job.resume_attempts = _MAX_RESUME_ATTEMPTS + 1
 
     assert client.post(f"/api/jobs/{job.id}/extract").status_code == 200
 

@@ -31,8 +31,8 @@ def _isolate_registry():
 @pytest.mark.parametrize("status", ["queued", "separating"])
 @pytest.mark.parametrize("source_url", [UPLOAD, LINK])
 def test_restarts_without_start_keep_every_job(tmp_path: Path, status: str, source_url: str):
-    """An error is not saved, so failing a waiting job dropped it from the
-    Library. A stale "separating" on disk is no proof it ran either."""
+    """A job the queue never started stays queued, saved and resumable through
+    any number of restarts, whatever stage its record last saved."""
     job = Job(id="abcdef000007", status=status, title="Waiting", source_url=source_url)
     _jobs[job.id] = job
     persist_registry(tmp_path)

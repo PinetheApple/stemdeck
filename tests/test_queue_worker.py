@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import threading
 
 import pytest
 
@@ -358,3 +359,65 @@ async def test_a_job_that_kills_the_process_gets_one_resume(worker, monkeypatch,
     _registry.restore(tmp_path)
     assert _jobs[job.id].status == "error"
     assert _registry.take_pending_resume() == []
+
+
+def _save_then(monkeypatch, tmp_path, during_save) -> list[bool]:
+    """Patch the worker's save to run the real one, then, once, ``during_save``:
+    what lands while the save is off the loop. Records where each save ran."""
+    off_loop: list[bool] = []
+
+    def _save(jobs_dir):
+        off_loop.append(threading.current_thread() is not threading.main_thread())
+        _registry.persist(tmp_path)
+        if len(off_loop) == 1:
+            during_save()
+
+    monkeypatch.setattr(jobqueue, "registry_persist", _save)
+    return off_loop
+
+
+@pytest.mark.parametrize(("trash", "status"), [(False, "cancelled"), (True, "stopped")])
+async def test_a_cancel_during_the_start_save_never_runs_the_job(
+    worker,
+    monkeypatch,
+    tmp_path,
+    trash,
+    status,
+):
+    """The save before a run is off the loop, so a cancel or a Trash stop can
+    land in it. The job ends there, as one cancelled while it waited does."""
+    ran: list[str] = []
+
+    async def _fake(job, url, jobs_dir):
+        ran.append(job.id)
+
+    def _cancel():
+        job.cancel_requested = True
+        job.stop_requested = trash
+
+    monkeypatch.setattr("app.pipeline.runner.run_pipeline", _fake)
+    off_loop = _save_then(monkeypatch, tmp_path, _cancel)
+    job = _job("aaaaaaaaaaaa")
+    jobqueue.enqueue(job.id)
+
+    await _drain(lambda: job.status == status and jobqueue.running_id() is None)
+    assert ran == []
+    assert off_loop[0] is True
+
+
+async def test_a_shutdown_during_the_start_save_never_runs_the_job(worker, monkeypatch, tmp_path):
+    """The job stays resumable: the next start queues it again."""
+    ran: list[str] = []
+
+    async def _fake(job, url, jobs_dir):
+        ran.append(job.id)
+
+    monkeypatch.setattr("app.pipeline.runner.run_pipeline", _fake)
+    off_loop = _save_then(monkeypatch, tmp_path, jobqueue.request_stop)
+    job = _job("aaaaaaaaaaaa")
+    jobqueue.enqueue(job.id)
+
+    await _drain(lambda: bool(off_loop) and jobqueue.running_id() is None)
+    assert ran == []
+    assert off_loop[0] is True
+    assert job.status in _registry._RESUMABLE

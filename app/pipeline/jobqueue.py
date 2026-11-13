@@ -28,6 +28,7 @@ from pathlib import Path
 from app.core.config import JOBS_DIR
 from app.core.models import FINISHED_STATUSES, Job, _set, settle_cancelled
 from app.core.registry import get as registry_get
+from app.core.registry import mark_started, reset_resume_count
 from app.core.registry import persist as registry_persist
 
 logger = logging.getLogger("stemdeck.queue")
@@ -215,6 +216,20 @@ async def _finalise_dropped_job(job: Job) -> None:
     await asyncio.to_thread(registry_persist, JOBS_DIR)
 
 
+async def _start(job: Job) -> None:
+    """Run a claimed job once its start is counted on disk. The save is off the
+    loop, so a shutdown or a cancel can land in it: the job then stays
+    resumable, or ends as one cancelled while it waited."""
+    mark_started(job)
+    await asyncio.to_thread(registry_persist, JOBS_DIR)
+    if _stopping:
+        return
+    if job.cancel_requested:
+        await _finalise_dropped_job(job)
+        return
+    await _dispatch(job)
+
+
 async def _worker_loop() -> None:
     assert _wake is not None
     while not _stopping:
@@ -255,12 +270,8 @@ async def _worker_loop() -> None:
         # register_if_capacity keep counting only "queued" as the queue depth.
         _set_running(job_id)
         _set(job, status="processing", stage="Starting...", progress=0.0)
-        # On disk before the run: a job that takes the process down never
-        # reaches a save of its own. Not in a thread, so no await opens here.
-        job.resume_attempts += 1
         try:
-            registry_persist(JOBS_DIR)
-            await _dispatch(job)
+            await _start(job)
         except Exception:
             # A crash in one job must not take the queue down with it.
             logger.exception("[%s] queue worker: job raised", job_id)
@@ -310,7 +321,7 @@ def request_stop() -> None:
     running = running_id()
     job = registry_get(running) if running else None
     if job is not None:
-        job.resume_attempts = 0
+        reset_resume_count(job)
         registry_persist(JOBS_DIR)
     _notify()
 

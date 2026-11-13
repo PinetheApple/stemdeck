@@ -123,7 +123,12 @@ def test_a_job_interrupted_twice_fails_instead_of_looping(tmp_path: Path):
     """A job that reliably takes the process down would otherwise be re-queued
     on every start, wedging the queue forever. Started twice, the resume
     included, and the process died both times."""
-    job = Job(id="abcdef000005", status="separating", title="Poison", resume_attempts=2)
+    job = Job(
+        id="abcdef000005",
+        status="separating",
+        title="Poison",
+        resume_attempts=_registry._MAX_RESUME_ATTEMPTS + 1,
+    )
     _jobs[job.id] = job
     persist_registry(tmp_path)
     _jobs.clear()
