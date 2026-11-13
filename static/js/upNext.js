@@ -1,5 +1,5 @@
 // Up Next: library track ids to play after the open song, kept in the store.
-// catalog.js queues songs via "upnext:add"; player.js reports "trackended" and "playbackready".
+// Songs are queued through queueUpNext (UP_NEXT_ADD_EVENT); player.js reports "trackended" and "playbackready".
 
 import {
   TRASH_CHANGE_EVENT,
@@ -111,6 +111,13 @@ function onPlaybackReady(e) {
   if (!pendingAutoplay || e.detail?.id !== pendingAutoplay) return;
   pendingAutoplay = null;
   if (!transport()?.isPlaying()) togglePlayPause();
+}
+
+export const UP_NEXT_ADD_EVENT = "upnext:add";
+
+/** Queue a song from anywhere, without importing this module's state. */
+export function queueUpNext(trackId) {
+  document.dispatchEvent(new CustomEvent(UP_NEXT_ADD_EVENT, { detail: { id: trackId } }));
 }
 
 function onAddRequest(e) {
@@ -256,7 +263,7 @@ export function initUpNext() {
   wireUpNextRows();
   $("upNextClear")?.addEventListener("click", clearUpNext);
   $("t-next")?.addEventListener("click", playNextInUpNext);
-  document.addEventListener("upnext:add", onAddRequest);
+  document.addEventListener(UP_NEXT_ADD_EVENT, onAddRequest);
   document.addEventListener("trackended", onTrackEnded);
   document.addEventListener("playbackready", onPlaybackReady);
   document.addEventListener("trackopen", renderUpNext);

@@ -17,6 +17,8 @@ const ROOMY_WINDOW = { width: 1600, height: 900 };
 const TITLE_WINDOWS = [
   { size: NARROW_WINDOW, inspector: true },
   { size: NARROW_WINDOW, inspector: false },
+  { size: MEDIUM_WINDOW, inspector: true },
+  { size: MEDIUM_WINDOW, inspector: false },
   { size: WIDE_WINDOW, inspector: true },
 ];
 const DRAG_PAST_MAX = 1000;
