@@ -24,7 +24,7 @@ const check = (name, cond, detail = "") => {
   }
 };
 
-const CODES = ["out-of-memory", "unsupported-device", "disk-full", "source-blocked", "source-unavailable", "bad-input", "unknown"];
+const CODES = ["out-of-memory", "unsupported-device", "disk-full", "source-blocked", "source-unavailable", "bad-input", "interrupted", "unknown"];
 const UNKNOWN_KEY = failureReasonKey("unknown");
 const LINK = "https://www.youtube.com/watch?v=Fv3QH1nvJ0E";
 const FALLBACK = { "pt-PT": "pt" };
