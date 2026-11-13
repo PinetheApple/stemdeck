@@ -233,6 +233,61 @@ def test_extract_queues_a_restored_stopped_job_again(client: TestClient) -> None
     assert not (job_dir / DEMUCS_MODEL).exists(), "collect() would read stale stems"
 
 
+def _file_listing(job_dir: Path) -> list[str]:
+    return sorted(str(p.relative_to(job_dir)) for p in job_dir.rglob("*"))
+
+
+def test_extract_waits_for_the_stems_folder_to_finish_moving(
+    client: TestClient, monkeypatch
+) -> None:
+    from app.api import jobs as jobs_mod
+    from app.core import stems_location
+    from app.pipeline import jobqueue
+
+    job, job_dir = _queued_upload("888888888881")
+    client.post(f"/api/jobs/{job.id}/trash")
+    client.post(f"/api/jobs/{job.id}/restore")
+    state, files = job.to_state(), _file_listing(job_dir)
+    monkeypatch.setattr(stems_location, "_relocating", True)
+
+    res = client.post(f"/api/jobs/{job.id}/extract")
+
+    assert (res.status_code, res.json()["detail"]) == (409, jobs_mod.STEMS_FOLDER_MOVING_IMPORT)
+    assert (job.to_state(), _file_listing(job_dir)) == (state, files)
+    assert jobqueue.snapshot() == (None, [])
+
+    monkeypatch.setattr(stems_location, "_relocating", False)
+
+    assert client.post(f"/api/jobs/{job.id}/extract").status_code == 200
+    assert job.status == "queued"
+
+
+def test_resplit_waits_for_the_stems_folder_to_finish_moving(
+    client: TestClient, monkeypatch
+) -> None:
+    from app.api import jobs as jobs_mod
+    from app.core import stems_location
+    from app.pipeline import jobqueue
+
+    job = _done("888888888880", "Finished")
+    job_dir = jobqueue.JOBS_DIR / job.id
+    job_dir.mkdir(parents=True)
+    (job_dir / "source.wav").write_bytes(b"RIFF")
+    jobs_before, dirs_before = set(_jobs), sorted(p.name for p in jobqueue.JOBS_DIR.iterdir())
+    monkeypatch.setattr(stems_location, "_relocating", True)
+
+    res = client.post(f"/api/jobs/{job.id}/resplit", json={"stems": ["vocals"]})
+
+    assert (res.status_code, res.json()["detail"]) == (409, jobs_mod.STEMS_FOLDER_MOVING_IMPORT)
+    assert set(_jobs) == jobs_before
+    assert sorted(p.name for p in jobqueue.JOBS_DIR.iterdir()) == dirs_before
+    assert jobqueue.snapshot() == (None, [])
+
+    monkeypatch.setattr(stems_location, "_relocating", False)
+
+    assert client.post(f"/api/jobs/{job.id}/resplit", json={"stems": ["vocals"]}).status_code == 200
+
+
 def test_restore_alone_does_not_queue_a_stopped_job(client: TestClient) -> None:
     from app.pipeline import jobqueue
 
