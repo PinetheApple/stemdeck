@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from app.core.models import Job
 from app.core.registry import _jobs
 from tests.ffmpeg_probe import skip_without_ffmpeg
+from tests.test_versions_api import THREE_OPEN, THREE_VERSIONS
 
 SR = 44100
 FRAMES = 4410
@@ -286,6 +287,8 @@ def test_bundle_metadata_leaves_out_what_only_the_library_rebuild_keeps(client, 
         "source_format": "wav",
         "source_name": "my private demo.wav",
         "created_at": 1_700_000_000.0,
+        "versions": THREE_VERSIONS,
+        "open_version": THREE_OPEN,
     }
     assert set(saved) == set(SAVED_FIELDS)
     _write_json(tmp_path / job_id / "metadata.json", {"title": "My Song", "bpm": 120, **saved})
@@ -293,3 +296,22 @@ def test_bundle_metadata_leaves_out_what_only_the_library_rebuild_keeps(client, 
     metadata = json.loads(_bundle(client, job_id).read("metadata.json"))
 
     assert metadata == {"title": "My Song", "bpm": 120}
+
+
+def test_a_song_with_versions_ships_the_same_manifest_keys(client, tmp_path):
+    skip_without_ffmpeg()
+    job_id = "abcdef000898"
+    job = _done_job(job_id)
+    _write_stem(tmp_path, job_id, "vocals")
+    _write_json(tmp_path / job_id / "metadata.json", {"title": "My Song"})
+    plain = json.loads(_bundle(client, job_id).read("manifest.json"))
+
+    job.versions, job.open_version = THREE_VERSIONS, THREE_OPEN
+    _write_json(
+        tmp_path / job_id / "metadata.json",
+        {"title": "My Song", "versions": THREE_VERSIONS, "open_version": THREE_OPEN},
+    )
+    zf = _bundle(client, job_id)
+
+    assert set(json.loads(zf.read("manifest.json"))) == set(plain)
+    assert json.loads(zf.read("metadata.json")) == {"title": "My Song"}

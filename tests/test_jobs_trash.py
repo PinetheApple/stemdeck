@@ -14,14 +14,18 @@ Only emptying the Trash calls DELETE.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+import app.core.config as cfg
 from app.core.models import Job
 from app.core.registry import _MAX_RESUME_ATTEMPTS, _jobs, register
 from app.main import app
+from app.pipeline.runner import _write_metadata
+from tests.test_versions_api import THREE_OPEN, THREE_VERSIONS
 
 
 @pytest.fixture(autouse=True)
@@ -363,3 +367,16 @@ def test_trashing_a_finished_job_cancels_nothing(client: TestClient) -> None:
     client.post(f"/api/jobs/{job.id}/trash")
     assert job.status == "done"
     assert job.cancel_requested is False
+
+
+def test_trash_and_restore_keep_the_versions(client: TestClient) -> None:
+    job = _done("888888888888", "Versions")
+    job.versions, job.open_version = THREE_VERSIONS, THREE_OPEN
+    (cfg.JOBS_DIR / job.id / "stems").mkdir(parents=True)
+    _write_metadata(job, cfg.JOBS_DIR / job.id)
+
+    for action in ("trash", "restore"):
+        assert client.post(f"/api/jobs/{job.id}/{action}").status_code == 200
+        meta = json.loads((cfg.JOBS_DIR / job.id / "metadata.json").read_text(encoding="utf-8"))
+        assert (job.versions, job.open_version) == (THREE_VERSIONS, THREE_OPEN)
+        assert (meta["versions"], meta["open_version"]) == (THREE_VERSIONS, THREE_OPEN)

@@ -13,6 +13,7 @@ from app.core.config import (
     JOB_ID_RE,
     SONG_NAME_MAX_CHARS,
 )
+from app.core.versions import clean_versions, is_version_id, open_version_of, versions_of
 
 
 class JobCancelled(Exception):
@@ -433,6 +434,10 @@ class Job:
     # "taken back out", so it can hand up favourites it set before this field
     # existed without undoing one removed on the phone.
     favorite: bool | None = None
+    # The song's versions (app/core/versions.py), or None for the implicit
+    # "Original" of a song that never had one recorded.
+    versions: list[dict] | None = None
+    open_version: str | None = None
     # Kept after the replacement, so a client can carry its state for the old id over.
     replaces: str | None = None
     # Set by POST /api/jobs/{id}/cancel; consumed by pipeline stages.
@@ -509,6 +514,7 @@ class Job:
         return named
 
     def to_state(self) -> dict[str, Any]:
+        versions = versions_of(self)
         return {
             "job_id": self.id,
             "status": self.status,
@@ -558,6 +564,8 @@ class Job:
             "vocal_split_error": self.vocal_split_error,
             "trashed_at": self.trashed_at,
             "favorite": self.favorite,
+            "versions": versions,
+            "open_version": open_version_of(self, versions),
             "replaces": self.replaces,
             "created_at": self.created_at,
         }
@@ -603,6 +611,9 @@ class Job:
         job.user_artist = clean_user_name(job.user_artist)
         if not isinstance(job.replaces, str) or not JOB_ID_RE.match(job.replaces):
             job.replaces = None
+        job.versions = clean_versions(job.versions)
+        if not is_version_id(job.open_version):
+            job.open_version = None
         job.cancel_requested = False
         job.stop_requested = False
         # No split outlives the process that ran it.

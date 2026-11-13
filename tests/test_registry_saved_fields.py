@@ -20,6 +20,7 @@ from app.core.models import Job
 from app.core.registry import registry_path
 from app.main import app
 from app.pipeline.runner import _write_metadata
+from tests.test_versions_api import THREE_OPEN, THREE_VERSIONS
 
 JOB = "a1b2c3d4e5f6"
 ADDED = 1_700_000_000.0
@@ -140,6 +141,9 @@ def test_an_older_library_gets_the_copy_once_on_upgrade(tmp_path: Path):
         {"selected_stems": "vocals"},
         {"source_url": 7},
         {"source_format": "exe"},
+        {"versions": "main"},
+        {"versions": [{"id": "../x"}]},
+        {"open_version": "../x"},
     ],
 )
 def test_a_bad_value_in_metadata_keeps_what_the_folder_gives(tmp_path: Path, hostile):
@@ -214,3 +218,36 @@ def test_a_favourite_set_as_the_song_finishes_is_not_overwritten(tmp_path: Path)
     writer.join(5)
 
     assert _meta(tmp_path)["favorite"] is True
+
+
+def test_versions_round_trip_through_registry_json(tmp_path: Path):
+    _finished(tmp_path, versions=THREE_VERSIONS, open_version=THREE_OPEN)
+    _registry.persist(tmp_path)
+    _registry._jobs.clear()
+
+    _registry.restore(tmp_path)
+
+    job = _registry.get(JOB)
+    assert job.versions == THREE_VERSIONS
+    assert job.open_version == THREE_OPEN
+
+
+def test_versions_survive_a_rebuild_without_registry_json(tmp_path: Path):
+    _finished(tmp_path, versions=THREE_VERSIONS, open_version=THREE_OPEN)
+
+    job = _lose_registry_and_restart(tmp_path)
+
+    assert job.versions == THREE_VERSIONS
+    assert job.open_version == THREE_OPEN
+
+
+def test_a_folder_saved_before_versions_reads_as_the_original(tmp_path: Path):
+    _stems(tmp_path / JOB)
+    meta = {"title": "Old", "selected_stems": ["drums"], "created_at": ADDED}
+    (tmp_path / JOB / "metadata.json").write_text(json.dumps(meta), encoding="utf-8")
+
+    _registry.restore(tmp_path)
+
+    state = _registry.get(JOB).to_state()
+    assert [(v["id"], v["stems"]) for v in state["versions"]] == [("main", ["drums"])]
+    assert state["open_version"] == "main"

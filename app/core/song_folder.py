@@ -16,6 +16,7 @@ from typing import Any
 from app.core.config import JOB_ID_RE, STEM_NAMES, UPLOAD_EXTS
 from app.core.models import Job
 from app.core.stem_files import holds_stem_audio, is_stem_audio
+from app.core.versions import clean_versions, is_version_id
 
 logger = logging.getLogger("stemdeck.registry")
 
@@ -40,6 +41,8 @@ SAVED_FIELDS = (
     "source_format",
     "source_name",
     "created_at",
+    "versions",
+    "open_version",
 )
 
 
@@ -75,6 +78,10 @@ def _clean_value(name: str, value: object) -> tuple[bool, object]:
     if name == "selected_stems":
         stems = _clean_stems(value)
         return stems is not None, stems
+    if name == "versions":
+        return value is None or clean_versions(value) is not None, value
+    if name == "open_version":
+        return value is None or is_version_id(value), value
     if name in ("source_url", "source_name"):
         return value is None or isinstance(value, str), value
     # source_format: drawn as the upload's format icon, so only a known one.

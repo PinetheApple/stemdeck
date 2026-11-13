@@ -25,6 +25,7 @@ from app.core.registry import _jobs
 from app.core.song_folder import STEMS_COMPLETE
 from app.pipeline import runner
 from app.pipeline.runner import run_pipeline
+from tests.test_versions_api import THREE_OPEN, THREE_VERSIONS
 
 OLD_ID = "0123456789ab"
 NEW_ID = "ba9876543210"
@@ -304,3 +305,22 @@ async def test_a_new_job_trashed_as_it_finished_leaves_the_old_copy(client):
     await _finish(new)
     assert _jobs[NEW_ID].status == "done"
     assert _jobs[OLD_ID].trashed_at is None
+
+
+@pytest.mark.parametrize("with_files", [True, False])
+async def test_a_reimport_of_a_song_with_versions_leaves_one_visible_copy(client, with_files):
+    old = _old_job(with_files=with_files)
+    old.versions, old.open_version = THREE_VERSIONS, THREE_OPEN
+    new = _new_job()
+    new.title = "New copy"
+    await _finish(new)
+
+    listed = client.get("/api/jobs").json()
+    assert [s["job_id"] for s in listed] == [NEW_ID]
+    assert [v["id"] for v in listed[0]["versions"]] == ["main"]
+    assert _jobs[NEW_ID].versions is None
+    if with_files:
+        assert _jobs[OLD_ID].trashed_at is not None
+        assert (_jobs[OLD_ID].versions, _jobs[OLD_ID].open_version) == (THREE_VERSIONS, THREE_OPEN)
+    else:
+        assert OLD_ID not in _jobs

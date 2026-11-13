@@ -11,6 +11,12 @@ The endpoints the web app itself uses. They are not a stable public interface an
 | GET | `/api/jobs` | List completed (library) jobs |
 | GET | `/api/jobs/{id}` | Job state snapshot |
 | PATCH | `/api/jobs/{id}` | Rename a song: `{title?, artist?}`, a string sets it, `null` restores the detected value → job state |
+| GET | `/api/jobs/{id}/versions` | The song's [versions](#versions) → `{job_id, versions, open_version}`, in any status; writes nothing |
+| POST | `/api/jobs/{id}/versions/{vid}/open` | Make `vid` the version the song opens with → `{job_id, versions, open_version}`; opening the open one writes nothing |
+| PATCH | `/api/jobs/{id}/versions/{vid}` | Rename a version: `{name}` → `{job_id, versions, open_version}` |
+| POST | `/api/jobs/{id}/versions` | Save as new: `{name, stems, open?}` → 201 `{version, job_id, versions, open_version}` |
+| POST | `/api/jobs/{id}/versions/extract` | Extract more stems: `{from, stems, name}` → `{version, created, job_id, versions, open_version}`, 201 when made, 200 when a version with those stems is opened instead |
+| DELETE | `/api/jobs/{id}/versions/{vid}` | Delete a version → `{job_id, versions, open_version}`; 409 for the song's last one |
 | GET | `/api/jobs/{id}/events` | SSE stream of job state |
 | POST | `/api/jobs/{id}/cancel` | Terminate active subprocess and cancel job |
 | PATCH | `/api/jobs/{id}/sections` | Save waveform section markers for a job |
@@ -35,6 +41,14 @@ Job state carries `title` (what to show: the user's title, else the detected one
 ### Re-imports
 
 `replaces` names the job a new import re-imports. A malformed id is a 422; an id the server does not know is ignored, and the job is created as if none were given. Replacing a job that is still waiting or running, or one another import is already replacing, is a 409 and creates nothing. Job state reports it as `replaces` (null when none) only while the replacement is pending. When the new job finishes `done`, the server settles the old copy: deleted outright when its files are gone (the job state said `unavailable`), otherwise moved to the Trash. A new job that fails, is cancelled or is trashed leaves the old copy as it was, and so does an old copy already trashed or deleted. Once the old copy is settled, whatever the outcome, `replaces` goes back to null, so restoring the old copy from the Trash later keeps it. A replacement left pending when the server stopped, or whose settling failed, is settled on the next start.
+
+### Versions
+
+A version is a named choice of the song's stems: `{id, name, stems, created_at}`. Every version shares the song's one set of stem files, so no route here reads, writes or deletes a stem file. `stems` lists base stems in the order vocals, drums, bass, guitar, piano, other; a version with `vocals` also shows the lead and backing split. `name` is null for the untouched default, which the page shows as "Original"; any other name is the text the user gave, trimmed, 1 to 60 characters (anything else is a 422). A song has 1 to 32 versions. Job state carries the same `versions` and `open_version`.
+
+A song saved before versions existed has one implicit version, `main`, showing its import selection, and nothing is stored for it until a version is created, renamed, deleted or opened as a different one. Every write is refused with a 409 while the song is in the Trash (`restore it from the Trash first`) or not done (`the song is not ready`); an unknown song or version is a 404.
+
+Save as new needs at least one known stem (else a 422) and room for one more version (else a 409). Extract more stems makes the version showing `from`'s stems plus `stems` and opens it. `stems` must all be new to `from` (else a 422). When a version already shows exactly those stems, that one is opened under its own name instead. Every stem it shows must have its file, or nothing is made and the answer is a 409 (`this song is missing stem files; import it again`); it never separates anything. Deleting the open version opens the first one left. The last version cannot be deleted: the song goes to the Trash instead. Versions stay with the song through rename, Trash and restore, a library move and a rebuilt registry. A re-import makes a new song with only `main`. A song bundle never carries them.
 
 ### Setlists
 
