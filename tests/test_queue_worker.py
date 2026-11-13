@@ -361,19 +361,37 @@ async def test_a_job_that_kills_the_process_gets_one_resume(worker, monkeypatch,
     assert _registry.take_pending_resume() == []
 
 
-def _save_then(monkeypatch, tmp_path, during_save) -> list[bool]:
-    """Patch the worker's save to run the real one, then, once, ``during_save``:
-    what lands while the save is off the loop. Records where each save ran."""
-    off_loop: list[bool] = []
+SAVE_HOLD_SECONDS = 3.0
+
+
+def _held_save(monkeypatch, tmp_path) -> tuple[threading.Event, threading.Event]:
+    """Hold the worker's first save in its thread until released, so a test can
+    act from the loop while the save is in flight. Returns (entered, release)."""
+    entered, release = threading.Event(), threading.Event()
 
     def _save(jobs_dir):
-        off_loop.append(threading.current_thread() is not threading.main_thread())
+        if threading.current_thread() is not threading.main_thread() and not entered.is_set():
+            entered.set()
+            release.wait(SAVE_HOLD_SECONDS)
         _registry.persist(tmp_path)
-        if len(off_loop) == 1:
-            during_save()
 
     monkeypatch.setattr(jobqueue, "registry_persist", _save)
-    return off_loop
+    return entered, release
+
+
+async def _start_and_hold(monkeypatch, tmp_path) -> tuple[Job, list[str], threading.Event]:
+    """A job claimed by the worker, its start save held. Records any run."""
+    ran: list[str] = []
+
+    async def _fake(job, url, jobs_dir):
+        ran.append(job.id)
+
+    monkeypatch.setattr("app.pipeline.runner.run_pipeline", _fake)
+    entered, release = _held_save(monkeypatch, tmp_path)
+    job = _job("aaaaaaaaaaaa")
+    jobqueue.enqueue(job.id)
+    await _drain(entered.is_set)
+    return job, ran, release
 
 
 @pytest.mark.parametrize(("trash", "status"), [(False, "cancelled"), (True, "stopped")])
@@ -384,40 +402,27 @@ async def test_a_cancel_during_the_start_save_never_runs_the_job(
     trash,
     status,
 ):
-    """The save before a run is off the loop, so a cancel or a Trash stop can
-    land in it. The job ends there, as one cancelled while it waited does."""
-    ran: list[str] = []
+    """The job ends as one cancelled while it waited would."""
+    from app.api.jobs import _cancel_pipeline
 
-    async def _fake(job, url, jobs_dir):
-        ran.append(job.id)
+    job, ran, release = await _start_and_hold(monkeypatch, tmp_path)
+    job.stop_requested = trash
+    _cancel_pipeline(job)
+    release.set()
 
-    def _cancel():
-        job.cancel_requested = True
-        job.stop_requested = trash
-
-    monkeypatch.setattr("app.pipeline.runner.run_pipeline", _fake)
-    off_loop = _save_then(monkeypatch, tmp_path, _cancel)
-    job = _job("aaaaaaaaaaaa")
-    jobqueue.enqueue(job.id)
-
-    await _drain(lambda: job.status == status and jobqueue.running_id() is None)
-    assert ran == []
-    assert off_loop[0] is True
+    await _drain(lambda: jobqueue.running_id() is None)
+    assert (job.status, ran) == (status, [])
 
 
 async def test_a_shutdown_during_the_start_save_never_runs_the_job(worker, monkeypatch, tmp_path):
-    """The job stays resumable: the next start queues it again."""
-    ran: list[str] = []
+    """A clean stop: the job stays resumable with its resume, on disk too."""
+    job, ran, release = await _start_and_hold(monkeypatch, tmp_path)
+    jobqueue.request_stop()
+    release.set()
 
-    async def _fake(job, url, jobs_dir):
-        ran.append(job.id)
-
-    monkeypatch.setattr("app.pipeline.runner.run_pipeline", _fake)
-    off_loop = _save_then(monkeypatch, tmp_path, jobqueue.request_stop)
-    job = _job("aaaaaaaaaaaa")
-    jobqueue.enqueue(job.id)
-
-    await _drain(lambda: bool(off_loop) and jobqueue.running_id() is None)
+    await _drain(lambda: jobqueue.running_id() is None)
+    saved = json.loads(_registry.registry_path(tmp_path).read_text(encoding="utf-8"))
     assert ran == []
-    assert off_loop[0] is True
-    assert job.status in _registry._RESUMABLE
+    assert [(r["status"] in _registry._RESUMABLE, r["resume_attempts"]) for r in saved["jobs"]] == [
+        (True, 0)
+    ]

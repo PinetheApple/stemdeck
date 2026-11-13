@@ -217,9 +217,8 @@ async def _finalise_dropped_job(job: Job) -> None:
 
 
 async def _start(job: Job) -> None:
-    """Run a claimed job once its start is counted on disk. The save is off the
-    loop, so a shutdown or a cancel can land in it: the job then stays
-    resumable, or ends as one cancelled while it waited."""
+    """Counts the start on disk before the run; a cancel or shutdown can land in
+    the save, and the job then never runs."""
     mark_started(job)
     await asyncio.to_thread(registry_persist, JOBS_DIR)
     if _stopping:

@@ -406,8 +406,8 @@ def _resume_or_recover(job: Job, job_dir: Path, legacy: bool = False) -> Job | N
         job.stage_message = "Stopped"
         return job
 
-    # Counts the runs the queue started, never the restarts: a restored
-    # queue waits for Start. Two starts are the first run and its resume.
+    # Counts the runs the queue started, never the restarts: a restored queue
+    # waits for Start. Two starts are the first run and its resume.
     if job.resume_attempts > _MAX_RESUME_ATTEMPTS:
         job.status = "error"
         job.stage_message = "Error: Interrupted"
