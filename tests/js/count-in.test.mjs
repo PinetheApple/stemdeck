@@ -17,7 +17,7 @@ import {
   LEVEL_WEAK,
   LEVEL_GROUP,
   LEVEL_DOWNBEAT,
-} from "../../static/js/metronome.js";
+} from "../../static/js/clickAccents.js";
 
 let pass = 0,
   fail = 0;

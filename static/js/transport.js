@@ -30,9 +30,10 @@ import {
 import { applyMix, nudgeAllLanePitches, resetAllLanePitches } from "./mixer.js";
 import { isDownbeatIndex, barPositionIndex, getBeats as getGridBeats, getBars as getGridBars } from "./beatgrid.js";
 import {
-  accentOverride, defaultGrouping, normaliseGrouping,
+  accentOverride,
   OVERRIDE_LENGTH, OVERRIDE_OFF, OVERRIDE_UNALIGNED,
 } from "./metronome.js";
+import { defaultGrouping, normaliseGrouping } from "./clickAccents.js";
 import { computeCountIn } from "./countIn.js";
 import { CLICK_SOUNDS } from "./clickSounds.js";
 import { t, onLanguageChange } from "./i18n.js";
@@ -1223,11 +1224,6 @@ function _saveMetroPrefs() {
     countInBars: metronomeCountInBars,
     sound: metronomeSound,
   }).catch((e) => console.warn("[transport] failed to save metronome prefs:", e));
-}
-
-/** The click sound preset in use (an id from clickSounds.js). */
-export function getClickSound() {
-  return metronomeSound;
 }
 
 /** Choose the click sound: the live click switches on its next beat, exports

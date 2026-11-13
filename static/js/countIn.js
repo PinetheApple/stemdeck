@@ -5,16 +5,10 @@ import {
   LEVEL_GROUP,
   LEVEL_WEAK,
   normaliseGrouping,
-} from "./metronome.js";
+} from "./clickAccents.js";
 
-// ─── Count-in (issue #269) ───────────────────────────────────────────────
-//
-// A count-in is one bar of click *before* playback, leading into the start
-// position. The maths below is a literal mirror of count_in_beats() in
-// app/pipeline/click_render.py so the live count-in and the exported one agree
-// beat-for-beat -- the same parity discipline that pins the click voice across
-// the two files. Kept pure and module-level so it can be unit-tested and reused
-// by the export URL builder without a live AudioContext.
+// Mirrors count_in_beats() in app/pipeline/click_render.py, so the live and the
+// exported count-in agree beat for beat.
 
 function _rescaleForCount(beats, mult) {
   if (mult === 2) {
@@ -81,9 +75,8 @@ export function computeCountIn(
   const interval = _intervalNear(grid, start, bpb);
   if (interval === null) return { leadIn: 0, clicks: [] };
   const n = countBars * bpb;
-  // The count-in is its own run of bars, so the grouping comes from bpb rather
-  // than from the bar marks: there is no detected bar in front of the audio.
-  // A user grouping only applies to an explicit meter, matching count_in_beats.
+  // No detected bar lies before the audio, so the grouping comes from bpb; a
+  // user grouping applies only to an explicit meter.
   const barGroups = accentMode > 0 ? normaliseGrouping(groups, bpb) : defaultGrouping(bpb);
   const starts = groupOffsets(barGroups);
   const clicks = [];

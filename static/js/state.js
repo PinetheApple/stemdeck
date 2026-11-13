@@ -1,6 +1,7 @@
 import { $, storeGet, storeSet } from "./utils.js";
 import { STEM_NAMES } from "./constants.js";
 import { DEFAULT_CLICK_SOUND, normaliseClickSound } from "./clickSounds.js";
+import { DEFAULT_CLICK_VOLUME } from "./metronome.js";
 
 // ─── DOM refs ───
 
@@ -239,7 +240,7 @@ export let metronome = null;
 export function setMetronome(v) { metronome = v; }
 export let metronomeEnabled = false;
 export function setMetronomeEnabled(v) { metronomeEnabled = v; }
-export let metronomeVolume = 0.6;
+export let metronomeVolume = DEFAULT_CLICK_VOLUME;
 export function setMetronomeVolume(v) { metronomeVolume = v; }
 // The click sound preset, global like the volume; an unknown id reads as Classic.
 export let metronomeSound = DEFAULT_CLICK_SOUND;

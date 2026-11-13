@@ -20,7 +20,7 @@
 // Run:  node tests/js/parity.test.mjs
 
 import { readFileSync } from "node:fs";
-import { levelAt, defaultGrouping } from "../../static/js/metronome.js";
+import { levelAt, defaultGrouping } from "../../static/js/clickAccents.js";
 import { computeCountIn } from "../../static/js/countIn.js";
 
 const fixture = JSON.parse(

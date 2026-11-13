@@ -1,5 +1,3 @@
-// Export All Stems with "Include click track" (#93): ticked, the zip carries the
-// click as one more file in the stems' format; unticked, it carries the stems only.
 
 import { test, expect } from "@playwright/test";
 import { openStudio, exportUi, waitForClickTrack, TRACK_TITLE } from "./helpers.mjs";
