@@ -1,4 +1,4 @@
-"""Versions of a song (#96): named choices of stems over the song's one set of
+"""Versions of a song: named choices of stems over the song's one set of
 stem files, kept on the job record and in its metadata.json.
 
 A song made before versions existed reads as one implicit "Original" and

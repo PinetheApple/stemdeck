@@ -1112,7 +1112,7 @@ def ensure_runtime_dirs() -> None:
         path.mkdir(parents=True, exist_ok=True)
 
 
-# Song versions (#96, app/core/versions.py): the longest name a version keeps,
+# Song versions (app/core/versions.py): the longest name a version keeps,
 # and how many versions one song keeps; more is a script, not a person.
 VERSION_NAME_MAX_CHARS = 60
 MAX_VERSIONS_PER_SONG = 32
