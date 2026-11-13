@@ -13,10 +13,11 @@ function allTrackNames() {
   return [...TRACK_NAMES, ...EXTRA_STEM_NAMES];
 }
 import {
-  mixerState, mixerEl, stemListEl, currentJobId, multitrack, trackIndex,
+  mixerState, mixerEl, stemListEl, currentJobId, currentVersionId, multitrack, trackIndex,
   masterVolume, audioEngine,
 } from "./state.js";
 import { storeGet, storeSetDebounced, storeFlushPending } from "./utils.js";
+import { DEFAULT_VERSION_ID, mixStoreKey } from "./versionModel.js";
 import { t } from "./i18n.js";
 import {
   GLOBAL_PITCH_FIELD, PITCH_MAX, PITCH_MIN, clampPitch, pitchBlockedKey, savedGlobalPitch,
@@ -43,14 +44,13 @@ export function mixGlobalPitch() {
   return globalPitch;
 }
 
-const mixKey = (jobId) => `stemdeck:mix:${jobId}`;
-
-export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES) {
+export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES, versionId = DEFAULT_VERSION_ID) {
+  const key = mixStoreKey(jobId, versionId);
   let stored = {};
   try {
     // Write any pending save for this song before reading it.
-    await storeFlushPending(mixKey(jobId));
-    const data = await storeGet(mixKey(jobId), {});
+    await storeFlushPending(key);
+    const data = await storeGet(key, {});
     if (data && typeof data === "object") stored = data;
   } catch (e) { console.warn("[mixer] failed to load mix state:", e); }
   for (const name of allTrackNames()) {
@@ -73,7 +73,7 @@ export function resetMixerState() {
 
 function saveMix() {
   if (!currentJobId) return;
-  storeSetDebounced(mixKey(currentJobId), { ...mixerState, [GLOBAL_PITCH_FIELD]: globalPitch });
+  storeSetDebounced(mixStoreKey(currentJobId, currentVersionId), { ...mixerState, [GLOBAL_PITCH_FIELD]: globalPitch });
 }
 
 /** Push one lane's transpose into whichever engine is playing. */
