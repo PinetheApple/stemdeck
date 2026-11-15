@@ -30,6 +30,7 @@ from app.api.jobs import (
     settle_pending_replacements,
 )
 from app.api.router import router
+from app.api.takes_video_runs import cancel_all_renders
 from app.core import lan_interfaces, tls_listener
 from app.core.compression import COMPRESS_LEVEL, MINIMUM_SIZE, TextGZipMiddleware
 from app.core.config import (
@@ -300,6 +301,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # blocked in asyncio.to_thread, which cannot be cancelled. This also makes
     # the runner keep the job the worker kill below interrupts, to resume.
     jobqueue.request_stop()
+    cancel_all_renders()
     idle_task.cancel()
     # Tear down the persistent demucs worker (#309) so a clean shutdown never
     # leaves it as an orphaned process -- it has no parent-death watchdog of

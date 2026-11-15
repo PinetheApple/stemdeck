@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
 
+from app.api.takes_video_runs import cancel_job_renders
 from app.core.config import (
     BEAT_TIME_DECIMALS,
     DISCOGS_LOOKUP_BUDGET_SEC,
@@ -2451,7 +2452,8 @@ def _remove_job(job: Job) -> bool:
 
 def _stop_runs(job: Job, *, with_lyrics: bool) -> None:
     """Stop a finished job's vocal split, and its lyrics runs too when
-    ``with_lyrics``, wait on one deadline for them to end, then forget them."""
+    ``with_lyrics``, wait on one deadline for them to end, then forget them.
+    Its filmed-take renders stop as well."""
     job_id = job.id
     lyrics_run = with_lyrics and _cancel_lyrics_runs(job_id)
     splitting = cancel_split(job)
@@ -2465,6 +2467,7 @@ def _stop_runs(job: Job, *, with_lyrics: bool) -> None:
         RETIME_RUNS.forget(job_id)
         TRANSCRIBE_RUNS.forget(job_id)
     VOCAL_SPLIT_RUNS.forget(job_id)
+    cancel_job_renders(job_id)
 
 
 def _retry_deleted_job_files(job_id: str) -> dict[str, str]:
