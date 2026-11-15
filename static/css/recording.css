@@ -55,8 +55,8 @@
   bottom: 0;
   z-index: 1;
 }
-/* With recording rows the lane fit may go below the stems' 72px floor; rows follow --lane-h, floored in takesLayout.js. */
-.mixer-column:has(> .rec-row) > .lane-header.mx-row { min-height: 0; }
+/* With + Track in the fit, lanes may go below the stems' 72px floor; rows follow --lane-h, floored in takesLayout.js. */
+.mixer-column:has(> .rec-add-row) > .lane-header.mx-row { min-height: 0; }
 .rec-add-btn {
   display: inline-flex;
   align-items: center;
