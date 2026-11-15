@@ -1,3 +1,5 @@
+#[cfg(any(not(target_os = "macos"), test))]
+mod amd_windows;
 mod certs;
 mod dragout;
 mod dropfolder;
@@ -2242,10 +2244,12 @@ fn ensure_torch_device(
             }
         }
         // Without an NVIDIA GPU, an AMD one a ROCm build of torch can drive.
-        // ROCm torch exists for Linux only.
+        // ROCm torch exists for Linux only; Windows records the card as unusable.
         #[cfg(target_os = "linux")]
         let amd = || rocm::detect(Path::new("/"), &data_dir);
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(windows)]
+        let amd = || amd_windows::detect(&data_dir, amd_windows::probe);
+        #[cfg(not(any(target_os = "linux", windows)))]
         let amd = || None;
         let setup = match detect_gpu(detect_nvidia_gpu(&data_dir), amd) {
             // Found, but no build StemDeck installs can use it: say why, and
@@ -2636,6 +2640,13 @@ fn parse_cuda_version(smi_output: &str) -> Option<String> {
 /// What GpuSetup.backend says for an NVIDIA GPU.
 #[cfg(any(not(target_os = "macos"), test))]
 const GPU_BACKEND_CUDA: &str = "cuda";
+/// What GpuSetup.backend says for an AMD GPU.
+#[cfg(any(not(target_os = "macos"), test))]
+const GPU_BACKEND_ROCM: &str = "rocm";
+/// An AMD card no build StemDeck installs can drive. Settled by the setup
+/// screen: nothing on offer changes until an update brings another build.
+#[cfg(any(not(target_os = "macos"), test))]
+const REASON_ROCM_UNSUPPORTED: &str = "rocm-unsupported-gpu";
 
 /// The newest ROCm line torch 2.8.0, the last with torchaudio's soundfile
 /// backend, is published for.
