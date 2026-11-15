@@ -10,6 +10,7 @@ class StemdeckRecorder extends AudioWorkletProcessor {
     this.pick = options.processorOptions.channels;
     this.batch = new Float32Array(BATCH_FRAMES * this.pick.length);
     this.filled = 0;
+    this.captured = 0;
     this.nextFrame = null;
     this.dropped = 0;
     this.peak = 0;
@@ -20,7 +21,7 @@ class StemdeckRecorder extends AudioWorkletProcessor {
   onPortMessage(event) {
     if (event.data !== "stop") return;
     this.send();
-    this.port.postMessage({ type: "stopped", dropped: this.dropped });
+    this.port.postMessage({ type: "stopped", dropped: this.dropped, frames: this.captured });
     this.stopped = true;
   }
 
@@ -43,6 +44,7 @@ class StemdeckRecorder extends AudioWorkletProcessor {
       this.filled += 1;
       if (this.filled === BATCH_FRAMES) this.send();
     }
+    this.captured += frames;
   }
 
   process(inputs) {

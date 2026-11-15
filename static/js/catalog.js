@@ -37,6 +37,7 @@ import { KEYBOARD_FOCUS, ON_ROW, OUT_OF_TAB_ORDER, ROW_KEY, ROW_PLAY_CLASS, isSh
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
+import { openFolderMenu } from "./folderMenu.js";
 import { HTTP_NOT_FOUND, fetchJson, isNotFound } from "./libraryControls.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 import { FOLDER_MOVING_KEY, isFolderMovingError, noticeKey, refusedForFolderMove } from "./folderMoving.js";
@@ -116,6 +117,18 @@ const TRASH_ID = "trash";
 export const TRASH_CHANGE_EVENT = "tracktrash";
 // The default landing folder for unorganized tracks — protected from deletion.
 const UNSORTED_ID = "f-unsorted";
+const isSystemFolder = (folderId) => folderId === TRASH_ID || folderId === UNSORTED_ID;
+const FOLDER_HEAD_CONTROLS = ".f-grip, .f-more";
+const EDIT_FOLDER_TITLE_KEY = "folderEditor.title";
+const RENAME_FOLDER_TITLE_KEY = "folderEditor.renameTitle";
+const NEW_FOLDER_TITLE_KEY = "library.newFolder";
+const NEW_SUBFOLDER_TITLE_KEY = "folder.newSubfolder";
+const UNSORTED_NAME_KEY = "folder.unsorted";
+
+/** Unsorted always shows its name in the app's language, whatever an older build stored. */
+function folderDisplayName(folder) {
+  return folder.id === UNSORTED_ID ? i18nT(UNSORTED_NAME_KEY) : folder.name;
+}
 const PROCESSING_STATUSES = new Set(["queued", "downloading", "analyzing", "separating", "processing"]);
 
 
@@ -442,7 +455,7 @@ export function addTrackToLibrary({ replaces, ...track }) {
     // Put into first non-trash folder or create an "Unsorted" folder.
     let target = folders.find((folder) => folder.id !== TRASH_ID);
     if (!target) {
-      target = makeFolder({ id: "f-unsorted", name: i18nT("folder.unsorted") });
+      target = makeFolder({ id: UNSORTED_ID, name: i18nT(UNSORTED_NAME_KEY) });
       folders.unshift(target);
     }
     target.items.unshift(track.id);
@@ -1433,6 +1446,11 @@ function setCatalogView(view) {
   document.dispatchEvent(new CustomEvent("catalogviewchange", { detail: { view: catalogView } }));
 }
 
+/** Show the Lyrics view in the sidebar, as the rail's Lyrics button does. */
+export function showLyricsView() {
+  setCatalogView("lyrics");
+}
+
 /** Show the library list in the sidebar, as the rail's Library button does. */
 export function showLibraryView() {
   if (catalogView !== "library") setCatalogView("library");
@@ -1645,7 +1663,7 @@ function createFolder({ trackId = null } = {}) {
   if (trackId) placeTrackInFolder(folder.id, trackId);
   saveState();
   render();
-  openFolderEditor(folder.id, "library.newFolder");
+  openFolderEditor(folder.id, NEW_FOLDER_TITLE_KEY);
 }
 
 /** Put a whole playlist import in a folder of its own.
@@ -1711,7 +1729,7 @@ function folderWithDescendants(folderId) {
 
 /** Remove a folder and its subfolders; their songs go to the Trash. */
 function deleteFolder(folderId) {
-  if (folderId === TRASH_ID || folderId === UNSORTED_ID) return;
+  if (isSystemFolder(folderId)) return;
   if (!folders.some((f) => f.id === folderId)) return;
   const doomed = folderWithDescendants(folderId);
   const trackIds = folders.filter((f) => doomed.has(f.id)).flatMap((f) => f.items);
@@ -1789,10 +1807,20 @@ const FOLDER_NAME_RE = /^[\p{L}\p{M}\p{N} '’&().,_-]+$/u;
 const MAX_FOLDER_NAME_LEN = 100;
 const isValidFolderName = (s) => FOLDER_NAME_RE.test(s);
 
-function openFolderEditor(folderId, titleKey = "folderEditor.title") {
+/** Why `name` can't be a folder name, or "" when it can. */
+function folderNameError(name) {
+  if (!name) return i18nT("folderEditor.emptyError");
+  if (name.length > MAX_FOLDER_NAME_LEN) return i18nT("folderEditor.tooLong", { max: MAX_FOLDER_NAME_LEN });
+  if (!isValidFolderName(name)) return i18nT("folderEditor.charsError");
+  return "";
+}
+
+function openFolderEditor(folderId, requestedTitleKey = EDIT_FOLDER_TITLE_KEY) {
   const folder = folders.find((f) => f.id === folderId);
   if (!folder || folder.id === TRASH_ID) return;
   closeFolderEditor();
+  const colorOnly = folder.id === UNSORTED_ID;
+  const titleKey = colorOnly ? EDIT_FOLDER_TITLE_KEY : requestedTitleKey;
 
   let selectedColor = normalizeFolderColor(folder.color);
   const overlay = document.createElement("div");
@@ -1829,6 +1857,7 @@ function openFolderEditor(folderId, titleKey = "folderEditor.title") {
   const form = overlay.querySelector(".folder-editor");
   const input = overlay.querySelector(".folder-editor-name");
   input.value = folder.name;
+  if (colorOnly) input.closest(".folder-editor-field").remove();
 
   const refreshDots = () => {
     for (const dot of overlay.querySelectorAll(".folder-color-dot")) {
@@ -1851,29 +1880,22 @@ function openFolderEditor(folderId, titleKey = "folderEditor.title") {
   }
   const msgEl = overlay.querySelector(".folder-editor-msg");
   input.addEventListener("input", () => { msgEl.textContent = ""; });
-  form.addEventListener("submit", (e) => {
+  form.addEventListener("submit", function onFolderEditorSubmit(e) {
     e.preventDefault();
-    const name = input.value.trim();
-    if (!name) {
-      msgEl.textContent = i18nT("folderEditor.emptyError");
-      input.focus();
-      return;
+    if (!colorOnly) {
+      const name = input.value.trim();
+      const error = folderNameError(name);
+      if (error) {
+        msgEl.textContent = error;
+        input.focus();
+        return;
+      }
+      folder.name = name;
     }
-    if (name.length > MAX_FOLDER_NAME_LEN) {
-      msgEl.textContent = i18nT("folderEditor.tooLong", { max: MAX_FOLDER_NAME_LEN });
-      input.focus();
-      return;
-    }
-    if (!isValidFolderName(name)) {
-      msgEl.textContent = i18nT("folderEditor.charsError");
-      input.focus();
-      return; // don't save or close until the name is valid
-    }
-    folder.name = name;
     folder.color = selectedColor;
     saveState();
-    closeFolderEditor();
     render();
+    closeFolderEditor();
   });
   overlay.addEventListener("keydown", (e) => {
     if (e.code === "Escape") closeFolderEditor();
@@ -1882,6 +1904,10 @@ function openFolderEditor(folderId, titleKey = "folderEditor.title") {
   document.body.appendChild(overlay);
   folderEditor = overlay;
   folderEditorFolderId = folder.id;
+  if (colorOnly) {
+    overlay.querySelector(".folder-color-dot.active")?.focus();
+    return;
+  }
   input.focus();
   input.select();
 }
@@ -1973,7 +1999,7 @@ export function moveTrackToNewFolder(trackId) {
 export function folderChoices(trackId) {
   const choices = [];
   const visit = (folder, depth) => {
-    choices.push({ id: folder.id, name: folder.name, depth, current: folder.items.includes(trackId) });
+    choices.push({ id: folder.id, name: folderDisplayName(folder), depth, current: folder.items.includes(trackId) });
     for (const child of childFoldersOf(folder.id)) visit(child, depth + 1);
   };
   for (const top of topLevelFolders()) visit(top, 0);
@@ -2158,7 +2184,7 @@ function takeOutOfTrash(ids) {
   trash.items = trash.items.filter((id) => !ids.includes(id));
   let target = folders.find((f) => f.id !== TRASH_ID);
   if (!target) {
-    target = makeFolder({ id: "f-unsorted", name: "Unsorted" });
+    target = makeFolder({ id: UNSORTED_ID, name: i18nT(UNSORTED_NAME_KEY) });
     folders.unshift(target);
   }
   for (const id of ids) {
@@ -2847,13 +2873,56 @@ function onReplacementFilePicked(e) {
   });
 }
 
+function addSubfolder(folder, folderEl) {
+  const child = makeFolder({ parentId: folder.id });
+  folders.push(child);
+  folder.collapsed = false;
+  folderEl.classList.remove("collapsed");
+  saveState();
+  render();
+  openFolderEditor(child.id, NEW_SUBFOLDER_TITLE_KEY);
+}
+
+function armFolderDelete(button, folderId) {
+  confirmOnSecondClick(button, {
+    label: button.querySelector(`.${ARM_TEXT_CLASS}`),
+    armedText: i18nT("folder.deleteConfirm"),
+    onConfirm: () => deleteFolder(folderId),
+  });
+}
+
+const RENAME_FOLDER_KEY = "F2";
+
+/** A user folder's F2 rename and its … menu; Delete in the menu arms the … button. */
+function wireFolderControls(head, folderEl, folder) {
+  const renameFolder = () => openFolderEditor(folder.id, RENAME_FOLDER_TITLE_KEY);
+  head.addEventListener("keydown", function onFolderHeadRenameKey(e) {
+    if (e.key !== RENAME_FOLDER_KEY || e.target !== head) return;
+    e.preventDefault();
+    renameFolder();
+  });
+  head.querySelector(".f-more").addEventListener("click", function onFolderMoreClick(e) {
+    e.stopPropagation();
+    const button = e.currentTarget;
+    if (isArmed(button)) {
+      armFolderDelete(button, folder.id);
+      return;
+    }
+    openFolderMenu(button, folderDisplayName(folder), {
+      rename: renameFolder,
+      addSubfolder: function onAddSubfolderFromMenu() { addSubfolder(folder, folderEl); },
+      remove: function onArmDeleteFromMenu() {
+        armFolderDelete(button, folder.id);
+        button.focus();
+      },
+    });
+  });
+}
+
 function renderFolder(folder) {
   const isTrash = folder.id === TRASH_ID;
   const isUnsorted = folder.id === UNSORTED_ID;
-  // Unsorted is the system folder every new import lands in: it has no grip,
-  // no New subfolder and no delete, so its row has nothing to reveal on hover
-  // (#695). The Stem Collections header already has New Folder.
-  const isSystem = isTrash || isUnsorted;
+  const isSystem = isSystemFolder(folder.id);
   const isSubfolder = Boolean(folder.parentId);
   if (!isTrash) folder.color = normalizeFolderColor(folder.color);
 
@@ -2880,18 +2949,11 @@ function renderFolder(folder) {
     </span>`}
     <svg class="f-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
     ${folderIcon}
-    <span class="f-name">${esc(folder.name)}</span>
+    <span class="f-name">${esc(folderDisplayName(folder))}</span>
     <span class="f-count">${visibleItems.length}</span>
     ${isSystem ? "" : `
-      <button class="f-subfolder" type="button" aria-label="${esc(i18nT("folder.newSubfolder"))}" title="${esc(i18nT("folder.newSubfolder"))}">
-        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-          <path d="M12 11v6M9 14h6"/>
-        </svg>
-      </button>
-      <button class="f-del" type="button" aria-label="${esc(i18nT("folder.deleteFolder"))}" title="${esc(i18nT("folder.deleteFolder"))}">
-        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
-        ${ARM_TEXT_HTML}
+      <button class="f-more" type="button" aria-haspopup="menu" aria-expanded="false" title="${esc(i18nT("trackMenu.open"))}" aria-label="${esc(i18nT("trackMenu.openTitle", { title: folderDisplayName(folder) }))}">
+        ${icon("more")}${ARM_TEXT_HTML}
       </button>
     `}
   `;
@@ -2924,41 +2986,21 @@ function renderFolder(folder) {
 
   // Toggle folder collapse on single click.
   head.addEventListener("click", (e) => {
-    if (e.target.closest(".f-del, .f-subfolder, .f-grip")) return;
+    if (e.target.closest(FOLDER_HEAD_CONTROLS)) return;
     if (e.detail !== 1) return;
     window.clearTimeout(folderClickTimer);
     folderClickTimer = window.setTimeout(() => toggleFolderCollapsed(el), 180);
   });
 
   if (!isTrash) {
-    head.addEventListener("dblclick", (e) => {
-      if (e.target.closest(".f-del, .f-subfolder, .f-grip")) return;
+    head.addEventListener("dblclick", function onFolderHeadDoubleClick(e) {
+      if (e.target.closest(FOLDER_HEAD_CONTROLS)) return;
       window.clearTimeout(folderClickTimer);
       e.stopPropagation();
-      openFolderEditor(folder.id);
+      openFolderEditor(folder.id, RENAME_FOLDER_TITLE_KEY);
     });
   }
-
-  head.querySelector(".f-del")?.addEventListener("click", function onDeleteFolderClick(e) {
-    e.stopPropagation();
-    const btn = e.currentTarget;
-    confirmOnSecondClick(btn, {
-      label: btn.querySelector(`.${ARM_TEXT_CLASS}`),
-      armedText: i18nT("folder.deleteConfirm"),
-      onConfirm: () => deleteFolder(folder.id),
-    });
-  });
-
-  head.querySelector(".f-subfolder")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const child = makeFolder({ parentId: folder.id });
-    folders.push(child);
-    folder.collapsed = false;
-    el.classList.remove("collapsed");
-    saveState();
-    render();
-    openFolderEditor(child.id, "folder.newSubfolder");
-  });
+  if (!isSystem) wireFolderControls(head, el, folder);
 
   // Folder drag handle — reorder folders.
   const grip = head.querySelector(".f-grip");
@@ -3049,7 +3091,7 @@ function renderStrip(strip, nonTrash) {
     strip.appendChild(makeStripItem({
       className: "folder-thumb",
       id: folder.id,
-      title: `${folder.name} (${folder.items.length})`,
+      title: `${folderDisplayName(folder)} (${folder.items.length})`,
       html: folderThumbHtml(false),
       color: folderColor,
     }));

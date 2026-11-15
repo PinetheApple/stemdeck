@@ -1170,6 +1170,11 @@ MASTER_COMP_KNEE_DB = 6.0
 # target is reported as not reached.
 MASTER_GAIN_MIN_DB = -30.0
 MASTER_GAIN_MAX_DB = 20.0
+# The studio's master presets (static/js/masterMath.js MASTER_PRESETS): the
+# ceiling every preset uses, and the "louder" preset's target and glue amount.
+MASTER_PRESET_CEILING_DBTP = -1.0
+MASTER_PRESET_LOUDER_LUFS = -9.0
+MASTER_PRESET_LOUDER_COMP = 0.5
 # Gain into a limiter that already works buys less and less loudness, so a
 # missed target gets a few bounded correction passes, not one big jump.
 MASTER_CORRECTION_TOL_LU = 0.1
@@ -1209,6 +1214,11 @@ SUGGEST_BASS_SHORT_FACTOR = 2.0
 # out between the two (dB, level removed).
 SUGGEST_BOOST_DEFICIT_FULL_DB = 12.0
 SUGGEST_BOOST_DEFICIT_NONE_DB = 20.0
+# The master preset never asks the limiter for more than this on the peaks;
+# dense material (peak-to-loudness under the PLR) already this loud stays loud.
+SUGGEST_LIMIT_ALLOWANCE_DB = 4.0
+SUGGEST_DENSE_PLR_DB = 11.0
+SUGGEST_DENSE_LUFS = -11.0
 SUGGEST_CACHE_DIR = CACHE_DIR / "suggest"
 SUGGEST_CACHE_MAX_FILES = 200
 SUGGEST_CONCURRENCY = 2

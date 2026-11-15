@@ -59,11 +59,13 @@ export function setSilencedStems(stemNames) {
   silencedStems.clear();
   for (const stemName of stemNames) silencedStems.add(stemName);
   applyMix();
+  announceMixChange();
 }
 
 export function clearSilencedStems() {
   silencedStems.clear();
   applyMix();
+  announceMixChange();
 }
 
 export function mixGlobalPitch() {

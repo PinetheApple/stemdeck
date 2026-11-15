@@ -4,7 +4,7 @@
 import { audioEngine, currentJobId, masterVolume } from "./state.js";
 import { storeGet, storeSet } from "./utils.js";
 import { MASTER_LANE, getMaster, onFxChange, setMaster } from "./mixFx.js";
-import { LISTEN, applyPreset, encodeMasterParam, masterIsOn } from "./masterMath.js";
+import { LISTEN, applyPreset, encodeMasterParam, isLossyFormat, masterIsOn } from "./masterMath.js";
 
 export {
   LISTEN,
@@ -18,6 +18,8 @@ export { getMaster, setMaster } from "./mixFx.js";
 
 const MATCH_KEY = "stemdeck.master.match";
 const MASTER_QUERY_PARAM = "master";
+const LOSSY_QUERY_PARAM = "lossy";
+const LOSSY_ON = "1";
 // While on, the mix is compared with the last one measured this often, and
 // measured again once it has stopped changing for SETTLE_MS.
 const WATCH_MS = 600;
@@ -40,6 +42,7 @@ let listen = LISTEN.master;
 let match = true;
 let matchChosen = false;
 let mixSource = null;
+let exportLossy = false;
 let warm = false;
 let inflight = null;
 let watchTimer = 0;
@@ -136,10 +139,15 @@ export function setMixSource(fn) {
   mixSource = fn;
 }
 
+/** The export format picked in the export menu; a lossy one is planned under the lossy ceiling. */
+export function setExportFormat(format) {
+  exportLossy = isLossyFormat(format);
+}
+
 function signature() {
   const src = mixSource?.();
   if (!src || !isMasterOn()) return "";
-  return `${src.jobId}|${src.query}|${exportMasterParam()}`;
+  return `${src.jobId}|${src.query}|${exportMasterParam()}|${exportLossy}`;
 }
 
 function stopWatch() {
@@ -175,6 +183,7 @@ export function watch() {
 async function fetchPlan(src, signal) {
   const query = new URLSearchParams(src.query);
   query.set(MASTER_QUERY_PARAM, exportMasterParam());
+  if (exportLossy) query.set(LOSSY_QUERY_PARAM, LOSSY_ON);
   const res = await fetch(`/api/jobs/${src.jobId}/mixdown/loudness?${query}`, { signal });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
