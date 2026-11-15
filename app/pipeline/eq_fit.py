@@ -22,7 +22,8 @@ The fit, on the 31 third-octave bands (eq_analysis.py):
    31.5 Hz, 16 and 20 kHz) count less. No boost is asked where the signal
    lacks 12 to 20 dB or more against the target: then the content is
    missing, not dull (a song with no bass instrument is not given one, an
-   encoder's cut-off is not lifted). Cuts are allowed anywhere.
+   encoder's cut-off is not lifted), and a band centred there may boost by
+   no more than that share of the gain limit. Cuts are allowed anywhere.
 4. Greedy: of every candidate band the layout allows (each type at the
    nominal third-octave frequencies in its range and a few Q values), the one
    that lowers the cost most is added, its gain from weighted least squares
@@ -116,6 +117,11 @@ _SHELF_FIXED_DB, _SHELF_FULL_DB = 3.0, 15.0
 
 def _nominal_between(lo: float, hi: float) -> tuple[float, ...]:
     return tuple(float(f) for f in NOMINAL_HZ if lo <= f <= hi)
+
+
+def nearest_band(f: float) -> int:
+    """The third-octave band whose centre is closest to ``f`` (in octaves)."""
+    return int(np.argmin(np.abs(np.log2(np.asarray(CENTRES_HZ) / f))))
 
 
 def dynamic_shelf_freq(g: float) -> float:
@@ -263,10 +269,13 @@ def smoothed_error(measured_db, target_db, w: np.ndarray) -> np.ndarray:
 def boost_allowed(measured_db, target_db) -> np.ndarray:
     """Where a boost may be suggested (0..1 per band): full up to
     SUGGEST_BOOST_DEFICIT_FULL_DB under the target, none from
-    SUGGEST_BOOST_DEFICIT_NONE_DB (level removed, smoothed). The deficit is
-    not clipped: the error clip sits under the cut-off and would hide it."""
+    SUGGEST_BOOST_DEFICIT_NONE_DB (level removed). The deficit is neither
+    clipped (the clip sits under the cut-off) nor only smoothed (that halves
+    it at the edge of a hole): each band takes the worse of its own and the
+    smoothed value."""
     m = np.asarray(measured_db, dtype=float)
-    deficit = _smooth(_level_removed_error(m, target_db, weights_for(m)))
+    e = _level_removed_error(m, target_db, weights_for(m))
+    deficit = np.maximum(e, _smooth(e))
     span = SUGGEST_BOOST_DEFICIT_NONE_DB - SUGGEST_BOOST_DEFICIT_FULL_DB
     return np.clip((SUGGEST_BOOST_DEFICIT_NONE_DB - deficit) / span, 0.0, 1.0)
 
@@ -368,25 +377,33 @@ class _Fitter:
         denom = float(self.w @ (s * s)) + ridge
         return None if denom <= 0 else _round_gain(float(self.w @ (s * tdm)) / denom)
 
-    def best_for(self, slot: Slot, f: float, q: float, rest: np.ndarray) -> Pick | None:
-        """The best band of this shape given the others' response ``rest``;
-        its cost includes its own penalty."""
-        target = self.error - rest
-        if slot.gainless:
-            r = self.resp(slot, f, 0.0, q)
-            return (
-                None if too_much(rest + r) else Pick(slot, f, 0.0, q, r, self.cost_of(target - r))
-            )
+    def boost_cap(self, f: float) -> float:
+        """The most a band centred at ``f`` may boost: none where the content
+        there is missing, a share of the limit where it is fading."""
+        return SUGGEST_GAIN_MAX_DB * float(self.boost_ok[nearest_band(f)])
+
+    def _gainful(self, slot: Slot, f: float, q: float, rest: np.ndarray) -> Pick | None:
+        target, cap = self.error - rest, self.boost_cap(f)
         g0 = self._ls_gain(slot, f, q, target)
         best = None
         for g in [] if g0 is None else _gain_candidates(g0):
             r = self.resp(slot, f, g, q)
-            if too_much(rest + r):
+            if g > cap or too_much(rest + r):
                 continue
             cost = self.cost_of(target - r) + penalty(g)
             if best is None or cost < best.cost:
                 best = Pick(slot, f, g, q, r, cost)
         return best
+
+    def best_for(self, slot: Slot, f: float, q: float, rest: np.ndarray) -> Pick | None:
+        """The best band of this shape given the others' response ``rest``;
+        its cost includes its own penalty."""
+        if not slot.gainless:
+            return self._gainful(slot, f, q, rest)
+        r = self.resp(slot, f, 0.0, q)
+        if too_much(rest + r):
+            return None
+        return Pick(slot, f, 0.0, q, r, self.cost_of(self.error - rest - r))
 
     def _candidates(self):
         used = {c.slot.id for c in self.chosen}

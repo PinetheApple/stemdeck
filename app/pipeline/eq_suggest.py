@@ -55,7 +55,14 @@ from app.pipeline.eq_analysis import (
     loudness_change_db,
     loudness_of_power,
 )
-from app.pipeline.eq_fit import FitResult, fit_eq, neutral_out_db, weighted_rms_db, weights_for
+from app.pipeline.eq_fit import (
+    FitResult,
+    fit_eq,
+    nearest_band,
+    neutral_out_db,
+    weighted_rms_db,
+    weights_for,
+)
 from app.pipeline.eq_targets import Target
 from app.pipeline.fx_filters import HIGHSHELF, LOWCUT, LOWSHELF, TILT, Band, Eq
 
@@ -216,7 +223,7 @@ def _band_mask_and_key(band: Band) -> tuple[np.ndarray, str]:
         return fc >= band.f / _SHELF_REACH, f"suggest.why.highShelf{'Cut' if cut else 'Boost'}"
     if band.type == TILT:
         return fc >= band.f, f"suggest.why.tilt{'Darker' if cut else 'Brighter'}"
-    i = int(np.argmin(np.abs(np.log2(fc / band.f))))
+    i = nearest_band(band.f)
     mask = np.zeros(N_BANDS, dtype=bool)
     mask[max(0, i - 1) : i + 2] = True
     return mask, f"suggest.why.bell{'Cut' if cut else 'Boost'}"

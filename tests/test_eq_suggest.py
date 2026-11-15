@@ -241,7 +241,7 @@ def test_the_bass_shelf_corner_moves_with_its_gain_like_the_panel():
     [
         (slice(0, 6), 60, (0, 100)),
         (slice(28, 31), 60, (8000, 20001)),
-        (slice(11, 16), 30, (300, 520)),
+        (slice(11, 16), 30, (240, 640)),
     ],
     ids=["no-low-end", "encoder-cutoff", "audible-hole"],
 )
