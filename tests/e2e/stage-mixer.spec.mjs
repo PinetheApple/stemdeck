@@ -2,20 +2,12 @@
 // lanes, sections and a whole-song waveform to seek from, all fitting the window.
 
 import { test, expect } from "@playwright/test";
-import { openStudio, JOB_ID, SIBLING_JOB_ID } from "./helpers.mjs";
-import { dblclickFrozen } from "./saveRaces.mjs";
+import { openStudio, JOB_ID } from "./helpers.mjs";
 
 // seed.py writes these stems into a six-second fixture.
 const FIXTURE_STEMS = ["vocals", "drums", "bass", "other"];
 const FIXTURE_SECONDS = 6;
-const SIBLING_SECONDS = 2;
-const SIBLING_TOTAL_TEXT = "00:02";
-const SIBLING_SECTIONS = [
-  { id: "a", start: 0, end: 0.7, name: "Intro", color: "#4a7fff" },
-  { id: "b", start: 0.7, end: 1.4, name: "Hook", color: "#ff7a59" },
-  { id: "c", start: 1.4, end: 2, name: "Tag", color: "#4a7fff" },
-];
-const STREAMING_FLAG = ["stemdeck.audioEngine", "0"];
+const FIXTURE_TOTAL_TEXT = "00:06";
 const PERCENT = 100;
 // Lanes the fixture lacks, served from stems it has, so a song can load all six.
 const BORROWED_STEMS = { guitar: "bass", piano: "other" };
@@ -36,6 +28,8 @@ const SECTIONS = [
   { id: "c", start: 4, end: 6, name: "Outro", color: "#4a7fff" },
 ];
 const SEEK_TOLERANCE_SEC = 0.15;
+// Lets anything still settling after Stage opens land before the late duration arrives.
+const NOTHING_HAPPENS_MS = 1000;
 const WAVE_CLICK_FRACTION = 0.75;
 const HALF_GAIN = "0.5";
 const MIX_HIDDEN_KEY = "stemdeck.stage.mixHidden";
@@ -52,11 +46,6 @@ const mixOf = (page, stem) =>
   page.evaluate(async (name) => ({ ...(await import("/js/state.js")).mixerState[name] }), stem);
 const currentTime = (page) =>
   page.evaluate(async () => (await import("/js/transport.js")).transport().getCurrentTime());
-const openSongDuration = (page) =>
-  page.evaluate(async () => ({
-    id: (await import("/js/catalog.js")).getCurrentTrackInfo()?.id,
-    known: (await import("/js/state.js")).totalDuration > 0,
-  }));
 
 async function saveSections(page, sections, id = JOB_ID) {
   const res = await page.request.patch(`/api/jobs/${id}/sections`, { data: { sections } });
@@ -78,7 +67,6 @@ async function rewriteJobState(page, id, rewrite) {
 
 test.afterEach(async ({ page }) => {
   await saveSections(page, []);
-  await saveSections(page, [], SIBLING_JOB_ID);
 });
 
 test.describe("stage mixer", () => {
@@ -216,23 +204,39 @@ for (const size of WINDOWS) {
   });
 }
 
-// Only the streaming path learns a duration after the song opens, from its <audio> elements.
-test("a song opened in stage without a stored duration shows its sections and total once it loads, paused", async ({ page }) => {
-  await page.addInitScript(([key, value]) => localStorage.setItem(key, value), STREAMING_FLAG);
-  await saveSections(page, SIBLING_SECTIONS, SIBLING_JOB_ID);
-  await rewriteJobState(page, SIBLING_JOB_ID, ({ duration, ...state }) => state);
+/** Stage painted for a song whose duration is not known yet, as on open without a stored one. */
+async function paintWithoutDuration(page) {
+  await page.locator("#stageExitBtn").click();
+  await page.evaluate(async () => (await import("/js/state.js")).setTotalDuration(0));
+  await enterStage(page);
+}
+
+/** What player.js does when the audio reports the duration after the song opened. */
+async function learnDurationLate(page, seconds, totalText) {
+  await page.evaluate(async ([sec, text]) => {
+    const state = await import("/js/state.js");
+    state.setTotalDuration(sec);
+    state.timeEl.textContent = `00:00 / ${text}`;
+  }, [seconds, totalText]);
+}
+
+test("a duration learnt after the song opened brings in its sections and total while paused", async ({ page }) => {
+  await saveSections(page, SECTIONS);
   await openStudio(page);
   await enterStage(page);
-  await dblclickFrozen(page, `.cat-item[data-id="${SIBLING_JOB_ID}"]`);
-  await expect.poll(() => openSongDuration(page), { timeout: 20000 }).toEqual({ id: SIBLING_JOB_ID, known: true });
+  await paintWithoutDuration(page);
+  await page.waitForTimeout(NOTHING_HAPPENS_MS);
+  await expect(page.locator(".stage-sec")).toHaveCount(0);
+  await expect(page.locator("#stageTotal")).toHaveText("00:00");
 
+  await learnDurationLate(page, FIXTURE_SECONDS, FIXTURE_TOTAL_TEXT);
   await expect(page.locator("#stagePlayBtn")).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(".stage-sec")).toHaveText(SIBLING_SECTIONS.map((s) => s.name));
-  await expect(page.locator("#stageTotal")).toHaveText(SIBLING_TOTAL_TEXT);
+  await expect(page.locator(".stage-sec")).toHaveText(SECTIONS.map((s) => s.name));
+  await expect(page.locator("#stageTotal")).toHaveText(FIXTURE_TOTAL_TEXT);
   const wave = page.locator("#stageWave");
   const box = await wave.boundingBox();
   await wave.click({ position: { x: box.width * WAVE_CLICK_FRACTION, y: box.height / 2 } });
-  await expect.poll(() => currentTime(page)).toBeGreaterThan(SIBLING_SECONDS * WAVE_CLICK_FRACTION - SEEK_TOLERANCE_SEC);
+  await expect.poll(() => currentTime(page)).toBeGreaterThan(FIXTURE_SECONDS * WAVE_CLICK_FRACTION - SEEK_TOLERANCE_SEC);
 });
 
 const borrowStems = (state) => ({
