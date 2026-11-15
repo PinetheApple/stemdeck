@@ -8,7 +8,10 @@ import {
   positionStateFor,
   positionDrifted,
   nextMotion,
+  playKeyAction,
+  silentWav,
   STILL,
+  PLAY_KEY,
   POSITION_DRIFT_SEC,
 } from '../../static/js/mediaSessionModel.js';
 
@@ -123,6 +126,56 @@ const moving = nextMotion(started, true, 2.1);
 check('the playhead leaves the start: moving', moving, { from: 2, moving: true });
 check('a loop wrap back to the start stays moving', nextMotion(moving, true, 2), moving);
 check('a pause stops it', nextMotion(moving, false, 3), STILL);
+
+// ─── What the play key does ───
+
+check(
+  'paused: it starts',
+  playKeyAction({ playing: false, moving: false, clockReady: false }),
+  PLAY_KEY.START,
+);
+check(
+  'a start still loading its first audio: it waits, it does not pause',
+  playKeyAction({ playing: true, moving: false, clockReady: false }),
+  PLAY_KEY.IGNORE,
+);
+check(
+  'a count-in: it cancels, as the toggle does',
+  playKeyAction({ playing: true, moving: false, clockReady: true }),
+  PLAY_KEY.CANCEL_COUNT_IN,
+);
+check(
+  'already playing: nothing',
+  playKeyAction({ playing: true, moving: true, clockReady: true }),
+  PLAY_KEY.IGNORE,
+);
+
+// ─── The silent loop that keeps the OS controls ───
+
+const SAMPLE_RATE = 8000;
+const SECONDS = 2;
+const BYTES_PER_SAMPLE = 2;
+const HEADER_BYTES = 44;
+const wav = silentWav(SECONDS, SAMPLE_RATE);
+const view = new DataView(wav.buffer);
+const text = (at) => String.fromCharCode(...wav.slice(at, at + 4));
+const DATA_BYTES = SECONDS * SAMPLE_RATE * BYTES_PER_SAMPLE;
+check(
+  'a RIFF WAVE file',
+  [text(0), text(8), text(12), text(36)],
+  ['RIFF', 'WAVE', 'fmt ', 'data'],
+);
+check(
+  '16-bit mono PCM at the asked rate',
+  [view.getUint16(20, true), view.getUint16(22, true), view.getUint32(24, true), view.getUint16(34, true)],
+  [1, 1, SAMPLE_RATE, 16],
+);
+check(
+  'the sizes in the header match the file',
+  [view.getUint32(4, true), view.getUint32(40, true), wav.length],
+  [wav.length - 8, DATA_BYTES, HEADER_BYTES + DATA_BYTES],
+);
+check('every sample is zero', wav.slice(HEADER_BYTES).every((b) => b === 0), true);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
