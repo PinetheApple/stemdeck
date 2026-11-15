@@ -58,7 +58,18 @@ export function createCameraTake({ stream, preview, ctx, mime, camera }) {
     });
   }
 
+  /** A recorder that won't start leaves the take its sound: finish then sends no camera. */
   function start() {
+    try {
+      startRecorder();
+    } catch (err) {
+      console.warn("[film] the camera recorder could not start:", err);
+      recorder = null;
+      stopped = null;
+    }
+  }
+
+  function startRecorder() {
     const options = { videoBitsPerSecond: CAMERA_BITS_PER_SEC, ...(mime ? { mimeType: mime } : {}) };
     recorder = new MediaRecorder(new MediaStream([track]), options);
     stopped = new Promise((resolve) => recorder.addEventListener("stop", resolve, { once: true }));
