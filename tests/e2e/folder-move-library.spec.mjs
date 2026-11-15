@@ -78,8 +78,8 @@ test.describe("studio", () => {
     const row = page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first();
     await expect(row).toHaveClass(/\bactive\b/);
 
-    await row.locator(".cat-fav").focus();
-    await page.keyboard.press("Delete");
+    await row.hover();
+    await row.locator(".cat-del").click();
 
     await expect.poll(() => failureMessages(page)).toEqual([moving]);
     const folders = (await readCatalogState(page))?.folders ?? [];
