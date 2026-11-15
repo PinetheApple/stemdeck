@@ -162,6 +162,9 @@ LYRICS_RUNNING_BLOCKS_RESET = (
 )
 STEMS_FOLDER_MOVING = "Restart StemDeck to finish moving your stems folder, then make the lyrics."
 STEMS_FOLDER_MOVING_IMPORT = "Restart StemDeck to finish moving your stems folder before importing"
+STEMS_FOLDER_MOVING_SPLIT = (
+    "Restart StemDeck to finish moving your stems folder, then split the vocals."
+)
 JOB_NOT_FAILED = "job has not failed"
 SOURCE_FILE_GONE = "source file is gone"
 RESTORE_FROM_TRASH_FIRST = "restore it from the Trash first"
@@ -1062,6 +1065,13 @@ async def resplit_job(job_id: str, body: ResplitBody) -> dict:
     return {"job_id": new_job.id, "source_url": new_job.source_url}
 
 
+def _refuse_while_relocating(detail: str = STEMS_FOLDER_MOVING) -> None:
+    """409 while the stems folder moves: a write now lands in the folder the
+    files are leaving."""
+    if is_relocating():
+        raise HTTPException(status_code=409, detail=detail)
+
+
 def _vocal_split_job(job_id: str) -> Job:
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
@@ -1088,6 +1098,7 @@ def set_vocal_split_choice(job_id: str, body: VocalSplitChoiceBody) -> dict:
     at import or later: kept with the job, so it outlives the browser tab that
     made it. Stores only; POST .../vocal-split is what splits."""
     job = _vocal_split_job(job_id)
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_SPLIT)
     _set(job, vocal_split_choice=body.choice)
     registry_persist(JOBS_DIR)
     return _job_state(job)
@@ -1117,6 +1128,7 @@ async def start_vocal_split(job_id: str) -> JSONResponse:
         raise HTTPException(status_code=404, detail="job not found")
     if job.vocal_split == VOCAL_SPLIT_DONE:
         return JSONResponse(split_view(job), status_code=202)
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_SPLIT)
     stems_dir = _vocal_split_stems_dir(job_id)
     if not await asyncio.to_thread(stem_exists, stems_dir, "vocals"):
         raise HTTPException(status_code=409, detail=NO_VOCALS_STEM)
@@ -1646,6 +1658,7 @@ async def lookup_lyrics_route(job_id: str, body: LyricsLookupBody | None = None)
     job, job_dir = _lyrics_job(job_id)
     if await asyncio.to_thread(lyrics_path(job_dir).is_file):
         return await asyncio.to_thread(get_lyrics, job_id)
+    _refuse_while_relocating()
     if body and body.again:
         await asyncio.to_thread(forget_removal, job_dir)
     elif await asyncio.to_thread(lyrics_removed, job_dir):
@@ -1786,6 +1799,7 @@ async def set_lyrics_offset_route(job_id: str, request: Request) -> dict:
     is never rewritten, and applied by the page. Answers the offset kept."""
     job, job_dir = _lyrics_job(job_id)
     body = await _lyrics_body(request, LyricsOffsetBody)
+    _refuse_while_relocating()
     await asyncio.to_thread(_synced_lyrics, job_dir)
     entry = await asyncio.to_thread(set_lyrics_offset, job, job_dir, body.offset_sec)
     if entry is None:
@@ -1811,6 +1825,7 @@ async def align_lyrics_route(job_id: str, request: Request) -> dict:
     body = await _lyrics_body(request, LyricsAlignBody, empty_ok=True)
     if job.status != "done":
         raise HTTPException(status_code=409, detail="job not ready")
+    _refuse_while_relocating()
     stems_dir = (job_dir / "stems").resolve()
     if not stems_dir.is_relative_to(JOBS_DIR.resolve()):
         raise HTTPException(status_code=404, detail="job not found")
@@ -1964,6 +1979,7 @@ async def put_user_synced(job_id: str, request: Request) -> dict:
     it can time them, never change them."""
     job, job_dir = _lyrics_job(job_id)
     body = await _lyrics_body(request, UserSyncedBody, max_bytes=_TIMED_BODY_MAX_BYTES)
+    _refuse_while_relocating()
     try:
         entry = await asyncio.to_thread(set_user_synced, job, job_dir, body.synced)
     except NotTheseLyrics as exc:
@@ -1981,6 +1997,7 @@ async def delete_user_synced(job_id: str) -> dict:
     job, job_dir = _lyrics_job(job_id)
     if not lyrics_path(job_dir).is_file():
         raise HTTPException(status_code=404, detail="no lyrics")
+    _refuse_while_relocating()
     entry = await asyncio.to_thread(set_user_synced, job, job_dir, None)
     if entry is None:
         raise HTTPException(status_code=500, detail=LYRICS_NOT_SAVED)
@@ -2005,6 +2022,7 @@ async def put_user_text(job_id: str, request: Request) -> Response:
     body = await _lyrics_body(request, UserLyricsBody)
     if job.status != "done":
         raise HTTPException(status_code=409, detail="job not ready")
+    _refuse_while_relocating()
     try:
         entry = await asyncio.to_thread(set_user_lyrics, job, job_dir, body.text, body.keep_timing)
     except LyricsTooLong as exc:
@@ -2023,6 +2041,7 @@ async def delete_user_text(job_id: str) -> Response:
     Idempotent. Answers as GET .../lyrics then would, so 404 when the user's
     were all the track had."""
     job, job_dir = _lyrics_job(job_id)
+    _refuse_while_relocating()
     if not await asyncio.to_thread(restore_lyrics, job, job_dir):
         raise HTTPException(status_code=500, detail="could not restore lyrics")
     await asyncio.to_thread(registry_persist, JOBS_DIR)
@@ -2053,6 +2072,7 @@ async def put_lyrics(
     body = await _lyrics_body(request, LyricsChoiceBody, max_bytes=_CHOICE_BODY_MAX_BYTES)
     if job.status != STATUS_DONE:
         raise HTTPException(status_code=409, detail=JOB_NOT_READY)
+    _refuse_while_relocating()
     try:
         kept = await asyncio.to_thread(
             choose_lyrics,
@@ -2082,6 +2102,7 @@ async def delete_lyrics(job_id: str, carry_over: bool = False) -> Response:
     job, job_dir = _lyrics_job(job_id)
     if job.status != STATUS_DONE:
         raise HTTPException(status_code=409, detail=JOB_NOT_READY)
+    _refuse_while_relocating()
     if not await asyncio.to_thread(remove_lyrics, job, job_dir, carry_over=carry_over):
         raise HTTPException(status_code=500, detail=LYRICS_NOT_REMOVED)
     await asyncio.to_thread(registry_persist, JOBS_DIR)

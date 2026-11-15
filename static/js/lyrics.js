@@ -81,6 +81,7 @@ import { editableRows, plainTexts, plainTimedLines, untimedRows } from "./lyrics
 import { toolButton, setToolLabel, keepOnePrimary, TOOL_QUIET } from "./lyricsToolbar.js";
 import { initLyricsTranscribe, checkTranscribe, resetTranscribe } from "./lyricsTranscribe.js";
 import { RUN_STATE } from "./lyricsRunState.js";
+import { FOLDER_MOVING_KEY, refusedForFolderMove } from "./lyricsFolderMoving.js";
 
 // Set once every lyrics entry this browser kept is on the server (lyricsCarryOver.js).
 const CARRIED_OVER_KEY = "stemdeck.lyrics_carried_over";
@@ -713,6 +714,10 @@ async function saveOffset({ trackId, value }) {
       body: JSON.stringify({ offset_sec: value }),
       keepalive: true,
     });
+    if (await refusedForFolderMove(res)) {
+      if (trackId === shownTrackId) setAlignMessage(t(FOLDER_MOVING_KEY), "error");
+      return;
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
   } catch (err) {
     console.warn("lyrics offset save failed", err);
@@ -736,6 +741,7 @@ async function autoDetect() {
   align.detect.setAttribute("aria-busy", "true");
   setAlignMessage(t("lyrics.align.detecting"), "loading");
   let answer = null;
+  let failedKey = "lyrics.align.detectFailed";
   try {
     const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/lyrics/align`, {
       method: "POST",
@@ -743,6 +749,7 @@ async function autoDetect() {
       body: JSON.stringify({}),
     });
     if (res.ok) answer = await res.json();
+    else if (await refusedForFolderMove(res)) failedKey = FOLDER_MOVING_KEY;
     else console.warn("lyrics auto-detect refused", res.status);
   } catch (err) {
     console.warn("lyrics auto-detect failed", err);
@@ -750,7 +757,7 @@ async function autoDetect() {
   if (token !== alignToken || trackId !== shownTrackId || !align) return;
   align.detect.removeAttribute("aria-busy");
   if (!answer) {
-    setAlignMessage(t("lyrics.align.detectFailed"), "error");
+    setAlignMessage(t(failedKey), "error");
   } else if (answer.confident === true && typeof answer.offset_sec === "number") {
     applyOffset(answer.offset_sec, { save: false });
     setAlignMessage(t("lyrics.align.detected", { offset: formatSeconds(offset) }));
@@ -1155,6 +1162,12 @@ async function sendUserTiming({ trackId, lrc }) {
         body: JSON.stringify({ synced: lrc }),
         keepalive: true,
       });
+    if (await refusedForFolderMove(res)) {
+      if (trackId !== shownTrackId || !sync) return;
+      sync.saveState.textContent = "";
+      setSyncMessage(t(FOLDER_MOVING_KEY), "error");
+      return;
+    }
     // Nothing to remove is what a removal wanted.
     if (!res.ok && !(lrc == null && res.status === 404)) throw new Error(`HTTP ${res.status}`);
     if (trackId === shownTrackId && sync && !userSave) sync.saveState.textContent = t("lyrics.sync.saved");
@@ -1508,8 +1521,10 @@ async function lookUp(info, { song, again = false }) {
     const refused = !res.ok && res.status !== 404;
     if (refused && res.status === LRCLIB_UNREACHABLE) throw new Error(`lyrics lookup -> ${res.status}`);
     if (refused) {
+      const moving = await refusedForFolderMove(res);
+      if (controller.signal.aborted) return;
       if (!RETRIED_ON_OPEN.has(res.status)) refusedOnOpen.add(info.id);
-      showLookupFailed(info.id, "lyrics.lookupRefused");
+      showLookupFailed(info.id, moving ? FOLDER_MOVING_KEY : "lyrics.lookupRefused");
       return;
     }
     refusedOnOpen.delete(info.id);
