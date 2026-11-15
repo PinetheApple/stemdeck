@@ -120,9 +120,8 @@ CLICK_MULT_DEFAULT = 1.0
 CLICK_GAIN_DEFAULT = 0.6
 CLICK_GAIN_MAX = 4.0
 CLICK_GROUPS_MAX_CHARS = 64
-# Output encoders by container/extension, shared by the dynamic mixdown and the
-# stems zip. WAV is lossless PCM, FLAC is lossless compressed, MP3 is VBR ~190 kbps,
-# OGG is Vorbis VBR q6 (~192 kbps) — the quality tier matching the MP3 setting.
+# One table for the mix export and the stems zip, so a format encodes alike in both;
+# Vorbis q6 is the ~190 kbps tier that matches MP3 V2.
 EXPORT_ENCODE_ARGS: dict[str, list[str]] = {
     "wav": ["-c:a", "pcm_s16le"],
     "mp3": ["-q:a", "2"],

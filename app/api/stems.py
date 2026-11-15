@@ -1452,24 +1452,18 @@ async def get_all_stems_zip(
     job_id: str,
     fmt: str = Query(default="wav", alias="format"),
     stems: str | None = Query(default=None, description="Comma-separated stems; default all"),
-    click: Annotated[bool, stems_click.click_file_query()] = False,
-    click_mult: Annotated[float, stems_click.click_mult_query()] = stems_click.CLICK_MULT_DEFAULT,
-    click_accent: Annotated[int, stems_click.click_accent_query()] = stems_click.ACCENT_AUTO,
-    click_gain: Annotated[float, stems_click.click_gain_query()] = stems_click.CLICK_GAIN_DEFAULT,
-    click_groups: Annotated[str, stems_click.click_groups_query()] = "",
-    click_sound: Annotated[str, stems_click.click_sound_query()] = DEFAULT_CLICK_SOUND,
+    click: stems_click.ZipClickParams = stems_click.ZIP_CLICK_OFF,
 ) -> FileResponse:
     """Bundle the requested stems into a single ZIP, named after the song.
 
     `stems` is the active subset selected in the DAW (whitelisted). When omitted,
-    every available stem is included. `click` adds the click track as one more
-    file, `<song>_click.<format>` (stems_click.py); without it the zip is
-    exactly as before."""
+    every available stem is included. `click` adds the click track as
+    `<song>_click.<format>` (stems_click.py); without it the zip is as before."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
     if fmt not in ("wav", "mp3", "flac", "ogg"):
         raise HTTPException(status_code=422, detail="format must be 'wav', 'mp3', 'flac', or 'ogg'")
-    stems_click.check_click_sound(click_sound)
+    stems_click.check_click_sound(click.sound)
     job = registry_get(job_id)
     if job is None or job.status != "done":
         raise HTTPException(status_code=404, detail="job not ready")
@@ -1501,17 +1495,7 @@ async def get_all_stems_zip(
             sources.append((name, p))
     if not sources:
         raise HTTPException(status_code=404, detail="no stems found")
-    click_stem = None
-    if click:
-        click_stem = stems_click.ClickStem(
-            grid=await asyncio.to_thread(_read_beat_grid, job_id),
-            gain=click_gain,
-            multiplier=click_mult,
-            accent_mode=click_accent,
-            groups=_parse_groups(click_groups, click_accent),
-            sound=click_sound,
-        )
-    prefix = _title_slug(job.display_title)
+    click_stem = await stems_click.zip_click_stem(click, job_id, _read_beat_grid, _parse_groups)
 
     # In the export cache under a dot name, like a render: the cache prune
     # leaves it alone, and the startup sweep removes it if the process dies.
@@ -1524,7 +1508,7 @@ async def get_all_stems_zip(
     def build() -> None:
         try:
             with stems_click.click_stem_sources(click_stem, sources[0][1], tmp_path) as clicks:
-                _build_stems_zip([*sources, *clicks], fmt, tmp_path, prefix)
+                _build_stems_zip([*sources, *clicks], fmt, tmp_path, _title_slug(job.display_title))
         except Exception:
             # Logged here: after a cancel nobody awaits the thread.
             logger.exception("failed to build stems zip for job %s", job_id)

@@ -9,6 +9,7 @@ Two parts, kept out of stems.py so that module stays about the stems:
   alias), so one instance must never be shared between routes. It goes in the
   parameter's `Annotated` type and the default (`CLICK_*_DEFAULT`, `ACCENT_AUTO`,
   `DEFAULT_CLICK_SOUND`) in its signature, so a direct call gets real values.
+  The stems zip takes its six as one dependency, `ZipClickParams`.
 - The stems zip's click file: the isolated click track, rendered from the grid
   the app clicks to with the same rate, accents, grouping, level and sound as
   the click in a mix export. It starts at the song's first sample like every
@@ -23,15 +24,16 @@ imports this module.
 
 from __future__ import annotations
 
+import asyncio
 import subprocess
 import tempfile
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
-from typing import NamedTuple
+from typing import Annotated, NamedTuple
 
 import soundfile as sf
-from fastapi import HTTPException, Query
+from fastapi import Depends, HTTPException, Query
 
 from app.core.config import (
     CLICK_GAIN_DEFAULT,
@@ -50,15 +52,18 @@ from app.core.config import (
     ffmpeg_executable,
 )
 from app.pipeline.click_render import ACCENT_AUTO, CLICK_TO_STEREO, render_click_wav
-from app.pipeline.click_sounds import CLICK_SOUND_IDS
+from app.pipeline.click_sounds import CLICK_SOUND_IDS, DEFAULT_CLICK_SOUND
 
 # The click params' defaults are re-exported for the route signatures in stems.py.
 __all__ = [
     "ACCENT_AUTO",
     "CLICK_GAIN_DEFAULT",
     "CLICK_MULT_DEFAULT",
+    "ZIP_CLICK_OFF",
     "ZIP_WORK_PREFIX",
     "ClickStem",
+    "ZipClick",
+    "ZipClickParams",
     "check_click_sound",
     "click_accent_query",
     "click_file_query",
@@ -71,6 +76,8 @@ __all__ = [
     "click_stem_sources",
     "render_click_stem",
     "run_ffmpeg",
+    "zip_click_params",
+    "zip_click_stem",
     "zip_work_dir",
 ]
 
@@ -82,6 +89,7 @@ if CLICK_STEM_NAME in (*STEM_NAMES, *EXTRA_STEM_NAMES, *RENDERED_TRACK_NAMES):
 ZIP_WORK_PREFIX = ".zipwork-"
 _FFMPEG_STDERR_TAIL_BYTES = 2000
 _STEREO_CHANNELS = 2
+_CLICK_MONO_NAME = "click_mono.wav"
 
 CLICK_MIX_DESCRIPTION = "Mix the click track into the export"
 CLICK_FILE_DESCRIPTION = "Add the click track as its own file"
@@ -203,6 +211,76 @@ class ClickStem(NamedTuple):
     sound: str
 
 
+class ZipClick(NamedTuple):
+    """The stems zip's click query parameters, as the request gave them."""
+
+    enabled: bool
+    multiplier: float
+    accent_mode: int
+    gain: float
+    groups: str
+    sound: str
+
+
+def zip_click_params(
+    click: Annotated[bool, click_file_query()] = False,
+    click_mult: Annotated[float, click_mult_query()] = CLICK_MULT_DEFAULT,
+    click_accent: Annotated[int, click_accent_query()] = ACCENT_AUTO,
+    click_gain: Annotated[float, click_gain_query()] = CLICK_GAIN_DEFAULT,
+    click_groups: Annotated[str, click_groups_query()] = "",
+    click_sound: Annotated[str, click_sound_query()] = DEFAULT_CLICK_SOUND,
+) -> ZipClick:
+    """The stems zip's click parameters as one FastAPI dependency."""
+    return ZipClick(click, click_mult, click_accent, click_gain, click_groups, click_sound)
+
+
+ZIP_CLICK_OFF = zip_click_params()
+ZipClickParams = Annotated[ZipClick, Depends(zip_click_params)]
+
+
+async def zip_click_stem(
+    params: ZipClick,
+    job_id: str,
+    read_grid: Callable[[str], dict | None],
+    parse_groups: Callable[[str, int], list[int] | None],
+) -> ClickStem | None:
+    """What the zip's click file is rendered from, or None when the click is off.
+    The grid reader and group parser are stems.py's, passed in because this
+    module must not import it."""
+    if not params.enabled:
+        return None
+    return ClickStem(
+        grid=await asyncio.to_thread(read_grid, job_id),
+        gain=params.gain,
+        multiplier=params.multiplier,
+        accent_mode=params.accent_mode,
+        groups=parse_groups(params.groups, params.accent_mode),
+        sound=params.sound,
+    )
+
+
+def _render_mono_click(
+    click: ClickStem,
+    beats: list[float],
+    frames: int,
+    rate: int,
+    workdir: Path,
+) -> Path | None:
+    """Blocking: the mono click at unity, `frames` long at `rate`."""
+    return render_click_wav(
+        workdir / _CLICK_MONO_NAME,
+        beats,
+        click.grid.get("bars") or [],
+        frames / rate,
+        sample_rate=rate,
+        multiplier=click.multiplier,
+        accent_mode=click.accent_mode,
+        groups=click.groups,
+        sound=click.sound,
+        frames=frames,
+    )
+
+
 def render_click_stem(
     click: ClickStem,
     reference: Path,
@@ -215,19 +293,7 @@ def render_click_stem(
     if not beats:
         return None
     info = sf.info(str(reference))
-    frames, rate = int(info.frames), int(info.samplerate)
-    raw = render_click_wav(
-        workdir / "click_mono.wav",
-        beats,
-        click.grid.get("bars") or [],
-        frames / rate,
-        sample_rate=rate,
-        multiplier=click.multiplier,
-        accent_mode=click.accent_mode,
-        groups=click.groups,
-        sound=click.sound,
-        frames=frames,
-    )
+    raw = _render_mono_click(click, beats, int(info.frames), int(info.samplerate), workdir)
     if raw is None:
         return None
     out = workdir / f"{CLICK_STEM_NAME}.{FFMPEG_MUXER_WAV}"
