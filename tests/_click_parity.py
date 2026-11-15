@@ -1,6 +1,6 @@
 """The shared click-level expectation table, generated from the Python side.
 
-Playback (static/js/metronome.js) and export (app/pipeline/click_render.py) must
+Playback (static/js/clickAccents.js) and export (app/pipeline/click_render.py) must
 agree beat for beat, or a player monitors one thing and exports another. That was
 previously enforced by writing the same expected numbers into two test files by
 hand, which only catches a mistake in one of them: reason wrongly the same way

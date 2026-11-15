@@ -34,6 +34,7 @@ from app.core import lan_interfaces, tls_listener
 from app.core.compression import COMPRESS_LEVEL, MINIMUM_SIZE, TextGZipMiddleware
 from app.core.config import (
     ACOUSTID_CHECK_KEY,
+    BIND_HOST,
     DEMUCS_MODEL,
     DISCOGS_CHECK_TOKEN,
     FFMPEG_BIN,
@@ -90,6 +91,7 @@ from app.core.settings import (
     get_stem_format,
     get_stem_mp3_kbps,
     get_transcribe_lyrics,
+    get_video_encoder,
     get_video_max_height,
     set_acoustid_api_key,
     set_allow_network,
@@ -108,6 +110,7 @@ from app.core.settings import (
     set_separation_quality,
     set_stem_storage,
     set_transcribe_lyrics,
+    set_video_encoder,
     set_video_max_height,
 )
 from app.core.stems_location import (
@@ -119,8 +122,10 @@ from app.core.stems_location import (
     remove_moved,
     validate_target,
 )
+from app.core.video_config import encoder_choices
 from app.pipeline.collect import sweep_crash_leftovers, sweep_failed_jobs, sweep_old_jobs
 from app.pipeline.sections import sweep_orphaned_workspaces as sweep_orphaned_section_workspaces
+from app.pipeline.video_encoder import encoder_override
 
 # Set the stemdeck logger level (Python's default root level of WARNING would
 # silently drop every logger.info(...) call) and attach the rotating file log
@@ -419,6 +424,11 @@ def _settings_payload() -> dict[str, object]:
         "playlist_max_items": get_playlist_max_items(),
         "video_max_height": get_video_max_height(),
         "export_sample_rate": get_export_sample_rate(),
+        # The video export's encoder: the choice, this OS's options, and the
+        # STEMDECK_VIDEO_ENCODER value that overrides it (None when unset).
+        "video_encoder": get_video_encoder(),
+        "video_encoder_choices": list(encoder_choices()),
+        "video_encoder_env": encoder_override(),
         "separation_quality": get_separation_quality(),
         # How new songs' stems are stored; songs in the library keep their own.
         "stem_format": get_stem_format(),
@@ -477,11 +487,15 @@ def get_settings(request: Request) -> dict[str, object]:
     # Show the port the server is actually running on rather than the stored
     # preference (which only takes effect on the next restart) -- so the field
     # reflects reality. Editing it still saves the preference via POST.
+    # Likewise network_listening: what this process listens on, which changes
+    # only when the desktop shell restarts it (None outside the shell).
+    listening = None if BIND_HOST is None else not _is_loopback(BIND_HOST)
     return {
         **_settings_payload(),
         "port": port,
         "lan_addresses": [entry["url"] for entry in entries],
         "network_addresses": entries,
+        "network_listening": listening,
     }
 
 
@@ -586,6 +600,11 @@ async def update_settings(request: Request) -> dict[str, object]:
             set_export_sample_rate(body["export_sample_rate"])
         except ValueError as e:
             # Allowlist violation / non-integer -- the message names the valid rates.
+            raise HTTPException(status_code=422, detail=str(e)) from None
+    if "video_encoder" in body:
+        try:
+            set_video_encoder(body["video_encoder"])
+        except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e)) from None
     if "cookies_file" in body:
         try:
@@ -1334,6 +1353,8 @@ async def secure_origin_gate(request: Request, call_next):
 # refuses requests from OTHER devices when availability is off. The host machine
 # (loopback or its own LAN IP) is always served, so the app keeps working
 # locally regardless of this setting.
+# On desktop the shell also binds loopback while it is off; this covers the gap
+# between saving the choice and the restart that applies it.
 @app.middleware("http")
 async def network_gate(request: Request, call_next):
     if not get_allow_network():
