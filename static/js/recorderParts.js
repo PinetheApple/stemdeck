@@ -5,19 +5,31 @@ import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 import { HTTP_NOT_FOUND } from "./libraryControls.js";
 
 export const TAKE_PART_SEC = 2;
-// The last delay repeats: a part is retried for as long as the take lives.
+// The last delay repeats: a transient failure is retried until it clears or the take is discarded.
 export const RETRY_DELAYS_MS = [250, 1000, 2000, 4000, 8000];
 
 const HTTP_SUCCESS_END = 300;
-const HTTP_TOO_LARGE = 413;
-const HTTP_UNPROCESSABLE = 422;
-const FATAL_STATUSES = new Set([HTTP_NOT_FOUND, HTTP_TOO_LARGE, HTTP_UNPROCESSABLE]);
+const HTTP_REQUEST_TIMEOUT = 408;
+const HTTP_TOO_MANY_REQUESTS = 429;
+const HTTP_SERVER_ERROR = 500;
 
 export const UPLOAD_ERROR = {
   finished: "finished",
   gap: "gap",
   refused: "refused",
+  gone: "gone",
+  discarded: "discarded",
 };
+
+// No status means the request never got an answer.
+function isTransient(status) {
+  if (status === null || status === undefined) return true;
+  return status === HTTP_REQUEST_TIMEOUT || status === HTTP_TOO_MANY_REQUESTS || status >= HTTP_SERVER_ERROR;
+}
+
+function failureFor(status) {
+  return status === HTTP_NOT_FOUND ? UPLOAD_ERROR.gone : UPLOAD_ERROR.refused;
+}
 
 /**
  * Collects interleaved float32 samples and hands back whole parts of
@@ -91,9 +103,15 @@ export function createPartUploader(
 
   const delayFor = (attempt) => retryDelaysMs[Math.min(attempt, retryDelaysMs.length - 1)];
 
+  function stop(reason) {
+    if (error) return;
+    error = reason;
+    queue.length = 0;
+  }
+
   async function sendHead() {
     const part = queue[0];
-    for (let attempt = 0; ; attempt++) {
+    for (let attempt = 0; !error; attempt++) {
       const status = await trySend(part, attempt);
       if (status !== null && status < HTTP_SUCCESS_END) {
         queue.shift();
@@ -101,10 +119,7 @@ export function createPartUploader(
         return;
       }
       if (status === HTTP_CONFLICT) return resync();
-      if (FATAL_STATUSES.has(status)) {
-        error = UPLOAD_ERROR.refused;
-        return;
-      }
+      if (!isTransient(status)) return stop(failureFor(status));
       await wait(delayFor(attempt));
     }
   }
@@ -120,18 +135,21 @@ export function createPartUploader(
   }
 
   async function readServerState() {
-    for (let attempt = 0; ; attempt++) {
+    for (let attempt = 0; !error; attempt++) {
       try {
         return await readState();
       } catch (err) {
+        if (!isTransient(err?.status)) return stop(failureFor(err.status));
         if (attempt === 0) console.warn("[recorder] could not read the take's upload state:", err);
         await wait(delayFor(attempt));
       }
     }
+    return null;
   }
 
   async function resync() {
     const state = await readServerState();
+    if (!state) return;
     if (state.finished) {
       error = UPLOAD_ERROR.finished;
       return;
@@ -155,5 +173,9 @@ export function createPartUploader(
       return { ok: !error && queue.length === 0, sent, error };
     },
     status: () => ({ queued: queue.length, sent, error }),
+    /** Give up on what has not reached the server; the take stays there as unfinished. */
+    discard() {
+      stop(UPLOAD_ERROR.discarded);
+    },
   };
 }

@@ -1447,8 +1447,6 @@ export async function loadTrackIntoStudio(trackId) {
   } catch (e) { console.warn("[catalog] server sync failed, using stored track:", e); }
 
   if (token !== _loadTrackToken) return;
-  await finishTakeBeforeTeardown();
-  if (token !== _loadTrackToken) return;
   // The user has chosen to look at something else, so the running import gives
   // up the studio. It keeps running and keeps updating its own row; it just
   // stops repainting this view (and, at completion, replacing the audio that
@@ -1460,6 +1458,8 @@ export async function loadTrackIntoStudio(trackId) {
   if (PROCESSING_STATUSES.has(track.status)) return;
   if (!track.audioStems?.length) return;
   if (track.status !== "done" && !hadStoredAudio) return;
+  await finishTakeBeforeTeardown();
+  if (token !== _loadTrackToken) return;
   applyStoredStemSelection(track);
   setCurrentTrack(trackId);
 

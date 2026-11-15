@@ -19,7 +19,7 @@ import * as actions from "./takesActions.js";
 import { armedLevel, armedTrack, disarm, onArmChange } from "./recorderArm.js";
 import { loadRecorderPrefs } from "./recorderPrefs.js";
 import {
-  REC_PHASE, STOP_REASON, onRecorderEvent, recordBlock, recordingTake, takeElapsedSec, toggleRecording,
+  REC_PHASE, STOP_REASON, isLostUpload, onRecorderEvent, recordBlock, recordingTake, takeElapsedSec, toggleRecording,
 } from "./recorder.js";
 import { paintCountIn, paintRecordButton, paintStageMark, showRecNotice, wireRecordButton } from "./recorderUi.js";
 
@@ -203,7 +203,7 @@ function onRecorder(event) {
     render();
     return;
   }
-  if (event.type === "failed") showRecNotice(t("rec.notice.failed"));
+  if (event.type === "failed" && !isLostUpload(event.error)) showRecNotice(t("rec.notice.failed"));
   if (event.type === "finished" && event.reason === STOP_REASON.switched) noticeAfterSwitch(event);
   if (event.type === "finished" && event.jobId === session.jobId) session.ui.review = event.takeId;
   if (event.jobId === session.jobId) refresh();
@@ -221,6 +221,7 @@ function paintFooter() {
   const elapsed = take ? takeElapsedSec() : null;
   paintRecordButton({
     hasTracks: session.views.length > 0,
+    canDiscard: take?.canDiscard ?? false,
     phase: take?.phase ?? null,
     block: recordBlock(),
     elapsedSec: elapsed ?? 0,

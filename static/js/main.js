@@ -1124,7 +1124,7 @@ document.addEventListener("keydown", function onStudioShortcutKey(e) {
   } else if (e.code === "KeyK") {
     e.preventDefault();
     toggleMetronome();
-  } else if (e.code === "KeyR") {
+  } else if (e.code === "KeyR" && !e.repeat) {
     e.preventDefault();
     document.getElementById("t-rec")?.click();
   } else if (e.code === "KeyI" && loopEnabled) {

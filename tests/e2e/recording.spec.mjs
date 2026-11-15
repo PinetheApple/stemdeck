@@ -15,6 +15,10 @@ const PART_FRAMES = 4800;
 const MONO_FLOAT_BYTES = 4;
 const WORKLET_BATCH_FRAMES = 2048;
 const HTTP_CONFLICT = 409;
+const HTTP_NOT_FOUND = 404;
+const MS_PER_SEC = 1000;
+// Well under recorder.js's TEARDOWN_WAIT_MS (500), so a wait that ran would show.
+const FAST_PATH_MAX_MS = 100;
 
 const recordBtn = (page) => page.locator("#t-rec");
 const trackRow = (page) => page.locator(".rec-row").first();
@@ -54,6 +58,11 @@ async function markRecoverable(route) {
 async function refuseNewTakes(route) {
   if (route.request().method() !== "POST") return route.fallback();
   return route.fulfill({ status: HTTP_CONFLICT, json: { detail: "Another take is recording." } });
+}
+
+async function refuseParts(route) {
+  if (route.request().method() !== "PUT") return route.fallback();
+  return route.fulfill({ status: HTTP_NOT_FOUND, json: { detail: "Take not found." } });
 }
 
 async function recordTake(page) {
@@ -185,6 +194,68 @@ test("a soloed take leaves no stems to export", async ({ page, request }) => {
   await trackRow(page).locator(".solo").click();
   const exported = await page.evaluate(async () => (await import("/js/player.js")).downloadCurrentMix("wav"));
   expect(exported).toBe(false);
+});
+
+test("a take the server no longer has ends with an error on its track", async ({ page }) => {
+  await openStudio(page);
+  await addArmedTrack(page);
+  await page.route("**/takes/*/parts*", refuseParts);
+  await recordBtn(page).click();
+  const problem = page.locator(".rec-wave .rec-problem");
+  await expect(problem).toContainText("This take couldn't be saved.", { timeout: 15000 });
+  await expect(recordBtn(page)).not.toHaveClass(/\bis-(recording|counting|saving)\b/);
+});
+
+test("Stop pressed while the input is still starting leaves nothing capturing", async ({ page, request }) => {
+  await openStudio(page);
+  await addArmedTrack(page);
+  await page.evaluate(() => {
+    const button = document.getElementById("t-rec");
+    button.click();
+    button.click();
+  });
+  await expect(recordBtn(page)).toBeEnabled();
+  const started = Date.now();
+  await recordTake(page);
+  const wallSec = (Date.now() - started) / MS_PER_SEC;
+  await expect.poll(async () => (await listing(request)).takes.length, { timeout: 15000 }).toBe(1);
+  // A leaked capture feeds the next take too, doubling its length.
+  expect((await listing(request)).takes[0].duration_sec).toBeLessThan(wallSec);
+});
+
+test("holding R starts recording once", async ({ page }) => {
+  await openStudio(page);
+  await addArmedTrack(page);
+  await page.keyboard.down("r");
+  await page.keyboard.down("r");
+  await page.keyboard.down("r");
+  await page.keyboard.up("r");
+  await expect(recordBtn(page)).toHaveClass(/\bis-(counting|recording)\b/, { timeout: 15000 });
+  await recordBtn(page).click();
+});
+
+test("leaving the page while recording asks first", async ({ page }) => {
+  await openStudio(page);
+  await addArmedTrack(page);
+  await recordBtn(page).click();
+  await expect(recordBtn(page)).toHaveClass(/\bis-recording\b/, { timeout: 15000 });
+  const asked = page.waitForEvent("dialog");
+  page.reload().catch(() => {});
+  const dialog = await asked;
+  expect(dialog.type()).toBe("beforeunload");
+  await dialog.dismiss();
+  await recordBtn(page).click();
+});
+
+test("a song switch with nothing recording does not wait for a take", async ({ page }) => {
+  await openStudio(page);
+  const waitedMs = await page.evaluate(async () => {
+    const { finishTakeBeforeTeardown } = await import("/js/recorder.js");
+    const started = performance.now();
+    await finishTakeBeforeTeardown();
+    return performance.now() - started;
+  });
+  expect(waitedMs).toBeLessThan(FAST_PATH_MAX_MS);
 });
 
 test("Record is off at other speeds and says why", async ({ page }) => {

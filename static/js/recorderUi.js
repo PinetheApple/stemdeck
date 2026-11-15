@@ -22,8 +22,8 @@ export function wireRecordButton(onClick) {
   recordBtn()?.addEventListener("click", onClick);
 }
 
-function buttonHint(phase, block, hasTracks) {
-  if (phase === REC_PHASE.finishing) return t("rec.saving");
+function buttonHint(phase, block, hasTracks, canDiscard) {
+  if (phase === REC_PHASE.finishing) return t(canDiscard ? "rec.discardSaving" : "rec.saving");
   if (phase) return t("rec.stop");
   if (!block) return t("rec.record");
   if (block === RECORD_BLOCK.noTrack && !hasTracks) return t(NO_TRACK_YET_HINT);
@@ -33,18 +33,19 @@ function buttonHint(phase, block, hasTracks) {
 let painted = "";
 
 /** `phase` is the take's REC_PHASE or null; `block` a RECORD_BLOCK or null. */
-export function paintRecordButton({ hasTracks, phase, block, elapsedSec }) {
+export function paintRecordButton({ hasTracks, phase, block, elapsedSec, canDiscard = false }) {
   const btn = recordBtn();
-  const key = `${hasTracks}|${phase}|${block}|${Math.floor(elapsedSec)}|${document.documentElement.lang}`;
+  const lang = document.documentElement.lang;
+  const key = `${hasTracks}|${phase}|${block}|${Math.floor(elapsedSec)}|${canDiscard}|${lang}`;
   if (!btn || key === painted) return;
   const phaseChanged = !painted.includes(`|${phase}|`);
   painted = key;
   btn.classList.toggle("is-counting", phase === REC_PHASE.counting);
   btn.classList.toggle("is-recording", phase === REC_PHASE.recording);
   btn.classList.toggle("is-saving", phase === REC_PHASE.finishing);
-  btn.disabled = phase === REC_PHASE.finishing || (Boolean(block) && !phase);
+  btn.disabled = (phase === REC_PHASE.finishing && !canDiscard) || (Boolean(block) && !phase);
   btn.setAttribute("aria-pressed", String(phase === REC_PHASE.counting || phase === REC_PHASE.recording));
-  const hint = buttonHint(phase, block, hasTracks);
+  const hint = buttonHint(phase, block, hasTracks, canDiscard);
   btn.title = hint;
   btn.setAttribute("aria-label", hint);
   const time = btn.querySelector(".rec-btn-time");

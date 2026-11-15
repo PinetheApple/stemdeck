@@ -155,5 +155,75 @@ function outage(downUntilMs) {
   check("the backoff is capped", Math.max(...clock.waits) === 4000, String(Math.max(...clock.waits)));
 }
 
+/** Raises like fetchJson does for a failed answer. */
+function httpError(status) {
+  return Object.assign(new Error(`HTTP ${status}`), { status });
+}
+
+const NOT_FOUND = 404;
+const UNPROCESSABLE = 422;
+const UNAVAILABLE = 503;
+const GIVE_UP_AFTER_WAITS = 50;
+
+/** A wait that counts its calls and gives up on a loop that would never end. */
+function countingWait() {
+  const waits = { count: 0 };
+  waits.wait = function countWait() {
+    waits.count += 1;
+    if (waits.count > GIVE_UP_AFTER_WAITS) throw new Error("still retrying");
+    return Promise.resolve();
+  };
+  return waits;
+}
+
+{
+  const server = fakeServer({ answers: [409] });
+  server.readState = () => Promise.reject(httpError(NOT_FOUND));
+  const waits = countingWait();
+  const up = createPartUploader({ ...server, wait: waits.wait }, { partSamples: PART_SAMPLES, channels: STEREO });
+  up.push(ramp(0, 24));
+  const result = await up.finish().catch((err) => ({ thrown: String(err) }));
+  check("a take deleted during a resync ends the upload", Boolean(result.error) && result.error === UPLOAD_ERROR.gone, JSON.stringify(result));
+  check("a deleted take is not retried", waits.count === 0, String(waits.count));
+  check("a deleted take drops what was queued", up.status().queued === 0, JSON.stringify(up.status()));
+}
+
+{
+  const server = fakeServer({ answers: [UNPROCESSABLE] });
+  const waits = countingWait();
+  const up = createPartUploader({ ...server, wait: waits.wait }, { partSamples: PART_SAMPLES, channels: STEREO });
+  up.push(ramp(0, 24));
+  const result = await up.finish().catch((err) => ({ thrown: String(err) }));
+  check("a refusal ends the upload", result.error === UPLOAD_ERROR.refused && waits.count === 0, JSON.stringify(result));
+  check("a refusal drops what was queued", up.status().queued === 0, JSON.stringify(up.status()));
+}
+
+{
+  const server = fakeServer({ answers: [UNAVAILABLE, UNAVAILABLE] });
+  const waits = countingWait();
+  const up = createPartUploader({ ...server, wait: waits.wait }, { partSamples: PART_SAMPLES, channels: STEREO });
+  up.push(ramp(0, 16));
+  const result = await up.finish();
+  check("a server error is retried", result.ok && waits.count === 2, JSON.stringify(result));
+}
+
+{
+  const { server, wait } = outage(Number.POSITIVE_INFINITY);
+  let up = null;
+  let waited = 0;
+  const discardOnThirdWait = function waitThenDiscard(ms) {
+    waited += 1;
+    if (waited === 3) up.discard();
+    return wait(ms);
+  };
+  up = createPartUploader(
+    { send: server.send, readState: server.readState, wait: discardOnThirdWait },
+    { partSamples: PART_SAMPLES, channels: STEREO },
+  );
+  up.push(ramp(0, 16));
+  const result = await up.finish();
+  check("discarding ends an upload stuck in an outage", Boolean(result.error) && result.error === UPLOAD_ERROR.discarded && waited === 3);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

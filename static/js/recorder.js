@@ -4,7 +4,7 @@
 import { audioEngine, currentJobId, playbackSpeed } from "./state.js";
 import { createTickLoop } from "./tickLoop.js";
 import { startCapture } from "./recorderCapture.js";
-import { createPartUploader, TAKE_PART_SEC } from "./recorderParts.js";
+import { createPartUploader, TAKE_PART_SEC, UPLOAD_ERROR } from "./recorderParts.js";
 import { songTimeAtCtx } from "./recorderTiming.js";
 import { armedTrack, setArmProblem } from "./recorderArm.js";
 import { savedRoundTrip, takeLatency } from "./latencyStore.js";
@@ -14,12 +14,22 @@ export const REC_PHASE = { counting: "counting", recording: "recording", finishi
 export const RECORD_BLOCK = { speed: "speed", noTrack: "noTrack", noInput: "noInput", noEngine: "noEngine" };
 export const STOP_REASON = { user: "user", transport: "transport", switched: "switched" };
 export const ARM_PROBLEM_START_FAILED = "startFailed";
+export const ARM_PROBLEM_SAVE_FAILED = "saveFailed";
 export const NORMAL_SPEED = 1;
 
 const SPEED_TOLERANCE = 1e-6;
 // getCurrentTime is held at the start position until the song has moved past it.
 const CLOCK_SETTLE_SEC = 0.05;
 const TEARDOWN_WAIT_MS = 500;
+// How long "Saving…" holds Record before it offers to discard what has not arrived.
+const SAVING_DISCARD_AFTER_MS = 10_000;
+// The server will never take these parts; the track says so instead of a notice.
+const LOST_UPLOAD = new Set([UPLOAD_ERROR.gone, UPLOAD_ERROR.refused]);
+
+/** True when the server will never have the take, so it is not left as unfinished either. */
+export function isLostUpload(error) {
+  return LOST_UPLOAD.has(error);
+}
 
 let take = null;
 const listeners = new Set();
@@ -38,7 +48,7 @@ function emit(event) {
 export function recordingTake() {
   if (!take) return null;
   const { jobId, trackId, takeId, phase, startPos, frame0, peaks } = take;
-  return { jobId, trackId, takeId, phase, startSec: frame0 ?? startPos, peaks };
+  return { jobId, trackId, takeId, phase, startSec: frame0 ?? startPos, peaks, canDiscard: canDiscard(take) };
 }
 
 export function takeElapsedSec() {
@@ -57,26 +67,48 @@ export function recordBlock() {
 
 /** Start a take on the armed track, or stop the one running. */
 export async function toggleRecording({ label, countIn }) {
+  if (take?.phase === REC_PHASE.finishing) return discardSaving(take);
   if (take) return stopTake(STOP_REASON.user);
   if (recordBlock()) return null;
   const eng = audioEngine;
   const arm = armedTrack();
-  take = newTake(eng, arm, label);
+  const t = newTake(eng, arm, label);
+  take = t;
   if (!eng.isPlaying()) countIn();
   emit({ type: "change" });
+  const capture = await openCapture(t, arm);
+  if (!capture) return null;
+  // Stop was pressed while the worklet was still loading.
+  if (take !== t) {
+    await capture.stop();
+    return null;
+  }
+  t.capture = capture;
+  loop.schedule();
+  return t;
+}
+
+async function openCapture(t, arm) {
   try {
-    take.capture = await startCapture(arm.input, arm.channels, {
-      onStart: onCaptureStart,
-      onAudio: onCaptureAudio,
-    });
+    return await startCapture(arm.input, arm.channels, { onStart: onCaptureStart, onAudio: onCaptureAudio });
   } catch (err) {
     console.warn("[recorder] capture could not start:", err);
-    take = null;
+    if (take === t) take = null;
     emit({ type: "change" });
     return null;
   }
-  loop.schedule();
-  return take;
+}
+
+function canDiscard(t) {
+  return t.phase === REC_PHASE.finishing && performance.now() - t.finishingSince > SAVING_DISCARD_AFTER_MS;
+}
+
+/** Give up on a save stuck behind a server that does not answer. */
+function discardSaving(t) {
+  if (!canDiscard(t)) return null;
+  t.discarded = true;
+  t.uploader?.discard();
+  return null;
 }
 
 function newTake(eng, arm, label) {
@@ -134,7 +166,9 @@ function tick() {
     else if (clockRunning(eng) && take.c0 !== null) beginTake(eng);
     return;
   }
-  if (!eng.isPlaying() || eng.getScheduleEpoch() !== take.epoch) stopTake(STOP_REASON.transport);
+  if (!eng.isPlaying() || eng.getScheduleEpoch() !== take.epoch || take.uploader?.status().error) {
+    stopTake(STOP_REASON.transport);
+  }
 }
 
 function clockRunning(eng) {
@@ -211,12 +245,14 @@ export async function stopTake(reason) {
   if (!t || t.phase === REC_PHASE.finishing) return null;
   const wasRecording = t.phase === REC_PHASE.recording;
   t.phase = REC_PHASE.finishing;
+  t.finishingSince = performance.now();
   const endSec = endSongSec(t);
   emit({ type: "change" });
   t.captureStopped = t.capture?.stop() ?? Promise.resolve(0);
   const dropped = await t.captureStopped;
   const outcome = wasRecording ? await finishOnServer(t, endSec, dropped ?? 0) : null;
   if (take === t) take = null;
+  if (isLostUpload(outcome?.error)) setArmProblem(t.trackId, ARM_PROBLEM_SAVE_FAILED);
   emit({ type: "change" });
   if (outcome) emit({ ...outcome, jobId: t.jobId, trackId: t.trackId, reason });
   return outcome;
@@ -237,6 +273,10 @@ export async function finishTakeBeforeTeardown() {
 
 async function finishOnServer(t, endSec, dropped) {
   if (!(await t.created)) return null;
+  if (t.discarded) {
+    t.uploader.discard();
+    return { type: "failed", takeId: t.takeId, error: UPLOAD_ERROR.discarded };
+  }
   try {
     const upload = await t.uploader.finish();
     if (!upload.ok) return { type: "failed", takeId: t.takeId, error: upload.error };
@@ -249,3 +289,10 @@ async function finishOnServer(t, endSec, dropped) {
     return { type: "failed", takeId: t.takeId, error: String(err) };
   }
 }
+
+// A take still recording or saving would be cut off; the browser asks first.
+globalThis.addEventListener?.("beforeunload", function onLeaveWhileRecording(e) {
+  if (!take) return;
+  e.preventDefault();
+  e.returnValue = "";
+});
