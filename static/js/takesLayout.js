@@ -1,6 +1,5 @@
-// How much of the lane stack the recording tracks need, for the lane fitting
-// in player.js: whole lanes for the tracks, short rows for open take folders
-// and the add row. player.js registers its refit; the takes UI sets the space.
+// The lane space the recording tracks need, shared between the takes UI that
+// sets it and player.js's lane fitting that reads it.
 
 let space = { lanes: 0, fixedPx: 0 };
 let refit = null;

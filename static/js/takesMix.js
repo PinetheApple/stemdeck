@@ -1,6 +1,5 @@
-// Volume, mute and solo of each recording track, kept per song beside the stem
-// mix. A track's solo silences the stems and a stem's solo silences the tracks,
-// the same rule the stems follow among themselves.
+// Volume, mute and solo of each recording track, kept per song; a solo on
+// either side silences the other, the rule the stems follow among themselves.
 
 import { masterVolume } from "./state.js";
 import { storeFlushPending, storeGet, storeSetDebounced } from "./utils.js";

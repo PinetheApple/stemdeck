@@ -1,4 +1,4 @@
-// The takes and tracks routes (docs/takes.md), one function each.
+// The takes and tracks routes, one function each.
 
 import { fetchJson } from "./libraryControls.js";
 

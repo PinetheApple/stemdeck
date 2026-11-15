@@ -1,30 +1,25 @@
-// One take, from Record to finish.
-//
-// Capture starts on the press, before any count-in, so a pickup note is kept.
-// Once the song's clock is running the first captured frame is placed on it:
-// frame0 is the song position leaving the graph when that frame was captured,
-// with no device latency folded in; the server subtracts the round trip. The
-// take is created then, its parts upload as they fill, and anything that takes
-// the song away (a seek, a loop wrap, pause, another song, an engine swap) stops
-// it and finishes it on the song it was recorded on.
+// One take from Record to finish. Capture starts on the press so a pickup note is
+// kept; anything that takes the song away stops the take and finishes it on its own song.
 
 import { audioEngine, currentJobId, playbackSpeed } from "./state.js";
 import { createTickLoop } from "./tickLoop.js";
 import { startCapture } from "./recorderCapture.js";
 import { createPartUploader, TAKE_PART_SEC } from "./recorderParts.js";
-import { armedTrack } from "./recorderArm.js";
+import { songTimeAtCtx } from "./recorderTiming.js";
+import { armedTrack, setArmProblem } from "./recorderArm.js";
 import { savedRoundTrip, takeLatency } from "./latencyStore.js";
 import { createTake, finishTake, readParts, sendPart } from "./takesApi.js";
 
 export const REC_PHASE = { counting: "counting", recording: "recording", finishing: "finishing" };
 export const RECORD_BLOCK = { speed: "speed", noTrack: "noTrack", noInput: "noInput", noEngine: "noEngine" };
 export const STOP_REASON = { user: "user", transport: "transport", switched: "switched" };
+export const ARM_PROBLEM_START_FAILED = "startFailed";
+export const NORMAL_SPEED = 1;
 
-const NORMAL_SPEED = 1;
 const SPEED_TOLERANCE = 1e-6;
-// The clock is read for placement only once the song has visibly moved past
-// the start, so getCurrentTime is no longer held at the start position.
+// getCurrentTime is held at the start position until the song has moved past it.
 const CLOCK_SETTLE_SEC = 0.05;
+const TEARDOWN_WAIT_MS = 500;
 
 let take = null;
 const listeners = new Set();
@@ -67,13 +62,12 @@ export async function toggleRecording({ label, countIn }) {
   const eng = audioEngine;
   const arm = armedTrack();
   take = newTake(eng, arm, label);
-  const playing = eng.isPlaying();
-  if (!playing) countIn();
+  if (!eng.isPlaying()) countIn();
   emit({ type: "change" });
   try {
     take.capture = await startCapture(arm.input, arm.channels, {
-      onStart: (sec, rate) => onCaptureStart(sec, rate),
-      onAudio: (samples, peak) => onCaptureAudio(samples, peak),
+      onStart: onCaptureStart,
+      onAudio: onCaptureAudio,
     });
   } catch (err) {
     console.warn("[recorder] capture could not start:", err);
@@ -147,18 +141,16 @@ function clockRunning(eng) {
   return eng.isClockReady() && eng.getCurrentTime() > take.startPos + CLOCK_SETTLE_SEC;
 }
 
-/** The song position leaving the graph at context time `sec`. */
-function songTimeAt(eng, sec) {
-  const outputOffset = eng.ctxTimeToSourceTime(eng.audioContext.currentTime) - eng.getCurrentTime();
-  return eng.ctxTimeToSourceTime(sec) - outputOffset;
-}
-
 function beginTake(eng) {
-  const frame0 = songTimeAt(eng, take.c0);
+  const now = eng.audioContext.currentTime;
+  const frame0 = songTimeAtCtx(eng.ctxTimeToSourceTime, now, eng.getCurrentTime(), take.c0);
   take.frame0 = frame0;
   take.phase = REC_PHASE.recording;
   take.epoch = eng.getScheduleEpoch();
-  take.created = createOnServer(take, frame0);
+  const t = take;
+  take.created = createOnServer(t, frame0).catch(function onCreateFailed(err) {
+    return abandonTake(t, err);
+  });
   emit({ type: "change" });
 }
 
@@ -177,13 +169,29 @@ async function createOnServer(t, frame0) {
   return t.takeId;
 }
 
+/** The server refused the take: drop what was captured and leave the track armed with the reason. */
+async function abandonTake(t, err) {
+  console.warn("[recorder] take could not be started:", err);
+  t.pending.length = 0;
+  if (take === t) take = null;
+  await t.capture?.stop();
+  setArmProblem(t.trackId, ARM_PROBLEM_START_FAILED);
+  emit({ type: "change" });
+  return null;
+}
+
 function createUploader(t) {
-  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   return createPartUploader(
     {
-      send: (seq, bytes) => sendPart(t.jobId, t.takeId, seq, bytes),
-      readState: () => readParts(t.jobId, t.takeId),
-      wait,
+      send: function sendTakePart(seq, bytes) {
+        return sendPart(t.jobId, t.takeId, seq, bytes);
+      },
+      readState: function readTakeParts() {
+        return readParts(t.jobId, t.takeId);
+      },
+      wait: function waitBeforeRetry(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      },
     },
     { partSamples: Math.round(t.rate * TAKE_PART_SEC) * t.channels.length, channels: t.channels.length },
   );
@@ -194,7 +202,10 @@ function endSongSec(t) {
   return t.engine.getCurrentTime();
 }
 
-/** Stop capture, send what is left and finish the take on its own song. */
+/**
+ * Stop capture, then keep the take in the "finishing" phase until every part
+ * has reached the server and it is finished on its own song.
+ */
 export async function stopTake(reason) {
   const t = take;
   if (!t || t.phase === REC_PHASE.finishing) return null;
@@ -202,17 +213,31 @@ export async function stopTake(reason) {
   t.phase = REC_PHASE.finishing;
   const endSec = endSongSec(t);
   emit({ type: "change" });
-  const dropped = await t.capture?.stop();
+  t.captureStopped = t.capture?.stop() ?? Promise.resolve(0);
+  const dropped = await t.captureStopped;
   const outcome = wasRecording ? await finishOnServer(t, endSec, dropped ?? 0) : null;
-  take = null;
+  if (take === t) take = null;
   emit({ type: "change" });
   if (outcome) emit({ ...outcome, jobId: t.jobId, trackId: t.trackId, reason });
   return outcome;
 }
 
+/**
+ * Before the engine is torn down (song switch, Up Next, engine swap): stop the
+ * take while its context still runs, so the last captured audio is kept. Waits
+ * for capture only, at most TEARDOWN_WAIT_MS; uploading carries on afterwards.
+ */
+export async function finishTakeBeforeTeardown() {
+  const t = take;
+  if (!t || t.phase === REC_PHASE.finishing) return;
+  stopTake(STOP_REASON.switched);
+  const timeout = new Promise((resolve) => setTimeout(resolve, TEARDOWN_WAIT_MS));
+  await Promise.race([t.captureStopped, timeout]);
+}
+
 async function finishOnServer(t, endSec, dropped) {
+  if (!(await t.created)) return null;
   try {
-    await t.created;
     const upload = await t.uploader.finish();
     if (!upload.ok) return { type: "failed", takeId: t.takeId, error: upload.error };
     const body = { dropped_quanta: dropped };

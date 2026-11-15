@@ -1,6 +1,5 @@
-// Settings > Recording: the input new tracks use, the latency test (run inline
-// under its row), and hear yourself. catalog.js builds the empty pane and calls
-// wireRecordingSettings with the dialog.
+// Settings > Recording, built into the empty pane catalog.js gives it. Opened
+// from a track, the latency test measures that track's input.
 
 import { t } from "./i18n.js";
 import { closeInput, inputInfo, listInputs, openInput } from "./recorderCapture.js";
@@ -10,6 +9,14 @@ import { runLatencyTest } from "./latencyTest.js";
 import { LATENCY_CLICKS } from "./latency.js";
 
 const PANE_SELECTOR = '[data-pane="recording"]';
+const FAILED_CLASS = "is-failed";
+
+let nextTestInput = null;
+
+/** The input the next Settings > Recording measures, when opened from a track. */
+export function setLatencyTestInput(deviceId) {
+  nextTestInput = deviceId;
+}
 
 function settingsRow(title, desc, controls) {
   const row = document.createElement("div");
@@ -81,13 +88,15 @@ function monitorSwitch() {
 }
 
 function latencyText(saved) {
-  return saved ? t("settings.recording.latencyMs", { ms: Math.round(saved.round_trip_ms) }) : t("settings.recording.notTested");
+  if (!saved) return t("settings.recording.notTested");
+  return t("settings.recording.latencyMs", { ms: Math.round(saved.round_trip_ms) });
 }
 
 function calibrationBox(className, text, ...buttons) {
   const box = document.createElement("div");
   box.className = `rec-cal${className ? ` ${className}` : ""}`;
-  box.setAttribute(className === "is-failed" ? "role" : "aria-live", className === "is-failed" ? "alert" : "polite");
+  if (className === FAILED_CLASS) box.setAttribute("role", "alert");
+  else box.setAttribute("aria-live", "polite");
   const p = document.createElement("p");
   p.textContent = text;
   const actions = document.createElement("div");
@@ -105,14 +114,29 @@ function clickDots() {
 }
 
 async function showLatency(panel) {
-  panel.value.textContent = latencyText(await savedRoundTrip(recorderPrefs().inputDeviceId));
+  panel.value.textContent = latencyText(await savedRoundTrip(panel.inputId));
+}
+
+function measureButton(panel, label, primary) {
+  return btn(label, primary, function onMeasureClick() {
+    measure(panel);
+  });
+}
+
+function cancelButton(panel) {
+  return btn(t("settings.recording.cancel"), false, function onCancelTestClick() {
+    resetTest(panel);
+  });
 }
 
 function showStart(panel) {
   panel.testBtn.hidden = true;
-  panel.host.replaceChildren(calibrationBox("", t("settings.recording.calStart"),
-    btn(t("settings.recording.start"), true, function onMeasureClick() { measure(panel); }),
-    btn(t("settings.recording.cancel"), false, function onCancelTestClick() { resetTest(panel); })));
+  panel.host.replaceChildren(calibrationBox(
+    "",
+    t("settings.recording.calStart", { clicks: LATENCY_CLICKS }),
+    measureButton(panel, t("settings.recording.start"), true),
+    cancelButton(panel),
+  ));
 }
 
 function resetTest(panel) {
@@ -123,36 +147,44 @@ function resetTest(panel) {
 }
 
 async function saveResult(panel, result) {
-  for (const id of new Set([result.deviceId, recorderPrefs().inputDeviceId])) {
+  for (const id of new Set([result.deviceId, panel.inputId])) {
     await saveRoundTrip(id, result.roundTripMs, result.sampleRate);
   }
   await showLatency(panel);
-  panel.host.replaceChildren(calibrationBox("", t("settings.recording.calSaved", { input: result.label }),
-    btn(t("settings.recording.again"), false, function onMeasureClick() { measure(panel); })));
+  panel.host.replaceChildren(calibrationBox(
+    "",
+    t("settings.recording.calSaved", { input: result.label }),
+    measureButton(panel, t("settings.recording.again"), false),
+  ));
+}
+
+function showFailed(panel) {
+  panel.host.replaceChildren(calibrationBox(
+    FAILED_CLASS,
+    t("settings.recording.calFailed"),
+    measureButton(panel, t("settings.recording.retry"), true),
+  ));
 }
 
 async function measure(panel) {
   panel.abort = new AbortController();
   const dots = clickDots();
-  const box = calibrationBox("", t("settings.recording.listening"),
-    btn(t("settings.recording.cancel"), false, function onCancelTestClick() { resetTest(panel); }));
+  const box = calibrationBox("", t("settings.recording.listening"), cancelButton(panel));
   box.querySelector("p").after(dots);
   panel.host.replaceChildren(box);
-  const result = await runTest(dots, panel.abort.signal);
+  const result = await runTest(panel.inputId, dots, panel.abort.signal);
   if (!result) return;
-  if (result.ok) {
-    await saveResult(panel, result);
-    return;
-  }
-  panel.host.replaceChildren(calibrationBox("is-failed", t("settings.recording.calFailed"),
-    btn(t("settings.recording.retry"), true, function onMeasureClick() { measure(panel); })));
+  if (result.ok) await saveResult(panel, result);
+  else showFailed(panel);
 }
 
 /** The latency row and its inline test: start, measuring, result or retry. */
-function latencySection() {
-  const panel = { value: document.createElement("span"), host: document.createElement("div"), abort: null };
+function latencySection(inputId) {
+  const panel = { inputId, value: document.createElement("span"), host: document.createElement("div"), abort: null };
   panel.value.className = "rec-latency-value";
-  panel.testBtn = btn(t("settings.recording.test"), false, function onTestLatencyClick() { showStart(panel); });
+  panel.testBtn = btn(t("settings.recording.test"), false, function onTestLatencyClick() {
+    showStart(panel);
+  });
   showLatency(panel);
   const row = settingsRow(t("settings.recording.latency"), t("settings.recording.latencyDesc"), [
     panel.value,
@@ -161,10 +193,16 @@ function latencySection() {
   return section(row, panel.host);
 }
 
-async function runTest(dots, signal) {
+function lightDots(dots, heard) {
+  [...dots.children].forEach(function lightDot(dot, k) {
+    dot.classList.toggle("is-heard", k < heard);
+  });
+}
+
+async function runTest(inputId, dots, signal) {
   let stream;
   try {
-    stream = await openInput(recorderPrefs().inputDeviceId);
+    stream = await openInput(inputId);
   } catch (err) {
     console.warn("[recorder] latency test could not open the input:", err);
     return { ok: false };
@@ -173,7 +211,9 @@ async function runTest(dots, signal) {
   try {
     const verdict = await runLatencyTest(stream, {
       signal,
-      onHeard: (n) => [...dots.children].forEach((dot, k) => dot.classList.toggle("is-heard", k < n)),
+      onHeard: function onClickHeard(heard) {
+        lightDots(dots, heard);
+      },
     });
     return verdict && { ...verdict, deviceId: info.deviceId, label: info.label || t("rec.defaultInput") };
   } finally {
@@ -186,9 +226,11 @@ export async function wireRecordingSettings(overlay) {
   const pane = overlay.querySelector(PANE_SELECTOR);
   if (!pane) return;
   await loadRecorderPrefs();
+  const inputId = nextTestInput ?? recorderPrefs().inputDeviceId;
+  nextTestInput = null;
   pane.replaceChildren(
     section(settingsRow(t("settings.recording.input"), "", [await inputSelect()])),
-    latencySection(),
+    latencySection(inputId),
     section(settingsRow(t("settings.recording.monitor"), t("settings.recording.monitorDesc"), [monitorSwitch()])),
   );
 }

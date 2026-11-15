@@ -1,12 +1,9 @@
-// Reads only the part of a take's audio.wav that holds sound.
-//
-// A take's file is as long as the song, mostly silence, so loading it whole would
-// cost a stem's worth of memory per take. The server renders it as 16-bit stereo
-// PCM and answers Range requests, so the header and then the clip's bytes are
-// all that is fetched.
+// Reads only the clip's bytes of a take's song-long audio.wav, through Range
+// requests, so a take costs its clip's memory and not a stem's.
 
 const HEADER_PROBE_BYTES = 64 * 1024;
 const PCM16_BITS = 16;
+const PCM16_BYTES = 2;
 const PCM16_SCALE = 32768;
 const RIFF_HEADER_BYTES = 12;
 const CHUNK_HEADER_BYTES = 8;
@@ -36,7 +33,7 @@ export function parsePcm16Header(buf) {
       };
     } else if (id === "data") {
       if (!format || format.bits !== PCM16_BITS) return null;
-      return { ...format, dataOffset: off + CHUNK_HEADER_BYTES, frameBytes: format.channels * 2 };
+      return { ...format, dataOffset: off + CHUNK_HEADER_BYTES, frameBytes: format.channels * PCM16_BYTES };
     }
     off += CHUNK_HEADER_BYTES + size + (size & 1);
   }
@@ -57,11 +54,11 @@ export function regionBytes(header, startSec, endSec) {
 /** Interleaved little-endian 16-bit samples, split into one float array per channel. */
 export function pcm16ToChannels(bytes, channels) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const frames = Math.floor(bytes.byteLength / (channels * 2));
+  const frames = Math.floor(bytes.byteLength / (channels * PCM16_BYTES));
   const out = Array.from({ length: channels }, () => new Float32Array(frames));
   for (let f = 0; f < frames; f++) {
     for (let c = 0; c < channels; c++) {
-      out[c][f] = view.getInt16((f * channels + c) * 2, true) / PCM16_SCALE;
+      out[c][f] = view.getInt16((f * channels + c) * PCM16_BYTES, true) / PCM16_SCALE;
     }
   }
   return out;

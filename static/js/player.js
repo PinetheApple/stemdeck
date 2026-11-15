@@ -63,6 +63,8 @@ import { paintNowPlayingArt } from "./formatIcon.js";
 import { noteMediaPosition, clearMediaSession } from "./mediaSession.js";
 import { trackPlayhead, resetFollowing } from "./autoScroll.js";
 import { takeLaneSpace, onTakeLayoutChange } from "./takesLayout.js";
+import { takeSoloActive } from "./takesMix.js";
+import { finishTakeBeforeTeardown } from "./recorder.js";
 
 // Playback-engine selection. All engines play decoded AudioBuffers off a single
 // AudioContext clock (no N streaming <audio> elements — that was the source of
@@ -648,7 +650,7 @@ function stemVuGain(stemName) {
   // Derived from trackIndex (the lanes actually mounted for THIS job) rather
   // than the fixed TRACK_NAMES, so a solo on a lead_vocals/backing_vocals
   // lane (#275) is honored the same as any of the base 6.
-  const anySolo = Object.keys(trackIndex).some((name) => mixerState[name]?.soloed);
+  const anySolo = takeSoloActive() || Object.keys(trackIndex).some((name) => mixerState[name]?.soloed);
   if (state.muted || (anySolo && !state.soloed)) return 0;
   return Math.max(0, state.volume);
 }
@@ -1643,10 +1645,13 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
                 // audio and accept placeholder waveforms).
                 if (estimateDecodedBytes(totalDuration, engineStemCount) <= MAX_ENGINE_DECODED_BYTES) {
                   console.warn("[player] no peaks.json; using full-decode engine for visuals");
-                  teardownMetronome();
-                  eng.destroy();
-                  if (audioEngine === eng) setAudioEngine(null);
-                  startEngine("fulldecode");
+                  finishTakeBeforeTeardown().then(function swapToFullDecode() {
+                    if (token !== visualRenderToken || audioEngine !== eng) return;
+                    teardownMetronome();
+                    eng.destroy();
+                    setAudioEngine(null);
+                    startEngine("fulldecode");
+                  });
                 } else {
                   console.warn("[player] no peaks.json and track too large to decode; waveforms unavailable");
                 }
@@ -1915,7 +1920,7 @@ async function _errorDetail(res) {
 // is heard. _currentStems already includes "original" when the user picked a
 // subset, so summing these lanes reconstructs the adjusted full song.
 function _effectiveMixGains() {
-  const anySolo = _currentStems.some((s) => mixerState[s.name]?.soloed);
+  const anySolo = takeSoloActive() || _currentStems.some((s) => mixerState[s.name]?.soloed);
   const names = [];
   const gains = [];
   const pitches = [];

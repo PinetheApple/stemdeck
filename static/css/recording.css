@@ -1,6 +1,5 @@
-/* ── Recording tracks and takes (#98) ──
-   A take's colour is the text colour, so it reads as "you" beside the stem
-   colours; red means "now", as the playhead already does. */
+/* Recording tracks and takes. A take is the text colour, so it reads as "you"
+   beside the stems; red means "now", as the playhead already does. */
 :root {
   --rec-color: var(--text);
   --rec-live: var(--danger);
@@ -94,8 +93,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: var(--icon);
+  height: var(--icon);
   padding: 0;
   border: 0;
   border-radius: var(--r-1);
@@ -105,7 +104,7 @@
   flex-shrink: 0;
 }
 .rec-folder-btn:hover { color: var(--text); background: var(--surface-3); }
-.rec-folder-btn .ic { width: 12px; height: 12px; transform: rotate(-90deg); transition: transform var(--t-fast); }
+.rec-folder-btn .ic { width: var(--s-3); height: var(--s-3); transform: rotate(-90deg); transition: transform var(--t-fast); }
 .rec-folder-btn[aria-expanded="true"] .ic { transform: none; }
 .rec-input-btn {
   display: flex;
@@ -122,7 +121,7 @@
   cursor: pointer;
 }
 .rec-input-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rec-input-btn .ic { width: 10px; height: 10px; flex-shrink: 0; color: var(--text-3); }
+.rec-input-btn .ic { width: var(--rec-dot); height: var(--rec-dot); flex-shrink: 0; color: var(--text-3); }
 .rec-input-btn .ic:last-child { margin-left: auto; }
 .rec-input-btn[aria-expanded="true"] { border-color: var(--accent); }
 .rec-row .lane-vu.mx-meter { height: 6px; }
@@ -153,7 +152,7 @@
 .rec-arm.mx-btn[aria-pressed="true"]::before { background: var(--rec-live); }
 .rec-row.is-recording { background: color-mix(in srgb, var(--danger) 7%, var(--bg-2)); }
 .rec-track-more.mx-btn { cursor: pointer; }
-.rec-track-more.mx-btn .ic { width: 14px; height: 14px; }
+.rec-track-more.mx-btn .ic { width: var(--icon-sm); height: var(--icon-sm); }
 
 /* A take inside the open folder: indented, shorter, no fader of its own. */
 .lane-header.mx-row.rec-take-row {
@@ -202,7 +201,7 @@
 .rec-take-flag { margin-left: auto; font: var(--fw-semibold) var(--fs-2xs) / 1 var(--font-sans); color: var(--warn); }
 .rec-take-del.mx-btn { border-color: transparent; color: var(--text-3); cursor: pointer; }
 .rec-take-del.mx-btn:hover { color: var(--danger); border-color: var(--border); }
-.rec-take-del.mx-btn .ic { width: 13px; height: 13px; }
+.rec-take-del.mx-btn .ic { width: var(--icon-sm); height: var(--icon-sm); }
 
 /* The take just recorded, or one left unfinished, asks once: keep or delete. */
 .rec-review { display: inline-flex; gap: var(--s-1); flex-shrink: 0; }
@@ -284,6 +283,30 @@
   color: var(--rec-live);
 }
 
+/* A take placed with the estimated latency: one line offering the test. */
+.rec-latency-hint {
+  position: absolute;
+  right: var(--s-2);
+  bottom: var(--s-1);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font: var(--fw-medium) var(--fs-xs) / 1 var(--font-sans);
+  color: var(--text-3);
+  pointer-events: auto;
+}
+.rec-latency-hint-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.rec-latency-hint-btn:hover { color: var(--accent-hi); }
+
 /* A plain-words problem in place of the lane: what happened, what to do. */
 .rec-problem {
   position: absolute;
@@ -314,10 +337,11 @@
   cursor: pointer;
 }
 .rec-btn.daw-iconbtn:disabled { cursor: not-allowed; }
-.footer-group-transport .rec-btn.daw-iconbtn[hidden] { display: none; }
+.rec-btn.is-saving .rec-btn-dot { animation: rec-saving-pulse var(--t-flash) ease-in-out infinite alternate; }
+@keyframes rec-saving-pulse { to { opacity: 0.35; } }
 .rec-btn .rec-btn-dot {
-  width: 12px;
-  height: 12px;
+  width: var(--s-3);
+  height: var(--s-3);
   border-radius: 50%;
   background: var(--rec-live);
   flex-shrink: 0;
@@ -333,7 +357,7 @@
   color: var(--accent-ink);
 }
 .rec-btn.is-recording .rec-btn-dot,
-.rec-btn.is-counting .rec-btn-dot { width: 10px; height: 10px; border-radius: 2px; background: var(--accent-ink); }
+.rec-btn.is-counting .rec-btn-dot { width: var(--rec-dot); height: var(--rec-dot); border-radius: 2px; background: var(--accent-ink); }
 .rec-btn-time { font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-mono); font-variant-numeric: tabular-nums; }
 
 /* After a song switch mid-take: a notice over the bottom of the lanes, so nothing moves. */
@@ -397,8 +421,8 @@
 .rec-cal-clicks i.is-heard { border-color: var(--success); background: var(--success); }
 .rec-cal.is-failed { border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
 .rec-latency-value { font: var(--fw-medium) var(--fs-sm) / 1 var(--font-mono); color: var(--text-2); white-space: nowrap; }
-.settings-btn.is-primary { background: var(--accent); color: var(--accent-ink); }
-.settings-btn.is-primary:hover:not(:disabled) { background: var(--accent-hi); color: var(--accent-ink); }
+[data-pane="recording"] .settings-btn.is-primary { background: var(--accent); color: var(--accent-ink); }
+[data-pane="recording"] .settings-btn.is-primary:hover:not(:disabled) { background: var(--accent-hi); color: var(--accent-ink); }
 
 /* Stage mode: only a small REC mark while a take is recording. */
 .rec-stage-mark {
@@ -413,10 +437,11 @@
   font: var(--fw-bold) var(--fs-sm) / 1 var(--font-mono);
 }
 .rec-stage-mark[hidden] { display: none; }
-.rec-stage-mark::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--accent-ink); }
+.rec-stage-mark::before { content: ""; width: var(--s-2); height: var(--s-2); border-radius: 2px; background: var(--accent-ink); }
 
 /* The track menus. */
 .rec-menu .lib-menu-item.is-danger,
 .rec-menu .lib-menu-item.is-danger .ic { color: var(--danger); }
+.rec-menu .lib-menu-item:disabled .ic { color: var(--text-3); }
 .rec-menu .lib-menu-sep { height: 1px; margin: var(--s-1) 0; background: var(--line); }
 .rec-menu .lib-menu-item[aria-checked="true"] { color: var(--accent); }

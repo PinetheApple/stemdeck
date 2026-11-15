@@ -1,5 +1,4 @@
-// The small menus of the recording tracks: the add row's kinds, a track's ⋯
-// menu and its input picker. One open at a time, placed under its button, or
+// The recording tracks' small menus: one open at a time, under its button, or
 // over it when the footer leaves no room below.
 
 import { iconButton } from "./libraryControls.js";
@@ -10,7 +9,7 @@ const VIEWPORT_MARGIN_PX = 8;
 let menu = null;
 let anchorEl = null;
 
-/** A menu entry: `{ text, icon, onChoose, danger?, selected? }`, or `{ separator: true }`. */
+/** A menu entry: `{ text, icon, onChoose, danger?, selected?, disabled? }`, or `{ separator: true }`. */
 function itemEl(item) {
   if (item.separator) {
     const sep = document.createElement("div");
@@ -21,6 +20,10 @@ function itemEl(item) {
   const el = iconButton(`lib-menu-item${item.danger ? " is-danger" : ""}`, item.icon, { text: item.text });
   el.setAttribute("role", item.selected === undefined ? "menuitem" : "menuitemradio");
   if (item.selected !== undefined) el.setAttribute("aria-checked", String(item.selected));
+  if (item.disabled) {
+    el.disabled = true;
+    return el;
+  }
   el.addEventListener("click", function onTakesMenuChoose(e) {
     e.stopPropagation();
     closeTakesMenu();

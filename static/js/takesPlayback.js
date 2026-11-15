@@ -1,17 +1,11 @@
-// Plays each recording track's active take in step with the song.
-//
-// Takes ride on whichever engine is playing, the way the click does: sources are
-// scheduled with the engine's own sourceTimeToCtxTime into its unpitched bus, so
-// they pass through the same tempo stage and master as the stems, stay at the
-// key they were recorded in, and are rescheduled whenever the engine's schedule
-// epoch moves (seek, loop wrap, speed change, pause).
+// Plays each track's active take on the engine's own clock and unpitched bus,
+// like the click, rescheduled whenever the schedule epoch moves.
 
 import { audioEngine } from "./state.js";
 import { createTickLoop } from "./tickLoop.js";
 import { loadTakeRegion } from "./takesAudio.js";
+import { planClip, scheduleFrom as scheduleStart, sourceRate } from "./takesSchedule.js";
 
-// Far enough ahead that the first sample is never already in the past.
-const SCHEDULE_LEAD_SEC = 0.05;
 const GAIN_RAMP_SEC = 0.01;
 
 /** trackId -> { takeId, url, start, end, clip, gainValue, gain, source } */
@@ -44,29 +38,20 @@ function laneGain(lane) {
   return lane.gain;
 }
 
-// The song position the sources will have reached SCHEDULE_LEAD_SEC from now;
-// during a count-in that is still before the start, which getCurrentTime holds.
 function scheduleFrom() {
-  const ahead = engine.ctxTimeToSourceTime(engine.audioContext.currentTime + SCHEDULE_LEAD_SEC);
-  return Math.max(engine.getCurrentTime(), ahead);
-}
-
-function sourceRate() {
-  const at = engine.audioContext.currentTime;
-  return engine.ctxTimeToSourceTime(at + 1) - engine.ctxTimeToSourceTime(at);
+  return scheduleStart(engine.ctxTimeToSourceTime, engine.audioContext.currentTime, engine.getCurrentTime());
 }
 
 function startLane(lane, from) {
   const { clip } = lane;
   if (!clip) return;
-  const clipEnd = clip.startSec + clip.buffer.duration;
-  if (from >= clipEnd) return;
-  const begin = Math.max(clip.startSec, from);
+  const plan = planClip(clip.startSec, clip.buffer.duration, from, engine.sourceTimeToCtxTime);
+  if (!plan) return;
   const source = engine.audioContext.createBufferSource();
   source.buffer = clip.buffer;
-  source.playbackRate.value = sourceRate();
+  source.playbackRate.value = sourceRate(engine.ctxTimeToSourceTime, engine.audioContext.currentTime);
   source.connect(laneGain(lane));
-  source.start(engine.sourceTimeToCtxTime(begin), begin - clip.startSec);
+  source.start(plan.when, plan.offset);
   lane.source = source;
 }
 

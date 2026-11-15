@@ -1,4 +1,4 @@
-// Recording tracks and takes (#98), on Chromium's fake microphone.
+// Recording tracks and takes, on Chromium's fake microphone.
 import { test, expect } from "@playwright/test";
 import { JOB_ID, SIBLING_JOB_ID, openStudio } from "./helpers.mjs";
 import { openSong } from "./saveRaces.mjs";
@@ -13,6 +13,8 @@ const RECORD_MS = 1500;
 const SLOW_SPEED = "0.75x";
 const PART_FRAMES = 4800;
 const MONO_FLOAT_BYTES = 4;
+const WORKLET_BATCH_FRAMES = 2048;
+const HTTP_CONFLICT = 409;
 
 const recordBtn = (page) => page.locator("#t-rec");
 const trackRow = (page) => page.locator(".rec-row").first();
@@ -38,12 +40,35 @@ async function addArmedTrack(page) {
   await expect(recordBtn(page)).toBeEnabled();
 }
 
+async function sampleRate(page) {
+  return page.evaluate(async () => (await import("/js/state.js")).audioEngine.audioContext.sampleRate);
+}
+
+async function markRecoverable(route) {
+  const response = await route.fetch();
+  const body = await response.json();
+  for (const open of body.open ?? []) open.recoverable = true;
+  await route.fulfill({ response, json: body });
+}
+
+async function refuseNewTakes(route) {
+  if (route.request().method() !== "POST") return route.fallback();
+  return route.fulfill({ status: HTTP_CONFLICT, json: { detail: "Another take is recording." } });
+}
+
 async function recordTake(page) {
   await recordBtn(page).click();
   await expect(recordBtn(page)).toHaveClass(/\bis-recording\b/, { timeout: 15000 });
   await page.waitForTimeout(RECORD_MS);
   await recordBtn(page).click();
 }
+
+test("Record waits for a recording track and says so", async ({ page }) => {
+  await openStudio(page);
+  await expect(recordBtn(page)).toBeVisible();
+  await expect(recordBtn(page)).toBeDisabled();
+  await expect(recordBtn(page)).toHaveAttribute("title", "Add a recording track");
+});
 
 test("arm, record, stop, then keep or delete the take", async ({ page, request }) => {
   await openStudio(page);
@@ -73,10 +98,14 @@ test("a song switch mid-take finishes the take on its own song", async ({ page, 
   await expect(recordBtn(page)).toHaveClass(/\bis-recording\b/, { timeout: 15000 });
   await page.waitForTimeout(RECORD_MS);
 
+  const rate = await sampleRate(page);
   await openSong(page, SIBLING_JOB_ID);
   await expect(page.locator(".rec-notice")).toBeVisible({ timeout: 15000 });
   await expect.poll(async () => (await listing(request)).takes.length, { timeout: 15000 }).toBe(1);
   expect((await listing(request)).open).toHaveLength(0);
+  // Whole worklet batches only would mean the tail captured before the switch was lost.
+  const frames = Math.round((await listing(request)).takes[0].duration_sec * rate);
+  expect(frames % WORKLET_BATCH_FRAMES).not.toBe(0);
   expect((await listing(request, SIBLING_JOB_ID)).takes).toHaveLength(0);
   await expect(page.locator(".rec-row")).toHaveCount(0);
 });
@@ -109,12 +138,53 @@ test("a take cut off by a crash comes back as unfinished and can be kept", async
     data: Buffer.alloc(PART_FRAMES * MONO_FLOAT_BYTES),
   });
 
+  await page.route(`**${TAKES_URL}`, markRecoverable);
   await openStudio(page);
   const row = page.locator(`.rec-take-row[data-rec-take="${take.take_id}"]`);
   await expect(row).toContainText("Unfinished");
   await row.locator(".rec-chip.is-primary").click();
   await expect.poll(async () => (await listing(request)).takes.length).toBe(1);
   await expect(page.locator(".rec-take-flag")).toHaveCount(0);
+
+  const hint = page.locator(".rec-wave .rec-latency-hint");
+  await expect(hint).toContainText("Timing is estimated.");
+  await hint.getByRole("button", { name: "Test latency" }).click();
+  await expect(page.locator('[data-pane="recording"] .rec-latency-value')).toBeVisible();
+});
+
+test("a take the server refuses to start says so and leaves the track armed", async ({ page }) => {
+  await openStudio(page);
+  await addArmedTrack(page);
+  await page.route(`**${TAKES_URL}`, refuseNewTakes);
+  await recordBtn(page).click();
+  const problem = page.locator(".rec-wave .rec-problem");
+  await expect(problem).toContainText("Couldn't start recording. Try again.", { timeout: 15000 });
+  await expect(recordBtn(page)).not.toHaveClass(/\bis-(recording|counting|saving)\b/);
+  await expect(trackRow(page).locator(".rec-arm")).toHaveAttribute("aria-pressed", "true");
+
+  await page.unroute(`**${TAKES_URL}`, refuseNewTakes);
+  await problem.getByRole("button", { name: "Try again" }).click();
+  await expect(recordBtn(page)).toBeEnabled();
+});
+
+test("R starts and stops recording", async ({ page, request }) => {
+  await openStudio(page);
+  await addArmedTrack(page);
+  await page.keyboard.press("r");
+  await expect(recordBtn(page)).toHaveClass(/\bis-recording\b/, { timeout: 15000 });
+  await page.waitForTimeout(RECORD_MS);
+  await page.keyboard.press("r");
+  await expect.poll(async () => (await listing(request)).takes.length, { timeout: 15000 }).toBe(1);
+});
+
+test("a soloed take leaves no stems to export", async ({ page, request }) => {
+  await openStudio(page);
+  await addArmedTrack(page);
+  await recordTake(page);
+  await expect.poll(async () => (await listing(request)).takes.length, { timeout: 15000 }).toBe(1);
+  await trackRow(page).locator(".solo").click();
+  const exported = await page.evaluate(async () => (await import("/js/player.js")).downloadCurrentMix("wav"));
+  expect(exported).toBe(false);
 });
 
 test("Record is off at other speeds and says why", async ({ page }) => {

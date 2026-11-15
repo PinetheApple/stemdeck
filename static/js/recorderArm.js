@@ -1,6 +1,5 @@
-// Arming a track: opening its input, connecting it to the playing engine's
-// context, metering it, and noticing when it stays silent or cannot be opened.
-// One track is armed at a time; takes record one at a time.
+// Arming a track: its input opened, metered and connected to the playing engine.
+// One track is armed at a time, because the server records one take at a time.
 
 import { audioEngine } from "./state.js";
 import { closeInput, connectInput, inputInfo, openInput } from "./recorderCapture.js";
@@ -25,6 +24,13 @@ export function onArmChange(fn) {
 
 export function armedTrack() {
   return armed;
+}
+
+/** Show `problem` on the armed track, if `trackId` is still the one armed. */
+export function setArmProblem(trackId, problem) {
+  if (armed?.trackId !== trackId) return;
+  armed.problem = problem;
+  notify();
 }
 
 function trackChannels(track) {

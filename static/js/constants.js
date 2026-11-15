@@ -77,3 +77,5 @@ export const LOOP_DEFAULT_END_FRAC = 0.5;
 export const SEEK_STEP_SEC = 5;
 
 export const LANE_VOLUME_MAX = 2;
+
+export const MS_PER_SEC = 1000;

@@ -1,10 +1,11 @@
-// The take folder's rows and a take's place on the timeline (#98).
+// The take folder's rows and a take's place on the timeline.
 //
 // Run:  node tests/js/takes-state.test.mjs
 
 import {
   ROW_TAKE,
   ROW_UNFINISHED,
+  ROW_ELSEWHERE,
   buildTrackViews,
   clipSpan,
   laneSpace,
@@ -41,7 +42,7 @@ const LISTING = {
     { id: VOICE, name: "Voice", order: 0, active_take_id: "t00000002" },
   ],
   takes: [entry("t00000001", VOICE), entry("t00000002", VOICE), entry("t00000003", GUITAR)],
-  open: [{ id: "t000000aa", track_id: VOICE, label: "Take 3", bytes: 4096 }],
+  open: [{ id: "t000000aa", track_id: VOICE, label: "Take 3", bytes: 4096, recoverable: true }],
 };
 
 {
@@ -55,6 +56,14 @@ const LISTING = {
   check("exactly one take row is active", voice.rows.filter((row) => row.active).length === 1);
   check("an unfinished take opens its folder", voice.folderOpen === true);
   check("a folder with nothing to answer stays closed", guitar.folderOpen === false);
+}
+
+{
+  const live = { id: "t000000bb", track_id: GUITAR, label: "Take 2", bytes: 2048, recoverable: false };
+  const [, guitar] = buildTrackViews({ ...LISTING, open: [live] });
+  const row = guitar.rows.at(-1);
+  check("a take still recording elsewhere is shown without actions", row.kind === ROW_ELSEWHERE, row.kind);
+  check("a take still recording elsewhere asks nothing", guitar.folderOpen === false);
 }
 
 {

@@ -1,4 +1,4 @@
-// The loopback latency test's measurement and verdict (#98).
+// The loopback latency test's measurement and verdict.
 //
 // Run:  node tests/js/latency.test.mjs
 

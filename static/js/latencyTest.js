@@ -3,6 +3,7 @@
 
 import { createPlaybackContext } from "./audioContext.js";
 import { connectInput, startCapture } from "./recorderCapture.js";
+import { MS_PER_SEC } from "./constants.js";
 import {
   CLICK_GAP_SEC,
   LATENCY_CLICKS,
@@ -16,7 +17,6 @@ const MONO_INPUT = [0];
 // Time after the last click for its echo to arrive.
 const TAIL_SEC = CLICK_GAP_SEC;
 const START_TIMEOUT_MS = 3000;
-const MS_PER_SEC = 1000;
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -65,8 +65,12 @@ export async function runLatencyTest(stream, { onHeard, signal }) {
   let resolveStart;
   const started = new Promise((resolve) => { resolveStart = resolve; });
   const capture = await startCapture(input, MONO_INPUT, {
-    onStart: (sec) => resolveStart(sec),
-    onAudio: (samples) => batches.push(samples),
+    onStart: function onCaptureStart(sec) {
+      resolveStart(sec);
+    },
+    onAudio: function onCaptureAudio(samples) {
+      batches.push(samples);
+    },
   });
   try {
     return await measure(ctx, await firstFrame(started), batches, { onHeard, signal });

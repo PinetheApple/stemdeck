@@ -1,22 +1,22 @@
-// Cuts captured audio into numbered parts and uploads them in order.
-//
-// The server takes part `seq` only when it is exactly the next one, and treats a
-// resent last part as a no-op, so a retry after a lost answer is always safe. A
-// 409 means the two sides disagree on where the take is: the uploader reads the
-// server's next_seq and carries on from there. No DOM and no fetch here; the
-// caller injects how a part is sent and how the server state is read.
+// Uploads a take's audio in numbered parts. A resent last part is a no-op on the
+// server, so retrying after a lost answer is safe; a 409 resumes from next_seq.
+
+import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
+import { HTTP_NOT_FOUND } from "./libraryControls.js";
 
 export const TAKE_PART_SEC = 2;
+// The last delay repeats: a part is retried for as long as the take lives.
 export const RETRY_DELAYS_MS = [250, 1000, 2000, 4000, 8000];
 
-const HTTP_CONFLICT = 409;
-const FATAL_STATUSES = new Set([404, 413, 422]);
+const HTTP_SUCCESS_END = 300;
+const HTTP_TOO_LARGE = 413;
+const HTTP_UNPROCESSABLE = 422;
+const FATAL_STATUSES = new Set([HTTP_NOT_FOUND, HTTP_TOO_LARGE, HTTP_UNPROCESSABLE]);
 
 export const UPLOAD_ERROR = {
   finished: "finished",
   gap: "gap",
   refused: "refused",
-  stalled: "stalled",
 };
 
 /**
@@ -89,11 +89,13 @@ export function createPartUploader(
     while (queue.length && !error) await sendHead();
   }
 
+  const delayFor = (attempt) => retryDelaysMs[Math.min(attempt, retryDelaysMs.length - 1)];
+
   async function sendHead() {
     const part = queue[0];
     for (let attempt = 0; ; attempt++) {
-      const status = await trySend(part);
-      if (status !== null && status < 300) {
+      const status = await trySend(part, attempt);
+      if (status !== null && status < HTTP_SUCCESS_END) {
         queue.shift();
         sent += 1;
         return;
@@ -103,33 +105,33 @@ export function createPartUploader(
         error = UPLOAD_ERROR.refused;
         return;
       }
-      if (attempt >= retryDelaysMs.length) {
-        error = UPLOAD_ERROR.stalled;
-        return;
-      }
-      await wait(retryDelaysMs[attempt]);
+      await wait(delayFor(attempt));
     }
   }
 
-  async function trySend(part) {
+  async function trySend(part, attempt) {
     try {
       const answer = await send(part.seq, part.bytes);
       return answer.status;
     } catch (err) {
-      console.warn("[recorder] part upload failed, retrying:", err);
+      if (attempt === 0) console.warn("[recorder] part upload failed, retrying:", err);
       return null;
     }
   }
 
-  async function resync() {
-    let state;
-    try {
-      state = await readState();
-    } catch (err) {
-      console.warn("[recorder] could not read the take's upload state:", err);
-      error = UPLOAD_ERROR.stalled;
-      return;
+  async function readServerState() {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await readState();
+      } catch (err) {
+        if (attempt === 0) console.warn("[recorder] could not read the take's upload state:", err);
+        await wait(delayFor(attempt));
+      }
     }
+  }
+
+  async function resync() {
+    const state = await readServerState();
     if (state.finished) {
       error = UPLOAD_ERROR.finished;
       return;
@@ -151,12 +153,6 @@ export function createPartUploader(
       if (rest) enqueue([rest]);
       while (pumping) await pumping;
       return { ok: !error && queue.length === 0, sent, error };
-    },
-    /** Try a stalled queue again, e.g. once the connection is back. */
-    retry() {
-      if (error !== UPLOAD_ERROR.stalled) return pumping;
-      error = null;
-      return kick();
     },
     status: () => ({ queued: queue.length, sent, error }),
   };

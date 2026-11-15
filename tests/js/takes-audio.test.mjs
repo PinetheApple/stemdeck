@@ -1,4 +1,4 @@
-// Reading a take's clip out of its song-length audio.wav (#98).
+// Reading a take's clip out of its song-length audio.wav.
 //
 // Run:  node tests/js/takes-audio.test.mjs
 

@@ -1,13 +1,11 @@
-// The recording tracks' rows in the mixer column: a track row like a stem's
-// (name, input, meter, fader, arm, M, S, ⋯), the rows of its open take folder,
-// and the "+ Track" row under the last lane. Actions go to the handlers given
-// to renderTakeRows; nothing here talks to the server.
+// The recording tracks' rows in the mixer column; actions go to the handlers
+// given to renderTakeRows, nothing here talks to the server.
 
 import { t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
 import { LANE_VOLUME_MAX } from "./constants.js";
 import { updateLaneKnobVisual } from "./mixer.js";
-import { ROW_UNFINISHED } from "./takesState.js";
+import { ROW_ELSEWHERE, ROW_TAKE, ROW_UNFINISHED } from "./takesState.js";
 import { fmtTickLabel } from "./utils.js";
 import { vuLevel } from "./vuScale.js";
 
@@ -146,35 +144,46 @@ function answerChips(takeRowView, on) {
   return wrap;
 }
 
+// What an open take's row says instead of its length, and its tooltip.
+const OPEN_ROW_TEXT = {
+  [ROW_UNFINISHED]: { flag: "rec.unfinished", title: "rec.unfinishedTitle" },
+  [ROW_ELSEWHERE]: { flag: "rec.elsewhere", title: "rec.elsewhereTitle" },
+};
+
 function pickButton(view, takeRowView, on) {
-  const unfinished = takeRowView.kind === ROW_UNFINISHED;
+  const open = OPEN_ROW_TEXT[takeRowView.kind];
   const pick = button("rec-take-pick");
   pick.setAttribute("role", "radio");
   pick.setAttribute("aria-checked", String(Boolean(takeRowView.active)));
-  pick.disabled = unfinished;
-  pick.title = unfinished ? t("rec.unfinishedTitle") : t("rec.playThisTake");
+  pick.disabled = Boolean(open);
+  pick.title = t(open ? open.title : "rec.playThisTake");
   const label = document.createElement("span");
   label.textContent = takeRowView.label;
   const meta = document.createElement("span");
-  meta.className = unfinished ? "rec-take-flag" : "rec-take-len";
-  meta.textContent = unfinished ? t("rec.unfinished") : fmtTickLabel(takeRowView.durationSec);
+  meta.className = open ? "rec-take-flag" : "rec-take-len";
+  meta.textContent = open ? t(open.flag) : fmtTickLabel(takeRowView.durationSec);
   pick.append(label, meta);
-  if (!unfinished) pick.addEventListener("click", function onPickTake() { on.pick(view.id, takeRowView.id); });
+  if (!open) pick.addEventListener("click", function onPickTake() { on.pick(view.id, takeRowView.id); });
   return pick;
+}
+
+function takeActions(takeRowView, on) {
+  if (takeRowView.kind === ROW_ELSEWHERE) return [];
+  if (takeRowView.review || takeRowView.kind === ROW_UNFINISHED) return [answerChips(takeRowView, on)];
+  const del = button("lane-dl mx-btn rec-take-del", {
+    iconName: "trash",
+    label: t("rec.deleteTake", { name: takeRowView.label }),
+  });
+  del.addEventListener("click", function onDeleteTakeClick() { on.discard(takeRowView); });
+  return [del];
 }
 
 function takeRow(view, takeRowView, on) {
   const row = document.createElement("div");
   row.className = "lane-header mx-row rec-take-row";
   row.dataset.recTake = takeRowView.id;
-  row.classList.toggle("is-unfinished", takeRowView.kind === ROW_UNFINISHED);
-  const asks = takeRowView.review || takeRowView.kind === ROW_UNFINISHED;
-  const del = button("lane-dl mx-btn rec-take-del", {
-    iconName: "trash",
-    label: t("rec.deleteTake", { name: takeRowView.label }),
-  });
-  del.addEventListener("click", function onDeleteTakeClick() { on.discard(takeRowView); });
-  row.append(pickButton(view, takeRowView, on), asks ? answerChips(takeRowView, on) : del);
+  row.classList.toggle("is-unfinished", takeRowView.kind !== ROW_TAKE);
+  row.append(pickButton(view, takeRowView, on), ...takeActions(takeRowView, on));
   return row;
 }
 

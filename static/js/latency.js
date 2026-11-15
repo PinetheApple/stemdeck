@@ -1,6 +1,7 @@
-// The loopback latency test's arithmetic: the click it plays, where each click
-// came back in the capture, and whether the answers agree well enough to keep.
-// No Web Audio here, so it runs under node; latencyTest.js does the playing.
+// The loopback latency test's arithmetic, without Web Audio so it runs under
+// node; latencyTest.js does the playing.
+
+import { MS_PER_SEC } from "./constants.js";
 
 export const LATENCY_CLICKS = 5;
 export const CLICK_GAP_SEC = 0.4;
@@ -9,16 +10,17 @@ export const MIN_HEARD = 4;
 export const MAX_SPREAD_MS = 1;
 
 const CLICK_SEC = 0.002;
+// Short enough rates still get a click with a shape to correlate against.
+const MIN_CLICK_SAMPLES = 8;
 const CLICK_SEED = 0x2545f491;
 const NOISE_FACTOR = 4;
 const MIN_THRESHOLD = 0.01;
 // Lags past this share of the gap would be read as the next click's.
 const SEARCH_SHARE = 0.9;
-const MS_PER_SEC = 1000;
 
 /** A short, windowed noise burst: wideband, so its echo lines up to the sample. */
 export function clickWaveform(rate) {
-  const n = Math.max(8, Math.round(rate * CLICK_SEC));
+  const n = Math.max(MIN_CLICK_SAMPLES, Math.round(rate * CLICK_SEC));
   const out = new Float32Array(n);
   let x = CLICK_SEED;
   for (let i = 0; i < n; i++) {

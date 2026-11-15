@@ -1,4 +1,4 @@
-// Part chunking, numbering and retry for take uploads (#98).
+// Part chunking, numbering and retry for take uploads.
 //
 // Run:  node tests/js/recorder-parts.test.mjs
 
@@ -123,20 +123,36 @@ function fakeServer({ failFirst = 0, answers = [] } = {}) {
   check("a refused part stops the upload", result.error === UPLOAD_ERROR.refused && server.parts.length === 0);
 }
 
+const OUTAGE_MS = 60_000;
+
+/** A server that is down until the virtual clock passes `downUntilMs`, and a wait that moves that clock. */
+function outage(downUntilMs) {
+  const clock = { now: 0, waits: [] };
+  const server = fakeServer();
+  const healthy = server.send;
+  server.send = function sendUnlessDown(seq, bytes) {
+    if (clock.now < downUntilMs) return Promise.reject(new Error("server down"));
+    return healthy(seq, bytes);
+  };
+  const wait = function advanceClock(ms) {
+    clock.waits.push(ms);
+    clock.now += ms;
+    return Promise.resolve();
+  };
+  return { server, clock, wait };
+}
+
 {
-  const server = fakeServer({ failFirst: 2 });
+  const { server, clock, wait } = outage(OUTAGE_MS);
   const up = createPartUploader(
-    { ...server, wait: noWait },
-    { partSamples: PART_SAMPLES, channels: STEREO, retryDelaysMs: [1] },
+    { send: server.send, readState: server.readState, wait },
+    { partSamples: PART_SAMPLES, channels: STEREO, retryDelaysMs: [250, 1000, 4000] },
   );
-  up.push(ramp(0, 8));
-  const stalled = await up.finish();
-  check(
-    "an exhausted retry stalls and keeps the part",
-    stalled.error === UPLOAD_ERROR.stalled && up.status().queued === 1,
-  );
-  await up.retry();
-  check("retry sends the stalled part", up.status().queued === 0 && server.parts.length === 1);
+  up.push(ramp(0, 24));
+  const result = await up.finish();
+  check("a minute-long outage loses no part", result.ok && server.parts.length === 3, JSON.stringify(result));
+  check("parts keep their order after the outage", server.parts.map((p) => p[0]).join() === "0,8,16");
+  check("the backoff is capped", Math.max(...clock.waits) === 4000, String(Math.max(...clock.waits)));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

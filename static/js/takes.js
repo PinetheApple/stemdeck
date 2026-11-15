@@ -1,13 +1,12 @@
-// Recording tracks and takes for the open song (#98): loads the song's takes,
-// draws the tracks in the mixer and lanes, runs the Record button, and keeps
-// takes playing with the song. Loaded as its own module from index.html.
+// Recording tracks and takes for the open song: loads them, draws the tracks,
+// runs the Record button and keeps takes playing with the song.
 
 import {
   audioEngine, currentJobId, metronomeCountInBars, mixerEl, titleEl, totalDuration,
 } from "./state.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { playWithCountIn } from "./transport.js";
-import { HttpError } from "./libraryControls.js";
+import { HTTP_NOT_FOUND, HttpError } from "./libraryControls.js";
 import { buildTrackViews, laneSpace, nextName } from "./takesState.js";
 import { renderTakeRows, paintTrackMeter } from "./takesRows.js";
 import { renderTakeLanes, paintLiveClip } from "./takesLanes.js";
@@ -20,11 +19,10 @@ import * as actions from "./takesActions.js";
 import { armedLevel, armedTrack, disarm, onArmChange } from "./recorderArm.js";
 import { loadRecorderPrefs } from "./recorderPrefs.js";
 import {
-  STOP_REASON, onRecorderEvent, recordBlock, recordingTake, takeElapsedSec, toggleRecording,
+  REC_PHASE, STOP_REASON, onRecorderEvent, recordBlock, recordingTake, takeElapsedSec, toggleRecording,
 } from "./recorder.js";
 import { paintCountIn, paintRecordButton, paintStageMark, showRecNotice, wireRecordButton } from "./recorderUi.js";
 
-const HTTP_NOT_FOUND = 404;
 const EMPTY_LISTING = Object.freeze({ tracks: [], takes: [], open: [] });
 const LIVE_BARS_MAX = 200;
 const COUNT_IN_MIN_BARS = 1;
@@ -74,6 +72,7 @@ const handlers = {
   keep: (row) => actions.keepTake(session, row),
   discard: (row) => actions.discardTake(session, row),
   problem: (problem, anchor) => actions.answerProblem(session, problem, anchor),
+  latency: (trackId) => actions.openRecordingSettings(session, trackId),
 };
 
 function toggleFolder(trackId) {
@@ -193,7 +192,9 @@ function noticeAfterSwitch(event) {
   const label = session.listing.takes.find((entry) => entry.id === event.takeId)?.label ?? event.entry?.label ?? "";
   showRecNotice(t("rec.notice.switched", { take: label, song: title }), {
     text: t("rec.notice.open", { song: title }),
-    onClick: () => document.querySelector(`.cat-item[data-id="${event.jobId}"]`)?.click(),
+    onClick: function onOpenRecordedSong() {
+      document.querySelector(`.cat-item[data-id="${event.jobId}"]`)?.click();
+    },
   });
 }
 
@@ -219,7 +220,7 @@ function paintFooter() {
   const take = recordingTake();
   const elapsed = take ? takeElapsedSec() : null;
   paintRecordButton({
-    shown: session.views.length > 0,
+    hasTracks: session.views.length > 0,
     phase: take?.phase ?? null,
     block: recordBlock(),
     elapsedSec: elapsed ?? 0,
@@ -237,7 +238,7 @@ function paintLive(take) {
     nowSec: eng.getCurrentTime(),
     songSec: totalDuration,
     peaks,
-    label: takeLabel(take.trackId),
+    label: take.phase === REC_PHASE.finishing ? t("rec.saving") : takeLabel(take.trackId),
   });
 }
 

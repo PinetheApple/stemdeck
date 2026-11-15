@@ -1,12 +1,10 @@
-// The recording tracks' lanes beside the waveforms: each track's active take as
-// a clip where it sits on the song, the take folder's clips, the take being
-// recorded growing behind the playhead, and a plain-words problem when the
-// input cannot be used. The layer sits under the stem lanes and is rebuilt
-// with the rows, so the two columns stay in step.
+// The recording tracks' lanes beside the waveforms, rebuilt with the rows so the
+// two columns stay in step.
 
 import { t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
-import { ROW_UNFINISHED, clipSpan, slicePeaks } from "./takesState.js";
+import { ROW_TAKE, clipSpan, slicePeaks } from "./takesState.js";
+import { SOURCE_ESTIMATED } from "./latencyStore.js";
 
 const LAYER_CLASS = "rec-wave-layer";
 const BAR_SLOT = 1;
@@ -17,6 +15,7 @@ const MAX_BAR_H = VIEW_H - 4;
 const MIN_BAR_H = 0.7;
 const MIN_BARS = 12;
 const BARS_PER_CLIP_SHARE = 150;
+const BAR_RADIUS = 0.3;
 
 export function waveLayer() {
   const column = document.querySelector(".waves-column");
@@ -35,7 +34,7 @@ export function barsSvg(amps) {
   const rects = amps.map(function bar(amp, i) {
     const h = Math.max(MIN_BAR_H, Math.min(1, amp) * MAX_BAR_H);
     return `<rect x="${(i + (1 - BAR_FRAC) / 2).toFixed(2)}" y="${(MID - h / 2).toFixed(2)}" `
-      + `width="${BAR_FRAC}" height="${h.toFixed(2)}" rx="0.3"></rect>`;
+      + `width="${BAR_FRAC}" height="${h.toFixed(2)}" rx="${BAR_RADIUS}"></rect>`;
   });
   return `<svg class="stem-waveform-svg" viewBox="0 0 ${amps.length * BAR_SLOT} ${VIEW_H}" `
     + `preserveAspectRatio="none" aria-hidden="true">${rects.join("")}</svg>`;
@@ -79,6 +78,7 @@ function row(className, mutedOrInactive) {
 function problemEl(problem, onAction) {
   const box = document.createElement("div");
   box.className = "rec-problem";
+  box.addEventListener("pointerdown", keepPointer);
   box.setAttribute("role", "alert");
   box.innerHTML = icon("alert");
   const text = document.createElement("p");
@@ -88,6 +88,26 @@ function problemEl(problem, onAction) {
   action.className = "settings-btn";
   action.textContent = t(`rec.problem.${problem}Action`);
   action.addEventListener("click", function onProblemAction() { onAction(problem, action); });
+  box.append(text, action);
+  return box;
+}
+
+// The waves column captures the pointer to drag a loop, which would swallow the click.
+function keepPointer(e) {
+  e.stopPropagation();
+}
+
+function latencyHintEl(trackId, onTest) {
+  const box = document.createElement("div");
+  box.className = "rec-latency-hint";
+  box.addEventListener("pointerdown", keepPointer);
+  const text = document.createElement("span");
+  text.textContent = t("rec.latencyHint");
+  const action = document.createElement("button");
+  action.type = "button";
+  action.className = "rec-latency-hint-btn";
+  action.textContent = t("rec.latencyHintAction");
+  action.addEventListener("click", function onLatencyHintClick() { onTest(trackId); });
   box.append(text, action);
   return box;
 }
@@ -106,7 +126,11 @@ function trackLane(view, ctx) {
     hint.textContent = t("rec.pressRecord");
     lane.append(hint);
   }
-  if (ctx.armedTrackId === view.id && ctx.problem) lane.append(problemEl(ctx.problem, ctx.on.problem));
+  if (ctx.armedTrackId === view.id && ctx.problem) {
+    lane.append(problemEl(ctx.problem, ctx.on.problem));
+  } else if (span && ctx.recordingTrackId !== view.id && view.activeTake.latency_source === SOURCE_ESTIMATED) {
+    lane.append(latencyHintEl(view.id, ctx.on.latency));
+  }
   return lane;
 }
 
@@ -123,7 +147,7 @@ function takeLane(takeRowView, ctx) {
   const inactive = takeRowView.active ? "" : "is-inactive";
   const lane = row("rec-take-wave", inactive);
   lane.dataset.recTake = takeRowView.id;
-  if (takeRowView.kind === ROW_UNFINISHED) return lane;
+  if (takeRowView.kind !== ROW_TAKE) return lane;
   const span = clipSpan(takeRowView.entry, ctx.songSec);
   if (span) lane.append(clipEl(span, takeRowView.label, ctx.peaksOf(takeRowView.id)));
   return lane;

@@ -1,10 +1,9 @@
-// What the recording tracks show, worked out from the server's take listing:
-// each track's active take, the rows of its take folder (finished, just
-// recorded, unfinished after a crash) and where a take sits on the timeline.
-// Pure, so it runs under node.
+// The recording tracks' rows and clips, worked out from the server's take
+// listing; pure, so the take folder's rules can be tested under node.
 
 export const ROW_TAKE = "take";
 export const ROW_UNFINISHED = "unfinished";
+export const ROW_ELSEWHERE = "elsewhere";
 
 function byOrder(a, b) {
   return (a.order ?? 0) - (b.order ?? 0) || (a.created_at ?? 0) - (b.created_at ?? 0);
@@ -22,8 +21,11 @@ function takeRow(entry, track, ui) {
   };
 }
 
-function unfinishedRow(open) {
-  return { kind: ROW_UNFINISHED, id: open.id, label: open.label, bytes: open.bytes };
+// A take the server has not heard from lately was cut off; one it has is still
+// being recorded somewhere else, and must not be finished or deleted from here.
+function openRow(open) {
+  const kind = open.recoverable ? ROW_UNFINISHED : ROW_ELSEWHERE;
+  return { kind, id: open.id, label: open.label, bytes: open.bytes };
 }
 
 /**
@@ -36,12 +38,12 @@ export function buildTrackViews(listing, ui = {}) {
   const tracks = [...(listing?.tracks ?? [])].sort(byOrder);
   return tracks.map(function trackView(track) {
     const finished = (listing.takes ?? []).filter((take) => take.track_id === track.id);
-    const unfinished = (listing.open ?? []).filter((take) => take.track_id === track.id && !own.has(take.id));
+    const open = (listing.open ?? []).filter((take) => take.track_id === track.id && !own.has(take.id));
     const rows = [
       ...finished.map((entry) => takeRow(entry, track, ui)),
-      ...unfinished.map(unfinishedRow),
+      ...open.map(openRow),
     ];
-    const needsAnswer = unfinished.length > 0 || rows.some((row) => row.review);
+    const needsAnswer = rows.some((row) => row.review || row.kind === ROW_UNFINISHED);
     return {
       id: track.id,
       name: track.name,

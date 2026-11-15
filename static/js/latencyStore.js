@@ -1,16 +1,13 @@
-// Measured round trips, per output and input device pair. They belong to this
-// browser and its devices, not to the server: a phone and a desktop each keep
-// their own. When a pair was never tested the context's reported latencies
-// stand in, and the take records which of the two it used.
+// Measured round trips per output and input pair, kept in this browser; an
+// untested pair falls back to the context's reported latencies.
 
 import { storeGet, storeSet } from "./utils.js";
+import { MS_PER_SEC } from "./constants.js";
 
 export const LATENCY_STORE_KEY = "stemdeck:latency:v1";
 export const DEFAULT_OUTPUT = "default";
 export const SOURCE_CALIBRATED = "calibrated";
 export const SOURCE_ESTIMATED = "estimated";
-
-const MS_PER_SEC = 1000;
 
 export function pairKey(outputId, inputId) {
   return `${outputId || DEFAULT_OUTPUT}|${inputId || ""}`;

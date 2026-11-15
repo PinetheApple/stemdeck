@@ -1,11 +1,10 @@
-// What recording looks like outside the lanes: the footer's Record button (a
-// red dot, then a red pill with the take time), the count-in number over the
-// lanes, the REC mark in Stage mode, and the notice after a song switch.
+// Recording outside the lanes: the footer's Record button, the count-in number,
+// the REC mark in Stage mode, and the notice after a song switch.
 
 import { t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
 import { fmtTime } from "./utils.js";
-import { RECORD_BLOCK, REC_PHASE } from "./recorder.js";
+import { NORMAL_SPEED, RECORD_BLOCK, REC_PHASE } from "./recorder.js";
 import { refitFooter } from "./footerFit.js";
 
 const BLOCK_HINT = {
@@ -14,6 +13,8 @@ const BLOCK_HINT = {
   [RECORD_BLOCK.noInput]: "rec.hint.noInput",
   [RECORD_BLOCK.noEngine]: "rec.hint.noEngine",
 };
+const NO_TRACK_YET_HINT = "rec.hint.addTrack";
+const SPEED_DECIMALS = 2;
 
 const recordBtn = () => document.getElementById("t-rec");
 
@@ -21,36 +22,34 @@ export function wireRecordButton(onClick) {
   recordBtn()?.addEventListener("click", onClick);
 }
 
-let painted = "";
-
-function showButton(btn, shown, phase) {
-  const changed = btn.hidden === shown || btn.dataset.phase !== String(phase);
-  btn.hidden = !shown;
-  btn.dataset.phase = String(phase);
-  if (changed) refitFooter();
+function buttonHint(phase, block, hasTracks) {
+  if (phase === REC_PHASE.finishing) return t("rec.saving");
+  if (phase) return t("rec.stop");
+  if (!block) return t("rec.record");
+  if (block === RECORD_BLOCK.noTrack && !hasTracks) return t(NO_TRACK_YET_HINT);
+  return t(BLOCK_HINT[block], { speed: NORMAL_SPEED.toFixed(SPEED_DECIMALS) });
 }
 
-/**
- * `shown`: the song has a recording track. `phase` is the take's REC_PHASE or
- * null; `block` a RECORD_BLOCK or null.
- */
-export function paintRecordButton({ shown, phase, block, elapsedSec }) {
+let painted = "";
+
+/** `phase` is the take's REC_PHASE or null; `block` a RECORD_BLOCK or null. */
+export function paintRecordButton({ hasTracks, phase, block, elapsedSec }) {
   const btn = recordBtn();
-  const key = `${shown}|${phase}|${block}|${Math.floor(elapsedSec)}|${document.documentElement.lang}`;
+  const key = `${hasTracks}|${phase}|${block}|${Math.floor(elapsedSec)}|${document.documentElement.lang}`;
   if (!btn || key === painted) return;
+  const phaseChanged = !painted.includes(`|${phase}|`);
   painted = key;
-  showButton(btn, shown || Boolean(phase), phase);
-  const live = phase === REC_PHASE.counting || phase === REC_PHASE.recording;
   btn.classList.toggle("is-counting", phase === REC_PHASE.counting);
   btn.classList.toggle("is-recording", phase === REC_PHASE.recording);
-  btn.disabled = Boolean(block) && !phase;
-  btn.setAttribute("aria-pressed", String(live));
-  const label = live ? t("rec.stop") : t("rec.record");
-  const hint = !phase && block ? t(BLOCK_HINT[block]) : label;
+  btn.classList.toggle("is-saving", phase === REC_PHASE.finishing);
+  btn.disabled = phase === REC_PHASE.finishing || (Boolean(block) && !phase);
+  btn.setAttribute("aria-pressed", String(phase === REC_PHASE.counting || phase === REC_PHASE.recording));
+  const hint = buttonHint(phase, block, hasTracks);
   btn.title = hint;
   btn.setAttribute("aria-label", hint);
   const time = btn.querySelector(".rec-btn-time");
   if (time) time.textContent = phase === REC_PHASE.recording ? fmtTime(elapsedSec) : "";
+  if (phaseChanged) refitFooter();
 }
 
 let countInEl = null;

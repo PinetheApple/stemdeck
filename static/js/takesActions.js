@@ -9,11 +9,14 @@ import { nextName } from "./takesState.js";
 import { setTakeVolume, takeMixEntry, toggleTakeMute, toggleTakeSolo } from "./takesMix.js";
 import { ARM_PROBLEM_SILENT, armTrack, armedTrack, disarm } from "./recorderArm.js";
 import { listInputs } from "./recorderCapture.js";
+import { setLatencyTestInput } from "./recorderSettings.js";
 import * as api from "./takesApi.js";
 
 const STEREO_PAIR = [0, 1];
 const SECOND_INPUT = [1];
 const FIRST_INPUT = [0];
+const FIRST_CHANNEL_NUMBER = FIRST_INPUT[0] + 1;
+const SECOND_CHANNEL_NUMBER = SECOND_INPUT[0] + 1;
 
 function trackOf(session, trackId) {
   return session.listing.tracks.find((track) => track.id === trackId) ?? null;
@@ -39,11 +42,13 @@ export function addTrack(session, anchor) {
     {
       text: t("rec.audioTrack"),
       icon: "mic",
-      onChoose: () => act(session, function createAudioTrack() {
-        const names = session.listing.tracks.map((track) => track.name);
-        const name = nextName(names, (n) => t("rec.trackDefault", { n }));
-        return api.createTrack(session.jobId, { name });
-      }),
+      onChoose: function onAddAudioTrack() {
+        act(session, function createAudioTrack() {
+          const names = session.listing.tracks.map((track) => track.name);
+          const name = nextName(names, (n) => t("rec.trackDefault", { n }));
+          return api.createTrack(session.jobId, { name });
+        });
+      },
     },
   ]);
 }
@@ -55,11 +60,13 @@ function inputEntry(session, trackId, device, channels, text) {
     text,
     icon: "mic",
     selected,
-    onChoose: () => act(session, async function chooseInput() {
-      const input = { device_id: device.deviceId, device_label: device.label || null, channels };
-      await api.patchTrack(session.jobId, trackId, { input });
-      rearmIfArmed(session, trackId);
-    }),
+    onChoose: function onChooseInput() {
+      act(session, async function saveInput() {
+        const input = { device_id: device.deviceId, device_label: device.label || null, channels };
+        await api.patchTrack(session.jobId, trackId, { input });
+        rearmIfArmed(session, trackId);
+      });
+    },
   };
 }
 
@@ -69,8 +76,8 @@ function channelEntries(session, trackId, device, index) {
   const stereo = arm?.trackId === trackId && arm.info?.deviceId === device.deviceId && arm.info.channelCount > 1;
   if (!stereo) return [inputEntry(session, trackId, device, FIRST_INPUT, name)];
   return [
-    inputEntry(session, trackId, device, FIRST_INPUT, t("rec.channel", { name, n: 1 })),
-    inputEntry(session, trackId, device, SECOND_INPUT, t("rec.channel", { name, n: 2 })),
+    inputEntry(session, trackId, device, FIRST_INPUT, t("rec.channel", { name, n: FIRST_CHANNEL_NUMBER })),
+    inputEntry(session, trackId, device, SECOND_INPUT, t("rec.channel", { name, n: SECOND_CHANNEL_NUMBER })),
     inputEntry(session, trackId, device, STEREO_PAIR, t("rec.channels", { name })),
   ];
 }
@@ -78,7 +85,7 @@ function channelEntries(session, trackId, device, index) {
 export async function chooseInput(session, trackId, anchor) {
   const devices = await listInputs().catch(() => []);
   const entries = devices.flatMap((device, i) => channelEntries(session, trackId, device, i));
-  if (!entries.length) entries.push({ text: t("rec.problem.noDevice"), icon: "alert", onChoose: () => {} });
+  if (!entries.length) entries.push({ text: t("rec.problem.noDevice"), icon: "alert", disabled: true });
   openTakesMenu(anchor, t("rec.inputFor", { name: trackOf(session, trackId)?.name ?? "" }), entries);
 }
 
@@ -109,7 +116,15 @@ export function toggleSolo(session, trackId) {
   session.render();
 }
 
-function openRecordingSettings() {
+// The track's own input, so the latency test measures what this track records.
+function trackInputId(session, trackId) {
+  const arm = armedTrack();
+  if (arm?.trackId === trackId) return arm.info?.deviceId ?? arm.requestedInput ?? null;
+  return trackOf(session, trackId)?.input?.device_id ?? null;
+}
+
+export function openRecordingSettings(session, trackId) {
+  setLatencyTestInput(trackInputId(session, trackId));
   document.getElementById("settingsBtn")?.click();
   document.querySelector('.settings-tab[data-tab="recording"]')?.click();
 }
@@ -130,10 +145,29 @@ async function removeTrack(session, trackId) {
 
 export function trackMenu(session, trackId, anchor) {
   openTakesMenu(anchor, t("rec.trackOptions", { name: trackOf(session, trackId)?.name ?? "" }), [
-    { text: t("rec.rename"), icon: "pencil", onChoose: () => session.startRename(trackId) },
-    { text: t("rec.recordingSettings"), icon: "sliders", onChoose: openRecordingSettings },
+    {
+      text: t("rec.rename"),
+      icon: "pencil",
+      onChoose: function onRenameTrack() {
+        session.startRename(trackId);
+      },
+    },
+    {
+      text: t("rec.recordingSettings"),
+      icon: "sliders",
+      onChoose: function onTrackRecordingSettings() {
+        openRecordingSettings(session, trackId);
+      },
+    },
     { separator: true },
-    { text: t("rec.deleteTrack"), icon: "trash", danger: true, onChoose: () => removeTrack(session, trackId) },
+    {
+      text: t("rec.deleteTrack"),
+      icon: "trash",
+      danger: true,
+      onChoose: function onDeleteTrack() {
+        removeTrack(session, trackId);
+      },
+    },
   ], { alignRight: true });
 }
 

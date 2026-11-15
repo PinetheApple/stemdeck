@@ -1,9 +1,5 @@
-// Audio worklet that captures the input in the playback context.
-//
-// It stamps the context frame of the first captured sample, so the take can be
-// placed against the song on the same clock, and fills any render quantum the
-// browser skipped with silence, so sample n of the take is always frame0 + n.
-// Captured audio goes to the page in interleaved batches.
+// Captures the input on the playback clock: stamps the first sample's frame and
+// fills skipped quanta with silence, so sample n of a take is always frame0 + n.
 
 const BATCH_FRAMES = 2048;
 const QUANTUM_FRAMES = 128;
@@ -18,12 +14,14 @@ class StemdeckRecorder extends AudioWorkletProcessor {
     this.dropped = 0;
     this.peak = 0;
     this.stopped = false;
-    this.port.onmessage = (event) => {
-      if (event.data !== "stop") return;
-      this.send();
-      this.port.postMessage({ type: "stopped", dropped: this.dropped });
-      this.stopped = true;
-    };
+    this.port.onmessage = this.onPortMessage.bind(this);
+  }
+
+  onPortMessage(event) {
+    if (event.data !== "stop") return;
+    this.send();
+    this.port.postMessage({ type: "stopped", dropped: this.dropped });
+    this.stopped = true;
   }
 
   send() {

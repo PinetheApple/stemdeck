@@ -39,6 +39,7 @@ import {
   replacementOutcome, serverTrashMoves, soleSourceMatch,
 } from "./librarySync.js";
 import { wireRecordingSettings } from "./recorderSettings.js";
+import { finishTakeBeforeTeardown } from "./recorder.js";
 import { t as i18nT, plural as i18nPlural, LANGUAGES, getLanguage, setLanguage, onLanguageChange, applyTranslations } from "./i18n.js";
 import { applyNetworkSwitch, networkSwitchOn } from "./networkRestart.js";
 
@@ -1445,6 +1446,8 @@ export async function loadTrackIntoStudio(trackId) {
     }
   } catch (e) { console.warn("[catalog] server sync failed, using stored track:", e); }
 
+  if (token !== _loadTrackToken) return;
+  await finishTakeBeforeTeardown();
   if (token !== _loadTrackToken) return;
   // The user has chosen to look at something else, so the running import gives
   // up the studio. It keeps running and keeps updating its own row; it just
