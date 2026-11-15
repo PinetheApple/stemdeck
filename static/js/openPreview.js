@@ -1,7 +1,13 @@
-// A song shown over the one in the player (#211): its lanes are drawn from its
-// peaks with no decode, so the loaded song keeps its engine, mixer and lanes underneath.
+// The shown song's lanes come from its peaks with no decode, so the song in the
+// player keeps its engine, mixer and lanes mounted underneath.
 
-import { barsWaveformSvg, overviewBarCount, overviewLaneNames } from "./player.js";
+import {
+  UNKNOWN_STEM_COLOR,
+  WAVE_VIEWBOX_HEIGHT,
+  barsWaveformSvg,
+  overviewBarCount,
+  overviewLaneNames,
+} from "./player.js";
 import { STEM_COLORS, STEM_DISPLAY } from "./constants.js";
 import { npThumb } from "./state.js";
 import { refitFooter } from "./footerFit.js";
@@ -12,11 +18,7 @@ const ROW_CLASS = "open-preview-row";
 const NAME_CLASS = "open-preview-name";
 const LANE_CLASS = "open-preview-lane";
 const LOADED_THUMB_CLASS = "loaded";
-// Same fallback and viewBox height as the player's own overview lanes.
-const UNKNOWN_STEM_COLOR = "#a0a0a0";
-const WAVE_VIEWBOX_HEIGHT = 48;
 
-// The loaded song's cover, put back when the shown song goes away.
 let loadedSongThumb = null;
 
 const appEl = () => document.querySelector(".app");
@@ -60,6 +62,11 @@ function showThumb(src) {
   npThumb.classList.remove(LOADED_THUMB_CLASS);
 }
 
+/** The playing song's name in the footer's Playing line. */
+export function setPlayingTitle(title) {
+  $("footerPlayingTitle").textContent = title;
+}
+
 /** Draw a song's lanes over the loaded one's, and name the loaded one in the footer. */
 export function showOpenPreview({ stems, peaks, thumbnail, playingTitle }) {
   const layer = $("openPreview");
@@ -71,7 +78,7 @@ export function showOpenPreview({ stems, peaks, thumbnail, playingTitle }) {
   layer.replaceChildren(...names.map((name) => laneRow(name, peaks[name], norm, bars)));
   if (!isOpenPreviewShown()) loadedSongThumb = npThumb.getAttribute("src");
   showThumb(thumbnail);
-  $("footerPlayingTitle").textContent = playingTitle;
+  setPlayingTitle(playingTitle);
   appEl()?.classList.add(SHOWN_CLASS);
   refitFooter();
 }

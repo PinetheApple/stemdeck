@@ -5,6 +5,7 @@
 import { addSongToSetlist, createSetlistFrom, getSetlists } from "./setlists.js";
 import { startRowRename } from "./songRename.js";
 import {
+  TRACK_SHOW_EVENT,
   TRASH_CHANGE_EVENT,
   expandFoldersOf,
   folderChoices,
@@ -245,10 +246,12 @@ function onTrackMenuRequest(e) {
   toggleMenu(id, anchor);
 }
 
-const OPEN_SONG_UP_NEXT_IDS = ["songUpNextBtn", "stageUpNextBtn"];
-const OPEN_SONG_MORE_IDS = ["songMoreBtn", "stageMoreBtn"];
-// Stage shows the song in the player, which a song shown over it (#211) leaves playing.
-const STAGE_SONG_IDS = new Set(["stageUpNextBtn", "stageMoreBtn"]);
+const STAGE_UP_NEXT_ID = "stageUpNextBtn";
+const STAGE_MORE_ID = "stageMoreBtn";
+const OPEN_SONG_UP_NEXT_IDS = ["songUpNextBtn", STAGE_UP_NEXT_ID];
+const OPEN_SONG_MORE_IDS = ["songMoreBtn", STAGE_MORE_ID];
+// Stage shows the song in the player, which keeps playing while another is shown.
+const STAGE_SONG_IDS = new Set([STAGE_UP_NEXT_ID, STAGE_MORE_ID]);
 
 function openSongButtons(ids = [...OPEN_SONG_UP_NEXT_IDS, ...OPEN_SONG_MORE_IDS]) {
   return ids.map((id) => document.getElementById(id)).filter(Boolean);
@@ -280,7 +283,7 @@ function wireOpenSongButtons() {
   for (const button of openSongButtons(OPEN_SONG_MORE_IDS)) {
     button.addEventListener("click", onOpenSongMenuClick);
   }
-  for (const eventName of ["trackopen", "tracknames", TRASH_CHANGE_EVENT]) {
+  for (const eventName of ["trackopen", TRACK_SHOW_EVENT, "tracknames", TRASH_CHANGE_EVENT]) {
     document.addEventListener(eventName, paintOpenSongButtons);
   }
   paintOpenSongButtons();

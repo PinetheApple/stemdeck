@@ -200,8 +200,7 @@ export function singSongChange() {
   paintVoice();
 }
 
-function onTrackOpen(e) {
-  if (e.detail?.shownOnly) return;
+function onTrackOpen() {
   singQueueSettles();
   readVoice();
 }

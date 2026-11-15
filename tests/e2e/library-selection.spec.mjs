@@ -1,5 +1,5 @@
-// A single click on a song selects and opens it, leaving the song that plays alone
-// (#211); a double-click, Enter or the row's Play button opens it and plays it.
+// A single click on a song selects and opens it, leaving the song that plays alone;
+// a double-click, Enter or the row's Play button opens it and plays it.
 
 import { test, expect } from "@playwright/test";
 import { ROW_KEY, ROW_PLAY_CLASS, SELECTED_ROW_CLASS } from "../../static/js/rovingRows.js";

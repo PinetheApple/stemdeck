@@ -193,7 +193,6 @@ function onTrackEnded() {
 }
 
 function onTrackOpen(e) {
-  if (e.detail?.shownOnly) return;
   openTrackId = e.detail?.id ?? null;
   reported = null;
   motion = STILL;

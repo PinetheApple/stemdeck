@@ -269,6 +269,8 @@ function renderPlaceholderTracks() {
 }
 
 const OVERVIEW_WAVE_POINTS = 1500;
+export const UNKNOWN_STEM_COLOR = "#a0a0a0";
+export const WAVE_VIEWBOX_HEIGHT = 48;
 const STEM_VU_FPS = 30;
 const WAVEFORM_LANE_HEIGHT = 70;
 const WAVEFORM_SEPARATOR_HEIGHT = 2;
@@ -451,7 +453,7 @@ function renderOverviewWaveformPath(stemName, peaks, norm, color, barCount, orde
   }
   const bars = barCount || overviewBarCount();
   row.innerHTML = `
-    <svg class="stem-waveform-svg" viewBox="0 0 ${bars} 48" preserveAspectRatio="none" aria-hidden="true">
+    <svg class="stem-waveform-svg" viewBox="0 0 ${bars} ${WAVE_VIEWBOX_HEIGHT}" preserveAspectRatio="none" aria-hidden="true">
       ${barsWaveformSvg(peaks, norm, bars)}
     </svg>
   `;
@@ -524,7 +526,7 @@ function renderAllOverviewWaveformsFromPeaks(stems, peaksData) {
   const bars = overviewBarCount();
   laneNames.forEach((name, i) => {
     const pts = present.has(name) ? peaksData[name] : null;
-    renderOverviewWaveformPath(name, pts, norm, STEM_COLORS[name] || "#a0a0a0", bars, i);
+    renderOverviewWaveformPath(name, pts, norm, STEM_COLORS[name] || UNKNOWN_STEM_COLOR, bars, i);
   });
 }
 

@@ -86,8 +86,10 @@ const _refusedHeldBands = new Set();
 // The newest save per track, and the band to go back to if it fails.
 const _bandSaves = new Map();
 let _currentTrackId = null;
-// A song shown in the studio over _currentTrackId, which keeps playing (#211).
-let _openTrackId = null;
+// A song shown in the studio over _currentTrackId, which keeps playing.
+let _shownTrackId = null;
+// Bumped by every load and drop, so a show still fetching cannot paint over them.
+let _showToken = 0;
 let _loadingTrackId = null;
 // The open track's tags as the last render() saw them. See setCurrentTrack().
 let _renderedTagsKey = "";
@@ -117,6 +119,8 @@ const ESCAPE_KEY = "Escape";
 const TRASH_ID = "trash";
 /** Fired on document with { ids } when songs go into or come out of the Trash. */
 export const TRASH_CHANGE_EVENT = "tracktrash";
+// A song shown over the player: the song head and Details follow it, the player does not change.
+export const TRACK_SHOW_EVENT = "trackshow";
 // The default landing folder for unorganized tracks — protected from deletion.
 const UNSORTED_ID = "f-unsorted";
 const PROCESSING_STATUSES = new Set(["queued", "downloading", "analyzing", "separating", "processing"]);
@@ -213,6 +217,7 @@ function replaceTrackId(oldId, newId) {
     folder.items = [...new Set(folder.items)];
   }
   if (_currentTrackId === oldId) _currentTrackId = newId;
+  if (_shownTrackId === oldId) _shownTrackId = newId;
 }
 
 function purgeTrash(deletedIds) {
@@ -501,11 +506,11 @@ export function getTrackNames(trackId) {
   };
 }
 
-const openTrackId = () => _openTrackId ?? _currentTrackId;
+const studioTrackId = () => _shownTrackId ?? _currentTrackId;
 
 /** The song open in the studio: the one shown over the player while one is, else the loaded one. */
 export function getCurrentTrackInfo() {
-  return trackInfoOf(openTrackId());
+  return trackInfoOf(studioTrackId());
 }
 
 /** The song in the player, which keeps playing while another is shown over it. */
@@ -539,7 +544,7 @@ function trackInfoOf(trackId) {
  * { id, name } with id a Wikidata item, or null when none has been saved.
  */
 export function getCurrentTrackArtist() {
-  return savedBandOf(openTrackId());
+  return savedBandOf(studioTrackId());
 }
 
 /** The band saved on the song in the player, as getCurrentTrackArtist. */
@@ -558,7 +563,7 @@ function savedBandOf(trackId) {
  * recording: { id, kind, name, englishName }, or null.
  */
 export function getCurrentTrackWork() {
-  return libraryWork(tracks[openTrackId()]?.work);
+  return libraryWork(tracks[studioTrackId()]?.work);
 }
 
 // Identities checked against a catalogue. "tags" only repeats what the file
@@ -579,7 +584,7 @@ const trimmed = (value) => String(value || "").trim();
  * identified album's first release, so only with that album, else 0.
  */
 export function getCurrentTrackSong() {
-  const track = tracks[openTrackId()];
+  const track = tracks[studioTrackId()];
   if (!track) return null;
   const identity = confidentIdentity(track);
   const tags = track.audioTags || {};
@@ -677,7 +682,7 @@ function rollBackBand(trackId, previous, title, err) {
 
 /** Save a band on the open track and on the server; resolves to whether it was saved. */
 export async function setCurrentTrackArtist(artist) {
-  const trackId = openTrackId();
+  const trackId = studioTrackId();
   const track = tracks[trackId];
   const band = libraryArtist(artist);
   if (!track || !band) return false;
@@ -712,7 +717,7 @@ export async function setCurrentTrackArtist(artist) {
 
 /** Keep a band looked up from the open track's tags here only: it is a guess, not a save. */
 export function setFoundTrackArtist(artist) {
-  const track = tracks[openTrackId()];
+  const track = tracks[studioTrackId()];
   const band = libraryArtist(artist);
   if (!track || !band) return false;
   track.artist = band;
@@ -810,7 +815,7 @@ function settleTagsPending(trackId) {
 
 /** Whether the open track's tags are still being asked for. */
 export function isCurrentTrackTagsPending() {
-  return _tagsPending.has(openTrackId());
+  return _tagsPending.has(studioTrackId());
 }
 
 // A track imported before the server looked for the work a soundtrack is
@@ -845,7 +850,7 @@ async function backfillAudioTags(trackId) {
     const namesChanged = await refreshServerNames(trackId);
     saveState();
     if (namesChanged) render();
-    if (openTrackId() === trackId) paintNowPlayingNames(target);
+    if (studioTrackId() === trackId) paintNowPlayingNames(target);
   } catch (err) {
     console.warn("[catalog] reading an older track's tags failed:", err);
   } finally {
@@ -873,7 +878,7 @@ function afterNamesChanged(trackId) {
   if (!track) return;
   saveState();
   render();
-  if (trackId === openTrackId()) paintNowPlayingNames(track);
+  if (trackId === studioTrackId()) paintNowPlayingNames(track);
   document.dispatchEvent(new CustomEvent("tracknames", { detail: { id: trackId } }));
 }
 
@@ -1129,7 +1134,7 @@ function paintNowPlayingNames(track) {
  */
 export function paintFinishedTrackNames(trackId) {
   const track = tracks[trackId];
-  if (track && trackId === openTrackId()) paintNowPlayingNames(track);
+  if (track && trackId === studioTrackId()) paintNowPlayingNames(track);
 }
 
 function applyTrackInfoToPanel(track) {
@@ -1165,7 +1170,8 @@ function applyTrackInfoToPanel(track) {
   if (favBtn) {
     paintFavButton(favBtn, Boolean(track.favorite));
     favBtn.onclick = () => {
-      if (openTrackId()) toggleFavorite(openTrackId());
+      const trackId = studioTrackId();
+      if (trackId) toggleFavorite(trackId);
     };
   }
 
@@ -1436,6 +1442,7 @@ function putInTrash(ids) {
     removeTrackFromFolders(trackId);
     if (!trash.items.includes(trackId)) trash.items.unshift(trackId);
     if (_currentTrackId === trackId) _currentTrackId = null;
+    if (_shownTrackId === trackId) dropShownTrack();
     // The user is done with it; purgeTrash() repeats this for a job that errors
     // once trashed.
     dismissFailuresByJobId(trackId);
@@ -1566,10 +1573,11 @@ async function fetchTrackState(trackId, token) {
   return token === _loadTrackToken ? track : null;
 }
 
+/** Load a song into the studio; resolves to whether it reached the player. */
 export async function loadTrackIntoStudio(trackId) {
   _loadingTrackId = trackId;
   try {
-    await loadIntoStudio(trackId);
+    return await loadIntoStudio(trackId);
   } finally {
     if (_loadingTrackId === trackId) _loadingTrackId = null;
   }
@@ -1607,7 +1615,8 @@ async function loadIntoStudio(trackId) {
   if (PROCESSING_STATUSES.has(track.status)) return;
   if (!track.audioStems?.length) return;
   if (track.status !== "done" && !hadStoredAudio) return;
-  _openTrackId = null;
+  _shownTrackId = null;
+  _showToken++;
   clearOpenPreview();
   applyStoredStemSelection(track);
   setCurrentTrack(trackId);
@@ -1640,22 +1649,23 @@ async function loadIntoStudio(trackId) {
   // For artistInfo.js, which finds the band from the file's tags. An event
   // rather than an import, since that module already imports this one.
   document.dispatchEvent(new CustomEvent("trackopen", { detail: { id: trackId } }));
+  return true;
 }
 
-// Head listeners follow a "trackopen" marked shownOnly; the player did not change.
 function announceShownTrack(trackId) {
-  document.dispatchEvent(new CustomEvent("trackopen", { detail: { id: trackId, shownOnly: true } }));
+  document.dispatchEvent(new CustomEvent(TRACK_SHOW_EVENT, { detail: { id: trackId } }));
 }
 
-/** Show a song in the studio over the one in the player, which keeps playing (#211). */
+/** Show a song in the studio over the one in the player, which keeps playing. */
 export async function showTrackOverPlayer(trackId) {
   const token = ++_loadTrackToken;
+  const show = ++_showToken;
   const peaksPromise = fetchPeaks(trackId);
   const track = await fetchTrackState(trackId, token);
   if (!track?.audioStems?.length || PROCESSING_STATUSES.has(track.status)) return;
   const peaks = await peaksPromise;
-  if (token !== _loadTrackToken) return;
-  _openTrackId = trackId;
+  if (token !== _loadTrackToken || show !== _showToken) return;
+  _shownTrackId = trackId;
   applyTrackInfoToPanel(track);
   showOpenPreview({
     stems: track.audioStems,
@@ -1668,13 +1678,14 @@ export async function showTrackOverPlayer(trackId) {
 
 /** The song shown over the player, or null. */
 export function shownTrackId() {
-  return _openTrackId;
+  return _shownTrackId;
 }
 
 /** Put the song in the player back on screen. */
 export function dropShownTrack() {
-  if (!_openTrackId) return;
-  _openTrackId = null;
+  _showToken++;
+  if (!_shownTrackId) return;
+  _shownTrackId = null;
   clearOpenPreview();
   const track = tracks[_currentTrackId];
   if (track) applyTrackInfoToPanel(track);
@@ -2108,7 +2119,7 @@ function undoFavorite(trackId, favorite, failureKey) {
 }
 
 function paintFavoriteHearts(trackId) {
-  if (trackId === openTrackId()) {
+  if (trackId === studioTrackId()) {
     const favBtn = document.getElementById("fav-btn");
     if (favBtn) paintFavButton(favBtn, Boolean(tracks[trackId].favorite));
   }
@@ -4911,7 +4922,7 @@ function afterServerBackfill() {
   saveState();
   render();
   const favBtn = document.getElementById("fav-btn");
-  const current = tracks[openTrackId()];
+  const current = tracks[studioTrackId()];
   if (favBtn && current) paintFavButton(favBtn, Boolean(current.favorite));
   if (current) paintNowPlayingNames(current);
   document.dispatchEvent(new CustomEvent("tracknames", { detail: { id: null } }));

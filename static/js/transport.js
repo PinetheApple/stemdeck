@@ -565,9 +565,15 @@ function _unlightIfNotStarted(eng, start) {
 
 let playRedirect = null;
 
-/** `redirect()` runs when Play would resume the loaded song; true means it started another one instead. */
+/** `redirect()` runs before the footer Play or Space toggles; true means it started another song instead. */
 export function setPlayRedirect(redirect) {
   playRedirect = redirect;
+}
+
+/** The footer Play and Space; Stage, media keys and Record toggle the loaded song alone. */
+export function togglePlayPauseFromTransport() {
+  if (playRedirect?.()) return;
+  togglePlayPause();
 }
 
 export function togglePlayPause() {
@@ -584,7 +590,6 @@ export function togglePlayPause() {
     if (eng) playBtn.classList.remove("playing");
     return;
   }
-  if (playRedirect?.()) return;
   const ctx = tx.audioContext;
   // Safari requires play() to be called synchronously within the user-gesture
   // handler. Resume the AudioContext fire-and-forget so the context becomes
@@ -991,8 +996,8 @@ export function wireTransportButtons() {
   // greyed is only a look: this is what actually makes them unusable, and what
   // a screen reader is told.
   setMetroOptionsAvailable(false);
-  playBtn.addEventListener("click", togglePlayPause);
-  playMiniBtn?.addEventListener("click", togglePlayPause);
+  playBtn.addEventListener("click", togglePlayPauseFromTransport);
+  playMiniBtn?.addEventListener("click", togglePlayPauseFromTransport);
   stopBtn.addEventListener("click", stopTransport);
   loopBtn.addEventListener("click", toggleLoop);
   wireLoopDrag();

@@ -392,7 +392,7 @@ export async function openStudio(
   await stubUpdateCheck(page, { available: updateAvailable });
 
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  // A click opens the song paused; a double-click would also start it (#211).
+  // A click opens the song paused; a double-click would also start it.
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
   if (!waitForDuration) return { favoriteWrites };
   // The transport total only leaves 00:00 once an engine has reported a

@@ -1,4 +1,4 @@
-// #211: a click opens a song over the one playing, which keeps playing until
+// A click opens a song over the one playing, which keeps playing until
 // Play starts the open one. Double-click, Enter and a row's Play open and play.
 
 import { test, expect } from "@playwright/test";
@@ -10,48 +10,36 @@ import {
   TRACK_TITLE,
   openStudio,
 } from "./helpers.mjs";
+import {
+  LOAD_TIMEOUT_MS,
+  SETTLE_MS,
+  countOpens,
+  expectPlaying,
+  isPlaying,
+  openSiblingOverPlaying,
+  playingId,
+  position,
+  songRow,
+  startPlayback,
+} from "./openVsPlaying.mjs";
 
-const SONG_ROW = "#catalogList .cat-item";
 const PLAY = `.${ROW_PLAY_CLASS}`;
 const SELECTED = new RegExp(`\\b${SELECTED_ROW_CLASS}\\b`);
 const ACTIVE = /\bactive\b/;
 const PREVIEW_ROW = "#openPreview .open-preview-row";
 const FIXTURE_LANES = 4;
 const SIBLING_LENGTH = "00:02";
-const LOAD_TIMEOUT_MS = 20000;
 // A's fixture is 6 s long; a start this close to its end reaches it within a test.
 const NEAR_THE_END_SEC = 5;
 const END_TIMEOUT_MS = 15000;
 const START_SEC = 0;
-const SETTLE_MS = 600;
 const SPACE = "Space";
+const NO_OPENS = 0;
 
-const songRow = (page, id) => page.locator(`${SONG_ROW}[data-id="${id}"]`).first();
-const playingId = (page) => page.evaluate(async () => (await import("/js/state.js")).currentJobId);
-const isPlaying = (page) => page.evaluate(async () => (await import("/js/state.js")).audioEngine?.isPlaying() === true);
-const position = (page) => page.evaluate(async () => (await import("/js/state.js")).audioEngine?.getCurrentTime() ?? 0);
 const mediaTitle = (page) => page.evaluate(() => navigator.mediaSession?.metadata?.title ?? null);
-
-async function startPlayback(page) {
-  await page.locator("#t-play").click();
-  await expect.poll(() => isPlaying(page)).toBe(true);
-}
 
 async function seekNearTheEnd(page) {
   await page.evaluate(async (sec) => (await import("/js/transport.js")).setPlayheadTime(sec), NEAR_THE_END_SEC);
-}
-
-/** A plays and B is open over it. */
-async function openSiblingOverPlaying(page) {
-  await openStudio(page);
-  await startPlayback(page);
-  await songRow(page, SIBLING_JOB_ID).click();
-  await expect(page.locator("#title")).toHaveText(SIBLING_TITLE);
-}
-
-async function expectPlaying(page, id) {
-  await expect.poll(() => playingId(page), { timeout: LOAD_TIMEOUT_MS }).toBe(id);
-  await expect.poll(() => isPlaying(page), { timeout: LOAD_TIMEOUT_MS }).toBe(true);
 }
 
 test.describe("a click opens a song over the one playing", () => {
@@ -69,7 +57,7 @@ test.describe("a click opens a song over the one playing", () => {
     expect(await playingId(page)).toBe(JOB_ID);
     expect(await isPlaying(page)).toBe(true);
     await expect.poll(() => position(page)).toBeGreaterThan(before);
-    expect(await mediaTitle(page)).not.toBe(SIBLING_TITLE);
+    await expect.poll(() => mediaTitle(page)).toBe(TRACK_TITLE);
   });
 
   test("the playing song wears the coral fill, the open one the frame, and the footer names the playing one", async ({ page }) => {
@@ -84,9 +72,12 @@ test.describe("a click opens a song over the one playing", () => {
 
   test("a click back on the playing song closes the open one without reloading", async ({ page }) => {
     await openSiblingOverPlaying(page);
+    const opens = countOpens(page, JOB_ID);
     await songRow(page, JOB_ID).click();
     await expect(page.locator("#title")).toHaveText(TRACK_TITLE);
     await expect(page.locator("#openPreview")).toBeHidden();
+    await page.waitForTimeout(SETTLE_MS);
+    expect(opens.count).toBe(NO_OPENS);
     expect(await playingId(page)).toBe(JOB_ID);
     expect(await isPlaying(page)).toBe(true);
   });
@@ -175,13 +166,15 @@ test.describe("when the playing song ends", () => {
     expect(await position(page)).toBe(START_SEC);
   });
 
-  test("with a song in Up Next, Up Next plays it as before", async ({ page }) => {
+  test("with a song in Up Next, Up Next plays it as before and the shown song goes", async ({ page }) => {
     await openStudio(page);
-    await page.evaluate((id) => document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id } })), SIBLING_JOB_ID);
+    await page.evaluate((id) => document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id } })), JOB_ID);
     await startPlayback(page);
     await seekNearTheEnd(page);
     await songRow(page, SIBLING_JOB_ID).click();
     await expect(page.locator("#title")).toHaveText(SIBLING_TITLE);
-    await expectPlaying(page, SIBLING_JOB_ID);
+    await expect(page.locator("#title")).toHaveText(TRACK_TITLE, { timeout: END_TIMEOUT_MS });
+    await expectPlaying(page, JOB_ID);
+    await expect(page.locator("#openPreview")).toBeHidden();
   });
 });

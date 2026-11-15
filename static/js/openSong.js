@@ -1,5 +1,5 @@
-// Opening a song versus playing it (#211): a click shows a song over the one playing, or
-// loads it paused when none plays; double-click, Enter and the Play buttons open and play.
+// A click shows a song over the one playing, or loads it paused when none plays;
+// double-click, Enter and the Play buttons open and play.
 
 import {
   dropShownTrack,
@@ -9,8 +9,9 @@ import {
   showTrackOverPlayer,
   shownTrackId,
 } from "./catalog.js";
-import { playWhenLoaded, upNextTakesOver } from "./upNext.js";
-import { setPlayRedirect, stopTransport, togglePlayPause, transport } from "./transport.js";
+import { setPlayingTitle } from "./openPreview.js";
+import { cancelPlayWhenLoaded, loadAndPlay, playWhenLoaded, upNextTakesOver } from "./upNext.js";
+import { setPlayRedirect, togglePlayPause, transport } from "./transport.js";
 import { $ } from "./utils.js";
 
 // The song whose engine said "playbackready" last, so Play can start it at once.
@@ -21,6 +22,7 @@ const isPlaying = () => transport()?.isPlaying() === true;
 
 /** A single click: show the song over the one playing, or load it when none plays. */
 export function openSong(trackId) {
+  cancelPlayWhenLoaded();
   if (trackId === playingTrackId()) {
     dropShownTrack();
     return;
@@ -37,16 +39,16 @@ export function playSong(trackId) {
     if (!isPlaying()) togglePlayPause();
     return;
   }
-  playWhenLoaded(trackId);
-  if (trackId === playingTrackId() || isLoadingTrack(trackId)) return;
-  if (isPlaying()) stopTransport();
-  loadTrackIntoStudio(trackId);
+  if (trackId === playingTrackId() || isLoadingTrack(trackId)) {
+    playWhenLoaded(trackId);
+    return;
+  }
+  loadAndPlay(trackId);
 }
 
-// Play with a song shown over a paused one starts the shown song.
 function playShownSongInstead() {
   const shown = shownTrackId();
-  if (!shown) return false;
+  if (!shown || isPlaying()) return false;
   playSong(shown);
   return true;
 }
@@ -66,9 +68,14 @@ function onPlaybackReady(e) {
   readyTrackId = e.detail?.id ?? null;
 }
 
+function onTrackNames() {
+  if (shownTrackId()) setPlayingTitle(getPlayingTrackInfo()?.displayTitle ?? "");
+}
+
 export function initOpenSong() {
   setPlayRedirect(playShownSongInstead);
   $("songPlayBtn")?.addEventListener("click", onSongHeadPlayClick);
   document.addEventListener("trackended", onPlayingSongEnded);
   document.addEventListener("playbackready", onPlaybackReady);
+  document.addEventListener("tracknames", onTrackNames);
 }

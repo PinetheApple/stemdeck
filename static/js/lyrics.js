@@ -1,4 +1,4 @@
-// The Lyrics tab: a view of the sidebar where the open track's lyrics are
+// The Lyrics tab: a view of the sidebar where the playing track's lyrics are
 // found, kept, and shown in time with playback, karaoke style (#699).
 //
 // Where they come from, in order:
@@ -108,7 +108,7 @@ const PRIMARY_ORDER = [
 const transcriptionRunning = () => Boolean(toolbarEl.querySelector(".lyrics-transcribe-progress:not([hidden])"));
 
 let visible = false;
-let shownTrackId = null; // the track whose lyrics are on screen
+let lyricsTrackId = null; // the track whose lyrics are on screen
 let lines = []; // timed lines of what is shown, in the timing in effect, [] for plain text
 let baseLines = []; // the lyrics' own lines at their own timing
 let offset = 0; // seconds the lines are moved later (earlier when negative)
@@ -209,7 +209,7 @@ function clearLyrics() {
   ownToolsEl.replaceChildren();
   resetTranscribe();
   toolbarEl.setAttribute("aria-label", t("lyrics.toolsAria"));
-  if (shownTrackId) versionsEl.append(toolbarEl);
+  if (lyricsTrackId) versionsEl.append(toolbarEl);
   refreshEditBar();
   announceLines();
 }
@@ -265,7 +265,7 @@ function lineButton(line, nextTime, index) {
 export function fillLine(row, line, nextTime) {
   row.replaceChildren();
   const words = [];
-  for (const word of wordTimings(line, nextTime, envelopeFor === shownTrackId ? envelope : null)) {
+  for (const word of wordTimings(line, nextTime, envelopeFor === lyricsTrackId ? envelope : null)) {
     const span = el("span", "lw", word.text);
     row.append(span);
     words.push({ el: span, start: word.start, end: word.end });
@@ -370,7 +370,7 @@ function onUntimedSyncClick() {
 function drawBody() {
   if (lines.length) {
     renderLines();
-    loadEnvelope(shownTrackId);
+    loadEnvelope(lyricsTrackId);
     return;
   }
   lineEls = [];
@@ -464,7 +464,7 @@ async function loadEnvelope(trackId) {
     if (!(Number(data?.hop) > 0) || !Array.isArray(data?.db)) return;
     envelope = { hop: Number(data.hop), db: Int8Array.from(data.db) };
     envelopeFor = trackId;
-    if (trackId === shownTrackId) retime();
+    if (trackId === lyricsTrackId) retime();
   } catch (err) {
     console.warn("vocal envelope fetch failed", err);
   } finally {
@@ -480,7 +480,7 @@ export function vocalEnvelope(trackId) {
 /** Give the words on screen the envelope's timings, or the estimate without
  * one, at the lines' times now: once, not per frame. */
 function retime() {
-  const levels = envelopeFor === shownTrackId ? envelope : null;
+  const levels = envelopeFor === lyricsTrackId ? envelope : null;
   lines.forEach((line, i) => {
     const words = lineWords[i];
     const timed = wordTimings(line, lines[i + 1]?.time ?? null, levels);
@@ -698,7 +698,7 @@ function applyOffset(seconds, { save = true } = {}) {
 }
 
 function scheduleSave() {
-  pendingSave = { trackId: shownTrackId, value: offset };
+  pendingSave = { trackId: lyricsTrackId, value: offset };
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushSave, SAVE_DELAY_MS);
 }
@@ -721,13 +721,13 @@ async function saveOffset({ trackId, value }) {
       keepalive: true,
     });
     if (await refusedForFolderMove(res)) {
-      if (trackId === shownTrackId) setAlignMessage(t(FOLDER_MOVING_KEY), "error");
+      if (trackId === lyricsTrackId) setAlignMessage(t(FOLDER_MOVING_KEY), "error");
       return;
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
   } catch (err) {
     console.warn("lyrics offset save failed", err);
-    if (trackId === shownTrackId) setAlignMessage(t("lyrics.align.saveFailed"), "error");
+    if (trackId === lyricsTrackId) setAlignMessage(t("lyrics.align.saveFailed"), "error");
   }
 }
 
@@ -739,7 +739,7 @@ async function saveOffset({ trackId, value }) {
  */
 async function autoDetect() {
   if (!align || !baseLines.length || align.detect.getAttribute("aria-busy") === "true") return;
-  const trackId = shownTrackId;
+  const trackId = lyricsTrackId;
   // A nudge not yet saved is what "as they are" means if it cannot tell.
   await flushSave();
   const token = ++alignToken;
@@ -760,7 +760,7 @@ async function autoDetect() {
   } catch (err) {
     console.warn("lyrics auto-detect failed", err);
   }
-  if (token !== alignToken || trackId !== shownTrackId || !align) return;
+  if (token !== alignToken || trackId !== lyricsTrackId || !align) return;
   align.detect.removeAttribute("aria-busy");
   if (!answer) {
     setAlignMessage(t(failedKey), "error");
@@ -792,7 +792,7 @@ const RETIME_POLL_MS = 1000;
 const RETIME_IDLE_POLLS = 3;
 
 const now = () => transport()?.getCurrentTime?.() ?? 0;
-const levels = () => (envelopeFor === shownTrackId ? envelope : null);
+const levels = () => (envelopeFor === lyricsTrackId ? envelope : null);
 const laneLength = () => totalDuration || (lines.at(-1)?.time ?? 0) + 10;
 
 /** Whether Sync lines has lines to work on. The user's plain text does: PUT
@@ -1140,7 +1140,7 @@ function saveUserTiming(lrc) {
   if (!shownEntry) return;
   if (lrc == null) delete shownEntry.userSynced;
   else shownEntry.userSynced = lrc;
-  userSave = { trackId: shownTrackId, lrc };
+  userSave = { trackId: lyricsTrackId, lrc };
   if (sync) sync.saveState.textContent = t("lyrics.sync.saving");
   clearTimeout(userSaveTimer);
   userSaveTimer = setTimeout(flushUserSave, SAVE_DELAY_MS);
@@ -1169,17 +1169,17 @@ async function sendUserTiming({ trackId, lrc }) {
         keepalive: true,
       });
     if (await refusedForFolderMove(res)) {
-      if (trackId !== shownTrackId || !sync) return;
+      if (trackId !== lyricsTrackId || !sync) return;
       sync.saveState.textContent = "";
       setSyncMessage(t(FOLDER_MOVING_KEY), "error");
       return;
     }
     // Nothing to remove is what a removal wanted.
     if (!res.ok && !(lrc == null && res.status === 404)) throw new Error(`HTTP ${res.status}`);
-    if (trackId === shownTrackId && sync && !userSave) sync.saveState.textContent = t("lyrics.sync.saved");
+    if (trackId === lyricsTrackId && sync && !userSave) sync.saveState.textContent = t("lyrics.sync.saved");
   } catch (err) {
     console.warn("lyrics timing save failed", err);
-    if (trackId === shownTrackId && sync) {
+    if (trackId === lyricsTrackId && sync) {
       sync.saveState.textContent = "";
       setSyncMessage(t("lyrics.sync.saveFailed"), "error");
     }
@@ -1195,13 +1195,13 @@ async function sendUserTiming({ trackId, lrc }) {
  */
 async function retimeFromVocals() {
   if (!sync || sync.retimeBtn.getAttribute("aria-busy") === "true") return;
-  const trackId = shownTrackId;
+  const trackId = lyricsTrackId;
   const entry = shownEntry;
   const token = ++retimeToken;
   const base = `/api/jobs/${encodeURIComponent(trackId)}/lyrics/retime`;
   sync.retimeBtn.setAttribute("aria-busy", "true");
   setSyncMessage(t("lyrics.sync.retiming"), "loading");
-  const live = () => token === retimeToken && trackId === shownTrackId && sync;
+  const live = () => token === retimeToken && trackId === lyricsTrackId && sync;
   const finish = (text, kind) => {
     if (!live()) return;
     sync.retimeBtn.removeAttribute("aria-busy");
@@ -1351,7 +1351,7 @@ function offer(matches) {
   clearLyrics();
   setStatus(t("lyrics.pickVersion"), "muted");
   versionsEl.append(versionList(matches));
-  checkTranscribe(shownTrackId);
+  checkTranscribe(lyricsTrackId);
 }
 
 /** PUT or DELETE the track's lyrics: { ok, status, data }, or null when the
@@ -1399,9 +1399,9 @@ async function keepOnServer(trackId, version, { picked = true, onRefused } = {})
 async function keep(match) {
   const info = getPlayingTrackInfo();
   if (!info) return;
-  // A load left behind by a switch: these lyrics are the shown track's, not the open one's.
-  if (info.id !== shownTrackId) {
-    reloadsOwed.add(shownTrackId);
+  // A load left behind by a switch: these lyrics are the ones on screen, not the playing track's.
+  if (info.id !== lyricsTrackId) {
+    reloadsOwed.add(lyricsTrackId);
     return;
   }
   // An offset or timing still waiting belongs to the version being replaced.
@@ -1435,7 +1435,7 @@ async function removeLyrics() {
     notifyLyricsFailure(notRemoved, "Removing lyrics", info.id);
     return;
   }
-  if (info.id === shownTrackId) showRemoved();
+  if (info.id === lyricsTrackId) showRemoved();
 }
 
 /** What the editor can start from: the words shown. */
@@ -1454,7 +1454,7 @@ function closeLyricsTools() {
  * any lookup or load still under way. */
 function onUserTextSaved(trackId, data) {
   answered.delete(trackId);
-  if (trackId !== shownTrackId) return;
+  if (trackId !== lyricsTrackId) return;
   loadToken++;
   searchController?.abort();
   searchController = null;
@@ -1470,17 +1470,17 @@ async function onUserTextRestored(trackId, nothingLeft) {
   answered.delete(trackId);
   const notRemoved = nothingLeft ? await recordRemoval(trackId) : null;
   if (notRemoved) notifyLyricsFailure(notRemoved, "Removing lyrics", trackId);
-  if (trackId === shownTrackId) loadForCurrentTrack();
+  if (trackId === lyricsTrackId) loadForCurrentTrack();
 }
 
 function showRemoved() {
   clearLyrics();
   setStatus(t("lyrics.removed"), "muted");
   ownToolsEl.append(lookAgainButton());
-  checkTranscribe(shownTrackId);
+  checkTranscribe(lyricsTrackId);
 }
 
-/** "Look up again": find the open track's lyrics anew, ending a removal. */
+/** "Look up again": find the playing track's lyrics anew, ending a removal. */
 function lookAgainButton() {
   return toolButton("lyrics-look-again", "search", t("lyrics.lookAgain"), onLookAgainClick);
 }
@@ -1491,17 +1491,17 @@ function onLookAgainClick() {
 
 /** A transcription left lyrics on the server: show them as any load does. */
 async function onTranscribed(trackId) {
-  if (trackId !== shownTrackId) return;
+  if (trackId !== lyricsTrackId) return;
   answered.delete(trackId);
   await loadForCurrentTrack();
 }
 
 function onTranscribeStale(trackId) {
-  if (trackId === shownTrackId) loadForCurrentTrack();
+  if (trackId === lyricsTrackId) loadForCurrentTrack();
 }
 
 /**
- * Ask the server to look the open track up on LRCLIB, by the import's own
+ * Ask the server to look the playing track up on LRCLIB, by the import's own
  * rules; what it finds is kept on the server, so every device sees it. The
  * band saved from the artist box goes along: it lives in this side's store,
  * and the server may not have it yet.
@@ -1579,7 +1579,7 @@ function showAnswer({ song, matches }) {
     return;
   }
   setStatus(t("lyrics.notFound", { song }), "muted");
-  checkTranscribe(shownTrackId);
+  checkTranscribe(lyricsTrackId);
 }
 
 function showNothingKnown(trackId) {
@@ -1622,22 +1622,22 @@ async function embeddedLyrics(trackId) {
   }
 }
 
-/** Show what the server keeps for the open track, or find it. `again` is
+/** Show what the server keeps for the playing track, or find it. `again` is
  * Look up again, which a removal does not hold back. */
 async function loadForCurrentTrack({ again = false } = {}) {
   const info = getPlayingTrackInfo();
   // The Align panel stays open while the same track is shown again.
-  const trackChanged = (info?.id ?? null) !== shownTrackId;
+  const trackChanged = (info?.id ?? null) !== lyricsTrackId;
   if (trackChanged) {
     alignOpen = false;
     syncOpen = false;
   }
-  shownTrackId = info?.id ?? null;
+  lyricsTrackId = info?.id ?? null;
   nothingKnownFor = null;
   searchController?.abort();
   searchController = null;
   clearLyrics();
-  if (trackChanged) editorTrackChanged(shownTrackId);
+  if (trackChanged) editorTrackChanged(lyricsTrackId);
   const token = ++loadToken;
   if (!info) {
     setStatus(t("lyrics.noTrack"), "muted");
@@ -1746,7 +1746,7 @@ function onCarryOverFolderMoving() {
 
 function onLyricsCarried(trackId) {
   answered.delete(trackId);
-  if (trackId === shownTrackId) loadForCurrentTrack();
+  if (trackId === lyricsTrackId) loadForCurrentTrack();
 }
 
 // While the tab is on screen: notice a different track being opened, mark the
@@ -1757,7 +1757,7 @@ function tick() {
   frame = 0;
   if (!visible) return;
   const id = getPlayingTrackInfo()?.id ?? null;
-  if (id !== shownTrackId) loadForCurrentTrack();
+  if (id !== lyricsTrackId) loadForCurrentTrack();
   if (lines.length) {
     // 50ms ahead: a click on a line seeks to its exact stamp, and the time read
     // back can land a hair before it, which would mark the line above.
@@ -1829,18 +1829,18 @@ function onTrackLookup(e) {
   else if (!visible) reloadsOwed.add(id);
 }
 
-/** Load the open track's lyrics for a view other than the tab, if they are not the ones held. */
+/** Load the playing track's lyrics for a view other than the tab, if they are not the ones held. */
 export function ensureLyricsLoaded() {
   if (!statusEl || !versionsEl || !bodyEl) return;
   const id = getPlayingTrackInfo()?.id ?? null;
   const owed = reloadsOwed.delete(id);
-  if (owed || id !== shownTrackId || (id && id === nothingKnownFor)) loadForCurrentTrack();
+  if (owed || id !== lyricsTrackId || (id && id === nothingKnownFor)) loadForCurrentTrack();
 }
 
 /** The lines timing the song, for other views: Sync's starting times on plain text are not timing. */
 export const getTimedLyricLines = () => (plainSeeded && timingKind === "offset" ? [] : lines);
 
-/** The open song has lyrics shown, but none of them timed. */
+/** The playing song has lyrics shown, but none of them timed. */
 export const hasUntimedLyrics = () => Boolean(shownEntry?.plain?.trim()) && getTimedLyricLines().length === 0;
 
 export function initLyrics() {
@@ -1856,7 +1856,7 @@ export function initLyrics() {
   toolbarEl.append(ownToolsEl);
   initLyricsTranscribe(toolbarEl, { onLyrics: onTranscribed, onStale: onTranscribeStale });
   initLyricsEdit(panel, toolbarEl, {
-    trackId: () => shownTrackId,
+    trackId: () => lyricsTrackId,
     editable: editableNow,
     closeTools: closeLyricsTools,
     flush: flushSave,

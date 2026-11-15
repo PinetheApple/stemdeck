@@ -2,7 +2,7 @@
 // Extract more stems, and the version pill in the studio head.
 
 import {
-  applyVersionsState, displayTitle, getLibraryTrack, libraryTitle, loadTrackIntoStudio, redrawLibrary,
+  applyVersionsState, displayTitle, getCurrentTrackInfo, getLibraryTrack, libraryTitle, loadTrackIntoStudio, redrawLibrary,
   setVersionsExpanded,
 } from "./catalog.js";
 import { audioEngine, currentJobId, currentVersionId, selectedStems, setCurrentVersionId } from "./state.js";
@@ -452,12 +452,14 @@ function pillMenuItems(jobId, track) {
   return [...items, menuSeparator(), saveItem];
 }
 
+// The pill is the open song's, which is not the one in the player while another plays.
 function onPillClick(e) {
-  const track = getLibraryTrack(currentJobId);
+  const jobId = getCurrentTrackInfo()?.id;
+  const track = getLibraryTrack(jobId);
   if (!track) return;
   openMenu(
     e.currentTarget,
-    pillMenuItems(currentJobId, track),
+    pillMenuItems(jobId, track),
     { label: e.currentTarget.getAttribute("aria-label"), place: placeBelow },
   );
 }

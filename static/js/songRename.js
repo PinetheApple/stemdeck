@@ -1,7 +1,7 @@
 // Rename a song's title and artist in place, in the song head or a library row.
 // Saved with PATCH /api/jobs/{id}; the song is then looked up again by its new names.
 
-import { applyRenamedState, getCurrentTrackInfo, getTrackNames, relookupTrack } from "./catalog.js";
+import { TRACK_SHOW_EVENT, applyRenamedState, getCurrentTrackInfo, getTrackNames, relookupTrack } from "./catalog.js";
 import { t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
 import { SONG_NAME_MAX_CHARS, fetchJson, iconButton, isNotFound, refusalReason, textInput } from "./libraryControls.js";
@@ -194,4 +194,5 @@ export function initSongRename() {
   $("title")?.addEventListener("click", onHeadTitleClick);
   $("np-artist")?.addEventListener("click", onHeadArtistClick);
   document.addEventListener("trackopen", onTrackOpen);
+  document.addEventListener(TRACK_SHOW_EVENT, onTrackOpen);
 }
