@@ -34,6 +34,7 @@ const REASON_KEYS = Object.freeze({
   "source-blocked": "importFail.reason.sourceBlocked",
   "source-unavailable": "importFail.reason.sourceUnavailable",
   "bad-input": "importFail.reason.badInput",
+  interrupted: "importFail.reason.interrupted",
   unknown: UNKNOWN_REASON_KEY,
 });
 

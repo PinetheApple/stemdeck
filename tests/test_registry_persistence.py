@@ -136,7 +136,7 @@ def test_a_job_interrupted_twice_fails_instead_of_looping(tmp_path: Path):
     restore_registry(tmp_path)
 
     assert _jobs[job.id].status == "error"
-    assert "again" in (_jobs[job.id].error or "")
+    assert "twice" in (_jobs[job.id].error or "")
     assert _registry.take_pending_resume() == []
 
 

@@ -34,6 +34,8 @@ CAUSE_UNSUPPORTED_DEVICE = "unsupported-device"
 CAUSE_DISK_FULL = "disk-full"
 CAUSE_SOURCE_UNAVAILABLE = "source-unavailable"
 CAUSE_UNKNOWN = "unknown"
+# Not classified from text: restore() sets it on a job the process died during twice.
+CAUSE_INTERRUPTED = "interrupted"
 
 # Ordered, first match wins. Substring match against lowercased text.
 # Deliberately coarse: these route a user (or a bug report) to the right
