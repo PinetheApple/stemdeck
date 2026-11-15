@@ -1,14 +1,26 @@
 """The routes that list, open, rename, save, extract and delete a song's
-versions. Every GET, and opening the open version, writes nothing."""
+versions. Every GET, and opening the open version, writes nothing.
+
+Extracting stems whose files the song is missing separates its kept audio
+again in the background (app/pipeline/extract_stems.py), followed and
+cancelled through .../versions/extract."""
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Coroutine
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
-from app.api.jobs import RESTORE_FROM_TRASH_FIRST
+from app.api.jobs import (
+    RESTORE_FROM_TRASH_FIRST,
+    STEMS_FOLDER_MOVING_IMPORT,
+    _retained_source,
+    _terminate_worker,
+)
 from app.core.config import (
     JOB_ID_RE,
     JOBS_DIR,
@@ -20,7 +32,7 @@ from app.core.models import STATUS_DONE, Job, _set, checked_name
 from app.core.registry import get as registry_get
 from app.core.registry import persist as registry_persist
 from app.core.song_folder import copy_saved_fields, metadata_lock
-from app.core.stem_files import stem_exists
+from app.core.stems_location import is_relocating
 from app.core.versions import (
     clean_stems,
     find_by_stems,
@@ -29,6 +41,15 @@ from app.core.versions import (
     open_version_of,
     versions_of,
 )
+from app.pipeline.extract_stems import (
+    EXTRACT_RUNS,
+    cancel_extract,
+    claim_extract,
+    extract_view,
+    missing_stems,
+    run_extract,
+)
+from app.pipeline.runs import start_run_task
 
 router = APIRouter(tags=["jobs"])
 
@@ -38,7 +59,8 @@ SONG_NOT_READY = "the song is not ready"
 NO_KNOWN_STEM = "choose at least one known stem"
 TOO_MANY_VERSIONS = "this song has too many versions"
 STEMS_ALREADY_IN_VERSION = "those stems are already in this version"
-STEM_FILES_MISSING = "this song is missing stem files; import it again"
+SOURCE_GONE = "this song's original audio is not kept; import it again to get these stems"
+EXTRACT_RUNNING = "more stems are already being extracted for this song"
 LAST_VERSION_KEPT = "a song keeps at least one version; move it to the Trash instead"
 
 
@@ -162,10 +184,73 @@ def save_as_new_version(job_id: str, body: NewVersionBody) -> dict:
         return {"version": version, **_payload(job)}
 
 
-@router.post("/{job_id}/versions/extract", status_code=201)
-def extract_more_stems(job_id: str, body: ExtractBody, response: Response) -> dict:
-    """Open the version showing `from`'s stems plus `stems`, made (201) when
-    none shows exactly those, else the existing one (200) under its own name."""
+def _find_or_make(
+    versions: list[dict[str, Any]],
+    wanted: list[str],
+    name: str,
+) -> tuple[dict[str, Any], bool]:
+    """The version showing exactly `wanted`, or a new one added to `versions`;
+    and whether it is new."""
+    existing = find_by_stems(versions, wanted)
+    if existing is not None:
+        return existing, False
+    _room_for_one_more(versions)
+    version = new_version(versions, name, wanted)
+    versions.append(version)
+    return version, True
+
+
+def _open_extracted(job: Job, wanted: list[str], name: str) -> str:
+    """Open the version showing `wanted` once its stems are in, saving the
+    song's new stem URLs with it."""
+    versions = versions_of(job)
+    version, created = _find_or_make(versions, wanted, name)
+    _save(job, versions if created else job.versions, version["id"])
+    return version["id"]
+
+
+def _extract_in_place(
+    job: Job,
+    versions: list[dict[str, Any]],
+    wanted: list[str],
+    name: str,
+) -> tuple[dict, int]:
+    version, created = _find_or_make(versions, wanted, name)
+    if created or version["id"] != open_version_of(job, versions):
+        _save(job, versions if created else job.versions, version["id"])
+    status = 201 if created else 200
+    return {"version": version, "created": created, **_payload(job)}, status
+
+
+def _stems_dir(job: Job) -> Path:
+    return JOBS_DIR / job.id / "stems"
+
+
+def _start_extract(
+    job: Job,
+    versions: list[dict[str, Any]],
+    wanted: list[str],
+    missing: list[str],
+    name: str,
+) -> tuple[dict, int, Coroutine[None, None, None]]:
+    if find_by_stems(versions, wanted) is None:
+        _room_for_one_more(versions)
+    if is_relocating():
+        raise HTTPException(status_code=409, detail=STEMS_FOLDER_MOVING_IMPORT)
+    source = _retained_source(job.id)
+    if source is None:
+        raise HTTPException(status_code=409, detail=SOURCE_GONE)
+    run = claim_extract(job, missing, wanted, name)
+    if run is None:
+        raise HTTPException(status_code=409, detail=EXTRACT_RUNNING)
+    task = run_extract(job, _stems_dir(job), source, run, _open_extracted)
+    return {"extracting": extract_view(job), **_payload(job)}, 202, task
+
+
+def _extract(
+    job_id: str,
+    body: ExtractBody,
+) -> tuple[dict, int, Coroutine[None, None, None] | None]:
     with metadata_lock:
         job = _writable_song(job_id)
         versions = versions_of(job)
@@ -174,20 +259,44 @@ def extract_more_stems(job_id: str, body: ExtractBody, response: Response) -> di
         if set(added) & set(source["stems"]):
             raise HTTPException(status_code=422, detail=STEMS_ALREADY_IN_VERSION)
         wanted = clean_stems(source["stems"] + added)
-        stems_dir = JOBS_DIR / job.id / "stems"
-        if not all(stem_exists(stems_dir, name) for name in wanted):
-            raise HTTPException(status_code=409, detail=STEM_FILES_MISSING)
-        existing = find_by_stems(versions, wanted)
-        if existing is not None:
-            if existing["id"] != open_version_of(job, versions):
-                _save(job, job.versions, existing["id"])
-            response.status_code = 200
-            return {"version": existing, "created": False, **_payload(job)}
-        _room_for_one_more(versions)
-        version = new_version(versions, body.name, wanted)
-        versions.append(version)
-        _save(job, versions, version["id"])
-        return {"version": version, "created": True, **_payload(job)}
+        missing = missing_stems(_stems_dir(job), wanted)
+        if missing:
+            return _start_extract(job, versions, wanted, missing, body.name)
+        return (*_extract_in_place(job, versions, wanted, body.name), None)
+
+
+@router.post("/{job_id}/versions/extract", status_code=201)
+async def extract_more_stems(job_id: str, body: ExtractBody, response: Response) -> dict:
+    """Open the version showing `from`'s stems plus `stems`, made (201) when
+    none shows exactly those, else the existing one (200) under its own name.
+    When the song is missing a stem file for it, 202 instead: the stems are
+    extracted from the song's kept audio first, followed by GET
+    .../versions/extract, and the version opens once they are in. 409 when
+    the audio is not kept or an extraction is already going."""
+    payload, status, task = await asyncio.to_thread(_extract, job_id, body)
+    if task is not None:
+        start_run_task(task)
+    response.status_code = status
+    return payload
+
+
+@router.get("/{job_id}/versions/extract")
+def get_extract(job_id: str) -> dict:
+    """Where the song's extraction stands: {"state": "running" | "done" |
+    "failed" | "cancelled", "phase", "progress" (0 to 1), "stems", "error",
+    "version_id"}, or {"state": "idle"} when there is none."""
+    return extract_view(_song(job_id))
+
+
+@router.post("/{job_id}/versions/extract/cancel")
+def cancel_extracting(job_id: str) -> dict:
+    """Stop the song's extraction, leaving the song as it was. Nothing else
+    running on the song is stopped."""
+    job = _song(job_id)
+    run = EXTRACT_RUNS.current(job_id)
+    if cancel_extract(job) and run is not None and run.started:
+        _terminate_worker(job_id)
+    return extract_view(job)
 
 
 @router.delete("/{job_id}/versions/{version_id}")

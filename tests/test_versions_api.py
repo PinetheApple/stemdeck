@@ -3,7 +3,8 @@ stem files, kept on the job record and in its metadata.json.
 
 A song made before versions existed reads as one implicit "Original" and
 nothing is written for it until a version is created, renamed, deleted or
-opened as a different one. No route reads, writes or deletes a stem file.
+opened as a different one. No route reads, writes or deletes a stem file;
+extracting the stems a song is missing is tested in test_extract_stems_api.
 """
 
 from __future__ import annotations
@@ -260,12 +261,14 @@ def test_extract_from_an_unknown_version_is_a_404(client):
     assert r.json()["detail"] == "version not found"
 
 
-def test_extract_with_a_stem_file_gone_creates_nothing(client):
+def test_extract_with_a_stem_file_and_the_audio_gone_creates_nothing(client):
     _done()
     (_stems_dir() / "guitar.wav").unlink()
     r = _extract(client)
     assert r.status_code == 409
-    assert r.json()["detail"] == "this song is missing stem files; import it again"
+    assert r.json()["detail"] == (
+        "this song's original audio is not kept; import it again to get these stems"
+    )
     assert _jobs[JOB_ID].versions is None
 
 
