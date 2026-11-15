@@ -7,7 +7,7 @@ export const FAILED_STATUS = "error";
 export const LOCAL_PREFIX = "local:";
 const HTTP_QUEUE_FULL = 503;
 const HTTP_GONE = 410;
-const RESTORE_FIRST_DETAIL = "restore it from the Trash first";
+export const RESTORE_FIRST_DETAIL = "restore it from the Trash first";
 const STEMS_FOLDER_MOVING_DETAIL = "Restart StemDeck to finish moving your stems folder before importing";
 
 export const SOURCE_KIND = Object.freeze({ LINK: "link", FILE: "file" });
