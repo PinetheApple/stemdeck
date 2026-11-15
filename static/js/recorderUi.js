@@ -1,0 +1,118 @@
+// What recording looks like outside the lanes: the footer's Record button (a
+// red dot, then a red pill with the take time), the count-in number over the
+// lanes, the REC mark in Stage mode, and the notice after a song switch.
+
+import { t } from "./i18n.js";
+import { icon } from "./libraryIcons.js";
+import { fmtTime } from "./utils.js";
+import { RECORD_BLOCK, REC_PHASE } from "./recorder.js";
+import { refitFooter } from "./footerFit.js";
+
+const BLOCK_HINT = {
+  [RECORD_BLOCK.speed]: "rec.hint.speed",
+  [RECORD_BLOCK.noTrack]: "rec.hint.noTrack",
+  [RECORD_BLOCK.noInput]: "rec.hint.noInput",
+  [RECORD_BLOCK.noEngine]: "rec.hint.noEngine",
+};
+
+const recordBtn = () => document.getElementById("t-rec");
+
+export function wireRecordButton(onClick) {
+  recordBtn()?.addEventListener("click", onClick);
+}
+
+let painted = "";
+
+function showButton(btn, shown, phase) {
+  const changed = btn.hidden === shown || btn.dataset.phase !== String(phase);
+  btn.hidden = !shown;
+  btn.dataset.phase = String(phase);
+  if (changed) refitFooter();
+}
+
+/**
+ * `shown`: the song has a recording track. `phase` is the take's REC_PHASE or
+ * null; `block` a RECORD_BLOCK or null.
+ */
+export function paintRecordButton({ shown, phase, block, elapsedSec }) {
+  const btn = recordBtn();
+  const key = `${shown}|${phase}|${block}|${Math.floor(elapsedSec)}|${document.documentElement.lang}`;
+  if (!btn || key === painted) return;
+  painted = key;
+  showButton(btn, shown || Boolean(phase), phase);
+  const live = phase === REC_PHASE.counting || phase === REC_PHASE.recording;
+  btn.classList.toggle("is-counting", phase === REC_PHASE.counting);
+  btn.classList.toggle("is-recording", phase === REC_PHASE.recording);
+  btn.disabled = Boolean(block) && !phase;
+  btn.setAttribute("aria-pressed", String(live));
+  const label = live ? t("rec.stop") : t("rec.record");
+  const hint = !phase && block ? t(BLOCK_HINT[block]) : label;
+  btn.title = hint;
+  btn.setAttribute("aria-label", hint);
+  const time = btn.querySelector(".rec-btn-time");
+  if (time) time.textContent = phase === REC_PHASE.recording ? fmtTime(elapsedSec) : "";
+}
+
+let countInEl = null;
+
+/** The beats left before the take, big over the lanes; null clears it. */
+export function paintCountIn(beatsLeft) {
+  if (!beatsLeft) {
+    countInEl?.remove();
+    countInEl = null;
+    return;
+  }
+  if (!countInEl) {
+    countInEl = document.createElement("div");
+    countInEl.className = "rec-countin";
+    countInEl.setAttribute("aria-live", "assertive");
+    countInEl.append(document.createElement("b"));
+    document.querySelector(".daw-wave-panel")?.append(countInEl);
+  }
+  countInEl.firstChild.textContent = String(beatsLeft);
+}
+
+export function paintStageMark(elapsedSec) {
+  const mark = document.getElementById("stageRecMark");
+  if (!mark) return;
+  mark.hidden = elapsedSec === null;
+  if (elapsedSec !== null) mark.textContent = t("rec.stageMark", { time: fmtTime(elapsedSec) });
+}
+
+let noticeEl = null;
+
+function closeNotice() {
+  noticeEl?.remove();
+  noticeEl = null;
+}
+
+/** A notice over the bottom of the lanes; `action` is `{ text, onClick }` or null. */
+export function showRecNotice(text, action = null) {
+  closeNotice();
+  noticeEl = document.createElement("div");
+  noticeEl.className = "rec-notice";
+  noticeEl.setAttribute("role", "status");
+  noticeEl.innerHTML = icon("check");
+  const p = document.createElement("p");
+  p.textContent = text;
+  noticeEl.append(p);
+  if (action) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "settings-btn";
+    btn.textContent = action.text;
+    btn.addEventListener("click", function onNoticeAction() {
+      closeNotice();
+      action.onClick();
+    });
+    noticeEl.append(btn);
+  }
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "rec-notice-close";
+  close.setAttribute("aria-label", t("rec.dismiss"));
+  close.innerHTML = icon("x");
+  close.addEventListener("click", closeNotice);
+  noticeEl.append(close);
+  document.getElementById("lanes")?.append(noticeEl);
+}

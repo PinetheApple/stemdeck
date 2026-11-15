@@ -62,6 +62,7 @@ import { t, plural, onLanguageChange } from "./i18n.js";
 import { paintNowPlayingArt } from "./formatIcon.js";
 import { noteMediaPosition, clearMediaSession } from "./mediaSession.js";
 import { trackPlayhead, resetFollowing } from "./autoScroll.js";
+import { takeLaneSpace, onTakeLayoutChange } from "./takesLayout.js";
 
 // Playback-engine selection. All engines play decoded AudioBuffers off a single
 // AudioContext clock (no N streaming <audio> elements — that was the source of
@@ -1080,15 +1081,21 @@ function _applyLaneHeight(count) {
   //
   // So the row is the unit. Divide the panel by the row count, and give the
   // mixer and the waveform column exactly the same total.
+  const rec = takeLaneSpace();
   const rowH = panelH > 0 && count > 0
-    ? Math.max(WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT, Math.floor(panelH / count))
+    ? Math.max(WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT, Math.floor((panelH - rec.fixedPx) / (count + rec.lanes)))
     : WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT;
   const appEl = document.querySelector(".app");
   appEl?.style.setProperty("--lane-h", `${rowH}px`);
-  appEl?.style.setProperty("--wave-widget-track-stack-h", `${count * rowH}px`);
+  appEl?.style.setProperty("--stem-stack-h", `${count * rowH}px`);
+  appEl?.style.setProperty("--wave-widget-track-stack-h", `${(count + rec.lanes) * rowH + rec.fixedPx}px`);
   // The drawable height inside a row, which is what the multitrack is given.
   return rowH - WAVEFORM_SEPARATOR_HEIGHT;
 }
+
+onTakeLayoutChange(function refitForTakes() {
+  if (_laneCount > 0) _applyLaneHeight(_laneCount);
+});
 
 const BEATS_FETCH_TIMEOUT_MS = 5000;
 

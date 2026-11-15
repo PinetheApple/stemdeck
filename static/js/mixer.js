@@ -21,6 +21,7 @@ import { t } from "./i18n.js";
 import {
   GLOBAL_PITCH_FIELD, PITCH_MAX, PITCH_MIN, clampPitch, pitchBlockedKey, savedGlobalPitch,
 } from "./pitchBus.js";
+import { applyTakeGains, takeSoloActive } from "./takesMix.js";
 
 function defaultMixerEntry() {
   // `pitch` is the key this lane is actually in, in semitones from the
@@ -181,7 +182,8 @@ export function setLaneKeysAvailable(available) {
 
 export function applyMix() {
   if (!multitrack) return;
-  const anySolo = allTrackNames().some((name) => trackIndex[name] !== undefined && mixerState[name]?.soloed);
+  const anySolo = takeSoloActive()
+    || allTrackNames().some((name) => trackIndex[name] !== undefined && mixerState[name]?.soloed);
   for (const name of allTrackNames()) {
     const s = mixerState[name];
     if (!s) continue;
@@ -212,6 +214,7 @@ export function applyMix() {
       multitrack.setTrackVolume(idx, targetGain);
     }
   }
+  applyTakeGains(anySolo);
 }
 
 export function updateLaneKnobVisual(knobEl, v) {

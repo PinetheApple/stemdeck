@@ -176,7 +176,7 @@ test.describe("tabs by keyboard", () => {
     await openSettings(page);
     await showTab(page, "network");
     const stops = await page.locator(".settings-tab").evaluateAll((tabs) => tabs.map((t) => t.tabIndex));
-    expect(stops).toEqual([-1, -1, 0, -1, -1, -1]);
+    expect(stops).toEqual([-1, -1, 0, -1, -1, -1, -1]);
   });
 
   test("the Logs sub-tabs move the same way", async ({ page }) => {
