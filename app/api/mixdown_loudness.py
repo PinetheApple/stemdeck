@@ -25,15 +25,7 @@ from app.api.export_fx import (
     master_query,
     prepare_export,
 )
-from app.api.stems import (
-    NO_TRANSPOSE_DETAIL,
-    PITCHES_MAX_CHARS,
-    _expand_render_lanes,
-    _parse_lane_gains,
-    _parse_pitches,
-    _pitch_filter,
-    _rubberband_available,
-)
+from app.api.stems import PITCHES_MAX_CHARS, _pitch_filter, parse_export_mix
 from app.core.config import JOB_ID_RE, MASTER_LOUDNESS_POLL_SEC, STEM_FORMAT_MP3, STEM_FORMAT_WAV
 
 router = APIRouter(tags=["stems"])
@@ -72,11 +64,7 @@ async def get_mixdown_loudness(
     """The plan as JSON (docs/api.md); ``master`` is required here."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
-    names, parsed_gains = _parse_lane_gains(stems, gains)
-    parsed_pitches = _parse_pitches(pitches, names)
-    if any(parsed_pitches) and not await asyncio.to_thread(_rubberband_available):
-        raise HTTPException(status_code=422, detail=NO_TRANSPOSE_DETAIL)
-    lanes, _unpitched = _expand_render_lanes(job_id, names, parsed_gains, parsed_pitches)
+    lanes = (await parse_export_mix(job_id, stems, gains, pitches)).lanes
     output_format = _LOSSY_PLAN_FORMAT if lossy else _LOSSLESS_PLAN_FORMAT
     export = await _unless_disconnected(
         request,

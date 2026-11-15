@@ -5,6 +5,7 @@ encoder is used only after it passes a real test encode."""
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 from app.core.config import _env_int
 
@@ -33,6 +34,10 @@ CANDIDATES: dict[str, tuple[str, ...]] = {
     OS_MACOS: (VIDEOTOOLBOX,),
 }
 # Unverified on real hardware: QSV, AMF, VideoToolbox and every Windows path.
+
+OS_RELEASE_PATH = Path("/etc/os-release")
+OS_RELEASE_ID = "ID"
+OS_RELEASE_ID_LIKE = "ID_LIKE"
 
 ENCODER_ENV = "STEMDECK_VIDEO_ENCODER"
 VAAPI_DEVICE_ENV = "STEMDECK_VAAPI_DEVICE"
@@ -131,6 +136,23 @@ def os_key(platform: str | None = None) -> str:
     if plat == "darwin":
         return OS_MACOS
     return OS_LINUX
+
+
+def os_release_ids(platform: str | None = None) -> tuple[str | None, str | None]:
+    """(ID, ID_LIKE) from /etc/os-release on Linux; None for each one missing,
+    off Linux, or when the file cannot be read."""
+    if os_key(platform) != OS_LINUX:
+        return None, None
+    try:
+        text = OS_RELEASE_PATH.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None, None
+    values: dict[str, str] = {}
+    for line in text.splitlines():
+        key, sep, value = line.partition("=")
+        if sep:
+            values[key.strip()] = value.strip().strip("\"'")
+    return values.get(OS_RELEASE_ID) or None, values.get(OS_RELEASE_ID_LIKE) or None
 
 
 def encoder_choices(platform: str | None = None) -> tuple[str, ...]:
