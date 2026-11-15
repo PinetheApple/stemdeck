@@ -1137,6 +1137,10 @@ FX_MAX_LANES = 32
 FX_MAX_BANDS = 12
 FX_MAX_SECTIONS = 160
 MASTER_PARAM_MAX_CHARS = 256
+# The rate the pipeline writes stems at, assumed when a stem's header cannot be read.
+FX_FALLBACK_SAMPLE_RATE = 44100
+# How often a loudness request checks that its client is still there.
+MASTER_LOUDNESS_POLL_SEC = 0.5
 # Lossy encoders add peak of their own (MP3 measured +0.7 dB, AAC more), so a
 # lossy master never asks for a true-peak ceiling above this.
 EXPORT_LIMIT_LOSSY_DBTP = -1.5
