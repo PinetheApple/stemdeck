@@ -179,3 +179,61 @@ def test_a_move_that_failed_after_the_registry_can_still_be_finished(
     assert (target / "user-data.json").read_text(encoding="utf-8") == '{"mine": 1}'
     assert list(client.jobs_dir.iterdir()) == []
     assert settings_mod.get_jobs_dir() == str(target.resolve())
+
+
+_SET_ASIDE = "registry.json.bad-20261111-120000-abc123"
+_REGISTRY_TEMP = f".registry.json.{'0' * 32}.tmp"
+
+
+@pytest.mark.parametrize("name", [_SET_ASIDE, _REGISTRY_TEMP, f".{SETLISTS_FILE}.{'f' * 32}.tmp"])
+def test_a_folder_holding_stemdecks_own_leftovers_is_accepted(tmp_path, name):
+    current = tmp_path / "old"
+    current.mkdir()
+    target = tmp_path / "new"
+    _job_dir(target, "aaaaaaaaaaaa")
+    (target / "registry.json").write_text("{}", encoding="utf-8")
+    (target / name).write_text("{}", encoding="utf-8")
+
+    assert validate_target(target, current) == target.resolve()
+
+
+@pytest.mark.parametrize("name", ["registry.json.old", "registry.json.bad-notes.txt"])
+def test_a_lookalike_of_stemdecks_leftovers_is_refused(tmp_path, name):
+    current = tmp_path / "old"
+    current.mkdir()
+    target = tmp_path / "new"
+    _job_dir(target, "aaaaaaaaaaaa")
+    (target / name).write_text("{}", encoding="utf-8")
+
+    with pytest.raises(StemsLocationError, match="empty folder"):
+        validate_target(target, current)
+
+
+def test_a_move_that_stopped_after_the_set_aside_records_can_still_be_finished(
+    client,  # noqa: F811
+    tmp_path,
+    monkeypatch,
+):
+    import app.core.settings as settings_mod
+
+    _job_dir(client.jobs_dir, "aaaaaaaaaaaa")
+    _write_registry(client.jobs_dir, Job(id="aaaaaaaaaaaa", status="done"))
+    (client.jobs_dir / _SET_ASIDE).write_text('{"records": [1]}', encoding="utf-8")
+    (client.jobs_dir / _REGISTRY_TEMP).write_text("{", encoding="utf-8")
+    (client.jobs_dir / "user-data.json").write_text('{"mine": 1}', encoding="utf-8")
+    target = tmp_path / "elsewhere"
+    disk = _fail_on(monkeypatch, "user-data.json")
+    assert (
+        client.post("/api/settings/stems-location", json={"path": str(target)}).status_code == 500
+    )
+    assert (target / _SET_ASIDE).is_file()
+    disk["fail"] = False
+
+    r = client.post("/api/settings/stems-location", json={"path": str(target)})
+
+    assert r.status_code == 200, r.text
+    assert (target / _SET_ASIDE).read_text(encoding="utf-8") == '{"records": [1]}'
+    assert (target / _REGISTRY_TEMP).read_text(encoding="utf-8") == "{"
+    assert (target / "user-data.json").read_text(encoding="utf-8") == '{"mine": 1}'
+    assert list(client.jobs_dir.iterdir()) == []
+    assert settings_mod.get_jobs_dir() == str(target.resolve())
