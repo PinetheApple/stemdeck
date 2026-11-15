@@ -487,13 +487,12 @@
   #songHead #nowPlayingPanel .track-panel-title { font-size: var(--fs-md); }
 }
 
-/* Only reached when the library is reopened beside the inspector in a narrow window.
-   Queries the lanes, not the head, so the head's own gap can give the title room. */
+/* 660px: the lanes beside library and inspector at their minimums up to a ~1220px window; past it
+   the unfolded head still leaves the title 80px. Lanes, not the head, so the head's own gap can shrink. */
 @container lanes (max-width: 660px) {
   #songHead { gap: var(--s-2); padding-inline: var(--s-3); }
   #songHead .daw-panel-toggles-label { display: none; }
   #songHead .stage-mode-btn { width: var(--ctl-h-sm); height: var(--ctl-h-sm); padding: 0; justify-content: center; }
-  /* Clipped rather than display: none, so the label stays the accessible name. */
   #songHead .stage-mode-btn > span {
     position: absolute;
     width: 1px;

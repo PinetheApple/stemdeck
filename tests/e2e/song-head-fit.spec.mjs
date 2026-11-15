@@ -1,10 +1,12 @@
-// The song head keeps the open song's title readable with the library and the
-// inspector both open, and its buttons whole and apart, from 1024 up.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, TRACK_TITLE, openStudio, waitForPanesSettled } from "./helpers.mjs";
-import { DEFAULT_VERSION_ID } from "../../static/js/versionModel.js";
+import { JOB_ID, TRACK_TITLE, openStudio, resetVersions, versionsUrl, waitForPanesSettled } from "./helpers.mjs";
 
 const NARROW_WINDOW = { width: 1024, height: 768 };
+// Either side of where the head folds Stage mode to an icon.
+const FOLD_EDGE_WINDOWS = [
+  { width: 1170, height: 800 },
+  { width: 1230, height: 800 },
+];
 const ROOMY_WINDOWS = [
   { width: 1280, height: 800 },
   { width: 1440, height: 900 },
@@ -16,13 +18,8 @@ const COLLAPSED_CLASS = /cat-collapsed/;
 // Sub-pixel layout puts edges a fraction past each other even when they fit.
 const EDGE_SLACK = 0.5;
 
-const versionsUrl = (id) => `/api/jobs/${id}/versions`;
-
 test.afterEach(async ({ request }) => {
-  const { versions } = await (await request.get(versionsUrl(JOB_ID))).json();
-  for (const v of versions.filter((x) => x.id !== DEFAULT_VERSION_ID)) {
-    await request.delete(`${versionsUrl(JOB_ID)}/${v.id}`);
-  }
+  await resetVersions(request, JOB_ID);
 });
 
 // The click makes the open library the user's choice, so a narrow window leaves it open.
@@ -82,6 +79,15 @@ test.describe("song head with the library and the inspector open", () => {
     await expect.poll(() => shownTitleWidth(page)).toBeGreaterThanOrEqual(MIN_TITLE_WIDTH);
     expect(await misfitButtons(page)).toEqual([]);
   });
+
+  for (const size of FOLD_EDGE_WINDOWS) {
+    test(`at ${size.width} the title shows and the buttons fit`, async ({ page }) => {
+      await openBothPanes(page, size);
+
+      expect(await shownTitleWidth(page)).toBeGreaterThanOrEqual(MIN_TITLE_WIDTH);
+      expect(await misfitButtons(page)).toEqual([]);
+    });
+  }
 
   for (const size of ROOMY_WINDOWS) {
     test(`at ${size.width} the whole title shows`, async ({ page }) => {
