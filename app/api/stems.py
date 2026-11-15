@@ -205,18 +205,18 @@ def _validate_stem_path(job_id: str, name: str):
     return path
 
 
-def _take_lane_path(job_id: str, name: str) -> Path:
-    """A take or track lane's audio, with the stem guards; 422 like an unknown
-    stem when it names no finished take of this song."""
+def _take_lane(job_id: str, name: str) -> takes_lanes.TakeLane:
+    """The take a take or track lane plays, with the stem guards; 422 like an
+    unknown stem when it names no finished take of this song."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
     job = registry_get(job_id)
     if job is None or job.status != "done":
         raise HTTPException(status_code=404, detail="job not ready")
-    path = takes_lanes.take_lane_path(JOBS_DIR / job_id, name)
-    if path is None:
+    lane = takes_lanes.resolve_take_lane(JOBS_DIR / job_id, name)
+    if lane is None:
         raise HTTPException(status_code=422, detail="unknown stem requested")
-    return path
+    return lane
 
 
 class _ClickLane(NamedTuple):
@@ -563,7 +563,7 @@ def _expand_render_lanes(
 
     for name, gain, pitch in zip(names, gains, pitches, strict=True):
         if takes_lanes.is_take_lane(name):
-            lanes.append(_RenderLane(_take_lane_path(job_id, name), gain, takes_lanes.NO_SHIFT))
+            lanes.append(_RenderLane(_take_lane(job_id, name).path, gain, takes_lanes.NO_SHIFT))
             continue
         # Validate first, always. Whether a lane exists is a property of the
         # job, not of the request: without this an "original" lane the job
@@ -1271,16 +1271,7 @@ async def get_mixdown(
         level = stems_click.click_level_filter(click_lane.gain)
         filters.append(f"[{stem_count}:a]{level}[a{stem_count}]")
     n = stem_count + (1 if click_lane is not None else 0)
-    limiter = takes_lanes.limiter_filter(names)
-    if n > 1:
-        labels = "".join(f"[a{i}]" for i in range(n))
-        filters.append(f"{labels}amix=inputs={n}:normalize=0{limiter}[mix]")
-        out_label = "[mix]"
-    elif limiter:
-        filters.append(f"[a0]{limiter.removeprefix(',')}[mix]")
-        out_label = "[mix]"
-    else:
-        out_label = "[a0]"
+    out_label = takes_lanes.sum_lanes(filters, n, names)
     codec = MIXDOWN_CODECS[ext]
     # Resample to the user's chosen export rate (default 44.1 kHz = the stem rate,
     # so a no-op unless changed). Applies to every audio container -- some hardware
@@ -1415,16 +1406,7 @@ async def get_video_mixdown(
         last = len(render_lanes) - 1
         filters[last] = f"[{last}:a]{stems_click.click_level_filter(click_lane.gain)}[a{last}]"
     n = len(paths)
-    limiter = takes_lanes.limiter_filter(names)
-    if n > 1:
-        labels = "".join(f"[a{i}]" for i in range(n))
-        filters.append(f"{labels}amix=inputs={n}:normalize=0{limiter}[mix]")
-        out_label = "[mix]"
-    elif limiter:
-        filters.append(f"[a0]{limiter.removeprefix(',')}[mix]")
-        out_label = "[mix]"
-    else:
-        out_label = "[a0]"
+    out_label = takes_lanes.sum_lanes(filters, n, names)
     cmd += [
         "-filter_complex",
         ";".join(filters),
@@ -1461,10 +1443,9 @@ def _arcname(prefix: str, name: str, ext: str) -> str:
     return f"{prefix}_{name}.{ext}" if prefix else f"{name}.{ext}"
 
 
-def _take_arc_stem(job_id: str, path: Path) -> str:
+def _take_arc_stem(job_id: str, take_id: str) -> str:
     """A take's name in the ZIP: its label and the take id, so two takes called
     the same stay apart. A track lane names the take it plays."""
-    take_id = path.parent.name
     label = _title_slug(takes_lanes.take_lane_label(JOBS_DIR / job_id, take_id))
     return f"{label}_{take_id}" if label else take_id
 
@@ -1542,9 +1523,9 @@ async def get_all_stems_zip(
         p = stem_path(stems_dir, name).resolve()
         if p.is_file() and p.is_relative_to(jobs_root):
             sources.append((name, p))
-    for lane in take_names:
-        path = _take_lane_path(job_id, lane)
-        sources.append((_take_arc_stem(job_id, path), path))
+    # A track and its active take are the same file: one member.
+    takes = {lane.take_id: lane for lane in (_take_lane(job_id, n) for n in take_names)}
+    sources += [(_take_arc_stem(job_id, t.take_id), t.path) for t in takes.values()]
     if not sources:
         raise HTTPException(status_code=404, detail="no stems found")
     click_stem = await stems_click.zip_click_stem(click, job_id, _read_beat_grid, _parse_groups)

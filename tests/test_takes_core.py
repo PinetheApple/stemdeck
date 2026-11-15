@@ -232,16 +232,17 @@ def test_take_and_track_ids_are_lanes_and_stems_are_not():
 def test_track_lane_resolves_to_its_active_take(job_dir):
     folder = _finished(job_dir)
     takes.write_tracks(job_dir, [{**takes.make_track(TRACK, "A", 0), "active_take_id": TAKE}])
-    assert takes_lanes.take_lane_path(job_dir, TRACK) == (folder / TAKE_WAV_FILE).resolve()
-    assert takes_lanes.take_lane_path(job_dir, TAKE) == (folder / TAKE_WAV_FILE).resolve()
+    expected = takes_lanes.TakeLane(TAKE, (folder / TAKE_WAV_FILE).resolve())
+    assert takes_lanes.resolve_take_lane(job_dir, TRACK) == expected
+    assert takes_lanes.resolve_take_lane(job_dir, TAKE) == expected
 
 
 def test_lane_without_a_finished_take_resolves_to_none(job_dir):
     _open(job_dir)
     takes.write_tracks(job_dir, [takes.make_track(TRACK, "A", 0)])
-    assert takes_lanes.take_lane_path(job_dir, TAKE) is None
-    assert takes_lanes.take_lane_path(job_dir, TRACK) is None
-    assert takes_lanes.take_lane_path(job_dir, "vocals") is None
+    assert takes_lanes.resolve_take_lane(job_dir, TAKE) is None
+    assert takes_lanes.resolve_take_lane(job_dir, TRACK) is None
+    assert takes_lanes.resolve_take_lane(job_dir, "vocals") is None
 
 
 def test_lane_versions_change_when_the_take_is_re_rendered(job_dir):

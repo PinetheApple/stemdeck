@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from pathlib import Path
+from typing import NamedTuple
 
 from app.core.takes import is_finished, read_json, read_tracks
 from app.core.takes_config import (
@@ -28,6 +29,8 @@ EXPORT_CEILING = 10 ** (EXPORT_CEILING_DBFS / _DB_PER_AMPLITUDE_DECADE)
 # its look-ahead delay, so lanes keep their timing.
 EXPORT_LIMITER = f"alimiter=limit={EXPORT_CEILING:.6f}:level=disabled:latency=1"
 NO_SHIFT = 0
+MIX_LABEL = "[mix]"
+FIRST_LANE_LABEL = "[a0]"
 
 
 def is_take_lane(name: str) -> bool:
@@ -57,17 +60,25 @@ def _lane_take_id(job_dir: Path, name: str) -> str | None:
     return active if isinstance(active, str) and TAKE_ID_RE.match(active) else None
 
 
-def take_lane_path(job_dir: Path, name: str) -> Path | None:
-    """The audio.wav a take or track lane plays, or None when the lane names
-    no finished take of this song (unknown id, a track with no take yet, a
-    take still recording)."""
+class TakeLane(NamedTuple):
+    """The finished take a lane plays: a take id plays itself, a track id its
+    active take."""
+
+    take_id: str
+    path: Path
+
+
+def resolve_take_lane(job_dir: Path, name: str) -> TakeLane | None:
+    """The take a take or track lane plays, or None when the lane names no
+    finished take of this song (unknown id, a track with no take yet, a take
+    still recording)."""
     take_id = _lane_take_id(job_dir, name)
     if take_id is None:
         return None
     folder = (job_dir / TAKES_DIRNAME / take_id).resolve()
     if not folder.is_relative_to(job_dir.resolve()) or not is_finished(folder):
         return None
-    return folder / TAKE_WAV_FILE
+    return TakeLane(take_id, folder / TAKE_WAV_FILE)
 
 
 def take_lane_versions(job_dir: Path, names: Iterable[str]) -> list[str]:
@@ -77,11 +88,11 @@ def take_lane_versions(job_dir: Path, names: Iterable[str]) -> list[str]:
     for a mix of stems only, which keeps its cache key unchanged."""
     out: list[str] = []
     for name in names:
-        path = take_lane_path(job_dir, name) if is_take_lane(name) else None
-        if path is None:
+        lane = resolve_take_lane(job_dir, name) if is_take_lane(name) else None
+        if lane is None:
             continue
-        st = path.stat()
-        out.append(f"{name}={path.parent.name}@{st.st_size}:{st.st_mtime_ns}")
+        st = lane.path.stat()
+        out.append(f"{name}={lane.take_id}@{st.st_size}:{st.st_mtime_ns}")
     return out
 
 
@@ -102,3 +113,18 @@ def limiter_filter(names: Iterable[str]) -> str:
     `[mix]` label, or on the single lane's chain when there is no amix, so a
     stems-only export stays byte-identical."""
     return f",{EXPORT_LIMITER}" if has_take_lane(names) else ""
+
+
+def sum_lanes(filters: list[str], lane_count: int, names: Iterable[str]) -> str:
+    """Append the summing step for lanes [a0]..[aN-1] to `filters` and return
+    the output label: amix for several lanes, then the export limiter when a
+    take is in the mix. A single stem lane is passed through untouched."""
+    limiter = limiter_filter(names)
+    if lane_count > 1:
+        labels = "".join(f"[a{i}]" for i in range(lane_count))
+        filters.append(f"{labels}amix=inputs={lane_count}:normalize=0{limiter}{MIX_LABEL}")
+        return MIX_LABEL
+    if limiter:
+        filters.append(f"{FIRST_LANE_LABEL}{limiter.removeprefix(',')}{MIX_LABEL}")
+        return MIX_LABEL
+    return FIRST_LANE_LABEL
