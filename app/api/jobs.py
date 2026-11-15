@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
 
+from app.api.takes_video_runs import cancel_job_renders
 from app.core.config import (
     BEAT_TIME_DECIMALS,
     DISCOGS_LOOKUP_BUDGET_SEC,
@@ -103,6 +104,7 @@ from app.pipeline.lyrics_lookup import (
     LyricsTooLong,
     NotTheseLyrics,
     UnusableLyrics,
+    another_songs_lyrics,
     build_query,
     candidates_path,
     copy_lyrics,
@@ -566,6 +568,7 @@ def trash_job(job_id: str) -> dict:
     """
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     job = _set_trashed(job_id, True)
     if job.status not in FINISHED_STATUSES:
         job.stop_requested = True
@@ -582,6 +585,7 @@ def restore_job(job_id: str) -> dict:
     """Take a job back out of the Trash."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     job = _set_trashed(job_id, False)
     registry_persist(JOBS_DIR)
     copy_saved_fields(job, JOBS_DIR / job.id)
@@ -863,6 +867,7 @@ def cancel_job(job_id: str) -> dict:
     job = registry_get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     if job.status in FINISHED_STATUSES:
         # Lyrics runs see their own flag, never the job's, and leave the
         # lyrics as they were; one queued behind a split stops too.
@@ -1314,6 +1319,7 @@ async def refresh_audio_tags(job_id: str) -> dict:
     """
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     job = registry_get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
@@ -1604,10 +1610,7 @@ def get_lyrics(job_id: str) -> Response:
     # can be another song's: checked by that rule each time they are asked for,
     # and dropped for good when they fail it.
     others = [o for o in others if kept_lyrics_belong(o, job)]
-    if entry is not None and drop_if_another_song(job_dir, entry, job):
-        logger.info("[%s] dropping kept lyrics of another song", job_id)
-        _set(job, has_lyrics=False)
-        registry_persist(JOBS_DIR)
+    if entry is not None and _another_songs_lyrics_dropped(job_dir, entry, job):
         entry = None
     if entry is not None:
         entry["others"] = [o for o in entry["others"] if kept_lyrics_belong(o, job)]
@@ -1625,6 +1628,19 @@ def get_lyrics(job_id: str) -> Response:
             {"detail": "no lyrics", "others": others}, status_code=404, headers=headers
         )
     raise HTTPException(status_code=404, detail="no lyrics")
+
+
+def _another_songs_lyrics_dropped(job_dir: Path, entry: dict, job: Job) -> bool:
+    """Whether kept lyrics are another song's, and so left out of the answer.
+    Deleted for good, except while the stems folder moves."""
+    if is_relocating():
+        return another_songs_lyrics(entry, job)
+    if not drop_if_another_song(job_dir, entry, job):
+        return False
+    logger.info("[%s] dropping kept lyrics of another song", job.id)
+    _set(job, has_lyrics=False)
+    registry_persist(JOBS_DIR)
+    return True
 
 
 # GET .../lyrics after the user's Remove lyrics, until lyrics are kept again.
@@ -2418,6 +2434,7 @@ def delete_job(job_id: str) -> dict[str, str]:
     """Delete a completed or failed job and remove its stem files from disk."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     with _RETRY_LOCK:
         job = _known_job(job_id)
         if job is None:
@@ -2453,7 +2470,8 @@ def _remove_job(job: Job) -> bool:
 
 def _stop_runs(job: Job, *, with_lyrics: bool) -> None:
     """Stop a finished job's vocal split, and its lyrics runs too when
-    ``with_lyrics``, wait on one deadline for them to end, then forget them."""
+    ``with_lyrics``, wait on one deadline for them to end, then forget them.
+    Its filmed-take renders stop as well."""
     job_id = job.id
     lyrics_run = with_lyrics and _cancel_lyrics_runs(job_id)
     splitting = cancel_split(job)
@@ -2471,6 +2489,7 @@ def _stop_runs(job: Job, *, with_lyrics: bool) -> None:
         TRANSCRIBE_RUNS.forget(job_id)
     VOCAL_SPLIT_RUNS.forget(job_id)
     EXTRACT_RUNS.forget(job_id)
+    cancel_job_renders(job_id)
 
 
 def _retry_deleted_job_files(job_id: str) -> dict[str, str]:

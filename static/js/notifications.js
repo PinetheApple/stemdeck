@@ -304,6 +304,17 @@ export function dismissFailuresByJobId(jobId, kind = null) {
   render();
 }
 
+/** Put back failures a change dismissed, once that change is undone: same
+ * records, newest first, and none twice. */
+export function restoreFailures(records) {
+  const shown = new Set(failures.map((f) => f.id));
+  const back = records.filter((r) => !shown.has(r.id));
+  if (!back.length) return;
+  failures = [...failures, ...back].sort((a, b) => b.at - a.at).slice(0, MAX_FAILURES);
+  persist();
+  render();
+}
+
 /** Clear id-less failures of one kind (update checks, log exports -- neither
  * is ever tied to a job). Never touches a failure that carries a jobId, even
  * if it shares this kind -- a per-track export failure can only be cleared

@@ -725,6 +725,10 @@
                 <div class="stage-artist np-extracting" id="stageExtracting" hidden></div>
               </div>
               <div class="stage-song-actions">
+                <button class="stage-exit" id="stageMixBtn" type="button" aria-pressed="true" aria-controls="stageMixer" title="Show or hide the mixer" data-i18n-title="stage.mixTitle">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg>
+                  <span data-i18n="stage.mix">Mix</span>
+                </button>
                 <button class="stage-exit stage-icon-btn" id="stageUpNextBtn" type="button" title="Add to Up Next" aria-label="Add to Up Next" data-i18n-title="upNext.add" data-i18n-aria-label="upNext.add">
                   <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M16 19H3"/><path d="M18 9v6"/><path d="M21 12h-6"/></svg>
                 </button>
@@ -740,7 +744,6 @@
             <div class="stage-center">
               <div class="stage-section" id="stageSection"></div>
               <div class="stage-count">
-                <span class="stage-counter num" id="stageCount">—</span>
                 <span class="stage-beats" id="stageBeats" aria-hidden="true"></span>
               </div>
               <div class="stage-lyrics" id="stageLyrics" hidden>
@@ -758,6 +761,15 @@
                 </div>
               </dl>
             </div>
+            <div class="stage-overview" id="stageOverview" role="group" aria-label="Song overview" data-i18n-aria-label="stage.overview">
+              <div class="stage-sections" id="stageSections"></div>
+              <span class="stage-time stage-time-elapsed num" id="stageElapsed"></span>
+              <div class="stage-wave" id="stageWave" aria-hidden="true">
+                <canvas id="stageWaveCanvas"></canvas>
+                <div class="stage-playhead" id="stagePlayhead"></div>
+              </div>
+              <span class="stage-time stage-time-total num" id="stageTotal"></span>
+            </div>
             <div class="stage-transport">
               <button class="stage-btn" id="stageStopBtn" type="button" title="Stop" aria-label="Stop" data-i18n-title="transport.stop" data-i18n-aria-label="transport.stop">
                 <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
@@ -770,6 +782,10 @@
                 <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4v16"/><path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z"/></svg>
               </button>
             </div>
+            <aside class="stage-mixer" id="stageMixer" aria-label="Mix" data-i18n-aria-label="stage.mix">
+              <span class="stage-mixer-label" data-i18n="stage.mix">Mix</span>
+              <div class="stage-mixer-strips" id="stageMixerStrips"></div>
+            </aside>
           </section>
 
         </div><!-- /#lanes -->
