@@ -165,7 +165,7 @@ test("a download that fails says the link no longer works and leaves the song as
   await extractBass(page);
   await expect(rowLabel(page)).toHaveText("Downloading 30%");
 
-  run.view = ended("failed", { phase: "downloading", error: "unknown" });
+  run.view = ended("failed", { phase: "downloading", progress: 0.25, error: "source-unavailable" });
   await expect(rowLabel(page)).toHaveCount(0);
   await expect.poll(() => failureMessages(page)).toEqual([LINK_DEAD_SENTENCE]);
   await expect(versionRows(page)).toHaveCount(2);

@@ -156,7 +156,10 @@ const ended = (state, extra = {}) => ({ state, phase: EXTRACT_PHASE.FINISHING, p
   const keys = IMPORT_WORDED_CAUSES.map((cause) => failedIn(EXTRACT_PHASE.SEPARATING, cause));
   check("each cause the import words is worded as the import does", keys.every((k) => k.startsWith("importFail.reason.")), keys.join());
   check("a download that failed says the link no longer works",
-    ["unknown", "source-unavailable", "disk-full"].every((c) => failedIn(EXTRACT_PHASE.DOWNLOADING, c) === LINK_DEAD_KEY));
+    ["unknown", "source-unavailable"].every((c) => failedIn(EXTRACT_PHASE.DOWNLOADING, c) === LINK_DEAD_KEY));
+  check("a full disk while downloading keeps the import's sentence",
+    failedIn(EXTRACT_PHASE.DOWNLOADING, "disk-full") === "importFail.reason.diskFull");
+  check("an unworded cause while downloading is generic", failedIn(EXTRACT_PHASE.DOWNLOADING, "no-output") === GENERIC_KEY);
   check("a removed video says the link no longer works", failedIn(EXTRACT_PHASE.SEPARATING, "source-unavailable") === LINK_DEAD_KEY);
   check("a blocked download keeps the import's sentence",
     failedIn(EXTRACT_PHASE.DOWNLOADING, "source-blocked") === "importFail.reason.sourceBlocked");

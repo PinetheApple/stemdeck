@@ -32,11 +32,11 @@ const HTTP_ACCEPTED = 202;
 const FULL = 1;
 const PERCENT = 100;
 
-const SOURCE_BLOCKED = "source-blocked";
 const SOURCE_UNAVAILABLE = "source-unavailable";
+const UNKNOWN_CAUSE = "unknown";
 const TOO_MANY_VERSIONS = "too-many-versions";
 // classify_failure causes whose import sentence also reads right for this run.
-const IMPORT_WORDED_CAUSES = new Set(["out-of-memory", "disk-full", "unsupported-device", SOURCE_BLOCKED]);
+const IMPORT_WORDED_CAUSES = new Set(["out-of-memory", "disk-full", "unsupported-device", "source-blocked"]);
 const GENERIC_FAILURE_KEY = "versions.extractFailed";
 const LINK_DEAD_KEY = "versions.extractLinkDead";
 const TOO_MANY_KEY = "versions.tooMany";
@@ -60,9 +60,9 @@ const extractUrl = (jobId) => `/api/jobs/${encodeURIComponent(jobId)}/versions/e
 /** The i18n key of the sentence that says why a failed run's view failed. */
 export function failureKey({ error, phase }) {
   if (error === TOO_MANY_VERSIONS) return TOO_MANY_KEY;
-  const downloadFailed = phase === EXTRACT_PHASE.DOWNLOADING && error !== SOURCE_BLOCKED;
-  if (downloadFailed || error === SOURCE_UNAVAILABLE) return LINK_DEAD_KEY;
-  return IMPORT_WORDED_CAUSES.has(error) ? failureReasonKey(error) : GENERIC_FAILURE_KEY;
+  if (IMPORT_WORDED_CAUSES.has(error)) return failureReasonKey(error);
+  const downloadFailed = phase === EXTRACT_PHASE.DOWNLOADING && error === UNKNOWN_CAUSE;
+  return downloadFailed || error === SOURCE_UNAVAILABLE ? LINK_DEAD_KEY : GENERIC_FAILURE_KEY;
 }
 
 /** What a running view shows: its words, whether a bar goes under them, and how full. */
