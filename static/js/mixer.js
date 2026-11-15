@@ -21,6 +21,12 @@ import { t } from "./i18n.js";
 import {
   GLOBAL_PITCH_FIELD, PITCH_MAX, PITCH_MIN, clampPitch, pitchBlockedKey, savedGlobalPitch,
 } from "./pitchBus.js";
+import {
+  bindFxStore,
+  ensureFxDefaults,
+  loadFxIntoState,
+  resetFxState,
+} from "./mixFx.js";
 
 function defaultMixerEntry() {
   // `pitch` is the key this lane is actually in, in semitones from the
@@ -35,6 +41,7 @@ export function ensureMixerStateDefaults() {
   for (const name of allTrackNames()) {
     if (!mixerState[name]) mixerState[name] = defaultMixerEntry();
   }
+  ensureFxDefaults(allTrackNames());
 }
 
 let globalPitch = 0;
@@ -71,6 +78,7 @@ export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES) {
   for (const name of allTrackNames()) {
     Object.assign(mixerState[name], defaultMixerEntry(), stored[name] || {});
   }
+  loadFxIntoState(stored, allTrackNames());
   // If all loaded stems are muted the session is unplayable -- unmute as recovery.
   const loadedStems = loadedStemNames.filter((n) => mixerState[n]);
   if (loadedStems.length > 0 && loadedStems.every((n) => mixerState[n].muted)) {
@@ -84,6 +92,7 @@ export function resetMixerState() {
   for (const name of allTrackNames()) {
     Object.assign(mixerState[name], defaultMixerEntry());
   }
+  resetFxState(allTrackNames());
   globalPitch = 0;
 }
 
@@ -91,6 +100,7 @@ function saveMix() {
   if (!currentJobId) return;
   storeSetDebounced(mixKey(currentJobId), { ...mixerState, [GLOBAL_PITCH_FIELD]: globalPitch });
 }
+bindFxStore({ save: saveMix, laneNames: allTrackNames });
 
 /** Push one lane's transpose into whichever engine is playing. */
 export function applyLanePitch(name) {
