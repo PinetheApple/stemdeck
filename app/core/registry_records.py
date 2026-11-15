@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import math
@@ -41,7 +42,22 @@ def read_record(record: object, rid: str | None, seen: dict[str, Job]) -> Job:
             raise ValueError(f"{name} is not a number")
         if not math.isfinite(value):
             raise ValueError(f"{name} is not finite")
+    drop_non_finite(job)
     return job
+
+
+def drop_non_finite(job: Job) -> None:
+    """Reset every NaN or infinity to its field's default: Python's json reads
+    them, but no browser parses them back, so one stayed in every save."""
+    for f in dataclasses.fields(job):
+        value = getattr(job, f.name)
+        if not isinstance(value, float) or math.isfinite(value):
+            continue
+        if f.default_factory is not dataclasses.MISSING:
+            setattr(job, f.name, f.default_factory())
+        else:
+            setattr(job, f.name, f.default)
+        logger.warning("song %s: %s is not a JSON number, reset", job.id, f.name)
 
 
 def keep_bad_records(path: Path, records: list) -> bool:
