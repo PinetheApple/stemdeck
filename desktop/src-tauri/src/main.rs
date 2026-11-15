@@ -2175,7 +2175,7 @@ fn ensure_torch_device(
 
     // CPU-only portable build: skip GPU detection and pip entirely.
     if is_cpu_only_package(&root) {
-        persist_torch_device(&data_dir, "cpu", "cpu-only-package");
+        persist_torch_device(&data_dir, "cpu", "cpu-only-package", None);
         return Ok(GpuSetup {
             gpu_detected: false,
             gpu_name: None,
@@ -2202,7 +2202,7 @@ fn ensure_torch_device(
         } else {
             ("cpu", "mps-unavailable")
         };
-        persist_torch_device(&data_dir, device, reason);
+        persist_torch_device(&data_dir, device, reason, None);
         Ok(GpuSetup {
             gpu_detected: mps_available,
             gpu_name: if mps_available {
@@ -2379,7 +2379,12 @@ fn ensure_torch_device(
         // cpu on a cpu-only package) as settled -- a CPU result born from a
         // failure is re-probed on the next launch instead of pinning the
         // install to CPU forever (#247).
-        persist_torch_device(&data_dir, &setup.torch_device, &setup.reason);
+        persist_torch_device(
+            &data_dir,
+            &setup.torch_device,
+            &setup.reason,
+            setup.backend.as_deref(),
+        );
         append_to_setup_log(
             &data_dir,
             &format!(
@@ -2445,7 +2450,14 @@ fn clear_stale_cpu_marker(root: &Path, data_dir: &Path) {
     }
 }
 
-fn persist_torch_device(data_dir: &std::path::Path, device: &str, reason: &str) {
+/// `backend` is written on every run, null included, so the server's Settings
+/// can name the card a CPU reason is about and a stale value never survives.
+fn persist_torch_device(
+    data_dir: &std::path::Path,
+    device: &str,
+    reason: &str,
+    backend: Option<&str>,
+) {
     let _ = update_setup_config(
         data_dir,
         [
@@ -2454,6 +2466,7 @@ fn persist_torch_device(data_dir: &std::path::Path, device: &str, reason: &str) 
                 "torchDeviceReason",
                 serde_json::Value::String(reason.to_string()),
             ),
+            ("gpuBackend", serde_json::json!(backend)),
         ],
     );
 }
@@ -7356,6 +7369,25 @@ mod tests {
         // Absent reason stays absent (already unsettled) in both package kinds.
         assert_eq!(super::effective_device_reason(None, false), None);
         assert_eq!(super::effective_device_reason(None, true), None);
+    }
+
+    /// The server names the card behind a CPU reason from this key (#188), and
+    /// a run without a GPU clears what an earlier run recorded.
+    #[test]
+    fn the_device_record_carries_the_gpu_backend() {
+        let dir = make_tmp();
+        let record = |dir: &Path| -> serde_json::Value {
+            serde_json::from_str(&fs::read_to_string(dir.join("config.json")).unwrap()).unwrap()
+        };
+        super::persist_torch_device(dir.path(), "cpu", "cuda-verify-failed", Some("rocm"));
+        let amd = record(dir.path());
+        assert_eq!(amd["torchDeviceReason"], "cuda-verify-failed");
+        assert_eq!(amd["gpuBackend"], "rocm");
+        super::persist_torch_device(dir.path(), "cpu", "no-gpu-detected", None);
+        let none = record(dir.path());
+        assert!(none
+            .get("gpuBackend")
+            .is_some_and(serde_json::Value::is_null));
     }
 
     #[cfg(target_os = "macos")]
