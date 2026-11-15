@@ -38,6 +38,21 @@ export function ensureMixerStateDefaults() {
 }
 
 let globalPitch = 0;
+// Stems a view plays without, over the user's mix: never saved, and dropped
+// when a song's mix is loaded or reset.
+const silencedStems = new Set();
+
+/** Silence `laneIds` on top of the mix, leaving the mix and what is saved of it alone. */
+export function setStemOverride(laneIds) {
+  silencedStems.clear();
+  for (const name of laneIds) silencedStems.add(name);
+  applyMix();
+}
+
+export function clearStemOverride() {
+  silencedStems.clear();
+  applyMix();
+}
 
 export function mixGlobalPitch() {
   return globalPitch;
@@ -46,6 +61,7 @@ export function mixGlobalPitch() {
 const mixKey = (jobId) => `stemdeck:mix:${jobId}`;
 
 export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES) {
+  silencedStems.clear();
   let stored = {};
   try {
     // Write any pending save for this song before reading it.
@@ -65,6 +81,7 @@ export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES) {
 }
 
 export function resetMixerState() {
+  silencedStems.clear();
   for (const name of allTrackNames()) {
     Object.assign(mixerState[name], defaultMixerEntry());
   }
@@ -186,7 +203,7 @@ export function applyMix() {
     const s = mixerState[name];
     if (!s) continue;
     let effective = s.volume;
-    if (s.muted) effective = 0;
+    if (s.muted || silencedStems.has(name)) effective = 0;
     else if (anySolo && !s.soloed) effective = 0;
     const idx = trackIndex[name];
     if (idx === undefined) continue;
