@@ -143,7 +143,7 @@ def quarantine_dirs(jobs_dir: Path) -> list[Path]:
 # set-aside copies (persist, keep_bad_records), the setlists and the desktop
 # shell's store with the copies its save keeps, each with the temp name of an
 # atomic write. A copy left behind would bring the old library back.
-_OWN_FILE_RE = re.compile(
+OWN_FILE_RE = re.compile(
     r"(registry\.json(\.bad-[\w-]+)?|user-data\.json(\.(bak|tmp|corrupt-[0-9]+))?"
     r"|setlists\.json)\Z"
     r"|\.(registry|registry\.json|setlists\.json)\.[0-9a-f]{32}\.tmp\Z"
@@ -160,7 +160,7 @@ def own_entries(jobs_dir: Path, known: set[str]) -> list[Path]:
     targets += [
         f
         for f in jobs_dir.iterdir()
-        if _OWN_FILE_RE.match(f.name) and f.is_file() and is_real_entry(f)
+        if OWN_FILE_RE.match(f.name) and f.is_file() and is_real_entry(f)
     ]
     return targets
 
