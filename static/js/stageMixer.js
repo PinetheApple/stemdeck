@@ -1,10 +1,18 @@
 // Stage mode's mixer column: one strip per loaded stem, reading and driving the studio's own mix.
 
-import { mixerState, trackIndex } from "./state.js";
-import { MIX_CHANGE_EVENT, setLaneVolume, toggleStemMute, toggleStemSolo } from "./mixer.js";
+import { mixerState } from "./state.js";
+import {
+  MIX_CHANGE_EVENT,
+  isLaneSilenced,
+  laneGainDbText,
+  loadedLaneNames,
+  setLaneVolume,
+  toggleStemMute,
+  toggleStemSolo,
+} from "./mixer.js";
 import { getLoadedStemNames } from "./player.js";
 import { LANE_VOLUME_MAX, STEM_COLORS, STEM_DISPLAY } from "./constants.js";
-import { loadedStems, isInaudible, gainDbText } from "./stageModel.js";
+import { PERCENT } from "./stageModel.js";
 import { t } from "./i18n.js";
 import { $ } from "./utils.js";
 
@@ -14,7 +22,6 @@ const HIDDEN_CLASS = "mixer-hidden";
 const FADER_STEP = "0.01";
 const MUTE_LETTER = "M";
 const SOLO_LETTER = "S";
-const PERCENT = 100;
 
 let shownStems = "";
 let isShowing = () => false;
@@ -99,10 +106,12 @@ function paintStrip(strip) {
   const fader = strip.querySelector(".stage-strip-fader");
   fader.value = String(state.volume);
   fader.style.setProperty("--pos", `${(state.volume / LANE_VOLUME_MAX) * PERCENT}%`);
-  strip.querySelector(".stage-strip-value").textContent = gainDbText(state.volume);
+  const dbText = laneGainDbText(state.volume);
+  fader.setAttribute("aria-valuetext", dbText);
+  strip.querySelector(".stage-strip-value").textContent = dbText;
   strip.querySelector(".mute").setAttribute("aria-pressed", String(state.muted));
   strip.querySelector(".solo").setAttribute("aria-pressed", String(state.soloed));
-  strip.classList.toggle("silent", isInaudible(name, mixerState, trackIndex));
+  strip.classList.toggle("silent", isLaneSilenced(name));
 }
 
 function rebuildStrips(stems) {
@@ -114,12 +123,13 @@ function rebuildStrips(stems) {
 
 /** Rebuilds the strips when the loaded stems changed, then paints every strip from the mix. */
 export function paintStageMixer() {
-  const stems = loadedStems(trackIndex, getLoadedStemNames());
+  const loaded = new Set(getLoadedStemNames());
+  const stems = loadedLaneNames().filter((name) => loaded.has(name));
   if (stems.join() !== shownStems) rebuildStrips(stems);
   $("stageMixerStrips")?.querySelectorAll(".stage-strip").forEach(paintStrip);
 }
 
-/** Labels follow the language: drop the strips so the next paint builds them anew. */
+/** Entering Stage, a new song or a new language: the next paint builds the strips anew. */
 export function forgetStageMixer() {
   shownStems = "";
 }

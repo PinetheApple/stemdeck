@@ -1,5 +1,6 @@
 import Multitrack from "/vendor/multitrack.js";
 import { fmtTime } from "./utils.js";
+import { deviceScale, fitWaveCanvas, drawWaveBars } from "./waveBars.js";
 // job.js imports this module in turn. The cycle is pre-existing (catalog.js does
 // the same) and safe: these are only ever called from a callback, long after both
 // module bodies have run, and they close over DOM handles from dom.js rather than
@@ -274,7 +275,6 @@ let visualRenderToken = 0;
 let visualAudioContext = null;
 let stemVuRafId = null;
 let _footerWavePeaks = null;
-// Fired on the document once the open song's whole-song peaks are in.
 export const WAVE_PEAKS_EVENT = "wavepeaks";
 const announceWavePeaks = () => document.dispatchEvent(new CustomEvent(WAVE_PEAKS_EVENT));
 
@@ -286,6 +286,9 @@ let _footerAccent = "";
 let _lastFooterProgress = 0;
 let _footerPlaceholderResizeObs = null;
 const _FOOTER_BARS = 300;
+const _FOOTER_REST_COLOR = "rgba(255,255,255,0.13)";
+const _FOOTER_WAVE_FILL = 0.78;
+const _FOOTER_MIN_BAR_H = 3;
 
 function isAudioBufferLike(value) {
   return value && typeof value.getChannelData === "function";
@@ -1760,39 +1763,18 @@ function _drawFooterWave(progress) {
   const canvas = document.getElementById("footer-waveform");
   if (!canvas) return;
   if (!_footerWavePeaks) { _drawPlaceholderWave(); return; }
-  const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth;
-  const h = canvas.clientHeight;
-  if (!w || !h) return;
-  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(h * dpr);
-  }
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const n = _footerWavePeaks.length;
-  let maxAbs = 0;
-  for (const [mn, mx] of _footerWavePeaks) {
-    if (mx > maxAbs) maxAbs = mx;
-    if (-mn > maxAbs) maxAbs = -mn;
-  }
-  const norm = maxAbs > 0 ? 1 / maxAbs : 1;
+  const ctx = fitWaveCanvas(canvas);
+  if (!ctx) return;
+  const dpr = deviceScale();
   const cy = canvas.height / 2;
-  const barW = canvas.width / n;
-  const gap = 1;
-  const playedIdx = Math.floor(progress * n);
   const accent = (_footerAccent ||= getComputedStyle(canvas).getPropertyValue("--accent").trim());
-  for (let i = 0; i < n; i++) {
-    const [mn, mx] = _footerWavePeaks[i];
-    const top = cy - mx * norm * cy * 0.78;
-    const bot = cy - mn * norm * cy * 0.78;
-    const barH = Math.max(3, bot - top);
-    const x = Math.round(i * barW);
-    const nextX = i === n - 1 ? canvas.width : Math.round((i + 1) * barW);
-    const bw = Math.max(1, nextX - x - gap);
-    ctx.fillStyle = i < playedIdx ? accent : "rgba(255,255,255,0.13)";
-    ctx.fillRect(x, top, bw, barH);
-  }
+  drawWaveBars(ctx, _footerWavePeaks, {
+    playedBars: Math.floor(progress * _footerWavePeaks.length),
+    playedColor: accent,
+    restColor: _FOOTER_REST_COLOR,
+    fill: _FOOTER_WAVE_FILL,
+    minBarHeight: _FOOTER_MIN_BAR_H,
+  });
   if (progress > 0.001 && progress < 0.999) {
     const px = progress * canvas.width;
     ctx.beginPath();

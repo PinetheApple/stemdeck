@@ -3,11 +3,10 @@
 import { totalDuration } from "./state.js";
 import { setPlayheadTime } from "./transport.js";
 import { WAVE_PEAKS_EVENT, getWavePeaks } from "./player.js";
-import { sectionSpans } from "./stageModel.js";
+import { PERCENT, sectionSpans, setTextOnce } from "./stageModel.js";
+import { deviceScale, fitWaveCanvas, drawWaveBars } from "./waveBars.js";
 import { $, fmtTime } from "./utils.js";
 
-const PERCENT = 100;
-const BAR_GAP_PX = 1;
 const MIN_BAR_PX = 2;
 const WAVE_FILL = 0.8;
 const PLAYED_TOKEN = "--accent";
@@ -51,40 +50,20 @@ function markCurrent(index) {
   });
 }
 
-function setText(id, key, text) {
-  if (painted[key] === text) return;
-  painted[key] = text;
-  const el = $(id);
-  if (el) el.textContent = text;
-}
-
 function drawWave(playedBars) {
   const canvas = $("stageWaveCanvas");
   const peaks = getWavePeaks();
-  const width = canvas?.clientWidth ?? 0;
-  if (!canvas || !width) return;
-  wave = { canvasWidth: width, playedBars, peaks };
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.round(width * dpr);
-  canvas.height = Math.round(canvas.clientHeight * dpr);
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const ctx = canvas && fitWaveCanvas(canvas);
+  if (!ctx) return;
+  wave = { canvasWidth: canvas.clientWidth, playedBars, peaks };
   if (!peaks?.length) return;
   const css = getComputedStyle(canvas);
-  const colours = [css.getPropertyValue(PLAYED_TOKEN).trim(), css.getPropertyValue(UNPLAYED_TOKEN).trim()];
-  drawBars(ctx, peaks, playedBars, colours);
-}
-
-function drawBars(ctx, peaks, playedBars, [played, unplayed]) {
-  const { width, height } = ctx.canvas;
-  const loudest = Math.max(...peaks.map(([low, high]) => Math.max(high, -low))) || 1;
-  const barWidth = width / peaks.length;
-  const gap = BAR_GAP_PX * (window.devicePixelRatio || 1);
-  peaks.forEach(([low, high], i) => {
-    const barHeight = Math.max(MIN_BAR_PX, ((high - low) / (2 * loudest)) * height * WAVE_FILL);
-    const x = Math.round(i * barWidth);
-    ctx.fillStyle = i < playedBars ? played : unplayed;
-    ctx.fillRect(x, (height - barHeight) / 2, Math.max(1, Math.round(barWidth) - gap), barHeight);
+  drawWaveBars(ctx, peaks, {
+    playedBars,
+    playedColor: css.getPropertyValue(PLAYED_TOKEN).trim(),
+    restColor: css.getPropertyValue(UNPLAYED_TOKEN).trim(),
+    fill: WAVE_FILL,
+    minBarHeight: MIN_BAR_PX * deviceScale(),
   });
 }
 
@@ -102,8 +81,8 @@ export function paintStageOverview(time, currentIndex) {
   const fraction = duration > 0 ? Math.min(1, Math.max(0, time / duration)) : 0;
   playedFraction = fraction;
   markCurrent(currentIndex);
-  setText("stageElapsed", "elapsed", fmtTime(time));
-  setText("stageTotal", "total", fmtTime(duration));
+  setTextOnce(painted, "elapsed", $("stageElapsed"), fmtTime(time));
+  setTextOnce(painted, "total", $("stageTotal"), fmtTime(duration));
   const left = `${fraction * PERCENT}%`;
   if (painted.playhead !== left) {
     painted.playhead = left;

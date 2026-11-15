@@ -19,6 +19,7 @@ import { dblclickFrozen } from "./saveRaces.mjs";
 const BEAT_PERIOD = 0.5;
 const BEATS_PER_BAR = 4;
 const BAR_SEC = BEAT_PERIOD * BEATS_PER_BAR;
+const SLOWED_SPEED = 0.75;
 const FRAME_SLOP_SEC = 0.1;
 // Nothing announces that something did not happen, so these wait this long for it.
 const NOTHING_HAPPENS_MS = 300;
@@ -67,10 +68,10 @@ const seekUntil = (page, seconds, settled) => {
 const seekShows = (page, seconds, locator, text) =>
   seekUntil(page, seconds, () => expect(locator).toHaveText(text, { timeout: SEEK_SETTLE_MS }));
 
-// The beat in the bar is the lit dot, counted from 0; -1 when none is lit.
-const litDot = (page) =>
+const litBeatInBarOrNone = (page) =>
   page.evaluate(() => [...document.querySelectorAll("#stageBeats i")].findIndex((dot) => dot.classList.contains("on")));
-const expectLit = (page, index, timeout = undefined) => expect.poll(() => litDot(page), { timeout }).toBe(index);
+const expectLit = (page, index, timeout = undefined) =>
+  expect.poll(() => litBeatInBarOrNone(page), { timeout }).toBe(index);
 const seekLights = (page, seconds, index) => seekUntil(page, seconds, () => expectLit(page, index, SEEK_SETTLE_MS));
 
 async function openTrack(page, id) {
@@ -258,7 +259,7 @@ test.describe("stage mode counter", () => {
   test("keeps to the song's own time at a slowed speed", async ({ page }) => {
     await setUp(page, { grid: gridAnswer(fixtureBeats(), [{ beat: 0, beats_per_bar: 4 }]) });
     await waitForGrid(page);
-    await page.locator("#t-speed-value").fill("0.75");
+    await page.locator("#t-speed-value").fill(String(SLOWED_SPEED));
     await page.locator("#t-speed-value").press("Enter");
     await enterStage(page);
     await page.locator("#stagePlayBtn").click();
@@ -270,9 +271,10 @@ test.describe("stage mode counter", () => {
       const dots = [...document.querySelectorAll("#stageBeats i")];
       return { lit: dots.findIndex((dot) => dot.classList.contains("on")), elapsed: transport().getCurrentTime() };
     });
-    const sinceLitBeat = (((elapsed - lit * BEAT_PERIOD) % BAR_SEC) + BAR_SEC) % BAR_SEC;
-    expect(lit).toBeGreaterThanOrEqual(0);
-    expect(sinceLitBeat).toBeLessThan(BEAT_PERIOD + FRAME_SLOP_SEC);
+    // A clock running at the wrong speed is off by this much; kept under a bar, it can only show as a wrong dot.
+    expect(elapsed * (1 / SLOWED_SPEED - 1)).toBeLessThan(BAR_SEC);
+    const beatInBar = (sec) => Math.floor(sec / BEAT_PERIOD) % BEATS_PER_BAR;
+    expect([beatInBar(elapsed), beatInBar(elapsed - FRAME_SLOP_SEC)]).toContain(lit);
   });
 });
 

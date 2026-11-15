@@ -1,7 +1,7 @@
 // Stage mode: a full-window play-along view drawn over the lanes, so the studio keeps its size.
 // F toggles it, Esc leaves it.
 
-import { metronomeBeatsPerBar, npScrubFill, totalDuration } from "./state.js";
+import { metronomeBeatsPerBar, npScrubFill, timeEl, totalDuration } from "./state.js";
 import { togglePlayPause, stopTransport, transport } from "./transport.js";
 import { getSections, sectionDisplayName } from "./sections.js";
 import { getCurrentTrackInfo, isTextEditingTarget } from "./catalog.js";
@@ -14,6 +14,7 @@ import { currentLineIndex } from "./lyricsLookup.js";
 import { refitFooter } from "./footerFit.js";
 import { initStageMixer, paintStageMixer, forgetStageMixer } from "./stageMixer.js";
 import { initStageOverview, paintStageOverview, paintStageSections, forgetStageOverview } from "./stageOverview.js";
+import { setTextOnce } from "./stageModel.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $, fmtTime } from "./utils.js";
@@ -36,12 +37,6 @@ const shown = {
 
 export function isStageMode() {
   return document.querySelector(".app")?.classList.contains("stage-mode") ?? false;
-}
-
-function setText(el, key, text) {
-  if (!el || shown[key] === text) return;
-  shown[key] = text;
-  el.textContent = text;
 }
 
 function readSections() {
@@ -92,7 +87,7 @@ function paintBeat(time) {
 
 function setLyric(el, key, text) {
   if (!el || shown[key] === text) return;
-  setText(el, key, text);
+  setTextOnce(shown, key, el, text);
   el.removeAttribute("lang");
   tagLang(el, text);
 }
@@ -118,8 +113,8 @@ function isPlaying() {
 function paintFrame() {
   const time = transport()?.getCurrentTime?.() ?? 0;
   const { at, current, next } = sectionsAt(time);
-  setText($("stageSection"), "section", current?.name ?? "");
-  setText($("stageNext"), "next", nextLabel(time, next));
+  setTextOnce(shown, "section", $("stageSection"), current?.name ?? "");
+  setTextOnce(shown, "next", $("stageNext"), nextLabel(time, next));
   paintStageOverview(time, at);
   paintBeat(time);
   paintLyrics(time);
@@ -192,13 +187,15 @@ function onLyricsChange() {
 
 /**
  * The footer's play button and scrub fill carry every play, pause and seek, whoever caused it.
- * Not its time text, which stays put for a seek inside the same second.
+ * Its time text stays put for a seek inside the same second, but it is the first to show a
+ * duration that arrives after the song opened, which re-keys the sections while paused.
  */
 function watchPlayback() {
   playObserver ??= new MutationObserver(syncLoop);
   const play = $("t-play");
   if (play) playObserver.observe(play, { attributes: true, attributeFilter: ["class"] });
   if (npScrubFill) playObserver.observe(npScrubFill, { attributes: true, attributeFilter: ["style"] });
+  if (timeEl) playObserver.observe(timeEl, { childList: true, characterData: true, subtree: true });
 }
 
 export function setStageMode(on) {
