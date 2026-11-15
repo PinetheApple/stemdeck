@@ -142,6 +142,17 @@ test.describe("opening and playing", () => {
     await expectPlaying(page, SIBLING_JOB_ID);
   });
 
+  test("a load overtaken by another resolves false, the one that lands true", async ({ page }) => {
+    await openStudio(page);
+    const outcomes = await page.evaluate(async ([overtaken, landing]) => {
+      const { loadTrackIntoStudio } = await import("/js/catalog.js");
+      const first = loadTrackIntoStudio(overtaken);
+      const second = loadTrackIntoStudio(landing);
+      return [await first, await second];
+    }, [SIBLING_JOB_ID, JOB_ID]);
+    expect(outcomes).toEqual([false, true]);
+  });
+
   test("with nothing playing, a click opens the song paused", async ({ page }) => {
     await openStudio(page);
     await songRow(page, SIBLING_JOB_ID).click();

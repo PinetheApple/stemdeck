@@ -1577,7 +1577,7 @@ async function fetchTrackState(trackId, token) {
 export async function loadTrackIntoStudio(trackId) {
   _loadingTrackId = trackId;
   try {
-    return await loadIntoStudio(trackId);
+    return (await loadIntoStudio(trackId)) === true;
   } finally {
     if (_loadingTrackId === trackId) _loadingTrackId = null;
   }
