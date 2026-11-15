@@ -18,7 +18,10 @@ import {
   stubTauri,
   stubExportEndpoints,
   stubUpdateCheck,
+  uiText,
 } from "./helpers.mjs";
+import { MAX_DURATION_SEC, review, row, stubPreview } from "./batchImport.mjs";
+import { MAX_BATCH_FILES } from "../../static/js/batchImportModel.js";
 
 const MB = 1024 * 1024;
 
@@ -39,6 +42,9 @@ async function standInShell(page, { native = true } = {}) {
     const shell = {
       calls: [],
       reads: [],
+      picks: [],
+      picked: null,
+      pickFails: false,
       unreadable: new Set(),
       sizes: {},
       emit(signal) {
@@ -53,6 +59,13 @@ async function standInShell(page, { native = true } = {}) {
         shell.calls.push(cmd);
       }
       if (cmd === "native_file_drop") return Promise.resolve(nativeDrop);
+      if (cmd === "pick_import_folder") {
+        // The shell's chooser hands the picked folder over as a drop.
+        shell.picks.push(args);
+        if (shell.pickFails) return Promise.reject("the dialog could not be shown");
+        if (shell.picked) shell.emit(shell.picked);
+        return Promise.resolve(null);
+      }
       if (cmd === "next_drop_signal") {
         const after = args?.after ?? seq;
         return new Promise((resolve) => {
@@ -98,6 +111,26 @@ const drop = (page, files) =>
     window.__shell.emit({ kind: "enter" });
     window.__shell.emit({ kind: "drop", files: f });
   }, files);
+
+const FOLDER = [
+  { id: 1, name: "a.wav", size: 1000, dir: "Rehearsal" },
+  { id: 2, name: "setlist.pdf", size: 1000, dir: "Rehearsal" },
+  { id: 3, name: "b.flac", size: 1000, dir: "Rehearsal/Live" },
+  { id: 4, name: "c.m4a", size: 1000, dir: "Rehearsal/Live/Older" },
+];
+
+/** A folder dropped from the file manager, as the shell reports it: its files. */
+const dropFolder = (page, files) =>
+  page.evaluate((f) => {
+    window.__shell.emit({ kind: "enter" });
+    window.__shell.emit({ kind: "drop", folder: true, files: f });
+  }, files);
+
+const stubFolderPreview = (page, okNames = []) =>
+  stubPreview(page, {
+    items: [], playlists: [], max_duration_sec: MAX_DURATION_SEC, capacity_left: { links: 20, files: 20 },
+    files: okNames.map((name) => ({ name, status: "ok", existing_job_id: null, replaces: null })),
+  });
 
 const state = (page) =>
   page.evaluate(() => {
@@ -147,13 +180,74 @@ test.describe("a file dropped on the Linux desktop app", () => {
     expect((await state(page)).reads).toEqual([]);
   });
 
-  test("a folder is refused as not audio", async ({ page }) => {
-    // The shell reports a folder with a size of 0 and its own name.
+  test("a dropped folder is reviewed with its subfolders, and only its audio is read", async ({ page }) => {
     await openDesktop(page);
-    await drop(page, [{ id: 1, name: "Stems", size: 0 }]);
+    const asked = await stubFolderPreview(page, ["a.wav", "b.flac", "c.m4a"]);
+    await dropFolder(page, FOLDER);
 
-    await expect.poll(() => state(page).then((s) => s.error)).toContain("MP3");
-    expect((await state(page)).reads).toEqual([]);
+    await expect(review(page).locator(".batch-folder")).toHaveText([
+      "Rehearsal", "Rehearsal / Live", "Rehearsal / Live / Older",
+    ]);
+    await expect(page.locator("#filePill")).toContainText("Rehearsal");
+    await expect(row(page, "setlist.pdf").locator(".batch-flag-block")).toHaveText(await uiText(page, "batch.flag.notAudio"));
+    await expect(row(page, "b.flac").locator("input")).toBeEnabled();
+    expect((await state(page)).reads).toEqual([1, 3, 4]);
+    expect(asked[0].files).toEqual(["a.wav", "b.flac", "c.m4a"]);
+  });
+
+  test("a dropped folder over the server's limit reads no more than it keeps", async ({ page }) => {
+    await openDesktop(page);
+    await stubFolderPreview(page);
+    const over = 2;
+    const files = Array.from({ length: MAX_BATCH_FILES + over }, (_, i) => ({
+      id: i + 1, name: `${String(i).padStart(4, "0")}.wav`, size: 10, dir: "Archive",
+    }));
+    await dropFolder(page, files);
+
+    await expect(review(page).locator(".batch-review-note")).toHaveText(
+      await uiText(page, "batch.overCapFiles.other", { max: MAX_BATCH_FILES, count: over }),
+    );
+    expect((await state(page)).reads).toHaveLength(MAX_BATCH_FILES);
+  });
+
+  test("an empty folder says so", async ({ page }) => {
+    await openDesktop(page);
+    await dropFolder(page, []);
+
+    await expect.poll(() => state(page).then((s) => s.error)).toBe(await uiText(page, "batch.emptyFolder"));
+  });
+
+  test("a folder the shell could not read says so", async ({ page }) => {
+    await openDesktop(page);
+    await page.evaluate(() => window.__shell.emit({ kind: "folderUnreadable" }));
+
+    await expect.poll(() => state(page).then((s) => s.error)).toBe(await uiText(page, "batch.folderUnreadable"));
+  });
+
+  test("Add a folder opens the shell's chooser where the WebView has no folder picker", async ({ page }) => {
+    // WebKitGTK leaves webkitdirectory off, so the page alone would hide the button.
+    await page.addInitScript(() => { delete HTMLInputElement.prototype.webkitdirectory; });
+    let webviewChoosers = 0;
+    page.on("filechooser", function countWebviewChooser() { webviewChoosers += 1; });
+    await openDesktop(page);
+    await stubFolderPreview(page);
+    await page.evaluate((files) => { window.__shell.picked = { kind: "drop", folder: true, files }; }, FOLDER);
+
+    await expect(page.locator("#emptyStartFolder")).toBeVisible();
+    await page.locator("#addFolderBtn").click();
+
+    await expect(review(page).locator(".batch-folder").first()).toHaveText("Rehearsal");
+    const picks = await page.evaluate(() => window.__shell.picks);
+    expect(picks).toEqual([{ title: await uiText(page, "batch.addFolder") }]);
+    expect(webviewChoosers).toBe(0);
+  });
+
+  test("a folder chooser that fails to open says so, not that a folder was unreadable", async ({ page }) => {
+    await openDesktop(page);
+    await page.evaluate(() => { window.__shell.pickFails = true; });
+    await page.locator("#addFolderBtn").click();
+
+    await expect.poll(() => state(page).then((s) => s.error)).toBe(await uiText(page, "settings.stemsLocation.pickerFailed"));
   });
 
   test("of a mixed drop, only the audio is read, and the rest is flagged in the review", async ({ page }) => {
