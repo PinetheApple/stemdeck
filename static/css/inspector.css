@@ -317,6 +317,7 @@
   color: var(--text-3);
 }
 .inspector .metro-select-wrap { flex: 1 1 auto; min-width: 0; }
+.inspector .metro-sound-wrap { flex-basis: 100%; }
 .inspector .metro-select-wrap::after { content: none; }
 .inspector .metro-select-wrap > .ic {
   position: absolute;

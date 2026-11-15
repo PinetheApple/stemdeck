@@ -1,9 +1,18 @@
 // A library row's … menu: rename the song, add it to a setlist, or move it to a folder.
 // catalog.js asks for it with a "trackmenu" event, since this module imports it.
+// The open song's Up Next and More buttons, in the song head and Stage, live here too.
 
 import { addSongToSetlist, createSetlistFrom, getSetlists } from "./setlists.js";
 import { startRowRename } from "./songRename.js";
-import { folderChoices, moveTrackToFolder, moveTrackToNewFolder } from "./catalog.js";
+import {
+  TRASH_CHANGE_EVENT,
+  folderChoices,
+  getCurrentTrackInfo,
+  isPlayableTrack,
+  moveTrackToFolder,
+  moveTrackToNewFolder,
+} from "./catalog.js";
+import { queueUpNext } from "./upNext.js";
 import { t } from "./i18n.js";
 import { iconButton } from "./libraryControls.js";
 
@@ -62,15 +71,23 @@ function folderSection(trackId, anchor) {
   ];
 }
 
-function buildMenu(trackId, anchor) {
+/** The open song's menu has no Rename: the song head has its own, and Stage has no row to edit in. */
+function renameItems(trackId, rename) {
+  if (!rename) return [];
+  return [
+    menuItem(t("trackMenu.rename"), "pencil", function onRenameSong() {
+      startRowRename(trackId);
+    }),
+  ];
+}
+
+function buildMenu(trackId, anchor, { rename }) {
   const el = document.createElement("div");
   el.className = "lib-menu";
   el.setAttribute("role", "menu");
   el.setAttribute("aria-label", t("trackMenu.open"));
   el.append(
-    menuItem(t("trackMenu.rename"), "pencil", function onRenameSong() {
-      startRowRename(trackId);
-    }),
+    ...renameItems(trackId, rename),
     menuLabel(t("trackMenu.addToSetlist")),
     ...getSetlists().map((setlist) => setlistItem(setlist, trackId)),
     menuItem(t("trackMenu.newSetlist"), "plus", function onNewSetlistWithSong() {
@@ -142,12 +159,11 @@ function closeMenu() {
   window.removeEventListener("resize", closeMenu);
 }
 
-function onTrackMenuRequest(e) {
-  const { id, anchor } = e.detail || {};
+function toggleMenu(id, anchor, { rename = true } = {}) {
   const reopening = menu && anchorEl === anchor;
   closeMenu();
   if (!id || !anchor || reopening) return;
-  menu = buildMenu(id, anchor);
+  menu = buildMenu(id, anchor, { rename });
   anchorEl = anchor;
   anchor.setAttribute("aria-expanded", "true");
   document.body.append(menu);
@@ -157,7 +173,53 @@ function onTrackMenuRequest(e) {
   window.addEventListener("resize", closeMenu);
 }
 
+function onTrackMenuRequest(e) {
+  const { id, anchor } = e.detail || {};
+  toggleMenu(id, anchor);
+}
+
+const OPEN_SONG_UP_NEXT_IDS = ["songUpNextBtn", "stageUpNextBtn"];
+const OPEN_SONG_MORE_IDS = ["songMoreBtn", "stageMoreBtn"];
+
+function openSongButtons(ids = [...OPEN_SONG_UP_NEXT_IDS, ...OPEN_SONG_MORE_IDS]) {
+  return ids.map((id) => document.getElementById(id)).filter(Boolean);
+}
+
+/** The library row's rule: a trashed or unfinished open song is offered to nothing. */
+function playableOpenSongId() {
+  const id = getCurrentTrackInfo()?.id;
+  return isPlayableTrack(id) ? id : null;
+}
+
+function paintOpenSongButtons() {
+  const playable = Boolean(playableOpenSongId());
+  for (const button of openSongButtons()) button.disabled = !playable;
+}
+
+function onAddOpenSongToUpNext() {
+  const id = playableOpenSongId();
+  if (id) queueUpNext(id);
+}
+
+function onOpenSongMenuClick(e) {
+  toggleMenu(playableOpenSongId(), e.currentTarget, { rename: false });
+}
+
+function wireOpenSongButtons() {
+  for (const button of openSongButtons(OPEN_SONG_UP_NEXT_IDS)) {
+    button.addEventListener("click", onAddOpenSongToUpNext);
+  }
+  for (const button of openSongButtons(OPEN_SONG_MORE_IDS)) {
+    button.addEventListener("click", onOpenSongMenuClick);
+  }
+  for (const eventName of ["trackopen", "tracknames", TRASH_CHANGE_EVENT]) {
+    document.addEventListener(eventName, paintOpenSongButtons);
+  }
+  paintOpenSongButtons();
+}
+
 export function initTrackMenu() {
   document.addEventListener("trackmenu", onTrackMenuRequest);
   document.getElementById("catalogList")?.addEventListener("scroll", closeMenu, { passive: true });
+  wireOpenSongButtons();
 }
