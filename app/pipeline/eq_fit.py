@@ -46,16 +46,9 @@ from app.core.config import (
     SUGGEST_MIN_GAIN_DB,
     SUGGEST_MIN_IMPROVEMENT_ABS,
     SUGGEST_MIN_IMPROVEMENT_REL,
-    SUGGEST_OUT_MAX_DB,
     SUGGEST_REFINE_ROUNDS,
 )
-from app.pipeline.eq_analysis import (
-    CENTRES_HZ,
-    N_BANDS,
-    NOMINAL_HZ,
-    band_response_db,
-    loudness_change_db,
-)
+from app.pipeline.eq_analysis import CENTRES_HZ, N_BANDS, NOMINAL_HZ, band_response_db
 from app.pipeline.fx_filters import BELL, DEFAULT_Q, HIGHSHELF, LOWCUT, LOWSHELF, TILT, Band
 
 FREE = "free"
@@ -92,7 +85,6 @@ _BASE_W[_EDGE_BANDS_HALF] = _EDGE_WEIGHT_HALF
 INAUDIBLE_DB = 0.1
 _CROWD_SLACK_OCT = 1e-6
 _GAIN_DECIMALS = 2
-_OUT_DECIMALS = 1
 _SHELF_FREQ_DECIMALS = 1
 
 
@@ -198,13 +190,6 @@ class FitResult:
     bands: list[FitBand] = field(default_factory=list)
     error_db: np.ndarray = field(default_factory=lambda: np.zeros(N_BANDS))
     weights: np.ndarray = field(default_factory=lambda: np.zeros(N_BANDS))
-
-
-def neutral_out_db(power: np.ndarray, bands: list[Band], base_out: float = 0.0) -> float:
-    """The output gain that keeps ``power``'s K-weighted loudness where it was
-    with ``base_out``, after ``bands`` (rounded to 0.1 dB)."""
-    out = base_out - loudness_change_db(power, bands, 0.0)
-    return round(max(-SUGGEST_OUT_MAX_DB, min(SUGGEST_OUT_MAX_DB, out)), _OUT_DECIMALS)
 
 
 def weights_for(measured_db: np.ndarray) -> np.ndarray:

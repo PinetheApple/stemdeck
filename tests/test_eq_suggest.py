@@ -31,9 +31,26 @@ from app.core.config import (
 )
 from app.pipeline import eq_analysis as A
 from app.pipeline import eq_fit as F
-from app.pipeline.eq_suggest import MERGE, REPLACE, NotEnoughSignal, band_reasons, make_suggestion
+from app.pipeline.eq_suggest import (
+    MERGE,
+    REPLACE,
+    NotEnoughSignal,
+    band_reasons,
+    make_suggestion,
+    neutral_out_db,
+)
 from app.pipeline.eq_targets import default_target, get_target, load_targets
-from app.pipeline.fx_filters import BELL, HIGHSHELF, LOWCUT, LOWSHELF, Band, Eq, eq_filter
+from app.pipeline.fx_filters import (
+    BELL,
+    HIGHSHELF,
+    LOWCUT,
+    LOWSHELF,
+    OUT_MAX,
+    OUT_MIN,
+    Band,
+    Eq,
+    eq_filter,
+)
 from tests.ffmpeg_probe import skip_without_ffmpeg
 
 SR = A.ANALYSIS_RATE
@@ -73,7 +90,7 @@ def fit_of(x, target, layout=F.FREE, tolerance=1.0, max_bands=SUGGEST_MAX_BANDS_
     s = analyse(x)
     fit = F.fit_eq(s.bands, target, layout, max_bands, tolerance=tolerance)
     bands = [fb.band for fb in fit.bands]
-    out = F.neutral_out_db(s.power, bands)
+    out = neutral_out_db(s.power, bands)
     w = F.weights_for(s.bands)
     before = F.weighted_rms_db(np.asarray(target) - s.bands, w)
     after = F.weighted_rms_db(np.asarray(target) - A.band_levels_after(s.power, bands, out), w)
@@ -189,7 +206,7 @@ def test_suggesting_on_a_suggested_result_changes_little():
     first = F.fit_eq(s.bands, BALANCED, F.FREE, SUGGEST_MAX_BANDS_LANE)
     bands = [fb.band for fb in first.bands]
     assert bands
-    after = A.band_levels_after(s.power, bands, F.neutral_out_db(s.power, bands))
+    after = A.band_levels_after(s.power, bands, neutral_out_db(s.power, bands))
     again = F.fit_eq(after, BALANCED, F.FREE, SUGGEST_MAX_BANDS_LANE)
     assert len(again.bands) <= 1
     assert all(abs(fb.band.g) <= 1.5 for fb in again.bands if fb.band.type != LOWCUT)
@@ -313,7 +330,7 @@ def test_the_suggested_eq_keeps_the_loudness(tmp_path, extra, target):
     s = analyse(x)
     bands = [fb.band for fb in F.fit_eq(s.bands, target, F.FREE, SUGGEST_MAX_BANDS_LANE).bands]
     assert bands
-    _ffmpeg_render(src, dst, eq_filter(Eq(F.neutral_out_db(s.power, bands), tuple(bands)), SR))
+    _ffmpeg_render(src, dst, eq_filter(Eq(neutral_out_db(s.power, bands), tuple(bands)), SR))
     y, _ = sf.read(dst, dtype="float64")
     change = meter.integrated_loudness(y) - meter.integrated_loudness(x.astype(np.float64))
     assert abs(change) < 0.5
@@ -333,6 +350,19 @@ def test_merge_returns_only_the_new_bands():
     replaced = _suggest(s, REPLACE, current)
     assert any(160 <= b["f"] <= 400 and b["g"] < 0 for b in replaced["bands"])
     assert abs(replaced["loudness"]) < 0.15 and abs(merged["loudness"]) < 0.15
+
+
+def test_merge_keeps_an_output_gain_beyond_the_change_limit():
+    ans = _suggest(analyse(shaped_noise(BALANCED)), MERGE, Eq(18.0, ()))
+    assert ans["bands"] == []
+    assert ans["out"] == 18.0
+
+
+def test_the_output_gain_stays_inside_the_eq_range():
+    power = analyse(shaped_noise(BALANCED)).power
+    cut = [Band(BELL, 1000.0, -6.0, 0.7, 12)]
+    assert neutral_out_db(power, cut, OUT_MAX) == OUT_MAX
+    assert neutral_out_db(power, [], OUT_MIN) == OUT_MIN
 
 
 def test_merge_leaves_room_only_up_to_the_band_limit():

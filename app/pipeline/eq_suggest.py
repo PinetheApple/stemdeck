@@ -29,7 +29,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from app.core.config import FX_MAX_BANDS, SUGGEST_MIN_GATED_SECONDS, SUGGEST_MIN_LANE_LUFS
+from app.core.config import (
+    FX_MAX_BANDS,
+    SUGGEST_MIN_GATED_SECONDS,
+    SUGGEST_MIN_LANE_LUFS,
+    SUGGEST_OUT_MAX_DB,
+)
 from app.pipeline.eq_analysis import (
     CENTRES_HZ,
     N_BANDS,
@@ -39,16 +44,19 @@ from app.pipeline.eq_analysis import (
     loudness_change_db,
     loudness_of_power,
 )
-from app.pipeline.eq_fit import (
-    FitResult,
-    fit_eq,
-    nearest_band,
-    neutral_out_db,
-    weighted_rms_db,
-    weights_for,
-)
+from app.pipeline.eq_fit import FitResult, fit_eq, nearest_band, weighted_rms_db, weights_for
 from app.pipeline.eq_targets import Target
-from app.pipeline.fx_filters import BELL, HIGHSHELF, LOWCUT, LOWSHELF, TILT, Band, Eq
+from app.pipeline.fx_filters import (
+    BELL,
+    HIGHSHELF,
+    LOWCUT,
+    LOWSHELF,
+    OUT_MAX,
+    OUT_MIN,
+    TILT,
+    Band,
+    Eq,
+)
 
 REPLACE = "replace"
 MERGE = "merge"
@@ -56,6 +64,7 @@ MODES = (REPLACE, MERGE)
 NOT_ENOUGH_SIGNAL = "not enough signal"
 _DECIMALS = 2
 _REASON_DECIMALS = 1
+_OUT_DECIMALS = 1
 # A shelf's reason looks at the bands up to this factor past its corner.
 _SHELF_REACH = 1.5
 
@@ -93,6 +102,15 @@ def is_quiet(spec: Spectrum) -> bool:
         or spec.gated_seconds < SUGGEST_MIN_GATED_SECONDS
         or loudness_of_power(spec.power) < SUGGEST_MIN_LANE_LUFS
     )
+
+
+def neutral_out_db(power: np.ndarray, bands: list[Band], base_out: float = 0.0) -> float:
+    """The output gain that keeps ``power``'s K-weighted loudness where it was
+    with ``base_out`` after ``bands``: the change capped at SUGGEST_OUT_MAX_DB,
+    the total inside the EQ's own range."""
+    change = -loudness_change_db(power, bands, 0.0)
+    change = max(-SUGGEST_OUT_MAX_DB, min(SUGGEST_OUT_MAX_DB, change))
+    return round(max(OUT_MIN, min(OUT_MAX, base_out + change)), _OUT_DECIMALS)
 
 
 def _band_json(band: Band, slot: str) -> dict:
