@@ -61,7 +61,7 @@ CANDIDATES: dict[str, tuple[str, ...]] = {
 # Auto tries only these; the others run only when picked.
 AUTO: dict[str, tuple[str, ...]] = {
     OS_WINDOWS: (NVENC,),
-    OS_LINUX: (),
+    OS_LINUX: (NVENC,),
     OS_MACOS: (),
 }
 

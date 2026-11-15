@@ -54,6 +54,7 @@ REASON_DISABLED = "disabled"
 REASON_BUDGET = "budget"
 _CANCEL_CODES = (STOP_CANCELLED, INVALID_PREFIX + STOP_CANCELLED)
 
+_active_encodes = 0
 _failures: dict[tuple[str, str], int] = {}
 _off: set[tuple[str, str]] = set()
 _state_lock = threading.Lock()
@@ -118,6 +119,23 @@ def policy(setting: str = POLICY_AUTO) -> str:
     if override is not None:
         return override
     return setting if setting in VIDEO_ENCODER_CHOICES else POLICY_AUTO
+
+
+def encoder_choices(platform: str | None = None) -> tuple[str, ...]:
+    """What Settings offers on this OS: Auto, CPU only, then each candidate."""
+    return (POLICY_AUTO, POLICY_CPU, *CANDIDATES[os_key(platform)])
+
+
+def encode_running() -> bool:
+    """Whether a render is encoding now, so the Settings test stays off the GPU."""
+    with _state_lock:
+        return _active_encodes > 0
+
+
+def _count_encode(step: int) -> None:
+    global _active_encodes
+    with _state_lock:
+        _active_encodes += step
 
 
 def _state_key(encoder: str, device: str) -> tuple[str, str]:
@@ -275,6 +293,14 @@ def encode(
     """Render `job` on the chosen encoder, redone on libx264 when a GPU attempt
     fails or its file fails the check. EncodeError from the CPU run (or any
     cancel) goes to the caller. Blocking."""
+    _count_encode(1)
+    try:
+        return _encode(job, setting, cancelled)
+    finally:
+        _count_encode(-1)
+
+
+def _encode(job: EncodeJob, setting: str, cancelled: Callable[[], bool]) -> EncodeOutcome:
     choice = choose(job.width, job.height, job.fps, setting, cancelled)
     if choice.reason == STOP_CANCELLED:
         raise EncodeError(STOP_CANCELLED)

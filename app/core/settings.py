@@ -54,6 +54,7 @@ from app.core.config import (
     pinned_jobs_dir,
     usable_jobs_dir,
 )
+from app.core.video_config import POLICY_AUTO, VIDEO_ENCODER_CHOICES
 
 _log = logging.getLogger("stemdeck.settings")
 
@@ -627,6 +628,27 @@ def set_export_sample_rate(value: int) -> int:
         _ensure()["export_sample_rate"] = rate
         _save()
         return rate
+
+
+# ── video_encoder ──
+# The H.264 encoder of the video export (app/pipeline/video_encoder.py): "auto",
+# "cpu" or one encoder. Read per render; STEMDECK_VIDEO_ENCODER overrides it.
+# Restricted to the allowlist, like export_sample_rate.
+def get_video_encoder() -> str:
+    with _LOCK:
+        value = _ensure().get("video_encoder")
+        return value if value in VIDEO_ENCODER_CHOICES else POLICY_AUTO
+
+
+def set_video_encoder(value: object) -> str:
+    """Persist the encoder choice. Anything outside the allowlist raises
+    ValueError (surfaced as a 422)."""
+    if value not in VIDEO_ENCODER_CHOICES:
+        raise ValueError("video_encoder must be one of: " + ", ".join(VIDEO_ENCODER_CHOICES))
+    with _LOCK:
+        _ensure()["video_encoder"] = value
+        _save()
+        return str(value)
 
 
 # ── demucs_device ──

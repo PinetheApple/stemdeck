@@ -69,10 +69,37 @@ def test_env_can_pick_an_encoder_and_a_bad_value_is_ignored(monkeypatch):
     assert video_encoder.policy("bogus") == "auto"
 
 
-def test_auto_on_linux_stays_on_the_cpu(monkeypatch):
+def test_auto_on_linux_takes_nvenc_only_when_it_passes(monkeypatch):
     asked = _probes(monkeypatch, {(NVENC, "")})
+    assert choose(1280, 720, 30, "auto", platform="linux").encoder == NVENC
+    assert asked == [(NVENC, "")]
+    _probes(monkeypatch, set())
     assert choose(1280, 720, 30, "auto", platform="linux").encoder == VIDEO_CPU_ENCODER
-    assert asked == []
+
+
+def test_auto_on_linux_never_tries_vaapi_or_qsv(monkeypatch):
+    asked = _probes(monkeypatch, {(VAAPI, NODE_B), (QSV, "")})
+    monkeypatch.setattr(video_encoder, "render_nodes", lambda platform=None: [NODE_B])
+    assert choose(1280, 720, 30, "auto", platform="linux").encoder == VIDEO_CPU_ENCODER
+    assert asked == [(NVENC, "")]
+
+
+def test_an_encode_in_progress_is_visible(monkeypatch, tmp_path):
+    seen: list[bool] = []
+    runs = _FakeRuns(tmp_path / "out.mp4")
+
+    def run(cmd, timeout, stall):
+        seen.append(video_encoder.encode_running())
+        runs.run(cmd, timeout, stall)
+
+    assert not video_encoder.encode_running()
+    encode(EncodeJob(runs.dest, 1280, 720, 30, 60.0, runs.build, run), "cpu")
+    assert seen == [True] and not video_encoder.encode_running()
+
+
+def test_the_choices_offered_are_this_oss():
+    assert video_encoder.encoder_choices("linux") == ("auto", "cpu", NVENC, VAAPI, QSV)
+    assert video_encoder.encoder_choices("darwin") == ("auto", "cpu", "h264_videotoolbox")
 
 
 def test_auto_on_windows_takes_nvenc_when_it_passes(monkeypatch):

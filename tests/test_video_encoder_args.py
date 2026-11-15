@@ -61,8 +61,9 @@ def test_vaapi_runs_on_a_named_node_only():
     assert args.output_filter(VAAPI) == "format=nv12,hwupload"
 
 
-def test_auto_tries_no_gpu_on_linux_until_one_is_verified():
-    assert args.AUTO[args.OS_LINUX] == ()
+def test_auto_tries_nvenc_only_on_linux_and_windows():
+    assert args.AUTO[args.OS_LINUX] == (NVENC,)
+    assert args.AUTO[args.OS_MACOS] == ()
     assert args.AUTO[args.OS_WINDOWS] == (NVENC,)
     assert args.os_key("win32") == args.OS_WINDOWS
     assert args.os_key("darwin") == args.OS_MACOS

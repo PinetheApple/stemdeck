@@ -216,6 +216,14 @@ def fresh_hit(key: str) -> ProbeResult | None:
     return hit if hit is not None and now() < hit.expires_at() else None
 
 
+def cached_results() -> list[ProbeResult]:
+    """Every answer still in force for the ffmpeg this process runs."""
+    with _cache_lock:
+        _ensure_loaded(ffmpeg_identity())
+        results = list(_cache.values())
+    return [r for r in results if now() < r.expires_at()]
+
+
 def store(key: str, result: ProbeResult) -> None:
     with _cache_lock:
         _cache[key] = result
