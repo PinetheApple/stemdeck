@@ -174,13 +174,20 @@ async function openFilm(trackId = null) {
   refitFooter();
   await loadFilmPrefs();
   await loadSong(trackId);
-  film.encoders = await readEncoders().catch(() => null);
   applyIPlay(film.iPlay);
   render();
   $("filmPlayBtn")?.focus();
   armForFilm(film.jobId, film.track).then(render);
   startCamera();
+  readEncoders().then(keepEncoders, function noEncoderStatus(err) {
+    console.warn("[film] could not read the video encoders:", err);
+  });
   film.frameId = requestAnimationFrame(frame);
+}
+
+function keepEncoders(status) {
+  film.encoders = status;
+  render();
 }
 
 async function closeFilm() {
