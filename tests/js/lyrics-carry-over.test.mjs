@@ -2,6 +2,8 @@
 // Run:  node tests/js/lyrics-carry-over.test.mjs
 
 import { carryOverLyrics, carryOverRequest, lyricsStoreKey, retryLater } from "../../static/js/lyricsCarryOver.js";
+import { FOLDER_MOVING_DETAIL } from "../../static/js/folderMoving.js";
+import { HTTP_CONFLICT } from "../../static/js/lyricsTranscribe.js";
 
 let pass = 0;
 let fail = 0;
@@ -82,7 +84,7 @@ for (const jobStatus of ["queued", "separating", "stopped"]) {
 for (const jobStatus of ["error", "cancelled"]) check(`409 on a ${jobStatus} job is final`, !retryLater(409, jobStatus));
 
 /** A store of browser entries and a server answering `statuses` per track. */
-function fakeDeps(entries, statuses) {
+function fakeDeps(entries, statuses, details = {}) {
   const store = new Map(Object.entries(entries));
   const sent = [];
   const carried = [];
@@ -95,7 +97,7 @@ function fakeDeps(entries, statuses) {
       drop: async (id) => store.delete(id),
       send: async (id, request) => {
         sent.push({ id, ...request });
-        return statuses[id];
+        return statuses[id] == null ? null : { status: statuses[id], data: details[id] ?? null };
       },
       carried: (id) => carried.push(id),
     },
@@ -139,6 +141,19 @@ const kept = { entry: ENTRY, others: [] };
 {
   const { sent, deps } = fakeDeps({}, {});
   check("nothing kept is finished at once", (await carryOverLyrics([job("a")], deps)) === true && sent.length === 0);
+}
+
+{
+  const { store, sent, deps } = fakeDeps(
+    { a: kept, b: { dismissed: true } },
+    { a: HTTP_CONFLICT, b: HTTP_CONFLICT },
+    { a: { detail: FOLDER_MOVING_DETAIL }, b: { detail: FOLDER_MOVING_DETAIL } },
+  );
+  let told = 0;
+  const finished = await carryOverLyrics([job("a"), job("b")], { ...deps, folderMoving: () => told++ });
+  check("refused while StemData moves: said once", told === 1, told);
+  check("and the rest waits for a later boot, unsent", sent.length === 1 && store.has("a") && store.has("b"), sent);
+  check("so it is not finished", finished === false);
 }
 
 console.log(`${pass} passed, ${fail} failed`);

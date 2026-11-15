@@ -17,7 +17,9 @@ import {
   stubAudioTags,
   stubExportEndpoints,
   stubUpdateCheck,
+  uiText,
 } from "./helpers.mjs";
+import { FOLDER_MOVING_DETAIL, FOLDER_MOVING_KEY } from "../../static/js/folderMoving.js";
 
 const LRCLIB = /^https:\/\/lrclib\.net\//;
 const WIKIMEDIA = /^https:\/\/((www|query)\.wikidata\.org|[a-z-]+\.wikipedia\.org)\//;
@@ -227,6 +229,24 @@ test.describe("aligning lyrics to the track", () => {
     await expect(readout(page)).toHaveText("+1.0 s");
     await page.waitForTimeout(600);
     expect(offsets).toEqual([]);
+  });
+
+  test("while StemData moves, a nudge and Auto-detect say to wait for the move", async ({ page }) => {
+    await setUp(page);
+    const refuse = (route) => route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: FOLDER_MOVING_DETAIL }),
+    });
+    await page.route(`**/api/jobs/${JOB_ID}/lyrics/offset`, refuse);
+    await page.route(`**/api/jobs/${JOB_ID}/lyrics/align`, refuse);
+    const moving = await uiText(page, FOLDER_MOVING_KEY);
+    await openAlign(page);
+
+    await button(page, "Later by 0.5 s").click();
+    await expect(page.locator(".lyrics-align-message")).toHaveText(moving);
+    await button(page, "Auto-detect").click();
+    await expect(page.locator(".lyrics-align-message")).toHaveText(moving);
   });
 
   test("Reset goes back to the lyrics' own timing", async ({ page }) => {
