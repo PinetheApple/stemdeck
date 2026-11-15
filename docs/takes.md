@@ -71,3 +71,59 @@ A lane entry: `{id, track_id, label, created_at, duration_sec, placement_sec, ro
 ## Exports
 
 `app/api/takes_lanes.py` resolves take lanes for the export routes. A take id, or a track id that plays its active take, stands in the lane list beside the stem names and is never transposed. When a take is in the mix, the summed output passes a limiter at -1 dBFS, so the lanes cannot clip. A mix of stems only renders exactly as before.
+
+## Filmed takes
+
+A track of `kind: "video"` films while it records. Tracks gain two fields: `kind` (`"audio"` or `"video"`; absent reads as audio) and `i_play`, the stems the player plays (`[]` by default; `vocals` stands for both its halves). The Film view leaves those stems out of what it plays while the track records, and a take copies the track's `i_play` when it opens, so it keeps what was left out even if the track changes later.
+
+A filmed take sends `camera: {mime, width, height, fps_nominal, device_label?, mirror?, offset_ms?}` when it opens (422 on an audio track). The browser records the picture alone with MediaRecorder (`video/webm;codecs=vp8`, then `vp9`, then `video/mp4`) and sends each chunk to `PUT .../camera/parts?seq=n`, under the same rules as the audio parts. The camera upload may total `(song length + 120 s) × 2.5 MB/s`.
+
+Finish sends `camera: {first_frame_offset_ms, first_frame_clock, parts}`. `first_frame_offset_ms` is the camera's first frame minus the first audio frame, on the playback clock, and may be negative. `first_frame_clock` is `"capture"` (from the frame's capture time) or `"recorder-start"`. The camera is kept when all `parts` arrived, the bytes are a webm or an mp4, and ffprobe finds a video stream. It is renamed to `camera.webm` or `camera.mp4` and never re-encoded. Otherwise the take keeps its sound, the picture is deleted, and the entry says why in `camera_dropped` (`no-timing`, `parts-missing` or `not-video`).
+
+```
+<take_id>/
+  camera.part     MediaRecorder chunks while the take is open
+  camera.webm     or camera.mp4, the camera as recorded
+  render.mp4      the last finished export
+  render.json     which encoder made it, from what
+```
+
+`take.json` gains `i_play`, and for a filmed take `camera: {file, mime, width, height, fps_nominal, device_label, mirror, offset_ms, duration_sec, first_frame_offset_ms, first_frame_clock}` and an optional `trim: {in_sec, out_sec}` in song seconds. A take without these is an audio take, as before.
+
+The picture shares the sound's placement, so a nudge moves both:
+
+```
+camera_start_sec = placement_sec + first_frame_offset_ms / 1000 - camera_offset_ms / 1000
+```
+
+A positive camera offset (±2000 ms) means the picture ran late, and moves only the picture.
+
+Lane entries gain `has_camera`, `camera_url`, `camera_offset_ms`, `camera_start_sec` (the formula above; `null` without a camera), `camera_dropped`, `span: {start_sec, end_sec}` (the part of the song the take covers), `trim` and `i_play`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| PUT | `/api/jobs/{id}/takes/{take_id}/camera/parts?seq=n` | One camera chunk, at most 4 MiB → `{take_id, seq, bytes, duplicate}`. 404 for a take opened without a camera, 409 for a wrong seq or a finished take, 413 past the cap, 422 when empty |
+| GET | `/api/jobs/{id}/takes/{take_id}/parts` | Adds `camera: {next_seq, bytes}` on a filmed take |
+| PATCH | `/api/jobs/{id}/takes/{take_id}` | Adds `trim` (`null` clears it) and `camera_offset_ms`. Neither re-renders `audio.wav`. 422 for a trim outside the take's span or shorter than 1 s, or an offset on a take without a camera |
+| GET, HEAD | `/api/jobs/{id}/takes/{take_id}/camera` | The camera file, with Range support |
+
+## Video export
+
+A filmed take exports as an MP4: its camera over the backing mix, 16:9 with the camera letterboxed, 720p or 1080p (default) at 24, 30 (default) or 60 fps. The range is the trim, or else the take's span, and is at least 1 s.
+
+The sound is the export mix the client sends, without the take's `i_play` stems, plus the take at `take_gain`, through the -1 dBFS export limiter, as AAC 192 kbit/s at the export sample rate. A played stem's lane is dropped; a vocals lane with one half played keeps the other half; an original lane holding a played stem is rebuilt from its parts (422 when a part is missing). The take itself, or its track, may not be in `stems`.
+
+The picture is moved onto the song clock first and cut after, then put on the nearest output frame. The H.264 encoder is chosen as in [the encoder settings](configuration.md): a GPU encoder that fails, stalls or writes a file that fails its check is redone on libx264 and `fallback_reason` says why.
+
+`GET /api/video-encoders` reports the encoder policy and its source, the choices and candidates, the encoders switched off this session, `render_available`, `last_test`, `os: {key, distro, distro_like}` (`key` is `linux`, `windows` or `macos`; `distro` and `distro_like` are the `ID` and `ID_LIKE` of `/etc/os-release` on Linux, else `null`) and `auto_pick`: the GPU encoder Auto would use now judging by the cached test encodes alone, or `null` when it would use the CPU. Reading it never runs a test encode.
+
+A render waits behind a running separation, and only one runs at a time. It writes a temp file. When it finishes, `render.json` is written first, naming the new file by size and modification time, and then the temp file replaces `render.mp4`; `render.json` is trusted only for the file it names, so a crash between the two never credits an old file to a new encoder. The result and its encoder survive a restart. A cancel or a failure keeps the previous `render.mp4`. Temp files a crash left behind are removed when that take renders again, and once per server run for every take (only those older than the longest render allowed).
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/jobs/{id}/takes/{take_id}/render` | `{stems, gains, pitches?, take_gain?, i_play?, size?, fps?, mirror?}` → the render view (202). 409 while this take renders, 422 for a take without a camera, the take in `stems` or an unknown lane, 503 when ffmpeg lacks libx264 or aac |
+| GET | `/api/jobs/{id}/takes/{take_id}/render` | The render view; poll it about twice a second |
+| POST | `/api/jobs/{id}/takes/{take_id}/render/cancel` | Stop the render → the view |
+| GET, HEAD | `/api/jobs/{id}/takes/{take_id}/render.mp4` | The export, downloaded as `<song>_<label>.mp4` |
+
+The render view: `{status: "none" | "queued" | "running" | "done" | "error" | "cancelled", progress, error, url, encoder, family, fallback_reason, size, fps, span, stale, made_at}`. `error` names what went wrong: `disk-full`, `files`, `timeout`, `failed`, or the encoder's reason (`missing`, `no-device`, `busy`). The encoder fields are null when `render.json` does not name the `render.mp4` on disk. `stale` is true once the take, its trim or camera offset, or the request changed since `render.mp4` was made.

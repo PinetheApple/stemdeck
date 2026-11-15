@@ -29,7 +29,7 @@ import {
   resendNotQueued, runningLabel, startQueue, startQueueStream,
 } from "./queue.js";
 import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
-import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
+import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind, getFailures, restoreFailures } from "./notifications.js";
 import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
 import { isModalOpen } from "./stageMode.js";
 import { queueUpNext } from "./upNext.js";
@@ -1267,14 +1267,74 @@ async function sendTrashChange(trackId, trashed) {
   const action = trashed ? "trash" : "restore";
   try {
     const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/${action}`, { method: "POST" });
+    if (await refusedForFolderMove(res)) return undoTrashChange(trackId, trashed);
     // A refusal other than a conflict will not change on retry, so the server's answer stands.
     if (!res.ok && !isFinalRefusal(res.status)) return;
     if (_unconfirmedTrashState[trackId] !== trashed) return;
     delete _unconfirmedTrashState[trackId];
+    _placesBeforeTrash.delete(trackId);
     persistUnconfirmedTrash();
   } catch (e) {
     console.warn(`[catalog] could not ${action} ${trackId} on the server`, e);
   }
+}
+
+/** The server refused it for the stems folder move: the song goes back where it was, and a card says why. */
+function undoTrashChange(trackId, trashed) {
+  if (_unconfirmedTrashState[trackId] !== trashed) return;
+  delete _unconfirmedTrashState[trackId];
+  persistUnconfirmedTrash();
+  const before = _placesBeforeTrash.get(trackId);
+  _placesBeforeTrash.delete(trackId);
+  if (before) putBack(trackId, before);
+  else if (trashed) takeOutOfTrash([trackId]);
+  else putInTrash([trackId]);
+  saveState();
+  render();
+  notifyFailure({ kind: "trash", message: i18nT(FOLDER_MOVING_KEY) });
+}
+
+// Per song with an unconfirmed trash or restore: how the library held it before, for putBack.
+const _placesBeforeTrash = new Map();
+
+/** How the library holds a song now: its folder places, the song it replaces, whether it is open, its cards. */
+function libraryPlaceOf(trackId) {
+  return {
+    places: folders.map((f) => [f.id, f.items.indexOf(trackId)]).filter(([, at]) => at !== -1),
+    replaced: tracks[trackId]?.replaced ?? null,
+    wasOpen: _currentTrackId === trackId,
+    notices: getFailures().filter((f) => f.context?.jobId === trackId),
+  };
+}
+
+function rememberPlaceBeforeTrash(trackId) {
+  _placesBeforeTrash.set(trackId, libraryPlaceOf(trackId));
+}
+
+/** Put a song back the way libraryPlaceOf found it. */
+function putBack(trackId, { places, replaced, wasOpen, notices }) {
+  if (!tracks[trackId]) return;
+  if (replaced && reinstatedAsLeft(trackId, replaced)) undoReinstate(trackId, replaced);
+  const kept = places.filter(([folderId]) => folders.some((f) => f.id === folderId));
+  if (wasOpen && _currentTrackId === null) _currentTrackId = trackId;
+  restoreFailures(notices);
+  if (!kept.length) return takeOutOfTrash([trackId]);
+  removeTrackFromFolders(trackId);
+  for (const [folderId, at] of kept) folders.find((f) => f.id === folderId).items.splice(at, 0, trackId);
+  announceTrashChange([trackId]);
+}
+
+/** Whether the song a trash reinstated is still as the trash left it, so taking it away again loses nothing. */
+function reinstatedAsLeft(trackId, replaced) {
+  return !tracks[trackId].replaced && tracks[replaced.id] === replaced.track && !isInTrash(replaced.id);
+}
+
+/** The opposite of reinstateReplaced: the song it replaces goes again. */
+function undoReinstate(trackId, replaced) {
+  removeTrackFromFolders(replaced.id);
+  delete tracks[replaced.id];
+  tracks[trackId].replaced = replaced;
+  moveHeldBand(replaced.id, trackId);
 }
 
 function isFinalRefusal(status) {
@@ -1345,6 +1405,7 @@ function moveTrackToTrash(trackId) {
 
 /** moveTrackToTrash without the save and repaint, for binning several at once. */
 function binTrack(trackId) {
+  rememberPlaceBeforeTrash(trackId);
   putInTrash([trackId]);
   // The server stops a job that is still importing when it is trashed, its
   // files kept. Ask for the queue again so the row goes now, not on the next frame.
@@ -1381,6 +1442,11 @@ function setCatalogView(view) {
   // The lyrics panel (lyrics.js) draws itself; this is how it learns it is on
   // screen, without catalog.js importing it.
   document.dispatchEvent(new CustomEvent("catalogviewchange", { detail: { view: catalogView } }));
+}
+
+/** Show the Lyrics view in the sidebar, as the rail's Lyrics button does. */
+export function showLyricsView() {
+  setCatalogView("lyrics");
 }
 
 /** Show the library list in the sidebar, as the rail's Library button does. */
@@ -2101,6 +2167,7 @@ function restoreTracksFromTrash(trackIds) {
   const trash = getTrashFolder();
   const ids = trackIds.filter((id) => tracks[id] && trash?.items.includes(id));
   if (!ids.length) return;
+  for (const id of ids) rememberPlaceBeforeTrash(id);
   takeOutOfTrash(ids);
   for (const id of ids) syncTrashToServer(id, false);
   saveState();
@@ -4006,19 +4073,21 @@ function onEmptyTrashClick(e) {
   });
 }
 
-/** The ids whose delete did not go through. A 404 is already gone. */
+/** The ids whose delete did not go through, and whether the stems folder move refused one. A 404 is already gone. */
 async function deleteJobsOnServer(ids) {
   const failed = [];
+  let movingRefusal = false;
   for (const id of ids) {
     try {
       const res = await fetch(`/api/jobs/${id}`, { method: "DELETE" });
+      if (await refusedForFolderMove(res)) movingRefusal = true;
       if (!res.ok && res.status !== HTTP_NOT_FOUND) failed.push(id);
     } catch (err) {
       console.warn("[catalog] delete failed for", id, err);
       failed.push(id);
     }
   }
-  return failed;
+  return { failed, movingRefusal };
 }
 
 // A song whose delete failed stays in the Trash, so Empty trash can try again.
@@ -4026,14 +4095,15 @@ async function emptyTrash(btn) {
   btn.disabled = true;
   try {
     const toDelete = [...(getTrashFolder()?.items || [])];
-    const failed = await deleteJobsOnServer(toDelete);
+    const { failed, movingRefusal } = await deleteJobsOnServer(toDelete);
     const deleted = toDelete.filter((id) => !failed.includes(id));
     await markJobsDeleted(deleted);
     purgeTrash(deleted);
     saveState();
     render();
     if (failed.length) {
-      notifyFailure({ kind: "trash", message: i18nT("library.deleteFailed", { count: failed.length }) });
+      const message = i18nT(noticeKey(movingRefusal, "library.deleteFailed"), { count: failed.length });
+      notifyFailure({ kind: "trash", message });
     }
   } finally {
     btn.disabled = false;
