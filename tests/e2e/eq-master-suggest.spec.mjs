@@ -115,7 +115,7 @@ test.describe("Master Suggest", () => {
     await page.locator('#eqLoudness [data-choice="streaming"]').click();
     await page.locator("#eqCeilingDown").click();
     const before = await savedMaster(page);
-    const storedBefore = await storedMasterFx(page);
+    await expect.poll(() => storedMasterFx(page)).toEqual([before]);
 
     await page.locator("#eqSuggestMaster").click();
     await expect(page.locator("#eqSuggestBarMaster")).toBeVisible();
@@ -125,7 +125,7 @@ test.describe("Master Suggest", () => {
     expect(await savedMaster(page)).toEqual(before);
     expect(await liveMaster(page)).toMatchObject({ comp: before.params.comp, ceiling: before.params.ceiling_dbtp });
     await page.waitForTimeout(SETTLED_MS);
-    expect(await storedMasterFx(page)).toEqual(storedBefore);
+    expect(await storedMasterFx(page)).toEqual([before]);
     await expect.poll(() => playedMasterDb(page, SUGGESTED_HZ)).toBeGreaterThan(PLAYED_DB);
     await expect(page.locator("#eqGlue")).toBeEnabled();
     await expect(page.locator("#eqMasterActions")).toBeVisible();
