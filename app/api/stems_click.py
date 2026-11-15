@@ -4,9 +4,9 @@ Two parts, kept out of stems.py so that module stays about the stems:
 
 - The click query parameters, defined once. Every route that renders a click
   (a stem region, the mix and video exports, the stems zip) takes them under the
-  same names with the same bounds, defaults and descriptions. Each is one shared
-  `Query` instance: FastAPI binds a parameter's alias to its name on first use,
-  so each instance is only ever assigned to the parameter it is named after.
+  same names with the same bounds, defaults and descriptions. Each `click_*_query()`
+  builds a fresh `Query` per route: FastAPI mutates the instance it binds (its
+  alias), so one instance must never be shared between routes.
 - The stems zip's click file: the isolated click track, rendered from the grid
   the app clicks to with the same rate, accents, grouping, level and sound as
   the click in a mix export. It starts at the song's first sample like every
@@ -59,34 +59,64 @@ ZIP_WORK_PREFIX = ".zipwork-"
 _FFMPEG_STDERR_TAIL_BYTES = 2000
 _STEREO_CHANNELS = 2
 
-CLICK_MIX_QUERY = Query(default=False, description="Mix the click track into the export")
-CLICK_FILE_QUERY = Query(default=False, description="Add the click track as its own file")
-CLICK_MULT_QUERY = Query(default=CLICK_MULT_DEFAULT, description="Click rate: 0.5, 1 or 2")
-CLICK_ACCENT_QUERY = Query(
-    default=ACCENT_AUTO,
-    ge=ACCENT_AUTO,
-    le=TEMPO_MAX_BEATS_PER_BAR,
-    description="-1 auto, 0 off, N per bar",
+CLICK_MIX_DESCRIPTION = "Mix the click track into the export"
+CLICK_FILE_DESCRIPTION = "Add the click track as its own file"
+CLICK_MULT_DESCRIPTION = "Click rate: 0.5, 1 or 2"
+CLICK_ACCENT_DESCRIPTION = "-1 auto, 0 off, N per bar"
+CLICK_GAIN_DESCRIPTION = "Click level"
+CLICK_GROUPS_DESCRIPTION = (
+    'Beat grouping for an explicit meter, e.g. "3+2+2". Blank uses the default.'
 )
-CLICK_GAIN_QUERY = Query(
-    default=CLICK_GAIN_DEFAULT,
-    ge=0,
-    le=CLICK_GAIN_MAX,
-    description="Click level",
+CLICK_SOUND_DESCRIPTION = (
+    "Click sound preset id (static/js/clickSounds.js). Defaults to the classic click, "
+    "which is what a client that predates presets sends."
 )
-CLICK_GROUPS_QUERY = Query(
-    default="",
-    max_length=CLICK_GROUPS_MAX_CHARS,
-    description='Beat grouping for an explicit meter, e.g. "3+2+2". Blank uses the default.',
-)
-CLICK_SOUND_QUERY = Query(
-    default=DEFAULT_CLICK_SOUND,
-    max_length=CLICK_SOUND_ID_MAX_CHARS,
-    description=(
-        "Click sound preset id (static/js/clickSounds.js). Defaults to the classic click, "
-        "which is what a client that predates presets sends."
-    ),
-)
+
+
+def click_mix_query():
+    return Query(default=False, description=CLICK_MIX_DESCRIPTION)
+
+
+def click_file_query():
+    return Query(default=False, description=CLICK_FILE_DESCRIPTION)
+
+
+def click_mult_query():
+    return Query(default=CLICK_MULT_DEFAULT, description=CLICK_MULT_DESCRIPTION)
+
+
+def click_accent_query():
+    return Query(
+        default=ACCENT_AUTO,
+        ge=ACCENT_AUTO,
+        le=TEMPO_MAX_BEATS_PER_BAR,
+        description=CLICK_ACCENT_DESCRIPTION,
+    )
+
+
+def click_gain_query():
+    return Query(
+        default=CLICK_GAIN_DEFAULT,
+        ge=0,
+        le=CLICK_GAIN_MAX,
+        description=CLICK_GAIN_DESCRIPTION,
+    )
+
+
+def click_groups_query():
+    return Query(
+        default="",
+        max_length=CLICK_GROUPS_MAX_CHARS,
+        description=CLICK_GROUPS_DESCRIPTION,
+    )
+
+
+def click_sound_query():
+    return Query(
+        default=DEFAULT_CLICK_SOUND,
+        max_length=CLICK_SOUND_ID_MAX_CHARS,
+        description=CLICK_SOUND_DESCRIPTION,
+    )
 
 
 def check_click_sound(sound: str) -> str:
