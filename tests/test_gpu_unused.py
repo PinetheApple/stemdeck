@@ -85,6 +85,20 @@ def test_settings_carry_the_reason(setup_config):
     assert body["gpu_unused"] == {"reason": gu.UNUSED_NO_ACCESS, "backend": GPU_BACKEND_ROCM}
 
 
+def test_a_settings_save_answers_with_the_reason_too(setup_config):
+    _write_setup(
+        setup_config,
+        torchDevice="cpu",
+        torchDeviceReason="cuda-unsupported-gpu",
+        gpuBackend=GPU_BACKEND_CUDA,
+    )
+    from app.main import app
+
+    with TestClient(app) as c:
+        body = c.post("/api/settings", json={}).json()
+    assert body["gpu_unused"] == {"reason": gu.UNUSED_UNSUPPORTED, "backend": GPU_BACKEND_CUDA}
+
+
 def test_settings_carry_null_when_the_gpu_is_in_use(setup_config):
     _write_setup(
         setup_config,
