@@ -16,7 +16,7 @@ from app.core.models import Job
 from app.core.registry import _jobs
 from app.pipeline import jobqueue
 from tests.ffmpeg_probe import skip_without_ffmpeg
-from tests.test_lyrics_api import _done_job
+from tests.test_lyrics_api import LYRICS, _done_job
 from tests.test_lyrics_api import _isolate_registry as _isolate_registry  # noqa: F401
 from tests.test_lyrics_api import client as client  # noqa: F401
 from tests.test_stems_api import _tiny_wav
@@ -26,6 +26,7 @@ from tests.test_vocal_envelope_api import _sung_then_silent
 TRASHED_AT = 1_700_000_000.0
 FIRST_QUEUED = "bbbbbbbbbbbb"
 SECOND_QUEUED = "cccccccccccc"
+UNKNOWN_JOB = "dddddddddddd"
 
 
 def _trashed_job() -> Job:
@@ -142,3 +143,35 @@ def test_stem_mp3_answers_without_keeping_it_while_the_folder_moves(client, monk
     stems_location.abandon_relocation()
     assert client.get(f"/api/jobs/{job.id}/stems/vocals.mp3").status_code == 200
     assert (_stems(job) / "vocals.mp3").is_file()
+
+
+def test_cancel_of_an_unknown_job_is_404_even_while_the_folder_moves(client, monkeypatch):
+    _moving(monkeypatch)
+
+    assert client.post(f"/api/jobs/{UNKNOWN_JOB}/cancel").status_code == 404
+
+
+def test_reset_refused_while_the_folder_moves(client, monkeypatch):
+    _done_job()
+    before = _moving(monkeypatch)
+
+    _assert_refused(client.post("/api/reset"), before)
+
+    stems_location.abandon_relocation()
+    assert client.post("/api/reset").status_code == 200
+
+
+def test_another_songs_lyrics_are_left_out_but_kept_while_the_folder_moves(client, monkeypatch):
+    job = _done_job(has_lyrics=True, audio_tags={"artist": "NIHIL", "title": "Barro"})
+    wrong = {**LYRICS, "track": "Joao de Barro", "artist": "Renato Vianna"}
+    lyrics_file = jobs_mod.JOBS_DIR / job.id / "lyrics.json"
+    lyrics_file.write_text(json.dumps(wrong), encoding="utf-8")
+    before = _moving(monkeypatch)
+
+    assert client.get(f"/api/jobs/{job.id}/lyrics").status_code == 404
+    assert _folder() == before
+    assert job.has_lyrics is True
+
+    stems_location.abandon_relocation()
+    assert client.get(f"/api/jobs/{job.id}/lyrics").status_code == 404
+    assert not lyrics_file.exists(), "dropped once the move is over"

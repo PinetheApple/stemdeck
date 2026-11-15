@@ -906,13 +906,13 @@ async function toggleFavorite(id) {
   const failure = await saveFavorite(id, track.favorite);
   if (!failure) return;
   track.favorite = !track.favorite;
-  toast(failure, READING_TOAST_MS);
+  toast(...failure);
   render();
 }
 
-const FAVORITE_SAVE_FAILED = "Could not save the favourite";
+const FAVORITE_SAVE_FAILED = ["Could not save the favourite"];
 
-/** Null when the server kept the favourite, else what to tell the user. */
+/** Null when the server kept the favourite, else the toast that says why not. */
 async function saveFavorite(id, favorite) {
   try {
     const res = await fetch(`/api/jobs/${encodeURIComponent(id)}/favorite`, {
@@ -921,7 +921,8 @@ async function saveFavorite(id, favorite) {
       body: JSON.stringify({ favorite }),
     });
     if (res.ok) return null;
-    return (await refusedForFolderMove(res)) ? translate(FOLDER_MOVING_KEY) : FAVORITE_SAVE_FAILED;
+    if (await refusedForFolderMove(res)) return [translate(FOLDER_MOVING_KEY), READING_TOAST_MS];
+    throw new Error(`PUT favorite -> ${res.status}`);
   } catch (e) {
     console.warn("[mobile] could not save the favourite:", e);
     return FAVORITE_SAVE_FAILED;
