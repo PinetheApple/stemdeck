@@ -9,7 +9,7 @@
 // (desktop/src-tauri/src/dropin.rs) and the page asks it what arrived.
 //
 // What these cover is the page's half of that contract, against a stand-in for
-// the shell that answers the same three commands the same way. The Rust half
+// the shell that answers the same drop commands the same way. The Rust half
 // has its own tests in dropin.rs. No test here drives the real shell, so a
 // fault that lives only in Rust will not show up in this file.
 import { test, expect } from "@playwright/test";
@@ -21,14 +21,17 @@ import {
   uiText,
 } from "./helpers.mjs";
 import {
-  filePreview, queueButton, review, row, stubImports, stubPreview, uploadedFile,
+  MAX_DURATION_SEC, TOO_LONG_SEC, filePreview, queueButton, review, row, stubImports, stubPreview, uploadedFile,
 } from "./batchImport.mjs";
 import { MAX_BATCH_FILES } from "../../static/js/batchImportModel.js";
 
 const MB = 1024 * 1024;
 
 /**
- * Replaces the shell's three drop commands with a controllable stand-in.
+ * Replaces the shell's drop commands with a controllable stand-in.
+ *
+ * As in DropInbox, each drop is held under its ticket until the page releases
+ * it, and a released drop's files cannot be read.
  *
  * Registered after stubTauri, so it wraps the invoke that stub installed.
  * `window.__shell.emit(signal)` is a drag event reaching the shell; the page's
@@ -37,19 +40,30 @@ const MB = 1024 * 1024;
  */
 async function standInShell(page, { native = true } = {}) {
   await page.addInitScript((nativeDrop) => {
+    const DROP_COMMANDS = [
+      "native_file_drop", "next_drop_signal", "read_dropped_file", "dropped_file_duration", "release_dropped_files",
+    ];
     const inner = window.__TAURI__.core.invoke;
     let seq = 0;
     const log = [];
     let waiting = [];
+    let tickets = 0;
+    const ticketOf = new Map();
     const shell = {
       calls: [],
       reads: [],
+      measured: [],
+      released: [],
+      durations: {},
+      held: (id) => ticketOf.has(id) && !shell.released.includes(ticketOf.get(id)),
       picks: [],
       picked: null,
       pickFails: false,
       unreadable: new Set(),
       sizes: {},
-      emit(signal) {
+      emit(event) {
+        const signal = event.kind === "drop" ? { ...event, ticket: (tickets += 1) } : event;
+        for (const f of signal.files ?? []) ticketOf.set(f.id, signal.ticket);
         seq += 1;
         log.push([seq, signal]);
         waiting = waiting.filter((tryAnswer) => !tryAnswer());
@@ -57,9 +71,7 @@ async function standInShell(page, { native = true } = {}) {
     };
     window.__shell = shell;
     window.__TAURI__.core.invoke = (cmd, args) => {
-      if (cmd === "native_file_drop" || cmd === "next_drop_signal" || cmd === "read_dropped_file") {
-        shell.calls.push(cmd);
-      }
+      if (DROP_COMMANDS.includes(cmd)) shell.calls.push(cmd);
       if (cmd === "native_file_drop") return Promise.resolve(nativeDrop);
       if (cmd === "pick_import_folder") {
         // The shell's chooser hands the picked folder over as a drop.
@@ -82,10 +94,19 @@ async function standInShell(page, { native = true } = {}) {
       }
       if (cmd === "read_dropped_file") {
         shell.reads.push(args.id);
+        if (!shell.held(args.id)) return Promise.reject("that file is no longer available");
         if (shell.unreadable.has(args.id)) {
           return Promise.reject("could not open the file: No such file or directory");
         }
         return Promise.resolve(new Uint8Array(shell.sizes[args.id] ?? 44).buffer);
+      }
+      if (cmd === "dropped_file_duration") {
+        shell.measured.push(args.id);
+        return Promise.resolve(shell.held(args.id) ? shell.durations[args.id] ?? null : null);
+      }
+      if (cmd === "release_dropped_files") {
+        shell.released.push(args.ticket);
+        return Promise.resolve(null);
       }
       return inner(cmd, args);
     };
@@ -141,6 +162,7 @@ const state = (page) =>
       error: err && !err.classList.contains("hidden") ? err.textContent : "",
       hovering: document.querySelector(".url-wrap").classList.contains("drag-over"),
       reads: [...window.__shell.reads],
+      released: [...window.__shell.released],
     };
   });
 
@@ -156,6 +178,7 @@ test.describe("a file dropped on the Linux desktop app", () => {
     expect(s.armed).toEqual([{ name: "Take 3.flac", size: 3 * MB }]);
     expect(s.reads).toEqual([7]);
     expect(s.error).toBe("");
+    expect(s.released).toEqual([1]);
   });
 
   test("a file that is not audio is refused without being read", async ({ page }) => {
@@ -302,6 +325,93 @@ test.describe("a file dropped on the Linux desktop app", () => {
 
     await expect.poll(() => state(page).then((s) => s.error)).toContain("moved.wav");
     expect((await state(page)).pill).toBe(false);
+  });
+
+  test("a dropped file over the length limit is flagged and left unticked, without being read", async ({ page }) => {
+    await openDesktop(page);
+    await stubPreview(page, filePreview(["ok", "ok"]));
+    await page.evaluate((long) => { window.__shell.durations = { 1: 300, 2: long }; }, TOO_LONG_SEC);
+    await drop(page, [
+      { id: 1, name: "a.wav", size: 1000 },
+      { id: 2, name: "archive.wav", size: 1000 },
+    ]);
+
+    const tooLong = await uiText(page, "batch.flag.tooLong", { minutes: MAX_DURATION_SEC / 60 });
+    await expect(row(page, "archive.wav").locator(".batch-flag-block")).toHaveText(tooLong);
+    await expect(row(page, "archive.wav").locator("input")).not.toBeChecked();
+    await expect(row(page, "a.wav").locator("input")).toBeChecked();
+    expect((await state(page)).reads).toEqual([]);
+  });
+
+  test("a dropped folder's long file is flagged the same way", async ({ page }) => {
+    await openDesktop(page);
+    await stubFolderPreview(page, ["a.wav", "b.flac", "c.m4a"]);
+    await page.evaluate((long) => { window.__shell.durations = { 3: long }; }, TOO_LONG_SEC);
+    await dropFolder(page, FOLDER);
+
+    await expect(row(page, "b.flac").locator(".batch-flag-block")).toBeVisible();
+    await expect(row(page, "b.flac").locator("input")).not.toBeChecked();
+    expect(await page.evaluate(() => window.__shell.measured)).toEqual([1, 3, 4]);
+    expect((await state(page)).reads).toEqual([]);
+  });
+
+  test("a refused drop while the review is open leaves the review's files readable", async ({ page }) => {
+    await openDesktop(page);
+    await stubPreview(page, filePreview(["ok", "ok"]));
+    const uploads = await stubImports(page, [], uploadedFile);
+    await drop(page, [
+      { id: 1, name: "a.wav", size: 1000 },
+      { id: 2, name: "b.wav", size: 1000 },
+    ]);
+    await expect(row(page, "b.wav").locator("input")).toBeChecked();
+    await drop(page, [{ id: 3, name: "notes.txt", size: 10 }]);
+    await expect.poll(() => state(page).then((s) => s.error)).toContain("MP3");
+    await queueButton(page).click();
+
+    await expect.poll(() => uploads.map((u) => u.name)).toEqual(["a.wav", "b.wav"]);
+    expect((await state(page)).released).toEqual([2, 1]);
+  });
+
+  test("a new drop while the review is queueing does not stop its files", async ({ page }) => {
+    await openDesktop(page);
+    await stubPreview(page, filePreview(["ok", "ok"]));
+    const uploads = [];
+    let letFirstThrough;
+    const firstHeld = new Promise(function holdFirst(resolve) { letFirstThrough = resolve; });
+    await page.route(/\/api\/jobs$/, async function answerImport(route) {
+      if (route.request().method() !== "POST") return route.fallback();
+      uploads.push(uploadedFile(route.request()));
+      if (uploads.length === 1) await firstHeld;
+      return route.fulfill({ json: { job_id: `e2e0b00000${String(uploads.length).padStart(2, "0")}` } });
+    });
+    await drop(page, [
+      { id: 1, name: "a.wav", size: 1000 },
+      { id: 2, name: "b.wav", size: 1000 },
+    ]);
+    await expect(row(page, "b.wav").locator("input")).toBeChecked();
+    await queueButton(page).click();
+    await expect.poll(() => uploads.length).toBe(1);
+
+    await dropFolder(page, [{ id: 11, name: "c.wav", size: 1000, dir: "Next" }]);
+    await expect(review(page).locator(".batch-folder").first()).toHaveText("Next");
+    expect((await state(page)).released).toEqual([]);
+    letFirstThrough();
+
+    await expect.poll(() => uploads.map((u) => u.name)).toEqual(["a.wav", "b.wav"]);
+    await expect.poll(() => state(page).then((s) => s.released)).toEqual([1]);
+  });
+
+  test("a reviewed drop is released when its chip is cleared", async ({ page }) => {
+    await openDesktop(page);
+    await stubPreview(page, filePreview(["ok", "ok"]));
+    await drop(page, [
+      { id: 1, name: "a.wav", size: 1000 },
+      { id: 2, name: "b.wav", size: 1000 },
+    ]);
+    await expect(row(page, "b.wav")).toBeVisible();
+    await page.locator("#fileClear").click({ force: true });
+
+    await expect.poll(() => state(page).then((s) => s.released)).toEqual([1]);
   });
 
   test("the URL zone lights while a drag is over the window", async ({ page }) => {

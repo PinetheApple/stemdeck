@@ -70,9 +70,22 @@ function refreshPill() {
   }
 }
 
+/** Let `target` go: what it holds in the shell is released now, or once it has finished queueing. */
+function retire(target) {
+  if (!target || target.queuing || target.released) return;
+  target.released = true;
+  target.release?.();
+}
+
+function replaceBatch(next) {
+  const old = batch;
+  batch = next;
+  if (old !== next) retire(old);
+}
+
 /** Forget the batch; clearing the chip in the bar calls this. */
 export function clearBatch() {
-  batch = null;
+  replaceBatch(null);
   setBatchNotQueued(0);
   closePanel({ refocus: false });
   refreshSubmitLabel();
@@ -92,7 +105,7 @@ function finishBatch() {
 export function startLinkBatch(text, { inBar = false } = {}) {
   const { lines, refused } = capLines(pastedLines(text));
   const items = lookingUpItems(lines);
-  batch = {
+  replaceBatch({
     source: SOURCE.LINKS,
     inBar,
     lines,
@@ -102,21 +115,24 @@ export function startLinkBatch(text, { inBar = false } = {}) {
     groups: [],
     droppedLines: new Set(),
     loading: true,
-  };
+  });
   setBatchNotQueued(0);
   begin(fetchLinkPreview);
 }
 
 /** Several files, or a folder (`folder` is its name): each with the folder it sits in.
- *  A file may be a `{ name, size }` description; `readFile` makes it a File only when it is sent. */
-export function startFileBatch(entries, { folder = null, readFile = null } = {}) {
+ *  A file may be a `{ name, size }` description; `readFile` makes it a File only when it is sent,
+ *  `measure` reads its length, and `release` says the batch no longer needs any of them. */
+export function startFileBatch(entries, { folder = null, readFile = null, measure = null, release = null } = {}) {
   const capped = capEntries(entries);
   const durations = new Map();
-  batch = {
+  replaceBatch({
     source: folder ? SOURCE.FOLDER : SOURCE.FILES,
     name: folder,
     entries: capped.entries,
     readFile,
+    measure,
+    release,
     loaded: new Map(),
     refused: capped.refused,
     dropped: new Set(),
@@ -125,7 +141,7 @@ export function startFileBatch(entries, { folder = null, readFile = null } = {})
     items: fileItems(capped.entries, null, durations),
     groups: [],
     loading: true,
-  };
+  });
   setBatchNotQueued(0);
   begin(fetchFilePreview);
   readDurations(batch);
@@ -226,13 +242,18 @@ function readDuration(file) {
   });
 }
 
+const lengthOf = (target, file) => {
+  if (isLoaded(file)) return readDuration(file);
+  return target.measure ? target.measure(file) : null;
+};
+
 /** Length is checked here: the server only sees file names until upload. A file
- *  known only by its description has no length until it is read, at upload. */
+ *  known only by its description is measured by `measure`, or not at all. */
 async function readDurations(target) {
   for (const { file } of target.entries) {
     if (!isCurrent(target)) return;
-    if (!isUploadable(file) || !isLoaded(file)) continue;
-    const seconds = await readDuration(file);
+    if (!isUploadable(file)) continue;
+    const seconds = await lengthOf(target, file);
     if (seconds !== null) target.durations.set(file, seconds);
     if (!target.loading && isCurrent(target)) rebuildFileItems(target);
   }
@@ -440,6 +461,7 @@ async function queueSome(target, items) {
   addLibraryRows(target, outcome.queued);
   recordBatch(outcome.queued.map((q) => q.jobId));
   target.queuing = false;
+  if (!isCurrent(target)) retire(target);
   target.capacity = null;
   for (const { item, reason } of outcome.notQueued) Object.assign(item, { status: ITEM_STATUS.NOT_QUEUED, reason, ticked: true });
   return outcome.notQueued.map((n) => n.item);
