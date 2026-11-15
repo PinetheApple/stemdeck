@@ -27,8 +27,7 @@ const LEAD_IN_SETTLE_MS = 300;
 const LEAD_IN_WATCH_MS = 1000;
 const CANCEL_WITHIN_MS = 1000;
 const NEAR_END_SEC = 5.5;
-// The streaming engine's second chunk; nothing has fetched it when the song opens.
-const UNFETCHED_CHUNK_SEC = 5;
+const SECOND_CHUNK_SEC = 5;
 const ANCHOR_PLAYING = { loaded: true, playing: true };
 const ANCHOR_HELD = { loaded: true, playing: false };
 const ANCHOR_RELEASED = { loaded: false, playing: false };
@@ -275,14 +274,16 @@ test.describe("system media controls", () => {
       await stemsHeld;
       await route.continue();
     });
-    await runAction(page, "seekto", { seekTime: UNFETCHED_CHUNK_SEC });
+    // The first two chunks load with the song; a seek past the first evicts it.
+    await runAction(page, "seekto", { seekTime: SECOND_CHUNK_SEC });
+    await runAction(page, "seekto", { seekTime: 0 });
     await runAction(page, "play");
     expect(await isPlaying(page)).toBe(true);
 
     await runAction(page, "play");
     expect(await isPlaying(page)).toBe(true);
     releaseStems();
-    await expect.poll(() => currentTime(page)).toBeGreaterThan(UNFETCHED_CHUNK_SEC);
+    await expect.poll(() => currentTime(page)).toBeGreaterThan(0);
   });
 
   test("Space still toggles playback, and the OS state follows it", async ({ page }) => {
