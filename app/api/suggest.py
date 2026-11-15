@@ -393,7 +393,10 @@ def _master_answer(mix: MixAnalysis, chosen: Target, mode: str, current: Eq | No
     """The lane answer (a quiet mix is refused there, before its loudness is read)
     plus the master preset."""
     body = _answer(mix.spectrum, chosen, PANEL_LAYOUTS[GRAPH_PANEL], mode, current)
-    master = recommend_master(mix.loudness.i, mix.loudness.tp, chosen.target_lufs)
+    i, tp = mix.loudness.i, mix.loudness.tp
+    if i is None or tp is None:
+        raise HTTPException(status_code=500, detail=MEASURE_FAILED_DETAIL)
+    master = recommend_master(i, tp, chosen.target_lufs)
     body["reasons"].append(master.reason)
     return {**body, "master": master.to_json()}
 
