@@ -1544,6 +1544,8 @@ const en = {
   "help.eqLoudness": "How loud exported mixes and videos come out. Off exports them as they are.",
   "help.eqCeiling": "The highest peak an exported mix may reach.",
   "help.exportMaster": "Masters the exported mix and video to the loudness set in the EQ tab. Stems and bundles are never mastered.",
+  "eq.suggestLaneFailed": "Couldn't suggest for this lane.",
+  "eq.unitDbtp": "dBTP",
 };
 
 const pl = {
@@ -2861,7 +2863,7 @@ const pl = {
   "eq.approximate": "Podgląd na żywo jest przybliżony",
   "eq.suggestNoSignal": "Za mało dźwięku, by zaproponować EQ.",
   "eq.suggestFailed": "Propozycja się nie udała. Spróbuj ponownie.",
-  "export.master": "Master",
+  "export.master": "Masterowanie",
   "export.masterTitle": "Zmasteruj eksportowany miks do tej głośności",
   "help.inspectorEq": "Kształtuj brzmienie każdej ścieżki korektorem i ustaw master oraz głośność eksportu.",
   "help.eqLaneMark": "Otwiera EQ: {name}. Zmienia kolor na koralowy, gdy EQ zmienia brzmienie.",
@@ -2876,6 +2878,8 @@ const pl = {
   "help.eqLoudness": "Jak głośno wychodzą eksportowane miksy i wideo. Wył. eksportuje je bez zmian.",
   "help.eqCeiling": "Najwyższy szczyt, jaki może mieć eksportowany miks.",
   "help.exportMaster": "Masteruje eksportowany miks i wideo do głośności ustawionej w karcie EQ. Stemy i paczki nigdy nie są masterowane.",
+  "eq.suggestLaneFailed": "Nie można zaproponować EQ dla tej ścieżki.",
+  "eq.unitDbtp": "dBTP",
 };
 
 const ja = {
@@ -4153,6 +4157,8 @@ const ja = {
   "help.eqLoudness": "書き出すミックスと動画の音量です。オフならそのまま書き出します。",
   "help.eqCeiling": "書き出すミックスのピークの上限です。",
   "help.exportMaster": "書き出すミックスと動画をEQタブで設定した音量にマスタリングします。ステムとバンドルはマスタリングされません。",
+  "eq.suggestLaneFailed": "このレーンにはEQを提案できません。",
+  "eq.unitDbtp": "dBTP",
 };
 
 const zhHans = {
@@ -5430,6 +5436,8 @@ const zhHans = {
   "help.eqLoudness": "导出的混音和视频的响度。关则按原样导出。",
   "help.eqCeiling": "导出混音允许达到的最高峰值。",
   "help.exportMaster": "将导出的混音和视频处理到均衡器标签中设置的响度。分轨和打包文件从不处理。",
+  "eq.suggestLaneFailed": "无法为此音轨提供建议。",
+  "eq.unitDbtp": "dBTP",
 };
 
 const de = {
@@ -6702,7 +6710,7 @@ const de = {
   "eq.type.notch": "Kerbfilter",
   "eq.type.bandpass": "Bandpass",
   "eq.type.tilt": "Neigung",
-  "eq.glue": "Glue",
+  "eq.glue": "Zusammenhalt",
   "eq.gainReduction": "GR",
   "eq.exportLoudness": "Export-Lautheit",
   "eq.loudnessAria": "Ziellautheit",
@@ -6723,7 +6731,7 @@ const de = {
   "help.inspectorEq": "Forme den Klang jeder Spur mit einem EQ und stelle den Master und die Lautheit von Exporten ein.",
   "help.eqLaneMark": "Öffnet den {name}-EQ. Er wird korallenrot, sobald der EQ den Klang ändert.",
   "help.eqScopeLane": "Der EQ der gewählten Spur. Eine andere Spur wählst du mit dem Zeichen oben links in der Spur.",
-  "help.eqScopeMaster": "Der Master: sein EQ, Glue und wie laut exportierte Mixe werden.",
+  "help.eqScopeMaster": "Der Master: sein EQ, der Zusammenhalt und wie laut exportierte Mixe werden.",
   "help.eqPower": "Schaltet diesen EQ zum Vergleichen aus und an. Die Einstellungen bleiben.",
   "help.eqGraph": "Ziehe einen Punkt für Frequenz und Pegel, scrolle darauf für die Breite. Doppelklick fügt einen Punkt hinzu oder entfernt ihn.",
   "help.eqKnob": "Nach oben oder unten ziehen oder die Pfeiltasten nutzen. Doppelklick setzt 0 dB.",
@@ -6733,6 +6741,8 @@ const de = {
   "help.eqLoudness": "Wie laut exportierte Mixe und Videos werden. Aus exportiert sie unverändert.",
   "help.eqCeiling": "Die höchste Spitze, die ein exportierter Mix erreichen darf.",
   "help.exportMaster": "Mastert den exportierten Mix und das Video auf die im EQ-Tab eingestellte Lautheit. Stems und Pakete werden nie gemastert.",
+  "eq.suggestLaneFailed": "Für diese Spur ist kein Vorschlag möglich.",
+  "eq.unitDbtp": "dBTP",
 };
 
 const pt = {
@@ -8004,7 +8014,7 @@ const pt = {
   "eq.type.highshelf": "Prateleira aguda",
   "eq.type.lowcut": "Corte de graves",
   "eq.type.highcut": "Corte de agudos",
-  "eq.type.notch": "Notch",
+  "eq.type.notch": "Entalhe",
   "eq.type.bandpass": "Passa-banda",
   "eq.type.tilt": "Inclinação",
   "eq.glue": "Coesão",
@@ -8038,6 +8048,8 @@ const pt = {
   "help.eqLoudness": "O volume das mixagens e vídeos exportados. Desligado exporta como estão.",
   "help.eqCeiling": "O pico mais alto que uma mixagem exportada pode atingir.",
   "help.exportMaster": "Masteriza a mixagem e o vídeo exportados no volume definido na aba EQ. Stems e pacotes nunca são masterizados.",
+  "eq.suggestLaneFailed": "Não foi possível sugerir para esta faixa.",
+  "eq.unitDbtp": "dBTP",
 };
 
 const id = {
@@ -9275,23 +9287,23 @@ const id = {
   "eq.knob.low": "Rendah",
   "eq.knob.mid": "Tengah",
   "eq.knob.high": "Tinggi",
-  "eq.knob.presence": "Presence",
-  "eq.type.bell": "Bell",
-  "eq.type.lowshelf": "Low shelf",
-  "eq.type.highshelf": "High shelf",
-  "eq.type.lowcut": "Low cut",
-  "eq.type.highcut": "High cut",
-  "eq.type.notch": "Notch",
-  "eq.type.bandpass": "Band pass",
-  "eq.type.tilt": "Tilt",
-  "eq.glue": "Glue",
+  "eq.knob.presence": "Kehadiran",
+  "eq.type.bell": "Lonceng",
+  "eq.type.lowshelf": "Rak rendah",
+  "eq.type.highshelf": "Rak tinggi",
+  "eq.type.lowcut": "Potong rendah",
+  "eq.type.highcut": "Potong tinggi",
+  "eq.type.notch": "Takik",
+  "eq.type.bandpass": "Lolos pita",
+  "eq.type.tilt": "Kemiringan",
+  "eq.glue": "Perekat",
   "eq.gainReduction": "GR",
   "eq.exportLoudness": "Kenyaringan ekspor",
   "eq.loudnessAria": "Target kenyaringan",
   "eq.streaming": "Streaming",
   "eq.loud": "Keras",
   "eq.off": "Mati",
-  "eq.target": "Target",
+  "eq.target": "Sasaran",
   "eq.ceiling": "Batas atas",
   "eq.ceilingDown": "Turunkan batas atas",
   "eq.ceilingUp": "Naikkan batas atas",
@@ -9300,12 +9312,12 @@ const id = {
   "eq.approximate": "Pratinjau langsung bersifat perkiraan",
   "eq.suggestNoSignal": "Suaranya terlalu sedikit untuk menyarankan EQ.",
   "eq.suggestFailed": "Saran gagal. Coba lagi.",
-  "export.master": "Master",
+  "export.master": "Masterisasi",
   "export.masterTitle": "Master mix yang diekspor ke kenyaringan ini",
   "help.inspectorEq": "Bentuk suara tiap jalur dengan EQ, lalu atur master dan kenyaringan hasil ekspor.",
   "help.eqLaneMark": "Membuka EQ {name}. Berubah koral saat EQ mengubah suara.",
   "help.eqScopeLane": "EQ jalur yang dipilih. Pilih jalur lain lewat tanda di pojok kiri atasnya.",
-  "help.eqScopeMaster": "Master: EQ-nya, Glue, dan kenyaringan mix yang diekspor.",
+  "help.eqScopeMaster": "Master: EQ-nya, Perekat, dan kenyaringan mix yang diekspor.",
   "help.eqPower": "Mematikan dan menyalakan EQ ini untuk membandingkan. Pengaturannya tetap.",
   "help.eqGraph": "Seret titik untuk mengatur frekuensi dan level, gulir di atasnya untuk mengatur lebar. Klik dua kali untuk menambah atau menghapus titik.",
   "help.eqKnob": "Seret ke atas atau bawah, atau gunakan tombol panah. Klik dua kali untuk 0 dB.",
@@ -9315,6 +9327,8 @@ const id = {
   "help.eqLoudness": "Seberapa keras mix dan video yang diekspor. Mati mengekspornya apa adanya.",
   "help.eqCeiling": "Puncak tertinggi yang boleh dicapai mix yang diekspor.",
   "help.exportMaster": "Melakukan mastering pada mix dan video yang diekspor ke kenyaringan di tab EQ. Stem dan bundel tidak pernah di-master.",
+  "eq.suggestLaneFailed": "Tidak bisa menyarankan untuk jalur ini.",
+  "eq.unitDbtp": "dBTP",
 };
 
 const fr = {
@@ -10605,7 +10619,7 @@ const fr = {
   "eq.approximate": "L'aperçu en direct est approximatif",
   "eq.suggestNoSignal": "Trop peu de son ici pour suggérer un EQ.",
   "eq.suggestFailed": "La suggestion a échoué. Réessayez.",
-  "export.master": "Master",
+  "export.master": "Mastériser",
   "export.masterTitle": "Masteriser le mix exporté à ce volume",
   "help.inspectorEq": "Façonnez le son de chaque piste avec un EQ, et réglez le master et le volume des exports.",
   "help.eqLaneMark": "Ouvre l'EQ : {name}. Il passe en corail dès que l'EQ change le son.",
@@ -10620,6 +10634,8 @@ const fr = {
   "help.eqLoudness": "Le volume des mix et vidéos exportés. Désactivé les exporte tels quels.",
   "help.eqCeiling": "La crête la plus haute qu'un mix exporté peut atteindre.",
   "help.exportMaster": "Masterise le mix et la vidéo exportés au volume réglé dans l'onglet EQ. Les stems et les paquets ne sont jamais masterisés.",
+  "eq.suggestLaneFailed": "Impossible de suggérer pour cette piste.",
+  "eq.unitDbtp": "dBTP",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -12291,6 +12307,8 @@ const es = {
   "help.eqLoudness": "El volumen de las mezclas y vídeos exportados. Desactivado las exporta tal cual.",
   "help.eqCeiling": "El pico más alto que puede alcanzar una mezcla exportada.",
   "help.exportMaster": "Masteriza la mezcla y el vídeo exportados al volumen fijado en la pestaña EQ. Los stems y los paquetes nunca se masterizan.",
+  "eq.suggestLaneFailed": "No se pudo sugerir para esta pista.",
+  "eq.unitDbtp": "dBTP",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -13577,6 +13595,8 @@ const ko = {
   "help.eqLoudness": "내보내는 믹스와 영상의 음량이에요. 끔이면 그대로 내보내요.",
   "help.eqCeiling": "내보내는 믹스가 넘지 않는 가장 높은 피크예요.",
   "help.exportMaster": "내보내는 믹스와 영상을 EQ 탭에서 정한 음량으로 마스터링해요. 스템과 번들은 마스터링하지 않아요.",
+  "eq.suggestLaneFailed": "이 레인에는 추천할 수 없어요.",
+  "eq.unitDbtp": "dBTP",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };

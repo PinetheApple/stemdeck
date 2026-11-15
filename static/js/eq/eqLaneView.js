@@ -1,13 +1,12 @@
-// The Lane view of the EQ tab: the lane's graph or pedal, its readout, and
-// Suggest / Flat. Everything heard goes through the engine API.
-
 import { t } from "../i18n.js";
+import { $ } from "../utils.js";
 import { currentJobId } from "../state.js";
 import { STEM_COLORS } from "../constants.js";
-import { getLaneEq, onFxChange, previewLaneEq, resetLane, setBypass, setLaneEq } from "../eqEngine.js";
+import { getLaneEq, onFxChange, previewLaneEq, resetLane, setLaneEq } from "../eqEngine.js";
 import { panelKindFor } from "./eqPanelKinds.js";
 import { EqGraph } from "./eqGraph.js";
 import { EqKnobs } from "./eqKnobs.js";
+import { editLaneBands, renderPower, toggleLaneBypass } from "./eqPanelControls.js";
 import {
   PEDAL_PANEL_KINDS,
   createSuggestSession,
@@ -17,10 +16,10 @@ import {
   panelTitleKey,
   readoutParts,
   suggestEqUrl,
+  targetCurvePoints,
 } from "./eqPanelModel.js";
 import { fetchSuggestion, suggestErrorKey } from "./eqSuggest.js";
 
-const $ = (id) => document.getElementById(id);
 const SMALL_GRAPH_CLASS = "eq-graph-sm";
 const EQ_COLOR_VAR = "--eq-c";
 
@@ -28,7 +27,8 @@ export class EqLaneView {
   #root = $("eqLaneView");
   #lane = null;
   #kind = null;
-  #busy = false;
+  #request = null;
+  #target = null;
   #graph;
   #knobs;
   #session = createSuggestSession({ preview: previewLaneEq, commit: setLaneEq });
@@ -59,9 +59,12 @@ export class EqLaneView {
     this.render();
   }
 
-  /** Leaving the lane: an unapplied suggestion goes back to the saved EQ. */
+  /** Leaving the lane or the song: drop a Suggest still asked for, undo an unapplied one. */
   leave() {
+    this.#request?.abort();
+    this.#request = null;
     this.#session.undo();
+    this.#target = null;
     this.#status("");
   }
 
@@ -71,14 +74,14 @@ export class EqLaneView {
     const eq = suggesting ? this.#session.suggested : getLaneEq(this.#lane);
     const pedal = PEDAL_PANEL_KINDS.has(this.#kind);
     $("eqLaneTitle").textContent = t(panelTitleKey(this.#kind));
-    this.#renderPower(eq);
+    renderPower($("eqPowerLane"), eq, { disabled: suggesting });
     $("eqGraphLane").classList.toggle(SMALL_GRAPH_CLASS, pedal);
     this.#graph.show(
       { bands: pedal ? eq.params.bands : graphBands(eq), out: eq.params.out, bypass: eq.bypass },
-      { ghost: suggesting ? this.#ghost() : null, fitted: suggesting, editable: !pedal && !suggesting },
+      { ...this.#suggestLayers(suggesting), fitted: suggesting, editable: !pedal && !suggesting },
     );
     $("eqKnobs").hidden = !pedal;
-    if (pedal) this.#knobs.show(this.#kind, eq);
+    if (pedal) this.#knobs.show(this.#kind, eq, { enabled: !suggesting });
     $("eqSuggestBar").hidden = !suggesting;
     $("eqLegend").hidden = !suggesting;
     $("eqLaneActions").hidden = suggesting;
@@ -86,16 +89,10 @@ export class EqLaneView {
     this.#renderReadout();
   }
 
-  #ghost() {
+  #suggestLayers(suggesting) {
+    if (!suggesting) return { ghost: null, target: null };
     const saved = getLaneEq(this.#lane);
-    return { bands: saved.params.bands, out: saved.params.out };
-  }
-
-  #renderPower(eq) {
-    const power = $("eqPowerLane");
-    power.setAttribute("aria-pressed", String(!eq.bypass));
-    power.title = t(eq.bypass ? "eq.powerOff" : "eq.power");
-    power.setAttribute("aria-label", power.title);
+    return { ghost: { bands: saved.params.bands, out: saved.params.out }, target: this.#target };
   }
 
   #renderReadout() {
@@ -112,9 +109,8 @@ export class EqLaneView {
     $("eqLaneStatus").textContent = text;
   }
 
-  #onGraphEdit(bands, { commit }) {
-    const eq = getLaneEq(this.#lane);
-    setLaneEq(this.#lane, { ...eq, params: { ...eq.params, bands } }, { save: commit });
+  #onGraphEdit(bands, opts) {
+    editLaneBands(this.#lane, bands, opts);
     this.#renderReadout();
   }
 
@@ -123,7 +119,7 @@ export class EqLaneView {
   }
 
   #onPowerClick() {
-    setBypass(this.#lane, !getLaneEq(this.#lane).bypass);
+    toggleLaneBypass(this.#lane);
   }
 
   #onFlatClick() {
@@ -132,31 +128,43 @@ export class EqLaneView {
   }
 
   async #onSuggestClick() {
-    if (this.#busy || !currentJobId) return;
-    const lane = this.#lane;
-    this.#busy = true;
+    if (this.#request || !currentJobId) return;
+    const ask = { lane: this.#lane, kind: this.#kind, job: currentJobId, ctl: new AbortController() };
+    this.#request = ask.ctl;
     $("eqSuggestLane").disabled = true;
     this.#status("");
     try {
-      const body = await fetchSuggestion(suggestEqUrl(currentJobId, lane, this.#kind));
-      if (lane === this.#lane) this.#session.show(lane, eqFromSuggestion(body, this.#kind));
+      const body = await fetchSuggestion(suggestEqUrl(ask.job, ask.lane, ask.kind), ask.ctl.signal);
+      if (this.#isCurrent(ask)) this.#showSuggestion(ask, body);
     } catch (err) {
+      if (!this.#isCurrent(ask)) return;
       console.warn("[eq] suggest failed:", err);
       this.#status(t(suggestErrorKey(err)));
     } finally {
-      this.#busy = false;
+      if (this.#request === ask.ctl) this.#request = null;
       $("eqSuggestLane").disabled = false;
       this.render();
     }
   }
 
+  #isCurrent(ask) {
+    return !ask.ctl.signal.aborted && ask.job === currentJobId && ask.lane === this.#lane;
+  }
+
+  #showSuggestion(ask, body) {
+    this.#target = targetCurvePoints(body);
+    this.#session.show(ask.lane, eqFromSuggestion(body, ask.kind));
+  }
+
   #onApplyClick() {
     this.#session.apply();
+    this.#target = null;
     this.render();
   }
 
   #onUndoClick() {
     this.#session.undo();
+    this.#target = null;
     this.render();
   }
 

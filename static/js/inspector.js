@@ -74,7 +74,7 @@ function readInspectorHidden() {
   }
 }
 
-/** Show a tab from elsewhere in the app (the lane EQ marks), unhiding the inspector. */
+/** Show a tab from elsewhere in the app, unhiding the inspector. */
 export function openInspectorTab(name) {
   setInspectorHidden(false);
   saveInspectorHidden(false);

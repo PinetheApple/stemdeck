@@ -1,10 +1,9 @@
-// Feeds one graph the live spectrum of a lane (or the master) after its EQ.
-
 import { TAP_SIDE } from "../fxChain.js";
 import { getAnalyser, liveSampleRate, releaseAnalyser } from "../eqEngine.js";
 import { SPEC_MIN_DB, SPEC_TILT_DB_OCT, columnBins, spectrumFrame } from "./eqGraphMath.js";
 
 const COLUMN_PX = 2;
+const MIN_COLUMNS = 2;
 const FALL_DB_PER_FRAME = 1.5;
 
 export class EqSpectrum {
@@ -36,7 +35,7 @@ export class EqSpectrum {
 
   frame() {
     if (!this.#analyser) return;
-    const count = Math.max(2, Math.floor(this.#host.clientWidth / COLUMN_PX));
+    const count = Math.max(MIN_COLUMNS, Math.floor(this.#host.clientWidth / COLUMN_PX));
     if (!this.#columns || this.#columns.length !== count) this.#columns = new Float32Array(count).fill(SPEC_MIN_DB);
     this.#analyser.getFloatFrequencyData(this.#data);
     spectrumFrame(this.#binsFor(count), this.#data, this.#columns, FALL_DB_PER_FRAME);

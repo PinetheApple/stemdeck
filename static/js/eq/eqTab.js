@@ -1,10 +1,9 @@
-// The EQ inspector tab: a Lane | Master switch over the two views. Nothing
-// runs (spectrum, warm master) while the tab is out of sight.
-
 import { onLanguageChange } from "../i18n.js";
+import { $ } from "../utils.js";
 import { STEM_COLORS, STEM_DISPLAY } from "../constants.js";
-import { MASTER_LANE } from "../mixFx.js";
+import { MASTER_LANE } from "../eqEngine.js";
 import { openInspectorTab } from "../inspector.js";
+import { PLAYBACK_READY_EVENT } from "../player.js";
 import { laneHasPanel } from "./eqPanelKinds.js";
 import { EqLaneView } from "./eqLaneView.js";
 import { EqMasterView } from "./eqMasterView.js";
@@ -12,11 +11,13 @@ import { EqSpectrum } from "./eqSpectrum.js";
 import { OPEN_LANE_EQ_EVENT, refreshLaneMarks } from "./eqLaneMark.js";
 import { initMasterExportRow, refreshMasterExportRow } from "./masterExportRow.js";
 
-const $ = (id) => document.getElementById(id);
 const SCOPE = Object.freeze({ lane: "lane", master: "master" });
 const EQ_TAB = "eq";
 const EDITING_CLASS = "eq-editing";
 const INSPECTOR_HIDDEN_CLASS = "inspector-hidden";
+const SCOPE_KEY_STEPS = Object.freeze({ ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 });
+const SCOPE_ORDER = Object.freeze([SCOPE.lane, SCOPE.master]);
+const scopeButton = (scope) => $(scope === SCOPE.lane ? "eqScopeLane" : "eqScopeMaster");
 const LANE_ROWS = ".mixer-column .lane-header[data-stem]:not(.hidden):not(.unavailable)";
 
 const pane = $("inspectorPaneEq");
@@ -45,8 +46,11 @@ function renderScope() {
   const lane = tab.lane;
   $("eqScopeName").textContent = lane ? STEM_DISPLAY[lane] || lane : "";
   $("eqScopeDot").style.color = STEM_COLORS[lane] || "";
-  $("eqScopeLane").setAttribute("aria-checked", String(tab.scope === SCOPE.lane));
-  $("eqScopeMaster").setAttribute("aria-checked", String(tab.scope === SCOPE.master));
+  for (const scope of SCOPE_ORDER) {
+    const checked = scope === tab.scope;
+    scopeButton(scope).setAttribute("aria-checked", String(checked));
+    scopeButton(scope).tabIndex = checked ? 0 : -1;
+  }
   $("eqLaneView").hidden = tab.scope !== SCOPE.lane || !lane;
   $("eqMasterView").hidden = tab.scope !== SCOPE.master;
 }
@@ -114,6 +118,16 @@ function onScopeMasterClick() {
   chooseScope(SCOPE.master);
 }
 
+function onScopeKeydown(e) {
+  const step = SCOPE_KEY_STEPS[e.key];
+  if (!step) return;
+  e.preventDefault();
+  const at = SCOPE_ORDER.indexOf(tab.scope);
+  const next = SCOPE_ORDER[(at + step + SCOPE_ORDER.length) % SCOPE_ORDER.length];
+  chooseScope(next);
+  scopeButton(next).focus();
+}
+
 function onOpenLaneEq(e) {
   tab.lane = e.detail.lane;
   tab.scope = SCOPE.lane;
@@ -140,8 +154,9 @@ function initEqTab() {
   if (!pane) return;
   $("eqScopeLane").addEventListener("click", onScopeLaneClick);
   $("eqScopeMaster").addEventListener("click", onScopeMasterClick);
+  $("eqScopeLane").parentElement.addEventListener("keydown", onScopeKeydown);
   document.addEventListener(OPEN_LANE_EQ_EVENT, onOpenLaneEq);
-  document.addEventListener("playbackready", onPlaybackReady);
+  document.addEventListener(PLAYBACK_READY_EVENT, onPlaybackReady);
   onLanguageChange(onLanguageSwitch);
   const observer = new MutationObserver(sync);
   observer.observe(pane, { attributes: true, attributeFilter: ["hidden"] });

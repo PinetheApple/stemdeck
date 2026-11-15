@@ -1,12 +1,9 @@
-// The export menu's "Master" row: ticked means the mix and video exports are
-// mastered to the song's loudness target. It is the same switch as Off in
-// the EQ tab's Export loudness.
-
-import { getMaster, isMasterOn, setMasterOn } from "../masterEngine.js";
-import { onFxChange } from "../mixFx.js";
+import { t } from "../i18n.js";
+import { $ } from "../utils.js";
+import { getMaster, isMasterOn, setExportFormat, setMasterOn } from "../masterEngine.js";
+import { onFxChange } from "../eqEngine.js";
 import { exportMasterLabel } from "./masterPanelModel.js";
 
-const $ = (id) => document.getElementById(id);
 const FORMAT_ID_PREFIX = "t-fmt-";
 
 function selectedFormat() {
@@ -17,8 +14,11 @@ function selectedFormat() {
 export function refreshMasterExportRow() {
   const box = $("t-export-master");
   if (!box) return;
+  const format = selectedFormat();
+  setExportFormat(format);
   box.checked = isMasterOn();
-  $("t-export-master-preset").textContent = exportMasterLabel(getMaster(), selectedFormat());
+  const units = { lufs: t("meta.lufs"), dbtp: t("eq.unitDbtp") };
+  $("t-export-master-preset").textContent = exportMasterLabel(getMaster(), format, units);
 }
 
 function onMasterBoxChange(e) {

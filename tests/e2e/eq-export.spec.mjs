@@ -1,7 +1,3 @@
-// What the EQ and master add to export URLs: fx= only when an EQ changes the
-// sound, master= only on the mix when the export row is ticked, and never on
-// the bundle or the stems zip.
-
 import { test, expect } from "@playwright/test";
 import { openStudio, exportUi } from "./helpers.mjs";
 

@@ -18,6 +18,7 @@ import {
   pedalKnobs,
   readoutParts,
   suggestEqUrl,
+  targetCurvePoints,
 } from "../../static/js/eq/eqPanelModel.js";
 import {
   LOUDNESS_CHOICE,
@@ -32,6 +33,7 @@ import {
 } from "../../static/js/eq/masterPanelModel.js";
 import { eqIsFlat, eqResponseDb, flatEq, normalizeEq } from "../../static/js/eqMath.js";
 import { applyPreset, normalizeMaster } from "../../static/js/masterMath.js";
+import { suggestErrorKey } from "../../static/js/eq/eqSuggest.js";
 import { createChecker, near } from "./fakeWebAudio.mjs";
 
 const { check, finish } = createChecker();
@@ -207,6 +209,21 @@ const on = (preset) => ({ ...applyPreset(null, preset), bypass: false });
   check("a flat EQ and mastering off add nothing", q.toString() === "stems=drums");
   addExportParams(q, { fx: "abc", master: "xyz" });
   check("fx and master are added when they say something", q.get("fx") === "abc" && q.get("master") === "xyz");
+}
+
+{
+  check("too little sound says so", suggestErrorKey({ status: 422, detail: "not enough signal" }) === "eq.suggestNoSignal");
+  check("another refusal is about the lane", suggestErrorKey({ status: 422, detail: "layout must be drum for drums" }) === "eq.suggestLaneFailed");
+  check("a missing lane file is about the lane", suggestErrorKey({ status: 404, detail: "lane not found" }) === "eq.suggestLaneFailed");
+  check("a server failure says try again", suggestErrorKey({ status: 500, detail: "" }) === "eq.suggestFailed");
+  check("a network failure says try again", suggestErrorKey(new TypeError("Failed to fetch")) === "eq.suggestFailed");
+}
+
+{
+  const pts = targetCurvePoints({ target_curve: [[20, -2], [1000, 0], ["x", 1], [16000, 3.5]] });
+  check("the target curve keeps its numeric points", pts.length === 3 && pts[1][0] === 1000 && pts[2][1] === 3.5);
+  check("no target curve draws nothing", targetCurvePoints({ bands: [] }) === null);
+  check("a malformed target curve draws nothing", targetCurvePoints({ target_curve: "x" }) === null);
 }
 
 finish();

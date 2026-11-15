@@ -1,5 +1,3 @@
-// The EQ and master parts of an export URL.
-
 import { exportFxParam } from "../eqEngine.js";
 import { exportMasterParam } from "../masterEngine.js";
 import { addExportParams } from "./masterPanelModel.js";

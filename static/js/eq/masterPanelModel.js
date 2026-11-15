@@ -1,30 +1,29 @@
-// What the Master view and the export row show, without the DOM.
-
 import { clamp, roundTo } from "../audioMath.js";
 import {
   LOSSY_CEILING_DBTP,
   MASTER_LIMITS,
   MASTER_PRESETS,
   applyPreset,
+  isLossyFormat,
   masterIsOn,
   normalizeMaster,
 } from "../masterMath.js";
 
 export const LOUDNESS_CHOICE = Object.freeze({ streaming: "streaming", loud: "loud", off: "off" });
 
+const PRESET = Object.freeze(Object.fromEntries(Object.keys(MASTER_PRESETS).map((key) => [key, key])));
 const PRESET_BY_CHOICE = Object.freeze({
-  [LOUDNESS_CHOICE.streaming]: "streaming",
-  [LOUDNESS_CHOICE.loud]: "louder",
+  [LOUDNESS_CHOICE.streaming]: PRESET.streaming,
+  [LOUDNESS_CHOICE.loud]: PRESET.louder,
   [LOUDNESS_CHOICE.off]: null,
 });
-const CUSTOM_PRESET = "custom";
 
 /** Which of Streaming / Loud / Off the master reads as; null for another target. */
 export function loudnessChoice(master) {
   if (!masterIsOn(master)) return LOUDNESS_CHOICE.off;
   const target = master.params.target_lufs;
-  if (target === MASTER_PRESETS.streaming.target) return LOUDNESS_CHOICE.streaming;
-  if (target === MASTER_PRESETS.louder.target) return LOUDNESS_CHOICE.loud;
+  if (target === MASTER_PRESETS[PRESET.streaming].target) return LOUDNESS_CHOICE.streaming;
+  if (target === MASTER_PRESETS[PRESET.louder].target) return LOUDNESS_CHOICE.loud;
   return null;
 }
 
@@ -43,7 +42,7 @@ export function stepCeiling(master, steps) {
     clamp(current.params.ceiling_dbtp + steps * CEILING_STEP_DB, MASTER_LIMITS.ceilingMin, MASTER_LIMITS.ceilingMax),
     CEILING_DIGITS,
   );
-  const custom = applyPreset(current, CUSTOM_PRESET);
+  const custom = applyPreset(current, PRESET.custom);
   return normalizeMaster({ ...custom, params: { ...custom.params, ceiling_dbtp: ceiling } });
 }
 
@@ -51,8 +50,9 @@ const MINUS = "−";
 const NONE = "—";
 const WAITING = "…";
 const LOUDNESS_DIGITS = 1;
-const LUFS_UNIT = "LUFS";
-const DBTP_UNIT = "dBTP";
+const DEFAULT_UNITS = Object.freeze({ lufs: "LUFS", dbtp: "dBTP" });
+const PERCENT = 100;
+const PERCENT_SIGN = "%";
 const LABEL_JOIN = " · ";
 const MEASURING = "measuring";
 
@@ -83,25 +83,28 @@ export function loudnessReadout(master, plan, planState) {
   };
 }
 
+/** "35%" for an amount of 0.35. */
+export function fmtPercent(fraction) {
+  return `${Math.round(fraction * PERCENT)}${PERCENT_SIGN}`;
+}
+
 /** How full the gain reduction bar is for a reduction of `db` (negative) on a `scaleDb` bar. */
 export function grFraction(db, scaleDb) {
   if (!Number.isFinite(db)) return 0;
   return clamp(-db / scaleDb, 0, 1);
 }
 
-const LOSSY_FORMATS = new Set(["mp3", "ogg", "mp4"]);
-
 /** The ceiling an export of this format gets: lossy ones never above the lossy cap. */
 export function exportCeiling(ceiling, format) {
-  return LOSSY_FORMATS.has(format) ? Math.min(ceiling, LOSSY_CEILING_DBTP) : ceiling;
+  return isLossyFormat(format) ? Math.min(ceiling, LOSSY_CEILING_DBTP) : ceiling;
 }
 
 /** "−14 LUFS · −1 dBTP" for the export row; just the ceiling when there is no target. */
-export function exportMasterLabel(master, format) {
+export function exportMasterLabel(master, format, units = DEFAULT_UNITS) {
   const m = normalizeMaster(master);
-  const ceiling = `${fmtSigned(exportCeiling(m.params.ceiling_dbtp, format), { trim: true })} ${DBTP_UNIT}`;
+  const ceiling = `${fmtSigned(exportCeiling(m.params.ceiling_dbtp, format), { trim: true })} ${units.dbtp}`;
   if (m.params.target_lufs === null) return ceiling;
-  return `${fmtSigned(m.params.target_lufs, { trim: true })} ${LUFS_UNIT}${LABEL_JOIN}${ceiling}`;
+  return `${fmtSigned(m.params.target_lufs, { trim: true })} ${units.lufs}${LABEL_JOIN}${ceiling}`;
 }
 
 /** Add the export's fx= and master= values to a query, each only when it says something. */

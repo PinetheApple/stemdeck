@@ -1,6 +1,3 @@
-// What the lane EQ panels show and do, without the DOM: the lane marks, the
-// starter bands, the pedal knobs, the readout and Suggest's Apply / Undo.
-
 import { clamp, finiteOr, roundTo } from "../audioMath.js";
 import { EQ_ID, EQ_VERSION, eqIsFlat, eqResponseDb, normalizeEq } from "../eqMath.js";
 import { PANEL_KIND } from "./eqPanelKinds.js";
@@ -60,7 +57,6 @@ export function panelTitleKey(kind) {
 export const PEDAL_PANEL_KINDS = new Set([PANEL_KIND.bass, PANEL_KIND.guitar, PANEL_KIND.keys]);
 export const KNOB_IDS = Object.freeze(["low", "mid", "high", "presence"]);
 
-// Each knob's control key and its range.
 const STRING_PEDAL_KNOBS = Object.freeze([
   { id: "low", key: "lg", range: PEDAL_GAIN },
   { id: "mid", key: "mg", range: PEDAL_GAIN },
@@ -78,7 +74,6 @@ const KNOBS_BY_KIND = Object.freeze({
   ]),
 });
 
-// Which pedal controls a suggested band's slot sets, from its f, g and q.
 const SLOT_CONTROLS = Object.freeze({
   hpf: { f: "hpf" },
   ls: { g: "ls" },
@@ -115,6 +110,7 @@ export function eqWithKnob(kind, eq, id, value) {
 }
 
 const KNOB_SWEEP_DEG = 270;
+export const KNOB_SWEEP_HALF_DEG = KNOB_SWEEP_DEG / 2;
 const KNOB_PX_PER_RANGE = 120;
 const KNOB_FINE = 0.25;
 const KNOB_STEPS_PER_DB = 2;
@@ -122,7 +118,7 @@ const KNOB_STEPS_PER_DB = 2;
 /** Degrees from straight up: 0 at noon, half the sweep at either end. */
 export function knobAngle(value, min, max) {
   const mid = (min + max) / 2;
-  return ((clamp(value, min, max) - mid) / (max - mid)) * (KNOB_SWEEP_DEG / 2);
+  return ((clamp(value, min, max) - mid) / (max - mid)) * KNOB_SWEEP_HALF_DEG;
 }
 
 /** A knob's value after a vertical drag of dy px (up is negative), on half dB steps. */
@@ -168,6 +164,17 @@ export function controlsFromSuggestion(kind, body) {
   }
   controls.lvl = finiteOr(body?.out, 0);
   return controls;
+}
+
+const CURVE_POINT_LENGTH = 2;
+const isCurvePoint = (p) => Array.isArray(p) && p.length === CURVE_POINT_LENGTH && p.every(Number.isFinite);
+
+/** The target curve of a Suggest answer as [[Hz, dB], ...], or null when it has none. */
+export function targetCurvePoints(body) {
+  const curve = body?.target_curve;
+  if (!Array.isArray(curve)) return null;
+  const points = curve.filter(isCurvePoint).map(([f, db]) => [f, db]);
+  return points.length ? points : null;
 }
 
 /** The EQ descriptor a Suggest answer stands for, in the lane's own panel kind. */

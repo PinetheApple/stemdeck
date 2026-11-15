@@ -1,8 +1,6 @@
-// The Master view of the EQ tab: master EQ, Glue, and Export loudness.
-
-import { t } from "../i18n.js";
+import { $ } from "../utils.js";
 import { audioEngine } from "../state.js";
-import { MASTER_LANE, getLaneEq, onFxChange, resetLane, setBypass, setLaneEq } from "../eqEngine.js";
+import { MASTER_LANE, getLaneEq, onFxChange, resetLane } from "../eqEngine.js";
 import {
   choosePreset,
   getMaster,
@@ -17,12 +15,19 @@ import {
 } from "../masterEngine.js";
 import { EqGraph } from "./eqGraph.js";
 import { graphBands } from "./eqPanelModel.js";
-import { choosePresetFor, fmtSigned, grFraction, loudnessChoice, loudnessReadout, stepCeiling } from "./masterPanelModel.js";
+import { fmtDb } from "./eqGraphMath.js";
+import { editLaneBands, renderPower, toggleLaneBypass } from "./eqPanelControls.js";
+import {
+  choosePresetFor,
+  fmtPercent,
+  grFraction,
+  loudnessChoice,
+  loudnessReadout,
+  stepCeiling,
+} from "./masterPanelModel.js";
 
-const $ = (id) => document.getElementById(id);
 const PERCENT = 100;
 const GR_SCALE_DB = 12;
-const GR_UNIT = " dB";
 
 export class EqMasterView {
   #graph;
@@ -61,24 +66,22 @@ export class EqMasterView {
   /** One meter frame: the glue's gain reduction. */
   tick() {
     const db = audioEngine?.masterFxReduction?.()?.glue ?? null;
-    $("eqGrBar").style.width = `${grFraction(db, GR_SCALE_DB) * PERCENT}%`;
-    $("eqGrValue").textContent = `${fmtSigned(Number.isFinite(db) ? db : 0)}${GR_UNIT}`;
+    $("eqGrBar").style.width = fmtPercent(grFraction(db, GR_SCALE_DB));
+    $("eqGrValue").textContent = fmtDb(Number.isFinite(db) ? db : 0);
   }
 
   #renderEq() {
     const eq = getLaneEq(MASTER_LANE);
-    const power = $("eqPowerMaster");
-    power.setAttribute("aria-pressed", String(!eq.bypass));
-    power.title = t(eq.bypass ? "eq.powerOff" : "eq.power");
-    power.setAttribute("aria-label", power.title);
+    renderPower($("eqPowerMaster"), eq);
     this.#graph.show({ bands: graphBands(eq), out: eq.params.out, bypass: eq.bypass });
   }
 
   #renderGlue() {
+    const { comp } = getMaster().params;
     const glue = $("eqGlue");
-    glue.value = String(Math.round(getMaster().params.comp * PERCENT));
+    glue.value = String(Math.round(comp * PERCENT));
     glue.disabled = !isMasterOn();
-    $("eqGlueValue").textContent = `${glue.value}%`;
+    $("eqGlueValue").textContent = fmtPercent(comp);
   }
 
   #renderLoudness() {
@@ -98,13 +101,12 @@ export class EqMasterView {
     $("eqCeilingUp").disabled = !on;
   }
 
-  #onGraphEdit(bands, { commit }) {
-    const eq = getLaneEq(MASTER_LANE);
-    setLaneEq(MASTER_LANE, { ...eq, params: { ...eq.params, bands } }, { save: commit });
+  #onGraphEdit(bands, opts) {
+    editLaneBands(MASTER_LANE, bands, opts);
   }
 
   #onPowerClick() {
-    setBypass(MASTER_LANE, !getLaneEq(MASTER_LANE).bypass);
+    toggleLaneBypass(MASTER_LANE);
   }
 
   #setGlue(save) {

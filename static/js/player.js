@@ -67,6 +67,9 @@ import { setMixSource } from "./masterEngine.js";
 import { addExportFx } from "./eq/eqExport.js";
 import { createLaneEqMark } from "./eq/eqLaneMark.js";
 
+/** Fired on document once a song's engine is up and playable. */
+export const PLAYBACK_READY_EVENT = "playbackready";
+
 // Playback-engine selection. All engines play decoded AudioBuffers off a single
 // AudioContext clock (no N streaming <audio> elements — that was the source of
 // Safari/WKWebView choppiness). Two Web Audio engines exist:
@@ -1579,9 +1582,10 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
             if (pitchable) resetPitch(mixGlobalPitch());
             setLaneKeysAvailable(pitchable);
             applyAllLanePitches();
+            setMixSource(_masterMixSource);
             applyAllFx();
           });
-          document.dispatchEvent(new CustomEvent("playbackready", { detail: { id: jobId } }));
+          document.dispatchEvent(new CustomEvent(PLAYBACK_READY_EVENT, { detail: { id: jobId } }));
 
           // Click track. Bound to this engine instance, so it is rebuilt on
           // every engine bring-up (including the chunked -> fulldecode swap
@@ -1986,14 +1990,9 @@ export function setExportClickAvailable(on) {
 // Dynamic mixdown URL for the current mixer state. Returns null (no download)
 // when every lane is silenced; `region` appends the loop bounds.
 function _mixdownUrl(ext, region) {
-  if (!currentJobId) return null;
-  const { names, gains, pitches } = _effectiveMixGains();
-  if (!names.length) return null;
-  const q = new URLSearchParams({
-    stems: names.join(","),
-    gains: gains.map((g) => g.toFixed(3)).join(","),
-    ...(pitches.some((p) => p !== 0) ? { pitches: pitches.join(",") } : {}),
-  });
+  const mix = _mixQuery();
+  if (!mix) return null;
+  const { names, q } = mix;
   if (region) {
     q.set("start", loopStart.toFixed(3));
     q.set("end", loopEnd.toFixed(3));
@@ -2004,8 +2003,8 @@ function _mixdownUrl(ext, region) {
   return `/api/jobs/${currentJobId}/mixdown.${ext}?${q}`;
 }
 
-// The mix the master measures: the export's lanes and EQ, without master=.
-function _masterMixSource() {
+// The audible lanes as a mixdown query, or null when there is no song or every lane is silent.
+function _mixQuery() {
   if (!currentJobId) return null;
   const { names, gains, pitches } = _effectiveMixGains();
   if (!names.length) return null;
@@ -2014,11 +2013,16 @@ function _masterMixSource() {
     gains: gains.map((g) => g.toFixed(3)).join(","),
     ...(pitches.some((p) => p !== 0) ? { pitches: pitches.join(",") } : {}),
   });
-  addExportFx(q, names, { master: false });
-  return { jobId: currentJobId, query: q.toString() };
+  return { names, q };
 }
 
-setMixSource(_masterMixSource);
+// The mix the master measures: the export's lanes and EQ, without master=.
+function _masterMixSource() {
+  const mix = _mixQuery();
+  if (!mix) return null;
+  addExportFx(mix.q, mix.names, { master: false });
+  return { jobId: currentJobId, query: mix.q.toString() };
+}
 
 // One stem, named after the song so it stays identifiable once dragged into a
 // project folder next to other songs' stems (#336). Falls back to the bare stem

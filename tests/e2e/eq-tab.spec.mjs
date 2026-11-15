@@ -1,7 +1,5 @@
-// The EQ inspector tab: lane and master views, the lane marks, Suggest.
-
 import { test, expect } from "@playwright/test";
-import { openStudio, openInspectorTab } from "./helpers.mjs";
+import { SIBLING_JOB_ID, openStudio, openInspectorTab } from "./helpers.mjs";
 
 const SUGGEST_EQ = /\/api\/jobs\/[a-f0-9]{12}\/suggest\/eq\?/;
 const SUGGESTED = {
@@ -14,7 +12,16 @@ const SUGGESTED = {
   loudness: -20,
   target: "default",
   targets: [{ id: "default", label_key: "suggest.target.default" }],
+  target_curve: [[20, -4], [100, 2], [1000, 0], [10000, 1.5], [20000, -6]],
 };
+const SUGGESTED_PEDAL = {
+  ...SUGGESTED,
+  bands: [
+    { type: "bell", f: 132, g: 3, q: 2.5, slope: 12, slot: "low" },
+    { type: "highshelf", f: 1000, g: -2, q: 0.707, slope: 12, slot: "hs" },
+  ],
+};
+const SIBLING_READY = /\/\s*00:02\s*$/;
 const SUGGESTED_HZ = 310;
 const STARTER_BANDS = 4;
 const DRAG_UP_PX = 30;
@@ -34,11 +41,24 @@ function playedDb(page, lane, hz) {
   }, [lane, hz]);
 }
 
+/** A Suggest that answers only when the returned release() is called. */
+async function holdSuggest(page) {
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  await page.route(SUGGEST_EQ, async (route) => {
+    await held;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SUGGESTED) });
+  });
+  return release;
+}
+
 async function stubSuggest(page) {
   const asked = [];
   await page.route(SUGGEST_EQ, (route) => {
-    asked.push(new URL(route.request().url()));
-    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SUGGESTED) });
+    const url = new URL(route.request().url());
+    asked.push(url);
+    const body = url.searchParams.get("lane") === "bass" ? SUGGESTED_PEDAL : SUGGESTED;
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   });
   return asked;
 }
@@ -135,5 +155,66 @@ test.describe("EQ tab", () => {
     await page.locator("#eqFlatLane").click();
     await expect(mark(page, "drums")).toHaveAttribute("data-eq", "flat");
     await expect(handles(page)).toHaveCount(STARTER_BANDS);
+  });
+
+  test("a Suggest answer for the previous song is dropped", async ({ page }) => {
+    const release = await holdSuggest(page);
+    await mark(page, "drums").click();
+    const asked = page.waitForRequest(SUGGEST_EQ);
+    await page.locator("#eqSuggestLane").click();
+    await asked;
+    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().dblclick();
+    await expect(page.locator("#t-time")).toHaveText(SIBLING_READY, { timeout: 20000 });
+    release();
+    await page.waitForTimeout(500);
+    await expect(page.locator("#eqSuggestBar")).toBeHidden();
+    expect((await laneEq(page, "drums")).params.bands).toHaveLength(0);
+    const db = await playedDb(page, "drums", SUGGESTED_HZ);
+    expect(db === null || Math.abs(db) < 0.1).toBe(true);
+  });
+
+  test("while a suggestion plays, the knobs and the power button wait", async ({ page }) => {
+    await stubSuggest(page);
+    await mark(page, "bass").click();
+    await page.locator("#eqSuggestLane").click();
+    await expect(page.locator("#eqSuggestBar")).toBeVisible();
+    const low = page.locator('#eqKnobs .eq-knob[data-knob="low"]');
+    await expect(low).toHaveAttribute("aria-valuenow", "3");
+    await expect(low).toHaveAttribute("aria-disabled", "true");
+    await expect(page.locator("#eqPowerLane")).toBeDisabled();
+    await low.dispatchEvent("keydown", { key: "ArrowUp", bubbles: true });
+    await expect(low).toHaveAttribute("aria-valuenow", "3");
+    expect((await laneEq(page, "bass")).params.bands.every((b) => b.g === 0)).toBe(true);
+    await page.locator("#eqSuggestUndo").click();
+    await expect(low).not.toHaveAttribute("aria-disabled", "true");
+    await expect(page.locator("#eqPowerLane")).toBeEnabled();
+  });
+
+  test("Suggest draws the target curve with its legend", async ({ page }) => {
+    await stubSuggest(page);
+    await mark(page, "drums").click();
+    await expect(page.locator("#eqGraphLane path.eq-target")).toHaveAttribute("d", "");
+    await page.locator("#eqSuggestLane").click();
+    await expect(page.locator("#eqGraphLane path.eq-target")).toHaveAttribute("d", /^M/);
+    await expect(page.locator("#eqLegend")).toContainText("Target");
+    await page.locator("#eqSuggestUndo").click();
+    await expect(page.locator("#eqGraphLane path.eq-target")).toHaveAttribute("d", "");
+  });
+
+  test("the Lane and Master switch moves with the arrow keys", async ({ page }) => {
+    await openInspectorTab(page, "eq");
+    const lane = page.locator("#eqScopeLane");
+    const master = page.locator("#eqScopeMaster");
+    await expect(lane).toHaveAttribute("tabindex", "0");
+    await expect(master).toHaveAttribute("tabindex", "-1");
+    await lane.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(master).toHaveAttribute("aria-checked", "true");
+    await expect(master).toBeFocused();
+    await expect(master).toHaveAttribute("tabindex", "0");
+    await expect(page.locator("#eqMasterView")).toBeVisible();
+    await page.keyboard.press("ArrowLeft");
+    await expect(lane).toHaveAttribute("aria-checked", "true");
+    await expect(lane).toBeFocused();
   });
 });

@@ -1,15 +1,11 @@
-/* The EQ tab's Master view and the export menu's Master row. */
-
 .eq-master { display: flex; flex-direction: column; gap: var(--s-4); }
-.eq-master[hidden] { display: none; }
-.eq-master > .eq-card + .eq-card { padding-top: var(--s-4); border-top: 1px solid var(--line); }
 
 .eq-row { display: flex; align-items: center; gap: var(--s-2); }
 .eq-row .tempo-row-label { flex: 1 1 auto; }
-.eq-row .tempo-value { min-width: 5ch; text-align: right; }
+.eq-row .tempo-value { min-width: var(--eq-value-w); text-align: right; }
 .eq-row .daw-iconbtn { cursor: pointer; }
 .eq-row .daw-iconbtn:disabled { cursor: default; }
-.eq-unit { min-width: 4ch; }
+.eq-unit { min-width: var(--eq-unit-w); }
 .eq-slider { flex: 1 1 auto; min-width: 0; accent-color: var(--text-2); cursor: pointer; }
 .eq-slider:disabled { cursor: default; opacity: var(--disabled-opacity); }
 .eq-gr { display: flex; align-items: center; gap: var(--s-2); font: var(--fs-2xs) / 1 var(--font-mono); color: var(--text-3); }
@@ -17,7 +13,7 @@
   display: flex;
   flex: 1 1 auto;
   justify-content: flex-end;
-  height: 4px;
+  height: var(--eq-gr-h);
   border-radius: var(--r-pill);
   background: var(--surface-4);
   overflow: hidden;
@@ -27,7 +23,7 @@
 .eq-master .tempo-mode-btn { cursor: pointer; }
 .eq-master .eq-actions { grid-template-columns: 1fr; }
 .eq-meter-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); }
-.eq-meter { display: flex; flex-direction: column; gap: 2px; padding: var(--s-2); border-radius: var(--r-2); background: var(--surface-1); }
+.eq-meter { display: flex; flex-direction: column; gap: var(--seg-inset); padding: var(--s-2); border-radius: var(--r-2); background: var(--surface-1); }
 .eq-meter b { font: var(--fw-medium) var(--fs-md) / 1 var(--font-mono); color: var(--text); }
 .eq-meter span { font-size: var(--fs-2xs); color: var(--text-3); }
 

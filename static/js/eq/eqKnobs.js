@@ -1,44 +1,46 @@
-// The pedal panel's four knobs (Low, Mid, High, Presence): drag up or down,
-// arrow keys, double-click for 0 dB. Turns come back through onTurn.
-
 import { t } from "../i18n.js";
+import { clamp } from "../audioMath.js";
 import { fmtDb } from "./eqGraphMath.js";
-import { KNOB_KEY_STEP_DB, knobAngle, knobDragValue, knobValue, pedalKnobs } from "./eqPanelModel.js";
+import {
+  KNOB_KEY_STEP_DB,
+  KNOB_SWEEP_HALF_DEG,
+  knobAngle,
+  knobDragValue,
+  knobValue,
+  pedalKnobs,
+} from "./eqPanelModel.js";
+import { fmtSigned } from "./masterPanelModel.js";
+import { DRAG_CLASS, svgEl } from "./eqSvg.js";
 
-const SVG_NS = "http://www.w3.org/2000/svg";
 const SIZE = 44;
 const CENTRE = SIZE / 2;
 const ARC_R = 17;
 const CAP_R = 12;
 const POINTER_FROM = 4;
 const POINTER_TO = 11;
-const SWEEP_HALF_DEG = 135;
-const UNIT_SUFFIX = / dB$/;
-const DRAG_CLASS = "eq-dragging";
+// SVG angles start at 3 o'clock; the knob's 0 is straight up.
+const UP_OFFSET_DEG = 90;
+const HALF_TURN_DEG = 180;
 const KEY_STEPS = Object.freeze({ ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 });
 
-const rad = (deg) => ((deg - 90) * Math.PI) / 180;
+const rad = (deg) => ((deg - UP_OFFSET_DEG) * Math.PI) / HALF_TURN_DEG;
 
 function arc(fromDeg, toDeg) {
   const [a, b] = fromDeg <= toDeg ? [fromDeg, toDeg] : [toDeg, fromDeg];
   const at = (deg) => `${CENTRE + ARC_R * Math.cos(rad(deg))},${CENTRE + ARC_R * Math.sin(rad(deg))}`;
-  return `M${at(a)}A${ARC_R},${ARC_R} 0 ${b - a > 180 ? 1 : 0} 1 ${at(b)}`;
-}
-
-function svgEl(name, attrs, parent) {
-  const node = document.createElementNS(SVG_NS, name);
-  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
-  parent.appendChild(node);
-  return node;
+  return `M${at(a)}A${ARC_R},${ARC_R} 0 ${b - a > HALF_TURN_DEG ? 1 : 0} 1 ${at(b)}`;
 }
 
 function dialSvg(value, min, max) {
-  const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("viewBox", `0 0 ${SIZE} ${SIZE}`);
-  svg.setAttribute("class", "eq-knob-svg");
-  svg.setAttribute("aria-hidden", "true");
+  const svg = svgEl("svg", {
+    viewBox: `0 0 ${SIZE} ${SIZE}`,
+    width: SIZE,
+    height: SIZE,
+    class: "eq-knob-svg",
+    "aria-hidden": "true",
+  });
   const deg = knobAngle(value, min, max);
-  svgEl("path", { class: "eq-knob-track", d: arc(-SWEEP_HALF_DEG, SWEEP_HALF_DEG) }, svg);
+  svgEl("path", { class: "eq-knob-track", d: arc(-KNOB_SWEEP_HALF_DEG, KNOB_SWEEP_HALF_DEG) }, svg);
   if (value !== 0) svgEl("path", { class: "eq-knob-value", d: arc(0, deg) }, svg);
   svgEl("circle", { class: "eq-knob-cap", cx: CENTRE, cy: CENTRE, r: CAP_R }, svg);
   const [c, s] = [Math.cos(rad(deg)), Math.sin(rad(deg))];
@@ -52,12 +54,30 @@ function dialSvg(value, min, max) {
   return svg;
 }
 
+function knobCell(knob) {
+  const cell = document.createElement("div");
+  cell.className = "eq-knob";
+  cell.dataset.knob = knob.id;
+  cell.setAttribute("role", "slider");
+  cell.setAttribute("aria-valuemin", String(knob.min));
+  cell.setAttribute("aria-valuemax", String(knob.max));
+  const dial = document.createElement("div");
+  dial.className = "eq-knob-dial";
+  const name = document.createElement("span");
+  name.className = "eq-knob-name";
+  const val = document.createElement("span");
+  val.className = "eq-knob-val num";
+  cell.append(dial, name, val);
+  return cell;
+}
+
 export class EqKnobs {
   #host;
   #onTurn;
   #kind = null;
   #eq = null;
   #drag = null;
+  #enabled = true;
 
   constructor(host, { onTurn }) {
     this.#host = host;
@@ -70,32 +90,17 @@ export class EqKnobs {
     host.addEventListener("dblclick", this.#onDoubleClick.bind(this));
   }
 
-  /** Draw the knobs of `kind` at the positions `eq` holds. */
-  show(kind, eq) {
+  /** Draw the knobs of `kind` at the positions `eq` holds; disabled ones show but don't turn. */
+  show(kind, eq, { enabled = true } = {}) {
     this.#eq = eq;
+    this.#enabled = enabled;
     if (kind !== this.#kind) this.#build(kind);
     for (const knob of pedalKnobs(kind)) this.#paint(knob);
   }
 
   #build(kind) {
     this.#kind = kind;
-    this.#host.replaceChildren(...pedalKnobs(kind).map((knob) => {
-      const cell = document.createElement("div");
-      cell.className = "eq-knob";
-      cell.tabIndex = 0;
-      cell.dataset.knob = knob.id;
-      cell.setAttribute("role", "slider");
-      cell.setAttribute("aria-valuemin", String(knob.min));
-      cell.setAttribute("aria-valuemax", String(knob.max));
-      const dial = document.createElement("div");
-      dial.className = "eq-knob-dial";
-      const name = document.createElement("span");
-      name.className = "eq-knob-name";
-      const val = document.createElement("span");
-      val.className = "eq-knob-val num";
-      cell.append(dial, name, val);
-      return cell;
-    }));
+    this.#host.replaceChildren(...pedalKnobs(kind).map(knobCell));
   }
 
   #paint(knob) {
@@ -104,15 +109,18 @@ export class EqKnobs {
     const label = t(`eq.knob.${knob.id}`);
     cell.firstChild.replaceChildren(dialSvg(value, knob.min, knob.max));
     cell.children[1].textContent = label;
-    cell.lastChild.textContent = fmtDb(value).replace(UNIT_SUFFIX, "");
+    cell.lastChild.textContent = fmtSigned(value, { plus: true });
+    cell.tabIndex = this.#enabled ? 0 : -1;
     cell.setAttribute("aria-label", label);
     cell.setAttribute("aria-valuenow", String(value));
     cell.setAttribute("aria-valuetext", fmtDb(value));
+    cell.setAttribute("aria-disabled", String(!this.#enabled));
   }
 
   #knobOf(target) {
     const cell = target instanceof Element ? target.closest(".eq-knob") : null;
-    return cell ? pedalKnobs(this.#kind).find((k) => k.id === cell.dataset.knob) : null;
+    if (!cell || !this.#enabled) return null;
+    return pedalKnobs(this.#kind).find((k) => k.id === cell.dataset.knob);
   }
 
   #turn(knob, value, commit) {
@@ -153,7 +161,7 @@ export class EqKnobs {
     if (!knob || !step) return;
     e.preventDefault();
     const value = knobValue(this.#kind, this.#eq, knob.id) + step * KNOB_KEY_STEP_DB;
-    this.#turn(knob, Math.min(knob.max, Math.max(knob.min, value)), true);
+    this.#turn(knob, clamp(value, knob.min, knob.max), true);
   }
 
   #onDoubleClick(e) {

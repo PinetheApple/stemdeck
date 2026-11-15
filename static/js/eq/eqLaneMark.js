@@ -1,15 +1,11 @@
-// The small curve mark in the top-left corner of each lane header: dim while
-// the lane's EQ is flat, coral once it changes the sound. A click opens the
-// EQ tab on that lane.
-
 import { t } from "../i18n.js";
 import { STEM_DISPLAY } from "../constants.js";
-import { getLaneEq, onFxChange } from "../mixFx.js";
+import { getLaneEq, onFxChange } from "../eqEngine.js";
 import { markPath, markState } from "./eqPanelModel.js";
+import { svgEl } from "./eqSvg.js";
 
 export const OPEN_LANE_EQ_EVENT = "eq:openlane";
 
-const SVG_NS = "http://www.w3.org/2000/svg";
 const MARK_BOX = Object.freeze({ w: 18, h: 10 });
 const MARK_SELECTOR = ".eq-lane-mark[data-lane]";
 
@@ -35,11 +31,13 @@ export function createLaneEqMark(lane) {
   mark.type = "button";
   mark.className = "eq-lane-mark";
   mark.dataset.lane = lane;
-  const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("viewBox", `0 0 ${MARK_BOX.w} ${MARK_BOX.h}`);
-  svg.setAttribute("aria-hidden", "true");
-  svg.appendChild(document.createElementNS(SVG_NS, "path"));
-  mark.appendChild(svg);
+  const svg = svgEl("svg", {
+    viewBox: `0 0 ${MARK_BOX.w} ${MARK_BOX.h}`,
+    width: MARK_BOX.w,
+    height: MARK_BOX.h,
+    "aria-hidden": "true",
+  }, mark);
+  svgEl("path", {}, svg);
   mark.addEventListener("click", onLaneMarkClick);
   paintMark(mark);
   return mark;

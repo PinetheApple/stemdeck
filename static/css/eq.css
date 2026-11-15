@@ -1,20 +1,18 @@
-/* EQ inspector tab: lane graph, pedal knobs, the lane-header EQ mark. */
-
 :root {
   --eq-graph-h: 168px;
   --eq-graph-sm-h: 112px;
   --eq-graph-bg: var(--bg);
-  --eq-dot: 8px;
-  --eq-knob-dial: 44px;
+  --eq-dot: var(--s-2);
   --eq-readout-n: 18px;
   --eq-handle-font: 9.5px;
   --eq-mark-w: 22px;
-  --eq-mark-h: 14px;
-  --eq-mark-icon-w: 18px;
-  --eq-mark-icon-h: 10px;
+  --eq-mark-h: var(--icon-sm);
   --eq-mark-radius: var(--r-1);
   --eq-mark-inset: 10px;
-  --eq-legend-w: 14px;
+  --eq-legend-w: var(--icon-sm);
+  --eq-value-w: 5ch;
+  --eq-unit-w: 4ch;
+  --eq-gr-h: var(--s-1);
   --eq-fill-mix: 14%;
   --eq-fitted-mix: 35%;
   --eq-spectrum-fill-mix: 22%;
@@ -24,7 +22,8 @@
 
 .eq-pane [hidden] { display: none !important; }
 .eq-scope { margin-bottom: 0; }
-.eq-scope .tempo-mode-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-1); min-width: 0; }
+.eq-icons { position: absolute; width: 0; height: 0; overflow: hidden; }
+.eq-scope .tempo-mode-btn { cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: var(--s-1); min-width: 0; }
 .eq-scope-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .eq-dot { width: var(--eq-dot); height: var(--eq-dot); border-radius: var(--r-pill); background: currentColor; flex: none; }
 
@@ -46,6 +45,7 @@
 }
 .eq-power .ic { width: var(--icon-sm); height: var(--icon-sm); }
 .eq-power[aria-pressed="true"] { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+.eq-power:disabled { cursor: default; opacity: var(--disabled-opacity); }
 .eq-power:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 .eq-graph {
@@ -70,6 +70,7 @@
 .eq-fill { fill: color-mix(in srgb, var(--eq-c, var(--text)) var(--eq-fill-mix), transparent); }
 .eq-curve { fill: none; stroke: var(--eq-c, var(--text)); stroke-width: 2; }
 .eq-ghost { fill: none; stroke: var(--text-4); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.eq-target { fill: none; stroke: var(--text-2); stroke-width: 1; stroke-dasharray: 6 4; }
 .eq-bypassed :is(.eq-curve, .eq-fill, .eq-handle) { opacity: var(--eq-bypassed-opacity); }
 .eq-handle { cursor: pointer; outline: none; }
 .eq-dragging, .eq-dragging .eq-handle { cursor: grabbing; }
@@ -108,6 +109,7 @@
 .eq-actions .tempo-btn:disabled { cursor: default; }
 .eq-legend { display: flex; gap: var(--s-3); font-size: var(--fs-2xs); color: var(--text-3); }
 .eq-legend i { display: inline-block; width: var(--eq-legend-w); margin-right: var(--s-1); vertical-align: middle; border-top: 1px dashed var(--text-4); }
+.eq-legend .eq-legend-target { border-top-color: var(--text-2); }
 .eq-hint { font-size: var(--fs-2xs); color: var(--text-3); }
 .eq-status:empty { display: none; }
 
@@ -147,11 +149,11 @@
   background: linear-gradient(180deg, var(--surface-3), var(--surface-2));
   touch-action: none;
 }
-.eq-knob { display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; outline: none; border-radius: var(--r-1); }
+.eq-knob { display: flex; flex-direction: column; align-items: center; gap: var(--seg-inset); cursor: pointer; outline: none; border-radius: var(--r-1); }
 .eq-knob:focus-visible { box-shadow: 0 0 0 2px var(--focus-ring); }
 .eq-dragging .eq-knob { cursor: ns-resize; }
-.eq-knob-dial { width: var(--eq-knob-dial); height: var(--eq-knob-dial); }
-.eq-knob-svg { width: 100%; height: 100%; }
+.eq-knob-svg { display: block; }
+.eq-knob[aria-disabled="true"] { cursor: default; opacity: var(--disabled-opacity); }
 .eq-knob-track, .eq-knob-value { fill: none; stroke-width: 3; stroke-linecap: round; }
 .eq-knob-track { stroke: var(--surface-4); }
 .eq-knob-value { stroke: var(--eq-c, var(--text)); }
@@ -160,7 +162,6 @@
 .eq-knob-name { font: var(--fw-semibold) var(--fs-2xs) / 1 var(--font-sans); color: var(--text-2); }
 .eq-knob-val { font: var(--fs-2xs) / 1 var(--font-mono); color: var(--text-3); }
 
-/* The lane header's EQ mark: a thumbnail of the lane's own curve. */
 .eq-lane-mark {
   position: absolute;
   top: var(--s-2);
@@ -177,7 +178,7 @@
   cursor: pointer;
   z-index: 1;
 }
-.eq-lane-mark svg { width: var(--eq-mark-icon-w); height: var(--eq-mark-icon-h); overflow: visible; }
+.eq-lane-mark svg { overflow: visible; }
 .eq-lane-mark path { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 .eq-lane-mark[data-eq="active"] { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
 .eq-lane-mark[data-eq="bypassed"] { border-style: dashed; color: var(--text-3); }

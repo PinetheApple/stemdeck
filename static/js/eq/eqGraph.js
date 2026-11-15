@@ -1,6 +1,3 @@
-// The parametric graph: grid, live spectrum, the curve and numbered handles.
-// Edits come back through onEdit(bands, {commit}); the graph never saves.
-
 import { t } from "../i18n.js";
 import { clamp } from "../audioMath.js";
 import { EQ_LIMITS, eqResponseDb, normalizeEq } from "../eqMath.js";
@@ -21,8 +18,8 @@ import {
   xToFreq,
   yToDb,
 } from "./eqGraphMath.js";
+import { DRAG_CLASS, svgEl } from "./eqSvg.js";
 
-const SVG_NS = "http://www.w3.org/2000/svg";
 const HANDLE_R = 7;
 const LABEL_DY = 3.5;
 const GRID_HZ = Object.freeze([[100, "100"], [1000, "1k"], [10000, "10k"]]);
@@ -31,15 +28,9 @@ const GRID_LABEL_PAD = 3;
 const GRID_LABEL_BASE = 4;
 const GRID_LABEL_W = 30;
 const DELETE_KEYS = new Set(["Delete", "Backspace"]);
-const DRAG_CLASS = "eq-dragging";
 const BYPASS_CLASS = "eq-bypassed";
-
-function svgEl(name, attrs = {}, parent = null) {
-  const node = document.createElementNS(SVG_NS, name);
-  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
-  parent?.appendChild(node);
-  return node;
-}
+// A wheel turn saves once the wheel has been still this long.
+const WHEEL_SETTLE_MS = 300;
 
 const pathOf = (points) => points.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join("");
 
@@ -54,7 +45,8 @@ export class EqGraph {
   #layers;
   #r = { x: 0, y: 0, w: 1, h: 1 };
   #drag = null;
-  #view = { bands: [], out: 0, bypass: false, ghost: null, fitted: false, editable: true, selected: 0 };
+  #wheelTimer = 0;
+  #view = { bands: [], out: 0, bypass: false, ghost: null, target: null, fitted: false, editable: true, selected: 0 };
   #onEdit;
   #onSelect;
 
@@ -67,6 +59,7 @@ export class EqGraph {
       spectrum: svgEl("path", { class: "eq-spectrum" }, this.#svg),
       grid: svgEl("g", { class: "eq-grid" }, this.#svg),
       ghost: svgEl("path", { class: "eq-ghost" }, this.#svg),
+      target: svgEl("path", { class: "eq-target", d: "" }, this.#svg),
       fill: svgEl("path", { class: "eq-fill" }, this.#svg),
       curve: svgEl("path", { class: "eq-curve" }, this.#svg),
       handles: svgEl("g", {}, this.#svg),
@@ -76,11 +69,11 @@ export class EqGraph {
     new ResizeObserver(this.#resize.bind(this)).observe(host);
   }
 
-  /** Show bands {bands, out, bypass}; opts {ghost, fitted, editable}. Ignored mid-drag. */
-  show({ bands, out = 0, bypass = false }, { ghost = null, fitted = false, editable = true } = {}) {
+  /** Show bands {bands, out, bypass}; opts {ghost, target: [[Hz, dB]], fitted, editable}. Ignored mid-drag. */
+  show({ bands, out = 0, bypass = false }, { ghost = null, target = null, fitted = false, editable = true } = {}) {
     if (this.#drag) return;
     const view = this.#view;
-    Object.assign(view, { bands: bands.map((b) => ({ ...b })), out, bypass, ghost, fitted, editable });
+    Object.assign(view, { bands: bands.map((b) => ({ ...b })), out, bypass, ghost, target, fitted, editable });
     view.selected = clamp(view.selected, 0, Math.max(0, bands.length - 1));
     this.#draw();
   }
@@ -136,6 +129,11 @@ export class EqGraph {
     return Array.from(freqs, (f, i) => [freqToX(f, r), dbToY(clamp(db[i], -DB_RANGE, DB_RANGE), r)]);
   }
 
+  #targetPoints(points) {
+    const r = this.#r;
+    return points.map(([f, db]) => [freqToX(f, r), dbToY(clamp(db, -DB_RANGE, DB_RANGE), r)]);
+  }
+
   #drawGrid() {
     const { grid } = this.#layers;
     const r = this.#r;
@@ -158,13 +156,14 @@ export class EqGraph {
   }
 
   #drawCurve() {
-    const { curve, fill, ghost } = this.#layers;
+    const { curve, fill, ghost, target } = this.#layers;
     const view = this.#view;
     const d = pathOf(this.#curvePoints(view.bands, view.out));
     const zero = dbToY(0, this.#r);
     curve.setAttribute("d", d);
     fill.setAttribute("d", `${d}L${this.#r.w},${zero}L0,${zero}Z`);
     ghost.setAttribute("d", view.ghost ? pathOf(this.#curvePoints(view.ghost.bands, view.ghost.out)) : "");
+    target.setAttribute("d", view.target ? pathOf(this.#targetPoints(view.target)) : "");
     this.#host.classList.toggle(BYPASS_CLASS, view.bypass);
   }
 
@@ -221,7 +220,7 @@ export class EqGraph {
 
   #removeBand(i) {
     this.#edit(this.#view.bands.filter((_, j) => j !== i), true);
-    this.#select(Math.max(0, Math.min(i, this.#view.bands.length - 1)));
+    this.#select(clamp(i, 0, Math.max(0, this.#view.bands.length - 1)));
   }
 
   #pointIn(e) {
@@ -276,7 +275,14 @@ export class EqGraph {
     if (!this.#view.editable || i < 0 || !hasQ(this.#view.bands[i].type)) return;
     e.preventDefault();
     const band = this.#view.bands[i];
-    this.#replaceBand(i, { ...band, q: wheelQ(band.q, e.deltaY, e.shiftKey) });
+    this.#replaceBand(i, { ...band, q: wheelQ(band.q, e.deltaY, e.shiftKey) }, false);
+    clearTimeout(this.#wheelTimer);
+    this.#wheelTimer = setTimeout(this.#commitWheel.bind(this), WHEEL_SETTLE_MS);
+  }
+
+  #commitWheel() {
+    this.#wheelTimer = 0;
+    this.#edit(this.#view.bands, true);
   }
 
   #onKeyDown(e) {
