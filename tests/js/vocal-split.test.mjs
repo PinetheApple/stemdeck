@@ -16,6 +16,7 @@ import {
   followSplit,
   cancelSplit,
 } from "../../static/js/vocalSplit.js";
+import { FOLDER_MOVING_KEY, SPLIT_FOLDER_MOVING_DETAIL } from "../../static/js/folderMoving.js";
 import { TRANSLATIONS } from "../../static/js/i18n.js";
 
 let pass = 0, fail = 0;
@@ -35,7 +36,10 @@ const GENERIC_KEY = failureKey(null);
 // Tables that fall back to another for any key they leave out.
 const FALLBACK_LOCALES = new Set(["pt-PT"]);
 
-const reply = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
+const reply = (status, body) => {
+  const res = { ok: status >= 200 && status < 300, status, json: async () => body };
+  return { ...res, clone: () => res };
+};
 
 /** A fetch that answers from `answers` in order and records every call. */
 function scriptedFetch(answers) {
@@ -116,6 +120,13 @@ const doneJob = (overrides = {}) => ({
   let threw = null;
   try { await startSplit(JOB, noVocals.io); } catch (err) { threw = err; }
   check("a refusal with nothing running is an error", threw instanceof Error);
+
+  const moving = scriptedFetch([reply(409, { detail: SPLIT_FOLDER_MOVING_DETAIL })]);
+  const refusedForMove = await startSplit(JOB, moving.io);
+  check("refused while StemData moves: a failure saying so, nothing asked again",
+    refusedForMove.state === SPLIT_STATE.ERROR
+      && failureKey(refusedForMove.error) === FOLDER_MOVING_KEY
+      && moving.calls.length === 1);
 
   const broken = scriptedFetch([reply(500, {})]);
   threw = null;
