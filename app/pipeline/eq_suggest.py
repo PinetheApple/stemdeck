@@ -8,8 +8,10 @@ Modes:
 - "replace": the suggestion is fitted to the lane as it sounds with no EQ,
   and replaces its EQ.
 - "merge" (graphical panels only): fitted to the lane as it sounds now,
-  through its current EQ; the new bands follow the current ones (up to the
-  engine's band limit) and the output gain is adjusted by what they change.
+  through its current EQ. Only the new bands come back, at most the band
+  limit minus the bands already in ``fx``; the client appends them (the
+  current EQ may hold bands that are off, which ``fx`` leaves out) and sets
+  ``out``, the output gain for the whole EQ.
 
 Loudness-neutral: ``out`` cancels the estimated K-weighted loudness change of
 the new bands on the measured, gated spectrum, so Preview compares like with
@@ -46,7 +48,7 @@ from app.pipeline.eq_fit import (
     weights_for,
 )
 from app.pipeline.eq_targets import Target
-from app.pipeline.fx_filters import HIGHSHELF, LOWCUT, LOWSHELF, TILT, Band, Eq
+from app.pipeline.fx_filters import BELL, HIGHSHELF, LOWCUT, LOWSHELF, TILT, Band, Eq
 
 REPLACE = "replace"
 MERGE = "merge"
@@ -68,6 +70,18 @@ _REGIONS = (
 )
 _TOP_REGION = "air"
 
+WHY_OUT = "suggest.why.out"
+WHY_CLOSE = "suggest.why.close"
+WHY_DISTANCE = "suggest.why.distance"
+WHY_LOW_CUT = "suggest.why.lowCut"
+# Per band type: the reason's key for a cut, then for a boost.
+WHY_BY_TYPE = {
+    BELL: ("suggest.why.bellCut", "suggest.why.bellBoost"),
+    LOWSHELF: ("suggest.why.lowShelfCut", "suggest.why.lowShelfBoost"),
+    HIGHSHELF: ("suggest.why.highShelfCut", "suggest.why.highShelfBoost"),
+    TILT: ("suggest.why.tiltDarker", "suggest.why.tiltBrighter"),
+}
+
 
 class NotEnoughSignal(ValueError):
     """Too little loud audio to measure. The message is safe to show."""
@@ -81,7 +95,7 @@ def is_quiet(spec: Spectrum) -> bool:
     )
 
 
-def _band_json(band: Band, slot: str | None) -> dict:
+def _band_json(band: Band, slot: str) -> dict:
     return {
         "type": band.type,
         "f": band.f,
@@ -137,7 +151,7 @@ def _distance_reason(spec: Spectrum, target: Target, before_db, done: _Fitted) -
     after_db = bands_db(apply_eq(spec.power, done.kept + done.new, done.out))
     before = round(weighted_rms_db(tgt - before_db, w), _DECIMALS)
     after = round(weighted_rms_db(tgt - after_db, w), _DECIMALS)
-    return {"key": "suggest.why.distance", "vars": {"before": before, "after": after}}
+    return {"key": WHY_DISTANCE, "vars": {"before": before, "after": after}}
 
 
 def _reasons(spec: Spectrum, target: Target, done: _Fitted) -> list[dict]:
@@ -145,9 +159,9 @@ def _reasons(spec: Spectrum, target: Target, done: _Fitted) -> list[dict]:
     if done.new:
         change = round(loudness_change_db(done.base, done.new), _REASON_DECIMALS)
         out = round(done.out - done.ref_out, _REASON_DECIMALS)
-        reasons.append({"key": "suggest.why.out", "vars": {"d": change, "out": out}})
+        reasons.append({"key": WHY_OUT, "vars": {"d": change, "out": out}})
     else:
-        reasons.append({"key": "suggest.why.close", "vars": {}})
+        reasons.append({"key": WHY_CLOSE, "vars": {}})
     reasons.append(_distance_reason(spec, target, bands_db(done.base), done))
     return reasons
 
@@ -161,15 +175,14 @@ def make_suggestion(
     max_bands: int,
     targets: list[dict],
 ) -> dict:
-    """The answer for one lane or the mix, in the contract's shape. Raises
-    NotEnoughSignal when there is too little to measure."""
+    """The answer for one lane, in the contract's shape: in merge mode the
+    new bands only. Raises NotEnoughSignal when there is too little to measure."""
     if is_quiet(spec):
         raise NotEnoughSignal(NOT_ENOUGH_SIGNAL)
     done = _fitted(spec, target, layout, mode, current, max_bands)
     residual = loudness_change_db(done.base, done.new, done.out - done.ref_out)
-    kept = [_band_json(b, None) for b in done.kept]
     return {
-        "bands": kept + [_band_json(fb.band, fb.slot) for fb in done.fit.bands],
+        "bands": [_band_json(fb.band, fb.slot) for fb in done.fit.bands],
         "out": done.out,
         "reasons": _reasons(spec, target, done),
         "loudness": round(residual, _DECIMALS),
@@ -189,27 +202,27 @@ def _mean_dev(dev: np.ndarray, w: np.ndarray, mask: np.ndarray) -> float:
     return float(ww @ dev) / float(ww.sum())
 
 
-def _band_mask_and_key(band: Band) -> tuple[np.ndarray, str]:
-    """The third-octave bands a band acts on, and its reason's i18n key."""
-    fc, cut = np.asarray(CENTRES_HZ), band.g < 0
+def _band_mask(band: Band) -> np.ndarray:
+    """The third-octave bands a band acts on."""
+    fc = np.asarray(CENTRES_HZ)
     if band.type == LOWSHELF:
-        return fc <= band.f * _SHELF_REACH, f"suggest.why.lowShelf{'Cut' if cut else 'Boost'}"
+        return fc <= band.f * _SHELF_REACH
     if band.type == HIGHSHELF:
-        return fc >= band.f / _SHELF_REACH, f"suggest.why.highShelf{'Cut' if cut else 'Boost'}"
+        return fc >= band.f / _SHELF_REACH
     if band.type == TILT:
-        return fc >= band.f, f"suggest.why.tilt{'Darker' if cut else 'Brighter'}"
+        return fc >= band.f
     i = nearest_band(band.f)
     mask = np.zeros(N_BANDS, dtype=bool)
     mask[max(0, i - 1) : i + 2] = True
-    return mask, f"suggest.why.bell{'Cut' if cut else 'Boost'}"
+    return mask
 
 
 def _band_reason(band: Band, dev: np.ndarray, w: np.ndarray) -> dict:
     if band.type == LOWCUT:
-        d = _mean_dev(dev, w, np.asarray(CENTRES_HZ) < band.f)
-        return {"key": "suggest.why.lowCut", "vars": {"f": band.f, "dev": round(d, 1)}}
-    mask, key = _band_mask_and_key(band)
-    d = round(_mean_dev(dev, w, mask), _REASON_DECIMALS)
+        d = round(_mean_dev(dev, w, np.asarray(CENTRES_HZ) < band.f), _REASON_DECIMALS)
+        return {"key": WHY_LOW_CUT, "vars": {"f": band.f, "dev": d}}
+    key = WHY_BY_TYPE[band.type][band.g >= 0]
+    d = round(_mean_dev(dev, w, _band_mask(band)), _REASON_DECIMALS)
     return {"key": key, "vars": {"f": band.f, "g": band.g, "dev": d, "region": region_of(band.f)}}
 
 

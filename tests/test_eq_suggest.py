@@ -22,6 +22,7 @@ import pytest
 import soundfile as sf
 
 from app.core.config import (
+    FX_MAX_BANDS,
     SUGGEST_COMBINED_MAX_DB,
     SUGGEST_GAIN_MAX_DB,
     SUGGEST_MAX_BANDS_LANE,
@@ -60,8 +61,16 @@ def shaped_noise(levels_db, seconds=12.0, extra=(), seed=1) -> np.ndarray:
     return (0.1 * x / np.std(x)).astype(np.float32)
 
 
+def analyse(x: np.ndarray) -> A.Spectrum:
+    """The gated spectrum of a whole stereo signal, fed as the server feeds it."""
+    acc = A.SpectrumAccumulator()
+    acc.feed(np.asarray(x, dtype=np.float32).reshape(-1))
+    acc.finish()
+    return acc.result()
+
+
 def fit_of(x, target, layout=F.FREE, tolerance=1.0, max_bands=SUGGEST_MAX_BANDS_LANE):
-    s = A.analyse(x)
+    s = analyse(x)
     fit = F.fit_eq(s.bands, target, layout, max_bands, tolerance=tolerance)
     bands = [fb.band for fb in fit.bands]
     out = F.neutral_out_db(s.power, bands)
@@ -72,7 +81,7 @@ def fit_of(x, target, layout=F.FREE, tolerance=1.0, max_bands=SUGGEST_MAX_BANDS_
 
 
 def test_pink_noise_reads_flat_in_third_octaves():
-    s = A.analyse(shaped_noise(FLAT))
+    s = analyse(shaped_noise(FLAT))
     b = s.bands - s.bands[17]
     assert np.max(np.abs(b[7:29])) < 0.3
     assert np.max(np.abs(b[:7])) < 1.5
@@ -81,16 +90,16 @@ def test_pink_noise_reads_flat_in_third_octaves():
 def test_loudness_of_the_gated_spectrum_matches_pyloudnorm():
     x = shaped_noise(BALANCED)
     ref = pyln.Meter(SR).integrated_loudness(x.astype(np.float64))
-    assert A.loudness_of_power(A.analyse(x).power) == pytest.approx(ref, abs=0.2)
+    assert A.loudness_of_power(analyse(x).power) == pytest.approx(ref, abs=0.2)
 
 
 def test_silence_and_quiet_passages_are_gated_out():
     x = shaped_noise(FLAT, seconds=20)
-    loud = A.analyse(x[: SR * 10])
+    loud = analyse(x[: SR * 10])
     y = x.copy()
     y[SR * 10 :] = 0.0
     y[SR * 5 : SR * 7] *= 0.01
-    s = A.analyse(y)
+    s = analyse(y)
     assert s.gated_seconds == pytest.approx(8.0, abs=0.6)
     shape = (s.bands - s.bands[17]) - (loud.bands - loud.bands[17])
     assert np.max(np.abs(shape[7:29])) < 0.5
@@ -98,7 +107,7 @@ def test_silence_and_quiet_passages_are_gated_out():
 
 def test_streaming_in_odd_chunks_gives_the_same_result():
     x = shaped_noise(BALANCED, seconds=6)
-    whole = A.analyse(x)
+    whole = analyse(x)
     acc = A.SpectrumAccumulator()
     flat = x.reshape(-1)
     for a, b in [(0, 1000), (1000, 77778), (77778, 300002), (300002, flat.size)]:
@@ -110,11 +119,11 @@ def test_streaming_in_odd_chunks_gives_the_same_result():
 
 
 def test_digital_silence_is_silent():
-    assert A.analyse(np.zeros((SR * 3, 2), dtype=np.float32)).silent
+    assert analyse(np.zeros((SR * 3, 2), dtype=np.float32)).silent
 
 
 def test_cache_form_round_trips():
-    s = A.analyse(shaped_noise(BALANCED, seconds=4))
+    s = analyse(shaped_noise(BALANCED, seconds=4))
     back = A.spectrum_from_json(A.spectrum_to_json(s))
     assert back.gated_frames == s.gated_frames
     assert np.max(np.abs(back.bands - s.bands)) < 0.01
@@ -154,25 +163,29 @@ def test_a_dark_signal_gets_a_high_boost():
     assert after < before - 0.5
 
 
+# The middle two stay inside the tolerance range: nothing to do there.
 @pytest.mark.parametrize(
-    ("target", "extra"),
+    ("target", "extra", "needs_bands"),
     [
-        (FLAT, [BUMP_250]),
-        (BALANCED, [Band(HIGHSHELF, 5000.0, 5.0, 0.707, 12), Band(BELL, 300.0, 4.0, 1.4, 12)]),
-        (BALANCED, [Band(LOWSHELF, 100.0, 6.0, 0.707, 12)]),
-        (BALANCED, [Band(BELL, 2500.0, -6.0, 0.7, 12)]),
+        (FLAT, [BUMP_250], True),
+        (
+            BALANCED,
+            [Band(HIGHSHELF, 5000.0, 5.0, 0.707, 12), Band(BELL, 300.0, 4.0, 1.4, 12)],
+            False,
+        ),
+        (BALANCED, [Band(LOWSHELF, 100.0, 6.0, 0.707, 12)], False),
+        (BALANCED, [Band(BELL, 2500.0, -6.0, 0.7, 12)], True),
     ],
 )
-def test_the_fit_lowers_the_distance_to_the_target(target, extra):
-    s, bands, before, after = fit_of(shaped_noise(target, extra=extra), target)
+def test_the_fit_lowers_the_distance_to_the_target(target, extra, needs_bands):
+    _s, bands, before, after = fit_of(shaped_noise(target, extra=extra), target)
     assert after <= before + 1e-9
-    w = F.weights_for(s.bands)
-    if F.outside_rms_db(np.asarray(target) - s.bands, w) > 1.0:
-        assert bands and after < before
+    assert bool(bands) == needs_bands
+    assert not needs_bands or after < before
 
 
 def test_suggesting_on_a_suggested_result_changes_little():
-    s = A.analyse(shaped_noise(BALANCED, extra=MUD_AND_DARK))
+    s = analyse(shaped_noise(BALANCED, extra=MUD_AND_DARK))
     first = F.fit_eq(s.bands, BALANCED, F.FREE, SUGGEST_MAX_BANDS_LANE)
     bands = [fb.band for fb in first.bands]
     assert bands
@@ -225,22 +238,36 @@ def test_the_bass_shelf_corner_moves_with_its_gain_like_the_panel():
     assert F.dynamic_shelf_freq(9) == pytest.approx(75 * (400 / 75) ** 0.5, abs=0.1)
 
 
-# The hard rule: a band far under the target is missing content, never boosted.
-@pytest.mark.parametrize(
-    ("missing", "drop_db", "region"),
-    [
-        (slice(0, 6), 60, (0, 100)),
-        (slice(28, 31), 60, (8000, 20001)),
-        (slice(11, 16), 30, (240, 640)),
-    ],
-    ids=["no-low-end", "encoder-cutoff", "audible-hole"],
-)
-def test_no_boost_where_content_is_missing(missing, drop_db, region):
+def _dull_top_then_cutoff() -> np.ndarray:
+    levels = np.asarray(BALANCED).copy()
+    levels[23:28] -= [6, 7, 8, 8, 7]
+    levels[28:31] -= 40
+    return levels
+
+
+def _hole(missing: slice, drop_db: float) -> np.ndarray:
     levels = np.asarray(BALANCED).copy()
     levels[missing] -= drop_db
+    return levels
+
+
+# The hard rule: no band whose content is missing is lifted by the summed curve.
+@pytest.mark.parametrize(
+    "levels",
+    [
+        _hole(slice(0, 6), 60),
+        _hole(slice(28, 31), 60),
+        _hole(slice(11, 16), 30),
+        _dull_top_then_cutoff(),
+    ],
+    ids=["no-low-end", "encoder-cutoff", "audible-hole", "dull-top-then-cutoff"],
+)
+def test_no_boost_where_content_is_missing(levels):
+    blocked = F.boost_allowed(levels, BALANCED) <= 0
     fit = F.fit_eq(levels, BALANCED, F.FREE, SUGGEST_MAX_BANDS_LANE)
-    lo, hi = region
-    assert not [fb for fb in fit.bands if lo <= fb.band.f < hi and fb.band.g > 0], fit.bands
+    curve = sum((A.band_response_db(fb.band) for fb in fit.bands), np.zeros(A.N_BANDS))
+    assert blocked.any()
+    assert np.max(curve[blocked], initial=0.0) <= F.INAUDIBLE_DB, fit.bands
 
 
 def test_boosts_fade_out_between_the_deficit_limits():
@@ -252,7 +279,7 @@ def test_boosts_fade_out_between_the_deficit_limits():
 
 
 def test_reasons_follow_the_numbers():
-    s = A.analyse(shaped_noise(FLAT, extra=[BUMP_250]))
+    s = analyse(shaped_noise(FLAT, extra=[BUMP_250]))
     why = band_reasons(F.fit_eq(s.bands, FLAT, F.FREE))
     cut = next(w for w in why if w["key"] == "suggest.why.bellCut")
     assert cut["vars"]["region"] == "lowmid"
@@ -283,7 +310,7 @@ def test_the_suggested_eq_keeps_the_loudness(tmp_path, extra, target):
     x = shaped_noise(target, extra=extra, seconds=8)
     src, dst = tmp_path / "in.wav", tmp_path / "out.wav"
     sf.write(src, x, SR, subtype="FLOAT")
-    s = A.analyse(x)
+    s = analyse(x)
     bands = [fb.band for fb in F.fit_eq(s.bands, target, F.FREE, SUGGEST_MAX_BANDS_LANE).bands]
     assert bands
     _ffmpeg_render(src, dst, eq_filter(Eq(F.neutral_out_db(s.power, bands), tuple(bands)), SR))
@@ -297,21 +324,27 @@ def _suggest(spec, mode, current=None):
     return make_suggestion(spec, target, F.FREE, mode, current, SUGGEST_MAX_BANDS_LANE, [])
 
 
-def test_merge_keeps_the_current_bands_and_adds_new_ones():
-    s = A.analyse(shaped_noise(BALANCED, extra=MUD_AND_DARK))
+def test_merge_returns_only_the_new_bands():
+    s = analyse(shaped_noise(BALANCED, extra=MUD_AND_DARK))
     current = Eq(1.5, (Band(BELL, 300.0, -5.0, 1.0, 12),))
     merged = _suggest(s, MERGE, current)
-    first = {k: merged["bands"][0][k] for k in ("type", "f", "g", "q", "slope")}
-    assert first == {"type": BELL, "f": 300.0, "g": -5.0, "q": 1.0, "slope": 12}
-    added = merged["bands"][1:]
-    assert added and all(b["f"] >= 2000 for b in added)
+    assert merged["bands"] and all(b["f"] >= 2000 for b in merged["bands"])
+    assert not [b for b in merged["bands"] if (b["type"], b["f"], b["g"]) == (BELL, 300.0, -5.0)]
     replaced = _suggest(s, REPLACE, current)
     assert any(160 <= b["f"] <= 400 and b["g"] < 0 for b in replaced["bands"])
     assert abs(replaced["loudness"]) < 0.15 and abs(merged["loudness"]) < 0.15
 
 
+def test_merge_leaves_room_only_up_to_the_band_limit():
+    s = analyse(shaped_noise(BALANCED, extra=MUD_AND_DARK))
+    held = FX_MAX_BANDS - 1
+    freqs = np.geomspace(60.0, 12000.0, held)
+    current = Eq(0.0, tuple(Band(BELL, float(f), -0.5, 1.0, 12) for f in freqs))
+    assert len(_suggest(s, MERGE, current)["bands"]) <= FX_MAX_BANDS - held
+
+
 def test_the_answer_has_the_contract_shape():
-    ans = _suggest(A.analyse(shaped_noise(BALANCED, extra=MUD_AND_DARK)), REPLACE)
+    ans = _suggest(analyse(shaped_noise(BALANCED, extra=MUD_AND_DARK)), REPLACE)
     assert set(ans) == {"bands", "out", "reasons", "loudness", "target", "targets"}
     assert ans["target"] == "mix.balanced"
     assert all(r["key"].startswith("suggest.why.") for r in ans["reasons"])
@@ -325,7 +358,7 @@ def test_the_answer_has_the_contract_shape():
 def test_not_enough_signal_is_refused(gain_db, seconds):
     x = shaped_noise(FLAT, seconds=seconds) * 10 ** (gain_db / 20)
     with pytest.raises(NotEnoughSignal):
-        make_suggestion(A.analyse(x), get_target("other.balanced"), F.FREE, REPLACE, None, 5, [])
+        make_suggestion(analyse(x), get_target("other.balanced"), F.FREE, REPLACE, None, 5, [])
 
 
 def test_targets_are_complete():
@@ -339,7 +372,8 @@ def test_targets_are_complete():
 def test_every_lane_with_a_panel_has_targets():
     for lane in ("bass", "drums", "guitar", "piano", "other", "original"):
         assert default_target(lane) is not None
-    assert default_target("vocals") is None
+    for lane in ("vocals", "lead_vocals", "backing_vocals"):
+        assert default_target(lane).use == "other"
 
 
 def test_balanced_is_darker_than_pink_above_1_khz():

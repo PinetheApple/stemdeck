@@ -105,6 +105,9 @@ def _lanes():
         "bass": shaped_noise(
             bass, seconds=SECONDS, seed=2, extra=[Band(BELL, 400.0, 8.0, 1.0, 12)]
         ),
+        "vocals": shaped_noise(
+            other, seconds=SECONDS, seed=3, extra=[Band(BELL, 630.0, 6.0, 1.0, 12)]
+        ),
     }
 
 
@@ -114,7 +117,10 @@ LANE_BAD = [
     "lane=bass&layout=bass&mode=merge",
     "lane=mix",
     "lane=..%2F..%2Fsecret",
-    "lane=vocals",
+    "lane=other&layout=bass",
+    "lane=bass&layout=graph",
+    "lane=drums&layout=graph",
+    "lane=vocals&layout=keys",
     "lane=other&target=nope.balanced",
     "lane=other&target=bass.balanced",
     "lane=other&fx=%25%25%25",
@@ -177,18 +183,30 @@ async def test_lane_suggestion_shape_and_cache(client, jobs_dir, count_runs):
     assert abs(body["loudness"]) < 0.15
     assert len(count_runs) == 1
     assert len(list(suggest_mod.SUGGEST_CACHE_DIR.iterdir())) == 1
-    first = {k: merged.json()["bands"][0][k] for k in ("type", "f", "g", "q", "slope")}
-    assert first == {"type": HIGHSHELF, "f": 8000.0, "g": 2.0, "q": 0.707, "slope": 12}
+    added = merged.json()["bands"]
+    assert len(added) <= F.SUGGEST_MAX_BANDS_LANE
+    assert not [b for b in added if (b["type"], b["f"], b["g"]) == (HIGHSHELF, 8000.0, 2.0)]
 
 
-async def test_pedal_layout_answers_with_its_knobs(client, jobs_dir):
+async def test_the_bass_lane_answers_with_its_pedal_knobs(client, jobs_dir):
     skip_without_ffmpeg()
     _job(jobs_dir, _lanes())
     async with client as c:
-        r = await c.get(f"/api/jobs/{JOB}/suggest/eq?lane=bass&layout=bass")
+        r = await c.get(f"/api/jobs/{JOB}/suggest/eq?lane=bass")
     assert r.status_code == 200, r.text
     slots = {s.id for s in F.LAYOUTS["bass"]}
     assert r.json()["bands"] and all(b["slot"] in slots for b in r.json()["bands"])
+
+
+async def test_a_vocal_lane_gets_the_parametric_eq(client, jobs_dir):
+    skip_without_ffmpeg()
+    _job(jobs_dir, _lanes())
+    async with client as c:
+        r = await c.get(f"/api/jobs/{JOB}/suggest/eq?lane=vocals&layout=graph")
+    assert r.status_code == 200, r.text
+    assert r.json()["target"] == "other.balanced"
+    free = {s.id for s in F.LAYOUTS[F.FREE]}
+    assert r.json()["bands"] and all(b["slot"] in free for b in r.json()["bands"])
 
 
 @pytest.mark.parametrize(

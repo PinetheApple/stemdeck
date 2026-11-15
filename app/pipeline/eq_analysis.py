@@ -39,12 +39,20 @@ Method:
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 
 import numpy as np
 
-from app.pipeline.fx_filters import Band, band_sections, db_to_linear, section_coefficients
+from app.pipeline.fx_filters import (
+    HIGHPASS,
+    HIGHSHELF,
+    Band,
+    Coefficients,
+    Section,
+    band_sections,
+    db_to_linear,
+    section_coefficients,
+)
 
 ANALYSIS_RATE = 44100
 CHANNELS = 2
@@ -74,45 +82,42 @@ TINY = 1e-30
 _CACHE_DECIMALS = 3
 _CACHE_FLOOR_DB = -299.0
 
-# pyloudnorm's re-derivation of BS.1770's K-filter, usable at any rate.
-_K_SHELF_HZ = 1681.974450955533
-_K_SHELF_Q = 0.7071752369554196
-_K_SHELF_DB = 3.999843853973347
-_K_HP_HZ = 38.13547087602444
-_K_HP_Q = 0.5003270373238773
+_POWER_DB = 10.0
+# BS.1770's K-filter, re-derived so that it holds at any rate.
+_K_SHELF = Section(HIGHSHELF, 1681.974450955533, 0.0, 3.999843853973347)
+_K_HIGHPASS = Section(HIGHPASS, 38.13547087602444, 0.5003270373238773, 0.0)
+
+
+def power_to_db(power):
+    return _POWER_DB * np.log10(np.asarray(power, dtype=np.float64) + TINY)
+
+
+def db_to_power(db):
+    return 10.0 ** (np.asarray(db, dtype=np.float64) / _POWER_DB)
 
 
 def bin_freqs(rate: int = ANALYSIS_RATE, frame: int = FRAME) -> np.ndarray:
     return np.fft.rfftfreq(frame, 1.0 / rate)
 
 
-def _biquad_mag2(f: np.ndarray, rate: float, b: tuple, a: tuple) -> np.ndarray:
-    z = np.exp(-1j * 2.0 * np.pi * np.asarray(f, dtype=np.float64) / rate)
-    num = b[0] + b[1] * z + b[2] * z * z
-    den = a[0] + a[1] * z + a[2] * z * z
-    return np.abs(num / den) ** 2
+def coefficients_mag2(c: Coefficients, freqs, fs: float) -> np.ndarray:
+    """|H|^2 of one biquad (a0 = 1) at ``freqs``."""
+    b0, b1, b2, a1, a2 = c
+    z = np.exp(-1j * 2.0 * np.pi * np.asarray(freqs, dtype=np.float64) / fs)
+    return np.abs((b0 + b1 * z + b2 * z * z) / (1.0 + a1 * z + a2 * z * z)) ** 2
 
 
-def _high_shelf_mag2(f: np.ndarray, rate: float) -> np.ndarray:
-    a = 10.0 ** (_K_SHELF_DB / 40.0)
-    w0 = 2.0 * math.pi * _K_SHELF_HZ / rate
-    cw, k = math.cos(w0), 2.0 * math.sqrt(a) * math.sin(w0) / (2.0 * _K_SHELF_Q)
-    b = (a * ((a + 1) + (a - 1) * cw + k), -2 * a * ((a - 1) + (a + 1) * cw),
-         a * ((a + 1) + (a - 1) * cw - k))  # fmt: skip
-    den = ((a + 1) - (a - 1) * cw + k, 2 * ((a - 1) - (a + 1) * cw), (a + 1) - (a - 1) * cw - k)
-    return _biquad_mag2(f, rate, b, den)
-
-
-def _high_pass_mag2(f: np.ndarray, rate: float) -> np.ndarray:
-    w0 = 2.0 * math.pi * _K_HP_HZ / rate
-    cw, alpha = math.cos(w0), math.sin(w0) / (2.0 * _K_HP_Q)
-    b = ((1 + cw) / 2, -(1 + cw), (1 + cw) / 2)
-    return _biquad_mag2(f, rate, b, (1 + alpha, -2 * cw, 1 - alpha))
+def sections_mag2(sections, freqs, fs: float) -> np.ndarray:
+    """|H|^2 of a cascade of sections at ``freqs``."""
+    out = np.ones(np.shape(freqs))
+    for section in sections:
+        out *= coefficients_mag2(section_coefficients(section, fs), freqs, fs)
+    return out
 
 
 def k_weight2(f: np.ndarray, rate: float = ANALYSIS_RATE) -> np.ndarray:
     """|K(f)|^2 of BS.1770's K-weighting at ``rate``."""
-    return _high_shelf_mag2(f, rate) * _high_pass_mag2(f, rate)
+    return sections_mag2((_K_SHELF, _K_HIGHPASS), f, rate)
 
 
 def band_index(freqs: np.ndarray) -> np.ndarray:
@@ -139,11 +144,11 @@ def bands_db(power: np.ndarray, band_of_bin: np.ndarray = _BAND_OF_BIN) -> np.nd
     """Third-octave band levels (dB) of a power spectrum at FFT resolution."""
     inside = band_of_bin >= 0
     sums = np.bincount(band_of_bin[inside], weights=power[inside], minlength=N_BANDS)
-    return 10.0 * np.log10(sums[:N_BANDS] + TINY)
+    return power_to_db(sums[:N_BANDS])
 
 
 def lufs_of(mean_square_k: float) -> float:
-    return LUFS_OFFSET + 10.0 * math.log10(mean_square_k + TINY)
+    return LUFS_OFFSET + float(power_to_db(mean_square_k))
 
 
 def loudness_of_power(power: np.ndarray) -> float:
@@ -237,43 +242,23 @@ class SpectrumAccumulator:
         return Spectrum(self._hist[keep].sum(axis=0) / gated, self._frames, gated, seconds)
 
 
-def analyse(samples: np.ndarray) -> Spectrum:
-    """The gated LTAS of a whole (n, 2) or interleaved float signal at
-    ANALYSIS_RATE. For tests and scripts; the server streams into the
-    accumulator."""
-    acc = SpectrumAccumulator()
-    acc.feed(np.asarray(samples, dtype=np.float32).reshape(-1))
-    acc.finish()
-    return acc.result()
-
-
 # Each band's response is the power average of four points inside it.
 _SUB = np.array([-1 / 8, -1 / 24, 1 / 24, 1 / 8])
 _EVAL_F = np.array([fc * 2.0**s for fc in CENTRES_HZ for s in _SUB])
-
-
-def _sections_mag2(band: Band, freqs: np.ndarray, fs: float) -> np.ndarray:
-    """|H|^2 of one band at ``freqs`` (the engine's own sections)."""
-    out = np.ones(freqs.shape)
-    z = np.exp(-1j * 2.0 * np.pi * freqs / fs)
-    for sec in band_sections(band):
-        b0, b1, b2, a1, a2 = section_coefficients(sec, fs)
-        out *= np.abs((b0 + b1 * z + b2 * z * z) / (1.0 + a1 * z + a2 * z * z)) ** 2
-    return out
 
 
 def eq_mag2(bands: list[Band], freqs: np.ndarray, out_db: float = 0.0, fs=ANALYSIS_RATE):
     """|H|^2 of a whole EQ (bands and output gain) at ``freqs``."""
     m = np.full(freqs.shape, db_to_linear(out_db) ** 2)
     for b in bands:
-        m *= _sections_mag2(b, freqs, fs)
+        m *= sections_mag2(band_sections(b), freqs, fs)
     return m
 
 
 def band_response_db(band: Band) -> np.ndarray:
     """A band's response on the 31 bands."""
-    m = _sections_mag2(band, _EVAL_F, ANALYSIS_RATE).reshape(N_BANDS, len(_SUB))
-    return 10.0 * np.log10(np.maximum(m.mean(axis=1), TINY))
+    m = sections_mag2(band_sections(band), _EVAL_F, ANALYSIS_RATE).reshape(N_BANDS, len(_SUB))
+    return power_to_db(m.mean(axis=1))
 
 
 def apply_eq(power: np.ndarray, bands: list[Band], out_db: float = 0.0) -> np.ndarray:
@@ -291,12 +276,12 @@ def loudness_change_db(power: np.ndarray, bands: list[Band], out_db: float = 0.0
     if before <= 0:
         return 0.0
     after = float(np.sum(apply_eq(power, bands, out_db) * K2))
-    return 10.0 * math.log10(max(after, TINY) / before)
+    return float(power_to_db(after / before))
 
 
 def spectrum_to_json(s: Spectrum) -> dict:
     """The cache form: the gated power spectrum in dB (about 65 KB)."""
-    db = 10.0 * np.log10(s.power + TINY)
+    db = power_to_db(s.power)
     return {
         "frames": s.frames,
         "gated_frames": s.gated_frames,
@@ -309,6 +294,6 @@ def spectrum_from_json(data: dict) -> Spectrum:
     db = np.asarray(data["power_db"], dtype=np.float64)
     if db.shape != (_BINS,) or not np.all(np.isfinite(db)):
         raise ValueError("bad cached spectrum")
-    power = 10.0 ** (db / 10.0)
+    power = db_to_power(db)
     power[db <= _CACHE_FLOOR_DB] = 0.0
     return Spectrum(power, int(data["frames"]), int(data["gated_frames"]), float(data["seconds"]))

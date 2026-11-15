@@ -1,45 +1,27 @@
 """Suggest EQ: turn "measured spectrum minus target" into a few ordinary EQ bands.
 
-The output is nothing but the studio EQ's own bands (bell, shelves, low cut,
-the Keys panel's tilt), designed by the engine's maths (fx_filters.py), so a
-suggestion is an EQ the user can see, drag, preview, keep or undo.
+The output is nothing but the studio EQ's own bands, designed by the engine's
+maths (fx_filters.py), so a suggestion is an EQ the user can see, drag,
+preview, keep or undo. The fit works on the 31 third-octave bands:
 
-The fit, on the 31 third-octave bands (eq_analysis.py):
+1. Error = target - measured, level removed (only the shape is compared),
+   clipped and smoothed over 2/3 octave, so one resonance is not chased.
+2. Only what lies outside a tolerance range around the target (TOL_DB) is
+   asked for; too little bass is tolerated more than too much.
+3. Bands count by how much signal they hold. Where the lane lacks
+   SUGGEST_BOOST_DEFICIT_NONE_DB or more against the target the content is
+   missing, not dull: no candidate may lift such a band (its summed response
+   there stays under INAUDIBLE_DB), and boosts fade in up to
+   SUGGEST_BOOST_DEFICIT_FULL_DB. Cuts are allowed anywhere.
+4. Greedy: the candidate band (each slot's type, nominal frequencies and Qs)
+   that lowers the cost most is added, its gain by weighted least squares on
+   the gain grid, while it improves the cost enough; then every band is
+   refined. A per-band penalty makes big bands earn their size, same-type
+   bands stay apart and the whole curve stays within SUGGEST_COMBINED_MAX_DB.
+5. Loudness-neutral: the output gain cancels the K-weighted loudness change.
 
-1. Error = target - measured, with the overall level removed (the weighted
-   mean of the difference: only the shape is compared; loudness is the
-   output gain's job). Clipped, then smoothed over three neighbouring bands
-   (2/3 octave), so a narrow resonance or one loud note is not chased.
-2. A tolerance range around the target (TOL_DB: 1 dB in the mids, up to
-   5 dB at the extremes, where songs differ most): only what lies outside it
-   is asked for, so a suggestion moves a lane into the normal range rather
-   than onto one line. Too little bass is tolerated twice as much as too
-   much (Elowsson and Friberg 2017: deviations below the mean in the bass are
-   "generally less alarming").
-3. Weights: a band counts fully where the signal has energy (within 30 dB of
-   its loudest band) and fades to nothing 45 dB down; the extremes (20 to
-   31.5 Hz, 16 and 20 kHz) count less. No boost is asked where the signal
-   lacks 12 to 20 dB or more against the target: then the content is
-   missing, not dull (a song with no bass instrument is not given one, an
-   encoder's cut-off is not lifted), and a band centred there may boost by
-   no more than that share of the gain limit. Cuts are allowed anywhere.
-4. Greedy: of every candidate band the layout allows (each type at the
-   nominal third-octave frequencies in its range and a few Q values), the one
-   that lowers the cost most is added, its gain from weighted least squares
-   on its per-dB shape, clamped, rounded to the gain step and checked one
-   step either way. Cost = weighted mean square of what is still outside the
-   tolerance plus a penalty per band, so a big band must earn its size. A
-   band is added only while it improves the cost enough; after each addition
-   every band is refined (frequency one step either way, Q, gain). Bands of
-   one type stay an octave apart, the whole curve stays within
-   SUGGEST_COMBINED_MAX_DB from 40 Hz up, and tiny bands are dropped.
-5. Loudness-neutral: the output gain is minus the change in K-weighted
-   (BS.1770) loudness the bands cause on the measured, gated spectrum.
-
-Layouts: "free" (the graphical panels: bells and shelves up to the band
-limit, plus a gentle low cut) and the fixed pedal panels "bass", "guitar" and "keys", whose knobs
-are fixed bands: each slot is used at most once, in its own frequency range,
-and the result maps back onto the knobs.
+Layouts: "free" (the graphical panels) and the pedals "bass", "guitar" and
+"keys", whose knobs are fixed bands used at most once each, in knob order.
 """
 
 from __future__ import annotations
@@ -92,19 +74,26 @@ _AUDIBLE_FADE_DB = 15.0
 _COMBINED_FROM_BAND = 3
 _EPS = 1e-9
 
-# The tolerance range around a target (dB, either side), per band: wider in
-# the bass and the top octave, where songs differ most (Elowsson and Friberg
-# 2017, figure 3).
+# Wider in the bass and the top octave, where songs differ most.
 TOL_DB = np.array(
     [5.0, 5.0, 5.0, 4.5, 4.0, 3.5, 3.0, 2.5, 2.0, 1.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
      1.0, 1.0, 1.0, 1.0, 1.5, 2.0, 2.0, 2.0, 2.5, 2.5, 3.0, 3.5, 4.0, 5.0]
 )  # fmt: skip
 _BASS_BANDS = np.asarray(CENTRES_HZ) < SUGGEST_BASS_LOW_HZ
 
-# 20, 25, 31.5 Hz and 16, 20 kHz count less.
+_EDGE_WEIGHT_LOW = 0.25
+_EDGE_WEIGHT_HALF = 0.5
+_EDGE_BANDS_LOW = [0, 1, 30]
+_EDGE_BANDS_HALF = [2, 29]
 _BASE_W = np.ones(N_BANDS)
-_BASE_W[[0, 1, 30]] = 0.25
-_BASE_W[[2, 29]] = 0.5
+_BASE_W[_EDGE_BANDS_LOW] = _EDGE_WEIGHT_LOW
+_BASE_W[_EDGE_BANDS_HALF] = _EDGE_WEIGHT_HALF
+# A summed response under this is no boost: a shelf's far tail is not a lift.
+INAUDIBLE_DB = 0.1
+_CROWD_SLACK_OCT = 1e-6
+_GAIN_DECIMALS = 2
+_OUT_DECIMALS = 1
+_SHELF_FREQ_DECIMALS = 1
 
 
 # The Bass pedal's low shelf corner moves with its gain (the panel's own rule).
@@ -127,7 +116,8 @@ def dynamic_shelf_freq(g: float) -> float:
         return _SHELF_MIN_HZ
     span = _SHELF_FULL_DB - _SHELF_FIXED_DB
     ratio = _SHELF_MAX_HZ / _SHELF_MIN_HZ
-    return round(_SHELF_MIN_HZ * ratio ** ((min(a, _SHELF_FULL_DB) - _SHELF_FIXED_DB) / span), 1)
+    corner = _SHELF_MIN_HZ * ratio ** ((min(a, _SHELF_FULL_DB) - _SHELF_FIXED_DB) / span)
+    return round(corner, _SHELF_FREQ_DECIMALS)
 
 
 @dataclass(frozen=True)
@@ -147,37 +137,52 @@ class Slot:
         return self.type == LOWCUT
 
 
+# Nominal-frequency ranges (Hz) per slot, mirroring the panels' knobs.
+_FREE_HZ = {"bell": (40, 16000), "lowshelf": (63, 250), "highshelf": (2000, 10000)}
+_FREE_LOWCUT_HZ = (25, 125)
+_BASS_HZ = {"hpf": (25, 63), "low": (35, 500), "mid": (100, 1600), "high": (375, 9700)}
+_GUITAR_HZ = {"hpf": (40, 160), "low": (35, 500), "mid": (250, 5000), "high": (1000, 16000)}
+_KEYS_HZ = {"lowcut": (40, 160), "presence": (2000, 5000)}
+_PEDAL_HS_HZ = 1000.0
+_GUITAR_LS_HZ = 200.0
+_KEYS_BODY_HZ = 120.0
+_KEYS_WARMTH_HZ = 250.0
+_KEYS_AIR_HZ = 10000.0
+_KEYS_TONE_HZ = 1000.0
+_KEYS_WARMTH_Q = 0.8
+_KEYS_PRESENCE_Q = 1.0
+
 _FREE = (
-    Slot("bell", BELL, _nominal_between(40, 16000), FREE_Q, reuse=True),
+    Slot("bell", BELL, _nominal_between(*_FREE_HZ["bell"]), FREE_Q, reuse=True),
     # One shelf of each kind: two stacked shelves read as one, less clearly.
-    Slot("lowshelf", LOWSHELF, _nominal_between(63, 250)),
-    Slot("highshelf", HIGHSHELF, _nominal_between(2000, 10000)),
+    Slot("lowshelf", LOWSHELF, _nominal_between(*_FREE_HZ["lowshelf"])),
+    Slot("highshelf", HIGHSHELF, _nominal_between(*_FREE_HZ["highshelf"])),
 )
 LAYOUTS: dict[str, tuple[Slot, ...]] = {
-    FREE: (*_FREE, Slot("lowcut", LOWCUT, _nominal_between(25, 125))),
+    FREE: (*_FREE, Slot("lowcut", LOWCUT, _nominal_between(*_FREE_LOWCUT_HZ))),
     "bass": (
-        Slot("hpf", LOWCUT, _nominal_between(25, 63)),
+        Slot("hpf", LOWCUT, _nominal_between(*_BASS_HZ["hpf"])),
         Slot("ls", LOWSHELF, (_SHELF_MIN_HZ,), dynamic_shelf=True),
-        Slot("low", BELL, _nominal_between(35, 500), PEDAL_Q),
-        Slot("mid", BELL, _nominal_between(100, 1600), PEDAL_Q),
-        Slot("high", BELL, _nominal_between(375, 9700), PEDAL_Q),
-        Slot("hs", HIGHSHELF, (1000.0,)),
+        Slot("low", BELL, _nominal_between(*_BASS_HZ["low"]), PEDAL_Q),
+        Slot("mid", BELL, _nominal_between(*_BASS_HZ["mid"]), PEDAL_Q),
+        Slot("high", BELL, _nominal_between(*_BASS_HZ["high"]), PEDAL_Q),
+        Slot("hs", HIGHSHELF, (_PEDAL_HS_HZ,)),
     ),
     "guitar": (
-        Slot("hpf", LOWCUT, _nominal_between(40, 160)),
-        Slot("ls", LOWSHELF, (200.0,)),
-        Slot("low", BELL, _nominal_between(35, 500), PEDAL_Q),
-        Slot("mid", BELL, _nominal_between(250, 5000), PEDAL_Q),
-        Slot("high", BELL, _nominal_between(1000, 16000), PEDAL_Q),
-        Slot("hs", HIGHSHELF, (1000.0,)),
+        Slot("hpf", LOWCUT, _nominal_between(*_GUITAR_HZ["hpf"])),
+        Slot("ls", LOWSHELF, (_GUITAR_LS_HZ,)),
+        Slot("low", BELL, _nominal_between(*_GUITAR_HZ["low"]), PEDAL_Q),
+        Slot("mid", BELL, _nominal_between(*_GUITAR_HZ["mid"]), PEDAL_Q),
+        Slot("high", BELL, _nominal_between(*_GUITAR_HZ["high"]), PEDAL_Q),
+        Slot("hs", HIGHSHELF, (_PEDAL_HS_HZ,)),
     ),
     "keys": (
-        Slot("lowcut", LOWCUT, _nominal_between(40, 160)),
-        Slot("body", LOWSHELF, (120.0,)),
-        Slot("warmth", BELL, (250.0,), (0.8,)),
-        Slot("presence", BELL, _nominal_between(2000, 5000), (1.0,)),
-        Slot("air", HIGHSHELF, (10000.0,)),
-        Slot("tone", TILT, (1000.0,)),
+        Slot("lowcut", LOWCUT, _nominal_between(*_KEYS_HZ["lowcut"])),
+        Slot("body", LOWSHELF, (_KEYS_BODY_HZ,)),
+        Slot("warmth", BELL, (_KEYS_WARMTH_HZ,), (_KEYS_WARMTH_Q,)),
+        Slot("presence", BELL, _nominal_between(*_KEYS_HZ["presence"]), (_KEYS_PRESENCE_Q,)),
+        Slot("air", HIGHSHELF, (_KEYS_AIR_HZ,)),
+        Slot("tone", TILT, (_KEYS_TONE_HZ,)),
     ),
 }
 
@@ -199,7 +204,7 @@ def neutral_out_db(power: np.ndarray, bands: list[Band], base_out: float = 0.0) 
     """The output gain that keeps ``power``'s K-weighted loudness where it was
     with ``base_out``, after ``bands`` (rounded to 0.1 dB)."""
     out = base_out - loudness_change_db(power, bands, 0.0)
-    return round(max(-SUGGEST_OUT_MAX_DB, min(SUGGEST_OUT_MAX_DB, out)), 1)
+    return round(max(-SUGGEST_OUT_MAX_DB, min(SUGGEST_OUT_MAX_DB, out)), _OUT_DECIMALS)
 
 
 def weights_for(measured_db: np.ndarray) -> np.ndarray:
@@ -234,11 +239,6 @@ def _tcost(resid: np.ndarray, w: np.ndarray, boost_ok=None, scale: float = 1.0) 
     """The fit's cost: weighted mean square of what lies outside the
     tolerance range, after the level is removed."""
     return _mean_square(tolerated_error(_demean(resid, w), boost_ok, scale), w)
-
-
-def outside_rms_db(diff: np.ndarray, w: np.ndarray) -> float:
-    """RMS (dB) of the deviation outside the tolerance range."""
-    return math.sqrt(_tcost(np.asarray(diff, dtype=np.float64), w))
 
 
 def weighted_rms_db(diff: np.ndarray, w: np.ndarray) -> float:
@@ -284,7 +284,7 @@ def make_band(slot: Slot, f: float, g: float, q: float) -> Band:
 
 def _round_gain(g: float) -> float:
     g = max(-SUGGEST_GAIN_MAX_DB, min(SUGGEST_GAIN_MAX_DB, g))
-    return round(round(g / SUGGEST_GAIN_STEP_DB) * SUGGEST_GAIN_STEP_DB, 2)
+    return round(round(g / SUGGEST_GAIN_STEP_DB) * SUGGEST_GAIN_STEP_DB, _GAIN_DECIMALS)
 
 
 def penalty(g: float) -> float:
@@ -321,7 +321,10 @@ def crowded(chosen: list[Pick], slot: Slot, f: float, order: list[str] | None) -
     past the gain limit. On a pedal (``order``: its slot ids) the bell knobs
     also keep their order, so "low" never sits above "mid"."""
     for c in chosen:
-        if c.slot.type == slot.type and abs(math.log2(c.f / f)) < SUGGEST_CROWD_OCTAVES - 1e-6:
+        if (
+            c.slot.type == slot.type
+            and abs(math.log2(c.f / f)) < SUGGEST_CROWD_OCTAVES - _CROWD_SLACK_OCT
+        ):
             return True
         if order and _bell_order_broken(order, slot, f, c):
             return True
@@ -340,6 +343,7 @@ class _Fitter:
 
     def __init__(self, error, w, boost_ok, scale: float, slots, order) -> None:
         self.error, self.w, self.boost_ok, self.scale = error, w, boost_ok, scale
+        self.blocked = boost_ok <= 0
         self.slots: tuple[Slot, ...] = slots
         self.order: list[str] | None = order
         self.chosen: list[Pick] = []
@@ -378,13 +382,20 @@ class _Fitter:
         there is missing, a share of the limit where it is fading."""
         return SUGGEST_GAIN_MAX_DB * float(self.boost_ok[nearest_band(f)])
 
+    def lifts_missing(self, curve: np.ndarray) -> bool:
+        """Whether the summed response lifts any band whose content is missing."""
+        return bool(np.any(curve[self.blocked] > INAUDIBLE_DB))
+
+    def _allowed(self, curve: np.ndarray) -> bool:
+        return not too_much(curve) and not self.lifts_missing(curve)
+
     def _gainful(self, slot: Slot, f: float, q: float, rest: np.ndarray) -> Pick | None:
         target, cap = self.error - rest, self.boost_cap(f)
         g0 = self._ls_gain(slot, f, q, target)
         best = None
         for g in [] if g0 is None else _gain_candidates(g0):
             r = self.resp(slot, f, g, q)
-            if g > cap or too_much(rest + r):
+            if g > cap or not self._allowed(rest + r):
                 continue
             cost = self.cost_of(target - r) + penalty(g)
             if best is None or cost < best.cost:
@@ -397,7 +408,7 @@ class _Fitter:
         if not slot.gainless:
             return self._gainful(slot, f, q, rest)
         r = self.resp(slot, f, 0.0, q)
-        if too_much(rest + r):
+        if not self._allowed(rest + r):
             return None
         return Pick(slot, f, 0.0, q, r, self.cost_of(self.error - rest - r))
 

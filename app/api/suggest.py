@@ -5,6 +5,10 @@ the lane's file raw (before any EQ, gain or pitch) and answers with bands, an
 output gain, i18n reasons and the target choices (app/pipeline/eq_suggest.py).
 The client turns that into an ordinary EQ descriptor; nothing is written.
 
+The lane decides its EQ panel the way the client does (drums the drum graph,
+bass, guitar and piano their pedals, every other lane the graph). ``layout``
+may be left out; when sent it must name that panel.
+
 The measurement (the gated spectrum, app/pipeline/eq_analysis.py) runs once
 per lane file, in one ffmpeg decode streamed into the accumulator, and is
 cached on disk under SUGGEST_CACHE_DIR keyed by the file's path, size and
@@ -13,12 +17,13 @@ SUGGEST_CONCURRENCY analyses run at once and one lane is never analysed twice
 at the same time. A request whose client has gone away is stopped, ffmpeg
 included.
 
-Validation runs before any I/O: the job id, the layout and mode from fixed
-sets, the lane from the mixdown allow-list, the target from the lane's own
-family, ``fx`` through the strict export parser, then the path through the
-same guard as the exports. Error details are generic: 404 for a job or lane
-that is not there, 422 for a bad parameter or ``not enough signal``, 500
-``analysis failed`` (logged under stemdeck.suggest), 499 when the client left.
+Validation runs before any I/O: the job id, the lane from the mixdown
+allow-list, the layout and mode against the lane's panel, the target from the
+lane's own family, ``fx`` through the strict export parser, then the path
+through the same guard as the exports. Error details are generic: 404 for a
+job or lane that is not there, 422 for a bad parameter or ``not enough
+signal``, 500 ``analysis failed`` (logged under stemdeck.suggest), 499 when
+the client left.
 """
 
 from __future__ import annotations
@@ -26,17 +31,14 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import hashlib
-import json
 import logging
-import os
-import uuid
 from collections import deque
 from pathlib import Path
 
 import numpy as np
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from app.api.stems import _MIXDOWN_NAMES, _validate_stem_path
+from app.api.stems import _MIXDOWN_NAMES, _drain_stderr, _validate_stem_path
 from app.core.config import (
     FX_PARAM_MAX_CHARS,
     JOB_ID_RE,
@@ -56,7 +58,7 @@ from app.pipeline.eq_analysis import (
     spectrum_from_json,
     spectrum_to_json,
 )
-from app.pipeline.eq_fit import FREE
+from app.pipeline.eq_fit import FIXED_LAYOUTS, FREE
 from app.pipeline.eq_suggest import (
     MERGE,
     MODES,
@@ -67,20 +69,22 @@ from app.pipeline.eq_suggest import (
 )
 from app.pipeline.eq_targets import LANE_USE, Target, default_target, get_target, targets_for_use
 from app.pipeline.fx_filters import Eq, FxError, parse_fx_param
+from app.pipeline.master_plan_cache import keyed_lock, read_cache, write_cache
+from app.pipeline.mastering import _STDERR_TAIL_LINES
 
 logger = logging.getLogger("stemdeck.suggest")
 
 router = APIRouter(tags=["suggest"])
 
 CACHE_VERSION = "1"
-# The lane's EQ panel kind and the fitter layout it uses; merge only on the graphical ones.
-LANE_LAYOUTS = {"graph": FREE, "drum": FREE, "bass": "bass", "guitar": "guitar", "keys": "keys"}
-_MERGE_LAYOUTS = frozenset({"graph", "drum"})
-_DEFAULT_LAYOUT = "graph"
+GRAPH_PANEL = "graph"
+DRUM_PANEL = "drum"
+PANEL_OF_LANE = {"drums": DRUM_PANEL, "bass": "bass", "guitar": "guitar", "piano": "keys"}
+PANEL_LAYOUTS = {GRAPH_PANEL: FREE, DRUM_PANEL: FREE, **{p: p for p in FIXED_LAYOUTS}}
+_MERGE_PANELS = frozenset({GRAPH_PANEL, DRUM_PANEL})
 _READ_BYTES = 1 << 20
 _SAMPLE_BYTES = 4
 _FRAME_BYTES = _SAMPLE_BYTES * CHANNELS
-_STDERR_TAIL_LINES = 8
 _EXIT_GRACE_SEC = 30
 _CLIENT_GONE = 499
 _LANE_MAX_CHARS = 32
@@ -101,12 +105,6 @@ def _decode_cmd(path: Path) -> list[str]:
         *("-i", str(path), "-map", "0:a:0", "-ac", str(CHANNELS), "-ar", str(ANALYSIS_RATE)),
         *("-c:a", "pcm_f32le", "-f", "f32le", "pipe:1"),
     ]
-
-
-async def _drain(stream: asyncio.StreamReader, sink: deque[str]) -> None:
-    """Collect stderr lines; an undrained full pipe would stall ffmpeg."""
-    while line := await stream.readline():
-        sink.append(line.decode("utf-8", "replace").rstrip())
 
 
 async def _feed(stream: asyncio.StreamReader, acc: SpectrumAccumulator) -> None:
@@ -139,7 +137,7 @@ async def _run_analysis(path: Path) -> Spectrum:
         stderr=asyncio.subprocess.PIPE,
     )
     tail: deque[str] = deque(maxlen=_STDERR_TAIL_LINES)
-    drainer = asyncio.create_task(_drain(proc.stderr, tail))
+    drainer = asyncio.create_task(_drain_stderr(proc.stderr, tail))
     acc = SpectrumAccumulator()
     try:
         await asyncio.wait_for(_feed(proc.stdout, acc), timeout=TIMEOUT_FFMPEG)
@@ -154,66 +152,40 @@ async def _run_analysis(path: Path) -> Spectrum:
     return await asyncio.to_thread(acc.result)
 
 
-def _read_cached(path: Path) -> Spectrum | None:
+def _read_spectrum(path: Path) -> Spectrum | None:
+    data = read_cache(path)
     try:
-        return spectrum_from_json(json.loads(path.read_text(encoding="utf-8")))
-    except FileNotFoundError:
-        return None
-    except (OSError, ValueError, KeyError, TypeError):
+        return None if data is None else spectrum_from_json(data)
+    except (KeyError, TypeError, ValueError):
         logger.debug("unreadable suggest cache %s", path, exc_info=True)
         return None
 
 
-def _prune(cache_dir: Path, keep: Path) -> None:
-    try:
-        entries = sorted(
-            (p for p in cache_dir.iterdir() if p.is_file() and not p.name.startswith(".")),
-            key=lambda p: p.stat().st_mtime,
-        )
-        for old in entries[: max(0, len(entries) - SUGGEST_CACHE_MAX_FILES)]:
-            if old != keep:
-                old.unlink(missing_ok=True)
-    except OSError:
-        logger.debug("suggest cache prune failed", exc_info=True)
-
-
-def _write_cached(path: Path, spec: Spectrum) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
-    tmp.write_text(json.dumps(spectrum_to_json(spec), separators=(",", ":")), encoding="utf-8")
-    os.replace(tmp, path)
-    _prune(path.parent, path)
-
-
-def _cache_key(job_id: str, lane: str, path: Path) -> str:
+def _cache_path(job_id: str, lane: str, path: Path) -> Path:
     st = path.stat()
     raw = "|".join([CACHE_VERSION, job_id, lane, f"{path}@{st.st_size}:{st.st_mtime_ns}"])
-    return hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()
+    key = hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()
+    return SUGGEST_CACHE_DIR / f"{key}.json"
 
 
-async def _measure(key: str, job_id: str, path: Path) -> Spectrum:
-    cache = SUGGEST_CACHE_DIR / f"{key}.json"
+async def _measure(cache: Path, job_id: str, path: Path) -> Spectrum:
     async with _analysis_slots:
         try:
             spec = await _run_analysis(path)
         except AnalysisError as exc:
             logger.warning("suggest analysis failed [job=%s]: %s", job_id, exc)
             raise HTTPException(status_code=500, detail="analysis failed") from None
-    await asyncio.to_thread(_write_cached, cache, spec)
+    body = spectrum_to_json(spec)
+    await asyncio.to_thread(write_cache, cache, body, SUGGEST_CACHE_MAX_FILES)
     return spec
 
 
 async def analysis(job_id: str, lane: str, path: Path) -> Spectrum:
     """The cached spectrum of the lane's file, measured now when absent."""
-    key = await asyncio.to_thread(_cache_key, job_id, lane, path)
-    lock = _analysis_locks.setdefault(key, asyncio.Lock())
-    try:
-        async with lock:
-            cached = await asyncio.to_thread(_read_cached, SUGGEST_CACHE_DIR / f"{key}.json")
-            return cached if cached is not None else await _measure(key, job_id, path)
-    finally:
-        if not lock.locked():
-            _analysis_locks.pop(key, None)
+    cache = await asyncio.to_thread(_cache_path, job_id, lane, path)
+    async with keyed_lock(_analysis_locks, cache.stem):
+        cached = await asyncio.to_thread(_read_spectrum, cache)
+        return cached if cached is not None else await _measure(cache, job_id, path)
 
 
 async def _until_done(request: Request, coro):
@@ -241,11 +213,13 @@ def _lane_target(lane: str, target: str) -> Target:
     return chosen
 
 
-def _check_layout_and_mode(layout: str, mode: str) -> None:
-    if layout not in LANE_LAYOUTS:
-        raise HTTPException(status_code=422, detail="unknown layout")
-    if mode not in MODES or (mode == MERGE and layout not in _MERGE_LAYOUTS):
+def _lane_panel(lane: str, layout: str, mode: str) -> str:
+    panel = PANEL_OF_LANE.get(lane, GRAPH_PANEL)
+    if layout and layout != panel:
+        raise HTTPException(status_code=422, detail="layout does not match the lane")
+    if mode not in MODES or (mode == MERGE and panel not in _MERGE_PANELS):
         raise HTTPException(status_code=422, detail="unknown mode")
+    return panel
 
 
 def _current_eq(fx: str, lane: str) -> Eq | None:
@@ -277,7 +251,7 @@ async def suggest_lane_eq(
     request: Request,
     job_id: str,
     lane: str = Query(..., max_length=_LANE_MAX_CHARS, description="Mixer lane"),
-    layout: str = Query(_DEFAULT_LAYOUT, max_length=_CHOICE_MAX_CHARS, description="Panel kind"),
+    layout: str = Query("", max_length=_CHOICE_MAX_CHARS, description="The lane's panel kind"),
     target: str = Query("", max_length=_TARGET_MAX_CHARS, description="Target id"),
     mode: str = Query(REPLACE, max_length=_CHOICE_MAX_CHARS, description="replace or merge"),
     fx: str = Query("", max_length=FX_PARAM_MAX_CHARS, description="The lane's EQ now"),
@@ -286,9 +260,9 @@ async def suggest_lane_eq(
     move it towards a target curve, in the lane's panel's own terms."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
-    _check_layout_and_mode(layout, mode)
     chosen = _lane_target(lane, target)
+    panel = _lane_panel(lane, layout, mode)
     current = _current_eq(fx, lane)
     path = _validate_stem_path(job_id, lane)
     spec = await _until_done(request, analysis(job_id, lane, path))
-    return await asyncio.to_thread(_answer, spec, chosen, LANE_LAYOUTS[layout], mode, current)
+    return await asyncio.to_thread(_answer, spec, chosen, PANEL_LAYOUTS[panel], mode, current)
