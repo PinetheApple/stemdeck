@@ -64,9 +64,11 @@ class FakeDownloader:
         self.release = threading.Event()
         self.started = threading.Event()
         self.calls: list[tuple[Job, str, Path]] = []
+        self.options: list[dict] = []
 
     def __call__(self, job: Job, url: str, job_dir: Path, **kwargs) -> Path:
         self.calls.append((job, url, job_dir))
+        self.options.append(kwargs)
         _set(job, status=DOWNLOADER_STATUS, progress=DOWNLOAD_PROGRESS)
         self.started.set()
         while not self.release.wait(POLL_SEC):
@@ -134,6 +136,7 @@ def test_the_link_audio_is_fetched_into_the_runs_temp_and_not_kept(client, monke
     assert (scratch.id, url) == (JOB_ID, LINK)
     assert separator.dirs == [into]
     assert separator.sources == [into / DOWNLOADED]
+    assert fetcher.options == [{"video": False}]
     assert into.parent == cfg.JOBS_DIR / JOB_ID / "stems"
     assert into.name.startswith(".")
     assert temps() == []

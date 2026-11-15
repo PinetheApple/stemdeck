@@ -129,7 +129,7 @@ def _fetch(run: ExtractRun, url: str, work: Path) -> Path:
     run with its own cause, never separating anything."""
     run.phase = PHASE_DOWNLOADING
     try:
-        return download(run.scratch, url, work)
+        return download(run.scratch, url, work, video=False)
     except JobCancelled:
         raise
     except Exception as exc:
