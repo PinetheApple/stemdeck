@@ -1,6 +1,3 @@
-// A library folder's … menu: rename it, add a subfolder to it, or delete it.
-// catalog.js owns the folders, so it hands in what each item does.
-
 import { menuItem, menuSeparator, openMenu } from "./trackMenu.js";
 import { t } from "./i18n.js";
 

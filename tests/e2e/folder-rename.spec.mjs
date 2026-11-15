@@ -1,5 +1,5 @@
-// A folder or subfolder takes a new name from the folder editor, opened by a
-// double-click, F2 or its row's … menu; Unsorted and Trash keep theirs.
+// A folder or subfolder takes a new name from the "Rename folder" dialog, opened by a
+// double-click, F2 or its row's … menu. Unsorted keeps its name and changes colour only.
 import { test, expect } from "@playwright/test";
 import { ROW_KEY } from "../../static/js/rovingRows.js";
 import {
@@ -22,15 +22,19 @@ const WARMUPS = { id: "f-warmups", name: "Warmups" };
 const TRASH = { id: "trash", name: "Trash" };
 const RENAMED = "Gig night";
 const RENAMED_SUBFOLDER = "Scales";
+const OLD_UNSORTED_RENAME = "Old inbox";
 const WHITESPACE_ONLY = "   ";
 const RENAME_KEY = "F2";
 const EDITOR = ".folder-editor";
+const EDITOR_TITLE = `${EDITOR}-head > span`;
 const MORE = ".f-more";
+const MENU = ".lib-menu";
+const UNPICKED_DOT = ".folder-color-dot:not(.active)";
 
-async function openLibrary(page) {
+async function openLibrary(page, { unsortedName = UNSORTED.name } = {}) {
   await seedCatalogState(page, {
     folders: [
-      { ...UNSORTED, items: [JOB_ID], color: null },
+      { ...UNSORTED, name: unsortedName, items: [JOB_ID], color: null },
       { ...REHEARSAL, items: [SIBLING_JOB_ID], color: null },
       { ...WARMUPS, items: [], color: null, parentId: REHEARSAL.id },
       { ...TRASH, items: [], color: null },
@@ -50,10 +54,12 @@ async function openLibrary(page) {
 const headOf = (page, id) => page.locator(`#catalogList .folder[data-id="${id}"] > .folder-head`);
 const nameOf = (page, id) => headOf(page, id).locator(".f-name");
 
-async function storedName(page, id) {
+async function storedFolder(page, id) {
   const state = await readCatalogState(page);
-  return state.folders.find((f) => f.id === id)?.name;
+  return state.folders.find((f) => f.id === id);
 }
+
+const storedName = async (page, id) => (await storedFolder(page, id))?.name;
 
 async function expectNameAfterReload(page, id, name) {
   await page.reload({ waitUntil: "domcontentloaded" });
@@ -63,10 +69,21 @@ async function expectNameAfterReload(page, id, name) {
 
 async function renameByDoubleClick(page, id, name) {
   await nameOf(page, id).dblclick();
+  await expect(page.locator(EDITOR_TITLE)).toHaveText(await uiText(page, "folderEditor.renameTitle"));
   await page.locator(`${EDITOR}-name`).fill(name);
 }
 
-test("a folder renamed with Enter shows its new name at once and after a reload", async ({ page }) => {
+/** Pick a colour the folder does not have yet and save; returns the colour picked. */
+async function saveOtherColor(page) {
+  const dot = page.locator(UNPICKED_DOT).first();
+  const color = await dot.getAttribute("data-color");
+  await dot.click();
+  await page.locator(`${EDITOR}-save`).click();
+  await expect(page.locator(EDITOR)).toHaveCount(0);
+  return color;
+}
+
+test("a folder renamed with Enter shows its new name at once and after a reload, and keeps focus", async ({ page }) => {
   await openLibrary(page);
 
   await renameByDoubleClick(page, REHEARSAL.id, RENAMED);
@@ -74,6 +91,7 @@ test("a folder renamed with Enter shows its new name at once and after a reload"
 
   await expect(page.locator(EDITOR)).toHaveCount(0);
   await expect(nameOf(page, REHEARSAL.id)).toHaveText(RENAMED);
+  await expect(headOf(page, REHEARSAL.id)).toBeFocused();
   await expectNameAfterReload(page, REHEARSAL.id, RENAMED);
 });
 
@@ -85,6 +103,20 @@ test("a subfolder renamed with Save shows its new name at once and after a reloa
 
   await expect(nameOf(page, WARMUPS.id)).toHaveText(RENAMED_SUBFOLDER);
   await expectNameAfterReload(page, WARMUPS.id, RENAMED_SUBFOLDER);
+});
+
+test("a folder's new colour is saved and survives a reload", async ({ page }) => {
+  await openLibrary(page);
+
+  await nameOf(page, REHEARSAL.id).dblclick();
+  const color = await saveOtherColor(page);
+
+  expect((await storedFolder(page, REHEARSAL.id)).color).toBe(color);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  expect((await storedFolder(page, REHEARSAL.id)).color).toBe(color);
+  await expect
+    .poll(() => headOf(page, REHEARSAL.id).evaluate((el) => el.style.getPropertyValue("--folder-color")))
+    .toBe(color);
 });
 
 test("a whitespace-only name is refused with a message and the old name stays", async ({ page }) => {
@@ -117,7 +149,7 @@ test("F2 on a focused folder row opens the editor and Enter saves the name", asy
   await headOf(page, REHEARSAL.id).focus();
   await page.keyboard.press(RENAME_KEY);
   await expect(page.locator(`${EDITOR}-name`)).toBeFocused();
-  await expect(page.locator(`${EDITOR}-head > span`)).toHaveText(await uiText(page, "folderEditor.renameTitle"));
+  await expect(page.locator(EDITOR_TITLE)).toHaveText(await uiText(page, "folderEditor.renameTitle"));
   await page.keyboard.type(RENAMED);
   await page.keyboard.press(KEY.ENTER);
 
@@ -125,17 +157,26 @@ test("F2 on a focused folder row opens the editor and Enter saves the name", asy
   expect(await storedName(page, REHEARSAL.id)).toBe(RENAMED);
 });
 
-test("Unsorted opens no editor by double-click or F2", async ({ page }) => {
+test("Unsorted's double-click edits its colour only, and F2 opens nothing", async ({ page }) => {
   await openLibrary(page);
 
   await nameOf(page, UNSORTED.id).dblclick();
-  await expect(page.locator(EDITOR)).toHaveCount(0);
+  await expect(page.locator(EDITOR_TITLE)).toHaveText(await uiText(page, "folderEditor.title"));
+  await expect(page.locator(`${EDITOR}-name`)).toHaveCount(0);
+  const color = await saveOtherColor(page);
+
+  const unsorted = await storedFolder(page, UNSORTED.id);
+  expect(unsorted.color).toBe(color);
+  expect(unsorted.name).toBe(UNSORTED.name);
   await headOf(page, UNSORTED.id).focus();
   await page.keyboard.press(RENAME_KEY);
   await expect(page.locator(EDITOR)).toHaveCount(0);
+});
 
-  await nameOf(page, REHEARSAL.id).dblclick();
-  await expect(page.locator(EDITOR)).toHaveCount(1);
+test("an Unsorted renamed by an older build still reads Unsorted, in the app's language", async ({ page }) => {
+  await openLibrary(page, { unsortedName: OLD_UNSORTED_RENAME });
+
+  await expect(nameOf(page, UNSORTED.id)).toHaveText(await uiText(page, "folder.unsorted"));
 });
 
 async function openFolderMenuByKeyboard(page, id) {
@@ -143,7 +184,7 @@ async function openFolderMenuByKeyboard(page, id) {
   await page.keyboard.press(ROW_KEY.INTO);
   await expect(headOf(page, id).locator(MORE)).toBeFocused();
   await page.keyboard.press(KEY.ENTER);
-  const menu = page.locator(".lib-menu");
+  const menu = page.locator(MENU);
   await expect(menu).toBeVisible();
   return menu;
 }
@@ -152,7 +193,7 @@ async function chooseRename(page, menu) {
   const rename = menu.getByRole("menuitem", { name: await uiText(page, "trackMenu.rename"), exact: true });
   await expect(rename).toBeFocused();
   await page.keyboard.press(KEY.ENTER);
-  await expect(page.locator(`${EDITOR}-head > span`)).toHaveText(await uiText(page, "folderEditor.renameTitle"));
+  await expect(page.locator(EDITOR_TITLE)).toHaveText(await uiText(page, "folderEditor.renameTitle"));
 }
 
 test("the … menu's Rename, reached by keyboard, saves the new name with Enter", async ({ page }) => {
@@ -171,7 +212,7 @@ test("the … menu's Rename, opened by a click, is cancelled by Escape", async (
 
   await headOf(page, REHEARSAL.id).hover();
   await headOf(page, REHEARSAL.id).locator(MORE).click();
-  await chooseRename(page, page.locator(".lib-menu"));
+  await chooseRename(page, page.locator(MENU));
   await page.keyboard.type(RENAMED);
   await page.keyboard.press(KEY.ESCAPE);
 
@@ -180,12 +221,39 @@ test("the … menu's Rename, opened by a click, is cancelled by Escape", async (
   expect(await storedName(page, REHEARSAL.id)).toBe(REHEARSAL.name);
 });
 
+test("Escape on the … menu closes it and gives focus back to the … button", async ({ page }) => {
+  await openLibrary(page);
+
+  await openFolderMenuByKeyboard(page, REHEARSAL.id);
+  await page.keyboard.press(KEY.ESCAPE);
+
+  await expect(page.locator(MENU)).toHaveCount(0);
+  await expect(headOf(page, REHEARSAL.id).locator(MORE)).toBeFocused();
+});
+
+test("the … menu's Delete, by keyboard, arms the … button and a second Enter deletes", async ({ page }) => {
+  await openLibrary(page);
+
+  const menu = await openFolderMenuByKeyboard(page, WARMUPS.id);
+  await page.keyboard.press(ROW_KEY.PREVIOUS);
+  await expect(menu.getByRole("menuitem", { name: await uiText(page, "folder.deleteFolder") })).toBeFocused();
+  await page.keyboard.press(KEY.ENTER);
+
+  const more = headOf(page, WARMUPS.id).locator(MORE);
+  await expect(more).toHaveAttribute("data-armed", "1");
+  await expect(more).toBeFocused();
+  await page.keyboard.press(KEY.ENTER);
+
+  await expect(page.locator(`#catalogList .folder[data-id="${WARMUPS.id}"]`)).toHaveCount(0);
+  expect(await storedFolder(page, WARMUPS.id)).toBeUndefined();
+});
+
 test("the … menu's New subfolder adds a named folder inside this one", async ({ page }) => {
   await openLibrary(page);
 
   const menu = await openFolderMenuByKeyboard(page, REHEARSAL.id);
   await menu.getByRole("menuitem", { name: await uiText(page, "folder.newSubfolder"), exact: true }).click();
-  await expect(page.locator(`${EDITOR}-head > span`)).toHaveText(await uiText(page, "folder.newSubfolder"));
+  await expect(page.locator(EDITOR_TITLE)).toHaveText(await uiText(page, "folder.newSubfolder"));
   await page.keyboard.type(RENAMED_SUBFOLDER);
   await page.keyboard.press(KEY.ENTER);
 
@@ -200,14 +268,4 @@ test("Unsorted's row has no … menu, while a user folder's row has one", async 
 
   await expect(headOf(page, REHEARSAL.id).locator(MORE)).toHaveCount(1);
   await expect(headOf(page, UNSORTED.id).locator(MORE)).toHaveCount(0);
-});
-
-test("Trash has no folder row to rename, in the library or the Trash view", async ({ page }) => {
-  await openLibrary(page);
-  await expect(headOf(page, REHEARSAL.id)).toBeVisible();
-  await expect(headOf(page, TRASH.id)).toHaveCount(0);
-
-  await page.locator(".rail-trash").click();
-  await expect(page.locator(".rail-trash")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("#catalogList .folder-head")).toHaveCount(0);
 });

@@ -198,7 +198,7 @@ test("Guide and About are told apart by label and tooltip, and do different thin
 });
 
 test("New folder opens a dialog titled New folder; editing one says Edit folder", async ({ page }) => {
-  await openLibrary(page, { emptyFolder: true });
+  await openLibrary(page);
   await page.locator("#newFolderBtn").click();
   const dialog = page.locator(".folder-editor");
   const newTitle = await uiText(page, "library.newFolder");
@@ -206,7 +206,7 @@ test("New folder opens a dialog titled New folder; editing one says Edit folder"
   await expect(dialog).toHaveAttribute("aria-label", newTitle);
   await dialog.locator(".folder-editor-cancel").click();
 
-  await page.locator(`.folder[data-id="${EMPTY_FOLDER_ID}"] > .folder-head .f-name`).dblclick();
+  await page.locator('.folder[data-id="f-unsorted"] > .folder-head .f-name').dblclick();
   await expect(dialog.locator(".folder-editor-head > span")).toHaveText(await uiText(page, "folderEditor.title"));
 });
 
