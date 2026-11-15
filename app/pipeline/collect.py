@@ -28,6 +28,7 @@ from app.core.registry import set_proc
 from app.core.setlists import all_song_ids as setlists_all_song_ids
 from app.core.song_folder import holds_job_files, is_real_entry, job_dirs, quarantine_dirs
 from app.core.stem_files import holds_stem_audio, stem_path
+from app.core.takes import has_takes
 from app.pipeline.audio_stats import scan_stem
 from app.pipeline.lyrics_retime import RETIME_RUNS
 from app.pipeline.transcribe_on_demand import TRANSCRIBE_RUNS
@@ -382,6 +383,8 @@ def _keep_reason(
         return _NEWER_THAN_CUTOFF
     if job_dir.name in in_setlists:
         return "in a setlist"
+    if has_takes(job_dir):
+        return "has takes"
     if job is None:
         return _unregistered_keep_reason(job_dir)
     if job.status not in _TERMINAL:
@@ -436,8 +439,8 @@ def sweep_old_jobs(jobs_dir: Path, ttl_seconds: int | None = None) -> None:
     either, nor a song with a vocal split, lyrics timing or transcription
     running (upstream PR 862 and 998): only the user deletes those. Only StemDeck's own job
     folders are looked at, and one with no registry entry is kept while it holds a
-    source or stems (upstream PR 886 and 889). Every song
-    kept or removed is logged with the reason (_keep_reason)."""
+    source or stems (upstream PR 886 and 889). A song with recorded takes is
+    kept too. Every song kept or removed is logged with the reason (_keep_reason)."""
     cutoff = time.time() - (JOB_TTL_SECONDS if ttl_seconds is None else ttl_seconds)
     if not jobs_dir.is_dir():
         return
