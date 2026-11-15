@@ -42,7 +42,12 @@ def test_status_has_the_contract_shape(client):
     assert body["choices"][:2] == ["auto", "cpu"]
     assert VIDEO_CPU_ENCODER not in body["candidates"]
     assert body["disabled"] == [] and body["last_test"] is None
-    assert body["render_available"] is False
+
+
+@pytest.mark.parametrize("tools", [True, False])
+def test_render_available_follows_the_ffmpeg_tools(client, monkeypatch, tools):
+    monkeypatch.setattr(api, "render_tools_available", lambda: tools)
+    assert client.get(URL).json()["render_available"] is tools
 
 
 def test_status_reports_the_env_override(client, monkeypatch):

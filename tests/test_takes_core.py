@@ -182,7 +182,7 @@ def test_take_entry_carries_urls_and_timing():
     assert entry["round_trip_ms"] == 20.0
     assert entry["latency_source"] == "estimated"
     assert entry["user_nudge_ms"] == -4.0
-    assert "has_camera" not in entry
+    assert (entry["has_camera"], entry["camera_url"], entry["trim"]) == (False, None, None)
 
 
 def test_placement_folds_round_trip_and_nudge():

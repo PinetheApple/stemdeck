@@ -26,10 +26,13 @@ from fastapi.staticfiles import StaticFiles
 from app.api.jobs import (
     LYRICS_RUNNING_BLOCKS_MOVE,
     LYRICS_RUNNING_BLOCKS_RESET,
+    STEMS_FOLDER_MOVING_EDIT,
+    _refuse_while_relocating,
     lyrics_run_active,
     settle_pending_replacements,
 )
 from app.api.router import router
+from app.api.takes_video_runs import cancel_all_renders
 from app.core import lan_interfaces, tls_listener
 from app.core.compression import COMPRESS_LEVEL, MINIMUM_SIZE, TextGZipMiddleware
 from app.core.config import (
@@ -301,6 +304,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # blocked in asyncio.to_thread, which cannot be cancelled. This also makes
     # the runner keep the job the worker kill below interrupts, to resume.
     jobqueue.request_stop()
+    cancel_all_renders()
     idle_task.cancel()
     # Tear down the persistent demucs worker (#309) so a clean shutdown never
     # leaves it as an orphaned process -- it has no parent-death watchdog of
@@ -836,6 +840,8 @@ def reset_app_data() -> dict[str, object]:
     the caller's -- same blast radius as changing the compute device or any
     other setting from a device with network access, not a new class of
     risk this endpoint introduces on its own."""
+    # It deletes job folders the move may be copying.
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     active = [j for j in registry_all_jobs().values() if j.status in _ACTIVE_JOB_STATUSES]
     if active:
         raise HTTPException(status_code=409, detail="cannot reset while a job is in progress")

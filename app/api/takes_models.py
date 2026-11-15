@@ -8,6 +8,14 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
 
+from app.api.takes_video_models import (
+    CameraFinishModel,
+    CameraStartModel,
+    IPlay,
+    OffsetMs,
+    TrackKind,
+    TrimModel,
+)
 from app.core.takes_config import (
     CAPTURE_RATE_MAX,
     CAPTURE_RATE_MIN,
@@ -96,18 +104,23 @@ class CreateTakeBody(_Strict):
     timeline: TimelineModel
     latency: LatencyModel
     capture: CaptureModel
+    camera: CameraStartModel | None = None
 
 
 class FinishBody(_Strict):
     label: Label = None
     end_song_sec: float | None = _finite(TAKE_FRAME0_MIN_SEC, TAKE_FRAME0_MAX_SEC)
     dropped_quanta: int | None = Field(default=None, ge=0)
+    camera: CameraFinishModel | None = None
 
 
 class PatchTakeBody(_Strict):
     label: Label = None
     round_trip_ms: float | None = _finite(0, TAKE_ROUND_TRIP_MAX_MS)
     user_nudge_ms: float | None = _finite(-TAKE_NUDGE_MAX_MS, TAKE_NUDGE_MAX_MS)
+    # null clears the trim, so a field that was sent counts even when null.
+    trim: TrimModel | None = None
+    camera_offset_ms: OffsetMs | None = None
 
 
 class TrackInput(_Strict):
@@ -131,6 +144,8 @@ class TrackInput(_Strict):
 class CreateTrackBody(_Strict):
     name: Label = None
     input: TrackInput | None = None
+    kind: TrackKind | None = None
+    i_play: IPlay | None = None
 
 
 class PatchTrackBody(CreateTrackBody):
