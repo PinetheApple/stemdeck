@@ -3,12 +3,15 @@
 // Run:  node tests/js/stage-mix.test.mjs
 
 const noElement = () => null;
+const announced = [];
+globalThis.CustomEvent = class { constructor(type) { this.type = type; } };
 globalThis.window = { addEventListener() {}, matchMedia: () => ({ matches: false, addEventListener() {} }) };
 globalThis.document = {
   getElementById: noElement,
   querySelector: noElement,
   querySelectorAll: () => [],
   addEventListener() {},
+  dispatchEvent: (event) => announced.push(event.type),
   documentElement: { getAttribute: () => null },
   createElement: () => ({ style: {} }),
 };
@@ -21,6 +24,7 @@ const {
   isLaneSilenced,
   laneGainDbText,
   loadedLaneNames,
+  MIX_CHANGE_EVENT,
   setSilencedStems,
 } = await import('../../static/js/mixer.js');
 const { mixerState, setTrackIndex } = await import('../../static/js/state.js');
@@ -71,10 +75,13 @@ check('the soloed lane is heard', isLaneSilenced('bass'), false);
 mixOf({ drums: entry(), bass: entry(), piano: entry(false, true) });
 check('a solo on a lane the song lacks silences nothing', isLaneSilenced('drums'), false);
 mixOf({ drums: entry(), bass: entry(false, true) });
+announced.length = 0;
 setSilencedStems(['bass']);
+check('silencing announces a mix change, so Stage repaints', announced, [MIX_CHANGE_EVENT]);
 check('a silenced lane is silent even soloed', isLaneSilenced('bass'), true);
 check('a silenced lane\'s solo silences nothing else', isLaneSilenced('drums'), false);
 clearSilencedStems();
+check('clearing announces a mix change too', announced, [MIX_CHANGE_EVENT, MIX_CHANGE_EVENT]);
 check('cleared, the solo counts again', isLaneSilenced('drums'), true);
 
 check('silence reads -∞', laneGainDbText(0), '-∞');

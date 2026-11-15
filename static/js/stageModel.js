@@ -1,6 +1,9 @@
 // Stage mode's helpers: which stems get a strip, where sections sit, and text written only on change.
 
 export const PERCENT = 100;
+// As lyrics.js: a seek lands on a line's stamp, and the time read back can be a hair before it.
+export const LYRIC_LEAD_SEC = 0.05;
+export const GAP_LINE = "♪";
 
 /** The mixer's lanes, in lane order, that the song actually loaded: lanes kept for an absent stem get no strip. */
 export function stripStems(laneNames, loadedNames) {

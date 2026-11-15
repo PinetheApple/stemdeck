@@ -14,16 +14,22 @@ import { currentLineIndex } from "./lyricsLookup.js";
 import { refitFooter } from "./footerFit.js";
 import { initStageMixer, paintStageMixer, forgetStageMixer } from "./stageMixer.js";
 import { initStageOverview, paintStageOverview, paintStageSections, forgetStageOverview } from "./stageOverview.js";
-import { setTextOnce } from "./stageModel.js";
+import { GAP_LINE, LYRIC_LEAD_SEC, setTextOnce } from "./stageModel.js";
 import { DURATION_EVENT } from "./player.js";
+import {
+  forgetSingPainted,
+  initSingAlong,
+  isSingAlong,
+  paintSingFrame,
+  singSongChange,
+  singStageShown,
+} from "./stageSingAlong.js";
+import { closeSingPanel, singQueueSettles } from "./stageSingQueue.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $, fmtTime } from "./utils.js";
 
 const OPEN_MODAL = 'dialog[open], [role="dialog"][aria-modal="true"]';
-// As lyrics.js: a seek lands on a line's stamp, and the time read back can be a hair before it.
-const LYRIC_LEAD_SEC = 0.05;
-const GAP_LINE = "♪";
 
 let frameId = 0;
 let sections = [];
@@ -119,10 +125,12 @@ function paintFrame() {
   paintStageOverview(time, at);
   paintBeat(time);
   paintLyrics(time);
+  if (isSingAlong()) paintSingFrame(time);
 
   const playing = isPlaying();
   if (shown.playing !== playing) {
     shown.playing = playing;
+    if (playing) singQueueSettles();
     const play = $("stagePlayBtn");
     play?.classList.toggle("playing", playing);
     play?.setAttribute("aria-pressed", String(playing));
@@ -173,6 +181,7 @@ function forgetPainted() {
   sectionsKey = "";
   forgetStageOverview();
   forgetStageMixer();
+  forgetSingPainted();
 }
 
 function onTempoChange() {
@@ -209,6 +218,7 @@ export function setStageMode(on) {
   view.hidden = !on;
   $("stageModeBtn")?.setAttribute("aria-pressed", String(on));
   refitFooter();
+  singStageShown(on);
   if (on) {
     forgetPainted();
     paintSong();
@@ -238,7 +248,7 @@ function onStageKeydown(e) {
   if (e.code === "KeyF") {
     e.preventDefault();
     setStageMode(!isStageMode());
-  } else if (e.key === "Escape" && isStageMode()) {
+  } else if (e.key === "Escape" && isStageMode() && !closeSingPanel()) {
     setStageMode(false);
   }
 }
@@ -251,11 +261,16 @@ function onStageExitClick() {
   setStageMode(false);
 }
 
-function onSongChangeInStage() {
-  if (!isStageMode()) return;
+function redrawStage() {
   forgetPainted();
   paintSong();
   syncLoop();
+}
+
+function onSongChangeInStage() {
+  if (!isStageMode()) return;
+  singSongChange();
+  redrawStage();
 }
 
 function onUpNextChange(e) {
@@ -271,6 +286,7 @@ export function initStageMode() {
   $("stageNextBtn")?.addEventListener("click", playNextInUpNext);
   initStageMixer(isStageMode);
   initStageOverview(isStageMode);
+  initSingAlong({ showing: isStageMode, redraw: redrawStage, leaveStage: onStageExitClick });
   window.addEventListener("keydown", onStageKeydown);
   document.addEventListener("trackopen", onSongChangeInStage);
   document.addEventListener("tracktags", onSongChangeInStage);
