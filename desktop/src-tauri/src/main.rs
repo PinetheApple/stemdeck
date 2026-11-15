@@ -2129,28 +2129,13 @@ fn ensure_torch_device(
         let setup = match detect_gpu(detect_nvidia_gpu(&data_dir), amd) {
             // Found, but no build StemDeck installs can use it: say why, and
             // leave the bundled torch alone.
-            Some(DetectedGpu {
-                name,
-                backend,
-                version,
-                unusable: Some(reason),
-                ..
-            }) => GpuSetup {
-                gpu_detected: true,
-                gpu_name: Some(name),
-                backend: Some(backend.to_string()),
-                cuda_version: Some(version),
-                torch_device: "cpu".to_string(),
-                cuda_verified: false,
-                reason: reason.to_string(),
-            },
-            Some(DetectedGpu {
-                name: gpu_name,
-                backend,
-                version: cuda_version,
-                candidates,
-                unusable: None,
-            }) => {
+            Some(
+                gpu @ DetectedGpu {
+                    unusable: Some(reason),
+                    ..
+                },
+            ) => GpuSetup::from_detection(Some(&gpu), false, reason),
+            Some(gpu) => {
                 // Try each candidate wheel in turn. A build that installs but
                 // cannot launch a kernel is not a reason to give up on the GPU
                 // if another build might work -- that was the whole failure in
@@ -2172,10 +2157,10 @@ fn ensure_torch_device(
                 // works has nothing to install.
                 let already = verify_cuda_torch(&python) == CudaVerify::Verified;
                 if already {
-                    append_to_setup_log(&data_dir, "CUDA torch already installed and verified");
+                    append_to_setup_log(&data_dir, "GPU torch already installed and verified");
                     cuda_verified = true;
                 }
-                for tag in candidates.iter().filter(|_| !already) {
+                for tag in gpu.candidates.iter().filter(|_| !already) {
                     append_to_setup_log(
                         &data_dir,
                         &format!(
@@ -2204,7 +2189,7 @@ fn ensure_torch_device(
                         } else if let Err(e) = torchswap::discard_installed(site) {
                             append_to_setup_log(
                                 &data_dir,
-                                &format!("could not clear the previous CUDA build ({e})"),
+                                &format!("could not clear the previous GPU build ({e})"),
                             );
                         }
                     }
@@ -2265,25 +2250,9 @@ fn ensure_torch_device(
                         }
                     }
                 };
-                GpuSetup {
-                    gpu_detected: true,
-                    gpu_name: Some(gpu_name),
-                    backend: Some(backend.to_string()),
-                    cuda_version: Some(cuda_version),
-                    torch_device: if cuda_verified { "cuda" } else { "cpu" }.to_string(),
-                    cuda_verified,
-                    reason: reason.to_string(),
-                }
+                GpuSetup::from_detection(Some(&gpu), cuda_verified, reason)
             }
-            None => GpuSetup {
-                gpu_detected: false,
-                gpu_name: None,
-                backend: None,
-                cuda_version: None,
-                torch_device: "cpu".to_string(),
-                cuda_verified: false,
-                reason: "no-gpu-detected".to_string(),
-            },
+            None => GpuSetup::from_detection(None, false, "no-gpu-detected"),
         };
         // Persist device + reason. The setup gate only treats "cuda"/"mps" (or
         // cpu on a cpu-only package) as settled -- a CPU result born from a
@@ -2534,11 +2503,17 @@ fn parse_cuda_version(smi_output: &str) -> Option<String> {
 #[cfg(any(not(target_os = "macos"), test))]
 const GPU_BACKEND_CUDA: &str = "cuda";
 
-/// The ROCm wheel tag offered to AMD GPUs on Linux (#95). torch 2.8.0, like
-/// cu128, is the last line with torchaudio's soundfile backend, and rocm6.4
-/// the newest ROCm index that line is published on.
+/// The newest ROCm line torch 2.8.0, the last with torchaudio's soundfile
+/// backend, is published for.
+macro_rules! rocm_version {
+    () => {
+        "6.4"
+    };
+}
+#[cfg(any(target_os = "linux", test))]
+const ROCM_VERSION: &str = rocm_version!();
 #[cfg(any(not(target_os = "macos"), test))]
-const ROCM_TAG: &str = "rocm6.4";
+const ROCM_TAG: &str = concat!("rocm", rocm_version!());
 
 /// A GPU setup can install a torch build for.
 #[cfg(any(not(target_os = "macos"), test))]
@@ -2552,6 +2527,21 @@ struct DetectedGpu {
     candidates: Vec<&'static str>,
     /// Set when the GPU is there but no build can use it: the setup reason.
     unusable: Option<&'static str>,
+}
+
+#[cfg(any(not(target_os = "macos"), test))]
+impl GpuSetup {
+    fn from_detection(gpu: Option<&DetectedGpu>, cuda_verified: bool, reason: &str) -> Self {
+        GpuSetup {
+            gpu_detected: gpu.is_some(),
+            gpu_name: gpu.map(|g| g.name.clone()),
+            backend: gpu.map(|g| g.backend.to_string()),
+            cuda_version: gpu.map(|g| g.version.clone()),
+            torch_device: if cuda_verified { "cuda" } else { "cpu" }.to_string(),
+            cuda_verified,
+            reason: reason.to_string(),
+        }
+    }
 }
 
 /// The NVIDIA GPU nvidia-smi found, else the AMD one `amd` finds. AMD
@@ -2662,7 +2652,7 @@ fn wheel_candidates(compute_cap: Option<&str>, cuda_version: &str) -> Vec<&'stat
 /// because 2.7.1 shipped them incomplete (#239). 2.8.0 is also the last line
 /// that still carries torchaudio's soundfile backend, which is what demucs'
 /// `ta.save()` needs -- see `wheel_candidates` for why that rules out cu130.
-/// ROCm takes the same line (#95).
+/// ROCm takes the same line.
 #[cfg(any(not(target_os = "macos"), test))]
 fn torch_version_for_tag(tag: &str) -> &'static str {
     match tag {
@@ -3492,7 +3482,6 @@ fn verify_cuda_torch(python: &Path) -> CudaVerify {
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
     hide_console_window(&mut command);
-    // Verified on the GPU the backend will use, not whichever HIP numbers 0.
     #[cfg(target_os = "linux")]
     rocm::show_chosen_gpu(&mut command);
 
@@ -7695,7 +7684,7 @@ b6052160df96b31c9b1e33854a4dcda3d4b57641b880270f31736fb9f445d384  ffmpeg-n7.1-la
         assert!(!super::cuda_wheel_needs_runtime_deps(super::ROCM_TAG));
     }
 
-    // --- AMD GPUs through ROCm (#95) ---
+    // --- AMD GPUs through ROCm ---
 
     fn nvidia(cap: Option<&str>, driver: &str) -> Option<(String, String, Option<String>)> {
         Some((
@@ -7728,16 +7717,55 @@ b6052160df96b31c9b1e33854a4dcda3d4b57641b880270f31736fb9f445d384  ffmpeg-n7.1-la
         let amd = || {
             Some(super::DetectedGpu {
                 name: "AMD GPU (gfx1100)".to_string(),
-                backend: "rocm",
-                version: "6.4".to_string(),
+                backend: super::rocm::BACKEND,
+                version: super::ROCM_VERSION.to_string(),
                 candidates: vec![super::ROCM_TAG],
                 unusable: None,
             })
         };
         let gpu = super::detect_gpu(None, amd).unwrap();
-        assert_eq!(gpu.backend, "rocm");
+        assert_eq!(gpu.backend, super::rocm::BACKEND);
         assert_eq!(gpu.candidates, vec![super::ROCM_TAG]);
         assert!(super::detect_gpu(None, || None).is_none());
+    }
+
+    /// The setup result an NVIDIA GPU reports, field for field as before.
+    #[test]
+    fn a_setup_result_carries_what_detection_found() {
+        let nvidia = super::detect_gpu(nvidia(Some("8.9"), "12.4"), || None).unwrap();
+        let verified = super::GpuSetup::from_detection(Some(&nvidia), true, "verified");
+        assert_eq!(
+            serde_json::to_value(&verified).unwrap(),
+            serde_json::json!({
+                "gpuDetected": true,
+                "gpuName": "NVIDIA GeForce RTX 5070 Ti",
+                "backend": "cuda",
+                "cudaVersion": "12.4",
+                "torchDevice": "cuda",
+                "cudaVerified": true,
+                "reason": "verified",
+            })
+        );
+        let failed = super::GpuSetup::from_detection(Some(&nvidia), false, "cuda-verify-failed");
+        assert_eq!(failed.torch_device, "cpu");
+        let none = super::GpuSetup::from_detection(None, false, "no-gpu-detected");
+        assert_eq!(
+            serde_json::to_value(&none).unwrap(),
+            serde_json::json!({
+                "gpuDetected": false,
+                "gpuName": null,
+                "backend": null,
+                "cudaVersion": null,
+                "torchDevice": "cpu",
+                "cudaVerified": false,
+                "reason": "no-gpu-detected",
+            })
+        );
+    }
+
+    #[test]
+    fn rocm_tag_is_built_from_its_version() {
+        assert_eq!(super::ROCM_TAG, format!("rocm{}", super::ROCM_VERSION));
     }
 
     #[test]

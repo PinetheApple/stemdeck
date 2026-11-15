@@ -1,21 +1,12 @@
-//! Finding an AMD GPU the ROCm build of torch can drive, on Linux (#95).
-//!
-//! Detection reads the amdgpu driver's KFD topology in sysfs, the interface
-//! the ROCm runtime itself uses. It needs no ROCm install and runs nothing:
-//! the torch wheel carries the whole user-space runtime, so the kernel driver
-//! is all the machine has to provide. Everything is read relative to a root
-//! path ("/" outside tests) so a fake sysfs can stand in for it.
-//!
-//! Only consulted when nvidia-smi found no NVIDIA GPU. Both builds serve the
-//! GPU as torch's "cuda" device, so what follows detection (the candidate
-//! loop, the torch swap, its rollback and the CPU restore) is shared.
+//! Finding an AMD GPU the ROCm build of torch can drive, on Linux, through the
+//! amdgpu driver's KFD topology read relative to a root path.
 
 use std::fs;
 use std::path::Path;
 #[cfg(target_os = "linux")]
 use std::process::Command;
 
-use crate::{append_to_setup_log, DetectedGpu, ROCM_TAG};
+use crate::{append_to_setup_log, DetectedGpu, ROCM_TAG, ROCM_VERSION};
 
 /// What GpuSetup.backend says for an AMD GPU.
 pub const BACKEND: &str = "rocm";
@@ -26,9 +17,8 @@ pub const REASON_UNSUPPORTED: &str = "rocm-unsupported-gpu";
 /// node. Not settled: fixing the groups gets the GPU on the next launch.
 pub const REASON_NO_KFD_ACCESS: &str = "rocm-no-kfd-access";
 
-/// The gfx targets torch 2.8.0+rocm6.4 carries kernels for, as
-/// `torch.cuda.get_arch_list()` reports them on that build (upstream 8c0a4c2).
-/// A card outside the list would download several GB only to fail verification.
+/// What `torch.cuda.get_arch_list()` reports on torch 2.8.0+rocm6.4. A card
+/// outside it would download several GB only to fail verification.
 const GFX_TARGETS: &[&str] = &[
     "gfx900", "gfx906", "gfx908", "gfx90a", "gfx942", "gfx1030", "gfx1100", "gfx1101", "gfx1102",
     "gfx1200", "gfx1201",
@@ -37,15 +27,20 @@ const GFX_TARGETS: &[&str] = &[
 /// Where the amdgpu driver lists its KFD topology, relative to the root.
 pub const KFD_NODES: &str = "sys/class/kfd/kfd/topology/nodes";
 const KFD_DEVICE: &str = "dev/kfd";
+const KFD_PROPERTIES: &str = "properties";
+const KFD_GFX_TARGET_VERSION: &str = "gfx_target_version";
+const KFD_SIMD_COUNT: &str = "simd_count";
+const KFD_DEVICE_ID: &str = "device_id";
+const KFD_RENDER_MINOR: &str = "drm_render_minor";
 const RENDER_NODES: &str = "dev/dri";
 const DRM_CLASS: &str = "sys/class/drm";
 const RENDER_NODE_PREFIX: &str = "renderD";
+const DRM_DEVICE: &str = "device";
+const DRM_PRODUCT_NAME: &str = "product_name";
 const PCI_IDS: [&str; 2] = ["usr/share/hwdata/pci.ids", "usr/share/misc/pci.ids"];
 const AMD_PCI_VENDOR: &str = "1002 ";
 
-/// The variable that limits the ROCm runtime to the chosen GPU.
 const ROCR_VISIBLE_DEVICES: &str = "ROCR_VISIBLE_DEVICES";
-/// Every variable HIP reads to pick GPUs: a user who set one already chose.
 pub const VISIBLE_DEVICE_VARS: [&str; 3] = [
     ROCR_VISIBLE_DEVICES,
     "HIP_VISIBLE_DEVICES",
@@ -56,12 +51,8 @@ const GROUP_FIX: &str = "sudo usermod -aG render,video $USER";
 /// One GPU node of the KFD topology.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KfdGpu {
-    /// Its place among the GPU nodes, in node order: the order the ROCm
-    /// runtime enumerates GPUs in, so the index ROCR_VISIBLE_DEVICES takes.
     pub ordinal: usize,
     pub gfx: String,
-    /// Compute units times SIMDs per unit: a discrete card has many times an
-    /// integrated one's.
     pub simd_count: u32,
     pub device_id: u32,
     pub render_minor: u32,
@@ -94,14 +85,14 @@ fn kfd_field(properties: &str, key: &str) -> Option<u32> {
 /// One node's `properties` file, as a GPU. None for a CPU node, whose
 /// gfx_target_version is 0. `ordinal` is filled in by the caller.
 pub fn parse_kfd_node(properties: &str) -> Option<KfdGpu> {
-    let gfx = kfd_field(properties, "gfx_target_version").filter(|v| *v != 0)?;
+    let gfx = kfd_field(properties, KFD_GFX_TARGET_VERSION).filter(|v| *v != 0)?;
     let field = |key| kfd_field(properties, key).unwrap_or(0);
     Some(KfdGpu {
         ordinal: 0,
         gfx: gfx_target_name(gfx),
-        simd_count: field("simd_count"),
-        device_id: field("device_id"),
-        render_minor: field("drm_render_minor"),
+        simd_count: field(KFD_SIMD_COUNT),
+        device_id: field(KFD_DEVICE_ID),
+        render_minor: field(KFD_RENDER_MINOR),
     })
 }
 
@@ -115,7 +106,7 @@ pub fn kfd_gpus(root: &Path) -> Vec<KfdGpu> {
         .flatten()
         .filter_map(|entry| {
             let node = entry.file_name().to_str()?.parse().ok()?;
-            let properties = fs::read_to_string(entry.path().join("properties")).ok()?;
+            let properties = fs::read_to_string(entry.path().join(KFD_PROPERTIES)).ok()?;
             Some((node, properties))
         })
         .collect();
@@ -128,9 +119,8 @@ pub fn kfd_gpus(root: &Path) -> Vec<KfdGpu> {
         .collect()
 }
 
-/// A card the build has kernels for before one it has none for, then the one
-/// with the most SIMDs, then the first. A Ryzen's integrated GPU is often
-/// listed first and has no kernels; taking the first node left the card unused.
+/// Supported before unsupported, then most SIMDs: a Ryzen's integrated GPU is
+/// often listed first and has no kernels, which left the discrete card unused.
 pub fn choose(gpus: &[KfdGpu]) -> Option<&KfdGpu> {
     gpus.iter().max_by_key(|gpu| {
         (
@@ -141,17 +131,13 @@ pub fn choose(gpus: &[KfdGpu]) -> Option<&KfdGpu> {
     })
 }
 
-/// The ROCR_VISIBLE_DEVICES value that shows the runtime only the chosen GPU,
-/// or None when no AMD GPU has kernels in the build. Without it a second,
-/// unsupported GPU can become device 0, or stop HIP with hipErrorNoBinaryForGpu.
 pub fn visible_devices(root: &Path) -> Option<String> {
     choose(&kfd_gpus(root))
         .filter(|gpu| gpu.has_rocm_kernels())
         .map(|gpu| gpu.ordinal.to_string())
 }
 
-/// `visible_devices`, unless the user already chose GPUs through a variable
-/// HIP reads (`user_set`): adding ours would renumber the devices under theirs.
+// Adding ours on top of a user's own choice would renumber the devices under it.
 pub fn visible_devices_to_set(root: &Path, user_set: impl Fn(&str) -> bool) -> Option<String> {
     if VISIBLE_DEVICE_VARS.into_iter().any(user_set) {
         None
@@ -160,9 +146,6 @@ pub fn visible_devices_to_set(root: &Path, user_set: impl Fn(&str) -> bool) -> O
     }
 }
 
-/// Shows a torch process only the AMD GPU setup chose. Read off sysfs for each
-/// process, so a GPU added or removed later leaves no stale index. CUDA
-/// never reads the variable.
 #[cfg(target_os = "linux")]
 pub fn show_chosen_gpu(command: &mut Command) {
     let user_set = |name: &str| std::env::var_os(name).is_some();
@@ -171,9 +154,6 @@ pub fn show_chosen_gpu(command: &mut Command) {
     }
 }
 
-/// The product name for an AMD PCI device from a pci.ids database: the
-/// bracketed part of "7550  Navi 48 [Radeon RX 9070/9070 XT/9070 GRE]", or
-/// the whole entry when it has none.
 pub fn pci_ids_amd_name(pci_ids: &str, device_id: u32) -> Option<String> {
     let wanted = format!("{device_id:04x}");
     let mut in_amd = false;
@@ -203,14 +183,12 @@ fn bracketed_product(name: &str) -> &str {
     }
 }
 
-/// What setup.log and the setup screen call the GPU: the driver's product
-/// name, else the pci.ids entry, with the gfx target, which decides support.
 fn gpu_name(root: &Path, gpu: &KfdGpu) -> String {
     let device = root
         .join(DRM_CLASS)
         .join(format!("{RENDER_NODE_PREFIX}{}", gpu.render_minor))
-        .join("device");
-    fs::read_to_string(device.join("product_name"))
+        .join(DRM_DEVICE);
+    fs::read_to_string(device.join(DRM_PRODUCT_NAME))
         .ok()
         .map(|name| name.trim().to_string())
         .filter(|name| !name.is_empty())
@@ -252,8 +230,8 @@ fn unusable_reason(root: &Path, gpu: &KfdGpu, data_dir: &Path) -> Option<&'stati
     }
     if !has_device_access(root, gpu) {
         let msg = format!(
-            "cannot open /dev/kfd or the GPU's render node; add your user to the render and \
-             video groups ({GROUP_FIX}) and log in again"
+            "cannot open /{KFD_DEVICE} or the GPU's render node; add your user to the render \
+             and video groups ({GROUP_FIX}) and log in again"
         );
         append_to_setup_log(data_dir, &msg);
         return Some(REASON_NO_KFD_ACCESS);
@@ -264,7 +242,7 @@ fn unusable_reason(root: &Path, gpu: &KfdGpu, data_dir: &Path) -> Option<&'stati
 fn log_nodes(gpus: &[KfdGpu], data_dir: &Path) {
     for gpu in gpus {
         let msg = format!(
-            "KFD GPU {}: {}, {} SIMDs, PCI device {:04x}, renderD{}",
+            "KFD GPU {}: {}, {} SIMDs, PCI device {:04x}, {RENDER_NODE_PREFIX}{}",
             gpu.ordinal, gpu.gfx, gpu.simd_count, gpu.device_id, gpu.render_minor
         );
         append_to_setup_log(data_dir, &msg);
@@ -279,9 +257,10 @@ pub fn detect(root: &Path, data_dir: &Path) -> Option<DetectedGpu> {
     let gpu = choose(&gpus)?;
     let name = gpu_name(root, gpu);
     let msg = format!(
-        "AMD GPU chosen: {name}, KFD GPU {0}; torch processes get ROCR_VISIBLE_DEVICES={0} \
-         unless ROCR_, HIP_ or CUDA_VISIBLE_DEVICES is set",
-        gpu.ordinal
+        "AMD GPU chosen: {name}, KFD GPU {ordinal}; torch processes get \
+         {ROCR_VISIBLE_DEVICES}={ordinal} unless one of {user_vars} is set",
+        ordinal = gpu.ordinal,
+        user_vars = VISIBLE_DEVICE_VARS.join(", ")
     );
     append_to_setup_log(data_dir, &msg);
     let candidates = if gpu.has_rocm_kernels() {
@@ -292,7 +271,7 @@ pub fn detect(root: &Path, data_dir: &Path) -> Option<DetectedGpu> {
     Some(DetectedGpu {
         name,
         backend: BACKEND,
-        version: ROCM_TAG.trim_start_matches(BACKEND).to_string(),
+        version: ROCM_VERSION.to_string(),
         candidates,
         unusable: unusable_reason(root, gpu, data_dir),
     })

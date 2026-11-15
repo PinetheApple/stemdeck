@@ -256,20 +256,19 @@ fn no_kfd_topology_is_no_amd_gpu() {
     assert_eq!(visible_devices(root.path()), None);
 }
 
-/// The owner's machine: a Hawk Point iGPU (gfx1103, PCI 1002:1900) as KFD
-/// node 1 behind the CPU node, beside an NVIDIA RTX 5050.
-const HAWK_POINT_IGPU: u32 = 0x1900;
-const HAWK_POINT_GFX: u32 = 110003;
-const HAWK_POINT_SIMDS: u32 = 24;
+/// An unsupported AMD iGPU (gfx1103) as KFD node 1 behind the CPU node.
+const UNSUPPORTED_IGPU: u32 = 0x1900;
+const UNSUPPORTED_IGPU_GFX: u32 = 110003;
+const UNSUPPORTED_IGPU_SIMDS: u32 = 24;
 
-fn hawk_point_root() -> TempDir {
+fn unsupported_igpu_root() -> TempDir {
     fake_amd_root(
         &[
             KFD_CPU,
             &kfd_gpu(
-                HAWK_POINT_GFX,
-                HAWK_POINT_SIMDS,
-                HAWK_POINT_IGPU,
+                UNSUPPORTED_IGPU_GFX,
+                UNSUPPORTED_IGPU_SIMDS,
+                UNSUPPORTED_IGPU,
                 RENDER_MINOR,
             ),
         ],
@@ -278,8 +277,8 @@ fn hawk_point_root() -> TempDir {
 }
 
 #[test]
-fn a_hawk_point_igpu_alone_is_unsupported_and_not_offered_rocm() {
-    let root = hawk_point_root();
+fn an_unsupported_amd_igpu_alone_is_not_offered_rocm() {
+    let root = unsupported_igpu_root();
     let data = make_tmp();
     let gpu = detect(root.path(), data.path()).expect("found");
     assert_eq!(gpu.name, "AMD GPU (gfx1103)");
@@ -290,11 +289,11 @@ fn a_hawk_point_igpu_alone_is_unsupported_and_not_offered_rocm() {
 /// With the NVIDIA card present the iGPU is never looked at, and the backend
 /// is given no ROCR_VISIBLE_DEVICES, so the CUDA path sees what it always did.
 #[test]
-fn the_owners_nvidia_card_wins_and_the_hawk_point_igpu_is_left_alone() {
-    let root = hawk_point_root();
+fn hybrid_nvidia_dgpu_with_unsupported_amd_igpu_stays_on_cuda() {
+    let root = unsupported_igpu_root();
     let data = make_tmp();
     let nvidia = Some((
-        "NVIDIA GeForce RTX 5050".to_string(),
+        "NVIDIA GeForce RTX 5060".to_string(),
         "13.0".to_string(),
         Some("12.0".to_string()),
     ));
