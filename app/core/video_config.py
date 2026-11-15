@@ -4,6 +4,8 @@ encoder is used only after it passes a real test encode."""
 
 from __future__ import annotations
 
+import sys
+
 from app.core.config import _env_int
 
 LOGGER_NAME = "stemdeck.video_encoder"
@@ -19,6 +21,18 @@ VIDEO_GPU_ENCODERS = (NVENC, QSV, AMF, VAAPI, VIDEOTOOLBOX)
 POLICY_AUTO = "auto"
 POLICY_CPU = "cpu"
 VIDEO_ENCODER_CHOICES = (POLICY_AUTO, POLICY_CPU, *VIDEO_GPU_ENCODERS)
+
+OS_WINDOWS = "windows"
+OS_LINUX = "linux"
+OS_MACOS = "macos"
+
+# The GPU encoders worth a probe on each OS, in the order they are tried.
+CANDIDATES: dict[str, tuple[str, ...]] = {
+    OS_WINDOWS: (NVENC, QSV, AMF),
+    OS_LINUX: (NVENC, VAAPI, QSV),
+    OS_MACOS: (VIDEOTOOLBOX,),
+}
+# Unverified on real hardware: QSV, AMF, VideoToolbox and every Windows path.
 
 ENCODER_ENV = "STEMDECK_VIDEO_ENCODER"
 VAAPI_DEVICE_ENV = "STEMDECK_VAAPI_DEVICE"
@@ -108,3 +122,22 @@ def render_timeout_sec(duration_sec: float) -> float:
 def validate_timeout_sec(duration_sec: float) -> float:
     """The time limit of the full decode that checks a rendered file."""
     return max(TIMEOUT_VIDEO_VALIDATE_MIN, duration_sec * VIDEO_VALIDATE_SEC_PER_SEC)
+
+
+def os_key(platform: str | None = None) -> str:
+    plat = platform if platform is not None else sys.platform
+    if plat.startswith("win"):
+        return OS_WINDOWS
+    if plat == "darwin":
+        return OS_MACOS
+    return OS_LINUX
+
+
+def encoder_choices(platform: str | None = None) -> tuple[str, ...]:
+    """What Settings offers on this OS: Auto, CPU only, then each candidate."""
+    return (POLICY_AUTO, POLICY_CPU, *CANDIDATES[os_key(platform)])
+
+
+def normalise_choice(value: object) -> str:
+    """A choice as the setting and the env override compare it."""
+    return str(value).strip().lower()

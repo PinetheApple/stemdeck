@@ -7,7 +7,6 @@ from __future__ import annotations
 import logging
 import os
 import re
-import sys
 from pathlib import Path
 
 from app.core.video_config import (
@@ -26,6 +25,9 @@ from app.core.video_config import (
     NVENC_PRESET_OLD_FFMPEG,
     NVENC_RATE_CONTROL,
     NVENC_TUNE,
+    OS_LINUX,
+    OS_MACOS,
+    OS_WINDOWS,
     QSV,
     QSV_GLOBAL_QUALITY,
     QSV_PRESET,
@@ -42,21 +44,10 @@ from app.core.video_config import (
     VIDEO_X264_CRF,
     VIDEOTOOLBOX,
     VIDEOTOOLBOX_QUALITY,
+    os_key,
 )
 
 logger = logging.getLogger(LOGGER_NAME)
-
-OS_WINDOWS = "windows"
-OS_LINUX = "linux"
-OS_MACOS = "macos"
-
-# The GPU encoders worth a probe on each OS, in the order they are tried.
-CANDIDATES: dict[str, tuple[str, ...]] = {
-    OS_WINDOWS: (NVENC, QSV, AMF),
-    OS_LINUX: (NVENC, VAAPI, QSV),
-    OS_MACOS: (VIDEOTOOLBOX,),
-}
-# Unverified on real hardware: QSV, AMF, VideoToolbox and every Windows path.
 
 # Auto tries only these; the others run only when picked.
 AUTO: dict[str, tuple[str, ...]] = {
@@ -99,15 +90,6 @@ SYS_DRM_DIR = Path("/sys/class/drm")
 _RENDER_NODE_RE = re.compile(r"(?:/dev/dri/)?(renderD([0-9]+))")
 _PCI_ID_RE = re.compile(r"0x([0-9a-fA-F]{4})")
 _PCI_ID_READ_MAX = 32
-
-
-def os_key(platform: str | None = None) -> str:
-    plat = platform if platform is not None else sys.platform
-    if plat.startswith("win"):
-        return OS_WINDOWS
-    if plat == "darwin":
-        return OS_MACOS
-    return OS_LINUX
 
 
 def max_bitrate_kbps(width: int, height: int, fps: int) -> int:

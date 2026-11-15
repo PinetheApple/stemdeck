@@ -6,12 +6,13 @@ from __future__ import annotations
 
 import os
 import subprocess
+import threading
 from pathlib import Path
 
 import pytest
 
 from app.core.config import ffmpeg_executable
-from app.core.video_config import ENCODER_ENV, NVENC, QSV, VAAPI, VIDEO_CPU_ENCODER
+from app.core.video_config import ENCODER_ENV, NVENC, QSV, VAAPI, VIDEO_CPU_ENCODER, encoder_choices
 from app.pipeline import video_encoder
 from app.pipeline.video_encoder import Choice, EncodeError, EncodeJob, choose, encode
 from app.pipeline.video_encoder_args import libx264_args
@@ -61,6 +62,17 @@ def test_env_cpu_wins_over_a_picked_encoder(monkeypatch):
     assert asked == []
 
 
+def test_a_bad_env_value_is_logged_once(monkeypatch, caplog):
+    monkeypatch.setattr(video_encoder, "_warned_env_values", set())
+    monkeypatch.setenv(ENCODER_ENV, "h264_vulkan")
+    for _ in range(3):
+        assert video_encoder.encoder_override() is None
+    monkeypatch.setenv(ENCODER_ENV, "gpu")
+    video_encoder.encoder_override()
+    warned = [r.getMessage() for r in caplog.records if ENCODER_ENV in r.getMessage()]
+    assert len(warned) == 2 and "h264_vulkan" in warned[0] and "gpu" in warned[1]
+
+
 def test_env_can_pick_an_encoder_and_a_bad_value_is_ignored(monkeypatch):
     monkeypatch.setenv(ENCODER_ENV, "h264_nvenc")
     assert video_encoder.policy("cpu") == NVENC
@@ -84,22 +96,47 @@ def test_auto_on_linux_never_tries_vaapi_or_qsv(monkeypatch):
     assert asked == [(NVENC, "")]
 
 
-def test_an_encode_in_progress_is_visible(monkeypatch, tmp_path):
-    seen: list[bool] = []
+def test_an_encoder_test_is_refused_while_an_export_encodes(tmp_path):
+    refused: list[bool] = []
     runs = _FakeRuns(tmp_path / "out.mp4")
 
     def run(cmd, timeout, stall):
-        seen.append(video_encoder.encode_running())
+        refused.append(not video_encoder.try_begin_test())
         runs.run(cmd, timeout, stall)
 
-    assert not video_encoder.encode_running()
     encode(EncodeJob(runs.dest, 1280, 720, 30, 60.0, runs.build, run), "cpu")
-    assert seen == [True] and not video_encoder.encode_running()
+    assert refused == [True]
+    assert video_encoder.try_begin_test()
+    video_encoder.end_test()
+
+
+def test_an_export_waits_for_a_running_encoder_test(tmp_path):
+    runs = _FakeRuns(tmp_path / "out.mp4")
+    assert video_encoder.try_begin_test()
+    worker = threading.Thread(target=encode, args=(_job(runs), "cpu"))
+    worker.start()
+    worker.join(timeout=0.6)
+    assert worker.is_alive() and runs.encoders == []
+    assert not video_encoder.try_begin_test()
+    video_encoder.end_test()
+    worker.join(timeout=5)
+    assert not worker.is_alive() and runs.encoders == [VIDEO_CPU_ENCODER]
+
+
+def test_an_export_waiting_for_an_encoder_test_can_be_cancelled(tmp_path):
+    runs = _FakeRuns(tmp_path / "out.mp4")
+    assert video_encoder.try_begin_test()
+    try:
+        with pytest.raises(EncodeError) as caught:
+            encode(_job(runs), "cpu", cancelled=lambda: True)
+    finally:
+        video_encoder.end_test()
+    assert caught.value.code == STOP_CANCELLED and runs.encoders == []
 
 
 def test_the_choices_offered_are_this_oss():
-    assert video_encoder.encoder_choices("linux") == ("auto", "cpu", NVENC, VAAPI, QSV)
-    assert video_encoder.encoder_choices("darwin") == ("auto", "cpu", "h264_videotoolbox")
+    assert encoder_choices("linux") == ("auto", "cpu", NVENC, VAAPI, QSV)
+    assert encoder_choices("darwin") == ("auto", "cpu", "h264_videotoolbox")
 
 
 def test_auto_on_windows_takes_nvenc_when_it_passes(monkeypatch):

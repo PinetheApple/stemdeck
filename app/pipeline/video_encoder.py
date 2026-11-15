@@ -13,15 +13,18 @@ import logging
 import os
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
 from app.core.video_config import (
+    CANDIDATES,
     ENCODER_ENV,
     LOGGER_NAME,
     POLICY_AUTO,
     POLICY_CPU,
+    PROBE_LOCK_POLL_SEC,
     TEST_GEOMETRIES,
     TIMEOUT_VIDEO_GPU_STALL,
     VAAPI,
@@ -30,9 +33,11 @@ from app.core.video_config import (
     VIDEO_ENCODER_MAX_FAILURES,
     VIDEO_ENCODER_TEST_BUDGET_SEC,
     VIDEO_GPU_ENCODERS,
+    normalise_choice,
+    os_key,
     render_timeout_sec,
 )
-from app.pipeline.video_encoder_args import AUTO, CANDIDATES, FAMILY, os_key, render_nodes
+from app.pipeline.video_encoder_args import AUTO, FAMILY, render_nodes
 from app.pipeline.video_probe import (
     INVALID_PREFIX,
     REASON_NO_DEVICE,
@@ -55,6 +60,9 @@ REASON_BUDGET = "budget"
 _CANCEL_CODES = (STOP_CANCELLED, INVALID_PREFIX + STOP_CANCELLED)
 
 _active_encodes = 0
+_testing = False
+_gate = threading.Condition()
+_warned_env_values: set[str] = set()
 _failures: dict[tuple[str, str], int] = {}
 _off: set[tuple[str, str]] = set()
 _state_lock = threading.Lock()
@@ -106,9 +114,13 @@ class EncodeOutcome:
 
 def encoder_override() -> str | None:
     """STEMDECK_VIDEO_ENCODER when it names a choice, else None."""
-    raw = os.environ.get(ENCODER_ENV, "").strip().lower()
+    raw = normalise_choice(os.environ.get(ENCODER_ENV, ""))
     if raw and raw not in VIDEO_ENCODER_CHOICES:
-        logger.warning("%s=%r is not one of %s; ignored", ENCODER_ENV, raw, VIDEO_ENCODER_CHOICES)
+        if raw not in _warned_env_values:
+            _warned_env_values.add(raw)
+            logger.warning(
+                "%s=%r is not one of %s; ignored", ENCODER_ENV, raw, VIDEO_ENCODER_CHOICES
+            )
         return None
     return raw or None
 
@@ -121,21 +133,41 @@ def policy(setting: str = POLICY_AUTO) -> str:
     return setting if setting in VIDEO_ENCODER_CHOICES else POLICY_AUTO
 
 
-def encoder_choices(platform: str | None = None) -> tuple[str, ...]:
-    """What Settings offers on this OS: Auto, CPU only, then each candidate."""
-    return (POLICY_AUTO, POLICY_CPU, *CANDIDATES[os_key(platform)])
+def try_begin_test() -> bool:
+    """Start an encoder test unless one runs or an export is encoding: both
+    would compete for the same device. Pair with end_test()."""
+    global _testing
+    with _gate:
+        if _testing or _active_encodes:
+            return False
+        _testing = True
+        return True
 
 
-def encode_running() -> bool:
-    """Whether a render is encoding now, so the Settings test stays off the GPU."""
-    with _state_lock:
-        return _active_encodes > 0
+def end_test() -> None:
+    global _testing
+    with _gate:
+        _testing = False
+        _gate.notify_all()
 
 
-def _count_encode(step: int) -> None:
+@contextmanager
+def encoding(cancelled: Callable[[], bool] = never) -> Iterator[None]:
+    """Hold an export's place: waits for a running encoder test to end, and
+    raises EncodeError("cancelled") on a cancel meanwhile."""
     global _active_encodes
-    with _state_lock:
-        _active_encodes += step
+    with _gate:
+        while _testing:
+            if cancelled():
+                raise EncodeError(STOP_CANCELLED)
+            _gate.wait(timeout=PROBE_LOCK_POLL_SEC)
+        _active_encodes += 1
+    try:
+        yield
+    finally:
+        with _gate:
+            _active_encodes -= 1
+            _gate.notify_all()
 
 
 def _state_key(encoder: str, device: str) -> tuple[str, str]:
@@ -174,9 +206,13 @@ def disabled(platform: str | None = None) -> list[str]:
 
 
 def reset_state() -> None:
+    global _testing, _active_encodes
     with _state_lock:
         _failures.clear()
         _off.clear()
+    with _gate:
+        _testing = False
+        _active_encodes = 0
 
 
 def _probe_vaapi(
@@ -293,11 +329,8 @@ def encode(
     """Render `job` on the chosen encoder, redone on libx264 when a GPU attempt
     fails or its file fails the check. EncodeError from the CPU run (or any
     cancel) goes to the caller. Blocking."""
-    _count_encode(1)
-    try:
+    with encoding(cancelled):
         return _encode(job, setting, cancelled)
-    finally:
-        _count_encode(-1)
 
 
 def _encode(job: EncodeJob, setting: str, cancelled: Callable[[], bool]) -> EncodeOutcome:

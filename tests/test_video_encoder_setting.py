@@ -7,7 +7,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core import settings
-from app.core.video_config import ENCODER_ENV, NVENC, POLICY_AUTO, POLICY_CPU
+from app.core.video_config import (
+    ENCODER_ENV,
+    NVENC,
+    POLICY_AUTO,
+    POLICY_CPU,
+    VIDEO_GPU_ENCODERS,
+    encoder_choices,
+)
 
 
 @pytest.fixture
@@ -53,3 +60,15 @@ def test_a_bad_value_is_a_422_and_changes_nothing(client):
 def test_the_env_override_is_reported(client, monkeypatch):
     monkeypatch.setenv(ENCODER_ENV, "cpu")
     assert client.get("/api/settings").json()["video_encoder_env"] == POLICY_CPU
+
+
+def test_an_encoder_this_os_does_not_offer_is_a_422(client):
+    off_platform = next(e for e in VIDEO_GPU_ENCODERS if e not in encoder_choices())
+    r = client.post("/api/settings", json={"video_encoder": off_platform})
+    assert r.status_code == 422
+    assert client.get("/api/settings").json()["video_encoder"] == POLICY_AUTO
+
+
+def test_the_choice_is_normalised_like_the_env_override(client):
+    assert client.post("/api/settings", json={"video_encoder": " CPU "}).status_code == 200
+    assert client.get("/api/settings").json()["video_encoder"] == POLICY_CPU

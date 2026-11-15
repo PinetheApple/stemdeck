@@ -122,9 +122,10 @@ from app.core.stems_location import (
     remove_moved,
     validate_target,
 )
+from app.core.video_config import encoder_choices
 from app.pipeline.collect import sweep_crash_leftovers, sweep_failed_jobs, sweep_old_jobs
 from app.pipeline.sections import sweep_orphaned_workspaces as sweep_orphaned_section_workspaces
-from app.pipeline.video_encoder import encoder_choices, encoder_override
+from app.pipeline.video_encoder import encoder_override
 
 # Set the stemdeck logger level (Python's default root level of WARNING would
 # silently drop every logger.info(...) call) and attach the rotating file log
