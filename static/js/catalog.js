@@ -25,6 +25,7 @@ import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
 import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
 import { isModalOpen } from "./stageMode.js";
+import { queueUpNext } from "./upNext.js";
 import { KEYBOARD_FOCUS, ON_ROW, OUT_OF_TAB_ORDER, ROW_KEY, ROW_PLAY_CLASS, isShown, wireRovingRows } from "./rovingRows.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
@@ -38,6 +39,7 @@ import {
   replacementOutcome, serverTrashMoves, soleSourceMatch,
 } from "./librarySync.js";
 import { t as i18nT, plural as i18nPlural, LANGUAGES, getLanguage, setLanguage, onLanguageChange, applyTranslations } from "./i18n.js";
+import { applyNetworkSwitch, networkSwitchOn } from "./networkRestart.js";
 
 // Escape user-supplied strings before inserting into innerHTML.
 function esc(s) {
@@ -1936,11 +1938,10 @@ function upNextButtonHtml(track) {
   return `<button class="cat-upnext" type="button" title="${esc(i18nT("upNext.add"))}" aria-label="${esc(label)}">${icon("listPlus")}</button>`;
 }
 
-// Queued by event rather than by import: upNext.js imports this module.
 function wireUpNextButton(el, trackId) {
   el.querySelector(".cat-upnext")?.addEventListener("click", function onAddToUpNext(e) {
     e.stopPropagation();
-    document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id: trackId } }));
+    queueUpNext(trackId);
   });
 }
 
@@ -4825,11 +4826,8 @@ function renderLibraryRows(tbody) {
   }
 }
 
-// "Make StemDeck available on your network" toggle. The backend always binds
-// all interfaces and gates LAN access on a runtime flag (GET/POST /api/settings)
-// — so this works live, no restart, identically in the desktop app and the
-// self-hosted server. Loopback is always allowed, so the owner can't lock
-// themselves out of this control.
+// Loopback is always allowed, so the owner can't lock themselves out. On
+// desktop a change restarts the backend (see networkRestart.js).
 function networkSettingsHtml() {
   return `
     <div class="settings-section">
@@ -5582,7 +5580,7 @@ async function wireNetworkSetting(overlay) {
     const r = await fetch("/api/settings", { cache: "no-store" });
     if (r.ok) {
       const data = await r.json();
-      enabled = data.allow_network === true;
+      enabled = networkSwitchOn(data);
       addressEntries = Array.isArray(data.network_addresses)
         ? data.network_addresses
         : (Array.isArray(data.lan_addresses) ? data.lan_addresses : [])
@@ -5660,26 +5658,15 @@ async function wireNetworkSetting(overlay) {
   const refresh = () => netWrap?.classList.toggle("hidden", !input.checked);
   refresh();
 
-  input.addEventListener("change", async () => {
-    const want = input.checked;
-    input.disabled = true;
-    try {
-      const r = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ allow_network: want }),
-      });
-      input.checked = r.ok ? (await r.json()).allow_network === true : !want;
-    } catch {
-      input.checked = !want; // revert on failure
-    } finally {
-      input.disabled = false;
-      refresh();
-    }
-  });
+  // Only ever fires on desktop: in server mode the switch is disabled.
+  async function onNetworkSwitchChange() {
+    await applyNetworkSwitch(input);
+    refresh();
+  }
+  input.addEventListener("change", onNetworkSwitchChange);
 }
 
-const JSON_MEDIA_TYPE = "application/json";
+export const JSON_MEDIA_TYPE = "application/json";
 const LIBRARY_FILE_PREFIX = "stemdeck-library-";
 const LOGS_FILE_PREFIX = "stemdeck-logs-";
 

@@ -5,6 +5,7 @@
 import { libraryArtist } from "./trackBand.js";
 import { FILE_SOURCE, keptForAnotherSong, toServerKept } from "./lyricsLookup.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
+import { isFolderMoving } from "./folderMoving.js";
 
 const HTTP_OK_MIN = 200;
 const HTTP_OK_END = 300;
@@ -12,6 +13,9 @@ const HTTP_SERVER_ERROR = 500;
 // A job that ended without its stems is never ready for lyrics. "stopped" is
 // not here: Extract runs a trashed job again.
 const NEVER_READY_STATUSES = new Set(["error", "cancelled"]);
+const SETTLED = "settled";
+const LATER = "later";
+const FOLDER_MOVING = "folderMoving";
 
 export const lyricsStoreKey = (trackId) => `stemdeck.lyrics.${trackId}`;
 
@@ -56,27 +60,35 @@ const succeeded = (status) => status >= HTTP_OK_MIN && status < HTTP_OK_END;
 async function carryOverTrack(state, { read, drop, send, carried }) {
   const trackId = state.job_id;
   const saved = await read(trackId);
-  if (saved == null) return true;
+  if (saved == null) return SETTLED;
   const request = carryOverRequest(saved, state);
   if (request) {
-    const status = await send(trackId, request);
-    if (retryLater(status, state.status)) return false;
+    const answer = await send(trackId, request);
+    const status = answer?.status ?? null;
+    if (isFolderMoving(status, answer?.data)) return FOLDER_MOVING;
+    if (retryLater(status, state.status)) return LATER;
     if (succeeded(status)) carried(trackId);
   }
   await drop(trackId);
-  return true;
+  return SETTLED;
 }
 
 /**
  * Carry each job's browser entry over, one at a time; true once none is left
  * for a later boot. `read(trackId)` the entry or null; `send(trackId, request)`
- * the HTTP status, null when the server cannot be reached; `drop(trackId)`
- * forgets the entry; `carried(trackId)` follows a request the server took.
+ * the answer { status, data }, null when the server cannot be reached;
+ * `drop(trackId)` forgets the entry; `carried(trackId)` follows a request the
+ * server took; `folderMoving()` says the rest waits until StemData has moved.
  */
 export async function carryOverLyrics(jobs, deps) {
   let finished = true;
   for (const state of jobs) {
-    if (!(await carryOverTrack(state, deps))) finished = false;
+    const outcome = await carryOverTrack(state, deps);
+    if (outcome === FOLDER_MOVING) {
+      deps.folderMoving?.();
+      return false;
+    }
+    if (outcome === LATER) finished = false;
   }
   return finished;
 }
