@@ -13,7 +13,6 @@ const RECORD_MS = 1500;
 const SLOW_SPEED = "0.75x";
 const PART_FRAMES = 4800;
 const MONO_FLOAT_BYTES = 4;
-const WORKLET_BATCH_FRAMES = 2048;
 const HTTP_CONFLICT = 409;
 const HTTP_NOT_FOUND = 404;
 const MS_PER_SEC = 1000;
@@ -36,6 +35,24 @@ const FAST_PATH_MAX_MS = 100;
 
 const recordBtn = (page) => page.locator("#t-rec");
 const trackRow = (page) => page.locator(".rec-row").first();
+
+// The frame count recorderWorklet.js reports on "stopped": everything it captured, tail included.
+function spyOnCapturedFrames(page) {
+  return page.addInitScript(function installCaptureSpy() {
+    const Native = window.AudioWorkletNode;
+    window.__e2e = { capturedFrames: null };
+    window.AudioWorkletNode = class extends Native {
+      constructor(ctx, name, options) {
+        super(ctx, name, options);
+        this.port.addEventListener("message", function onWorkletMessage({ data }) {
+          if (data.type === "stopped") window.__e2e.capturedFrames = data.frames;
+        });
+      }
+    };
+  });
+}
+
+const capturedFrames = (page) => page.evaluate(() => window.__e2e.capturedFrames);
 
 async function listing(request, jobId = JOB_ID) {
   return (await request.get(`/api/jobs/${jobId}/takes`)).json();
@@ -173,6 +190,7 @@ test("arm, record, stop, then keep or delete the take", async ({ page, request }
 });
 
 test("a song switch mid-take finishes the take on its own song", async ({ page, request }) => {
+  await spyOnCapturedFrames(page);
   await openStudio(page);
   await addArmedTrack(page);
   await recordBtn(page).click();
@@ -184,9 +202,8 @@ test("a song switch mid-take finishes the take on its own song", async ({ page, 
   await expect(page.locator(".rec-notice")).toBeVisible({ timeout: 15000 });
   await expect.poll(async () => (await listing(request)).takes.length, { timeout: 15000 }).toBe(1);
   expect((await listing(request)).open).toHaveLength(0);
-  // Whole worklet batches only would mean the tail captured before the switch was lost.
   const frames = Math.round((await listing(request)).takes[0].duration_sec * rate);
-  expect(frames % WORKLET_BATCH_FRAMES).not.toBe(0);
+  expect(frames).toBe(await capturedFrames(page));
   expect((await listing(request, SIBLING_JOB_ID)).takes).toHaveLength(0);
   await expect(page.locator(".rec-row")).toHaveCount(0);
 });
@@ -197,6 +214,7 @@ async function acceptImport(route) {
 }
 
 test("an import started mid-take finishes the take first, tail included", async ({ page, request }) => {
+  await spyOnCapturedFrames(page);
   await openStudio(page);
   await addArmedTrack(page);
   await recordBtn(page).click();
@@ -209,7 +227,7 @@ test("an import started mid-take finishes the take first, tail included", async 
   await expect.poll(async () => (await listing(request)).takes.length, { timeout: 15000 }).toBe(1);
   expect((await listing(request)).open).toHaveLength(0);
   const frames = Math.round((await listing(request)).takes[0].duration_sec * rate);
-  expect(frames % WORKLET_BATCH_FRAMES).not.toBe(0);
+  expect(frames).toBe(await capturedFrames(page));
 });
 
 test("a reload brings the track and its take back", async ({ page, request }) => {
