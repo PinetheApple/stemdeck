@@ -208,19 +208,6 @@
   border-color: rgba(255,255,255,0.86);
 }
 
-.folder-head .f-del {
-  width: 18px; height: 18px;
-  border: none; background: transparent;
-  color: var(--ink-faint);
-  cursor: pointer;
-  opacity: 0;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 4px;
-  padding: 0;
-}
-.folder-head:hover .f-del { opacity: 1; }
-.folder-head .f-del:hover { background: rgba(21,31,39,0.8); color: var(--danger); }
-
 .folder-editor-backdrop {
   position: fixed;
   inset: 0;
