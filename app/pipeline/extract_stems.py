@@ -1,4 +1,4 @@
-"""Extracting the stems a finished song is missing (#175), for POST
+"""Extracting the stems a finished song is missing, for POST
 .../versions/extract.
 
 The song's kept audio is separated again behind the pipeline lock, as a run of
@@ -256,7 +256,10 @@ def extract_now(
     try:
         work.mkdir()
         audio = _audio(run, source, work)
+        if cancelled():
+            raise JobCancelled()
         run.phase = PHASE_SEPARATING
+        _set(run.scratch, progress=0.0)
         stems_root = _separate_missing(run, audio, work)
         run.phase = PHASE_FINISHING
         with metadata_lock:

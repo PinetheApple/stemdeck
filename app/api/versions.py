@@ -130,6 +130,11 @@ def _room_for_one_more(versions: list[dict[str, Any]]) -> None:
         raise HTTPException(status_code=409, detail=TOO_MANY_VERSIONS)
 
 
+def _no_room_for(versions: list[dict[str, Any]], wanted: list[str]) -> bool:
+    """True when no version shows `wanted` and none can be added."""
+    return find_by_stems(versions, wanted) is None and not _has_room(versions)
+
+
 def _payload(job: Job) -> dict[str, Any]:
     versions = versions_of(job)
     return {
@@ -151,8 +156,10 @@ def _save(
 
 @router.get("/{job_id}/versions")
 def list_versions(job_id: str) -> dict:
-    """The song's versions and the one that opens with it, in any status."""
-    return _payload(_song(job_id))
+    """The song's versions and the one that opens with it, in any status, and
+    the known stems with no file on disk, which extracting would separate."""
+    job = _song(job_id)
+    return {**_payload(job), "missing_files": missing_stems(_stems_dir(job), list(STEM_NAMES))}
 
 
 @router.post("/{job_id}/versions/{version_id}/open")
@@ -208,14 +215,23 @@ def _find_or_make(
     return version, True
 
 
+def _open_found(
+    job: Job,
+    versions: list[dict[str, Any]],
+    version: dict[str, Any],
+    created: bool,
+) -> None:
+    _save(job, versions if created else job.versions, version["id"])
+
+
 def _open_extracted(job: Job, wanted: list[str], name: str) -> str:
     """Open the version showing `wanted` once its stems are in, saving the
     song's new stem URLs with it."""
     versions = versions_of(job)
-    if find_by_stems(versions, wanted) is None and not _has_room(versions):
+    if _no_room_for(versions, wanted):
         raise ExtractFailed(TOO_MANY_VERSIONS, EXTRACT_FAILED_TOO_MANY_VERSIONS)
     version, created = _find_or_make(versions, wanted, name)
-    _save(job, versions if created else job.versions, version["id"])
+    _open_found(job, versions, version, created)
     return version["id"]
 
 
@@ -227,7 +243,7 @@ def _extract_in_place(
 ) -> tuple[dict, int]:
     version, created = _find_or_make(versions, wanted, name)
     if created or version["id"] != open_version_of(job, versions):
-        _save(job, versions if created else job.versions, version["id"])
+        _open_found(job, versions, version, created)
     status = 201 if created else 200
     return {"version": version, "created": created, **_payload(job)}, status
 
@@ -243,8 +259,8 @@ def _start_extract(
     missing: list[str],
     name: str,
 ) -> tuple[dict, int, Coroutine[None, None, None]]:
-    if find_by_stems(versions, wanted) is None:
-        _room_for_one_more(versions)
+    if _no_room_for(versions, wanted):
+        raise HTTPException(status_code=409, detail=TOO_MANY_VERSIONS)
     if is_relocating():
         raise HTTPException(status_code=409, detail=STEMS_FOLDER_MOVING_IMPORT)
     source = _retained_source(job.id) or link_of(job)

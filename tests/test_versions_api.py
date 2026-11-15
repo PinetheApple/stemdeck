@@ -107,6 +107,16 @@ def test_a_legacy_song_reads_as_one_original_and_reading_writes_nothing(client):
     assert not registry_path(cfg.JOBS_DIR).exists()
 
 
+def test_listing_names_the_stems_without_a_file(client):
+    _done()
+    (_stems_dir() / "guitar.wav").unlink()
+    (_stems_dir() / "piano.wav").unlink()
+    (_stems_dir() / "piano.mp3").write_bytes(b"ID3")
+    (_stems_dir() / ".mp3-stems").write_text("", encoding="utf-8")
+
+    assert client.get(BASE).json()["missing_files"] == ["guitar"]
+
+
 def test_a_song_in_any_status_can_be_listed(client):
     _done(status="separating")
     assert client.get(BASE).status_code == 200

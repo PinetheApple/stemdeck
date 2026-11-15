@@ -44,14 +44,16 @@ DEAD_LINK = "ERROR: [youtube] aaaaaaaaaaa: Video unavailable. This video has bee
 
 
 class RecordingSeparator(FakeSeparator):
-    """FakeSeparator, remembering the audio it was given."""
+    """FakeSeparator, remembering the audio and the progress it was given."""
 
     def __init__(self) -> None:
         super().__init__()
         self.sources: list[Path] = []
+        self.progress_at_start: list[float] = []
 
     def __call__(self, job: Job, source: Path, job_dir: Path) -> Path:
         self.sources.append(source)
+        self.progress_at_start.append(job.progress)
         return super().__call__(job, source, job_dir)
 
 
@@ -61,6 +63,7 @@ class FakeDownloader:
 
     def __init__(self, error: Exception | None = None):
         self.error = error
+        self.heeds_cancel = True
         self.release = threading.Event()
         self.started = threading.Event()
         self.calls: list[tuple[Job, str, Path]] = []
@@ -72,7 +75,7 @@ class FakeDownloader:
         _set(job, status=DOWNLOADER_STATUS, progress=DOWNLOAD_PROGRESS)
         self.started.set()
         while not self.release.wait(POLL_SEC):
-            if job.cancel_requested:
+            if self.heeds_cancel and job.cancel_requested:
                 raise JobCancelled()
         if self.error is not None:
             raise self.error
@@ -154,6 +157,7 @@ def test_a_dead_link_fails_with_its_cause_and_leaves_the_song(client, monkeypatc
     view = wait_ended(client)
 
     assert view["state"] == FAILED
+    assert view["phase"] == ex_mod.PHASE_DOWNLOADING
     assert view["error"] == CAUSE_SOURCE_UNAVAILABLE
     assert separator.jobs == []
     assert song_folder() == before
@@ -174,6 +178,37 @@ def test_cancel_during_the_download_stops_it_and_leaves_nothing(client, monkeypa
     assert snapshot() == before
     assert temps() == []
     assert (job.status, job.versions) == (STATUS_DONE, None)
+
+
+def test_a_cancel_landing_as_the_download_ends_never_separates(client, monkeypatch, fetcher):  # noqa: F811
+    job = link_song("guitar")
+    before = snapshot()
+    separator = stub(monkeypatch, FakeSeparator())
+    separator.release.set()
+    fetcher.heeds_cancel = False
+    extract(client)
+    assert fetcher.started.wait(WAIT_SEC)
+    assert client.post(CANCEL).status_code == 200
+
+    fetcher.release.set()
+
+    assert wait_ended(client)["state"] == CANCELLED
+    assert separator.jobs == []
+    assert snapshot() == before
+    assert temps() == []
+    assert (job.status, job.versions) == (STATUS_DONE, None)
+
+
+def test_separating_starts_from_zero_progress_after_the_download(client, monkeypatch, fetcher):  # noqa: F811
+    link_song("guitar")
+    separator = stub(monkeypatch, RecordingSeparator())
+    extract(client)
+    fetcher.release.set()
+    assert separator.started.wait(WAIT_SEC)
+    separator.release.set()
+
+    assert wait_ended(client)["state"] == DONE
+    assert separator.progress_at_start == [0.0]
 
 
 def test_an_upload_without_its_audio_is_still_refused(client, monkeypatch, fetcher):  # noqa: F811
