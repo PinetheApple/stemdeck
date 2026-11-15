@@ -224,7 +224,7 @@ export function isLaneSilenced(name) {
 }
 
 /** True when a take or a loaded, unsilenced lane is soloed. */
-function anySoloActive() {
+export function anySoloActive() {
   return takeSoloActive() || allTrackNames().some(
     (lane) => trackIndex[lane] !== undefined && mixerState[lane]?.soloed && !silencedStems.has(lane),
   );
