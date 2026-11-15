@@ -393,7 +393,6 @@
   color: var(--danger);
   font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-sans);
 }
-/* A folder's "Delete?" sits over the row's right edge, so the name keeps its width. */
 .folder-head:has(> .f-more[data-armed="1"]) { position: relative; }
 .folder-head:has(> .f-more[data-armed="1"]) :is(.f-count, .f-grip) { display: none; }
 .folder-head > .f-more[data-armed="1"] {

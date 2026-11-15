@@ -453,7 +453,7 @@ export function addTrackToLibrary({ replaces, ...track }) {
     // Put into first non-trash folder or create an "Unsorted" folder.
     let target = folders.find((folder) => folder.id !== TRASH_ID);
     if (!target) {
-      target = makeFolder({ id: "f-unsorted", name: i18nT("folder.unsorted") });
+      target = makeFolder({ id: UNSORTED_ID, name: i18nT(UNSORTED_NAME_KEY) });
       folders.unshift(target);
     }
     target.items.unshift(track.id);
@@ -1745,7 +1745,6 @@ function folderNameError(name) {
   return "";
 }
 
-// Unsorted's name is fixed, so its editor offers the colour only.
 function openFolderEditor(folderId, requestedTitleKey = EDIT_FOLDER_TITLE_KEY) {
   const folder = folders.find((f) => f.id === folderId);
   if (!folder || folder.id === TRASH_ID) return;
@@ -2114,7 +2113,7 @@ function takeOutOfTrash(ids) {
   trash.items = trash.items.filter((id) => !ids.includes(id));
   let target = folders.find((f) => f.id !== TRASH_ID);
   if (!target) {
-    target = makeFolder({ id: "f-unsorted", name: "Unsorted" });
+    target = makeFolder({ id: UNSORTED_ID, name: i18nT(UNSORTED_NAME_KEY) });
     folders.unshift(target);
   }
   for (const id of ids) {
