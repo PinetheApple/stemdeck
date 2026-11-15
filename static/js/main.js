@@ -812,9 +812,7 @@ function wireEmptyStart() {
   document.getElementById("emptyStartUpload")?.addEventListener("click", function onEmptyStartUpload() {
     document.getElementById("uploadFileBtn")?.click();
   });
-  document.getElementById("emptyStartFolder")?.addEventListener("click", function onEmptyStartFolder() {
-    document.getElementById("folderInput")?.click();
-  });
+  document.getElementById("emptyStartFolder")?.addEventListener("click", pickFolder);
   document.getElementById("emptyStartLink")?.addEventListener("click", function onEmptyStartLink() {
     document.getElementById("url")?.focus();
   });
@@ -832,13 +830,13 @@ function rootFolderName(entries) {
   return entries.find((e) => e.dir)?.dir.split(PATH_SEP)[0] ?? null;
 }
 
-function stageFolder(entries, showDropError) {
+function stageFolder(entries, showDropError, readFile = null) {
   document.getElementById("fileInput")?._clear?.();
   if (!entries.length) {
     showDropError(t("batch.emptyFolder"));
     return;
   }
-  startFileBatch(entries, { folder: rootFolderName(entries) });
+  startFileBatch(entries, { folder: rootFolderName(entries), readFile });
 }
 
 /** The drop's entries, read while the drop event lasts, or null when it holds no folder. */
@@ -849,15 +847,21 @@ function droppedFolderEntries(dataTransfer) {
   return entries.some((entry) => entry.isDirectory) ? entries : null;
 }
 
+/** Add a folder: the desktop shell's own chooser where it has one (watchNativeDrops), else the browser's. */
+function pickFolder() {
+  const folderInput = document.getElementById("folderInput");
+  if (folderInput?._pickInShell) folderInput._pickInShell();
+  else folderInput?.click();
+}
+
+function showFolderButtons(shown) {
+  for (const id of ["addFolderBtn", "emptyStartFolder"]) document.getElementById(id)?.toggleAttribute("hidden", !shown);
+}
+
 function wireFolderPicker(showDropError) {
   const folderInput = document.getElementById("folderInput");
-  if (!canPickFolder()) {
-    for (const id of ["addFolderBtn", "emptyStartFolder"]) document.getElementById(id)?.setAttribute("hidden", "");
-    return;
-  }
-  document.getElementById("addFolderBtn")?.addEventListener("click", function onAddFolderClick() {
-    folderInput?.click();
-  });
+  showFolderButtons(canPickFolder());
+  document.getElementById("addFolderBtn")?.addEventListener("click", pickFolder);
   folderInput?.addEventListener("change", function onFolderPicked() {
     stageFolder(folderFiles(folderInput.files), showDropError);
     folderInput.value = "";
@@ -1073,6 +1077,7 @@ function wireFileDrop() {
       console.warn("[drop] could not ask the shell about native drops:", e);
       return;
     }
+    offerShellFolderPicker(invoke);
 
     // The shell answers each call with the next signal after `after`, or with
     // nothing once it has waited a while. `after` starts empty, meaning "from
@@ -1099,11 +1104,36 @@ function wireFileDrop() {
         setDragHover(true);
       } else if (signal.kind === "leave") {
         setDragHover(false);
+      } else if (signal.kind === "folderUnreadable") {
+        showDropError(t("batch.folderUnreadable"));
       } else if (signal.kind === "drop") {
         setDragHover(false);
-        await applyNativeDrop(invoke, signal.files);
+        if (signal.folder) await applyNativeFolder(invoke, signal.files);
+        else await applyNativeDrop(invoke, signal.files);
       }
     }
+  }
+
+  /** WebKitGTK has no folder picker, so Add a folder opens the shell's, whose folder arrives as a drop. */
+  function offerShellFolderPicker(invoke) {
+    const folderInput = document.getElementById("folderInput");
+    if (!folderInput) return;
+    folderInput._pickInShell = function pickFolderInShell() {
+      invoke("pick_import_folder", { title: t("batch.addFolder") }).catch(onShellPickerFailed);
+    };
+    showFolderButtons(true);
+  }
+
+  function onShellPickerFailed(err) {
+    console.warn("[drop] the folder chooser failed:", err);
+    showDropError(t("settings.stemsLocation.pickerFailed"));
+  }
+
+  /** A folder the shell opened up: its files, each with the folder it sits in, each
+   *  read only when it is sent. */
+  function applyNativeFolder(invoke, dropped) {
+    const entries = dropped.map((d) => ({ file: d, dir: d.dir }));
+    stageFolder(entries, showDropError, (d) => readDroppedFile(invoke, d));
   }
 
   // `dropped` is [{ id, name, size }]: descriptions, not files. Several are

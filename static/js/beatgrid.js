@@ -28,6 +28,7 @@ import {
   SaveRefusedError,
   UnconfirmedSaves,
   notifySaveFailure,
+  refusalOf,
 } from "./saveFailures.js";
 
 const MIN_GAP = 0.01;          // seconds; keeps the grid strictly increasing
@@ -296,7 +297,7 @@ async function _patchBeats(jobId, body, fetchOptions = {}) {
     body: JSON.stringify(body),
     ...fetchOptions,
   });
-  if (!r.ok) throw new SaveRefusedError(r.status);
+  if (!r.ok) throw new SaveRefusedError(r.status, await refusalOf(r));
   return r.json();
 }
 
@@ -334,7 +335,7 @@ async function _sendGrid(jobId, payload, seq, fetchOptions) {
     saved = await _patchBeats(jobId, payload, fetchOptions);
   } catch (e) {
     console.warn("[beatgrid] failed to save edits:", e);
-    if (e instanceof SaveRefusedError) _onGridRefused(jobId, payload);
+    if (e instanceof SaveRefusedError) _onGridRefused(jobId, payload, e.how);
     else if (!wasCutOffByPageClose(e)) _unconfirmed.lose(jobId, payload);
     return;
   }
@@ -346,8 +347,8 @@ async function _sendGrid(jobId, payload, seq, fetchOptions) {
 }
 
 // The newest unconfirmed save is the song's last edit unless one is still waiting out the debounce.
-function _onGridRefused(jobId, payload) {
-  const newest = _unconfirmed.refuse(jobId, payload);
+function _onGridRefused(jobId, payload, how) {
+  const newest = _unconfirmed.refuse(jobId, payload, how);
   const settled = jobId === _jobId && _saveTimer === null;
   if (newest && settled && _confirmedGrid) _showServerGrid(jobId, _confirmedGrid);
 }
@@ -419,7 +420,7 @@ export async function resetBeatGrid() {
   const deleted = await fetch(_beatsUrl(jobId), { method: "DELETE" }).catch((e) => e);
   if (!deleted?.ok) {
     console.warn("[beatgrid] reset failed:", deleted?.status ?? deleted);
-    notifySaveFailure(SAVE_KIND.beatgrid, RESET_FAILED, jobId);
+    notifySaveFailure(SAVE_KIND.beatgrid, await refusalOf(deleted, RESET_FAILED), jobId);
     return null;
   }
   _unconfirmed.drop(jobId);

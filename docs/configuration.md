@@ -4,7 +4,7 @@
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `STEMDECK_DEMUCS_DEVICE` | auto | Force Torch device: `cuda`, `mps`, or `cpu`. |
+| `STEMDECK_DEMUCS_DEVICE` | auto | Force Torch device: `cuda` (NVIDIA, or AMD with a ROCm build of torch), `mps`, or `cpu`. |
 | `STEMDECK_DEMUCS_MODEL` | `htdemucs_6s` | Demucs model name. |
 | `STEMDECK_JOBS_DIR` | `./jobs` | Where job directories land. |
 | `STEMDECK_DATA_DIR` | (none) | Portable mode root; sets all sub-dirs below to live inside it. |
@@ -24,6 +24,13 @@
 | `STEMDECK_TIMEOUT_FFMPEG` | `300` | ffmpeg subprocess timeout (seconds). |
 | `STEMDECK_TIMEOUT_ANALYZE` | `120` | Audio analysis timeout (seconds). |
 | `STEMDECK_TIMEOUT_DEMUCS_STALL` | `1800` | Kill Demucs if no output for this many seconds. |
+| `STEMDECK_VIDEO_ENCODER` | (none) | H.264 encoder of the video export: `auto`, `cpu`, `h264_nvenc`, `h264_vaapi`, `h264_qsv`, `h264_amf` or `h264_videotoolbox`. Wins over the choice saved in Settings; `cpu` always uses libx264. Any other value is ignored with a warning in the log. |
+| `STEMDECK_VAAPI_DEVICE` | (none) | The one render node VAAPI may use, such as `renderD129` or `/dev/dri/renderD129`. Unset, every `/dev/dri/renderD*` node is tried in number order. |
+| `STEMDECK_TIMEOUT_VIDEO_RENDER` | `300` | Shortest time limit of a video export (seconds). The limit is six seconds per second of video, within this floor and the ceiling below. |
+| `STEMDECK_TIMEOUT_VIDEO_RENDER_MAX` | `21600` | Longest time limit of a video export (seconds). |
+| `STEMDECK_TIMEOUT_VIDEO_ENCODER_PROBE` | `20` | Time limit of one test encode of a graphics card encoder (seconds). |
+| `STEMDECK_TIMEOUT_VIDEO_GPU_STALL` | `60` | A graphics card export whose progress stops this long is redone on the CPU (seconds). |
+| `STEMDECK_TIMEOUT_VIDEO_VALIDATE` | `120` | Shortest time limit of the check that decodes a finished graphics card export (seconds); longer exports get one second per second of video. |
 | `STEMDECK_IDLE_UNLOAD_MINUTES` | `10` | Minutes with no separation or analysis running before the separation worker and the beat model are unloaded from memory, at most `1440`; `0` keeps them loaded. The next track loads them again and starts a few seconds later. Unloading frees the graphics card's memory, and another program may take it meanwhile, so the next separation on the GPU can fall back to the CPU. A value saved through `POST /api/settings` (`idle_unload_minutes`) wins over this. |
 | `STEMDECK_SSL_CERT` | (none) | PEM certificate; set with the key below to serve https directly. |
 | `STEMDECK_SSL_KEY` | (none) | PEM private key for the certificate above. |
