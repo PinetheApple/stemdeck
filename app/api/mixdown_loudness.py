@@ -18,15 +18,10 @@ from typing import Annotated, TypeVar
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from app.api.export_fx import (
-    build_render_fx,
-    fx_query,
-    master_query,
-    parse_fx_query,
-    plan_master,
-    require_master_query,
-)
+from app.api.export_fx import fx_query, master_query, prepare_export
 from app.api.stems import (
+    NO_TRANSPOSE_DETAIL,
+    PITCHES_MAX_CHARS,
     _expand_render_lanes,
     _parse_lane_gains,
     _parse_pitches,
@@ -39,11 +34,9 @@ router = APIRouter(tags=["stems"])
 
 HTTP_CLIENT_GONE = 499
 CLIENT_GONE_DETAIL = "client went away"
-NO_TRANSPOSE_DETAIL = "this ffmpeg build cannot transpose (no rubberband filter)"
 # Any lossy format plans for the same capped ceiling.
 _LOSSY_PLAN_FORMAT = STEM_FORMAT_MP3
 _LOSSLESS_PLAN_FORMAT = STEM_FORMAT_WAV
-_PITCHES_MAX_CHARS = 128
 
 T = TypeVar("T")
 
@@ -67,30 +60,22 @@ async def get_mixdown_loudness(
     job_id: str,
     stems: str = Query(..., description="Comma-separated lane names to sum"),
     gains: str = Query(..., description="Comma-separated linear gains, parallel to stems"),
-    pitches: str = Query(
-        default="",
-        max_length=_PITCHES_MAX_CHARS,
-        description="As for mixdown",
-    ),
+    pitches: str = Query(default="", max_length=PITCHES_MAX_CHARS, description="As for mixdown"),
     fx: Annotated[str, fx_query()] = "",
     master: Annotated[str, master_query()] = "",
     lossy: bool = Query(default=False, description="Plan for a lossy export's capped ceiling"),
 ) -> dict:
-    """The plan as JSON: target, ceiling, comp, comp_ratio, pre {i, tp, lra},
-    comp_threshold_db, comp_i, gain_db, post {i, tp, lra}, reached."""
+    """The plan as JSON (docs/api.md); ``master`` is required here."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
     names, parsed_gains = _parse_lane_gains(stems, gains)
     parsed_pitches = _parse_pitches(pitches, names)
-    fx_req = parse_fx_query(fx)
-    settings = require_master_query(master)
     if any(parsed_pitches) and not await asyncio.to_thread(_rubberband_available):
         raise HTTPException(status_code=422, detail=NO_TRANSPOSE_DETAIL)
     lanes, _unpitched = _expand_render_lanes(job_id, names, parsed_gains, parsed_pitches)
-    render_fx = await asyncio.to_thread(build_render_fx, lanes, fx_req)
     output_format = _LOSSY_PLAN_FORMAT if lossy else _LOSSLESS_PLAN_FORMAT
-    mastered = await _unless_disconnected(
+    export = await _unless_disconnected(
         request,
-        plan_master(lanes, render_fx, settings, output_format, _pitch_filter),
+        prepare_export(lanes, fx, master, output_format, _pitch_filter, master_required=True),
     )
-    return mastered.plan.to_json()
+    return export.plan.to_json()

@@ -21,6 +21,9 @@ and the plan behind it is measured on the whole song:
 4. The result is measured; when limiting cost more than the tolerance, up to
    MASTER_CORRECTION_PASSES bounded correction passes step the gain along
    the measured loudness-per-dB slope.
+5. Resampling down from 4x rebuilds peaks over the ceiling, more the harder
+   the limiter is driven: a volume after it trims them, measured once more.
+   "Reached" needs the loudness in tolerance and the true peak under the ceiling.
 
 The plan is always made on the whole song, so a region export gets exactly the
 gain of the full master; app/pipeline/master_plan_cache.py keeps it on disk.
@@ -67,6 +70,7 @@ from app.core.config import (
     MASTER_LIMITER_OVERSAMPLE,
     MASTER_LIMITER_RELEASE_MS,
     MASTER_PARAM_MAX_CHARS,
+    MASTER_TRIM_MARGIN_DB,
     STEM_FORMAT_MP3,
     TIMEOUT_FFMPEG,
     ffmpeg_executable,
@@ -148,6 +152,7 @@ class MasterPlan:
     gain_db: float
     post: Loudness
     reached: bool
+    trim_db: float = 0.0
 
     def to_json(self) -> dict:
         """The loudness route's JSON; ``comp_ratio`` is null when the compressor is off."""
@@ -162,6 +167,7 @@ class MasterPlan:
             "gain_db": self.gain_db,
             "post": asdict(self.post),
             "reached": self.reached,
+            "trim_db": self.trim_db,
         }
 
     @classmethod
@@ -264,23 +270,44 @@ def limiter_filter(ceiling_db: float, rate: int) -> str:
     )
 
 
+def trim_filter(trim_db: float) -> str:
+    """A level trim after the limiter, "" for none."""
+    return f"volume={_lin(-trim_db)}" if trim_db > 0 else ""
+
+
+def ceiling_trim(tp: float | None, ceiling_db: float) -> float:
+    """How far to turn a true peak down to sit a margin under the ceiling, 0 when it does."""
+    if tp is None or tp <= ceiling_db:
+        return 0.0
+    return round(tp - ceiling_db + MASTER_TRIM_MARGIN_DB, 3)
+
+
 def master_chain(
     comp: float,
     threshold_db: float | None,
     gain_db: float,
     ceiling_db: float,
     rate: int,
+    trim_db: float = 0.0,
 ) -> str:
     """The whole master chain after the master EQ, without a trailing comma."""
     parts = [comp_filter(comp, threshold_db)]
     if gain_db != 0:
         parts.append(f"volume={_lin(gain_db)}")
     parts.append(limiter_filter(ceiling_db, rate))
+    parts.append(trim_filter(trim_db))
     return ",".join(p for p in parts if p)
 
 
 def plan_chain(plan: MasterPlan, rate: int) -> str:
-    return master_chain(plan.comp, plan.comp_threshold_db, plan.gain_db, plan.ceiling, rate)
+    return master_chain(
+        plan.comp,
+        plan.comp_threshold_db,
+        plan.gain_db,
+        plan.ceiling,
+        rate,
+        plan.trim_db,
+    )
 
 
 def plan_graph(lane_chains: list[str], master_eq: str) -> str:
@@ -406,10 +433,27 @@ async def _settle_gain(
     return gain, post
 
 
-def _reached(target: float | None, post: Loudness) -> bool:
+def target_reached(target: float | None, ceiling_db: float, post: Loudness) -> bool:
+    """Loudness within tolerance of the target (any, with none) and the true peak under the ceiling."""
+    if ceiling_trim(post.tp, ceiling_db):
+        return False
     if target is None:
         return True
     return post.i is not None and abs(target - post.i) <= MASTER_CORRECTION_TOL_LU + _FLOAT_SLACK
+
+
+async def _comp_loudness(
+    inputs: list[str],
+    graph: str,
+    comp: float,
+    threshold: float | None,
+    rate: int,
+    measure: Measurer,
+) -> float | None:
+    """The loudness after the glue compressor, None when it is off."""
+    if threshold is None:
+        return None
+    return (await measure(inputs, graph, comp_filter(comp, threshold), rate)).i
 
 
 async def run_plan(
@@ -420,16 +464,14 @@ async def run_plan(
     rate: int,
     measure: Measurer = measure_chain,
 ) -> MasterPlan:
-    """Measure the mix and decide the gain. ``graph`` ends in the label [pre]."""
+    """Measure the mix and decide the gain and trim. ``graph`` ends in the label [pre]."""
     pre = await measure(inputs, graph, "", rate)
     threshold = comp_threshold_db(settings.comp, settings.target, pre.i)
-    comp_i = None
-    if threshold is not None:
-        comp_i = (await measure(inputs, graph, comp_filter(settings.comp, threshold), rate)).i
+    comp_i = await _comp_loudness(inputs, graph, settings.comp, threshold, rate, measure)
     level = pre.i if threshold is None else comp_i
 
-    async def run(gain: float) -> Loudness:
-        chain = master_chain(settings.comp, threshold, gain, ceiling_db, rate)
+    async def run(gain: float, trim: float = 0.0) -> Loudness:
+        chain = master_chain(settings.comp, threshold, gain, ceiling_db, rate, trim)
         return await measure(inputs, graph, chain, rate)
 
     no_gain = settings.target is None or level is None
@@ -437,6 +479,9 @@ async def run_plan(
     post = await run(gain)
     if not no_gain:
         gain, post = await _settle_gain(gain, post, settings.target, run)
+    trim = ceiling_trim(post.tp, ceiling_db)
+    if trim:
+        post = await run(gain, trim)
     return MasterPlan(
         target=settings.target,
         ceiling=ceiling_db,
@@ -446,5 +491,6 @@ async def run_plan(
         comp_i=comp_i,
         gain_db=gain,
         post=post,
-        reached=_reached(settings.target, post),
+        reached=target_reached(settings.target, ceiling_db, post),
+        trim_db=trim,
     )

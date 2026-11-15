@@ -144,7 +144,6 @@ def _mixdown_cache_key(
             "" if not (pitches and any(pitches)) else "p" + ",".join(str(p) for p in pitches),
         ]
     )
-    # The EQ and master (export_fx.cache_key_suffix), appended only when one is on.
     if render_suffix:
         raw += "|" + render_suffix
     # Cache key, not a security context -- usedforsecurity=False documents
@@ -396,6 +395,8 @@ def _read_beat_grid(job_id: str) -> dict | None:
 # ask for a shift the export rejects is worse than one that cannot ask.
 PITCH_MIN = -6
 PITCH_MAX = 6
+PITCHES_MAX_CHARS = 128
+NO_TRANSPOSE_DETAIL = "this ffmpeg build cannot transpose (no rubberband filter)"
 
 # Probed once per process; the ffmpeg binary cannot change mid-run. None until
 # the first export needs to know.
@@ -1115,7 +1116,7 @@ async def get_mixdown(
     gains: str = Query(..., description="Comma-separated linear gains, parallel to stems"),
     pitches: str = Query(
         default="",
-        max_length=128,
+        max_length=PITCHES_MAX_CHARS,
         description=(
             "Comma-separated semitone shifts parallel to stems (-6..6). "
             "Empty means no transpose, which is what a client that predates this sends."
@@ -1163,8 +1164,6 @@ async def get_mixdown(
     names, parsed_gains = _parse_lane_gains(stems, gains)
     parsed_pitches = _parse_pitches(pitches, names)
     stems_click.check_click_sound(click_sound)
-    fx_req = export_fx.parse_fx_query(fx)
-    master_settings = export_fx.parse_master_query(master)
     if (start is None) != (end is None) or (start is not None and start >= end):
         raise HTTPException(
             status_code=422,
@@ -1178,7 +1177,7 @@ async def get_mixdown(
     if any(parsed_pitches) and not await asyncio.to_thread(_rubberband_available):
         raise HTTPException(
             status_code=422,
-            detail="this ffmpeg build cannot transpose (no rubberband filter)",
+            detail=NO_TRANSPOSE_DETAIL,
         )
 
     # Validates job_id (404), job done (404), and path traversal (404) per
@@ -1187,14 +1186,7 @@ async def get_mixdown(
     # stale cache entry from before the job was removed.
     render_lanes, unpitched = _expand_render_lanes(job_id, names, parsed_gains, parsed_pitches)
     paths = [lane.path for lane in render_lanes]
-    render_fx = await asyncio.to_thread(export_fx.build_render_fx, render_lanes, fx_req)
-    mastered = await export_fx.plan_master(
-        render_lanes,
-        render_fx,
-        master_settings,
-        ext,
-        _pitch_filter,
-    )
+    export = await export_fx.prepare_export(render_lanes, fx, master, ext, _pitch_filter)
 
     media_type = AUDIO_MEDIA_TYPES[ext]
     click_lane = await asyncio.to_thread(
@@ -1219,15 +1211,15 @@ async def get_mixdown(
         end,
         click_lane,
         parsed_pitches,
-        export_fx.cache_key_suffix(render_fx, mastered),
+        export.cache_suffix(),
     )
+    cache_path = _MIXDOWN_CACHE_DIR / f"{cache_key}.{ext}"
     headers = {
         "Content-Disposition": (
             f'attachment; filename="{_mixdown_download_name(job_id, ext, start is not None)}"'
         ),
-        **export_fx.master_headers(mastered),
+        **export.headers(await export_fx.stored_output(export, ext, cache_path)),
     }
-    cache_path = _MIXDOWN_CACHE_DIR / f"{cache_key}.{ext}"
     if cache_path.is_file():
         return FileResponse(cache_path, media_type=media_type, headers=headers)
 
@@ -1262,13 +1254,13 @@ async def get_mixdown(
         delay = f"adelay={delay_ms}:all=1," if delay_ms > 0 else ""
         # Shift before the delay: rubberband would otherwise chew through the
         # silent lead-in padding for nothing.
-        eq = render_fx.prefix(i)
-        filters.append(f"[{i}:a]{eq}{_pitch_filter(lane.pitch)}{delay}volume={lane.gain:.6f}[a{i}]")
+        chain = export_fx.lane_chain(export.prefix(i), _pitch_filter(lane.pitch), lane.gain, delay)
+        filters.append(f"[{i}:a]{chain}[a{i}]")
     if click_lane is not None:
         level = stems_click.click_level_filter(click_lane.gain)
         filters.append(f"[{stem_count}:a]{level}[a{stem_count}]")
     n = stem_count + (1 if click_lane is not None else 0)
-    mix, out_label = export_fx.sum_filter(n, export_fx.mix_tail(render_fx, mastered))
+    mix, out_label = export_fx.sum_filter(n, export.tail())
     if mix:
         filters.append(mix)
     codec = MIXDOWN_CODECS[ext]
@@ -1287,6 +1279,17 @@ async def get_mixdown(
     ]
 
     context = f"mixdown job={job_id} ext={ext} stems={stems}"
+    if export.verifies(ext):
+        rendered, out = await export_fx.render_verified(
+            export,
+            cmd,
+            f".{ext}",
+            context,
+            _render_to_file,
+            cache_path,
+        )
+        headers.update(export.headers(out))
+        return FileResponse(rendered, media_type=media_type, headers=headers)
     if ext in _SEEKABLE_OUTPUT_EXTS:
         # Rendered to a file so the muxer can seek back and finish its header
         # (#458). It lands in the cache, so nothing is deleted afterwards --
@@ -1327,7 +1330,7 @@ async def get_video_mixdown(
     gains: str = Query(..., description="Comma-separated linear gains, parallel to stems"),
     pitches: str = Query(
         default="",
-        max_length=128,
+        max_length=PITCHES_MAX_CHARS,
         description="Comma-separated semitone shifts parallel to stems (-6..6). Empty = none.",
     ),
     click: Annotated[bool, stems_click.click_mix_query()] = False,
@@ -1359,24 +1362,21 @@ async def get_video_mixdown(
 
     names, parsed_gains = _parse_lane_gains(stems, gains)
     parsed_pitches = _parse_pitches(pitches, names)
-    fx_req = export_fx.parse_fx_query(fx)
-    master_settings = export_fx.parse_master_query(master)
     # Same refusal as the audio export: a video whose audio came back in the
     # original key would be the same complaint reported again (#592).
     if any(parsed_pitches) and not await asyncio.to_thread(_rubberband_available):
         raise HTTPException(
             status_code=422,
-            detail="this ffmpeg build cannot transpose (no rubberband filter)",
+            detail=NO_TRANSPOSE_DETAIL,
         )
     # Validates job_id (404), job done (404), and path traversal (404) per stem,
     # and rebuilds a transposed "original" lane from its parts.
     render_lanes, _unpitched = _expand_render_lanes(job_id, names, parsed_gains, parsed_pitches)
     paths = [lane.path for lane in render_lanes]
-    render_fx = await asyncio.to_thread(export_fx.build_render_fx, render_lanes, fx_req)
-    mastered = await export_fx.plan_master(
+    export = await export_fx.prepare_export(
         render_lanes,
-        render_fx,
-        master_settings,
+        fx,
+        master,
         EXPORT_AUDIO_CODEC_AAC,
         _pitch_filter,
     )
@@ -1403,14 +1403,15 @@ async def get_video_mixdown(
     video_idx = len(paths)
     # Per-lane gain then amix (normalize=0 keeps levels faithful). A single audible
     # lane skips amix (a 1-input amix is a no-op), matching get_mixdown.
-    filters = [
-        f"[{i}:a]{render_fx.prefix(i)}{_pitch_filter(lane.pitch)}volume={lane.gain:.6f}[a{i}]"
+    chains = [
+        export_fx.lane_chain(export.prefix(i), _pitch_filter(lane.pitch), lane.gain)
         for i, lane in enumerate(render_lanes)
     ]
+    filters = [f"[{i}:a]{chain}[a{i}]" for i, chain in enumerate(chains)]
     if click_lane is not None:
         last = len(render_lanes) - 1
         filters[last] = f"[{last}:a]{stems_click.click_level_filter(click_lane.gain)}[a{last}]"
-    mix, out_label = export_fx.sum_filter(len(paths), export_fx.mix_tail(render_fx, mastered))
+    mix, out_label = export_fx.sum_filter(len(paths), export.tail())
     if mix:
         filters.append(mix)
     cmd += [
@@ -1431,17 +1432,30 @@ async def get_video_mixdown(
         "frag_keyframe+empty_moov",
         "-f",
         "mp4",
-        "pipe:1",
     ]
 
     filename = f"{_safe_title(job.display_title)}_video.mp4"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    context = f"video-mux job={job_id} stems={stems}"
+    if export.verifies(EXPORT_AUDIO_CODEC_AAC):
+        rendered, out = await export_fx.render_verified(
+            export,
+            cmd,
+            ".mp4",
+            context,
+            _render_to_file,
+        )
+        headers.update(export.headers(out))
+        return FileResponse(
+            rendered,
+            media_type="video/mp4",
+            headers=headers,
+            background=BackgroundTask(_unlink_later, rendered),
+        )
     return StreamingResponse(
-        _stream_ffmpeg(cmd, context=f"video-mux job={job_id} stems={stems}"),
+        _stream_ffmpeg([*cmd, "pipe:1"], context=context),
         media_type="video/mp4",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            **export_fx.master_headers(mastered),
-        },
+        headers=headers,
     )
 
 

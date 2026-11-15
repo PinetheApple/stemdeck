@@ -28,6 +28,7 @@ from app.core.config import (
     MASTER_GAIN_MAX_DB,
     MASTER_LIMITER_MARGIN_DB,
     MASTER_PARAM_MAX_CHARS,
+    MASTER_TRIM_MARGIN_DB,
     ffmpeg_executable,
 )
 from app.pipeline import master_plan_cache as cache
@@ -277,6 +278,7 @@ CONTRACT_PLAN_KEYS = [
     "gain_db",
     "post",
     "reached",
+    "trim_db",
 ]
 
 
@@ -287,6 +289,39 @@ def test_plan_json_is_the_loudness_route_shape():
     assert set(off["pre"]) == {"i", "tp", "lra"}
     glued = _plan(MasterSettings(-14.0, -1.0, 0.5), _stub_meter(-20.0, 0.0, 1.0)).to_json()
     assert glued["comp_ratio"] == 2.0
+
+
+def _overshooting_meter(trimmed_tp: float | None, trimmed_drop: float = 0.0):
+    """-0.7 dBTP out of the limiter; ``trimmed_tp`` once a trim follows it."""
+
+    async def measure(inputs, graph, chain, rate):
+        if not chain:
+            return Loudness(-20.0, -3.0)
+        if chain.endswith(f"aresample={rate}"):
+            return Loudness(-14.0, -0.7)
+        return Loudness(-14.0 - trimmed_drop, trimmed_tp)
+
+    return measure
+
+
+def test_a_peak_over_the_ceiling_is_trimmed_after_the_limiter():
+    plan = _plan(STREAMING, _overshooting_meter(-1.4, trimmed_drop=0.05))
+    assert plan.trim_db == pytest.approx(0.3 + MASTER_TRIM_MARGIN_DB)
+    assert m.plan_chain(plan, SR).endswith(
+        m.limiter_filter(-1.0, SR) + "," + m.trim_filter(plan.trim_db)
+    )
+    assert plan.post == Loudness(-14.05, -1.4) and plan.reached
+
+
+def test_a_ceiling_still_missed_means_the_target_is_not_reached():
+    plan = _plan(STREAMING, _overshooting_meter(-0.7))
+    assert plan.post.i == -14.0 and plan.post.tp > STREAMING.ceiling
+    assert not plan.reached
+
+
+def test_a_peak_under_the_ceiling_is_not_trimmed():
+    plan = _plan(STREAMING, _stub_meter(-20.0, 0.0, 1.0))
+    assert plan.trim_db == 0.0 and m.trim_filter(0.0) == ""
 
 
 def test_plan_round_trips_through_json():

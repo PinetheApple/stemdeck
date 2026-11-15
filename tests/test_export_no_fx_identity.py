@@ -1,7 +1,6 @@
-"""Exports without fx= or master= are byte-identical to the exports before
-either existed: the same ffmpeg argv and the same render cache key, so every
-cached mixdown stays valid. The argv and the keys below are literals taken
-from the export code as it was before the EQ and the master were wired in.
+"""An export with no fx=, an empty one, or an EQ that changes nothing, and no
+master, runs exactly the ffmpeg argv and uses exactly the render cache key
+pinned below as literals, and carries no X-StemDeck-* header.
 """
 
 from __future__ import annotations

@@ -16,6 +16,8 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import re
+import subprocess
 from pathlib import Path
 
 import httpx
@@ -26,7 +28,12 @@ from fastapi import HTTPException
 
 from app.api import export_fx, mixdown_loudness
 from app.api import stems as stems_mod
-from app.core.config import EXPORT_LIMIT_LOSSY_DBTP, MASTER_PARAM_MAX_CHARS
+from app.core.config import (
+    EXPORT_LIMIT_LOSSY_DBTP,
+    MASTER_LOSSY_RETRIES,
+    MASTER_PARAM_MAX_CHARS,
+    ffmpeg_executable,
+)
 from app.core.models import Job
 from app.core.registry import _jobs
 from app.pipeline import master_plan_cache
@@ -199,15 +206,20 @@ def _fake_plan(monkeypatch, seen: list[tuple[list[Path], str, str]]):
         ceiling = master_plan_cache.effective_ceiling(settings, output_format)
         return await run_plan([], graph, settings, ceiling, rate, measure)
 
+    async def decoded(path, rate):
+        return Loudness(-14.0, -2.0, 5.0)
+
     monkeypatch.setattr(export_fx, "cached_plan", plan)
+    monkeypatch.setattr(export_fx, "measure_file", decoded)
 
 
 @pytest.fixture
-def renders(monkeypatch) -> list[list[str]]:
+def renders(monkeypatch, tmp_path) -> list[list[str]]:
     seen: list[list[str]] = []
 
     async def to_file(cmd, suffix, context="", cache_path=None):
         seen.append(cmd)
+        cache_path = cache_path or tmp_path / f"render{len(seen)}{suffix}"
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_bytes(b"RIFF")
         return cache_path
@@ -291,7 +303,7 @@ async def test_a_measurement_whose_client_left_is_stopped(jobs_dir, monkeypatch)
         async def is_disconnected(self):
             return True
 
-    monkeypatch.setattr(mixdown_loudness, "plan_master", slow_plan)
+    monkeypatch.setattr(mixdown_loudness, "prepare_export", slow_plan)
     monkeypatch.setattr(mixdown_loudness, "MASTER_LOUDNESS_POLL_SEC", 0.01)
     with pytest.raises(HTTPException) as err:
         await mixdown_loudness.get_mixdown_loudness(
@@ -346,3 +358,107 @@ async def test_stems_and_bundles_never_take_a_master(jobs_dir, client, monkeypat
             assert not MASTER_HEADERS & set(mastered.headers), url
             if ".zip" not in url:
                 assert mastered.content == plain.content, url
+
+
+HOT_QUERY = "stems=vocals,bass,drums&gains=0.15,0.15,0.12"
+BURST_EVERY_SEC = 0.5
+BURST_SEC = 0.05
+
+
+def _hot_job(jobs_dir: Path, seconds: float = 4.0) -> None:
+    """A tone, a low sine and noise bursts: at +16 dB the bursts drive the
+    limiter hard enough that its way back from 4x overshoots the ceiling."""
+    _job(jobs_dir, seconds)
+    n = int(SR * seconds)
+    t = np.arange(n) / SR
+    rng = np.random.default_rng(7)
+    bursts = 0.3 * rng.standard_normal(n) * (np.mod(t, BURST_EVERY_SEC) < BURST_SEC)
+    low = 0.2 * np.sin(2 * np.pi * 55 * t)
+    stems = jobs_dir / JOB / "stems"
+    for name, x in (("bass", low), ("drums", bursts)):
+        sf.write(stems / f"{name}.wav", np.stack([x, x], 1), SR, subtype="PCM_16")
+
+
+PEAK_RE = re.compile(r"Peak:\s+(-?[\d.]+|-inf) dBFS")
+
+
+def _true_peak(path: Path) -> float:
+    """Decoded true peak, measured by ffmpeg itself rather than the code under test."""
+    err = subprocess.run(
+        [ffmpeg_executable(), "-nostdin", "-hide_banner", "-i", str(path)]
+        + ["-af", "ebur128=peak=true", "-f", "null", "-"],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=120,
+    ).stderr
+    return float(PEAK_RE.findall(err[err.rfind("Summary:") :])[-1])
+
+
+def _real_video(jobs_dir: Path, seconds: float) -> None:
+    subprocess.run(
+        [ffmpeg_executable(), "-nostdin", "-loglevel", "error", "-y"]
+        + ["-f", "lavfi", "-i", f"color=c=black:s=64x64:d={seconds}:r=10"]
+        + ["-c:v", "mpeg4", "-an", str(jobs_dir / JOB / "video.mp4")],
+        check=True,
+        timeout=60,
+    )
+
+
+HOT_ROUTES = [
+    ("mixdown.wav", -1.0),
+    ("mixdown.mp3", EXPORT_LIMIT_LOSSY_DBTP),
+    ("mixdown.ogg", EXPORT_LIMIT_LOSSY_DBTP),
+    ("video.mp4", EXPORT_LIMIT_LOSSY_DBTP),
+]
+
+
+@pytest.mark.parametrize(("route", "cap"), HOT_ROUTES)
+async def test_a_hot_master_holds_its_ceiling(jobs_dir, client, tmp_path, route, cap):
+    """+14 dB or more into the limiter: the decoded file stays under the
+    ceiling, or under the lossy cap for mp3, ogg and the video's aac."""
+    skip_without_ffmpeg()
+    _hot_job(jobs_dir)
+    _real_video(jobs_dir, 4.0)
+    async with client as c:
+        r = await c.get(f"/api/jobs/{JOB}/{route}?{HOT_QUERY}&master={STREAMING}")
+    assert r.status_code == 200, r.text
+    assert float(r.headers["x-stemdeck-master-gain"]) >= 14.0
+    out = tmp_path / route
+    out.write_bytes(r.content)
+    assert _true_peak(out) <= cap
+    assert float(r.headers["x-stemdeck-loudness-post"].split("tp=")[1]) <= cap
+
+
+async def test_a_lossy_export_still_over_its_cap_reports_target_not_reached(
+    jobs_dir, client, monkeypatch, renders
+):
+    from app.pipeline.mastering import Loudness
+
+    _job(jobs_dir, seconds=0.5)
+    _fake_plan(monkeypatch, [])
+
+    async def always_over(path, rate):
+        return Loudness(-14.0, -0.5)
+
+    monkeypatch.setattr(export_fx, "measure_file", always_over)
+    async with client as c:
+        r = await c.get(f"/api/jobs/{JOB}/mixdown.mp3?{Q}&master={STREAMING}")
+    assert r.status_code == 200
+    assert r.headers["x-stemdeck-target-reached"] == "0"
+    assert r.headers["x-stemdeck-loudness-post"] == "i=-14.00;tp=-0.50"
+    assert len(renders) == 1 + MASTER_LOSSY_RETRIES
+    tails = [_graph(cmd).split(";")[-1] for cmd in renders]
+    assert tails[0].endswith(f"aresample={SR}[mix]")
+    assert all(t.endswith("[mix]") and ",volume=" in t.split("alimiter")[1] for t in tails[1:])
+
+
+async def test_the_limiter_runs_at_the_export_rate(jobs_dir, client, monkeypatch, renders):
+    _job(jobs_dir, seconds=0.5)
+    _fake_plan(monkeypatch, [])
+    monkeypatch.setattr(stems_mod, "get_export_sample_rate", lambda: 48000)
+    monkeypatch.setattr(export_fx, "get_export_sample_rate", lambda: 48000)
+    async with client as c:
+        r = await c.get(f"/api/jobs/{JOB}/mixdown.wav?{Q}&master={STREAMING}")
+    assert r.status_code == 200
+    assert limiter_filter(-1.0, 48000) in _graph(renders[0])

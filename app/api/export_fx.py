@@ -4,34 +4,43 @@ parameters of GET mixdown.{ext} and video.mp4, turned into ffmpeg filters.
 Per input, the lane's EQ runs first (before the pitch shift, as the live
 engine's EQ slot sits between the lane gain and the pitch bus); after the sum,
 the master EQ and then the master chain (glue compressor, planned gain, true
-peak limiter). The click joins the sum before the master chain, as it does
-live, but carries no lane EQ and is left out of the loudness measurement:
+peak limiter, trim). The click joins the sum before the master chain, as it
+does live, but carries no lane EQ and is left out of the loudness measurement:
 the loudness is set for the music, not the practice aid. Each piece of an
 "original" lane rebuilt from its component stems gets the "original" EQ.
 
-An export with no EQ that changes the sound and no master builds exactly the
-graph and the cache key it built before either existed, so cached renders
-stay valid and the file is bit-identical. Everything that reaches the graph
-is formatted by app/pipeline/fx_filters.py and app/pipeline/mastering.py from
-validated numbers; every refusal here is a 422 with a message safe to show.
+With no EQ that changes the sound and no master, the graph and the render
+cache key carry nothing of either, so such an export is bit-identical to one
+that never names them. Everything that reaches the graph is formatted by
+app/pipeline/fx_filters.py and app/pipeline/mastering.py from validated
+numbers; every refusal is a 422 with a message safe to show.
 
-The master is measured on the whole song (app/pipeline/master_plan_cache.py
-keeps the plan on disk), so a region export gets the full master's gain. The
-response then carries the measurement as X-StemDeck-* headers.
+The master is measured on the whole song at the export rate (the plan is kept
+by app/pipeline/master_plan_cache.py), so a region export gets the full
+master's gain. A lossy encoder adds peak the graph cannot see, so a mastered
+mp3, ogg or video is decoded and measured, and rendered again with a deeper
+trim while it is over its capped ceiling. The response carries the final
+measurement as X-StemDeck-* headers.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
-from collections.abc import Callable, Sequence
+import os
+import uuid
+from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import asdict
 from pathlib import Path
-from typing import NamedTuple, Protocol
+from typing import NamedTuple, Protocol, TypeVar
 
 import soundfile as sf
 from fastapi import HTTPException, Query
 
-from app.core.config import FX_FALLBACK_SAMPLE_RATE, FX_PARAM_MAX_CHARS, MASTER_PARAM_MAX_CHARS
+from app.core.config import FX_PARAM_MAX_CHARS, MASTER_LOSSY_RETRIES, MASTER_PARAM_MAX_CHARS
+from app.core.settings import DEFAULT_EXPORT_SAMPLE_RATE, get_export_sample_rate
+from app.pipeline import master_plan_cache
 from app.pipeline.fx_filters import (
     Eq,
     FxError,
@@ -44,33 +53,47 @@ from app.pipeline.fx_filters import (
 from app.pipeline.master_plan_cache import cached_plan
 from app.pipeline.mastering import (
     LOGGER_NAME,
+    LOSSY_FORMATS,
+    Loudness,
     MasterError,
     MasterPlan,
     MasterSettings,
     MeasureError,
+    ceiling_trim,
+    measure_chain,
     parse_master_param,
     plan_chain,
     plan_graph,
     require_master_param,
+    target_reached,
+    trim_filter,
 )
 
 logger = logging.getLogger("stemdeck.api")
 mastering_logger = logging.getLogger(LOGGER_NAME)
 
-HTTP_UNPROCESSABLE = 422
-HTTP_MEASURE_FAILED = 500
 MEASURE_FAILED_DETAIL = "mastering measurement failed"
 FX_KEY_PREFIX = "fx:"
 MASTER_KEY_PREFIX = "m:"
+KEY_PART_SEPARATOR = "|"
+KEY_MASTER_EQ_SEPARATOR = "#"
 HEADER_LOUDNESS_PRE = "X-StemDeck-Loudness-Pre"
 HEADER_LOUDNESS_POST = "X-StemDeck-Loudness-Post"
 HEADER_MASTER_GAIN = "X-StemDeck-Master-Gain"
 HEADER_TARGET_REACHED = "X-StemDeck-Target-Reached"
+REACHED_YES = "1"
+REACHED_NO = "0"
 FX_DESCRIPTION = "The studio EQ: base64url JSON (docs/api.md). Empty means no EQ."
 MASTER_DESCRIPTION = "The master: base64url JSON (docs/api.md). Empty means no master."
+FILTER_COMPLEX = "-filter_complex"
+DECODED_GRAPH = "[0:a]anull[pre]"
+_OUTPUT_NOTE_PREFIX = "out-"
 _NO_VALUE = "none"
 _MIX_LABEL = "[mix]"
 _SINGLE_LABEL = "[a0]"
+
+T = TypeVar("T")
+Render = Callable[..., Awaitable[Path]]
 
 
 class RenderLaneLike(Protocol):
@@ -103,14 +126,55 @@ class RenderFx(NamedTuple):
     def key_fragment(self) -> str:
         if not self.master and not any(self.lanes):
             return ""
-        return FX_KEY_PREFIX + "|".join(self.lanes) + "#" + self.master
+        lanes = KEY_PART_SEPARATOR.join(self.lanes)
+        return f"{FX_KEY_PREFIX}{lanes}{KEY_MASTER_EQ_SEPARATOR}{self.master}"
 
 
-class MasteredMix(NamedTuple):
-    """The measured plan and the chain the render runs after the master EQ."""
+class ExportFx(NamedTuple):
+    """One export's EQ and master: the filter prefixes, the measured plan
+    (None with no master) and the chain the render runs after the master EQ."""
 
-    plan: MasterPlan
+    render_fx: RenderFx
+    plan: MasterPlan | None
     chain: str
+
+    def prefix(self, index: int) -> str:
+        return self.render_fx.prefix(index)
+
+    def tail(self) -> str:
+        """What runs on the sum: the master EQ, then the master chain."""
+        parts = [self.render_fx.master.rstrip(","), self.chain]
+        return ",".join(p for p in parts if p)
+
+    def cache_suffix(self) -> str:
+        """Appended to the render cache key, "" with no EQ and no master."""
+        parts = [self.render_fx.key_fragment()]
+        if self.plan is not None:
+            parts.append(MASTER_KEY_PREFIX + self.chain)
+        return KEY_PART_SEPARATOR.join(p for p in parts if p)
+
+    def verifies(self, output_format: str) -> bool:
+        """Whether the encoded file is decoded and checked against the ceiling."""
+        return self.plan is not None and output_format in LOSSY_FORMATS
+
+    def headers(self, out: Loudness | None = None) -> dict[str, str]:
+        """The loudness before and after the master; ``out`` is the decoded
+        file's own measurement when there is one, else the plan's."""
+        if self.plan is None:
+            return {}
+        plan = self.plan
+        post = out or plan.post
+        reached = plan.reached if out is None else target_reached(plan.target, plan.ceiling, out)
+        return {
+            HEADER_LOUDNESS_PRE: f"i={_fmt(plan.pre.i)};tp={_fmt(plan.pre.tp)}",
+            HEADER_LOUDNESS_POST: f"i={_fmt(post.i)};tp={_fmt(post.tp)}",
+            HEADER_MASTER_GAIN: f"{plan.gain_db:.2f}",
+            HEADER_TARGET_REACHED: REACHED_YES if reached else REACHED_NO,
+        }
+
+
+def _fmt(value: float | None) -> str:
+    return _NO_VALUE if value is None else f"{value:.2f}"
 
 
 def fx_query():
@@ -121,25 +185,11 @@ def master_query():
     return Query(max_length=MASTER_PARAM_MAX_CHARS, description=MASTER_DESCRIPTION)
 
 
-def parse_fx_query(raw: str) -> FxRequest:
+def _as_422(parse: Callable[..., T], *args: object) -> T:
     try:
-        return parse_fx_param(raw)
-    except FxError as exc:
-        raise HTTPException(status_code=HTTP_UNPROCESSABLE, detail=str(exc)) from None
-
-
-def parse_master_query(raw: str) -> MasterSettings | None:
-    try:
-        return parse_master_param(raw)
-    except MasterError as exc:
-        raise HTTPException(status_code=HTTP_UNPROCESSABLE, detail=str(exc)) from None
-
-
-def require_master_query(raw: str) -> MasterSettings:
-    try:
-        return require_master_param(raw)
-    except MasterError as exc:
-        raise HTTPException(status_code=HTTP_UNPROCESSABLE, detail=str(exc)) from None
+        return parse(*args)
+    except (FxError, MasterError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
 def input_rate(path: Path) -> int:
@@ -149,7 +199,7 @@ def input_rate(path: Path) -> int:
         return int(sf.info(str(path)).samplerate)
     except (RuntimeError, OSError):
         logger.debug("could not read the sample rate of %s", path, exc_info=True)
-        return FX_FALLBACK_SAMPLE_RATE
+        return DEFAULT_EXPORT_SAMPLE_RATE
 
 
 def _slot_prefix(effects: list[Eq], path: Path) -> str:
@@ -169,50 +219,61 @@ def build_render_fx(lanes: Sequence[RenderLaneLike], fx_req: FxRequest) -> Rende
         prefixes.append(_slot_prefix(effects, lane.path))
         sections += slot_section_count(effects)
     master = _slot_prefix(fx_req.master, lanes[0].path) if lanes else ""
-    sections += slot_section_count(fx_req.master)
-    try:
-        check_section_budget(sections)
-    except FxError as exc:
-        raise HTTPException(status_code=HTTP_UNPROCESSABLE, detail=str(exc)) from None
+    _as_422(check_section_budget, sections + slot_section_count(fx_req.master))
     return RenderFx(prefixes, master)
 
 
-async def plan_master(
+def lane_chain(eq: str, pitch: str, gain: float, delay: str = "") -> str:
+    """One input's chain as both the render and the measurement run it:
+    EQ, pitch shift, the count-in delay (render only), gain."""
+    return f"{eq}{pitch}{delay}volume={gain:.6f}"
+
+
+async def _measured_plan(
     lanes: Sequence[RenderLaneLike],
     render_fx: RenderFx,
-    settings: MasterSettings | None,
+    settings: MasterSettings,
     output_format: str,
     pitch_filter: Callable[[int], str],
-) -> MasteredMix | None:
-    """The whole song's measured master for these music lanes, None when off.
-    Each lane is measured as the export runs it: EQ, pitch shift, gain."""
-    if settings is None:
-        return None
-    paths = [lane.path for lane in lanes]
-    rate = await asyncio.to_thread(input_rate, paths[0])
+) -> tuple[MasterPlan, int]:
+    """The whole song's master for these music lanes, and the rate it runs at."""
+    rate = get_export_sample_rate()
     chains = [
-        f"{render_fx.prefix(i)}{pitch_filter(lane.pitch)}volume={lane.gain:.6f}"
+        lane_chain(render_fx.prefix(i), pitch_filter(lane.pitch), lane.gain)
         for i, lane in enumerate(lanes)
     ]
     graph = plan_graph(chains, render_fx.master)
+    paths = [lane.path for lane in lanes]
     try:
-        plan = await cached_plan(paths, graph, settings, output_format, rate)
+        return await cached_plan(paths, graph, settings, output_format, rate), rate
     except MeasureError as exc:
         mastering_logger.warning("%s: %s", MEASURE_FAILED_DETAIL, exc)
-        raise HTTPException(status_code=HTTP_MEASURE_FAILED, detail=MEASURE_FAILED_DETAIL) from None
-    return MasteredMix(plan, plan_chain(plan, rate))
+        raise HTTPException(status_code=500, detail=MEASURE_FAILED_DETAIL) from None
 
 
-def mix_tail(render_fx: RenderFx, mastered: MasteredMix | None) -> str:
-    """What runs on the sum: the master EQ, then the master chain."""
-    parts = [render_fx.master.rstrip(","), mastered.chain if mastered else ""]
-    return ",".join(p for p in parts if p)
+async def prepare_export(
+    lanes: Sequence[RenderLaneLike],
+    fx: str,
+    master: str,
+    output_format: str,
+    pitch_filter: Callable[[int], str],
+    master_required: bool = False,
+) -> ExportFx:
+    """Validate ``fx`` and ``master`` (422), build the EQ and measure the master."""
+    fx_req = _as_422(parse_fx_param, fx)
+    parse_master = require_master_param if master_required else parse_master_param
+    settings = _as_422(parse_master, master)
+    render_fx = await asyncio.to_thread(build_render_fx, lanes, fx_req)
+    if settings is None:
+        return ExportFx(render_fx, None, "")
+    plan, rate = await _measured_plan(lanes, render_fx, settings, output_format, pitch_filter)
+    return ExportFx(render_fx, plan, plan_chain(plan, rate))
 
 
 def sum_filter(count: int, tail: str) -> tuple[str | None, str]:
     """The filter summing inputs [a0]..[a{count-1}] through ``tail``, and the
-    label to map. With no tail, the graph exports always had: amix
-    (normalize=0) for several inputs, a single input mapped as it is."""
+    label to map. With no tail: amix (normalize=0) for several inputs, a
+    single input mapped as it is."""
     if count > 1:
         labels = "".join(f"[a{i}]" for i in range(count))
         chain = f",{tail}" if tail else ""
@@ -222,26 +283,82 @@ def sum_filter(count: int, tail: str) -> tuple[str | None, str]:
     return None, _SINGLE_LABEL
 
 
-def cache_key_suffix(render_fx: RenderFx, mastered: MasteredMix | None) -> str:
-    """Appended to the render cache key, "" with no EQ and no master."""
-    parts = [render_fx.key_fragment()]
-    if mastered is not None:
-        parts.append(MASTER_KEY_PREFIX + mastered.chain)
-    return "|".join(p for p in parts if p)
+async def measure_file(path: str, rate: int) -> Loudness:
+    """Loudness and true peak of a rendered file as a player decodes it. Raises MeasureError."""
+    return await measure_chain(["-i", path], DECODED_GRAPH, "", rate)
 
 
-def _fmt(value: float | None) -> str:
-    return _NO_VALUE if value is None else f"{value:.2f}"
+def with_output_trim(cmd: list[str], trim_db: float) -> list[str]:
+    """``cmd`` with a level trim at the end of the master chain (before [mix])."""
+    if not trim_db:
+        return cmd
+    i = cmd.index(FILTER_COMPLEX) + 1
+    graph = cmd[i].removesuffix(_MIX_LABEL) + f",{trim_filter(trim_db)}{_MIX_LABEL}"
+    return [*cmd[:i], graph, *cmd[i + 1 :]]
 
 
-def master_headers(mastered: MasteredMix | None) -> dict[str, str]:
-    """The measured loudness before and after the master, for API clients."""
-    if mastered is None:
-        return {}
-    plan = mastered.plan
-    return {
-        HEADER_LOUDNESS_PRE: f"i={_fmt(plan.pre.i)};tp={_fmt(plan.pre.tp)}",
-        HEADER_LOUDNESS_POST: f"i={_fmt(plan.post.i)};tp={_fmt(plan.post.tp)}",
-        HEADER_MASTER_GAIN: f"{plan.gain_db:.2f}",
-        HEADER_TARGET_REACHED: "1" if plan.reached else "0",
-    }
+def _note_path(cache_path: Path) -> Path:
+    return master_plan_cache.MASTER_PLAN_CACHE_DIR / f"{_OUTPUT_NOTE_PREFIX}{cache_path.name}.json"
+
+
+def _write_note(cache_path: Path, out: Loudness) -> None:
+    note = _note_path(cache_path)
+    note.parent.mkdir(parents=True, exist_ok=True)
+    tmp = note.with_name(f".{note.name}.{uuid.uuid4().hex}.tmp")
+    tmp.write_text(json.dumps(asdict(out)), encoding="utf-8")
+    os.replace(tmp, note)
+
+
+def _read_note(cache_path: Path) -> Loudness | None:
+    try:
+        return Loudness(**json.loads(_note_path(cache_path).read_text(encoding="utf-8")))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError, TypeError):
+        logger.debug("unreadable output note for %s", cache_path, exc_info=True)
+        return None
+
+
+async def stored_output(export: ExportFx, output_format: str, cache_path: Path) -> Loudness | None:
+    """A cached verified render's decoded measurement, None when there is none."""
+    if not export.verifies(output_format) or not cache_path.is_file():
+        return None
+    return await asyncio.to_thread(_read_note, cache_path)
+
+
+async def _decoded(path: Path, context: str) -> Loudness:
+    try:
+        return await measure_file(str(path), get_export_sample_rate())
+    except MeasureError as exc:
+        path.unlink(missing_ok=True)
+        mastering_logger.warning("%s [%s]: %s", MEASURE_FAILED_DETAIL, context, exc)
+        raise HTTPException(status_code=500, detail=MEASURE_FAILED_DETAIL) from None
+
+
+async def render_verified(
+    export: ExportFx,
+    cmd: list[str],
+    suffix: str,
+    context: str,
+    render: Render,
+    cache_path: Path | None = None,
+) -> tuple[Path, Loudness]:
+    """Render a mastered lossy export, decode it and, while its true peak is
+    over the plan's ceiling, render it again with the output trimmed by the
+    overshoot plus a margin, at most MASTER_LOSSY_RETRIES times. Returns the
+    file (the cache entry, or a temp file the caller removes) and its measurement."""
+    trim = 0.0
+    for attempt in range(MASTER_LOSSY_RETRIES + 1):
+        path = await render(with_output_trim(cmd, trim), suffix, context, cache_path)
+        out = await _decoded(path, context)
+        over = ceiling_trim(out.tp, export.plan.ceiling)
+        if not over or attempt == MASTER_LOSSY_RETRIES:
+            break
+        trim += over
+        if cache_path is None:
+            path.unlink(missing_ok=True)
+    if over:
+        mastering_logger.warning("still over the ceiling after %d retries [%s]", attempt, context)
+    if cache_path is not None:
+        await asyncio.to_thread(_write_note, cache_path, out)
+    return path, out

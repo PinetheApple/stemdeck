@@ -37,7 +37,7 @@ from app.pipeline.mastering import (
 
 logger = logging.getLogger(LOGGER_NAME)
 
-PLAN_CACHE_VERSION = "1"
+PLAN_CACHE_VERSION = "2"
 
 _plan_slots = asyncio.Semaphore(MASTER_PLAN_CONCURRENCY)
 _plan_locks: dict[str, asyncio.Lock] = {}
