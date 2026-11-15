@@ -354,9 +354,13 @@ test.describe("Up Next", () => {
     await expect(songRow(page, JOB_ID)).toHaveClass(ACTIVE, { timeout: OPEN_TIMEOUT_MS });
   });
 
-  test("Alt+Up and Alt+Down move the focused row, which keeps focus", async ({ page }) => {
+  test("Alt+Up and Alt+Down move the focused row, which keeps focus, and the order survives a reload", async ({ page }) => {
     const rows = await queueBoth(page);
     await rows.first().focus();
+    await page.keyboard.press(MOVE_EARLIER);
+    expect(await queuedIds(page)).toEqual([JOB_ID, SIBLING_JOB_ID]);
+    await expect(rows.first()).toBeFocused();
+
     await page.keyboard.press(MOVE_LATER);
     await expect.poll(() => queuedIds(page)).toEqual([SIBLING_JOB_ID, JOB_ID]);
     await expect(rows.nth(1)).toBeFocused();
@@ -367,6 +371,12 @@ test.describe("Up Next", () => {
     await page.keyboard.press(MOVE_EARLIER);
     await expect.poll(() => queuedIds(page)).toEqual([JOB_ID, SIBLING_JOB_ID]);
     await expect(rows.first().locator(".upnext-play")).toBeFocused();
+
+    await page.keyboard.press(MOVE_LATER);
+    await expect.poll(() => storedQueue(page)).toEqual([SIBLING_JOB_ID, JOB_ID]);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await openInspectorTab(page, "upnext");
+    await expect.poll(() => queuedIds(page)).toEqual([SIBLING_JOB_ID, JOB_ID]);
   });
 
   test("a dragged row moves, and the order survives a reload", async ({ page }) => {

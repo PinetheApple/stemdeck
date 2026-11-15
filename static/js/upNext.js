@@ -21,6 +21,7 @@ const UPNEXT_ROW = ".upnext-row";
 const UPNEXT_ROW_ACTIONS = ".upnext-play, .upnext-remove";
 const MOVE_STEP = Object.freeze({ [ROW_KEY.PREVIOUS]: -1, [ROW_KEY.NEXT]: 1 });
 const FRONT = null;
+const NO_MOVE = undefined;
 const DRAGGING_CLASS = "dragging";
 const DROP_BELOW_CLASS = "drop-below";
 const DRAG_EFFECT = "move";
@@ -82,11 +83,11 @@ function moveInUpNext(trackId, anchorId) {
   renderUpNext();
 }
 
-/** The song `trackId` goes after when moved `step` rows, FRONT, or undefined past either end. */
+/** The song `trackId` goes after when moved `step` rows, FRONT, or NO_MOVE past either end. */
 function anchorForStep(ids, trackId, step) {
   const from = ids.indexOf(trackId);
   const to = from + step;
-  if (from < 0 || to < 0 || to >= ids.length) return undefined;
+  if (from < 0 || to < 0 || to >= ids.length) return NO_MOVE;
   const others = ids.filter((id) => id !== trackId);
   return to === 0 ? FRONT : others[to - 1];
 }
@@ -268,11 +269,11 @@ function playUpNextRow(row) {
 function onUpNextMoveKey(e) {
   const step = MOVE_STEP[e.key];
   if (!step || !e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-  const row = e.target.closest(UPNEXT_ROW);
+  const row = e.target.closest?.(UPNEXT_ROW);
   if (!row) return;
   e.preventDefault();
   const anchor = anchorForStep(playableQueue(), row.dataset.id, step);
-  if (anchor !== undefined) moveInUpNext(row.dataset.id, anchor);
+  if (anchor !== NO_MOVE) moveInUpNext(row.dataset.id, anchor);
 }
 
 /** The id the dragged row should sit after, given where it was dropped, or FRONT. */
@@ -288,8 +289,12 @@ function dropAnchorId(list, clientY) {
 
 function showDropAnchor(list, anchor) {
   for (const row of list.querySelectorAll(UPNEXT_ROW)) {
-    row.classList.toggle(DROP_BELOW_CLASS, anchor !== FRONT && row.dataset.id === anchor);
+    row.classList.toggle(DROP_BELOW_CLASS, row.dataset.id === anchor);
   }
+}
+
+function clearDropAnchor(list) {
+  for (const row of list.querySelectorAll(UPNEXT_ROW)) row.classList.remove(DROP_BELOW_CLASS);
 }
 
 function onUpNextDragStart(e) {
@@ -305,7 +310,7 @@ function onUpNextDragStart(e) {
 function onUpNextDragEnd(e) {
   draggedId = null;
   e.target.closest?.(UPNEXT_ROW)?.classList.remove(DRAGGING_CLASS);
-  showDropAnchor(e.currentTarget, FRONT);
+  clearDropAnchor(e.currentTarget);
 }
 
 function onUpNextDragOver(e) {
@@ -321,7 +326,7 @@ function onUpNextDrop(e) {
   const dragged = draggedId;
   const anchor = dropAnchorId(e.currentTarget, e.clientY);
   draggedId = null;
-  showDropAnchor(e.currentTarget, FRONT);
+  clearDropAnchor(e.currentTarget);
   moveInUpNext(dragged, anchor);
 }
 
