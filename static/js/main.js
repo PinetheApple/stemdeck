@@ -1106,14 +1106,11 @@ function wireFileDrop() {
     }
   }
 
-  // `dropped` is [{ id, name, size }]: descriptions, not files. They are
-  // screened as they are; several are reviewed as they are and each is read
-  // only when it is sent, so a big drop is never held in the page all at once.
+  // `dropped` is [{ id, name, size }]: descriptions, not files. Several are
+  // reviewed as descriptions, each read only when it is sent.
   async function applyNativeDrop(invoke, dropped) {
     if (dropped.length > 1) {
-      stageLooseFiles(dropped, function readQueuedDrop(d) {
-        return readDroppedFile(invoke, d);
-      });
+      stageLooseFiles(dropped, (d) => readDroppedFile(invoke, d));
       return;
     }
     const screened = screenFiles(dropped);

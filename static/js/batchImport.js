@@ -5,8 +5,8 @@ import { t, plural } from "./i18n.js";
 import { selectedStems } from "./state.js";
 import {
   FileReadError, ITEM_KIND, ITEM_STATUS, MAX_BATCH_FILES, MAX_BATCH_LINKS, PATH_SEP, capEntries, capLines, fileItems,
-  formatBytes, isLoaded, isPastedList, isTickable, isUploadable, linkItems, loadItemFile, lookingUpItems, markUnchecked,
-  pastedLines, previewNames, queueItems, queuePlan,
+  formatBytes, isLoaded, isPastedList, isTickable, isUploadable, linkItems, lookingUpItems, markUnchecked,
+  pastedLines, previewNames, queueItems, queuePlan, sendFileItem,
 } from "./batchImportModel.js";
 import {
   currentSplitChoice, importResponse, interceptSubmit, isQueueFull, keepSplitChoice, postFileJob, postLinkImport,
@@ -117,6 +117,7 @@ export function startFileBatch(entries, { folder = null, readFile = null } = {})
     name: folder,
     entries: capped.entries,
     readFile,
+    loaded: new Map(),
     refused: capped.refused,
     dropped: new Set(),
     durations,
@@ -414,9 +415,9 @@ function addLibraryRows(target, queued) {
   for (const [key, jobs] of playlists) addPlaylistToLibrary(target.groups.find((g) => g.key === key)?.title, jobs);
 }
 
-async function postFileItem(target, item, { stems, autoSections }) {
-  const file = await loadItemFile(item, target.readFile);
-  return postFileJob(file, { stems, autoSections, replaces: item.replaces });
+function postFileItem(target, item, { stems, autoSections }) {
+  const post = (file) => postFileJob(file, { stems, autoSections, replaces: item.replaces });
+  return sendFileItem(item, { readFile: target.readFile, loaded: target.loaded, post });
 }
 
 const notQueuedReason = (err) => (

@@ -12,8 +12,8 @@ globalThis.localStorage = { getItem: () => null, setItem: () => {} };
 
 const {
   FileReadError, ITEM_STATUS, MAX_BATCH_FILES, MAX_BATCH_LINKS, capEntries, capLines, fileItems, folderFiles, isLoaded,
-  isPastedList, isTickable, linkItems, loadItemFile, lookingUpItems, markUnchecked, pastedLines, previewNames, queuePlan,
-  queueItems, walkEntries,
+  isPastedList, isTickable, linkItems, lookingUpItems, markUnchecked, pastedLines, previewNames, queuePlan,
+  queueItems, sendFileItem, walkEntries,
 } = await import("../../static/js/batchImportModel.js");
 const { batchProgress, batchStillShown, getBatch, recordBatch } = await import("../../static/js/queue.js");
 
@@ -202,15 +202,34 @@ const readFile = async (d) => {
   reads.push(d.id);
   return new File(["RIFF"], d.name);
 };
-const descRows = fileItems([{ file: described, dir: "" }], null, new Map());
-check("a described file is reviewed by name without being read", descRows[0].name === "Take 3.flac" && reads.length === 0);
-const loaded = await loadItemFile(descRows[0], readFile);
-check("sending a described file reads it once, as a File", isLoaded(loaded) && loaded.size === 4 && eq(reads, [9]));
-await loadItemFile(descRows[0], readFile);
-check("a file already read is not read again", eq(reads, [9]));
+const posted = [];
+const accept = async (file) => {
+  posted.push(file);
+  return "job";
+};
+const refuse = () => Promise.reject(new Error("queue full"));
+const [descRow] = fileItems([{ file: described, dir: "" }], null, new Map());
+check("a described file is reviewed by name without being read", descRow.name === "Take 3.flac" && reads.length === 0);
+
+const loaded = new Map();
+const refused = await sendFileItem(descRow, { readFile, loaded, post: refuse }).catch((e) => e);
+check("a row left out keeps its read file for a resend", refused instanceof Error && loaded.has(described) && eq(reads, [9]));
+await sendFileItem(descRow, { readFile, loaded, post: accept });
+check("a resend posts the file read before, without reading again", eq(reads, [9]) && isLoaded(posted[0]) && posted[0].size === 4);
+check("a row once queued no longer holds its file", loaded.size === 0);
+check("a row keeps its description after a read, so it still matches its entry", descRow.file === described);
+
+const removed = new Set([descRow.file]);
+const rebuilt = fileItems([{ file: described, dir: "" }], null, new Map()).filter((i) => !removed.has(i.file));
+check("a row read, left out and removed stays removed when the rows are rebuilt", rebuilt.length === 0);
+
 const pickedFile = new File(["x"], "picked.wav");
-check("a picked File is sent as it is", (await loadItemFile({ file: pickedFile, name: "picked.wav" }, readFile)) === pickedFile && eq(reads, [9]));
-const gone = await loadItemFile({ file: { id: 4 }, name: "gone.wav" }, () => Promise.reject("no such file")).catch((e) => e);
+await sendFileItem({ file: pickedFile, name: "picked.wav" }, { readFile, loaded, post: accept });
+check("a picked File is sent as it is", posted[1] === pickedFile && eq(reads, [9]) && loaded.size === 0);
+const gone = await sendFileItem(
+  { file: { id: 4 }, name: "gone.wav" },
+  { readFile: () => Promise.reject("no such file"), loaded, post: accept },
+).catch((e) => e);
 check("a file that cannot be read says which", gone instanceof FileReadError && gone.fileName === "gone.wav");
 
 // ─── the queue view's batch header ───
