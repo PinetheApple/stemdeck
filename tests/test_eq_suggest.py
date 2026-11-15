@@ -10,6 +10,7 @@
 - Loudness-neutral: the suggested EQ rendered through the export's own ffmpeg
   filters changes the measured integrated loudness by under 0.5 LU.
 - A lane too short or too quiet is refused, not guessed at.
+- The master preset never asks the limiter for more than the allowance.
 """
 
 from __future__ import annotations
@@ -23,8 +24,10 @@ import soundfile as sf
 
 from app.core.config import (
     FX_MAX_BANDS,
+    MASTER_PRESET_CEILING_DBTP,
     SUGGEST_COMBINED_MAX_DB,
     SUGGEST_GAIN_MAX_DB,
+    SUGGEST_LIMIT_ALLOWANCE_DB,
     SUGGEST_MAX_BANDS_LANE,
     SUGGEST_MIN_GAIN_DB,
     ffmpeg_executable,
@@ -38,6 +41,7 @@ from app.pipeline.eq_suggest import (
     band_reasons,
     make_suggestion,
     neutral_out_db,
+    recommend_master,
 )
 from app.pipeline.eq_targets import default_target, get_target, load_targets
 from app.pipeline.fx_filters import (
@@ -400,6 +404,36 @@ def test_not_enough_signal_is_refused(gain_db, seconds):
     x = shaped_noise(FLAT, seconds=seconds) * 10 ** (gain_db / 20)
     with pytest.raises(NotEnoughSignal):
         make_suggestion(analyse(x), get_target("other.balanced"), F.FREE, REPLACE, None, 5, [])
+
+
+STREAMING_LUFS = get_target("mix.balanced").target_lufs
+
+
+@pytest.mark.parametrize(
+    ("i", "tp", "preset", "target", "why"),
+    [
+        (-16.2, -2.0, "streaming", -14.0, "streaming"),
+        (-13.6, 1.4, "streaming", -14.0, "streaming"),
+        (-9.1, 0.75, "louder", -9.0, "louder"),
+        (-20.0, -0.5, "custom", -16.5, "dynamic"),
+        (-30.0, -2.0, "gentle", None, "gentle"),
+    ],
+)
+def test_master_preset_respects_the_material(i, tp, preset, target, why):
+    m = recommend_master(i, tp, STREAMING_LUFS)
+    assert (m.preset, m.target_lufs, m.ceiling_dbtp) == (preset, target, MASTER_PRESET_CEILING_DBTP)
+    assert m.limit_db <= SUGGEST_LIMIT_ALLOWANCE_DB + 1e-9
+    assert set(m.to_json()) == {"preset", "target_lufs", "ceiling_dbtp", "comp"}
+    assert m.reason["key"] == f"suggest.why.master.{why}"
+
+
+def test_master_preset_for_silence_is_gentle():
+    m = recommend_master(None, None, STREAMING_LUFS)
+    assert (m.preset, m.target_lufs, m.reason["key"]) == (
+        "gentle",
+        None,
+        "suggest.why.master.silent",
+    )
 
 
 def test_targets_are_complete():
