@@ -10,6 +10,7 @@ import { hasCompressedStems } from "../js/playbackStems.js";
 import { PITCH_MAX, PITCH_MIN, clampPitch } from "../js/pitchBus.js";
 import { createPlaybackContext } from "../js/audioContext.js";
 import { HTTP_CONFLICT } from "../js/lyricsTranscribe.js";
+import { FOLDER_MOVING_KEY, refusedForFolderMove } from "../js/folderMoving.js";
 import {
   SPLIT_STATE,
   SPLIT_CHOICE,
@@ -902,18 +903,28 @@ async function toggleFavorite(id) {
   if (!track) return;
   track.favorite = !track.favorite;
   render();
+  const failure = await saveFavorite(id, track.favorite);
+  if (!failure) return;
+  track.favorite = !track.favorite;
+  toast(failure, READING_TOAST_MS);
+  render();
+}
+
+const FAVORITE_SAVE_FAILED = "Could not save the favourite";
+
+/** Null when the server kept the favourite, else what to tell the user. */
+async function saveFavorite(id, favorite) {
   try {
     const res = await fetch(`/api/jobs/${encodeURIComponent(id)}/favorite`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ favorite: track.favorite }),
+      body: JSON.stringify({ favorite }),
     });
-    if (!res.ok) throw new Error(`PUT favorite -> ${res.status}`);
+    if (res.ok) return null;
+    return (await refusedForFolderMove(res)) ? translate(FOLDER_MOVING_KEY) : FAVORITE_SAVE_FAILED;
   } catch (e) {
     console.warn("[mobile] could not save the favourite:", e);
-    track.favorite = !track.favorite;
-    toast("Could not save the favourite");
-    render();
+    return FAVORITE_SAVE_FAILED;
   }
 }
 
@@ -925,7 +936,12 @@ async function deleteTrack(id) {
     // moved tracks to a Trash folder instead; now that the Trash lives on the
     // server, this screen can do the same thing rather than being the one
     // place in StemDeck where a stray thumb destroys a separation.
-    await fetch(`/api/jobs/${encodeURIComponent(id)}/trash`, { method: "POST" });
+    const res = await fetch(`/api/jobs/${encodeURIComponent(id)}/trash`, { method: "POST" });
+    if (await refusedForFolderMove(res)) {
+      toast(translate(FOLDER_MOVING_KEY), READING_TOAST_MS);
+      render();
+      return;
+    }
   } catch (e) {
     console.warn("[mobile] could not move track to trash:", e);
   }

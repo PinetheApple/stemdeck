@@ -1237,6 +1237,7 @@ async function sendTrashChange(trackId, trashed) {
   const action = trashed ? "trash" : "restore";
   try {
     const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/${action}`, { method: "POST" });
+    if (await refusedForFolderMove(res)) return undoTrashChange(trackId, trashed);
     // A refusal other than a conflict will not change on retry, so the server's answer stands.
     if (!res.ok && !isFinalRefusal(res.status)) return;
     if (_unconfirmedTrashState[trackId] !== trashed) return;
@@ -1245,6 +1246,18 @@ async function sendTrashChange(trackId, trashed) {
   } catch (e) {
     console.warn(`[catalog] could not ${action} ${trackId} on the server`, e);
   }
+}
+
+/** The server refused it for the stems folder move: the song goes back where it was, and a card says why. */
+function undoTrashChange(trackId, trashed) {
+  if (_unconfirmedTrashState[trackId] !== trashed) return;
+  delete _unconfirmedTrashState[trackId];
+  persistUnconfirmedTrash();
+  if (trashed) takeOutOfTrash([trackId]);
+  else putInTrash([trackId]);
+  saveState();
+  render();
+  notifyFailure({ kind: "trash", message: i18nT(FOLDER_MOVING_KEY) });
 }
 
 function isFinalRefusal(status) {
@@ -3862,19 +3875,21 @@ function onEmptyTrashClick(e) {
   });
 }
 
-/** The ids whose delete did not go through. A 404 is already gone. */
+/** The ids whose delete did not go through, and whether the stems folder move refused one. A 404 is already gone. */
 async function deleteJobsOnServer(ids) {
   const failed = [];
+  let movingRefusal = false;
   for (const id of ids) {
     try {
       const res = await fetch(`/api/jobs/${id}`, { method: "DELETE" });
+      if (await refusedForFolderMove(res)) movingRefusal = true;
       if (!res.ok && res.status !== HTTP_NOT_FOUND) failed.push(id);
     } catch (err) {
       console.warn("[catalog] delete failed for", id, err);
       failed.push(id);
     }
   }
-  return failed;
+  return { failed, movingRefusal };
 }
 
 // A song whose delete failed stays in the Trash, so Empty trash can try again.
@@ -3882,14 +3897,15 @@ async function emptyTrash(btn) {
   btn.disabled = true;
   try {
     const toDelete = [...(getTrashFolder()?.items || [])];
-    const failed = await deleteJobsOnServer(toDelete);
+    const { failed, movingRefusal } = await deleteJobsOnServer(toDelete);
     const deleted = toDelete.filter((id) => !failed.includes(id));
     await markJobsDeleted(deleted);
     purgeTrash(deleted);
     saveState();
     render();
     if (failed.length) {
-      notifyFailure({ kind: "trash", message: i18nT("library.deleteFailed", { count: failed.length }) });
+      const message = i18nT(noticeKey(movingRefusal, "library.deleteFailed"), { count: failed.length });
+      notifyFailure({ kind: "trash", message });
     }
   } finally {
     btn.disabled = false;

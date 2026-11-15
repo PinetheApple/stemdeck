@@ -565,6 +565,7 @@ def trash_job(job_id: str) -> dict:
     """
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     job = _set_trashed(job_id, True)
     if job.status not in FINISHED_STATUSES:
         job.stop_requested = True
@@ -581,6 +582,7 @@ def restore_job(job_id: str) -> dict:
     """Take a job back out of the Trash."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     job = _set_trashed(job_id, False)
     registry_persist(JOBS_DIR)
     copy_saved_fields(job, JOBS_DIR / job.id)
@@ -859,6 +861,7 @@ def get_job(job_id: str) -> dict:
 @router.post("/{job_id}/cancel")
 def cancel_job(job_id: str) -> dict:
     """Request cancellation of a running job. Idempotent for terminal jobs."""
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     job = registry_get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
@@ -1312,6 +1315,7 @@ async def refresh_audio_tags(job_id: str) -> dict:
     """
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     job = registry_get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
@@ -2416,6 +2420,7 @@ def delete_job(job_id: str) -> dict[str, str]:
     """Delete a completed or failed job and remove its stem files from disk."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     with _RETRY_LOCK:
         job = _known_job(job_id)
         if job is None:
