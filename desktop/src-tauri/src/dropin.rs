@@ -44,6 +44,8 @@ use std::time::Duration;
 
 use serde::Serialize;
 
+use crate::dropfolder;
+
 /// Whether the main window takes OS file drops natively.
 ///
 /// Linux only. On Windows, WebView2 stops delivering HTML5 `dragover` and
@@ -78,6 +80,8 @@ pub struct DroppedFile {
     pub id: u64,
     pub name: String,
     pub size: u64,
+    /// The folders between the drop and the file, as in `dropfolder`.
+    pub dir: String,
 }
 
 /// One thing that happened to a drag over the window.
@@ -86,7 +90,13 @@ pub struct DroppedFile {
 pub enum DropSignal {
     Enter,
     Leave,
-    Drop { files: Vec<DroppedFile> },
+    /// `folder` is whether the drop held a folder, so an empty one can be
+    /// told apart from a drop of nothing the page can use.
+    Drop {
+        files: Vec<DroppedFile>,
+        folder: bool,
+    },
+    FolderUnreadable,
 }
 
 /// The answer to "anything since `after`?".
@@ -153,43 +163,44 @@ impl DropInbox {
         self.publish(&mut inner, DropSignal::Leave);
     }
 
-    /// Records a drop and publishes it.
+    /// Records a drop and publishes it, a dropped folder as the files in it.
     ///
     /// Replaces whatever an earlier drop left unread: the page only ever acts
     /// on the latest drop, so older paths would sit here for the life of the
     /// app, still readable, for no reason.
     pub fn drop_paths(&self, paths: &[PathBuf]) -> Vec<DroppedFile> {
-        // Looked at before taking the lock: a stat can be slow on a network
-        // mount, and nothing else needs to wait for it.
-        let described: Vec<(String, u64)> = paths
-            .iter()
-            .map(|path| {
-                (
-                    display_name(path),
-                    // A folder, or something gone by the time it is looked
-                    // at, reports 0. The page screens by name and size, so a
-                    // folder is refused as "not audio" as the HTML5 path does.
-                    fs::metadata(path)
-                        .ok()
-                        .filter(|m| m.is_file())
-                        .map_or(0, |m| m.len()),
-                )
-            })
-            .collect();
+        // Walked before taking the lock: a folder on a network mount can take
+        // a while, and nothing else needs to wait for it.
+        let expanded = match dropfolder::expand(paths) {
+            Ok(expanded) => expanded,
+            Err(e) => {
+                eprintln!("[dropin] could not read a dropped folder: {e}");
+                let mut inner = self.lock();
+                inner.pending.clear();
+                self.publish(&mut inner, DropSignal::FolderUnreadable);
+                return vec![];
+            }
+        };
 
         let mut inner = self.lock();
         inner.pending.clear();
-        let mut files = Vec::with_capacity(paths.len());
-        for (path, (name, size)) in paths.iter().zip(described) {
+        let mut files = Vec::with_capacity(expanded.files.len());
+        for found in expanded.files {
             inner.next_id += 1;
             let id = inner.next_id;
-            inner.pending.insert(id, path.clone());
-            files.push(DroppedFile { id, name, size });
+            files.push(DroppedFile {
+                id,
+                name: display_name(&found.path),
+                size: found.size,
+                dir: found.dir,
+            });
+            inner.pending.insert(id, found.path);
         }
         self.publish(
             &mut inner,
             DropSignal::Drop {
                 files: files.clone(),
+                folder: expanded.folder,
             },
         );
         files
@@ -287,18 +298,50 @@ mod tests {
     }
 
     #[test]
-    fn a_folder_is_reported_with_no_size_and_cannot_be_read() {
+    fn a_dropped_folder_arrives_as_its_files_each_readable_by_id() {
         let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("Rehearsal");
+        fs::create_dir_all(root.join("Live")).unwrap();
+        file_with(&root.join("Live"), "b.flac", b"fLaC");
         let inbox = DropInbox::default();
 
-        let files = inbox.drop_paths(&[dir.path().to_path_buf()]);
+        let files = inbox.drop_paths(&[root]);
 
-        assert_eq!(files[0].size, 0);
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "b.flac");
+        assert_eq!(files[0].dir, "Rehearsal/Live");
+        let next = inbox.next_signal(Some(0), WAIT);
+        assert!(matches!(
+            next.signal,
+            Some(DropSignal::Drop { folder: true, .. })
+        ));
+        let json = serde_json::to_string(&next).unwrap();
+        assert!(!json.contains(dir.path().to_str().unwrap()), "{json}");
         let path = inbox.take(files[0].id).unwrap();
-        // Refused either way, by a different step per platform: Windows will
-        // not open a directory at all, and Linux opens it and then fails the
-        // regular-file check.
-        assert!(read_dropped(&path, MAX_DROPPED_FILE_BYTES).is_err());
+        assert_eq!(
+            read_dropped(&path, MAX_DROPPED_FILE_BYTES).unwrap(),
+            b"fLaC"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_folder_that_cannot_be_read_says_so_and_offers_nothing() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let locked = dir.path().join("Locked");
+        fs::create_dir(&locked).unwrap();
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+        let inbox = DropInbox::default();
+
+        let files = inbox.drop_paths(std::slice::from_ref(&locked));
+
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(files.is_empty());
+        assert_eq!(
+            inbox.next_signal(Some(0), WAIT).signal,
+            Some(DropSignal::FolderUnreadable)
+        );
     }
 
     #[test]
@@ -365,7 +408,10 @@ mod tests {
                 DropSignal::Enter,
                 DropSignal::Leave,
                 DropSignal::Enter,
-                DropSignal::Drop { files: vec![] },
+                DropSignal::Drop {
+                    files: vec![],
+                    folder: false,
+                },
             ]
         );
     }
