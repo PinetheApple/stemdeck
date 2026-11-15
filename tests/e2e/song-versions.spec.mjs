@@ -230,6 +230,25 @@ test("Extract more stems makes a version from the stems it adds, or opens the on
   await expect(versionRows(page)).toHaveCount(3);
 });
 
+test("Extract more stems is offered in the row's menu and the open song's More menu", async ({ page, request }) => {
+  await createVersion(request, JOB_ID, { name: "Two lanes", stems: TWO_STEMS, open: true });
+  await openStudio(page);
+  await expect.poll(() => studioState(page)).toMatchObject({ lanes: [...TWO_STEMS].sort() });
+  const menu = page.locator(".lib-menu");
+
+  await songRow(page).hover();
+  await songRow(page).locator(".cat-more").click();
+  await expect(menu.getByRole("menuitem", { name: "Rename…" })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "Extract more stems…" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.locator("#songMoreBtn").click();
+  await expect(menu.getByRole("menuitem", { name: "Extract more stems…" })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "New setlist with this song" })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "New folder…" })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "Rename…" })).toHaveCount(0);
+});
+
 test("a deleted version takes its mix with it, and one version left is a plain row", async ({ page, request }) => {
   const v2 = await createVersion(request, JOB_ID, { name: "Doomed", stems: TWO_STEMS });
   await seedMixes(page, { [versionKey(v2.id)]: laneMix(V2_DRUMS) });
