@@ -192,6 +192,7 @@ import { createPlaybackContext } from "./audioContext.js";
 import { createTickLoop } from "./tickLoop.js";
 import { loadStretchWorklet, pipelineLatencySeconds as stretchLatency } from "./tempoStage.js";
 import { hasKnownLength, reachedEnd } from "./playbackEnd.js";
+import { EngineFx, engineFxApi } from "./fxChain.js";
 
 export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {}) {
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -221,7 +222,8 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
   // on a laptop and the silence at 192 kHz in #575. Connecting a bus only while
   // a lane is on it hands the processor the empty input its contract describes.
   const busLanes = new Array(INPUT_COUNT).fill(0);
-  master.connect(ctx.destination);
+  const fx = new EngineFx(ctx, stemsOf);
+  fx.attachMaster(master);
 
   let stNode = null;
   let _playbackRate = 1.0;
@@ -278,13 +280,15 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
   // currently playing nodes. Graph per stem: sources -> gain -> analyser -> master.
   // The analyser sits post-gain so VU meters reflect volume/mute/solo.
   const stemMap = new Map();
+  function stemsOf(name) {
+    return [...stemMap.values()].filter((stem) => stem.controlName === name);
+  }
   for (const s of stems) {
     if (!s?.url || s.visualOnly) continue;
     const pitchable = s.name !== "drums" && s.pitched !== false;
     const gain = ctx.createGain();
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 1024;
-    gain.connect(analyser);
     const stem = {
       url: s.url,
       header: null,
@@ -300,6 +304,7 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
       level: 1,
     };
     stemMap.set(s.name, stem);
+    fx.attachLane(stem);
     routeStem(stem, true);
   }
 
@@ -937,6 +942,7 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
     getAnalyser: (name) => [...stemMap.values()]
       .find((stem) => stem.controlName === name)?.analyser ?? null,
     getBuffers: () => new Map(),
+    ...engineFxApi(fx),
     destroy() {
       destroyed = true;
       if (playing) pause();
@@ -948,6 +954,7 @@ export function createChunkedAudioEngine(stems, { onTime, onEnded, context } = {
       ctx.removeEventListener("statechange", onCtxStateChange);
       if (stNode) { try { stNode.disconnect(); } catch { /* noop */ } }
       _cache.clear();
+      fx.dispose();
       stemMap.clear();
       if (ownsCtx) ctx.close().catch(() => {});
     },

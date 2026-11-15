@@ -8,8 +8,17 @@ import {
   positionStateFor,
   positionDrifted,
   nextMotion,
+  playKeyStarts,
+  silentWav,
   STILL,
   POSITION_DRIFT_SEC,
+  WAV_CHUNK,
+  WAV_FIELD,
+  WAV_HEADER_BYTES,
+  PCM_FORMAT,
+  MONO,
+  BITS_PER_SAMPLE,
+  BYTES_PER_SAMPLE,
 } from '../../static/js/mediaSessionModel.js';
 
 let passed = 0;
@@ -123,6 +132,53 @@ const moving = nextMotion(started, true, 2.1);
 check('the playhead leaves the start: moving', moving, { from: 2, moving: true });
 check('a loop wrap back to the start stays moving', nextMotion(moving, true, 2), moving);
 check('a pause stops it', nextMotion(moving, false, 3), STILL);
+
+// ─── What the play key does ───
+
+check('paused: it starts', playKeyStarts({ playing: false, moving: false, clockReady: false }), true);
+check(
+  'a start still loading its first audio: it waits, it does not pause',
+  playKeyStarts({ playing: true, moving: false, clockReady: false }),
+  false,
+);
+check(
+  'a count-in: it cancels, as the toggle does',
+  playKeyStarts({ playing: true, moving: false, clockReady: true }),
+  true,
+);
+check('already playing: nothing', playKeyStarts({ playing: true, moving: true, clockReady: true }), false);
+
+// ─── The silent loop that keeps the OS controls ───
+
+const SAMPLE_RATE = 8000;
+const SECONDS = 2;
+const CHUNK_ID_BYTES = 4;
+const RIFF_SIZE_EXCLUDES = 8;
+const DATA_BYTES = SECONDS * SAMPLE_RATE * BYTES_PER_SAMPLE;
+const wav = silentWav(SECONDS, SAMPLE_RATE);
+const view = new DataView(wav.buffer);
+const chunkId = (at) => String.fromCharCode(...wav.slice(at, at + CHUNK_ID_BYTES));
+check(
+  'a RIFF WAVE file',
+  [WAV_FIELD.RIFF_ID, WAV_FIELD.WAVE_ID, WAV_FIELD.FMT_ID, WAV_FIELD.DATA_ID].map(chunkId),
+  [WAV_CHUNK.RIFF, WAV_CHUNK.WAVE, WAV_CHUNK.FMT, WAV_CHUNK.DATA],
+);
+check(
+  '16-bit mono PCM at the asked rate',
+  [
+    view.getUint16(WAV_FIELD.FORMAT, true),
+    view.getUint16(WAV_FIELD.CHANNELS, true),
+    view.getUint32(WAV_FIELD.SAMPLE_RATE, true),
+    view.getUint16(WAV_FIELD.BITS_PER_SAMPLE, true),
+  ],
+  [PCM_FORMAT, MONO, SAMPLE_RATE, BITS_PER_SAMPLE],
+);
+check(
+  'the sizes in the header match the file',
+  [view.getUint32(WAV_FIELD.RIFF_SIZE, true), view.getUint32(WAV_FIELD.DATA_SIZE, true), wav.length],
+  [wav.length - RIFF_SIZE_EXCLUDES, DATA_BYTES, WAV_HEADER_BYTES + DATA_BYTES],
+);
+check('every sample is zero', wav.slice(WAV_HEADER_BYTES).every((b) => b === 0), true);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 
-from app.api import stems_click
+from app.api import stems_click, takes_lanes
 from app.core.config import (
     AUDIO_MEDIA_TYPES,
     CACHE_DIR,
@@ -117,6 +117,7 @@ def _mixdown_cache_key(
     end: float | None,
     click_lane: tuple[Path, float] | None = None,
     pitches: list[int] | None = None,
+    take_versions: list[str] | None = None,
 ) -> str:
     """Every render input is in the key, so a different mixer state, region,
     or a Settings change (export sample rate) misses cleanly -- never a stale
@@ -142,6 +143,8 @@ def _mixdown_cache_key(
             # the cache survives the change.
             "" if not (pitches and any(pitches)) else "p" + ",".join(str(p) for p in pitches),
         ]
+        # Only with a take in the mix, so every stems-only key stays as it was.
+        + (["t" + ",".join(take_versions)] if take_versions else [])
     )
     # Cache key, not a security context -- usedforsecurity=False documents
     # that for both readers and static analysis (bandit flags bare sha1()).
@@ -201,6 +204,20 @@ def _validate_stem_path(job_id: str, name: str):
     if not path.is_file() or not path.is_relative_to(JOBS_DIR.resolve()):
         raise HTTPException(status_code=404, detail="stem not found")
     return path
+
+
+def _take_lane(job_id: str, name: str) -> takes_lanes.TakeLane:
+    """The take a take or track lane plays, with the stem guards; 422 like an
+    unknown stem when it names no finished take of this song."""
+    if not JOB_ID_RE.match(job_id):
+        raise HTTPException(status_code=404, detail="job not found")
+    job = registry_get(job_id)
+    if job is None or job.status != "done":
+        raise HTTPException(status_code=404, detail="job not ready")
+    lane = takes_lanes.resolve_take_lane(JOBS_DIR / job_id, name)
+    if lane is None:
+        raise HTTPException(status_code=422, detail="unknown stem requested")
+    return lane
 
 
 class _ClickLane(NamedTuple):
@@ -498,7 +515,7 @@ def _parse_lane_gains(stems: str, gains: str) -> tuple[list[str], list[float]]:
         raise HTTPException(status_code=422, detail="gains must be numbers") from None
     if any(g < 0 or g > _MIXDOWN_MAX_GAIN for g in parsed_gains):
         raise HTTPException(status_code=422, detail="gain out of range")
-    if not set(names) <= _MIXDOWN_NAMES:
+    if not all(n in _MIXDOWN_NAMES or takes_lanes.is_take_lane(n) for n in names):
         raise HTTPException(status_code=422, detail="unknown stem requested")
     if "vocals" in names and _VOCAL_DECOMPOSITION_NAMES & set(names):
         raise HTTPException(
@@ -546,6 +563,9 @@ def _expand_render_lanes(
         selected.add("vocals")
 
     for name, gain, pitch in zip(names, gains, pitches, strict=True):
+        if takes_lanes.is_take_lane(name):
+            lanes.append(_RenderLane(_take_lane(job_id, name).path, gain, takes_lanes.NO_SHIFT))
+            continue
         # Validate first, always. Whether a lane exists is a property of the
         # job, not of the request: without this an "original" lane the job
         # never produced would 404 untransposed and be synthesised from
@@ -1167,6 +1187,7 @@ async def get_mixdown(
 
     names, parsed_gains = _parse_lane_gains(stems, gains)
     parsed_pitches = _parse_pitches(pitches, names)
+    parsed_pitches = takes_lanes.zero_take_pitches(names, parsed_pitches)
     stems_click.check_click_sound(click_sound)
     if (start is None) != (end is None) or (start is not None and start >= end):
         raise HTTPException(
@@ -1206,7 +1227,15 @@ async def get_mixdown(
         sound=click_sound,
     )
     cache_key = _mixdown_cache_key(
-        job_id, ext, names, parsed_gains, start, end, click_lane, parsed_pitches
+        job_id,
+        ext,
+        names,
+        parsed_gains,
+        start,
+        end,
+        click_lane,
+        parsed_pitches,
+        takes_lanes.take_lane_versions(JOBS_DIR / job_id, names),
     )
     cache_path = _MIXDOWN_CACHE_DIR / f"{cache_key}.{ext}"
     if cache_path.is_file():
@@ -1256,12 +1285,7 @@ async def get_mixdown(
         level = stems_click.click_level_filter(click_lane.gain)
         filters.append(f"[{stem_count}:a]{level}[a{stem_count}]")
     n = stem_count + (1 if click_lane is not None else 0)
-    if n > 1:
-        labels = "".join(f"[a{i}]" for i in range(n))
-        filters.append(f"{labels}amix=inputs={n}:normalize=0[mix]")
-        out_label = "[mix]"
-    else:
-        out_label = "[a0]"
+    out_label = takes_lanes.sum_lanes(filters, n, names)
     codec = MIXDOWN_CODECS[ext]
     # Resample to the user's chosen export rate (default 44.1 kHz = the stem rate,
     # so a no-op unless changed). Applies to every audio container -- some hardware
@@ -1353,6 +1377,7 @@ async def get_video_mixdown(
 
     names, parsed_gains = _parse_lane_gains(stems, gains)
     parsed_pitches = _parse_pitches(pitches, names)
+    parsed_pitches = takes_lanes.zero_take_pitches(names, parsed_pitches)
     # Same refusal as the audio export: a video whose audio came back in the
     # original key would be the same complaint reported again (#592).
     if any(parsed_pitches) and not await asyncio.to_thread(_rubberband_available):
@@ -1395,12 +1420,7 @@ async def get_video_mixdown(
         last = len(render_lanes) - 1
         filters[last] = f"[{last}:a]{stems_click.click_level_filter(click_lane.gain)}[a{last}]"
     n = len(paths)
-    if n > 1:
-        labels = "".join(f"[a{i}]" for i in range(n))
-        filters.append(f"{labels}amix=inputs={n}:normalize=0[mix]")
-        out_label = "[mix]"
-    else:
-        out_label = "[a0]"
+    out_label = takes_lanes.sum_lanes(filters, n, names)
     cmd += [
         "-filter_complex",
         ";".join(filters),
@@ -1435,6 +1455,13 @@ def _arcname(prefix: str, name: str, ext: str) -> str:
     identifiable once extracted into a project folder alongside other songs'
     stems (#336); unprefixed when the song has no usable title."""
     return f"{prefix}_{name}.{ext}" if prefix else f"{name}.{ext}"
+
+
+def _take_arc_stem(job_id: str, take_id: str) -> str:
+    """A take's name in the ZIP: its label and the take id, so two takes called
+    the same stay apart. A track lane names the take it plays."""
+    label = _title_slug(takes_lanes.take_lane_label(JOBS_DIR / job_id, take_id))
+    return f"{label}_{take_id}" if label else take_id
 
 
 def _build_stems_zip(
@@ -1484,8 +1511,11 @@ async def get_all_stems_zip(
 
     # Resolve the requested subset (whitelisted) or fall back to all stems.
     all_names = (*STEM_NAMES, *EXTRA_STEM_NAMES)
+    take_names: list[str] = []
     if stems:
         requested = {s for s in stems.split(",") if s}
+        take_names = sorted(n for n in requested if takes_lanes.is_take_lane(n))
+        requested -= set(take_names)
         if not requested <= set(all_names):
             raise HTTPException(status_code=422, detail="unknown stem requested")
         if "vocals" in requested and _VOCAL_DECOMPOSITION_NAMES & requested:
@@ -1507,6 +1537,9 @@ async def get_all_stems_zip(
         p = stem_path(stems_dir, name).resolve()
         if p.is_file() and p.is_relative_to(jobs_root):
             sources.append((name, p))
+    # A track and its active take are the same file: one member.
+    takes = {lane.take_id: lane for lane in (_take_lane(job_id, n) for n in take_names)}
+    sources += [(_take_arc_stem(job_id, t.take_id), t.path) for t in takes.values()]
     if not sources:
         raise HTTPException(status_code=404, detail="no stems found")
     click_stem = await stems_click.zip_click_stem(click, job_id, _read_beat_grid, _parse_groups)
