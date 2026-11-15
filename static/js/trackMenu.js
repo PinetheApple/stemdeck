@@ -93,8 +93,8 @@ function extractMoreItem(trackId, anchor) {
   });
 }
 
-function extractItems(trackId, anchor, extract) {
-  return extract && canExtractMore(trackId) ? [extractMoreItem(trackId, anchor)] : [];
+function extractItems(trackId, anchor) {
+  return canExtractMore(trackId) ? [extractMoreItem(trackId, anchor)] : [];
 }
 
 /** The open song's menu has no Rename: the song head has its own, and Stage has no row to edit in. */
@@ -107,10 +107,10 @@ function renameItems(trackId, rename) {
   ];
 }
 
-function buildMenu(trackId, anchor, { rename, extract }) {
+function buildMenu(trackId, anchor, { rename }) {
   return [
     ...renameItems(trackId, rename),
-    ...extractItems(trackId, anchor, extract),
+    ...extractItems(trackId, anchor),
     menuLabel(t("trackMenu.addToSetlist")),
     ...getSetlists().map((setlist) => setlistItem(setlist, trackId)),
     menuItem(t("trackMenu.newSetlist"), "plus", function onNewSetlistWithSong() {
@@ -207,12 +207,12 @@ export function openMenu(anchor, items, { label, place = placeMenu }) {
   window.addEventListener("resize", closeMenu);
 }
 
-function toggleMenu(id, anchor, { rename = true, extract = true } = {}) {
+function toggleMenu(id, anchor, { rename = true } = {}) {
   if (!id || !anchor) {
     closeMenu();
     return;
   }
-  openMenu(anchor, buildMenu(id, anchor, { rename, extract }), { label: t("trackMenu.open") });
+  openMenu(anchor, buildMenu(id, anchor, { rename }), { label: t("trackMenu.open") });
 }
 
 function onTrackMenuRequest(e) {
