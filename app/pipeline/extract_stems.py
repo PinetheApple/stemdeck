@@ -30,7 +30,12 @@ from app.core.song_folder import metadata_lock
 from app.core.stem_files import MP3_EXT, WAV_EXT, point_urls_at_disk, stem_exists
 from app.pipeline.collect import merge_stem_peaks, presence_for_split
 from app.pipeline.download import download
-from app.pipeline.errors import CAUSE_SOURCE_UNAVAILABLE, CAUSE_UNKNOWN, classify_failure
+from app.pipeline.errors import (
+    CAUSE_SOURCE_BLOCKED,
+    CAUSE_SOURCE_UNAVAILABLE,
+    CAUSE_UNKNOWN,
+    classify_failure,
+)
 from app.pipeline.runs import CANCELLED, DONE, IDLE, Run, RunBoard, run_behind_lock
 from app.pipeline.separate import separate
 from app.pipeline.stem_storage import store_split_stems
@@ -52,9 +57,8 @@ _TEMP_SUFFIX = ".tmp"
 _PROGRESS_DIGITS = 3
 _PEAKS_FILE = "peaks.json"
 _LINK_SCHEMES = frozenset({"http", "https"})
-# classify_failure's causes that only a download's wording matches; errors.py
-# names source-blocked with a bare string.
-_LINK_ONLY_CAUSES = frozenset({"source-blocked", CAUSE_SOURCE_UNAVAILABLE})
+# classify_failure's causes that only a download's wording matches.
+_LINK_ONLY_CAUSES = frozenset({CAUSE_SOURCE_BLOCKED, CAUSE_SOURCE_UNAVAILABLE})
 
 # Records the version once the stems are in, under the metadata lock: the
 # song, the stems it shows and its name, returning the id of the version opened.
