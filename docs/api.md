@@ -11,7 +11,7 @@ The endpoints the web app itself uses. They are not a stable public interface an
 | GET | `/api/jobs` | List completed (library) jobs |
 | GET | `/api/jobs/{id}` | Job state snapshot |
 | PATCH | `/api/jobs/{id}` | Rename a song: `{title?, artist?}`, a string sets it, `null` restores the detected value → job state |
-| GET | `/api/jobs/{id}/versions` | The song's [versions](#versions) → `{job_id, versions, open_version}`, in any status; writes nothing |
+| GET | `/api/jobs/{id}/versions` | The song's [versions](#versions) → `{job_id, versions, open_version, missing_files}`, in any status; writes nothing. `missing_files` lists the base stems with no file on disk, which extracting them would separate |
 | POST | `/api/jobs/{id}/versions/{vid}/open` | Make `vid` the version the song opens with → `{job_id, versions, open_version}`; opening the open one writes nothing |
 | PATCH | `/api/jobs/{id}/versions/{vid}` | Rename a version: `{name}` → `{job_id, versions, open_version}` |
 | POST | `/api/jobs/{id}/versions` | Save as new: `{name, stems, open?}` → 201 `{version, job_id, versions, open_version}` |

@@ -204,9 +204,6 @@ def assert_unchanged(job: Job, before: dict[str, tuple[bytes, float]]) -> None:
     assert job.status == STATUS_DONE
 
 
-# ── running ──
-
-
 def test_a_missing_stem_starts_a_run_and_the_song_stays_done(client, monkeypatch):
     job = song("guitar")
     fake = stub(monkeypatch, FakeSeparator())
@@ -271,6 +268,7 @@ def test_a_failed_separation_leaves_the_song_as_it_was(client, monkeypatch):
     view = wait_ended(client)
 
     assert view["state"] == FAILED
+    assert view["phase"] == ex_mod.PHASE_SEPARATING
     assert view["error"] == CAUSE_OUT_OF_MEMORY
     assert_unchanged(job, before)
 
@@ -367,9 +365,6 @@ def test_an_extracted_stem_gets_presence_on_the_songs_scale(client, monkeypatch)
     assert job.stem_presence == {"vocals": REFERENCE_PRESENCE, "guitar": REFERENCE_PRESENCE}
 
 
-# ── cancel, trash, delete ──
-
-
 def test_cancel_sets_the_flag_before_the_kill_and_leaves_the_song(client, monkeypatch):
     job = song("guitar")
     before = snapshot()
@@ -453,9 +448,6 @@ def test_a_library_move_is_refused_while_a_run_is_going(client, monkeypatch):
         _refuse_while_busy()
     fake.release.set()
     wait_ended(client)
-
-
-# ── refusals and restarts ──
 
 
 def test_without_the_kept_audio_nothing_is_started(client, monkeypatch):
