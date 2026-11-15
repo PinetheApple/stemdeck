@@ -48,6 +48,7 @@ import {
 } from "./librarySync.js";
 import { wireRecordingSettings } from "./recorderSettings.js";
 import { finishTakeBeforeTeardown } from "./recorder.js";
+import { wireVideoEncoderSettings } from "./videoEncoderSettings.js";
 import { t as i18nT, plural as i18nPlural, LANGUAGES, getLanguage, setLanguage, onLanguageChange, applyTranslations } from "./i18n.js";
 import { applyNetworkSwitch, networkSwitchOn } from "./networkRestart.js";
 import { GPU_BACKEND_ROCM, gpuUnusedMessage } from "./gpuUnused.js";
@@ -6375,6 +6376,7 @@ function openLibraryEditor() {
             </select>
           </div>
         </div>
+        <div class="settings-section vid-enc-section" hidden></div>
       </div>
       <div class="settings-pane hidden" data-pane="recording"></div>
       <div class="settings-pane hidden" data-pane="logs">
@@ -6502,6 +6504,7 @@ function openLibraryEditor() {
   wireStemsLocation(overlay);
   wireExportsLocation(overlay);
   wireRecordingSettings(overlay);
+  wireVideoEncoderSettings(overlay);
   wireNetworkSetting(overlay);
   if (!isDesktop) {
     overlay.querySelector(".net-access-input")?.setAttribute("disabled", "");

@@ -1892,6 +1892,8 @@ function _triggerDownload(url, filename, onTransferStart) {
   return _browserDownload(fullUrl, filename);
 }
 
+export const triggerDownload = _triggerDownload;
+
 const BLOB_URL_LIFETIME_MS = 60_000;
 
 // Fetched rather than linked: a browser download reports nothing back to the
@@ -1940,6 +1942,11 @@ function _effectiveMixGains() {
     pitches.push(effectivePitch(s.name, m.pitch ?? 0, undefined));
   }
   return { names, gains, pitches };
+}
+
+/** The export mix's audible lanes, gains and pitches: what Export Mix sends. */
+export function exportMixLanes() {
+  return _effectiveMixGains();
 }
 
 // Click-track export params. The click is synthesised in the browser during
