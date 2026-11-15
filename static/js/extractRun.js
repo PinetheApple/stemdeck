@@ -35,8 +35,7 @@ const PERCENT = 100;
 const SOURCE_UNAVAILABLE = "source-unavailable";
 const UNKNOWN_CAUSE = "unknown";
 const TOO_MANY_VERSIONS = "too-many-versions";
-// classify_failure causes whose import sentence also reads right for this run.
-const IMPORT_WORDED_CAUSES = new Set(["out-of-memory", "disk-full", "unsupported-device", "source-blocked"]);
+const UNWORDED_IMPORT_KEY = failureReasonKey(UNKNOWN_CAUSE);
 const GENERIC_FAILURE_KEY = "versions.extractFailed";
 const LINK_DEAD_KEY = "versions.extractLinkDead";
 const TOO_MANY_KEY = "versions.tooMany";
@@ -60,9 +59,10 @@ const extractUrl = (jobId) => `/api/jobs/${encodeURIComponent(jobId)}/versions/e
 /** The i18n key of the sentence that says why a failed run's view failed. */
 export function failureKey({ error, phase }) {
   if (error === TOO_MANY_VERSIONS) return TOO_MANY_KEY;
-  if (IMPORT_WORDED_CAUSES.has(error)) return failureReasonKey(error);
-  const downloadFailed = phase === EXTRACT_PHASE.DOWNLOADING && error === UNKNOWN_CAUSE;
-  return downloadFailed || error === SOURCE_UNAVAILABLE ? LINK_DEAD_KEY : GENERIC_FAILURE_KEY;
+  if (error === SOURCE_UNAVAILABLE) return LINK_DEAD_KEY;
+  const importKey = failureReasonKey(error);
+  if (importKey !== UNWORDED_IMPORT_KEY) return importKey;
+  return phase === EXTRACT_PHASE.DOWNLOADING && error === UNKNOWN_CAUSE ? LINK_DEAD_KEY : GENERIC_FAILURE_KEY;
 }
 
 /** What a running view shows: its words, whether a bar goes under them, and how full. */
@@ -74,10 +74,14 @@ export function runLabel(view, t) {
   return { text, bar: phase !== EXTRACT_PHASE.QUEUED, progress };
 }
 
-/** Of `stems`, those the song's versions payload says have no file. */
-export function filelessStems(versionsState, stems) {
-  const missing = new Set(versionsState?.missing_files ?? []);
-  return stems.filter((name) => missing.has(name));
+/** Of `stems`, those with no file: per the versions payload, else per the song's own files when known. */
+export function filelessStems(versionsState, track, stems) {
+  if (versionsState) {
+    const missing = new Set(versionsState.missing_files ?? []);
+    return stems.filter((name) => missing.has(name));
+  }
+  const files = new Set((track?.audioStems ?? []).map((stem) => stem.name));
+  return files.size ? stems.filter((name) => !files.has(name)) : [];
 }
 
 export const isExtracting = (jobId) => following.has(jobId);

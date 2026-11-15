@@ -28,7 +28,7 @@ const EXTRACT_URL = `/api/jobs/${JOB}/versions/extract`;
 const EXTRACT_RUNNING_DETAIL = "more stems are already being extracted for this song";
 const BODY = { from: "main", stems: ["guitar"], name: "+ Guitar" };
 const FALLBACK_LOCALES = new Set(["pt-PT"]);
-const IMPORT_WORDED_CAUSES = ["out-of-memory", "disk-full", "unsupported-device", "source-blocked"];
+const IMPORT_WORDED_CAUSES = ["out-of-memory", "disk-full", "unsupported-device", "source-blocked", "bad-input"];
 const GENERIC_KEY = "versions.extractFailed";
 const LINK_DEAD_KEY = "versions.extractLinkDead";
 
@@ -165,14 +165,18 @@ const ended = (state, extra = {}) => ({ state, phase: EXTRACT_PHASE.FINISHING, p
     failedIn(EXTRACT_PHASE.DOWNLOADING, "source-blocked") === "importFail.reason.sourceBlocked");
   check("too many versions says so", failedIn(EXTRACT_PHASE.FINISHING, "too-many-versions") === "versions.tooMany");
   check("unknown and no-output read as the generic sentence",
-    ["unknown", "no-output", "bad-input"].every((c) => failedIn(EXTRACT_PHASE.SEPARATING, c) === GENERIC_KEY));
+    ["unknown", "no-output"].every((c) => failedIn(EXTRACT_PHASE.SEPARATING, c) === GENERIC_KEY));
   check("a run the server stopped answering about is generic", failureKey({ state: EXTRACT_STATE.FAILED, error: null }) === GENERIC_KEY);
 }
 
 {
   const versions = { versions: [], missing_files: ["guitar", "piano"] };
-  check("stems the server has no file for are named", filelessStems(versions, ["bass", "guitar"]).join() === "guitar");
-  check("a payload without missing_files names none", filelessStems({ versions: [] }, ["guitar"]).length === 0);
+  const track = { audioStems: [{ name: "vocals", url: "/v.wav" }, { name: "guitar", url: "/g.wav" }] };
+  check("stems the server has no file for are named", filelessStems(versions, track, ["bass", "guitar"]).join() === "guitar");
+  check("a payload without missing_files names none", filelessStems({ versions: [] }, track, ["piano"]).length === 0);
+  check("unread versions fall back to the song's own files",
+    filelessStems(null, track, ["guitar", "piano"]).join() === "piano");
+  check("unread versions and unknown files name none", filelessStems(null, { audioStems: [] }, ["piano"]).length === 0);
 }
 
 {

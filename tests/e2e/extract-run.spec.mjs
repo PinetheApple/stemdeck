@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { JOB_ID, failureMessages, openStudio } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, failureMessages, openStudio } from "./helpers.mjs";
 import { DEFAULT_VERSION_ID as DEFAULT_ID } from "../../static/js/versionModel.js";
 import { SOURCE_GONE_DETAIL } from "../../static/js/extractRun.js";
 
@@ -11,6 +11,7 @@ const EXTRACT_PATH = `**/api/jobs/${JOB_ID}/versions/extract`;
 const OOM_SENTENCE = "There wasn't enough memory to finish. Close other apps, then retry.";
 const LINK_DEAD_SENTENCE = "The link no longer works. The song is unchanged.";
 const FILELESS = ["guitar", "piano"];
+const SLOW_HINT = "Saved as a new version. Takes a few minutes.";
 
 const versionsUrl = (id) => `/api/jobs/${id}/versions`;
 const versionKey = (vid) => `${MIX_KEY}:${vid}`;
@@ -94,6 +95,25 @@ async function extractBass(page) {
   await expect(form).toHaveCount(0);
 }
 
+function requestExtract(page, id) {
+  return page.evaluate((trackId) => {
+    document.dispatchEvent(new CustomEvent("versions:extract", { detail: { id: trackId } }));
+  }, id);
+}
+
+/** The song whose row the open Extract more form sits under. */
+function formSong(page) {
+  return page.evaluate(() => {
+    let el = document.querySelector("#catalogList .cat-extract-more");
+    while (el && !el.matches(".cat-item")) el = el.previousElementSibling;
+    return el?.dataset.id ?? null;
+  });
+}
+
+function isInLibrary(page, id) {
+  return page.evaluate(async (trackId) => Boolean((await import("/js/catalog.js")).getLibraryTrack(trackId)), id);
+}
+
 async function expectStillPlays(page) {
   const before = await playhead(page);
   await page.locator("#t-play").click();
@@ -111,6 +131,31 @@ test("the form says it takes minutes only when a chosen stem has no file", async
   await expect(hint).toHaveText("Saved as a new version. Takes a few minutes.");
   for (const name of ["Guitar", "Piano"]) await form.locator(".cat-extract-more-chip", { hasText: name }).click();
   await expect(hint).toHaveText("Saved as a new version.");
+});
+
+test("a slower answer for an earlier song does not take the form from a later one", async ({ page, request }) => {
+  await stubMissingFiles(page, FILELESS);
+  await openOnTwoLanes(page, request);
+  expect(await isInLibrary(page, SIBLING_JOB_ID)).toBe(true);
+  let releaseSibling;
+  const siblingHeld = new Promise((resolve) => { releaseSibling = resolve; });
+  await page.route(`**${versionsUrl(SIBLING_JOB_ID)}`, async (route) => {
+    await siblingHeld;
+    return route.fulfill({ response: await route.fetch() });
+  });
+  const siblingAnswered = page.waitForResponse((res) => res.url().endsWith(versionsUrl(SIBLING_JOB_ID)));
+
+  await requestExtract(page, SIBLING_JOB_ID);
+  await requestExtract(page, JOB_ID);
+  const hint = page.locator("#catalogList .cat-extract-more-hint");
+  await expect(hint).toHaveText(SLOW_HINT);
+  expect(await formSong(page)).toBe(JOB_ID);
+
+  releaseSibling();
+  await siblingAnswered;
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  expect(await formSong(page)).toBe(JOB_ID);
+  await expect(hint).toHaveText(SLOW_HINT);
 });
 
 test("a run shows on the row and the song head, the song plays, and the new version opens when done", async ({ page, request }) => {

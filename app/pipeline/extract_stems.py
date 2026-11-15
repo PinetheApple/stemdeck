@@ -262,8 +262,8 @@ def extract_now(
         audio = _audio(run, source, work)
         if cancelled():
             raise JobCancelled()
-        run.phase = PHASE_SEPARATING
         _set(run.scratch, progress=0.0)
+        run.phase = PHASE_SEPARATING
         stems_root = _separate_missing(run, audio, work)
         run.phase = PHASE_FINISHING
         with metadata_lock:

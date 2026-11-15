@@ -20,6 +20,7 @@ const STAGE_LABEL_ID = "stageExtracting";
 
 let extractFor = null; // { trackId, chosen: Set<string>, refused: boolean, versionsState }
 const runs = new Map(); // trackId → { view, mix, knownIds: Set<string> }
+let latestRequest = 0;
 
 // ─── The form ───
 
@@ -29,14 +30,15 @@ function chipHtml(stem, pressed) {
 }
 
 /** Saying it takes minutes only when a chosen stem has to be made. */
-function hintText(versionsState, chosen) {
-  return t(filelessStems(versionsState, [...chosen]).length ? "versions.extractSlowHint" : "versions.extractHint");
+function hintText({ trackId, versionsState, chosen }) {
+  const fileless = filelessStems(versionsState, getLibraryTrack(trackId), [...chosen]);
+  return t(fileless.length ? "versions.extractSlowHint" : "versions.extractHint");
 }
 
 function choiceHtml(track) {
   const missing = missingStems(openVersionOf(track)?.stems ?? STEM_NAMES);
   return `<div class="cat-extract-more-chips">${missing.map((s) => chipHtml(s, extractFor.chosen.has(s))).join("")}</div>`
-    + `<span class="cat-extract-more-hint">${esc(hintText(extractFor.versionsState, extractFor.chosen))}</span>`
+    + `<span class="cat-extract-more-hint">${esc(hintText(extractFor))}</span>`
     + `<div class="cat-extract-more-foot"><button class="cat-extract-more-cancel" type="button">${esc(t("folderEditor.cancel"))}</button>`
     + `<button class="cat-extract-more-go" type="button">${esc(t("versions.extractGo"))}</button></div>`;
 }
@@ -79,7 +81,7 @@ function toggleChip(chip) {
   chip.setAttribute("aria-pressed", String(extractFor.chosen.has(stem)));
   const form = chip.closest(".cat-extract-more");
   form.querySelector(".cat-extract-more-go").disabled = extractFor.chosen.size === 0;
-  form.querySelector(".cat-extract-more-hint").textContent = hintText(extractFor.versionsState, extractFor.chosen);
+  form.querySelector(".cat-extract-more-hint").textContent = hintText(extractFor);
 }
 
 function showRefused() {
@@ -153,7 +155,9 @@ async function onExtractRequest(e) {
   const trackId = e.detail?.id;
   const track = getLibraryTrack(trackId);
   if (!track) return;
+  const request = ++latestRequest;
   const versionsState = await readVersionsState(trackId);
+  if (request !== latestRequest) return;
   const chosen = new Set(missingStems(openVersionOf(track)?.stems ?? STEM_NAMES));
   extractFor = { trackId, chosen, refused: false, versionsState };
   redrawLibrary();
