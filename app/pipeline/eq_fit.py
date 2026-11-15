@@ -85,6 +85,7 @@ _BASE_W[_EDGE_BANDS_HALF] = _EDGE_WEIGHT_HALF
 INAUDIBLE_DB = 0.1
 _CROWD_SLACK_OCT = 1e-6
 _GAIN_DECIMALS = 2
+_SMOOTH_KERNEL = (0.25, 0.5, 0.25)
 _SHELF_FREQ_DECIMALS = 1
 
 
@@ -190,6 +191,7 @@ class FitResult:
     bands: list[FitBand] = field(default_factory=list)
     error_db: np.ndarray = field(default_factory=lambda: np.zeros(N_BANDS))
     weights: np.ndarray = field(default_factory=lambda: np.zeros(N_BANDS))
+    boost_ok: np.ndarray = field(default_factory=lambda: np.ones(N_BANDS))
 
 
 def weights_for(measured_db: np.ndarray) -> np.ndarray:
@@ -238,7 +240,8 @@ def _level_removed_error(measured_db, target_db, w: np.ndarray) -> np.ndarray:
 def _smooth(e: np.ndarray) -> np.ndarray:
     """Over three neighbouring bands (2/3 octave)."""
     padded = np.concatenate([[e[0]], e, [e[-1]]])
-    return 0.25 * padded[:-2] + 0.5 * padded[1:-1] + 0.25 * padded[2:]
+    left, centre, right = _SMOOTH_KERNEL
+    return left * padded[:-2] + centre * padded[1:-1] + right * padded[2:]
 
 
 def smoothed_error(measured_db, target_db, w: np.ndarray) -> np.ndarray:
@@ -477,8 +480,16 @@ def fit_eq(
     ref = measured if boost_ref is None else np.asarray(boost_ref, dtype=np.float64)
     slots = LAYOUTS[layout]
     order = [s.id for s in slots] if layout in FIXED_LAYOUTS else None
-    fitter = _Fitter(error, w, boost_allowed(ref, target_db), tolerance, slots, order)
+    boost_ok = boost_allowed(ref, target_db)
+    fitter = _Fitter(error, w, boost_ok, tolerance, slots, order)
     fitter.run(max_bands)
     picks = _kept_in_order(fitter.chosen, order)
     bands = [FitBand(c.slot.id, make_band(c.slot, c.f, c.g, c.q)) for c in picks]
-    return FitResult(bands, error, w)
+    return FitResult(bands, error, w, boost_ok)
+
+
+def target_gap(fit: FitResult) -> np.ndarray:
+    """The correction the target asks for per band, as the fit sees it: level
+    removed, only what lies outside the tolerance, 0 where content is missing."""
+    gap = tolerated_error(_demean(fit.error_db, fit.weights), fit.boost_ok)
+    return np.where(fit.boost_ok > 0, gap, 0.0)

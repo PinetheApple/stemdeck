@@ -27,6 +27,7 @@ from app.core.config import ffmpeg_executable
 from app.core.models import Job
 from app.core.registry import _jobs
 from app.pipeline import eq_fit as F
+from app.pipeline.eq_analysis import N_BANDS
 from app.pipeline.eq_suggest import NOT_ENOUGH_SIGNAL
 from app.pipeline.eq_targets import get_target
 from app.pipeline.fx_filters import BELL, HIGHSHELF, LOWCUT, Band, Eq, eq_filter
@@ -175,7 +176,8 @@ async def test_lane_suggestion_shape_and_cache(client, jobs_dir, count_runs):
         )
     assert r.status_code == bright.status_code == merged.status_code == 200, r.text
     body = r.json()
-    assert set(body) == {"bands", "out", "reasons", "loudness", "target", "targets"}
+    assert set(body) == {"bands", "out", "reasons", "loudness", "target", "targets", "target_curve"}
+    assert len(body["target_curve"]) == N_BANDS
     assert body["target"] == "other.balanced"
     assert {t["id"] for t in body["targets"]} == {"other.balanced", "other.warm", "other.bright"}
     assert 1 <= len(body["bands"]) <= F.SUGGEST_MAX_BANDS_LANE

@@ -365,6 +365,17 @@ def test_the_output_gain_stays_inside_the_eq_range():
     assert neutral_out_db(power, [], OUT_MIN) == OUT_MIN
 
 
+def test_the_target_curve_is_the_gap_per_band_and_zero_where_blocked():
+    spec = analyse(shaped_noise(_dull_top_then_cutoff()))
+    ans = _suggest(spec, REPLACE)
+    curve = ans["target_curve"]
+    assert [f for f, _db in curve] == list(A.NOMINAL_HZ)
+    gaps = np.asarray([db for _f, db in curve])
+    blocked = F.boost_allowed(spec.bands, BALANCED) <= 0
+    assert blocked.any() and np.all(gaps[blocked] == 0.0)
+    assert np.any(gaps[~blocked] > 0)
+
+
 def test_merge_leaves_room_only_up_to_the_band_limit():
     s = analyse(shaped_noise(BALANCED, extra=MUD_AND_DARK))
     held = FX_MAX_BANDS - 1
@@ -375,7 +386,7 @@ def test_merge_leaves_room_only_up_to_the_band_limit():
 
 def test_the_answer_has_the_contract_shape():
     ans = _suggest(analyse(shaped_noise(BALANCED, extra=MUD_AND_DARK)), REPLACE)
-    assert set(ans) == {"bands", "out", "reasons", "loudness", "target", "targets"}
+    assert set(ans) == {"bands", "out", "reasons", "loudness", "target", "targets", "target_curve"}
     assert ans["target"] == "mix.balanced"
     assert all(r["key"].startswith("suggest.why.") for r in ans["reasons"])
 

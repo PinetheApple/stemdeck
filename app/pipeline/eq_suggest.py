@@ -18,6 +18,10 @@ the new bands on the measured, gated spectrum, so Preview compares like with
 like; ``loudness`` is what is left of it (against the lane with no EQ in
 replace mode, against the lane through its current EQ in merge mode).
 
+``target_curve`` is the per-band correction the target asks for, as the fit
+sees it ([nominal Hz, dB] for the 31 bands, 0 where content is missing): the
+panel draws it as the dashed Target line.
+
 A lane with too little to measure (under SUGGEST_MIN_GATED_SECONDS of loud
 audio, or quieter than SUGGEST_MIN_LANE_LUFS) is refused with
 ``NotEnoughSignal`` rather than guessed at.
@@ -38,13 +42,21 @@ from app.core.config import (
 from app.pipeline.eq_analysis import (
     CENTRES_HZ,
     N_BANDS,
+    NOMINAL_HZ,
     Spectrum,
     apply_eq,
     bands_db,
     loudness_change_db,
     loudness_of_power,
 )
-from app.pipeline.eq_fit import FitResult, fit_eq, nearest_band, weighted_rms_db, weights_for
+from app.pipeline.eq_fit import (
+    FitResult,
+    fit_eq,
+    nearest_band,
+    target_gap,
+    weighted_rms_db,
+    weights_for,
+)
 from app.pipeline.eq_targets import Target
 from app.pipeline.fx_filters import (
     BELL,
@@ -111,6 +123,11 @@ def neutral_out_db(power: np.ndarray, bands: list[Band], base_out: float = 0.0) 
     change = -loudness_change_db(power, bands, 0.0)
     change = max(-SUGGEST_OUT_MAX_DB, min(SUGGEST_OUT_MAX_DB, change))
     return round(max(OUT_MIN, min(OUT_MAX, base_out + change)), _OUT_DECIMALS)
+
+
+def _target_curve(fit: FitResult) -> list[list[float]]:
+    gaps = target_gap(fit)
+    return [[f, round(float(g), _DECIMALS)] for f, g in zip(NOMINAL_HZ, gaps, strict=True)]
 
 
 def _band_json(band: Band, slot: str) -> dict:
@@ -206,6 +223,7 @@ def make_suggestion(
         "loudness": round(residual, _DECIMALS),
         "target": target.id,
         "targets": targets,
+        "target_curve": _target_curve(done.fit),
     }
 
 
