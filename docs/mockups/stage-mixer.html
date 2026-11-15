@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en"><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mockup: Stage mixer and song overview | StemDeck</title>
+    <!-- Icons: Lucide (ISC, static/vendor/LICENSE-lucide.txt). Fonts: Manrope and IBM Plex Mono (OFL, static/fonts/). -->
+    <style>
+/* Self-hosted so the desktop build renders the same offline.
+   Manrope and IBM Plex Mono, both SIL OFL 1.1: see static/fonts/OFL-*.txt. */
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url("../../static/fonts/manrope-latin-wght-normal.woff2") format("woff2-variations");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("../../static/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+}
+    </style>
+    <link rel="stylesheet" href="../../static/css/variables.css">
+    <link rel="stylesheet" href="../../static/css/stage-mode.css">
+
+  <!-- The proposal: what stage-mode.css would gain. Tokens only. -->
+  <style>
+.stage-view {
+  --stage-mixer-w: clamp(232px, 20vw, 300px);
+  --stage-strip-btn: 32px;
+  --stage-fader-track: 6px;
+  --stage-fader-thumb: 20px;
+  --stage-overview-h: 52px;
+  --stage-sections-h: 30px;
+  --stage-playhead-w: 2px;
+  --stage-muted-opacity: 0.45;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  row-gap: var(--stage-gap);
+}
+.stage-top { grid-column: 1 / -1; }
+.stage-center { grid-column: 1; grid-row: 2; }
+.stage-overview { grid-column: 1; grid-row: 3; }
+.stage-transport { grid-column: 1; grid-row: 4; }
+.stage-mixer { grid-column: 2; grid-row: 2 / 5; }
+
+.stage-song-actions { display: flex; gap: var(--s-2); margin-left: auto; flex: none; }
+.stage-icon-btn { width: var(--ctl-h); padding: 0; justify-content: center; }
+.stage-exit[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+
+/* Song overview: the sections over a whole-song waveform, times at either end. */
+.stage-overview {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--s-3);
+  row-gap: var(--s-1);
+}
+.stage-sections { grid-column: 2; position: relative; height: var(--stage-sections-h); }
+.stage-sec {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--s-2);
+  border: 0;
+  border-radius: var(--r-1);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--text-2);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.stage-sec:hover { background: var(--surface-3); color: var(--text); }
+.stage-sec[aria-current="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--accent); }
+.stage-time { grid-row: 2; font: var(--fw-medium) var(--fs-base) / 1 var(--font-mono); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.stage-time-elapsed { grid-column: 1; }
+.stage-time-total { grid-column: 3; color: var(--text-3); }
+.stage-wave {
+  grid-column: 2;
+  grid-row: 2;
+  position: relative;
+  height: var(--stage-overview-h);
+  border-radius: var(--r-2);
+  background: var(--surface-1);
+  overflow: hidden;
+  cursor: pointer;
+}
+.stage-wave canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.stage-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--stage-playhead-w);
+  margin-left: calc(var(--stage-playhead-w) / -2);
+  background: var(--text);
+  pointer-events: none;
+}
+
+/* Mixer column: one strip per loaded stem, driving the same state as the studio's lanes. */
+.stage-mixer {
+  align-self: start;
+  max-height: 100%;
+  width: var(--stage-mixer-w);
+  margin-left: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+  overflow-y: auto;
+}
+.stage-view.mixer-hidden .stage-mixer { display: none; }
+.stage-mixer-label { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-3); }
+.stage-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "name name value" "fader mute solo";
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+  padding: var(--s-2) 0 var(--s-1);
+  border-top: 1px solid var(--line);
+}
+.stage-strip-name {
+  grid-area: name;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  color: var(--stem-color);
+}
+.stage-strip-fader { grid-area: fader; }
+.stage-strip-value { grid-area: value; min-width: 5ch; text-align: right; font: var(--fw-medium) var(--fs-sm) / 1 var(--font-mono); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.stage-ms {
+  width: var(--stage-strip-btn);
+  height: var(--stage-strip-btn);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--text-3);
+  font: var(--fw-semibold) var(--fs-base) / 1 var(--font-mono);
+  cursor: pointer;
+}
+.stage-ms.mute { grid-area: mute; }
+.stage-ms.solo { grid-area: solo; }
+.stage-ms:hover { color: var(--text); background: var(--surface-3); }
+.stage-ms[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+.stage-strip.silent .stage-strip-name,
+.stage-strip.silent .stage-strip-fader,
+.stage-strip.silent .stage-strip-value { opacity: var(--stage-muted-opacity); }
+.stage-strip-fader {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: var(--stage-strip-btn);
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.stage-strip-fader::-webkit-slider-runnable-track {
+  height: var(--stage-fader-track);
+  border-radius: var(--r-pill);
+  background: linear-gradient(to right, var(--stem-color) var(--pos), var(--surface-4) var(--pos));
+}
+.stage-strip-fader::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: var(--stage-fader-thumb);
+  height: var(--stage-fader-thumb);
+  margin-top: calc((var(--stage-fader-track) - var(--stage-fader-thumb)) / 2);
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+}
+
+/* Short windows give the lyric a little less, never the transport. */
+@media (max-height: 820px) {
+  .stage-view { --stage-lyric-size: 34px; --stage-lyric-next-size: 19px; --stage-count-size: 48px; --stage-lyric-rows: 2; }
+}
+  </style>
+
+  <!-- Mockup chrome, not part of the proposal: the state switcher and the footer stand-in. ?bare hides the switcher. -->
+  <style>
+html, body { height: 100%; margin: 0; }
+.ic { width: var(--icon); height: var(--icon); flex: none; stroke-width: var(--icon-stroke); }
+.ic-fill { fill: currentColor; }
+.mock-app { --mock-footer-h: 80px; }
+@media (max-width: 1200px) { .mock-app { --mock-footer-h: 132px; } }
+body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-size: var(--fs-base); }
+.mock-app { position: relative; height: 100%; display: flex; flex-direction: column; }
+.mock-main { position: relative; flex: 1; min-height: 0; }
+.mock-footer {
+  flex: none;
+  height: var(--mock-footer-h);
+  display: grid;
+  place-items: center;
+  border-top: 1px solid var(--line);
+  background: var(--surface-1);
+  color: var(--text-4);
+  font-size: var(--fs-sm);
+}
+.mock-narrow { display: grid; place-items: center; background: var(--surface-4); }
+.mock-narrow .mock-app { display: none; }
+.mock-window { width: 1024px; height: 768px; border: 0; outline: 1px solid var(--line-strong); }
+.mock-states {
+  position: fixed;
+  left: var(--s-3);
+  bottom: var(--s-3);
+  z-index: 2000;
+  display: flex;
+  gap: var(--s-1);
+  padding: var(--s-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  font: var(--fw-medium) var(--fs-sm) / 1 var(--font-sans);
+}
+.mock-states span { padding: var(--s-2); color: var(--accent); }
+.mock-states a { padding: var(--s-2); border-radius: var(--r-1); color: var(--text-2); text-decoration: none; cursor: pointer; }
+.mock-states a:hover { background: var(--surface-3); color: var(--text); }
+.mock-states a[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
+.mock-bare .mock-states { display: none; }
+  </style>
+</head>
+<body>
+<div class="mock-app">
+  <div class="mock-main">
+    <section class="stage-view" id="stageView" aria-label="Stage mode">
+      <header class="stage-top">
+        <div class="stage-song">
+          <div class="stage-title" id="stageTitle">Morning Light</div>
+          <div class="stage-artist" id="stageArtist">Fixture Band</div>
+        </div>
+        <div class="stage-song-actions">
+          <!-- New: shows or hides the mixer column; the choice is remembered. -->
+          <button class="stage-exit" id="stageMixBtn" type="button" aria-pressed="true" aria-controls="stageMixer" title="Show or hide the mixer">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg>
+            <span>Mix</span>
+          </button>
+          <button class="stage-exit stage-icon-btn" id="stageUpNextBtn" type="button" title="Add to Up Next" aria-label="Add to Up Next">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M16 19H3"/><path d="M18 9v6"/><path d="M21 12h-6"/></svg>
+          </button>
+          <button class="stage-exit stage-icon-btn" id="stageMoreBtn" type="button" title="More" aria-label="More" aria-haspopup="menu" aria-expanded="false">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </button>
+        </div>
+        <button class="stage-exit" id="stageExitBtn" type="button" title="Back to the studio (Esc)">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/></svg>
+          <span>Exit stage</span>
+        </button>
+      </header>
+
+      <div class="stage-center">
+        <div class="stage-section" id="stageSection">Chorus 2</div>
+        <div class="stage-count">
+          <span class="stage-counter num" id="stageCount">46.3</span>
+          <span class="stage-beats" id="stageBeats" aria-hidden="true"><i class="down"></i><i></i><i class="on"></i><i></i></span>
+        </div>
+        <div class="stage-lyrics" id="stageLyrics">
+          <p class="stage-lyric" id="stageLyric">Hold the line until the morning light comes over the hill</p>
+          <p class="stage-lyric stage-lyric-next" id="stageLyricNext">Every word a little closer to the ground</p>
+        </div>
+        <dl class="stage-facts">
+          <div class="stage-fact"><dt>Tempo</dt><dd class="num" id="stageTempo">120.0 BPM</dd></div>
+          <div class="stage-fact"><dt>Next</dt><dd id="stageNext">Bridge in 0:28</dd></div>
+        </dl>
+      </div>
+
+      <!-- New: the song's sections over a whole-song waveform with the playhead. Click to seek. -->
+      <div class="stage-overview" id="stageOverview" role="group" aria-label="Song overview">
+        <div class="stage-sections" id="stageSections"></div>
+        <span class="stage-time stage-time-elapsed num" id="stageElapsed">1:42</span>
+        <div class="stage-wave" id="stageWave">
+          <canvas id="stageWaveCanvas"></canvas>
+          <div class="stage-playhead" id="stagePlayhead"></div>
+        </div>
+        <span class="stage-time stage-time-total num" id="stageTotal">3:58</span>
+      </div>
+
+      <div class="stage-transport">
+        <button class="stage-btn" id="stageStopBtn" type="button" title="Stop" aria-label="Stop">
+          <svg class="ic ic-fill" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+        </button>
+        <button class="stage-play playing" id="stagePlayBtn" type="button" aria-label="Play / Pause" aria-pressed="true">
+          <svg class="ic ic-fill stage-play-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>
+          <svg class="ic ic-fill stage-pause-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></svg>
+        </button>
+        <button class="stage-btn" id="stageNextBtn" type="button" title="Play the next song in Up Next" aria-label="Play the next song in Up Next">
+          <svg class="ic ic-fill" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 4v16"/><path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z"/></svg>
+        </button>
+      </div>
+
+      <!-- New: one strip per stem the song has loaded, the same state as the studio's lanes. -->
+      <aside class="stage-mixer" id="stageMixer" aria-label="Mix">
+        <span class="stage-mixer-label">Mix</span>
+      </aside>
+    </section>
+  </div>
+  <div class="mock-footer">Studio footer (position, speed, key, click), unchanged</div>
+</div>
+
+<nav class="mock-states" aria-label="Mockup states">
+  <span>#19 Stage mixer</span>
+  <a href="?state=default">Playing</a>
+  <a href="?state=mixed">Muted + soloed</a>
+  <a href="?state=collapsed">Mixer hidden</a>
+  <a href="?state=narrow">1024 × 768</a>
+</nav>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const state = params.get("state") || "default";
+  const DURATION = 238;
+  const NOW = 102;
+  const WAVE_BAR_PX = 4;
+  const WAVE_GAP_PX = 1;
+  const WAVE_FILL = 0.8;
+  const SECTIONS = [
+    ["Intro", 0], ["Verse 1", 12], ["Chorus 1", 44], ["Verse 2", 76], ["Chorus 2", 98],
+    ["Bridge", 130], ["Chorus 3", 154], ["Outro", 202],
+  ];
+  const LOUD = new Set(["Chorus 1", "Chorus 2", "Chorus 3"]);
+  const STEMS = [
+    ["vocals", "Vocals", 0], ["drums", "Drums", 1.5], ["bass", "Bass", -3],
+    ["guitar", "Guitar", 0], ["piano", "Piano", -6], ["other", "Other", -1.2],
+  ];
+  const MIXED = { muted: new Set(["vocals"]), soloed: new Set(["drums", "bass"]) };
+  const FADER_MAX_DB = 6;
+  const FADER_MIN_DB = -40;
+
+  if (params.has("bare")) document.body.classList.add("mock-bare");
+  if (state === "narrow") {
+    document.body.classList.add("mock-narrow");
+    const frame = document.createElement("iframe");
+    frame.className = "mock-window";
+    frame.title = "Stage at 1024 × 768";
+    frame.src = "?state=default&bare";
+    document.body.prepend(frame);
+  }
+  document.querySelector(`.mock-states a[href="?state=${state}"]`)?.setAttribute("aria-current", "page");
+  const view = document.getElementById("stageView");
+  if (state === "collapsed") {
+    view.classList.add("mixer-hidden");
+    document.getElementById("stageMixBtn").setAttribute("aria-pressed", "false");
+  }
+
+  const pct = (t) => `${(t / DURATION) * 100}%`;
+  const sectionAt = (t) => SECTIONS.findLast(([, start]) => start <= t);
+
+  function renderSections() {
+    const strip = document.getElementById("stageSections");
+    const current = sectionAt(NOW);
+    SECTIONS.forEach(([name, start], i) => {
+      const end = SECTIONS[i + 1]?.[1] ?? DURATION;
+      const sec = document.createElement("button");
+      sec.type = "button";
+      sec.className = "stage-sec";
+      sec.textContent = name;
+      sec.title = name;
+      sec.style.left = pct(start);
+      sec.style.width = `calc(${pct(end - start)} - 2px)`;
+      if (SECTIONS[i] === current) sec.setAttribute("aria-current", "true");
+      strip.append(sec);
+    });
+  }
+
+  function amplitudeAt(t, i) {
+    const [name] = sectionAt(t);
+    const base = LOUD.has(name) ? 0.8 : name === "Intro" || name === "Outro" ? 0.35 : 0.55;
+    const wobble = 0.5 + 0.5 * Math.sin(i * 1.7) * Math.cos(i * 0.31);
+    return Math.min(1, base * (0.65 + 0.45 * wobble));
+  }
+
+  function renderWave() {
+    const canvas = document.getElementById("stageWaveCanvas");
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
+    const css = getComputedStyle(canvas);
+    const played = css.getPropertyValue("--accent").trim();
+    const rest = css.getPropertyValue("--surface-4").trim();
+    const bars = Math.floor(w / (WAVE_BAR_PX + WAVE_GAP_PX));
+    const playedBars = Math.floor((NOW / DURATION) * bars);
+    for (let i = 0; i < bars; i++) {
+      const barH = Math.max(2, amplitudeAt((i / bars) * DURATION, i) * h * WAVE_FILL);
+      ctx.fillStyle = i < playedBars ? played : rest;
+      ctx.fillRect(i * (WAVE_BAR_PX + WAVE_GAP_PX), (h - barH) / 2, WAVE_BAR_PX, barH);
+    }
+    document.getElementById("stagePlayhead").style.left = pct(NOW);
+  }
+
+  const dbText = (db) => (db > 0 ? `+${db.toFixed(1)}` : db.toFixed(1));
+
+  function renderStrip([id, label, db]) {
+    const mixed = state === "mixed";
+    const muted = mixed && MIXED.muted.has(id);
+    const soloed = mixed && MIXED.soloed.has(id);
+    const silent = muted || (mixed && !soloed);
+    const strip = document.createElement("div");
+    strip.className = `stage-strip${silent ? " silent" : ""}`;
+    strip.style.setProperty("--stem-color", `var(--${id})`);
+    const pos = ((db - FADER_MIN_DB) / (FADER_MAX_DB - FADER_MIN_DB)) * 100;
+    strip.style.setProperty("--pos", `${pos}%`);
+    strip.innerHTML = `
+      <span class="stage-strip-name">${label}</span>
+      <button class="stage-ms mute" type="button" aria-label="Mute ${label}" aria-pressed="${muted}">M</button>
+      <button class="stage-ms solo" type="button" aria-label="Solo ${label}" aria-pressed="${soloed}">S</button>
+      <input class="stage-strip-fader" type="range" min="0" max="100" value="${pos}" aria-label="${label} volume">
+      <span class="stage-strip-value">${dbText(db)}</span>`;
+    return strip;
+  }
+
+  document.getElementById("stageMixer").append(...STEMS.map(renderStrip));
+  renderSections();
+  renderWave();
+</script>
+</body>
+</html>
