@@ -41,6 +41,7 @@ import { pitchBlockedKey } from "./pitchBus.js";
 import { refitFooter } from "./footerFit.js";
 import { SPEED_MIN, SPEED_MAX, SPEED_STEP, SPEED_NOTCH, clampSpeed, nextNotch, parseSpeedInput } from "./speedInput.js";
 import { trackPlayhead, resumeFollowing } from "./autoScroll.js";
+import { startMediaAnchor, pauseMediaAnchor } from "./mediaSession.js";
 
 // Zoom range. 1 is the whole track fitted to the panel; there is nothing below
 // it to show, so it is the floor rather than a soft default.
@@ -548,12 +549,16 @@ function _armCountIn(eng, startPos) {
 // The button lights on the press, before a start that may wait for a fetch or
 // for the stems. One that never happens must not leave it lit over silence.
 function _unlightIfNotStarted(eng, start) {
+  const stillSilent = () => audioEngine === eng && !eng.isPlaying();
   start.then(
     function unlightUnlessPlaying(started) {
-      if (!started && audioEngine === eng && !eng.isPlaying()) playBtn.classList.remove("playing");
+      if (started || !stillSilent()) return;
+      playBtn.classList.remove("playing");
+      pauseMediaAnchor();
     },
     function warnPlayFailed(err) {
       console.warn("[transport] play failed:", err);
+      if (stillSilent()) pauseMediaAnchor();
     },
   );
 }
@@ -564,6 +569,7 @@ export function togglePlayPause() {
   if (!tx) return;
   if (tx.isPlaying()) {
     tx.pause();
+    pauseMediaAnchor();
     _dropCountIn(); // drop a count-in if paused before the audio enters
     // The engine emits no play/pause events (the multitrack stays silent), so
     // the play-button visual that the ws "pause" handler normally toggles must
@@ -578,6 +584,7 @@ export function togglePlayPause() {
   if (ctx && ctx.state === "suspended") {
     ctx.resume().catch(() => {});
   }
+  startMediaAnchor();
   resumeFollowing();
   // Snap playhead to loopStart on play (DAW convention).
   if (loopEnabled && totalDuration > 0 && !loadingMultitrack(tx)) {
@@ -601,6 +608,7 @@ export function stopTransport() {
   const tx = eng ?? multitrack;
   if (!tx) return;
   tx.pause();
+  pauseMediaAnchor();
   _dropCountIn(); // a count-in in progress must not outlive Stop
   if (!loadingMultitrack(tx)) tx.setTime(loopEnabled ? loopStart : 0); // engine: setTime → onTime → stop visual
   if (eng) playBtn.classList.remove("playing");

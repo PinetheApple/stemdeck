@@ -11,10 +11,13 @@ globalThis.localStorage = { getItem: () => null, setItem: () => {} };
 const { LANGUAGES, TRANSLATIONS } = await import("../../static/js/i18n.js");
 const { HTTP_CONFLICT } = await import("../../static/js/lyricsTranscribe.js");
 const {
+  EDIT_FOLDER_MOVING_DETAIL,
   FOLDER_MOVING_DETAIL,
   FOLDER_MOVING_KEY,
   SPLIT_FOLDER_MOVING_DETAIL,
   isFolderMoving,
+  isFolderMovingError,
+  noticeKey,
   refusalKey,
   refusedForFolderMove,
 } = await import("../../static/js/folderMoving.js");
@@ -36,6 +39,7 @@ const FALLBACK = { "pt-PT": "pt" };
 
 check("the move's refusal is told apart", isFolderMoving(HTTP_CONFLICT, MOVING));
 check("so is the split's", isFolderMoving(HTTP_CONFLICT, { detail: SPLIT_FOLDER_MOVING_DETAIL }));
+check("and an edit's", isFolderMoving(HTTP_CONFLICT, { detail: EDIT_FOLDER_MOVING_DETAIL }));
 check("another conflict is not it", !isFolderMoving(HTTP_CONFLICT, { detail: "already looking" }));
 check("the sentence on another status is not it", !isFolderMoving(SERVER_ERROR, MOVING));
 check("no body is not it", !isFolderMoving(HTTP_CONFLICT, null));
@@ -47,7 +51,13 @@ const read = answer(HTTP_CONFLICT, MOVING);
 await refusedForFolderMove(read);
 check("its body is left for the caller", (await read.json()).detail === FOLDER_MOVING_DETAIL);
 
+check("a thrown refusal for the move", isFolderMovingError({ status: HTTP_CONFLICT, detail: EDIT_FOLDER_MOVING_DETAIL }));
+check("a thrown other conflict is not it", !isFolderMovingError({ status: HTTP_CONFLICT, detail: "stubbed" }));
+check("nothing thrown is not it", !isFolderMovingError(undefined));
+
 const KEEP_FAILED = "lyrics.keepFailed";
+check("the move's notice when refused for the move", noticeKey(true, KEEP_FAILED) === FOLDER_MOVING_KEY);
+check("its own notice otherwise", noticeKey(false, KEEP_FAILED) === KEEP_FAILED);
 check("a keep refused for the move says so", refusalKey({ status: HTTP_CONFLICT, data: MOVING }, KEEP_FAILED) === FOLDER_MOVING_KEY);
 check("any other failure keeps its own notice", refusalKey({ status: SERVER_ERROR, data: null }, KEEP_FAILED) === KEEP_FAILED);
 check("no answer keeps its own notice", refusalKey(null, KEEP_FAILED) === KEEP_FAILED);
@@ -58,6 +68,7 @@ check("the user's own words: said in their language", problem.key === FOLDER_MOV
 const server = readFileSync(new URL("../../app/api/jobs.py", import.meta.url), "utf8");
 check("the server's lyrics sentence", server.includes(`STEMS_FOLDER_MOVING = "${FOLDER_MOVING_DETAIL}"`));
 check("the server's split sentence", server.includes(`"${SPLIT_FOLDER_MOVING_DETAIL}"`));
+check("the server's edit sentence", server.includes(`STEMS_FOLDER_MOVING_EDIT = "${EDIT_FOLDER_MOVING_DETAIL}"`));
 
 for (const { code } of LANGUAGES) {
   const table = { ...(TRANSLATIONS[FALLBACK[code]] ?? {}), ...TRANSLATIONS[code] };

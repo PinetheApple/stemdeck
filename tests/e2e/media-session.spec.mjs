@@ -26,6 +26,11 @@ const LOOP_END_SEC = 4;
 const LEAD_IN_SETTLE_MS = 300;
 const LEAD_IN_WATCH_MS = 1000;
 const CANCEL_WITHIN_MS = 1000;
+const NEAR_END_SEC = 5.5;
+const SECOND_CHUNK_SEC = 5;
+const ANCHOR_PLAYING = { loaded: true, playing: true };
+const ANCHOR_HELD = { loaded: true, playing: false };
+const ANCHOR_RELEASED = { loaded: false, playing: false };
 
 function library() {
   const tracks = {
@@ -50,8 +55,18 @@ function library() {
 async function recordMediaSession(page) {
   await page.addInitScript(() => {
     const session = navigator.mediaSession;
-    const record = { handlers: {}, positions: [] };
+    const record = { handlers: {}, positions: [], anchors: [], anchorPlays: 0 };
     window.__media = record;
+    const countAnchorPlay = () => { record.anchorPlays += 1; };
+    const play = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function recordAnchor() {
+      const isAnchor = this.getAttribute("src")?.startsWith("blob:");
+      if (isAnchor && !record.anchors.includes(this)) {
+        record.anchors.push(this);
+        this.addEventListener("playing", countAnchorPlay);
+      }
+      return play.call(this);
+    };
     const setActionHandler = session.setActionHandler.bind(session);
     session.setActionHandler = function recordActionHandler(action, handler) {
       record.handlers[action] = handler;
@@ -62,8 +77,23 @@ async function recordMediaSession(page) {
       record.positions.push(state ?? null);
       setPositionState(state);
     };
+    const playbackState = Object.getOwnPropertyDescriptor(MediaSession.prototype, "playbackState");
+    record.states = [];
+    Object.defineProperty(session, "playbackState", {
+      get: () => playbackState.get.call(session),
+      set: function recordPlaybackState(state) {
+        record.states.push(state);
+        playbackState.set.call(session, state);
+      },
+    });
   });
 }
+
+const anchorPlays = (page) => page.evaluate(() => window.__media.anchorPlays);
+
+const statesSent = (page) => page.evaluate(() => window.__media.states.length);
+
+const statesSince = (page, from) => page.evaluate((at) => window.__media.states.slice(at), from);
 
 async function openWithMediaSession(page) {
   await recordMediaSession(page);
@@ -95,6 +125,13 @@ const playbackState = (page) => page.evaluate(() => navigator.mediaSession.playb
 const positionsSent = (page) => page.evaluate(() => window.__media.positions.length);
 
 const lastPosition = (page) => page.evaluate(() => window.__media.positions.at(-1) ?? null);
+
+const anchorState = (page) =>
+  page.evaluate(() => {
+    const anchor = window.__media.anchors.at(-1);
+    if (!anchor) return null;
+    return { loaded: anchor.hasAttribute("src"), playing: !anchor.paused };
+  });
 
 const metadata = (page) =>
   page.evaluate(() => {
@@ -157,6 +194,96 @@ test.describe("system media controls", () => {
     await runAction(page, "stop");
     await expectPlaying(page, false);
     await expect.poll(() => currentTime(page)).toBe(0);
+  });
+
+  test("pause and Stop keep the OS controls, paused, instead of letting them go", async ({ page }) => {
+    await openWithMediaSession(page);
+
+    await runAction(page, "play");
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_PLAYING);
+    await runAction(page, "pause");
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_HELD);
+
+    await runAction(page, "play");
+    await expectPlaying(page, true);
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_PLAYING);
+    await runAction(page, "stop");
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_HELD);
+  });
+
+  test("next keeps the OS controls through the next song's load", async ({ page }) => {
+    await openWithMediaSession(page);
+    await page.evaluate((id) => {
+      document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id } }));
+    }, SIBLING_JOB_ID);
+    await expect.poll(() => handlerKind(page, "nexttrack")).toBe("set");
+    await runAction(page, "play");
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_PLAYING);
+
+    await runAction(page, "nexttrack");
+    expect((await anchorState(page)).loaded).toBe(true);
+    await expect(page.locator("#title")).toHaveText(SIBLING_TITLE, { timeout: 15000 });
+    await expectPlaying(page, true);
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_PLAYING);
+    expect(await page.evaluate(() => window.__media.anchors.length)).toBe(1);
+  });
+
+  test("when the OS controls come back, they are told the state again", async ({ page }) => {
+    await openWithMediaSession(page);
+    await runAction(page, "play");
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_PLAYING);
+    await runAction(page, "pause");
+    await expectPlaying(page, false);
+    const sentBefore = await positionsSent(page);
+
+    await page.evaluate(() => window.__media.anchors.at(-1).dispatchEvent(new Event("playing")));
+    await expect.poll(() => positionsSent(page)).toBe(sentBefore + 1);
+    expect(await playbackState(page)).toBe("paused");
+  });
+
+  test("the song's end with nothing queued lets the OS controls go", async ({ page }) => {
+    await openWithMediaSession(page);
+    await runAction(page, "seekto", { seekTime: NEAR_END_SEC });
+    await runAction(page, "play");
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_PLAYING);
+
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_RELEASED);
+    expect(await isPlaying(page)).toBe(false);
+  });
+
+  test("the song's end pauses the OS controls while the queued song opens", async ({ page }) => {
+    await openWithMediaSession(page);
+    await page.route((url) => url.href.includes(SIBLING_JOB_ID), function holdQueuedSong() {});
+    await page.evaluate((id) => {
+      document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id } }));
+    }, SIBLING_JOB_ID);
+    await expect.poll(() => handlerKind(page, "nexttrack")).toBe("set");
+    await runAction(page, "seekto", { seekTime: NEAR_END_SEC });
+    await runAction(page, "play");
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_PLAYING);
+
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_HELD);
+    expect(await isPlaying(page)).toBe(false);
+  });
+
+  test("the play key does not pause a start still waiting for its audio", async ({ page }) => {
+    await openWithMediaSession(page);
+    let releaseStems;
+    const stemsHeld = new Promise((resolve) => { releaseStems = resolve; });
+    await page.route("**/stems/**", async function holdStems(route) {
+      await stemsHeld;
+      await route.continue();
+    });
+    // The first two chunks load with the song; a seek past the first evicts it.
+    await runAction(page, "seekto", { seekTime: SECOND_CHUNK_SEC });
+    await runAction(page, "seekto", { seekTime: 0 });
+    await runAction(page, "play");
+    expect(await isPlaying(page)).toBe(true);
+
+    await runAction(page, "play");
+    expect(await isPlaying(page)).toBe(true);
+    releaseStems();
+    await expect.poll(() => currentTime(page)).toBeGreaterThan(0);
   });
 
   test("Space still toggles playback, and the OS state follows it", async ({ page }) => {
@@ -246,13 +373,16 @@ test.describe("system media controls", () => {
     await openWithMediaSession(page);
     await openClickOptions(page);
     await page.locator("#t-metro-countin").selectOption("1");
+    const statesBefore = await statesSent(page);
 
     await runAction(page, "play");
+    await expect.poll(() => anchorPlays(page)).toBe(1);
     await page.waitForTimeout(LEAD_IN_SETTLE_MS);
     const sentBefore = await positionsSent(page);
     await page.waitForTimeout(LEAD_IN_WATCH_MS);
     expect(await positionsSent(page)).toBe(sentBefore);
     expect(await playbackState(page)).toBe("paused");
+    expect(await statesSince(page, statesBefore)).not.toContain("playing");
 
     await expectPlaying(page, true);
     await expect.poll(async () => (await lastPosition(page))?.position).toBeGreaterThan(0);
@@ -298,8 +428,11 @@ test.describe("system media controls", () => {
     await openWithMediaSession(page);
     await expect.poll(() => metadata(page)).not.toBeNull();
     expect(await handlerKind(page, "previoustrack")).toBe("set");
+    await runAction(page, "play");
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_PLAYING);
 
     await page.evaluate(async () => (await import("/js/job.js")).reset());
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_RELEASED);
     await expect.poll(() => metadata(page)).toBeNull();
     await expect.poll(() => playbackState(page)).toBe("none");
     expect(await lastPosition(page)).toBeNull();

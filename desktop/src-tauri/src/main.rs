@@ -1,5 +1,6 @@
 mod certs;
 mod dragout;
+mod dropfolder;
 mod dropin;
 #[cfg(any(target_os = "linux", test))]
 mod rocm;
@@ -509,7 +510,14 @@ fn main() {
                 match drop {
                     tauri::DragDropEvent::Enter { .. } => inbox.enter(),
                     tauri::DragDropEvent::Drop { paths, .. } => {
-                        inbox.drop_paths(paths);
+                        // Off the window's thread: opening a large dropped
+                        // folder must not freeze the window while it walks.
+                        let ticket = inbox.begin_drop();
+                        let app = window.app_handle().clone();
+                        let paths = paths.clone();
+                        tauri::async_runtime::spawn_blocking(move || {
+                            app.state::<dropin::DropInbox>().drop_paths(ticket, &paths);
+                        });
                     }
                     tauri::DragDropEvent::Leave => inbox.leave(),
                     _ => {}
@@ -538,6 +546,7 @@ fn main() {
             native_file_drop,
             next_drop_signal,
             read_dropped_file,
+            pick_import_folder,
             save_audio_file,
             pick_export_destination,
             download_to_path,
@@ -3673,6 +3682,34 @@ async fn read_dropped_file(app: tauri::AppHandle, id: u64) -> Result<tauri::ipc:
     .await
     .map_err(|e| e.to_string())??;
     Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// The native folder chooser behind Add a folder, which WebKitGTK cannot
+/// offer the page. The folder arrives as a drop does, through
+/// `next_drop_signal`, so its path stays on this side too. `title` is the
+/// page's own translated label for the button.
+#[tauri::command]
+async fn pick_import_folder(app: tauri::AppHandle, title: String) -> Result<(), String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.dialog()
+        .file()
+        .set_title(title)
+        .pick_folder(move |path| {
+            let _ = tx.send(path);
+        });
+    let Some(picked) = rx.recv().map_err(|e| e.to_string())? else {
+        return Ok(()); // user cancelled
+    };
+    let folder = picked.into_path().map_err(|e| e.to_string())?;
+    let ticket = app.state::<dropin::DropInbox>().begin_drop();
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<dropin::DropInbox>()
+            .drop_paths(ticket, &[folder]);
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// Opens an http/https URL in the system browser. Rejects non-http schemes.
