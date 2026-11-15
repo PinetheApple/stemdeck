@@ -1,6 +1,6 @@
 """On-disk cache of measured masters (app/pipeline/mastering.py).
 
-Measuring a master runs ffmpeg over the whole song two to five times, so a
+Measuring a master runs ffmpeg over the whole song up to ten times, so a
 plan is measured once and kept as a small JSON file. The export, a region
 export and the loudness readout of the same mix then share one measurement.
 The key holds everything the measurement depends on: the input graph (lanes,
@@ -38,7 +38,7 @@ from app.pipeline.mastering import (
 
 logger = logging.getLogger(LOGGER_NAME)
 
-PLAN_CACHE_VERSION = "1"
+PLAN_CACHE_VERSION = "3"
 
 _plan_slots = asyncio.Semaphore(MASTER_PLAN_CONCURRENCY)
 _plan_locks: dict[str, asyncio.Lock] = {}

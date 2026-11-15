@@ -12,6 +12,8 @@ import threading
 import uuid
 import zipfile
 from collections import deque
+from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from typing import Annotated, NamedTuple
 
@@ -19,10 +21,11 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 
-from app.api import stems_click, takes_lanes
+from app.api import export_fx, stems_click, takes_lanes
 from app.core.config import (
     AUDIO_MEDIA_TYPES,
     CACHE_DIR,
+    EXPORT_AUDIO_CODEC_AAC,
     EXPORT_ENCODE_ARGS,
     EXTRA_STEM_NAMES,
     JOB_ID_RE,
@@ -118,6 +121,7 @@ def _mixdown_cache_key(
     click_lane: tuple[Path, float] | None = None,
     pitches: list[int] | None = None,
     take_versions: list[str] | None = None,
+    render_suffix: str = "",
 ) -> str:
     """Every render input is in the key, so a different mixer state, region,
     or a Settings change (export sample rate) misses cleanly -- never a stale
@@ -146,6 +150,8 @@ def _mixdown_cache_key(
         # Only with a take in the mix, so every stems-only key stays as it was.
         + (["t" + ",".join(take_versions)] if take_versions else [])
     )
+    if render_suffix:
+        raw += "|" + render_suffix
     # Cache key, not a security context -- usedforsecurity=False documents
     # that for both readers and static analysis (bandit flags bare sha1()).
     return hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()
@@ -173,7 +179,10 @@ def _prune_mixdown_cache(cache_dir: Path, keep: Path | None = None) -> None:
             (
                 p
                 for p in cache_dir.iterdir()
-                if p.is_file() and not p.name.startswith(".") and p != keep
+                if p.is_file()
+                and not p.name.startswith(".")
+                and not p.name.endswith(export_fx.OUTPUT_NOTE_SUFFIX)
+                and p != keep
             ),
             key=lambda p: p.stat().st_mtime,
         )
@@ -187,8 +196,39 @@ def _prune_mixdown_cache(cache_dir: Path, keep: Path | None = None) -> None:
         try:
             total -= oldest.stat().st_size
             oldest.unlink()
+            export_fx.note_path(oldest).unlink(missing_ok=True)
         except OSError:
             logger.debug("mixdown cache prune: could not remove %s", oldest, exc_info=True)
+    _prune_orphan_notes(cache_dir)
+
+
+def _prune_orphan_notes(cache_dir: Path) -> None:
+    """Drop the notes of verified renders whose entry is gone."""
+    suffix = export_fx.OUTPUT_NOTE_SUFFIX
+    try:
+        for note in cache_dir.glob(f"*{suffix}"):
+            if not note.with_name(note.name.removesuffix(suffix)).is_file():
+                note.unlink(missing_ok=True)
+    except OSError:
+        logger.debug("mixdown cache prune: could not clear notes in %s", cache_dir, exc_info=True)
+
+
+async def _measured_click(
+    names: list[str],
+    master: str,
+    click_lane: _ClickLane | None,
+    whole_song_click: Callable[[], _ClickLane | None],
+) -> export_fx.ClickInput | None:
+    """The click the master is measured with: the whole song's, and only when
+    a take's limiter sums it with the music (else the loudness is the music's)."""
+    if not master or click_lane is None or not takes_lanes.has_take_lane(names):
+        return None
+    if click_lane.count_in:
+        click_lane = await asyncio.to_thread(whole_song_click)
+        if click_lane is None:
+            return None
+    level = stems_click.click_level_filter(click_lane.gain)
+    return export_fx.ClickInput(click_lane.path, level)
 
 
 def _validate_stem_path(job_id: str, name: str):
@@ -409,6 +449,8 @@ def _read_beat_grid(job_id: str) -> dict | None:
 # ask for a shift the export rejects is worse than one that cannot ask.
 PITCH_MIN = -6
 PITCH_MAX = 6
+PITCHES_MAX_CHARS = 128
+NO_TRANSPOSE_DETAIL = "this ffmpeg build cannot transpose (no rubberband filter)"
 
 # Probed once per process; the ffmpeg binary cannot change mid-run. None until
 # the first export needs to know.
@@ -526,11 +568,13 @@ def _parse_lane_gains(stems: str, gains: str) -> tuple[list[str], list[float]]:
 
 
 class _RenderLane(NamedTuple):
-    """One ffmpeg input in the mixdown graph: a file, its gain, its shift."""
+    """One ffmpeg input in the mixdown graph: a file, its gain, its shift, and
+    the mixer lane whose EQ it gets ("" for the click)."""
 
     path: Path
     gain: float
     pitch: int
+    name: str = ""
 
 
 def _expand_render_lanes(
@@ -564,7 +608,8 @@ def _expand_render_lanes(
 
     for name, gain, pitch in zip(names, gains, pitches, strict=True):
         if takes_lanes.is_take_lane(name):
-            lanes.append(_RenderLane(_take_lane(job_id, name).path, gain, takes_lanes.NO_SHIFT))
+            take_path = _take_lane(job_id, name).path
+            lanes.append(_RenderLane(take_path, gain, takes_lanes.NO_SHIFT, name))
             continue
         # Validate first, always. Whether a lane exists is a property of the
         # job, not of the request: without this an "original" lane the job
@@ -573,7 +618,7 @@ def _expand_render_lanes(
         # depending on the pitch attached to it.
         path = _validate_stem_path(job_id, name)
         if name != "original" or pitch == 0:
-            lanes.append(_RenderLane(path, gain, pitch))
+            lanes.append(_RenderLane(path, gain, pitch, name))
             continue
 
         components = [n for n in STEM_NAMES if n not in selected]
@@ -589,14 +634,14 @@ def _expand_render_lanes(
             paths.append(comp_path)
 
         if not paths:
-            lanes.append(_RenderLane(path, gain, 0))
+            lanes.append(_RenderLane(path, gain, 0, name))
             unpitched.append(name)
             continue
 
         # Each component carries the lane's own gain; amix sums them back to
         # what the single file would have been. effective_pitch keeps drums at 0.
         for comp, path in zip(components, paths, strict=True):
-            lanes.append(_RenderLane(path, gain, effective_pitch(comp, pitch)))
+            lanes.append(_RenderLane(path, gain, effective_pitch(comp, pitch), name))
 
     return lanes, unpitched
 
@@ -1136,13 +1181,14 @@ def _mixdown_download_name(job_id: str, ext: str, is_region: bool) -> str:
 
 @router.get("/jobs/{job_id}/mixdown.{ext}", response_model=None)
 async def get_mixdown(
+    request: Request,
     job_id: str,
     ext: str,
     stems: str = Query(..., description="Comma-separated lane names to sum"),
     gains: str = Query(..., description="Comma-separated linear gains, parallel to stems"),
     pitches: str = Query(
         default="",
-        max_length=128,
+        max_length=PITCHES_MAX_CHARS,
         description=(
             "Comma-separated semitone shifts parallel to stems (-6..6). "
             "Empty means no transpose, which is what a client that predates this sends."
@@ -1167,6 +1213,8 @@ async def get_mixdown(
         le=4,
         description="Count-in bars before the audio (0 off)",
     ),
+    fx: Annotated[str, export_fx.fx_query()] = "",
+    master: Annotated[str, export_fx.master_query()] = "",
 ) -> FileResponse | StreamingResponse:
     """Render a mixdown of the given lanes at the given gains, streamed as WAV,
     MP3, FLAC, or OGG. Mirrors the studio mixer (per-stem volume, mute, solo) so the
@@ -1202,7 +1250,7 @@ async def get_mixdown(
     if any(parsed_pitches) and not await asyncio.to_thread(_rubberband_available):
         raise HTTPException(
             status_code=422,
-            detail="this ffmpeg build cannot transpose (no rubberband filter)",
+            detail=NO_TRANSPOSE_DETAIL,
         )
 
     # Validates job_id (404), job done (404), and path traversal (404) per
@@ -1213,18 +1261,30 @@ async def get_mixdown(
     paths = [lane.path for lane in render_lanes]
 
     media_type = AUDIO_MEDIA_TYPES[ext]
-    click_lane = await asyncio.to_thread(
+    whole_song_click = partial(
         _click_lane,
         job_id,
         click,
         click_mult,
         click_accent,
         click_gain,
+        groups=_parse_groups(click_groups, click_accent),
+        sound=click_sound,
+    )
+    click_lane = await asyncio.to_thread(
+        whole_song_click,
         count_in_bars=count_in,
         start=start,
         end=end,
-        groups=_parse_groups(click_groups, click_accent),
-        sound=click_sound,
+    )
+    export = await export_fx.prepare_export(
+        render_lanes,
+        fx,
+        master,
+        ext,
+        _pitch_filter,
+        region=start is not None,
+        click=await _measured_click(names, master, click_lane, whole_song_click),
     )
     cache_key = _mixdown_cache_key(
         job_id,
@@ -1236,18 +1296,18 @@ async def get_mixdown(
         click_lane,
         parsed_pitches,
         takes_lanes.take_lane_versions(JOBS_DIR / job_id, names),
+        export.cache_suffix(),
     )
     cache_path = _MIXDOWN_CACHE_DIR / f"{cache_key}.{ext}"
-    if cache_path.is_file():
-        return FileResponse(
-            cache_path,
-            media_type=media_type,
-            headers={
-                "Content-Disposition": (
-                    f'attachment; filename="{_mixdown_download_name(job_id, ext, start is not None)}"'
-                )
-            },
-        )
+    hit, out = await export_fx.cached_output(export, ext, cache_path)
+    headers = {
+        "Content-Disposition": (
+            f'attachment; filename="{_mixdown_download_name(job_id, ext, start is not None)}"'
+        ),
+        **export.headers(out),
+    }
+    if hit:
+        return FileResponse(cache_path, media_type=media_type, headers=headers)
 
     pre_seek = ["-ss", str(start)] if start is not None else []
 
@@ -1280,12 +1340,14 @@ async def get_mixdown(
         delay = f"adelay={delay_ms}:all=1," if delay_ms > 0 else ""
         # Shift before the delay: rubberband would otherwise chew through the
         # silent lead-in padding for nothing.
-        filters.append(f"[{i}:a]{_pitch_filter(lane.pitch)}{delay}volume={lane.gain:.6f}[a{i}]")
+        chain = export_fx.lane_chain(export.prefix(i), _pitch_filter(lane.pitch), lane.gain, delay)
+        filters.append(f"[{i}:a]{chain}[a{i}]")
     if click_lane is not None:
         level = stems_click.click_level_filter(click_lane.gain)
         filters.append(f"[{stem_count}:a]{level}[a{stem_count}]")
     n = stem_count + (1 if click_lane is not None else 0)
     out_label = takes_lanes.sum_lanes(filters, n, names)
+    out_label = export_fx.attach_tail(filters, out_label, export.tail())
     codec = MIXDOWN_CODECS[ext]
     # Resample to the user's chosen export rate (default 44.1 kHz = the stem rate,
     # so a no-op unless changed). Applies to every audio container -- some hardware
@@ -1302,11 +1364,12 @@ async def get_mixdown(
     ]
 
     context = f"mixdown job={job_id} ext={ext} stems={stems}"
-    headers = {
-        "Content-Disposition": (
-            f'attachment; filename="{_mixdown_download_name(job_id, ext, start is not None)}"'
-        )
-    }
+    if export.verifies(ext):
+        job = export_fx.VerifyJob(cmd, f".{ext}", context, _render_to_file, request.is_disconnected)
+        rendered, out = await export_fx.render_verified(export, job)
+        headers.update(export.headers(out))
+        published = export_fx.publish(rendered, out, cache_path, _prune_mixdown_cache)
+        return FileResponse(published, media_type=media_type, headers=headers)
     if ext in _SEEKABLE_OUTPUT_EXTS:
         # Rendered to a file so the muxer can seek back and finish its header
         # (#458). It lands in the cache, so nothing is deleted afterwards --
@@ -1342,12 +1405,13 @@ def _safe_title(title: str | None) -> str:
 
 @router.get("/jobs/{job_id}/video.mp4", response_model=None)
 async def get_video_mixdown(
+    request: Request,
     job_id: str,
     stems: str = Query(..., description="Comma-separated lane names to sum"),
     gains: str = Query(..., description="Comma-separated linear gains, parallel to stems"),
     pitches: str = Query(
         default="",
-        max_length=128,
+        max_length=PITCHES_MAX_CHARS,
         description="Comma-separated semitone shifts parallel to stems (-6..6). Empty = none.",
     ),
     click: Annotated[bool, stems_click.click_mix_query()] = False,
@@ -1355,6 +1419,8 @@ async def get_video_mixdown(
     click_accent: Annotated[int, stems_click.click_accent_query()] = stems_click.ACCENT_AUTO,
     click_gain: Annotated[float, stems_click.click_gain_query()] = stems_click.CLICK_GAIN_DEFAULT,
     click_sound: Annotated[str, stems_click.click_sound_query()] = DEFAULT_CLICK_SOUND,
+    fx: Annotated[str, export_fx.fx_query()] = "",
+    master: Annotated[str, export_fx.master_query()] = "",
 ) -> StreamingResponse:
     """Mux a fresh audio mixdown of the current mixer state with the job's preserved
     video into an MP4 (issue #219). Mirrors get_mixdown's audio graph (encoded
@@ -1383,7 +1449,7 @@ async def get_video_mixdown(
     if any(parsed_pitches) and not await asyncio.to_thread(_rubberband_available):
         raise HTTPException(
             status_code=422,
-            detail="this ffmpeg build cannot transpose (no rubberband filter)",
+            detail=NO_TRANSPOSE_DETAIL,
         )
     # Validates job_id (404), job done (404), and path traversal (404) per stem,
     # and rebuilds a transposed "original" lane from its parts.
@@ -1392,7 +1458,7 @@ async def get_video_mixdown(
 
     # Click is one more audio input. It must be appended before the video input
     # so the audio indices the filter graph references stay contiguous from 0.
-    click_lane = await asyncio.to_thread(
+    whole_song_click = partial(
         _click_lane,
         job_id,
         click,
@@ -1400,6 +1466,15 @@ async def get_video_mixdown(
         click_accent,
         click_gain,
         sound=stems_click.check_click_sound(click_sound),
+    )
+    click_lane = await asyncio.to_thread(whole_song_click)
+    export = await export_fx.prepare_export(
+        render_lanes,
+        fx,
+        master,
+        EXPORT_AUDIO_CODEC_AAC,
+        _pitch_filter,
+        click=await _measured_click(names, master, click_lane, whole_song_click),
     )
     if click_lane is not None:
         paths = [*paths, click_lane[0]]
@@ -1412,15 +1487,17 @@ async def get_video_mixdown(
     video_idx = len(paths)
     # Per-lane gain then amix (normalize=0 keeps levels faithful). A single audible
     # lane skips amix (a 1-input amix is a no-op), matching get_mixdown.
-    filters = [
-        f"[{i}:a]{_pitch_filter(lane.pitch)}volume={lane.gain:.6f}[a{i}]"
+    chains = [
+        export_fx.lane_chain(export.prefix(i), _pitch_filter(lane.pitch), lane.gain)
         for i, lane in enumerate(render_lanes)
     ]
+    filters = [f"[{i}:a]{chain}[a{i}]" for i, chain in enumerate(chains)]
     if click_lane is not None:
         last = len(render_lanes) - 1
         filters[last] = f"[{last}:a]{stems_click.click_level_filter(click_lane.gain)}[a{last}]"
     n = len(paths)
     out_label = takes_lanes.sum_lanes(filters, n, names)
+    out_label = export_fx.attach_tail(filters, out_label, export.tail())
     cmd += [
         "-filter_complex",
         ";".join(filters),
@@ -1439,14 +1516,25 @@ async def get_video_mixdown(
         "frag_keyframe+empty_moov",
         "-f",
         "mp4",
-        "pipe:1",
     ]
 
     filename = f"{_safe_title(job.display_title)}_video.mp4"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    context = f"video-mux job={job_id} stems={stems}"
+    if export.verifies(EXPORT_AUDIO_CODEC_AAC):
+        job = export_fx.VerifyJob(cmd, ".mp4", context, _render_to_file, request.is_disconnected)
+        rendered, out = await export_fx.render_verified(export, job)
+        headers.update(export.headers(out))
+        return FileResponse(
+            rendered,
+            media_type="video/mp4",
+            headers=headers,
+            background=BackgroundTask(_unlink_later, rendered),
+        )
     return StreamingResponse(
-        _stream_ffmpeg(cmd, context=f"video-mux job={job_id} stems={stems}"),
+        _stream_ffmpeg([*cmd, "pipe:1"], context=context),
         media_type="video/mp4",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers=headers,
     )
 
 
