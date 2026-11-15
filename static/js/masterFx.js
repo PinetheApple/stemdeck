@@ -1,32 +1,34 @@
-// The live master: an approximate preview of the export's master
-// (app/pipeline/mastering.py renders the exact result with ffmpeg).
-//
-//   input - pre (1/fader) -+- glue - cancel - gain - limiter - cancel - wet -+- post (fader)
-//                          '- delay (the compressors' look-ahead) --- dry ---'
-//
-// The export never applies the monitoring fader, and the mixer folds it into
-// every lane gain, so `pre` undoes it and `post` applies it again. Each
-// DynamicsCompressorNode adds a fixed makeup gain that a GainNode cancels.
-// The A/B "original" path is delayed by the same look-ahead.
+// The mixer folds the monitoring fader into every lane but exports leave it
+// out, so the master undoes it before its compressors and applies it after.
 
+import { dbToGain } from "./audioMath.js";
+import { RELEASE_MS, XFADE, chain, disconnectQuietly, rampTo } from "./audioGraph.js";
 import {
-  compressorMakeupGain, glueSettings, limiterSettings, matchedLevels,
+  GLUE_TIMING,
+  LISTEN,
+  compressorMakeupGain,
+  glueSettings,
+  limiterSettings,
+  matchedLevels,
 } from "./masterMath.js";
-import { XFADE, rampTo } from "./paramRamp.js";
 
 /** DynamicsCompressorNode's fixed look-ahead (Web Audio spec pre-delay). */
 export const COMPRESSOR_LOOKAHEAD = 0.006;
 const COMPRESSORS_IN_SERIES = 2;
 const MAX_DELAY_SEC = 0.1;
 const MIN_FADER = 1e-3;
-const RELEASE_MARGIN = 0.05;
-const RELEASE_MS = (XFADE + RELEASE_MARGIN) * 1000;
-const LISTEN_ORIGINAL = "original";
 const COMPRESSOR_PARAMS = Object.freeze(["threshold", "knee", "ratio", "attack", "release"]);
 // Ratio 1 does nothing but keeps the look-ahead, so latency stays constant.
-const IDLE_GLUE = Object.freeze({ threshold: 0, knee: 0, ratio: 1, attack: 0.02, release: 0.25 });
+const IDLE_GLUE = Object.freeze({ threshold: 0, knee: 0, ratio: 1, ...GLUE_TIMING });
 const INITIAL_STATE = Object.freeze({
-  gainDb: 0, comp: 0, compThresholdDb: null, ceiling: -1, fader: 1, listen: "master", match: true, diffLu: NaN,
+  gainDb: 0,
+  comp: 0,
+  compThresholdDb: null,
+  ceiling: -1,
+  fader: 1,
+  listen: LISTEN.master,
+  match: true,
+  diffLu: NaN,
 });
 
 /** One compressor's look-ahead in seconds: whole frames, as Chromium delays it. */
@@ -40,16 +42,19 @@ function setCompressor(node, cancel, settings, ctx, immediate) {
   rampTo(cancel.gain, 1 / makeup, ctx, { immediate });
 }
 
-function chain(...nodes) {
-  nodes.reduce((prev, node) => prev.connect(node));
-}
-
 function buildEffectGraph(ctx) {
   const n = {
-    input: ctx.createGain(), pre: ctx.createGain(), glue: ctx.createDynamicsCompressor(),
-    glueCancel: ctx.createGain(), gain: ctx.createGain(), limiter: ctx.createDynamicsCompressor(),
-    limCancel: ctx.createGain(), wet: ctx.createGain(), delay: ctx.createDelay(MAX_DELAY_SEC),
-    dry: ctx.createGain(), post: ctx.createGain(),
+    input: ctx.createGain(),
+    pre: ctx.createGain(),
+    glue: ctx.createDynamicsCompressor(),
+    glueCancel: ctx.createGain(),
+    gain: ctx.createGain(),
+    limiter: ctx.createDynamicsCompressor(),
+    limCancel: ctx.createGain(),
+    wet: ctx.createGain(),
+    delay: ctx.createDelay(MAX_DELAY_SEC),
+    dry: ctx.createGain(),
+    post: ctx.createGain(),
   };
   chain(n.input, n.pre, n.glue, n.glueCancel, n.gain, n.limiter, n.limCancel, n.wet, n.post);
   chain(n.pre, n.delay, n.dry, n.post);
@@ -64,10 +69,10 @@ function applyState(n, s, ctx, immediate) {
   rampTo(n.pre.gain, fader > MIN_FADER ? 1 / fader : 1, ctx, opts);
   rampTo(n.post.gain, fader, ctx, opts);
   setCompressor(n.glue, n.glueCancel, glueSettings(s.comp, s.compThresholdDb) || IDLE_GLUE, ctx, immediate);
-  rampTo(n.gain.gain, 10 ** (s.gainDb / 20), ctx, opts);
+  rampTo(n.gain.gain, dbToGain(s.gainDb), ctx, opts);
   setCompressor(n.limiter, n.limCancel, limiterSettings(s.ceiling), ctx, immediate);
   const levels = matchedLevels(s.diffLu, s.match);
-  const original = s.listen === LISTEN_ORIGINAL;
+  const original = s.listen === LISTEN.original;
   rampTo(n.wet.gain, original ? 0 : levels.master, ctx, opts);
   rampTo(n.dry.gain, original ? levels.original : 0, ctx, opts);
 }
@@ -88,7 +93,7 @@ export function createMasterEffect(ctx) {
     },
     reduction: () => ({ glue: n.glue.reduction ?? 0, limiter: n.limiter.reduction ?? 0 }),
     dispose() {
-      for (const node of Object.values(n)) node.disconnect();
+      for (const node of Object.values(n)) disconnectQuietly(node);
     },
   };
 }
@@ -148,7 +153,9 @@ export class MasterStage {
   dispose() {
     this.#cancelDrop();
     this.#live?.effect.dispose();
-    for (const node of [this.input, this.#around, this.output, this.#live?.wet].filter(Boolean)) node.disconnect();
+    for (const node of [this.input, this.#around, this.output, this.#live?.wet].filter(Boolean)) {
+      disconnectQuietly(node);
+    }
   }
 
   #active() {
@@ -199,9 +206,9 @@ export class MasterStage {
     this.#dropTimer = 0;
     const live = this.#live;
     if (!live || live.active || this.#warmWanted) return;
-    this.input.disconnect(live.effect.input);
+    disconnectQuietly(this.input, live.effect.input);
     live.effect.dispose();
-    live.wet.disconnect();
+    disconnectQuietly(live.wet);
     this.#live = null;
   }
 }

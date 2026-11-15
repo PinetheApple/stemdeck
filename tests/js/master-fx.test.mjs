@@ -1,7 +1,3 @@
-// The live master (static/js/masterFx.js) in the engine's master chain, on a
-// fake graph: compressor settings, the fader trims, the A/B paths, and the
-// warm effect that makes switching on a crossfade instead of a new node.
-//
 // Run:  node tests/js/master-fx.test.mjs
 
 import { EngineFx } from "../../static/js/fxChain.js";

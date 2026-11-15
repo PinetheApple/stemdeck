@@ -1,23 +1,23 @@
-// The master surface the panel and the exports talk to. The descriptor lives
-// in the mix (mixer.js getMaster/setMaster); this module runs the live
-// preview. Its gain and compressor threshold come from the server's
-// measurement of this very mix (GET mixdown/loudness, the plan the export
-// renders), so the browser never guesses the loudness. Listening to the
-// original and matching loudness are a transient compare, not saved.
+// The live preview's gain and threshold come from the measured plan of this
+// very mix, so the browser never guesses the loudness the export will hit.
 
 import { audioEngine, currentJobId, masterVolume } from "./state.js";
-import { MASTER_LANE } from "./mixFx.js";
-import { getMaster, onFxChange, setMaster } from "./mixer.js";
-import { applyPreset, encodeMasterParam, masterIsOn } from "./masterMath.js";
+import { storeGet, storeSet } from "./utils.js";
+import { MASTER_LANE, getMaster, onFxChange, setMaster } from "./mixFx.js";
+import { LISTEN, applyPreset, encodeMasterParam, masterIsOn } from "./masterMath.js";
 
 export {
-  MASTER_LIMITS, MASTER_PRESETS, PRESET_ORDER, applyPreset, normalizeMaster,
+  LISTEN,
+  MASTER_LIMITS,
+  MASTER_PRESETS,
+  PRESET_ORDER,
+  applyPreset,
+  normalizeMaster,
 } from "./masterMath.js";
-export { getMaster, setMaster } from "./mixer.js";
+export { getMaster, setMaster } from "./mixFx.js";
 
 const MATCH_KEY = "stemdeck.master.match";
-const MATCH_OFF = "0";
-const MATCH_ON = "1";
+const MASTER_QUERY_PARAM = "master";
 // While on, the mix is compared with the last one measured this often, and
 // measured again once it has stopped changing for SETTLE_MS.
 const WATCH_MS = 600;
@@ -26,12 +26,18 @@ const SETTLE_MS = 700;
 const LIVE_MATCH_MIN_READS = 30;
 const SILENCE_LUFS = -60;
 const MATCH_STEP_LU = 0.05;
-export const LISTEN = Object.freeze({ master: "master", original: "original" });
-export const PLAN_STATE = Object.freeze({ idle: "idle", measuring: "measuring", ready: "ready", error: "error" });
+export const PLAN_STATE = Object.freeze({
+  idle: "idle",
+  measuring: "measuring",
+  ready: "ready",
+  error: "error",
+});
+/** What an onChange callback is told changed; null means a song (re)load. */
+export const MASTER_EVENT = Object.freeze({ master: "master", listen: "listen", plan: "plan" });
 
 const listeners = new Set();
 let listen = LISTEN.master;
-let match = readMatch();
+let match = true;
 let mixSource = null;
 let warm = false;
 let inflight = null;
@@ -44,13 +50,10 @@ function freshLive() {
   return { sumIn: 0, sumOut: 0, reads: 0, diff: NaN };
 }
 
-function readMatch() {
-  try {
-    return localStorage.getItem(MATCH_KEY) !== MATCH_OFF;
-  } catch (e) {
-    console.warn("[master] reading the match setting failed:", e);
-    return true;
-  }
+storeGet(MATCH_KEY, true).then(adoptStoredMatch);
+
+function adoptStoredMatch(stored) {
+  match = stored !== false;
 }
 
 function emit(what) {
@@ -59,7 +62,7 @@ function emit(what) {
   }
 }
 
-/** cb(what): "master", "listen", "plan", or null after a song (re)load. */
+/** cb(what): a MASTER_EVENT value, or null after a song (re)load. */
 export function onChange(cb) {
   listeners.add(cb);
   return () => listeners.delete(cb);
@@ -89,18 +92,14 @@ export function getMatch() { return match; }
 export function setListen(which) {
   listen = which === LISTEN.original ? LISTEN.original : LISTEN.master;
   applyToEngine();
-  emit("listen");
+  emit(MASTER_EVENT.listen);
 }
 
 export function setMatch(on) {
   match = !!on;
-  try {
-    localStorage.setItem(MATCH_KEY, match ? MATCH_ON : MATCH_OFF);
-  } catch (e) {
-    console.warn("[master] saving the match setting failed:", e);
-  }
+  storeSet(MATCH_KEY, match);
   applyToEngine();
-  emit("listen");
+  emit(MASTER_EVENT.listen);
 }
 
 /**
@@ -125,8 +124,6 @@ export function noteLiveLoudness(inLufs, outLufs) {
 export function getPlan() {
   return plan.sig && plan.sig === signature() ? plan.body : null;
 }
-/** The last plan measured for this song, even if the mix moved on since. */
-export function getLastPlan() { return plan.body; }
 export function getPlanState() { return plan.state; }
 
 /** How the export describes the current mix: () => {jobId, query} | null. */
@@ -172,7 +169,7 @@ export function watch() {
 
 async function fetchPlan(src, signal) {
   const query = new URLSearchParams(src.query);
-  query.set("master", exportMasterParam());
+  query.set(MASTER_QUERY_PARAM, exportMasterParam());
   const res = await fetch(`/api/jobs/${src.jobId}/mixdown/loudness?${query}`, { signal });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
@@ -192,7 +189,7 @@ export async function measure() {
   const ctl = new AbortController();
   inflight = ctl;
   plan.state = PLAN_STATE.measuring;
-  emit("plan");
+  emit(MASTER_EVENT.plan);
   try {
     const body = await fetchPlan(src, ctl.signal);
     if (inflight !== ctl) return null;
@@ -205,7 +202,7 @@ export async function measure() {
     if (inflight === ctl) inflight = null;
   }
   applyToEngine();
-  emit("plan");
+  emit(MASTER_EVENT.plan);
   return plan.body;
 }
 
@@ -270,7 +267,7 @@ function followMixChange({ lane }) {
   if (lane === MASTER_LANE) {
     live = freshLive();
     applyToEngine();
-    emit("master");
+    emit(MASTER_EVENT.master);
     watch();
   } else if (lane === null) {
     applyToEngine({ immediate: true });

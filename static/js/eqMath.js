@@ -1,18 +1,24 @@
-// EQ descriptor schema and coefficient maths, shared by the live engine
-// (fxChain.js) and mirrored by the export side (app/pipeline/fx_filters.py).
-// No DOM and no Web Audio, so node tests import it.
-//
-// Every band becomes one or more second-order sections, each a Web Audio
-// BiquadFilterNode type with its (frequency, Q, gain). The coefficients are
-// the Web Audio spec's "Filters Characteristics" formulas: the RBJ cookbook,
-// Q in dB for lowpass/highpass, shelf slope S = 1.
+// The export designs the same biquads from the same descriptor, so live and
+// exported audio run identical filters; keep both sides in step.
+
+import { clamp, finiteOr, gainToDb, roundTo } from "./audioMath.js";
 
 export const EQ_ID = "eq";
 export const EQ_VERSION = 1;
 
 export const EQ_TYPES = Object.freeze([
-  "bell", "lowshelf", "highshelf", "lowcut", "highcut", "notch", "bandpass", "tilt",
+  "bell",
+  "lowshelf",
+  "highshelf",
+  "lowcut",
+  "highcut",
+  "notch",
+  "bandpass",
+  "tilt",
 ]);
+
+/** Band types with a gain; at 0 dB they change nothing. */
+export const EQ_GAIN_TYPES = new Set(["bell", "lowshelf", "highshelf", "tilt"]);
 
 /** Cut slopes in dB per octave (cascaded Butterworth sections). */
 export const EQ_SLOPES = Object.freeze([12, 24, 36, 48]);
@@ -32,26 +38,27 @@ export const EQ_LIMITS = Object.freeze({
 
 /** Butterworth Q: a cut at this q has no resonance. */
 export const EQ_DEFAULT_Q = 0.707;
+/** The gentlest slope, and the slope of every non-cut band. */
+export const EQ_PLAIN_SLOPE = 12;
+/** The rate a response is drawn at when no engine is running. */
+export const EQ_DEFAULT_RATE = 44100;
 
 const DEFAULT_FREQ = 1000;
-const DEFAULT_SLOPE = 12;
-const FREQ_STEP = 0.1;
-const GAIN_STEP = 0.01;
-const Q_STEP = 0.001;
+const FREQ_DIGITS = 1;
+const GAIN_DIGITS = 2;
+const Q_DIGITS = 3;
 const DB_PER_ORDER = 6;
-const DEFAULT_RATE = 44100;
 const SHELF_NODE_Q = 1;
 const FX_WIRE_VERSION = 1;
-const GAIN_TYPES = new Set(["bell", "lowshelf", "highshelf", "tilt"]);
 
 const TYPE_ALIASES = {
-  peaking: "bell", peak: "bell", highpass: "lowcut", lowpass: "highcut", hpf: "lowcut", lpf: "highcut",
+  peaking: "bell",
+  peak: "bell",
+  highpass: "lowcut",
+  lowpass: "highcut",
+  hpf: "lowcut",
+  lpf: "highcut",
 };
-
-const round = (v, step) => Math.round(v / step) * step;
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-const num = (v, fallback) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
-const fixed = (v, step, digits) => +round(v, step).toFixed(digits);
 
 /** A flat EQ: no bands, no output gain, not bypassed. */
 export function flatEq() {
@@ -65,11 +72,11 @@ function bandType(raw) {
 }
 
 function nearestSlope(raw) {
-  const slope = Math.round(num(raw, DEFAULT_SLOPE));
+  const slope = Math.round(finiteOr(raw, EQ_PLAIN_SLOPE));
   if (EQ_SLOPES.includes(slope)) return slope;
   return EQ_SLOPES.reduce(
     (best, s) => (Math.abs(s - slope) < Math.abs(best - slope) ? s : best),
-    DEFAULT_SLOPE,
+    EQ_PLAIN_SLOPE,
   );
 }
 
@@ -85,9 +92,9 @@ export function normalizeBand(raw) {
   return {
     on: raw.on !== false,
     type,
-    f: fixed(clamp(num(raw.f, DEFAULT_FREQ), L.freqMin, L.freqMax), FREQ_STEP, 1),
-    g: fixed(clamp(num(raw.g, 0), L.gainMin, L.gainMax), GAIN_STEP, 2),
-    q: fixed(clamp(num(raw.q, EQ_DEFAULT_Q), L.qMin, L.qMax), Q_STEP, 3),
+    f: roundTo(clamp(finiteOr(raw.f, DEFAULT_FREQ), L.freqMin, L.freqMax), FREQ_DIGITS),
+    g: roundTo(clamp(finiteOr(raw.g, 0), L.gainMin, L.gainMax), GAIN_DIGITS),
+    q: roundTo(clamp(finiteOr(raw.q, EQ_DEFAULT_Q), L.qMin, L.qMax), Q_DIGITS),
     slope: nearestSlope(raw.slope),
   };
 }
@@ -117,7 +124,7 @@ export function normalizeEq(raw) {
   if (!raw || typeof raw !== "object" || !isReadable(raw)) return out;
   out.bypass = raw.bypass === true;
   const params = raw.params && typeof raw.params === "object" ? raw.params : {};
-  out.params.out = fixed(clamp(num(params.out, 0), EQ_LIMITS.outMin, EQ_LIMITS.outMax), GAIN_STEP, 2);
+  out.params.out = roundTo(clamp(finiteOr(params.out, 0), EQ_LIMITS.outMin, EQ_LIMITS.outMax), GAIN_DIGITS);
   const bands = Array.isArray(params.bands) ? params.bands : [];
   out.params.bands = bands.map(normalizeBand).filter(Boolean).slice(0, EQ_LIMITS.maxBands);
   const ui = normalizeUi(params.ui);
@@ -128,7 +135,7 @@ export function normalizeEq(raw) {
 /** True when a band changes nothing (so it is left out of the graph). */
 export function bandIsNeutral(band) {
   if (!band.on) return true;
-  return GAIN_TYPES.has(band.type) && band.g === 0;
+  return EQ_GAIN_TYPES.has(band.type) && band.g === 0;
 }
 
 /** True when the whole descriptor changes nothing: bypassed or all neutral. */
@@ -186,7 +193,7 @@ export function eqSections(eq) {
 
 /** The value for BiquadFilterNode.Q: dB for lowpass/highpass, ignored for shelves. */
 export function nodeQ(section) {
-  if (section.type === "lowpass" || section.type === "highpass") return 20 * Math.log10(section.q);
+  if (section.type === "lowpass" || section.type === "highpass") return gainToDb(section.q);
   if (section.type === "lowshelf" || section.type === "highshelf") return SHELF_NODE_Q;
   return section.q;
 }
@@ -217,7 +224,12 @@ const RAW_COEFS = {
   bandpass: ({ cw, alphaQ }) => [alphaQ, 0, -alphaQ, 1 + alphaQ, -2 * cw, 1 - alphaQ],
   notch: ({ cw, alphaQ }) => [1, -2 * cw, 1, 1 + alphaQ, -2 * cw, 1 - alphaQ],
   peaking: ({ A, cw, alphaQ }) => [
-    1 + alphaQ * A, -2 * cw, 1 - alphaQ * A, 1 + alphaQ / A, -2 * cw, 1 - alphaQ / A,
+    1 + alphaQ * A,
+    -2 * cw,
+    1 - alphaQ * A,
+    1 + alphaQ / A,
+    -2 * cw,
+    1 - alphaQ / A,
   ],
   lowshelf: (w) => shelfCoefs(w, LOW),
   highshelf: (w) => shelfCoefs(w, HIGH),
@@ -237,10 +249,7 @@ function warp(section, fs) {
   };
 }
 
-/**
- * Normalised coefficients (a0 = 1) of one section at sample rate `fs`, by
- * the Web Audio spec. Mirrored by section_coefficients() in fx_filters.py.
- */
+/** Normalised coefficients (a0 = 1) of one section at sample rate `fs`. */
 export function sectionCoefs(section, fs) {
   const design = RAW_COEFS[section.type];
   if (!design) return { b0: 1, b1: 0, b2: 0, a1: 0, a2: 0 };
@@ -269,14 +278,9 @@ function sumResponse(sections, freqs, fs, offsetDb) {
 }
 
 /** Magnitude response of a whole EQ in dB, output gain included. Flat: zeros. */
-export function eqResponseDb(eq, freqs, fs = DEFAULT_RATE) {
+export function eqResponseDb(eq, freqs, fs = EQ_DEFAULT_RATE) {
   if (!eq || eq.bypass) return new Float64Array(freqs.length);
   return sumResponse(eqSections(eq), freqs, fs, eq.params.out);
-}
-
-/** Response of one band alone (for drawing a band's own curve). */
-export function bandResponseDb(band, freqs, fs = DEFAULT_RATE) {
-  return sumResponse(bandSections(band), freqs, fs, 0);
 }
 
 /**

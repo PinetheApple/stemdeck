@@ -1,30 +1,12 @@
-// The public EQ and master modules (static/js/eqEngine.js, masterEngine.js)
-// over the mix store and a fake engine: preview without saving, responses at
-// the live rate, the export parameters, the streaming default, the measured
-// plan and the live loudness match.
-//
 // Run:  node tests/js/eq-master-engine.test.mjs
 
-import { createChecker, near } from "./fakeWebAudio.mjs";
+import { createChecker, installPageStubs, near } from "./fakeWebAudio.mjs";
 
 const { check, finish } = createChecker();
-globalThis.window = {};
-const memory = new Map();
-globalThis.localStorage = {
-  getItem: (key) => memory.get(key) ?? null,
-  setItem: (key, value) => memory.set(key, String(value)),
-  removeItem: (key) => memory.delete(key),
-};
-globalThis.document = {
-  getElementById: () => null,
-  querySelector: () => null,
-  querySelectorAll: () => [],
-  addEventListener() {},
-  documentElement: { lang: "en", dataset: {} },
-};
-
+const memory = installPageStubs();
 const state = await import("../../static/js/state.js");
 const mixer = await import("../../static/js/mixer.js");
+const fx = await import("../../static/js/mixFx.js");
 const eq = await import("../../static/js/eqEngine.js");
 const master = await import("../../static/js/masterEngine.js");
 const { eqResponseDb, normalizeEq } = await import("../../static/js/eqMath.js");
@@ -50,15 +32,15 @@ state.setCurrentJobId(JOB);
 const lastCall = (kind) => calls.filter((c) => c[0] === kind).at(-1);
 
 {
-  mixer.setLaneEq("drums", BOOST);
+  fx.setLaneEq("drums", BOOST);
   eq.setBypass("drums", true);
-  check("bypass is saved and keeps the bands", mixer.getLaneEq("drums").bypass === true
-    && mixer.getLaneEq("drums").params.bands.length === 1);
+  check("bypass is saved and keeps the bands", fx.getLaneEq("drums").bypass === true
+    && fx.getLaneEq("drums").params.bands.length === 1);
   check("a bypassed lane is not active", !eq.isLaneActive("drums"));
   eq.setBypass("drums", false);
   eq.previewLaneEq("drums", { id: "eq", v: 1, params: { bands: [] } });
   check("a preview plays without saving", lastCall("lane")[2].params.bands.length === 0
-    && mixer.getLaneEq("drums").params.bands.length === 1);
+    && fx.getLaneEq("drums").params.bands.length === 1);
   eq.previewLaneEq("drums", null);
   check("preview null goes back to the saved EQ", lastCall("lane")[2].params.bands.length === 1);
   const freqs = [100, 2000, 10000];
@@ -103,10 +85,14 @@ const lastCall = (kind) => calls.filter((c) => c[0] === kind).at(-1);
   master.warmLive(true);
   check("warming hands the engine the master it would switch on", lastCall("warm")[1] === true
     && lastCall("warm")[2].ceiling === -1);
-  mixer.applyAllFx();
+  fx.applyAllFx();
   check("a reloaded song re-applies the master at once", lastCall("fx")[2]?.immediate === true);
   master.resetForSong();
   check("a new song forgets the plan", master.getPlan() === null && master.getListen() === "master");
+  master.setMatch(false);
+  await Promise.resolve();
+  check("the match choice is kept in the store", memory.get("stemdeck.master.match") === "false"
+    && master.getMatch() === false);
 }
 
 finish();

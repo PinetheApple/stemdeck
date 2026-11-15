@@ -1,6 +1,4 @@
-// The EQ descriptor and coefficient maths (static/js/eqMath.js) against the
-// golden file that tests/test_fx_filters.py holds the export side to.
-//
+// The golden file is shared with the export's tests, so both sides stay identical.
 // Run:  node tests/js/eq-math.test.mjs
 
 import fs from "node:fs";

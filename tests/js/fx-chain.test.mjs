@@ -1,11 +1,7 @@
-// The EQ slot and the engines' effects wiring (static/js/fxChain.js) on a
-// fake graph: what a flat lane builds (nothing), how a slot ramps and
-// crossfades, and where the lane and master slots sit.
-//
 // Run:  node tests/js/fx-chain.test.mjs
 
 import { flatEq, normalizeEq } from "../../static/js/eqMath.js";
-import { PARAM_RAMP } from "../../static/js/paramRamp.js";
+import { PARAM_RAMP } from "../../static/js/audioGraph.js";
 import { EngineFx, FxSlot } from "../../static/js/fxChain.js";
 import { FakeContext, createChecker, near } from "./fakeWebAudio.mjs";
 

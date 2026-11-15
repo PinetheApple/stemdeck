@@ -1,41 +1,19 @@
-// The EQ slots in the engines' Web Audio graphs, shared by audioEngine.js and
-// chunkedAudioEngine.js so the two cannot drift apart.
-//
-//   input -+- dry ---------------------------+- out (output gain)
-//          '- biquad - biquad - ... - wet ---'
-//
 // Native BiquadFilterNodes only, so the EQ also runs over plain HTTP and on
-// phones, where AudioWorklet is missing. Parameter changes ramp; a change of
-// structure builds a new filter branch and crossfades to it. Flat or bypassed
-// leaves the dry path at exactly 1 and no filter node at all.
-//
-// A lane's slot sits between its gain and its VU analyser, the master chain
-// between the master gain and the destination. Neither exists until something
-// on it changes the sound, so a flat mix plays through today's graph.
+// phones without AudioWorklet; slots appear only once they change the sound.
 
+import { dbToGain, gainToDb } from "./audioMath.js";
+import { PARAM_RAMP, RELEASE_MS, XFADE, chain, disconnectQuietly, rampTo } from "./audioGraph.js";
 import { eqIsFlat, eqSections, nodeQ } from "./eqMath.js";
-import { PARAM_RAMP, XFADE, rampTo } from "./paramRamp.js";
 import { MasterStage } from "./masterFx.js";
 
-const RELEASE_MARGIN = 0.05;
-const RELEASE_MS = (XFADE + RELEASE_MARGIN) * 1000;
 const SILENT_GAIN = 1e-12;
 const TAP_DEFAULTS = Object.freeze({ fftSize: 8192, smoothing: 0.8 });
 const MASTER_TAP_KEY = "\u0000master";
-const PRE = "pre";
+/** Where a spectrum tap listens: before or after the EQ. */
+export const TAP_SIDE = Object.freeze({ pre: "pre", post: "post" });
 
 const signature = (sections) => sections.map((s) => s.type).join(",");
-const toDb = (gain) => 20 * Math.log10(gain || SILENT_GAIN);
-const dbToGain = (db) => (db === 0 ? 1 : 10 ** (db / 20));
-
-function disconnectQuietly(node, destination) {
-  try {
-    if (destination) node.disconnect(destination);
-    else node.disconnect();
-  } catch {
-    // Already disconnected: nothing left to release.
-  }
-}
+const toDb = (gain) => gainToDb(gain || SILENT_GAIN);
 
 function buildBranch(ctx, input, out, sections) {
   const nodes = sections.map((s) => {
@@ -48,7 +26,7 @@ function buildBranch(ctx, input, out, sections) {
   });
   const wet = ctx.createGain();
   wet.gain.value = 0;
-  [input, ...nodes, wet, out].reduce((prev, node) => prev.connect(node));
+  chain(input, ...nodes, wet, out);
   return { sig: signature(sections), nodes, wet };
 }
 
@@ -66,7 +44,7 @@ function retune(branch, sections, ctx, immediate) {
   });
 }
 
-/** One EQ slot between `input` and `output`. */
+/** One EQ slot: input -> dry -> output, plus input -> biquads -> wet -> output. */
 export class FxSlot {
   #ctx;
   #dry;
@@ -79,7 +57,7 @@ export class FxSlot {
     this.input = ctx.createGain();
     this.#dry = ctx.createGain();
     this.output = ctx.createGain();
-    this.input.connect(this.#dry).connect(this.output);
+    chain(this.input, this.#dry, this.output);
   }
 
   /** Apply a normalised EQ descriptor; `immediate` for a slot not sounding yet. */
@@ -91,7 +69,7 @@ export class FxSlot {
     rampTo(this.#dry.gain, this.#branch ? 0 : 1, ctx, { immediate, time: XFADE });
     if (this.#branch) rampTo(this.#branch.wet.gain, 1, ctx, { immediate, time: XFADE });
     const outDb = eq && !eq.bypass ? eq.params.out : 0;
-    rampTo(this.output.gain, dbToGain(outDb), ctx, { immediate, time: PARAM_RAMP });
+    rampTo(this.output.gain, outDb === 0 ? 1 : dbToGain(outDb), ctx, { immediate, time: PARAM_RAMP });
   }
 
   /** What the filters in the graph now do, read from the nodes, in dB. */
@@ -155,7 +133,7 @@ export class FxSlot {
  * AnalyserNodes for a spectrum display, one per key, fed by every node of a
  * lane (the "original" lane can be several stems), disconnected on release.
  */
-export class TapRegistry {
+class TapRegistry {
   #ctx;
   #taps = new Map();
 
@@ -260,7 +238,7 @@ export class EngineFx {
   }
 
   getLaneTap(name, which, opts) {
-    const nodes = this.#membersOf(name).map((m) => (which === PRE ? m.gain : this.#slotOf(m).output));
+    const nodes = this.#membersOf(name).map((m) => (which === TAP_SIDE.pre ? m.gain : this.#slotOf(m).output));
     return nodes.length ? this.#taps.get(`${name}|${which}`, nodes, opts) : null;
   }
 
@@ -269,7 +247,7 @@ export class EngineFx {
   }
 
   getMasterTap(which, opts) {
-    const node = which === PRE ? this.#masterNode : this.#ensureChain().slot.output;
+    const node = which === TAP_SIDE.pre ? this.#masterNode : this.#ensureChain().slot.output;
     return this.#taps.get(`${MASTER_TAP_KEY}|${which}`, [node], opts);
   }
 
@@ -323,9 +301,20 @@ export class EngineFx {
 }
 
 const ENGINE_FX_METHODS = Object.freeze([
-  "setLaneEq", "setMasterEq", "getLaneTap", "releaseLaneTap", "getMasterTap", "releaseMasterTap",
-  "getLaneNodeResponseDb", "getMasterNodeResponseDb", "laneSectionCount", "setMasterFx", "warmMasterFx",
-  "getMasterFxNodes", "masterFxReduction", "masterFxLatency",
+  "setLaneEq",
+  "setMasterEq",
+  "getLaneTap",
+  "releaseLaneTap",
+  "getMasterTap",
+  "releaseMasterTap",
+  "getLaneNodeResponseDb",
+  "getMasterNodeResponseDb",
+  "laneSectionCount",
+  "setMasterFx",
+  "warmMasterFx",
+  "getMasterFxNodes",
+  "masterFxReduction",
+  "masterFxLatency",
 ]);
 
 /** The effects surface both engines expose, spread into the engine object. */

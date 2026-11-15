@@ -1,21 +1,27 @@
-// The EQ surface the panels and the exports talk to. The descriptors live in
-// the mix (mixer.js stores, saves and plays them); this module adds what the
-// panels need on top: A/B and solo previews that are never saved, response
-// curves at the live rate, spectrum taps, and the export `fx=` parameter.
+// Previews and responses here never touch the saved mix; only setLaneEq and
+// its wrappers save, so an A/B compare cannot leak into the store or export.
 
 import { audioEngine, mixerState } from "./state.js";
-import { MASTER_LANE } from "./mixFx.js";
-import { getLaneEq, playLaneEq, setLaneEq } from "./mixer.js";
-import { encodeFxParam, eqIsFlat, eqResponseDb, flatEq, normalizeEq } from "./eqMath.js";
+import { TAP_SIDE } from "./fxChain.js";
+import { MASTER_LANE, getLaneEq, playLaneEq, setLaneEq } from "./mixFx.js";
+import {
+  EQ_DEFAULT_RATE,
+  encodeFxParam,
+  eqIsFlat,
+  eqResponseDb,
+  flatEq,
+  normalizeEq,
+} from "./eqMath.js";
 
-export { MASTER_LANE } from "./mixFx.js";
-export { applyAllFx, getLaneEq, onFxChange, setLaneEq } from "./mixer.js";
+export {
+  MASTER_LANE,
+  applyAllFx,
+  getLaneEq,
+  onFxChange,
+  setLaneEq,
+} from "./mixFx.js";
 
-const DEFAULT_RATE = 44100;
-const PRE = "pre";
-const POST = "post";
-
-const tapSide = (which) => (which === PRE ? PRE : POST);
+const tapSide = (which) => (which === TAP_SIDE.pre ? TAP_SIDE.pre : TAP_SIDE.post);
 const isKnownLane = (lane) => lane === MASTER_LANE || !!mixerState[lane];
 
 /** Bypass (A/B) a lane's EQ without losing its settings. Saved. */
@@ -30,10 +36,7 @@ export function resetLane(lane) {
   return setLaneEq(lane, flatEq());
 }
 
-/**
- * Play another EQ on the lane without saving or announcing it (an A/B
- * compare, a soloed band); null goes back to the saved EQ.
- */
+/** Play another EQ on the lane without saving it; null goes back to the saved EQ. */
 export function previewLaneEq(lane, descriptor) {
   if (!isKnownLane(lane)) return null;
   const eq = descriptor === null ? getLaneEq(lane) : normalizeEq(descriptor);
@@ -41,14 +44,12 @@ export function previewLaneEq(lane, descriptor) {
   return eq;
 }
 
-/** True when the lane's EQ changes the sound. */
 export function isLaneActive(lane) {
   return !eqIsFlat(getLaneEq(lane));
 }
 
-/** The rate the live EQ runs at (44.1 kHz when no engine is up). */
 export function liveSampleRate() {
-  return audioEngine?.audioContext?.sampleRate || DEFAULT_RATE;
+  return audioEngine?.audioContext?.sampleRate || EQ_DEFAULT_RATE;
 }
 
 /** The lane's EQ response in dB at `freqs`, from the descriptor, at the live rate. */
@@ -65,17 +66,14 @@ export function getNodeResponse(lane, freqs) {
   return db ? Float32Array.from(db) : null;
 }
 
-/**
- * An AnalyserNode on the lane before ("pre") or after ("post") its EQ, for a
- * spectrum; release it when the display closes. Ask again after a song load.
- */
-export function getAnalyser(lane, which = POST, opts) {
+/** An AnalyserNode before or after the lane's EQ; release it when done, ask again after a song load. */
+export function getAnalyser(lane, which = TAP_SIDE.post, opts) {
   if (!audioEngine?.supportsEq) return null;
   const side = tapSide(which);
   return lane === MASTER_LANE ? audioEngine.getMasterTap(side, opts) : audioEngine.getLaneTap(lane, side, opts);
 }
 
-export function releaseAnalyser(lane, which = POST) {
+export function releaseAnalyser(lane, which = TAP_SIDE.post) {
   if (!audioEngine?.supportsEq) return;
   const side = tapSide(which);
   if (lane === MASTER_LANE) audioEngine.releaseMasterTap(side);

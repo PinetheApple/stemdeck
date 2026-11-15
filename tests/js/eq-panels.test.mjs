@@ -1,8 +1,3 @@
-// Pure logic the EQ panels will use (static/js/eq/): which panel a lane gets,
-// the graph editor's axes, hit testing, drag, wheel and key maths, number
-// formats, undo history and spectrum mapping, and how the pedal and keys
-// panels' knobs become bands on the shared engine.
-//
 // Run:  node tests/js/eq-panels.test.mjs
 
 import { PANEL_KINDS, laneHasPanel, panelKindFor } from "../../static/js/eq/eqPanelKinds.js";

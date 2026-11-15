@@ -1,23 +1,18 @@
-// The pedal-style panels (Bass EQ, Guitar EQ) and the Keys EQ, the pure
-// part: each panel's controls, their ranges, how a knob position maps to a
-// value, and how a set of control values becomes an EQ descriptor on the
-// shared engine. The knob values ride along in params.ui; the bands are the
-// truth for the live engine and the export.
-//
-// The engine has no 6 dB/oct or Baxandall shelves (its shelves are the RBJ
-// shelf, slope 1) and stops at 20 kHz, so those parts of the reference
-// pedals are approximated. The boost is the lane's output gain.
+// The engine has only RBJ shelves and stops at 20 kHz, so the reference
+// pedals' 6 dB/oct shelves and 22 kHz low-pass are approximated.
 
-import { EQ_DEFAULT_Q, EQ_VERSION, normalizeEq } from "../eqMath.js";
-
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-const num = (v, fallback) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
-const round1 = (v) => Math.round(v * 10) / 10;
-const round2 = (v) => Math.round(v * 100) / 100;
-const round3 = (v) => Math.round(v * 1000) / 1000;
+import { clamp, finiteOr, round1, round2, round3 } from "../audioMath.js";
+import {
+  EQ_DEFAULT_Q,
+  EQ_ID,
+  EQ_LIMITS,
+  EQ_PLAIN_SLOPE,
+  EQ_VERSION,
+  normalizeEq,
+} from "../eqMath.js";
+import { PANEL_KIND } from "./eqPanelKinds.js";
 
 const NOON = 0.5;
-const PEDAL_SLOPE = 12;
 const STOP_TOLERANCE_HZ = 0.05;
 
 export function logPos(v, min, max) {
@@ -54,8 +49,8 @@ export function qPos(q) {
 }
 
 export const PEDAL_GAIN = 15;
-export const LEVEL_MIN = -24;
-export const LEVEL_MAX = 24;
+export const LEVEL_MIN = EQ_LIMITS.outMin;
+export const LEVEL_MAX = EQ_LIMITS.outMax;
 export const SHELF_GAIN = 15;
 const DYNAMIC_SHELF_STILL_DB = 3;
 
@@ -99,17 +94,17 @@ export function normalizePedal(kind, raw) {
   const p = PEDALS[kind];
   const d = pedalDefaults(kind);
   const c = raw && typeof raw === "object" ? raw : {};
-  const gain = (v) => round2(clamp(num(v, 0), -PEDAL_GAIN, PEDAL_GAIN));
-  const q = (v) => round3(clamp(num(v, Q_MID), Q_WIDE, Q_NARROW));
-  const freq = (v, fallback, range) => round1(clamp(num(v, fallback), range.min, range.max));
-  const shelf = (v) => round2(clamp(num(v, 0), -SHELF_GAIN, SHELF_GAIN));
+  const gain = (v) => round2(clamp(finiteOr(v, 0), -PEDAL_GAIN, PEDAL_GAIN));
+  const q = (v) => round3(clamp(finiteOr(v, Q_MID), Q_WIDE, Q_NARROW));
+  const freq = (v, fallback, range) => round1(clamp(finiteOr(v, fallback), range.min, range.max));
+  const shelf = (v) => round2(clamp(finiteOr(v, 0), -SHELF_GAIN, SHELF_GAIN));
   return {
     lf: freq(c.lf, d.lf, p.low), lg: gain(c.lg), lq: q(c.lq),
     mf: freq(c.mf, d.mf, p.mid), mg: gain(c.mg), mq: q(c.mq),
     hf: freq(c.hf, d.hf, p.high), hg: gain(c.hg), hq: q(c.hq),
     hpf: freq(c.hpf, d.hpf, p.hpf), lpf: freq(c.lpf, d.lpf, p.lpf),
     ls: shelf(c.ls), hs: shelf(c.hs),
-    lvl: round2(clamp(num(c.lvl, 0), LEVEL_MIN, LEVEL_MAX)),
+    lvl: round2(clamp(finiteOr(c.lvl, 0), LEVEL_MIN, LEVEL_MAX)),
   };
 }
 
@@ -128,10 +123,10 @@ export function dynamicShelfFreq(g, fMin = PEDALS.bass.lowShelf.fMin, fMax = PED
 export const hpfOn = (kind, hz) => hz > PEDALS[kind].hpf.min + STOP_TOLERANCE_HZ;
 export const lpfOn = (kind, hz) => hz < PEDALS[kind].lpf.max - STOP_TOLERANCE_HZ;
 
-const band = (on, type, f, g = 0, q = EQ_DEFAULT_Q) => ({ on, type, f, g, q, slope: PEDAL_SLOPE });
+const band = (on, type, f, g = 0, q = EQ_DEFAULT_Q) => ({ on, type, f, g, q, slope: EQ_PLAIN_SLOPE });
 
 function eqFrom(bands, out, bypass, ui) {
-  return normalizeEq({ id: "eq", v: EQ_VERSION, bypass, params: { out, bands, ui } });
+  return normalizeEq({ id: EQ_ID, v: EQ_VERSION, bypass, params: { out, bands, ui } });
 }
 
 /**
@@ -164,7 +159,7 @@ export const KEYS = Object.freeze({
   lowcut: { min: 20, max: 300 },
   level: { min: -12, max: 12 },
 });
-const KEYS_PANEL = "keys";
+const KEYS_PANEL = PANEL_KIND.keys;
 
 export function keysDefaults() {
   return {
@@ -174,16 +169,16 @@ export function keysDefaults() {
 
 export function normalizeKeys(raw) {
   const c = raw && typeof raw === "object" ? raw : {};
-  const gain = (v, range) => round2(clamp(num(v, 0), -range, range));
+  const gain = (v, range) => round2(clamp(finiteOr(v, 0), -range, range));
   return {
     body: gain(c.body, KEYS.body.range),
     warmth: gain(c.warmth, KEYS.warmth.range),
     presence: gain(c.presence, KEYS.presence.range),
-    presF: round1(clamp(num(c.presF, KEYS.presence.f), KEYS.presence.min, KEYS.presence.max)),
+    presF: round1(clamp(finiteOr(c.presF, KEYS.presence.f), KEYS.presence.min, KEYS.presence.max)),
     air: gain(c.air, KEYS.air.range),
     tone: gain(c.tone, KEYS.tone.range),
-    lowcut: round1(clamp(num(c.lowcut, KEYS.lowcut.min), KEYS.lowcut.min, KEYS.lowcut.max)),
-    lvl: round2(clamp(num(c.lvl, 0), KEYS.level.min, KEYS.level.max)),
+    lowcut: round1(clamp(finiteOr(c.lowcut, KEYS.lowcut.min), KEYS.lowcut.min, KEYS.lowcut.max)),
+    lvl: round2(clamp(finiteOr(c.lvl, 0), KEYS.level.min, KEYS.level.max)),
   };
 }
 

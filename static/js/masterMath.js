@@ -1,17 +1,12 @@
-// The master's pure maths: the saved descriptor, the export wire form, the
-// presets, and what the live preview needs to stand in for the export
-// (app/pipeline/mastering.py renders the exact result). No DOM, no Web Audio.
-//
-// Descriptor, after the master EQ in the master slot's effects list:
-//   { id: "master", v: 1, bypass, params: { preset, target_lufs, ceiling_dbtp, comp } }
-// bypass true is "mastering off": the settings are kept, nothing is applied.
+// bypass true is "mastering off": the settings stay saved so switching back
+// on restores them, but nothing is applied live or in an export.
 
+import { clamp, dbToGain, finiteOr, gainToDb, roundTo } from "./audioMath.js";
 import { base64UrlEncode } from "./eqMath.js";
 
 export const MASTER_ID = "master";
 export const MASTER_VERSION = 1;
 
-/** Ranges the server accepts (mastering.py TARGET_*, CEILING_*, COMP_*). */
 export const MASTER_LIMITS = Object.freeze({
   targetMin: -24,
   targetMax: -6,
@@ -21,10 +16,13 @@ export const MASTER_LIMITS = Object.freeze({
   compMax: 1,
 });
 
-/** Lossy exports never go above this ceiling (EXPORT_LIMIT_LOSSY_DBTP). */
+/** Lossy exports never go above this ceiling. */
 export const LOSSY_CEILING_DBTP = -1.5;
-/** The server's limit sits this far under the ceiling (MASTER_LIMITER_MARGIN_DB). */
+/** The limiter sits this far under the ceiling. */
 export const LIMITER_MARGIN_DB = 0.1;
+
+/** What the A/B compare plays. */
+export const LISTEN = Object.freeze({ master: "master", original: "original" });
 
 /** target null: no loudness change, only the limiter. */
 export const MASTER_PRESETS = Object.freeze({
@@ -37,21 +35,20 @@ export const PRESET_ORDER = Object.freeze(["gentle", "streaming", "louder", "cus
 export const DEFAULT_PRESET = "streaming";
 const CUSTOM = "custom";
 
-const TARGET_STEP = 0.1;
-const CEILING_STEP = 0.1;
-const COMP_STEP = 0.01;
-const RATIO_DIGITS = 1000;
+const TARGET_DIGITS = 1;
+const CEILING_DIGITS = 1;
+const COMP_DIGITS = 2;
+const RATIO_DIGITS = 3;
 const COMP_RATIO_PER_AMOUNT = 2;
-const GLUE = Object.freeze({ knee: 6, attack: 0.02, release: 0.25 });
+/** The glue compressor's attack and release in seconds. */
+export const GLUE_TIMING = Object.freeze({ attack: 0.02, release: 0.25 });
+const GLUE = Object.freeze({ knee: 6, ...GLUE_TIMING });
 const LIMITER = Object.freeze({ ratio: 20, knee: 0, attack: 0.002, release: 0.05 });
 const MATCH_CLAMP_LU = 40;
 const LUFS_OFFSET = -0.691;
 
-const round = (x, step) => Math.round(x / step) * step;
-const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
-const num = (v, fallback) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
-const dbToGain = (db) => 10 ** (db / 20);
-const roundComp = (v, fallback) => round(clamp(num(v, fallback), MASTER_LIMITS.compMin, MASTER_LIMITS.compMax), COMP_STEP);
+const { compMin, compMax } = MASTER_LIMITS;
+const roundComp = (v, fallback) => roundTo(clamp(finiteOr(v, fallback), compMin, compMax), COMP_DIGITS);
 
 /** A descriptor with the defaults: streaming, on. */
 export function defaultMaster() {
@@ -71,8 +68,8 @@ function customParams(p) {
     preset: CUSTOM,
     target_lufs: p.target_lufs === null
       ? null
-      : round(clamp(num(p.target_lufs, fallback.target), L.targetMin, L.targetMax), TARGET_STEP),
-    ceiling_dbtp: round(clamp(num(p.ceiling_dbtp, fallback.ceiling), L.ceilingMin, L.ceilingMax), CEILING_STEP),
+      : roundTo(clamp(finiteOr(p.target_lufs, fallback.target), L.targetMin, L.targetMax), TARGET_DIGITS),
+    ceiling_dbtp: roundTo(clamp(finiteOr(p.ceiling_dbtp, fallback.ceiling), L.ceilingMin, L.ceilingMax), CEILING_DIGITS),
     comp: roundComp(p.comp, fallback.comp),
   };
 }
@@ -122,7 +119,7 @@ export function masterIsOn(desc) {
   return !!desc && desc.bypass !== true;
 }
 
-/** The export `master=` parameter (mastering.parse_master_param), "" when off. */
+/** The export `master=` parameter, "" when off. */
 export function encodeMasterParam(desc) {
   const m = normalizeMaster(desc);
   if (!masterIsOn(m)) return "";
@@ -131,13 +128,13 @@ export function encodeMasterParam(desc) {
   return base64UrlEncode(JSON.stringify(body));
 }
 
-// Chromium's DynamicsCompressorNode static curve (dynamics_compressor_kernel.cc).
+// Chromium's DynamicsCompressorNode static curve, in float32 as Blink computes it.
 const MAKEUP_POWER = 0.6;
 const SLOPE_PROBE = 1.001;
 const KNEE_SEARCH = Object.freeze({ min: 0.1, max: 10000, start: 5, steps: 15 });
 const SILENT_DB = -1000;
 const f32 = Math.fround;
-const linToDb = (x) => (x ? f32(20 * Math.log10(x)) : SILENT_DB);
+const linToDb = (x) => (x ? f32(gainToDb(x)) : SILENT_DB);
 const dbToLin = (db) => f32(dbToGain(db));
 
 function kneeCurve(x, k, linearThreshold) {
@@ -182,10 +179,10 @@ export function compressorMakeupGain(thresholdDb, kneeDb, ratio) {
   return f32((1 / fullRange) ** MAKEUP_POWER);
 }
 
-/** Glue compressor settings for an amount (mastering comp_*), null when off. */
+/** Glue compressor settings for an amount, null when off. */
 export function glueSettings(comp, thresholdDb) {
   if (!(comp > 0) || !Number.isFinite(thresholdDb)) return null;
-  const ratio = Math.round((1 + COMP_RATIO_PER_AMOUNT * comp) * RATIO_DIGITS) / RATIO_DIGITS;
+  const ratio = roundTo(1 + COMP_RATIO_PER_AMOUNT * comp, RATIO_DIGITS);
   return { threshold: thresholdDb, ratio, ...GLUE };
 }
 
@@ -215,8 +212,11 @@ function kShelf(fs) {
   const k = 2 * Math.sqrt(A) * alpha;
   const a0 = (A + 1) - (A - 1) * c + k;
   return {
-    feedforward: [A * ((A + 1) + (A - 1) * c + k), -2 * A * ((A - 1) + (A + 1) * c), A * ((A + 1) + (A - 1) * c - k)]
-      .map((v) => v / a0),
+    feedforward: [
+      A * ((A + 1) + (A - 1) * c + k),
+      -2 * A * ((A - 1) + (A + 1) * c),
+      A * ((A + 1) + (A - 1) * c - k),
+    ].map((v) => v / a0),
     feedback: [1, (2 * ((A - 1) - (A + 1) * c)) / a0, ((A + 1) - (A - 1) * c - k) / a0],
   };
 }
@@ -232,10 +232,7 @@ function kHighpass(fs) {
   };
 }
 
-/**
- * BS.1770 K-weighting as IIRFilterNode coefficients for a sample rate: a
- * +4 dB high shelf at 1.5 kHz and a 38 Hz high-pass (pyloudnorm's design).
- */
+/** BS.1770 K-weighting as IIRFilterNode coefficients: a +4 dB shelf at 1.5 kHz and a 38 Hz high-pass. */
 export function kWeightingCoefficients(fs) {
   return { shelf: kShelf(fs), highpass: kHighpass(fs) };
 }
@@ -258,7 +255,7 @@ export function loudnessFromMeanSquares(channels) {
 export function peakDb(buf) {
   let peak = 0;
   for (let i = 0; i < buf.length; i++) peak = Math.max(peak, Math.abs(buf[i]));
-  return peak > 0 ? 20 * Math.log10(peak) : -Infinity;
+  return peak > 0 ? gainToDb(peak) : -Infinity;
 }
 
 /** A meter value that rises at once and falls at most `fallDb` per update. */

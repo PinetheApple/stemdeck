@@ -1,11 +1,16 @@
-// The graphical EQ editor, the pure part: axis mapping, hit testing, drag,
-// wheel and key maths, band defaults, number formats and parsing, undo
-// history, and the spectrum's bin-to-pixel map. No DOM.
-
-import { EQ_DEFAULT_Q, EQ_LIMITS, EQ_VERSION, normalizeBand } from "../eqMath.js";
+import { clamp, round1, round2, round3 } from "../audioMath.js";
+import {
+  EQ_DEFAULT_Q,
+  EQ_GAIN_TYPES,
+  EQ_ID,
+  EQ_LIMITS,
+  EQ_PLAIN_SLOPE,
+  EQ_VERSION,
+  normalizeBand,
+} from "../eqMath.js";
 
 export const F_MIN = 20;
-export const F_MAX = 20000;
+export const F_MAX = EQ_LIMITS.freqMax;
 /** The graph shows +-DB_RANGE dB; a drag keeps a band's gain inside it. */
 export const DB_RANGE = 18;
 /** The spectrum's floor and top in dB per FFT bin (8192-point FFT of a stem). */
@@ -23,33 +28,42 @@ const WHEEL_STEPS_PER_OCTAVE = 500;
 const FINE_WHEEL_STEPS_PER_OCTAVE = 2000;
 const BELL_Q = 1;
 const NEW_CUT_SLOPE = 24;
-const PLAIN_SLOPE = 12;
 const SOLO_Q = Object.freeze({ min: 0.4, max: 12, wide: 0.9 });
 const HISTORY_LIMIT = 100;
 const CURVE_STEP_PX = 2;
 const ZERO_DB_DISPLAY = 0.05;
 const MINUS_SIGN = "−";
+const HZ_PER_KHZ = 1000;
+/** Frequencies at or above this show one kHz decimal, below it two. */
+const ONE_KHZ_DECIMAL_FROM = 10000;
+/** Frequencies below this show one Hz decimal. */
+const HZ_DECIMAL_BELOW = 100;
+/** Q at or above this shows no decimals, from Q_ONE_DECIMAL_FROM one, below it two. */
+const Q_WHOLE_FROM = 10;
+const Q_ONE_DECIMAL_FROM = 1;
 
 /** Where a click on empty space adds which band. */
-const NEW_BAND_EDGES = Object.freeze({ lowcutBelow: 30, lowshelfBelow: 90, highcutAbove: 15000, highshelfAbove: 9000 });
-
-const KEY_STEPS = Object.freeze({
-  semitone: 1 / 12, fineSemitone: 1 / 48,
-  gainDb: 0.5, fineGainDb: 0.1,
-  qOctave: 1 / 4, fineQOctave: 1 / 12,
+const NEW_BAND_EDGES = Object.freeze({
+  lowcutBelow: 30,
+  lowshelfBelow: 90,
+  highcutAbove: 15000,
+  highshelfAbove: 9000,
 });
 
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-const round1 = (v) => Math.round(v * 10) / 10;
-const round2 = (v) => Math.round(v * 100) / 100;
-const round3 = (v) => Math.round(v * 1000) / 1000;
+const KEY_STEPS = Object.freeze({
+  semitone: 1 / 12,
+  fineSemitone: 1 / 48,
+  gainDb: 0.5,
+  fineGainDb: 0.1,
+  qOctave: 1 / 4,
+  fineQOctave: 1 / 12,
+});
 
-const GAIN_TYPES = new Set(["bell", "lowshelf", "highshelf", "tilt"]);
 const Q_TYPES = new Set(["bell", "notch", "bandpass", "lowcut", "highcut"]);
 const CUT_TYPES = new Set(["lowcut", "highcut"]);
 const WIDTH_TYPES = new Set(["bell", "notch", "bandpass"]);
 
-export const hasGain = (type) => GAIN_TYPES.has(type);
+export const hasGain = (type) => EQ_GAIN_TYPES.has(type);
 export const hasQ = (type) => Q_TYPES.has(type);
 export const hasSlope = (type) => CUT_TYPES.has(type);
 
@@ -134,7 +148,7 @@ export function defaultBandAt(f, g) {
     f,
     g: hasGain(type) ? g : 0,
     q: startQ(type),
-    slope: hasSlope(type) ? NEW_CUT_SLOPE : PLAIN_SLOPE,
+    slope: hasSlope(type) ? NEW_CUT_SLOPE : EQ_PLAIN_SLOPE,
   });
 }
 
@@ -152,15 +166,15 @@ export function retypeBand(band, type) {
     type,
     g: hasGain(type) ? band.g : 0,
     q: keepQ ? band.q : startQ(type),
-    slope: hasSlope(type) ? (keepSlope ? band.slope : NEW_CUT_SLOPE) : PLAIN_SLOPE,
+    slope: hasSlope(type) ? (keepSlope ? band.slope : NEW_CUT_SLOPE) : EQ_PLAIN_SLOPE,
   });
 }
 
 /** What soloing a band plays: a band pass as wide as the band (cuts and shelves: about an octave). */
 export function soloEq(band) {
   const q = WIDTH_TYPES.has(band.type) ? clamp(band.q, SOLO_Q.min, SOLO_Q.max) : SOLO_Q.wide;
-  const bands = [{ on: true, type: "bandpass", f: band.f, g: 0, q, slope: PLAIN_SLOPE }];
-  return { id: "eq", v: EQ_VERSION, bypass: false, params: { out: 0, bands } };
+  const bands = [{ on: true, type: "bandpass", f: band.f, g: 0, q, slope: EQ_PLAIN_SLOPE }];
+  return { id: EQ_ID, v: EQ_VERSION, bypass: false, params: { out: 0, bands } };
 }
 
 function steppedBand(band, key, fine) {
@@ -197,8 +211,10 @@ function trimZeros(s) {
 /** "62.5 Hz", "440 Hz", "1.25 kHz", "12.5 kHz". */
 export function fmtFreq(f) {
   if (!Number.isFinite(f)) return "";
-  if (f >= 1000) return `${trimZeros((f / 1000).toFixed(f >= 10000 ? 1 : 2))} kHz`;
-  return `${trimZeros(f.toFixed(f < 100 ? 1 : 0))} Hz`;
+  if (f >= HZ_PER_KHZ) {
+    return `${trimZeros((f / HZ_PER_KHZ).toFixed(f >= ONE_KHZ_DECIMAL_FROM ? 1 : 2))} kHz`;
+  }
+  return `${trimZeros(f.toFixed(f < HZ_DECIMAL_BELOW ? 1 : 0))} Hz`;
 }
 
 /** "+3.5 dB", "-12.0 dB" (typographic minus), "0.0 dB". */
@@ -212,8 +228,8 @@ export function fmtDb(g) {
 /** "0.71", "4.0", "12". */
 export function fmtQ(q) {
   if (!Number.isFinite(q)) return "";
-  if (q >= 10) return q.toFixed(0);
-  return q >= 1 ? q.toFixed(1) : q.toFixed(2);
+  if (q >= Q_WHOLE_FROM) return q.toFixed(0);
+  return q >= Q_ONE_DECIMAL_FROM ? q.toFixed(1) : q.toFixed(2);
 }
 
 /** A typed number: "1,5" and "1.5" both work; a minus may be typographic. */
@@ -230,7 +246,7 @@ export function parseFreq(text) {
   const kilo = /k/i.test(text);
   const n = parseNumber(text.replace(/hz/i, "").replace(/k/i, ""));
   if (!Number.isFinite(n)) return NaN;
-  return kilo ? n * 1000 : n;
+  return kilo ? n * HZ_PER_KHZ : n;
 }
 
 /**

@@ -1,7 +1,3 @@
-// Both audio engines carry the EQ slots: a flat mix builds no node and keeps
-// today's graph, a lane EQ lands between the lane's gain and its analyser,
-// and the master chain sits between the master gain and the speakers.
-//
 // Run:  node tests/js/engine-fx.test.mjs
 
 import { normalizeEq } from "../../static/js/eqMath.js";

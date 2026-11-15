@@ -1,6 +1,4 @@
-// A minimal Web Audio graph for node tests: nodes record their edges and
-// params record their automation, so a test can walk the graph and read the
-// values the code scheduled.
+// Nodes record their edges and params their automation, so tests can read the graph.
 
 export class FakeParam {
   constructor(value) {
@@ -108,3 +106,22 @@ export function createChecker() {
 }
 
 export const near = (a, b, tolerance) => Math.abs(a - b) <= tolerance;
+
+/** The page globals state.js and the store need; returns localStorage's backing map. */
+export function installPageStubs() {
+  const memory = new Map();
+  globalThis.window = {};
+  globalThis.localStorage = {
+    getItem: (key) => memory.get(key) ?? null,
+    setItem: (key, value) => memory.set(key, String(value)),
+    removeItem: (key) => memory.delete(key),
+  };
+  globalThis.document = {
+    getElementById: () => null,
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    addEventListener() {},
+    documentElement: { lang: "en", dataset: {} },
+  };
+  return memory;
+}

@@ -1,7 +1,3 @@
-// The master's pure maths (static/js/masterMath.js): descriptor, wire form,
-// presets and what the live preview needs. The server parser it must match
-// is tests/test_mastering.py.
-//
 // Run:  node tests/js/master-math.test.mjs
 
 import {
