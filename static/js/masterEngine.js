@@ -4,7 +4,14 @@
 import { audioEngine, currentJobId, masterVolume } from "./state.js";
 import { storeGet, storeSet } from "./utils.js";
 import { MASTER_LANE, getMaster, onFxChange, setMaster } from "./mixFx.js";
-import { LISTEN, applyPreset, encodeMasterParam, isLossyFormat, masterIsOn } from "./masterMath.js";
+import {
+  LISTEN,
+  applyPreset,
+  encodeMasterParam,
+  isLossyFormat,
+  masterIsOn,
+  normalizeMaster,
+} from "./masterMath.js";
 
 export {
   LISTEN,
@@ -42,6 +49,7 @@ let listen = LISTEN.master;
 let match = true;
 let matchChosen = false;
 let mixSource = null;
+let previewed = null;
 let exportLossy = false;
 let warm = false;
 let inflight = null;
@@ -77,6 +85,19 @@ export function onChange(cb) {
 
 export function isMasterOn() {
   return masterIsOn(getMaster());
+}
+
+// What plays and is measured: a previewed master, else the saved one.
+const heardMaster = () => previewed ?? getMaster();
+const heardOn = () => masterIsOn(heardMaster());
+
+/** Play and measure another master without saving it; null goes back to the saved one. */
+export function previewMaster(descriptor) {
+  previewed = descriptor ? normalizeMaster(descriptor) : null;
+  live = freshLive();
+  applyToEngine();
+  emit(MASTER_EVENT.master);
+  watch();
 }
 
 /** On with the song's settings, or the streaming preset the first time. */
@@ -116,7 +137,7 @@ export function setMatch(on) {
  * match uses the live difference, which the export's plan only approximates.
  */
 export function noteLiveLoudness(inLufs, outLufs) {
-  if (!isMasterOn() || !Number.isFinite(inLufs) || !Number.isFinite(outLufs)) return;
+  if (!heardOn() || !Number.isFinite(inLufs) || !Number.isFinite(outLufs)) return;
   if (inLufs < SILENCE_LUFS || outLufs < SILENCE_LUFS) return;
   live.sumIn += 10 ** (inLufs / 10);
   live.sumOut += 10 ** (outLufs / 10);
@@ -134,6 +155,11 @@ export function getPlan() {
 }
 export function getPlanState() { return plan.state; }
 
+/** The mix the loudness readout measures: {jobId, query}, or null without one. */
+export function currentMixSource() {
+  return mixSource?.() ?? null;
+}
+
 /** How the export describes the current mix: () => {jobId, query} | null. */
 export function setMixSource(fn) {
   mixSource = fn;
@@ -146,8 +172,8 @@ export function setExportFormat(format) {
 
 function signature() {
   const src = mixSource?.();
-  if (!src || !isMasterOn()) return "";
-  return `${src.jobId}|${src.query}|${exportMasterParam()}|${exportLossy}`;
+  if (!src || !heardOn()) return "";
+  return `${src.jobId}|${src.query}|${encodeMasterParam(heardMaster())}|${exportLossy}`;
 }
 
 function stopWatch() {
@@ -172,7 +198,7 @@ function measureSettled() {
 
 /** Follow the mix while mastering is on; stop when it is off. */
 export function watch() {
-  if (!isMasterOn() || !mixSource) {
+  if (!heardOn() || !mixSource) {
     stopWatch();
     return;
   }
@@ -182,7 +208,7 @@ export function watch() {
 
 async function fetchPlan(src, signal) {
   const query = new URLSearchParams(src.query);
-  query.set(MASTER_QUERY_PARAM, exportMasterParam());
+  query.set(MASTER_QUERY_PARAM, encodeMasterParam(heardMaster()));
   if (exportLossy) query.set(LOSSY_QUERY_PARAM, LOSSY_ON);
   const res = await fetch(`/api/jobs/${src.jobId}/mixdown/loudness?${query}`, { signal });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -197,7 +223,7 @@ function adoptPlan(body, sig, jobId) {
 /** Measure the current mix now. Resolves to the plan, or null. */
 export async function measure() {
   const src = mixSource?.();
-  if (!src || !isMasterOn()) return null;
+  if (!src || !heardOn()) return null;
   const sig = signature();
   inflight?.abort();
   const ctl = new AbortController();
@@ -252,7 +278,7 @@ function paramsFor(master, overrides) {
 
 /** What the live master runs with now (masterFx set()), or null when off. */
 export function liveParams() {
-  return isMasterOn() ? paramsFor(getMaster()) : null;
+  return heardOn() ? paramsFor(heardMaster()) : null;
 }
 
 /** Push the master to the engine; also call it when the master fader moves. */
@@ -269,7 +295,7 @@ export function applyToEngine({ immediate = false } = {}) {
 export function warmLive(on) {
   warm = !!on;
   if (!audioEngine?.supportsMaster) return;
-  const settled = on ? paramsFor(getMaster(), { listen: LISTEN.master, diffLu: NaN }) : null;
+  const settled = on ? paramsFor(heardMaster(), { listen: LISTEN.master, diffLu: NaN }) : null;
   try {
     audioEngine.warmMasterFx(warm, settled);
   } catch (e) {

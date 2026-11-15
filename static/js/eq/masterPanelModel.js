@@ -1,7 +1,9 @@
 import { clamp, roundTo } from "../audioMath.js";
 import {
   LOSSY_CEILING_DBTP,
+  MASTER_ID,
   MASTER_LIMITS,
+  MASTER_VERSION,
   MASTER_PRESETS,
   applyPreset,
   isLossyFormat,
@@ -30,6 +32,11 @@ export function loudnessChoice(master) {
 /** The masterMath preset a choice picks; null means mastering off. */
 export function choosePresetFor(choice) {
   return PRESET_BY_CHOICE[choice] ?? null;
+}
+
+/** The master descriptor a Suggest answer's `master` stands for, switched on. */
+export function masterFromSuggestion(body) {
+  return normalizeMaster({ id: MASTER_ID, v: MASTER_VERSION, bypass: false, params: body?.master });
 }
 
 const CEILING_STEP_DB = 0.1;

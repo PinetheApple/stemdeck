@@ -1214,7 +1214,16 @@
                   <span class="inspector-label" data-i18n="eq.masterEq">Master EQ</span>
                   <button class="eq-power" id="eqPowerMaster" type="button" aria-pressed="true" title="EQ on" aria-label="EQ on" data-i18n-title="eq.power" data-i18n-aria-label="eq.power"><svg class="ic" aria-hidden="true"><use href="#eqIconPower"/></svg></button>
                 </div>
+                <div class="eq-suggest-bar" id="eqSuggestBarMaster" hidden>
+                  <span><svg class="ic" aria-hidden="true"><use href="#eqIconSuggest"/></svg><span data-i18n="eq.suggested">Suggested</span></span>
+                  <button class="inspector-quiet-btn" id="eqSuggestUndoMaster" type="button" data-i18n="eq.undo">Undo</button>
+                  <button class="eq-apply" id="eqSuggestApplyMaster" type="button" data-i18n="eq.apply">Apply</button>
+                </div>
                 <div class="eq-graph eq-graph-sm" id="eqGraphMaster"></div>
+                <div class="eq-legend" id="eqLegendMaster" hidden>
+                  <span id="eqLegendTargetMaster"><i class="eq-legend-target"></i><span data-i18n="eq.target">Target</span></span>
+                  <span><i class="eq-legend-before"></i><span data-i18n="eq.before">Before</span></span>
+                </div>
               </div>
               <div class="inspector-card eq-card">
                 <div class="eq-row">
@@ -1250,9 +1259,11 @@
                   <div class="eq-meter"><b class="num" id="eqGainAtExport"></b><span data-i18n="eq.gainAtExport">Gain at export</span></div>
                 </div>
                 <div class="eq-hint" id="eqApproxHint" data-i18n="eq.approximate">Live preview is approximate</div>
-                <div class="eq-actions">
+                <div class="eq-actions" id="eqMasterActions">
+                  <button class="tempo-btn" id="eqSuggestMaster" type="button"><svg class="ic" aria-hidden="true"><use href="#eqIconSuggest"/></svg><span data-i18n="eq.suggest">Suggest</span></button>
                   <button class="tempo-btn" id="eqFlatMaster" type="button"><svg class="ic" aria-hidden="true"><use href="#eqIconFlat"/></svg><span data-i18n="eq.flat">Flat</span></button>
                 </div>
+                <div class="eq-hint eq-status" id="eqMasterStatus" role="status"></div>
               </div>
             </div>
           </section>
