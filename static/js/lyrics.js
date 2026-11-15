@@ -47,6 +47,7 @@ import {
   parseLrc,
   currentLineIndex,
   wordTimings,
+  wordFill,
   fromServerLyrics,
   clampOffset,
   shiftLines,
@@ -261,7 +262,7 @@ function lineButton(line, nextTime, index) {
 }
 
 /** A line's words as spans in `row`, timed for the wipe: [{ el, start, end }]. */
-function fillLine(row, line, nextTime) {
+export function fillLine(row, line, nextTime) {
   row.replaceChildren();
   const words = [];
   for (const word of wordTimings(line, nextTime, envelopeFor === shownTrackId ? envelope : null)) {
@@ -1799,14 +1800,10 @@ function moveTo(index) {
 /** The wipe: words already sung in colour, the one being sung part-filled. */
 function fillWords(index, now) {
   for (const word of lineWords[index] || []) {
-    const sung = now >= word.end;
-    const singing = !sung && now > word.start;
+    const { sung, singing, fill } = wordFill(word, now);
     word.el.classList.toggle("sung", sung);
     word.el.classList.toggle("singing", singing);
-    if (singing) {
-      const share = (now - word.start) / (word.end - word.start);
-      word.el.style.setProperty("--fill", `${Math.round(share * 100)}%`);
-    }
+    if (singing) word.el.style.setProperty("--fill", `${fill}%`);
   }
 }
 
@@ -1842,6 +1839,9 @@ export function ensureLyricsLoaded() {
 
 /** The lines timing the song, for other views: Sync's starting times on plain text are not timing. */
 export const getTimedLyricLines = () => (plainSeeded && timingKind === "offset" ? [] : lines);
+
+/** The open song has lyrics shown, but none of them timed. */
+export const hasUntimedLyrics = () => Boolean(shownEntry?.plain?.trim()) && getTimedLyricLines().length === 0;
 
 export function initLyrics() {
   const panel = document.getElementById("lyricsPanel");

@@ -76,6 +76,7 @@ def video_entry_fields(
         "has_camera": filmed,
         "camera_url": f"{base}/camera" if filmed else None,
         "camera_offset_ms": camera_offset_ms(sidecar),
+        "camera_start_sec": camera_start_sec(sidecar) if filmed else None,
         "camera_dropped": sidecar.get("camera_dropped"),
         "span": {"start_sec": start, "end_sec": end},
         "trim": sidecar.get("trim"),

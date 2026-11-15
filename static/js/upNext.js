@@ -130,7 +130,15 @@ export function playNextInUpNext() {
   playFromUpNext(next);
 }
 
+let trackEndOverride = null;
+
+/** Lets a view take over a song's end: `override(nextId)` returns true when it handles it. */
+export function setTrackEndOverride(override) {
+  trackEndOverride = override;
+}
+
 function onTrackEnded() {
+  if (trackEndOverride?.(playableQueue()[0] ?? null)) return;
   playNextInUpNext();
 }
 
@@ -265,7 +273,7 @@ export function renderUpNext() {
   const next = $("t-next");
   if (next) next.disabled = empty;
   renderNowPlaying();
-  document.dispatchEvent(new CustomEvent("upnext:change", { detail: { count: ids.length } }));
+  document.dispatchEvent(new CustomEvent("upnext:change", { detail: { count: ids.length, nextId: ids[0] ?? null } }));
 }
 
 /** Songs queued before the stored list arrived stay queued, after it. */

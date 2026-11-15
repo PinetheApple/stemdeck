@@ -38,6 +38,9 @@ import soundfile as sf
 from fastapi import HTTPException, Query
 
 from app.api import takes_lanes
+from app.api.export_graph import lane_chain as lane_chain
+from app.api.export_graph import lanes_graph
+from app.api.export_graph import measurement_graph as measurement_graph
 from app.core.config import FX_PARAM_MAX_CHARS, MASTER_CEILING_RETRIES, MASTER_PARAM_MAX_CHARS
 from app.core.settings import DEFAULT_EXPORT_SAMPLE_RATE, get_export_sample_rate
 from app.pipeline.fx_filters import (
@@ -225,32 +228,11 @@ def build_render_fx(lanes: Sequence[RenderLaneLike], fx_req: FxRequest) -> Rende
     return RenderFx(prefixes, master)
 
 
-def lane_chain(eq: str, pitch: str, gain: float, delay: str = "") -> str:
-    """One input's chain as both the render and the measurement run it:
-    EQ, pitch shift, the count-in delay (render only), gain."""
-    return f"{eq}{pitch}{delay}volume={gain:.6f}"
-
-
 class ClickInput(NamedTuple):
     """The whole song's click as the render sums it: its file and level filter."""
 
     path: Path
     level: str
-
-
-def measurement_graph(
-    lane_chains: list[str],
-    names: list[str],
-    master_eq: str,
-    click_level: str | None = None,
-) -> str:
-    """Input i through ``lane_chains[i]`` and the click (when given) summed as
-    the render sums them, take limiter included, then the master EQ, to [pre]."""
-    filters = [f"[{i}:a]{chain}[a{i}]" for i, chain in enumerate(lane_chains)]
-    if click_level is not None:
-        filters.append(f"[{len(filters)}:a]{click_level}[a{len(filters)}]")
-    label = takes_lanes.sum_lanes(filters, len(filters), names)
-    return ";".join([*filters, f"{label}{master_eq}anull[pre]"])
 
 
 async def _measured_plan(
@@ -263,13 +245,8 @@ async def _measured_plan(
 ) -> tuple[MasterPlan, int]:
     """The whole song's master for these lanes (and ``click``), and the rate it runs at."""
     rate = get_export_sample_rate()
-    chains = [
-        lane_chain(render_fx.prefix(i), pitch_filter(lane.pitch), lane.gain)
-        for i, lane in enumerate(lanes)
-    ]
-    names = [lane.name for lane in lanes]
     level = None if click is None else click.level
-    graph = measurement_graph(chains, names, render_fx.master, level)
+    graph = lanes_graph(lanes, render_fx, pitch_filter, render_fx.master, level)
     paths = [lane.path for lane in lanes] + ([] if click is None else [click.path])
     try:
         return await cached_plan(paths, graph, settings, output_format, rate), rate

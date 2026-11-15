@@ -9,21 +9,28 @@ import { playNextInUpNext } from "./upNext.js";
 import { shownBpm } from "./tempoTools.js";
 import { isBeatGridEditing, getBeats, barPositionIndex, barLengthAt } from "./beatgrid.js";
 import { buildBeatTable, beatAt } from "./stageBeats.js";
-import { ensureLyricsLoaded, getTimedLyricLines, tagLang } from "./lyrics.js";
+import { ensureLyricsLoaded, getTimedLyricLines } from "./lyrics.js";
 import { currentLineIndex } from "./lyricsLookup.js";
 import { refitFooter } from "./footerFit.js";
 import { initStageMixer, paintStageMixer, forgetStageMixer } from "./stageMixer.js";
 import { initStageOverview, paintStageOverview, paintStageSections, forgetStageOverview } from "./stageOverview.js";
-import { setTextOnce } from "./stageModel.js";
+import { LYRIC_LEAD_SEC, setTextOnce } from "./stageModel.js";
+import { lineText, setLyric } from "./stageLyricLine.js";
 import { DURATION_EVENT } from "./player.js";
+import {
+  forgetSingPainted,
+  initSingAlong,
+  isSingAlong,
+  paintSingFrame,
+  singSongChange,
+  singStageShown,
+} from "./stageSingAlong.js";
+import { closeSingPanel, dismissSingHandoff, singPlayheadAt, singQueueSettles } from "./stageSingQueue.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $, fmtTime } from "./utils.js";
 
 const OPEN_MODAL = 'dialog[open], [role="dialog"][aria-modal="true"]';
-// As lyrics.js: a seek lands on a line's stamp, and the time read back can be a hair before it.
-const LYRIC_LEAD_SEC = 0.05;
-const GAP_LINE = "♪";
 
 let frameId = 0;
 let sections = [];
@@ -86,15 +93,6 @@ function paintBeat(time) {
   paintDots(at?.length ?? beatTable[0]?.length ?? 0, at ? at.beat - 1 : null);
 }
 
-function setLyric(el, key, text) {
-  if (!el || shown[key] === text) return;
-  setTextOnce(shown, key, el, text);
-  el.removeAttribute("lang");
-  tagLang(el, text);
-}
-
-const lineText = (line) => (line ? line.text || GAP_LINE : "");
-
 function paintLyrics(time) {
   const lines = getTimedLyricLines();
   const hasLyrics = lines.length > 0;
@@ -103,8 +101,8 @@ function paintLyrics(time) {
     $("stageLyrics").hidden = !hasLyrics;
   }
   const index = currentLineIndex(lines, time + LYRIC_LEAD_SEC);
-  setLyric($("stageLyric"), "lyric", lineText(lines[index]));
-  setLyric($("stageLyricNext"), "nextLyric", lineText(lines[index + 1]));
+  setLyric(shown, "lyric", $("stageLyric"), lineText(lines[index]));
+  setLyric(shown, "nextLyric", $("stageLyricNext"), lineText(lines[index + 1]));
 }
 
 function isPlaying() {
@@ -119,10 +117,13 @@ function paintFrame() {
   paintStageOverview(time, at);
   paintBeat(time);
   paintLyrics(time);
+  if (isSingAlong()) paintSingFrame(time);
+  singPlayheadAt(time);
 
   const playing = isPlaying();
   if (shown.playing !== playing) {
     shown.playing = playing;
+    if (playing) singQueueSettles();
     const play = $("stagePlayBtn");
     play?.classList.toggle("playing", playing);
     play?.setAttribute("aria-pressed", String(playing));
@@ -173,6 +174,7 @@ function forgetPainted() {
   sectionsKey = "";
   forgetStageOverview();
   forgetStageMixer();
+  forgetSingPainted();
 }
 
 function onTempoChange() {
@@ -209,6 +211,7 @@ export function setStageMode(on) {
   view.hidden = !on;
   $("stageModeBtn")?.setAttribute("aria-pressed", String(on));
   refitFooter();
+  singStageShown(on);
   if (on) {
     forgetPainted();
     paintSong();
@@ -239,7 +242,7 @@ function onStageKeydown(e) {
     e.preventDefault();
     setStageMode(!isStageMode());
   } else if (e.key === "Escape" && isStageMode()) {
-    setStageMode(false);
+    if (!dismissSingHandoff() && !closeSingPanel()) setStageMode(false);
   }
 }
 
@@ -251,11 +254,16 @@ function onStageExitClick() {
   setStageMode(false);
 }
 
-function onSongChangeInStage() {
-  if (!isStageMode()) return;
+function redrawStage() {
   forgetPainted();
   paintSong();
   syncLoop();
+}
+
+function onSongChangeInStage() {
+  if (!isStageMode()) return;
+  singSongChange();
+  redrawStage();
 }
 
 function onUpNextChange(e) {
@@ -271,6 +279,7 @@ export function initStageMode() {
   $("stageNextBtn")?.addEventListener("click", playNextInUpNext);
   initStageMixer(isStageMode);
   initStageOverview(isStageMode);
+  initSingAlong({ showing: isStageMode, redraw: redrawStage, leaveStage: onStageExitClick });
   window.addEventListener("keydown", onStageKeydown);
   document.addEventListener("trackopen", onSongChangeInStage);
   document.addEventListener("tracktags", onSongChangeInStage);
