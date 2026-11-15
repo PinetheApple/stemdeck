@@ -218,10 +218,14 @@ export function isLaneSilenced(name) {
   const s = mixerState[name];
   if (!s) return false;
   if (s.muted || silencedStems.has(name)) return true;
-  const anySolo = takeSoloActive() || allTrackNames().some(
+  return anySoloActive() && !s.soloed;
+}
+
+/** True when a take or a loaded, unsilenced lane is soloed. */
+function anySoloActive() {
+  return takeSoloActive() || allTrackNames().some(
     (lane) => trackIndex[lane] !== undefined && mixerState[lane]?.soloed && !silencedStems.has(lane),
   );
-  return anySolo && !s.soloed;
 }
 
 /** The lanes this song has mounted, in lane order, without the original. */
@@ -269,7 +273,7 @@ export function applyMix() {
       multitrack.setTrackVolume(idx, targetGain);
     }
   }
-  applyTakeGains(anySolo);
+  applyTakeGains(anySoloActive());
 }
 
 export function updateLaneKnobVisual(knobEl, v) {
