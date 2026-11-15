@@ -16,7 +16,13 @@ globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} }
 globalThis.fetch = async () => ({ ok: false, json: async () => ({}) });
 
 const { sectionSpans, stripStems } = await import('../../static/js/stageModel.js');
-const { isLaneSilenced, laneGainDbText, loadedLaneNames } = await import('../../static/js/mixer.js');
+const {
+  clearSilencedStems,
+  isLaneSilenced,
+  laneGainDbText,
+  loadedLaneNames,
+  setSilencedStems,
+} = await import('../../static/js/mixer.js');
 const { mixerState, setTrackIndex } = await import('../../static/js/state.js');
 
 let passed = 0;
@@ -64,6 +70,12 @@ check('another lane soloed silences this one', isLaneSilenced('drums'), true);
 check('the soloed lane is heard', isLaneSilenced('bass'), false);
 mixOf({ drums: entry(), bass: entry(), piano: entry(false, true) });
 check('a solo on a lane the song lacks silences nothing', isLaneSilenced('drums'), false);
+mixOf({ drums: entry(), bass: entry(false, true) });
+setSilencedStems(['bass']);
+check('a silenced lane is silent even soloed', isLaneSilenced('bass'), true);
+check('a silenced lane\'s solo silences nothing else', isLaneSilenced('drums'), false);
+clearSilencedStems();
+check('cleared, the solo counts again', isLaneSilenced('drums'), true);
 
 check('silence reads -∞', laneGainDbText(0), '-∞');
 check('half reads -6.0', laneGainDbText(0.5), '-6.0');
