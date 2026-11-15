@@ -460,7 +460,6 @@ def _settings_payload() -> dict[str, object]:
         # Set when torch is installed but cannot load, which stops separation
         # on every device (#730). Read after the probe above refreshed it.
         "torch_error": torch_load_error(),
-        # A GPU the desktop found but left unused: why, and which card (#188).
         "gpu_unused": gpu_unused(),
     }
 

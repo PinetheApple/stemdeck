@@ -1,4 +1,4 @@
-// Settings says, under the compute device, why a GPU StemDeck found is not used (#188).
+// Settings says, under the compute device, why a GPU StemDeck found is not used.
 
 import { test, expect } from "@playwright/test";
 import { seedLibrary } from "./helpers.mjs";

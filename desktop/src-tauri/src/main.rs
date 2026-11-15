@@ -7371,18 +7371,23 @@ mod tests {
         assert_eq!(super::effective_device_reason(None, true), None);
     }
 
-    /// The server names the card behind a CPU reason from this key (#188), and
-    /// a run without a GPU clears what an earlier run recorded.
+    /// The server names the card behind a CPU reason from this key, and a run
+    /// without a GPU clears what an earlier run recorded.
     #[test]
     fn the_device_record_carries_the_gpu_backend() {
         let dir = make_tmp();
         let record = |dir: &Path| -> serde_json::Value {
             serde_json::from_str(&fs::read_to_string(dir.join("config.json")).unwrap()).unwrap()
         };
-        super::persist_torch_device(dir.path(), "cpu", "cuda-verify-failed", Some("rocm"));
+        super::persist_torch_device(
+            dir.path(),
+            "cpu",
+            "cuda-verify-failed",
+            Some(super::rocm::BACKEND),
+        );
         let amd = record(dir.path());
         assert_eq!(amd["torchDeviceReason"], "cuda-verify-failed");
-        assert_eq!(amd["gpuBackend"], "rocm");
+        assert_eq!(amd["gpuBackend"], super::rocm::BACKEND);
         super::persist_torch_device(dir.path(), "cpu", "no-gpu-detected", None);
         let none = record(dir.path());
         assert!(none

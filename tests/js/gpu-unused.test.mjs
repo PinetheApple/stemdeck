@@ -1,8 +1,5 @@
-// The Settings line that says why a found GPU is not used (#188): which i18n
-// key and card name each `gpu_unused` value gets, when it stays hidden, and that
-// every language has its own wording with the card name in it.
-//
-// Run:  node tests/js/gpu-unused.test.mjs
+// Which i18n key and card name each `gpu_unused` value gets, when the line stays
+// hidden, and that every language words it with the card name in it.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
