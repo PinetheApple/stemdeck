@@ -98,7 +98,7 @@ camera_start_sec = placement_sec + first_frame_offset_ms / 1000 - camera_offset_
 
 A positive camera offset (±2000 ms) means the picture ran late, and moves only the picture.
 
-Lane entries gain `has_camera`, `camera_url`, `camera_offset_ms`, `camera_dropped`, `span: {start_sec, end_sec}` (the part of the song the take covers), `trim` and `i_play`.
+Lane entries gain `has_camera`, `camera_url`, `camera_offset_ms`, `camera_start_sec` (the formula above; `null` without a camera), `camera_dropped`, `span: {start_sec, end_sec}` (the part of the song the take covers), `trim` and `i_play`.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -114,6 +114,8 @@ A filmed take exports as an MP4: its camera over the backing mix, 16:9 with the 
 The sound is the export mix the client sends, without the take's `i_play` stems, plus the take at `take_gain`, through the -1 dBFS export limiter, as AAC 192 kbit/s at the export sample rate. A played stem's lane is dropped; a vocals lane with one half played keeps the other half; an original lane holding a played stem is rebuilt from its parts (422 when a part is missing). The take itself, or its track, may not be in `stems`.
 
 The picture is moved onto the song clock first and cut after, then put on the nearest output frame. The H.264 encoder is chosen as in [the encoder settings](configuration.md): a GPU encoder that fails, stalls or writes a file that fails its check is redone on libx264 and `fallback_reason` says why.
+
+`GET /api/video-encoders` reports the encoder policy and its source, the choices and candidates, the encoders switched off this session, `render_available`, `last_test`, `os: {key, distro, distro_like}` (`key` is `linux`, `windows` or `macos`; `distro` and `distro_like` are the `ID` and `ID_LIKE` of `/etc/os-release` on Linux, else `null`) and `auto_pick`: the GPU encoder Auto would use now judging by the cached test encodes alone, or `null` when it would use the CPU. Reading it never runs a test encode.
 
 A render waits behind a running separation, and only one runs at a time. It writes a temp file. When it finishes, `render.json` is written first, naming the new file by size and modification time, and then the temp file replaces `render.mp4`; `render.json` is trusted only for the file it names, so a crash between the two never credits an old file to a new encoder. The result and its encoder survive a restart. A cancel or a failure keeps the previous `render.mp4`. Temp files a crash left behind are removed when that take renders again, and once per server run for every take (only those older than the longest render allowed).
 
