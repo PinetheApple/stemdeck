@@ -217,8 +217,14 @@ def _is_ours(entry: Path, current: Path) -> bool:
 
 
 def _is_own_file(entry: Path) -> bool:
-    """A file reset would delete as StemDeck's."""
-    return bool(OWN_FILE_RE.match(entry.name)) and entry.is_file() and is_real_entry(entry)
+    """A file reset would delete as StemDeck's, other than the store's copies:
+    those count only beside a library (_used_by_stemdeck)."""
+    return (
+        bool(OWN_FILE_RE.match(entry.name))
+        and not _is_store_copy(entry.name)
+        and entry.is_file()
+        and is_real_entry(entry)
+    )
 
 
 def _looks_like_job_dir(entry: Path) -> bool:
