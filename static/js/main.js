@@ -37,7 +37,7 @@ import { initTrackMenu } from "./trackMenu.js";
 import { initConnection } from "./connection.js";
 import { clearBatch, setImportPill, startFileBatch, wireBatchImport } from "./batchImport.js";
 import {
-  MAX_UPLOAD_BYTES, PATH_SEP, folderFiles, formatBytes, isAudioName, isUploadable, walkEntries,
+  MAX_UPLOAD_BYTES, PATH_SEP, folderFiles, formatBytes, isAudioName, walkEntries,
 } from "./batchImportModel.js";
 
 // ─── Stem choice toggles on the import page ───
@@ -939,11 +939,12 @@ function wireFileDrop() {
     if (screened) stageFiles(screened);
   }
 
-  /** Several files: the review lists each, with what is wrong with any of them. */
-  function stageLooseFiles(files) {
+  /** Several files: the review lists each, with what is wrong with any of them.
+   *  `readFile` reads one that arrived as a description, when it is sent. */
+  function stageLooseFiles(files, readFile = null) {
     clearFile();
     clearDropError();
-    startFileBatch(files.map((file) => ({ file, dir: "" })));
+    startFileBatch(files.map((file) => ({ file, dir: "" })), { readFile });
   }
 
   /** Arms the import with a file that has already passed screenFiles. */
@@ -1106,11 +1107,13 @@ function wireFileDrop() {
   }
 
   // `dropped` is [{ id, name, size }]: descriptions, not files. They are
-  // screened as they are, and only what can be uploaded is read.
+  // screened as they are; several are reviewed as they are and each is read
+  // only when it is sent, so a big drop is never held in the page all at once.
   async function applyNativeDrop(invoke, dropped) {
     if (dropped.length > 1) {
-      const read = await readDropped(invoke, dropped.filter(isUploadable));
-      if (read) stageLooseFiles(dropped.map((d) => read.get(d.id) ?? d));
+      stageLooseFiles(dropped, function readQueuedDrop(d) {
+        return readDroppedFile(invoke, d);
+      });
       return;
     }
     const screened = screenFiles(dropped);
@@ -1126,8 +1129,7 @@ function wireFileDrop() {
     // flight rather than one per file: parallel reads would only raise the peak.
     for (const d of descriptions) {
       try {
-        const bytes = await invoke("read_dropped_file", { id: d.id });
-        files.set(d.id, new File([bytes], d.name));
+        files.set(d.id, await readDroppedFile(invoke, d));
       } catch (e) {
         console.warn("[drop] could not read a dropped file:", e);
         showDropError(t("upload.dropReadFailed", { name: d.name }));
@@ -1135,6 +1137,12 @@ function wireFileDrop() {
       }
     }
     return files;
+  }
+
+  /** One dropped file, read back from the shell by its id. */
+  async function readDroppedFile(invoke, description) {
+    const bytes = await invoke("read_dropped_file", { id: description.id });
+    return new File([bytes], description.name);
   }
 }
 

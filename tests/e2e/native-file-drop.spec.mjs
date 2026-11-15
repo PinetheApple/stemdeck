@@ -19,8 +19,34 @@ import {
   stubExportEndpoints,
   stubUpdateCheck,
 } from "./helpers.mjs";
+import { MAX_DURATION_SEC, queueButton, row, stubPreview } from "./batchImport.mjs";
 
 const MB = 1024 * 1024;
+const UPLOAD_NAME = /filename="([^"]+)"/;
+
+/** The preview's answer for the dropped audio, one status per file in review order. */
+const filePreview = (statuses) => ({
+  items: [],
+  playlists: [],
+  files: statuses.map((status) => ({ status, existing_job_id: null, replaces: null })),
+  max_duration_sec: MAX_DURATION_SEC,
+  capacity_left: { links: 20, files: 20 },
+});
+
+/** Accept every upload; record each one's file name and its byte count. */
+async function recordUploads(page) {
+  const uploads = [];
+  await page.route(/\/api\/jobs$/, (route) => {
+    const request = route.request();
+    if (request.method() !== "POST") return route.fallback();
+    const body = request.postDataBuffer().toString("latin1");
+    const file = body.split("\r\n\r\n")[1] ?? "";
+    const name = body.match(UPLOAD_NAME)?.[1];
+    uploads.push({ name, bytes: file.slice(0, file.indexOf("\r\n--")).length });
+    return route.fulfill({ json: { job_id: `e2e0b0000${uploads.length}` } });
+  });
+  return uploads;
+}
 
 /**
  * Replaces the shell's three drop commands with a controllable stand-in.
@@ -156,19 +182,39 @@ test.describe("a file dropped on the Linux desktop app", () => {
     expect((await state(page)).reads).toEqual([]);
   });
 
-  test("of a mixed drop, only the audio is read, and the rest is flagged in the review", async ({ page }) => {
+  test("a drop of several files is reviewed without reading any of them", async ({ page }) => {
     await openDesktop(page);
+    await stubPreview(page, filePreview(["ok", "in_library"]));
     await drop(page, [
       { id: 1, name: "a.wav", size: 1000 },
       { id: 2, name: "cover.jpg", size: 1000 },
       { id: 3, name: "b.mp3", size: 1000 },
     ]);
 
-    const row = (name) => page.locator("#batchReview .batch-item", { hasText: name });
-    await expect(row("cover.jpg").locator(".batch-flag-block")).toBeVisible();
-    await expect(row("a.wav").locator("input")).toBeEnabled();
-    await expect(row("b.mp3").locator("input")).toBeEnabled();
+    await expect(row(page, "cover.jpg").locator(".batch-flag-block")).toBeVisible();
+    await expect(row(page, "a.wav").locator("input")).toBeChecked();
+    await expect(row(page, "b.mp3").locator(".batch-flag-dup")).toBeVisible();
+    await expect(page.locator("#fileSize")).toHaveText("3 KB");
+    expect((await state(page)).reads).toEqual([]);
+  });
+
+  test("queuing from the review reads each ticked file as it is sent", async ({ page }) => {
+    await openDesktop(page);
+    await stubPreview(page, filePreview(["ok", "in_library", "ok"]));
+    const uploads = await recordUploads(page);
+    await page.evaluate(() => window.__shell.unreadable.add(3));
+    await drop(page, [
+      { id: 1, name: "a.wav", size: 1000 },
+      { id: 2, name: "b.mp3", size: 1000 },
+      { id: 3, name: "c.flac", size: 1000 },
+    ]);
+    await expect(row(page, "c.flac").locator("input")).toBeChecked();
+    await queueButton(page).click();
+
+    await expect(row(page, "c.flac")).toContainText("c.flac. It may have been moved");
     expect((await state(page)).reads).toEqual([1, 3]);
+    expect(uploads).toEqual([{ name: "a.wav", bytes: 1000 }]);
+    await expect(row(page, "a.wav")).toHaveCount(0);
   });
 
   test("a file that has gone by the time it is read says so, by name", async ({ page }) => {

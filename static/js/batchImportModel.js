@@ -200,6 +200,28 @@ export function capEntries(entries, max = MAX_BATCH_FILES) {
   return { entries: kept, refused: sorted.length - kept.length };
 }
 
+/** A File, as opposed to a `{ name, size }` description whose bytes are not in the page yet. */
+export const isLoaded = (file) => file instanceof Blob;
+
+export class FileReadError extends Error {
+  constructor(fileName, cause) {
+    super(fileName, { cause });
+    this.fileName = fileName;
+  }
+}
+
+/** The item's File, read with `readFile` only now when it holds a description. Kept
+ *  on the item, so one left out can be sent again without a second read. */
+export async function loadItemFile(item, readFile) {
+  if (isLoaded(item.file)) return item.file;
+  try {
+    item.file = await readFile(item.file);
+  } catch (err) {
+    throw new FileReadError(item.name, err);
+  }
+  return item.file;
+}
+
 /** Rows still waiting on a preview that failed: nobody could check them. */
 export const markUnchecked = (items) => items.map((item) => (
   item.status === ITEM_STATUS.LOOKING_UP ? { ...item, status: ITEM_STATUS.UNCHECKED, ticked: false } : item

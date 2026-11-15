@@ -11,8 +11,9 @@ globalThis.document = {
 globalThis.localStorage = { getItem: () => null, setItem: () => {} };
 
 const {
-  ITEM_STATUS, MAX_BATCH_FILES, MAX_BATCH_LINKS, capEntries, capLines, fileItems, folderFiles, isPastedList,
-  isTickable, linkItems, lookingUpItems, markUnchecked, pastedLines, previewNames, queuePlan, queueItems, walkEntries,
+  FileReadError, ITEM_STATUS, MAX_BATCH_FILES, MAX_BATCH_LINKS, capEntries, capLines, fileItems, folderFiles, isLoaded,
+  isPastedList, isTickable, linkItems, loadItemFile, lookingUpItems, markUnchecked, pastedLines, previewNames, queuePlan,
+  queueItems, walkEntries,
 } = await import("../../static/js/batchImportModel.js");
 const { batchProgress, batchStillShown, getBatch, recordBatch } = await import("../../static/js/queue.js");
 
@@ -193,6 +194,24 @@ check("files that are not audio do not count against the cap", cappedFiles.entri
 const unchecked = markUnchecked(lookingUpItems(["https://youtu.be/a"]));
 check("a failed preview leaves no row looking up", unchecked.every((i) => i.status === ITEM_STATUS.UNCHECKED));
 check("a row nobody could check cannot be ticked", unchecked.every((i) => !isTickable(i)));
+
+// ─── a file known only by its description, read when it is sent ───
+const described = { id: 9, name: "Take 3.flac", size: 4 };
+const reads = [];
+const readFile = async (d) => {
+  reads.push(d.id);
+  return new File(["RIFF"], d.name);
+};
+const descRows = fileItems([{ file: described, dir: "" }], null, new Map());
+check("a described file is reviewed by name without being read", descRows[0].name === "Take 3.flac" && reads.length === 0);
+const loaded = await loadItemFile(descRows[0], readFile);
+check("sending a described file reads it once, as a File", isLoaded(loaded) && loaded.size === 4 && eq(reads, [9]));
+await loadItemFile(descRows[0], readFile);
+check("a file already read is not read again", eq(reads, [9]));
+const pickedFile = new File(["x"], "picked.wav");
+check("a picked File is sent as it is", (await loadItemFile({ file: pickedFile, name: "picked.wav" }, readFile)) === pickedFile && eq(reads, [9]));
+const gone = await loadItemFile({ file: { id: 4 }, name: "gone.wav" }, () => Promise.reject("no such file")).catch((e) => e);
+check("a file that cannot be read says which", gone instanceof FileReadError && gone.fileName === "gone.wav");
 
 // ─── the queue view's batch header ───
 const snap = { running: { job_id: "a" }, queued: [{ job_id: "b" }] };

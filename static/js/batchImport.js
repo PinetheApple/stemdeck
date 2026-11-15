@@ -4,9 +4,9 @@
 import { t, plural } from "./i18n.js";
 import { selectedStems } from "./state.js";
 import {
-  ITEM_KIND, ITEM_STATUS, MAX_BATCH_FILES, MAX_BATCH_LINKS, PATH_SEP, capEntries, capLines, fileItems, formatBytes,
-  isPastedList, isTickable, isUploadable, linkItems, lookingUpItems, markUnchecked, pastedLines, previewNames,
-  queueItems, queuePlan,
+  FileReadError, ITEM_KIND, ITEM_STATUS, MAX_BATCH_FILES, MAX_BATCH_LINKS, PATH_SEP, capEntries, capLines, fileItems,
+  formatBytes, isLoaded, isPastedList, isTickable, isUploadable, linkItems, loadItemFile, lookingUpItems, markUnchecked,
+  pastedLines, previewNames, queueItems, queuePlan,
 } from "./batchImportModel.js";
 import {
   currentSplitChoice, importResponse, interceptSubmit, isQueueFull, keepSplitChoice, postFileJob, postLinkImport,
@@ -107,14 +107,16 @@ export function startLinkBatch(text, { inBar = false } = {}) {
   begin(fetchLinkPreview);
 }
 
-/** Several files, or a folder (`folder` is its name): each with the folder it sits in. */
-export function startFileBatch(entries, { folder = null } = {}) {
+/** Several files, or a folder (`folder` is its name): each with the folder it sits in.
+ *  A file may be a `{ name, size }` description; `readFile` makes it a File only when it is sent. */
+export function startFileBatch(entries, { folder = null, readFile = null } = {}) {
   const capped = capEntries(entries);
   const durations = new Map();
   batch = {
     source: folder ? SOURCE.FOLDER : SOURCE.FILES,
     name: folder,
     entries: capped.entries,
+    readFile,
     refused: capped.refused,
     dropped: new Set(),
     durations,
@@ -223,11 +225,12 @@ function readDuration(file) {
   });
 }
 
-/** Length is checked here: the server only sees file names until upload. */
+/** Length is checked here: the server only sees file names until upload. A file
+ *  known only by its description has no length until it is read, at upload. */
 async function readDurations(target) {
   for (const { file } of target.entries) {
     if (!isCurrent(target)) return;
-    if (!isUploadable(file)) continue;
+    if (!isUploadable(file) || !isLoaded(file)) continue;
     const seconds = await readDuration(file);
     if (seconds !== null) target.durations.set(file, seconds);
     if (!target.loading && isCurrent(target)) rebuildFileItems(target);
@@ -411,6 +414,15 @@ function addLibraryRows(target, queued) {
   for (const [key, jobs] of playlists) addPlaylistToLibrary(target.groups.find((g) => g.key === key)?.title, jobs);
 }
 
+async function postFileItem(target, item, { stems, autoSections }) {
+  const file = await loadItemFile(item, target.readFile);
+  return postFileJob(file, { stems, autoSections, replaces: item.replaces });
+}
+
+const notQueuedReason = (err) => (
+  err instanceof FileReadError ? t("upload.dropReadFailed", { name: err.fileName }) : readableError(err)
+);
+
 /** Queue `items` of `target` with the choice the batch was first queued with; what was left out. */
 async function queueSome(target, items) {
   target.choice ??= liveChoice();
@@ -419,9 +431,9 @@ async function queueSome(target, items) {
   renderFooter();
   const outcome = await queueItems(items, {
     postLink: (item) => postLinkImport({ url: item.url, stems, replaces: item.replaces, title: item.title, autoSections }),
-    postFile: (item) => postFileJob(item.file, { stems, autoSections, replaces: item.replaces }),
+    postFile: (item) => postFileItem(target, item, { stems, autoSections }),
     isQueueFull,
-    reasonOf: readableError,
+    reasonOf: notQueuedReason,
     queueFullReason: t("upload.reasonQueueFull"),
   });
   addLibraryRows(target, outcome.queued);
