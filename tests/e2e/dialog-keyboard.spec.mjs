@@ -18,6 +18,7 @@ import {
 } from "./helpers.mjs";
 
 const MIN_TARGET_PX = 24;
+const USER_FOLDER_ID = "f-live";
 
 async function openApp(page, { updateAvailable = false, seed = seedLibrary } = {}) {
   await seed(page);
@@ -89,14 +90,14 @@ test.describe("dialogs and Esc", () => {
   });
 
   test("the folder editor closes on Esc and hands focus back to the folder", async ({ page }) => {
-    await openApp(page);
-    const head = page.locator('.folder[data-id="f-unsorted"] > .folder-head');
+    await openApp(page, { seed: seedFolderAndStoppedSong });
+    const head = page.locator(`.folder[data-id="${USER_FOLDER_ID}"] > .folder-head`);
     await head.dblclick();
     await expect(page.locator(".folder-editor-name")).toBeFocused();
 
     await page.keyboard.press(KEY.ESCAPE);
     await expect(page.locator(".folder-editor")).toHaveCount(0);
-    await expect(page.locator('.folder[data-id="f-unsorted"] > .folder-head')).toBeFocused();
+    await expect(page.locator(`.folder[data-id="${USER_FOLDER_ID}"] > .folder-head`)).toBeFocused();
   });
 });
 
@@ -190,7 +191,7 @@ function seedFolderAndStoppedSong(page) {
   return seedCatalogState(page, {
     folders: [
       { id: "f-unsorted", name: "Unsorted", items: [JOB_ID], color: null },
-      { id: "f-live", name: "Live", items: [SIBLING_JOB_ID], color: null },
+      { id: USER_FOLDER_ID, name: "Live", items: [SIBLING_JOB_ID], color: null },
       { id: "trash", name: "Trash", items: [], color: null },
     ],
     tracks: {
@@ -208,8 +209,7 @@ test.describe("target sizes", () => {
     expect(
       await smallTargets(page, [
         "#newFolderBtn",
-        ".folder-head .f-subfolder",
-        ".folder-head .f-del",
+        ".folder-head .f-more",
         ".cat-item .cat-extract",
         ".cat-item .cat-upnext",
         ".cat-item .cat-more",
