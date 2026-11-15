@@ -10,11 +10,12 @@
   position: absolute;
   inset: 0;
   z-index: 40;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  row-gap: var(--stage-gap);
   padding: var(--s-5) var(--s-6);
   background: var(--bg);
-  --stage-count-size: 56px;
   --stage-lyric-size: 42px;
   --stage-lyric-next-size: 22px;
   --stage-dot-size: 26px;
@@ -24,10 +25,19 @@
   --stage-lyric-rows: 3;
   --stage-lyric-next-rows: 2;
   --stage-gap: clamp(var(--s-3), 2.5vh, var(--s-5));
+  --stage-mixer-w: clamp(232px, 20vw, 300px);
+  --stage-strip-btn: 32px;
+  --stage-fader-track: 6px;
+  --stage-fader-thumb: 20px;
+  --stage-overview-h: 52px;
+  --stage-sections-h: 30px;
+  --stage-playhead-w: 2px;
+  --stage-silent-opacity: 0.45;
 }
 .stage-view[hidden] { display: none; }
-.stage-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-4); }
+.stage-top { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: var(--s-4); }
 .stage-song { min-width: 0; }
+.stage-song-actions { display: flex; gap: var(--s-2); margin-left: auto; flex: none; }
 .stage-title {
   font-size: var(--fs-xl);
   font-weight: var(--fw-bold);
@@ -52,8 +62,10 @@
   flex: none;
 }
 .stage-exit:hover { background: var(--surface-3); color: var(--text); }
+.stage-exit[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
 .stage-center {
-  flex: 1;
+  grid-column: 1;
+  grid-row: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -76,11 +88,6 @@
   align-items: center;
   justify-content: center;
   gap: var(--s-5);
-}
-.stage-counter {
-  font-size: var(--stage-count-size);
-  font-weight: var(--fw-medium);
-  line-height: 1;
 }
 .stage-beats { display: inline-flex; flex-wrap: wrap; justify-content: center; gap: var(--stage-dot-gap); }
 .stage-beats i {
@@ -114,7 +121,15 @@
 .stage-fact { display: flex; flex-direction: column; gap: var(--s-1); }
 .stage-fact dt { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-3); }
 .stage-fact dd { margin: 0; font-size: var(--fs-base); font-weight: var(--fw-medium); color: var(--text-2); }
-.stage-transport { display: flex; align-items: center; justify-content: center; gap: var(--s-5); padding-bottom: var(--s-3); }
+.stage-transport {
+  grid-column: 1;
+  grid-row: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-5);
+  padding-bottom: var(--s-3);
+}
 .stage-btn,
 .stage-play {
   display: grid;
@@ -135,3 +150,160 @@
 .stage-play .stage-pause-icon,
 .stage-play.playing .stage-play-icon { display: none; }
 .stage-play.playing .stage-pause-icon { display: block; }
+
+/* Song overview: the sections over a whole-song waveform, the times at either end. */
+.stage-overview {
+  grid-column: 1;
+  grid-row: 3;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--s-3);
+  row-gap: var(--s-1);
+}
+.stage-sections { grid-column: 2; position: relative; height: var(--stage-sections-h); }
+.stage-sec {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--s-2);
+  border: 0;
+  border-radius: var(--r-1);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--text-2);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.stage-sec:hover { background: var(--surface-3); color: var(--text); }
+.stage-sec[aria-current="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--accent); }
+.stage-time { grid-row: 2; font-size: var(--fs-base); font-weight: var(--fw-medium); color: var(--text-2); }
+.stage-time-elapsed { grid-column: 1; }
+.stage-time-total { grid-column: 3; color: var(--text-3); }
+.stage-wave {
+  grid-column: 2;
+  grid-row: 2;
+  position: relative;
+  height: var(--stage-overview-h);
+  border-radius: var(--r-2);
+  background: var(--surface-1);
+  overflow: hidden;
+  cursor: pointer;
+}
+.stage-wave canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.stage-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--stage-playhead-w);
+  margin-left: calc(var(--stage-playhead-w) / -2);
+  background: var(--text);
+  pointer-events: none;
+}
+
+/* Mixer column: one strip per loaded stem, driving the same mix as the studio's lanes. */
+.stage-mixer {
+  grid-column: 2;
+  grid-row: 2 / 5;
+  align-self: start;
+  box-sizing: border-box;
+  max-height: 100%;
+  min-height: 0;
+  width: var(--stage-mixer-w);
+  margin-left: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+  overflow-y: auto;
+}
+.stage-view.mixer-hidden .stage-mixer { display: none; }
+.stage-mixer-label { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-3); }
+.stage-mixer-strips { display: flex; flex-direction: column; gap: var(--s-1); }
+.stage-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "name name value" "fader mute solo";
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+  padding: var(--s-2) 0 var(--s-1);
+  border-top: 1px solid var(--line);
+}
+.stage-strip-name {
+  grid-area: name;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  color: var(--stem-color);
+}
+.stage-strip-value { grid-area: value; min-width: 5ch; text-align: right; font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--text-2); }
+.stage-ms {
+  width: var(--stage-strip-btn);
+  height: var(--stage-strip-btn);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--text-3);
+  font: var(--fw-semibold) var(--fs-base) / 1 var(--font-mono);
+  cursor: pointer;
+}
+.stage-ms.mute { grid-area: mute; }
+.stage-ms.solo { grid-area: solo; }
+.stage-ms:hover { color: var(--text); background: var(--surface-3); }
+.stage-ms[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+.stage-strip.silent .stage-strip-name,
+.stage-strip.silent .stage-strip-fader,
+.stage-strip.silent .stage-strip-value { opacity: var(--stage-silent-opacity); }
+.stage-strip-fader {
+  grid-area: fader;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  height: var(--stage-strip-btn);
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.stage-strip-fader::-webkit-slider-runnable-track {
+  height: var(--stage-fader-track);
+  border-radius: var(--r-pill);
+  background: linear-gradient(to right, var(--stem-color) var(--pos), var(--surface-4) var(--pos));
+}
+.stage-strip-fader::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: var(--stage-fader-thumb);
+  height: var(--stage-fader-thumb);
+  margin-top: calc((var(--stage-fader-track) - var(--stage-fader-thumb)) / 2);
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+}
+.stage-strip-fader::-moz-range-track { height: var(--stage-fader-track); border-radius: var(--r-pill); background: var(--surface-4); }
+.stage-strip-fader::-moz-range-progress { height: var(--stage-fader-track); border-radius: var(--r-pill); background: var(--stem-color); }
+.stage-strip-fader::-moz-range-thumb {
+  width: var(--stage-fader-thumb);
+  height: var(--stage-fader-thumb);
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+}
+
+/* Short windows give the lyric a little less, never the transport. */
+@media (max-height: 820px) {
+  .stage-view { --stage-lyric-size: 34px; --stage-lyric-next-size: 19px; --stage-lyric-rows: 2; }
+}

@@ -1,7 +1,7 @@
 // Stage mode: a full-window play-along view drawn over the lanes, so the studio keeps its size.
 // F toggles it, Esc leaves it.
 
-import { metronomeBeatsPerBar, npScrubFill } from "./state.js";
+import { metronomeBeatsPerBar, npScrubFill, totalDuration } from "./state.js";
 import { togglePlayPause, stopTransport, transport } from "./transport.js";
 import { getSections, sectionDisplayName } from "./sections.js";
 import { getCurrentTrackInfo, isTextEditingTarget } from "./catalog.js";
@@ -12,6 +12,8 @@ import { buildBeatTable, beatAt } from "./stageBeats.js";
 import { ensureLyricsLoaded, getTimedLyricLines, tagLang } from "./lyrics.js";
 import { currentLineIndex } from "./lyricsLookup.js";
 import { refitFooter } from "./footerFit.js";
+import { initStageMixer, paintStageMixer, forgetStageMixer } from "./stageMixer.js";
+import { initStageOverview, paintStageOverview, paintStageSections, forgetStageOverview } from "./stageOverview.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $, fmtTime } from "./utils.js";
@@ -23,12 +25,13 @@ const GAP_LINE = "♪";
 
 let frameId = 0;
 let sections = [];
+let sectionsKey = "";
 let beatTable = [];
 let playObserver = null;
 // Last values written, so a frame that changes nothing writes nothing.
 const shown = {
   section: null, next: null, playing: null,
-  count: null, dotCount: null, dotOn: null, hasLyrics: null, lyric: null, nextLyric: null,
+  dotCount: null, dotOn: null, hasLyrics: null, lyric: null, nextLyric: null,
 };
 
 export function isStageMode() {
@@ -43,12 +46,16 @@ function setText(el, key, text) {
 
 function readSections() {
   const all = getSections();
-  sections = all.map((s) => ({ start: s.start, name: sectionDisplayName(s, all) }));
+  sections = all.map((s) => ({ start: s.start, end: s.end, name: sectionDisplayName(s, all) }));
+  const key = JSON.stringify([totalDuration, sections]);
+  if (key === sectionsKey) return;
+  sectionsKey = key;
+  paintStageSections(sections);
 }
 
 function sectionsAt(time) {
   const at = sections.findLastIndex((s) => s.start <= time);
-  return { current: sections[at] ?? null, next: sections[at + 1] ?? null };
+  return { at, current: sections[at] ?? null, next: sections[at + 1] ?? null };
 }
 
 function nextLabel(time, next) {
@@ -80,7 +87,6 @@ function paintDots(length, onIndex) {
 
 function paintBeat(time) {
   const at = beatAt(beatTable, time);
-  setText($("stageCount"), "count", at ? `${at.bar}.${at.beat}` : EMPTY_VALUE);
   paintDots(at?.length ?? beatTable[0]?.length ?? 0, at ? at.beat - 1 : null);
 }
 
@@ -111,9 +117,10 @@ function isPlaying() {
 
 function paintFrame() {
   const time = transport()?.getCurrentTime?.() ?? 0;
-  const { current, next } = sectionsAt(time);
+  const { at, current, next } = sectionsAt(time);
   setText($("stageSection"), "section", current?.name ?? "");
   setText($("stageNext"), "next", nextLabel(time, next));
+  paintStageOverview(time, at);
   paintBeat(time);
   paintLyrics(time);
 
@@ -145,6 +152,7 @@ function syncLoop() {
     return;
   }
   stopLoop();
+  readSections();
   paintFrame();
 }
 
@@ -156,6 +164,7 @@ function paintSong() {
   readSections();
   readBeatTable();
   ensureLyricsLoaded();
+  paintStageMixer();
 }
 
 function paintTempo() {
@@ -165,6 +174,9 @@ function paintTempo() {
 
 function forgetPainted() {
   for (const key of Object.keys(shown)) shown[key] = null;
+  sectionsKey = "";
+  forgetStageOverview();
+  forgetStageMixer();
 }
 
 function onTempoChange() {
@@ -257,6 +269,8 @@ export function initStageMode() {
   $("stagePlayBtn")?.addEventListener("click", togglePlayPause);
   $("stageStopBtn")?.addEventListener("click", stopTransport);
   $("stageNextBtn")?.addEventListener("click", playNextInUpNext);
+  initStageMixer(isStageMode);
+  initStageOverview(isStageMode);
   window.addEventListener("keydown", onStageKeydown);
   document.addEventListener("trackopen", onSongChangeInStage);
   document.addEventListener("tracktags", onSongChangeInStage);
