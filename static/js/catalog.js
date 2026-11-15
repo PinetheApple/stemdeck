@@ -3,14 +3,14 @@ import { STEM_NAMES } from "./constants.js";
 import { STEM_EXT_MP3 } from "./playbackStems.js";
 import { wireUpAudio, updateFooterTrack } from "./player.js";
 import { clearOpenPreview, showOpenPreview } from "./openPreview.js";
-import { initOpenSong, openSong, playSong } from "./openSong.js";
+import { initOpenSong, openSong, playSong, playVersion } from "./openSong.js";
 import { initSections } from "./sections.js";
 import {
   audioEngine, bpmChip, foregroundJobId, keyChip, multitrack, saveSelectedStems, selectedStems, titleEl,
 } from "./state.js";
 import { DEFAULT_VERSION_ID, hasVersionRows, openVersionOf, sameLanes } from "./versionModel.js";
 import {
-  forgetVersionMixes, initVersions, openVersion, paintOpenVersion, paintVersionPill, versionExtras, versionToggleHtml,
+  forgetVersionMixes, initVersions, paintOpenVersion, paintVersionPill, versionExtras, versionToggleHtml,
   wireVersionToggle,
 } from "./versions.js";
 import { refreshStemChoiceVisuals } from "./stemChoice.js";
@@ -2471,7 +2471,7 @@ function libraryRowKey(row) {
 function openLibraryRow(row) {
   if (row.matches(TRASH_ROW_SELECTOR)) return;
   if (row.matches(FOLDER_ROW_SELECTOR)) toggleFolderCollapsed(row.parentElement);
-  else if (row.dataset.version) openVersion(row.dataset.id, row.dataset.version);
+  else if (row.dataset.version) playVersion(row.dataset.id, row.dataset.version);
   else playSong(row.dataset.id);
 }
 

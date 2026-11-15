@@ -99,20 +99,21 @@ async function showOpenedVersion(jobId, state) {
   const shownStems = [...selectedStems];
   applyVersionsState(jobId, state);
   const opened = openVersionOf(getLibraryTrack(jobId));
-  if (!opened) return;
-  if (jobId === currentJobId && sameLanes(opened.stems, shownStems)) await switchMix(jobId, opened.id);
-  else await loadTrackIntoStudio(jobId);
+  if (!opened) return false;
+  if (jobId === currentJobId && sameLanes(opened.stems, shownStems)) {
+    await switchMix(jobId, opened.id);
+    return false;
+  }
+  return loadTrackIntoStudio(jobId);
 }
 
+/** Open a version; resolves to whether that loaded the song into the player anew. */
 export async function openVersion(jobId, versionId) {
   const track = getLibraryTrack(jobId);
-  if (!track) return;
-  if (openVersionOf(track)?.id === versionId) {
-    if (jobId !== currentJobId) await loadTrackIntoStudio(jobId);
-    return;
-  }
+  if (!track) return false;
+  if (openVersionOf(track)?.id === versionId) return jobId !== currentJobId && loadTrackIntoStudio(jobId);
   const state = await request(versionsUrl(jobId, versionId, "open"), { method: "POST" });
-  if (state) await showOpenedVersion(jobId, state);
+  return state ? showOpenedVersion(jobId, state) : false;
 }
 
 // ─── Save as new, extract, delete, rename ───

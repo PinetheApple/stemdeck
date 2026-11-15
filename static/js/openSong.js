@@ -10,6 +10,7 @@ import {
   shownTrackId,
 } from "./catalog.js";
 import { setPlayingTitle } from "./openPreview.js";
+import { openVersion } from "./versions.js";
 import { cancelPlayWhenLoaded, loadAndPlay, playWhenLoaded, upNextTakesOver } from "./upNext.js";
 import { setPlayRedirect, togglePlayPause, transport } from "./transport.js";
 import { $ } from "./utils.js";
@@ -44,6 +45,16 @@ export function playSong(trackId) {
     return;
   }
   loadAndPlay(trackId);
+}
+
+/** Double-click or Play on a version row: open that version and play it. */
+export async function playVersion(trackId, versionId) {
+  playWhenLoaded(trackId);
+  if (await openVersion(trackId, versionId)) return;
+  cancelPlayWhenLoaded();
+  if (trackId !== playingTrackId()) return;
+  dropShownTrack();
+  if (!isPlaying()) togglePlayPause();
 }
 
 function playShownSongInstead() {

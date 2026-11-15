@@ -3,6 +3,7 @@
 
 import { test, expect } from "@playwright/test";
 import { ROW_KEY, ROW_PLAY_CLASS, SELECTED_ROW_CLASS } from "../../static/js/rovingRows.js";
+import { DEFAULT_VERSION_ID } from "../../static/js/versionModel.js";
 import {
   JOB_ID,
   SIBLING_JOB_ID,
@@ -176,5 +177,76 @@ test.describe("when the playing song ends", () => {
     await expect(page.locator("#title")).toHaveText(TRACK_TITLE, { timeout: END_TIMEOUT_MS });
     await expectPlaying(page, JOB_ID);
     await expect(page.locator("#openPreview")).toBeHidden();
+  });
+});
+
+test.describe("version rows", () => {
+  const ALL_FIXTURE_STEMS = ["vocals", "drums", "bass", "other"];
+  const FEWER_STEMS = ["vocals", "drums"];
+  const VERSION_NAME = "Practice mix";
+  const versionsUrl = (id) => `/api/jobs/${id}/versions`;
+  const versionRow = (page, id, vid) => page.locator(`#catalogList .cat-version[data-id="${id}"][data-version="${vid}"]`);
+  const openVersionId = async (request, id) => (await (await request.get(versionsUrl(id))).json()).open_version;
+
+  async function addVersion(request, id, stems) {
+    const res = await request.post(versionsUrl(id), { data: { name: VERSION_NAME, stems, open: false } });
+    expect(res.ok()).toBe(true);
+    return (await res.json()).version.id;
+  }
+
+  async function removeVersion(request, id, vid) {
+    await request.post(`${versionsUrl(id)}/${DEFAULT_VERSION_ID}/open`);
+    await request.delete(`${versionsUrl(id)}/${vid}`);
+  }
+
+  async function expandVersions(page, id) {
+    const toggle = songRow(page, id).locator(".cat-versions-toggle");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  }
+
+  test("a double-click on another song's version opens that version and plays it", async ({ page, request }) => {
+    const vid = await addVersion(request, SIBLING_JOB_ID, FEWER_STEMS);
+    try {
+      await openStudio(page);
+      await expandVersions(page, SIBLING_JOB_ID);
+      await versionRow(page, SIBLING_JOB_ID, vid).dblclick();
+      await expectPlaying(page, SIBLING_JOB_ID);
+      expect(await openVersionId(request, SIBLING_JOB_ID)).toBe(vid);
+    } finally {
+      await removeVersion(request, SIBLING_JOB_ID, vid);
+    }
+  });
+
+  test("Play on the loaded song's other version switches its mix and plays it", async ({ page, request }) => {
+    const vid = await addVersion(request, JOB_ID, ALL_FIXTURE_STEMS);
+    try {
+      await openStudio(page);
+      await expandVersions(page, JOB_ID);
+      const row = versionRow(page, JOB_ID, vid);
+      await row.hover();
+      await row.locator(PLAY).click();
+      await expectPlaying(page, JOB_ID);
+      expect(await openVersionId(request, JOB_ID)).toBe(vid);
+    } finally {
+      await removeVersion(request, JOB_ID, vid);
+    }
+  });
+
+  test("a single click on a version row only selects it", async ({ page, request }) => {
+    const vid = await addVersion(request, SIBLING_JOB_ID, FEWER_STEMS);
+    try {
+      await openStudio(page);
+      await expandVersions(page, SIBLING_JOB_ID);
+      const opens = countOpens(page, SIBLING_JOB_ID);
+      await versionRow(page, SIBLING_JOB_ID, vid).click();
+      await expect(versionRow(page, SIBLING_JOB_ID, vid)).toHaveClass(SELECTED);
+      await page.waitForTimeout(SETTLE_MS);
+      expect(opens.count).toBe(NO_OPENS);
+      expect(await playingId(page)).toBe(JOB_ID);
+      expect(await isPlaying(page)).toBe(false);
+    } finally {
+      await removeVersion(request, SIBLING_JOB_ID, vid);
+    }
   });
 });
