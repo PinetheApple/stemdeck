@@ -280,6 +280,13 @@ export class EqGraph {
     this.#wheelTimer = setTimeout(this.#commitWheel.bind(this), WHEEL_SETTLE_MS);
   }
 
+  /** Save a wheel turn still waiting to settle, now, while the graph still holds its lane. */
+  flush() {
+    if (!this.#wheelTimer) return;
+    clearTimeout(this.#wheelTimer);
+    this.#commitWheel();
+  }
+
   #commitWheel() {
     this.#wheelTimer = 0;
     this.#edit(this.#view.bands, true);

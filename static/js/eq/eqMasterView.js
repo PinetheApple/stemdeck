@@ -1,5 +1,5 @@
 import { $ } from "../utils.js";
-import { audioEngine } from "../state.js";
+import { audioEngine, currentJobId } from "../state.js";
 import { MASTER_LANE, getLaneEq, onFxChange, resetLane } from "../eqEngine.js";
 import {
   choosePreset,
@@ -18,6 +18,7 @@ import { graphBands } from "./eqPanelModel.js";
 import { fmtDb } from "./eqGraphMath.js";
 import { editLaneBands, renderPower, toggleLaneBypass } from "./eqPanelControls.js";
 import {
+  PERCENT,
   choosePresetFor,
   fmtPercent,
   grFraction,
@@ -26,11 +27,11 @@ import {
   stepCeiling,
 } from "./masterPanelModel.js";
 
-const PERCENT = 100;
 const GR_SCALE_DB = 12;
 
 export class EqMasterView {
   #graph;
+  #job = null;
 
   constructor() {
     this.#graph = new EqGraph($("eqGraphMaster"), { onEdit: this.#onGraphEdit.bind(this) });
@@ -48,12 +49,14 @@ export class EqMasterView {
   get graph() { return this.#graph; }
 
   show() {
+    this.#job = currentJobId;
     warmLive(true);
     watch();
     this.render();
   }
 
   leave() {
+    this.#graph.flush();
     warmLive(false);
   }
 
@@ -102,6 +105,7 @@ export class EqMasterView {
   }
 
   #onGraphEdit(bands, opts) {
+    if (currentJobId !== this.#job) return;
     editLaneBands(MASTER_LANE, bands, opts);
   }
 

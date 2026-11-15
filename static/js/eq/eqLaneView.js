@@ -26,6 +26,7 @@ const EQ_COLOR_VAR = "--eq-c";
 export class EqLaneView {
   #root = $("eqLaneView");
   #lane = null;
+  #job = null;
   #kind = null;
   #request = null;
   #target = null;
@@ -52,8 +53,10 @@ export class EqLaneView {
 
   /** Edit `lane`; a pending suggestion on another lane is undone first. */
   show(lane) {
+    this.#graph.flush();
     if (lane !== this.#lane) this.leave();
     this.#lane = lane;
+    this.#job = currentJobId;
     this.#kind = panelKindFor(lane);
     this.#root.style.setProperty(EQ_COLOR_VAR, STEM_COLORS[lane] || "");
     this.render();
@@ -61,6 +64,7 @@ export class EqLaneView {
 
   /** Leaving the lane or the song: drop a Suggest still asked for, undo an unapplied one. */
   leave() {
+    this.#graph.flush();
     this.#request?.abort();
     this.#request = null;
     this.#session.undo();
@@ -84,6 +88,7 @@ export class EqLaneView {
     if (pedal) this.#knobs.show(this.#kind, eq, { enabled: !suggesting });
     $("eqSuggestBar").hidden = !suggesting;
     $("eqLegend").hidden = !suggesting;
+    $("eqLegendTarget").hidden = !this.#target;
     $("eqLaneActions").hidden = suggesting;
     $("eqReadout").hidden = pedal || suggesting;
     this.#renderReadout();
@@ -110,6 +115,7 @@ export class EqLaneView {
   }
 
   #onGraphEdit(bands, opts) {
+    if (currentJobId !== this.#job) return;
     editLaneBands(this.#lane, bands, opts);
     this.#renderReadout();
   }

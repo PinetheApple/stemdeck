@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { SIBLING_JOB_ID, openStudio, openInspectorTab } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, openStudio, openInspectorTab } from "./helpers.mjs";
 
 const SUGGEST_EQ = /\/api\/jobs\/[a-f0-9]{12}\/suggest\/eq\?/;
 const SUGGESTED = {
@@ -26,12 +26,23 @@ const SUGGESTED_HZ = 310;
 const STARTER_BANDS = 4;
 const DRAG_UP_PX = 30;
 const PLAYED_DB = -3;
+const BELL_HANDLE = 1;
+const STARTER_BELL_Q = 1;
+const WHEEL_UP = -200;
+const SETTLED_MS = 600;
 
 const mark = (page, lane) => page.locator(`.eq-lane-mark[data-lane="${lane}"]`);
 const handles = (page) => page.locator("#eqGraphLane .eq-handle");
 
 function laneEq(page, lane) {
   return page.evaluate(async (name) => (await import("/js/mixFx.js")).getLaneEq(name), lane);
+}
+
+function storedEq(page, lane) {
+  return page.evaluate(([key, name]) => {
+    const stored = JSON.parse(localStorage.getItem(key) || "null");
+    return stored?.[name]?.fx?.find((d) => d?.id === "eq") ?? null;
+  }, [`stemdeck:mix:${JOB_ID}`, lane]);
 }
 
 function playedDb(page, lane, hz) {
@@ -52,12 +63,12 @@ async function holdSuggest(page) {
   return release;
 }
 
-async function stubSuggest(page) {
+async function stubSuggest(page, answer = SUGGESTED) {
   const asked = [];
   await page.route(SUGGEST_EQ, (route) => {
     const url = new URL(route.request().url());
     asked.push(url);
-    const body = url.searchParams.get("lane") === "bass" ? SUGGESTED_PEDAL : SUGGESTED;
+    const body = url.searchParams.get("lane") === "bass" ? SUGGESTED_PEDAL : answer;
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   });
   return asked;
@@ -173,6 +184,35 @@ test.describe("EQ tab", () => {
     expect(db === null || Math.abs(db) < 0.1).toBe(true);
   });
 
+  test("a Suggest answer for the previous lane is dropped", async ({ page }) => {
+    const release = await holdSuggest(page);
+    await mark(page, "drums").click();
+    const asked = page.waitForRequest(SUGGEST_EQ);
+    await page.locator("#eqSuggestLane").click();
+    await asked;
+    await mark(page, "vocals").click();
+    await expect(page.locator("#eqScopeName")).toHaveText("Vocals");
+    release();
+    await page.waitForTimeout(SETTLED_MS);
+    await expect(page.locator("#eqSuggestBar")).toBeHidden();
+    expect((await laneEq(page, "vocals")).params.bands).toHaveLength(0);
+    expect((await laneEq(page, "drums")).params.bands).toHaveLength(0);
+  });
+
+  test("a wheel turn saves to its own lane when another lane opens at once", async ({ page }) => {
+    await mark(page, "drums").click();
+    const box = await handles(page).nth(BELL_HANDLE).boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, WHEEL_UP);
+    await mark(page, "vocals").click();
+    await expect(page.locator("#eqScopeName")).toHaveText("Vocals");
+    await page.waitForTimeout(SETTLED_MS);
+    expect(await storedEq(page, "vocals")).toBeNull();
+    expect((await laneEq(page, "vocals")).params.bands).toHaveLength(0);
+    const drums = await storedEq(page, "drums");
+    expect(drums.params.bands[BELL_HANDLE].q).not.toBe(STARTER_BELL_Q);
+  });
+
   test("while a suggestion plays, the knobs and the power button wait", async ({ page }) => {
     await stubSuggest(page);
     await mark(page, "bass").click();
@@ -196,8 +236,20 @@ test.describe("EQ tab", () => {
     await expect(page.locator("#eqGraphLane path.eq-target")).toHaveAttribute("d", "");
     await page.locator("#eqSuggestLane").click();
     await expect(page.locator("#eqGraphLane path.eq-target")).toHaveAttribute("d", /^M/);
-    await expect(page.locator("#eqLegend")).toContainText("Target");
+    await expect(page.locator("#eqLegendTarget")).toBeVisible();
     await page.locator("#eqSuggestUndo").click();
+    await expect(page.locator("#eqGraphLane path.eq-target")).toHaveAttribute("d", "");
+  });
+
+  test("without a target curve the legend shows only Before", async ({ page }) => {
+    const { target_curve: _omitted, ...noCurve } = SUGGESTED;
+    await stubSuggest(page, noCurve);
+    await mark(page, "drums").click();
+    await page.locator("#eqSuggestLane").click();
+    await expect(page.locator("#eqLegend")).toBeVisible();
+    await expect(page.locator("#eqLegendTarget")).toBeAttached();
+    await expect(page.locator("#eqLegendTarget")).toBeHidden();
+    await expect(page.locator("#eqLegend")).toContainText("Before");
     await expect(page.locator("#eqGraphLane path.eq-target")).toHaveAttribute("d", "");
   });
 
