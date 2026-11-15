@@ -33,10 +33,15 @@ function refuseDeletes(route) {
   return route.request().method() === "DELETE" ? refuse(route) : route.fallback();
 }
 
-async function openLibrary(page, trashed) {
+const DOOMED_FOLDER = "f-doomed";
+
+/** The library with `trashed` in the Trash and `inFolder` in a folder of their own; the rest unsorted. */
+async function openLibrary(page, trashed, inFolder = []) {
+  const unsorted = [JOB_ID, SIBLING_JOB_ID].filter((id) => id !== trashed && !inFolder.includes(id));
   await seedCatalogState(page, {
     folders: [
-      { id: "f-unsorted", name: "Unsorted", items: [JOB_ID, SIBLING_JOB_ID].filter((id) => id !== trashed), color: null },
+      { id: "f-unsorted", name: "Unsorted", items: unsorted, color: null },
+      { id: DOOMED_FOLDER, name: "Doomed", items: inFolder, color: null },
       { id: "trash", name: "Trash", items: trashed ? [trashed] : [], color: null },
     ],
     tracks: { [JOB_ID]: fixtureTrack(JOB_ID, TRACK_TITLE), [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, SIBLING_TITLE) },
@@ -86,6 +91,42 @@ test.describe("studio", () => {
     expect(folders.find((f) => f.id === live.id)?.items).toEqual(live.items);
     expect(await trashItems(page)).toEqual([]);
     await expect(row).toHaveClass(/\bactive\b/);
+  });
+
+  test("a song opened while its refused trash was on the way stays the open one", async ({ page }) => {
+    await openStudio(page);
+    let answer;
+    const answered = new Promise((resolve) => (answer = resolve));
+    await page.route(TRASH_OR_RESTORE, async (route) => {
+      await answered;
+      await refuse(route);
+    });
+    const binned = page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first();
+    const opened = page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`).first();
+
+    await binned.hover();
+    await binned.locator(".cat-del").click();
+    await opened.dblclick();
+    await expect(opened).toHaveClass(/\bactive\b/);
+    answer();
+
+    await expect.poll(() => failureMessages(page)).toEqual([await uiText(page, FOLDER_MOVING_KEY)]);
+    await expect(binned).toBeVisible();
+    await expect(opened).toHaveClass(/\bactive\b/);
+    await expect(binned).not.toHaveClass(/\bactive\b/);
+  });
+
+  test("songs of a folder deleted during the move come back to the library", async ({ page }) => {
+    const moving = await openLibrary(page, null, [JOB_ID, SIBLING_JOB_ID]);
+    const doomed = page.locator(`.folder[data-id="${DOOMED_FOLDER}"] > .folder-head`);
+    await doomed.hover();
+    await doomed.locator(".f-del").click();
+    await doomed.locator(".f-del").click();
+
+    await expect.poll(() => failureMessages(page)).toEqual([moving]);
+    expect(await trashItems(page)).toEqual([]);
+    const folders = (await readCatalogState(page))?.folders ?? [];
+    expect(folders.find((f) => f.id === "f-unsorted")?.items.sort()).toEqual([JOB_ID, SIBLING_JOB_ID].sort());
   });
 
   test("a song restored during the move goes back to the Trash and says to wait for it", async ({ page }) => {

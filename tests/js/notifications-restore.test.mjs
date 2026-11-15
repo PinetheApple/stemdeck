@@ -1,4 +1,4 @@
-// restoreFailures puts back the cards a refused Trash dismissed (#190): the same
+// restoreFailures puts back the cards a refused Trash dismissed: the same
 // records, in time order, never twice.
 //
 // Run:  node tests/js/notifications-restore.test.mjs

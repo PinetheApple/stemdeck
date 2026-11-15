@@ -1283,12 +1283,20 @@ function rememberPlaceBeforeTrash(trackId) {
 
 /** Put a song back the way libraryPlaceOf found it. */
 function putBack(trackId, { places, replaced, wasOpen, notices }) {
-  if (replaced && !tracks[trackId]?.replaced) undoReinstate(trackId, replaced);
-  removeTrackFromFolders(trackId);
-  for (const [folderId, at] of places) folders.find((f) => f.id === folderId)?.items.splice(at, 0, trackId);
-  if (wasOpen) _currentTrackId = trackId;
+  if (!tracks[trackId]) return;
+  if (replaced && reinstatedAsLeft(trackId, replaced)) undoReinstate(trackId, replaced);
+  const kept = places.filter(([folderId]) => folders.some((f) => f.id === folderId));
+  if (wasOpen && _currentTrackId === null) _currentTrackId = trackId;
   restoreFailures(notices);
+  if (!kept.length) return takeOutOfTrash([trackId]);
+  removeTrackFromFolders(trackId);
+  for (const [folderId, at] of kept) folders.find((f) => f.id === folderId).items.splice(at, 0, trackId);
   announceTrashChange([trackId]);
+}
+
+/** Whether the song a trash reinstated is still as the trash left it, so taking it away again loses nothing. */
+function reinstatedAsLeft(trackId, replaced) {
+  return !tracks[trackId].replaced && tracks[replaced.id] === replaced.track && !isInTrash(replaced.id);
 }
 
 /** The opposite of reinstateReplaced: the song it replaces goes again. */
