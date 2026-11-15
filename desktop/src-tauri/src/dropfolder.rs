@@ -78,9 +78,9 @@ impl Walk {
         if name.starts_with(HIDDEN_PREFIX) {
             return Ok(());
         }
-        // Follows links. A link to nothing is left out, as the page leaves it.
+        // Follows links. A link to nothing is left out.
         let meta = match fs::metadata(path) {
-            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(e) if leads_nowhere(&e) => return Ok(()),
             meta => meta?,
         };
         if meta.is_dir() {
@@ -100,6 +100,21 @@ impl Walk {
         }
         Ok(())
     }
+}
+
+/// A link to nothing, or links that only lead back to each other.
+fn leads_nowhere(err: &io::Error) -> bool {
+    err.kind() == io::ErrorKind::NotFound || is_link_loop(err)
+}
+
+#[cfg(unix)]
+fn is_link_loop(err: &io::Error) -> bool {
+    err.raw_os_error() == Some(libc::ELOOP)
+}
+
+#[cfg(not(unix))]
+fn is_link_loop(_err: &io::Error) -> bool {
+    false
 }
 
 fn join(dir: &str, name: &str) -> String {
@@ -242,7 +257,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn a_linked_subfolder_is_walked_as_the_page_walks_it() {
+    fn a_linked_subfolder_is_walked_under_the_link_name() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path().join("Set");
         let other = tmp.path().join("Other");
@@ -253,6 +268,22 @@ mod tests {
         assert_eq!(
             listing(&expand(&[root]).unwrap()),
             vec![row("Set", "a.wav", 1), row("Set/Live", "b.wav", 2)]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn links_that_only_lead_to_each_other_are_left_out() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("Set");
+        write(&root.join("a.wav"), b"a");
+        std::os::unix::fs::symlink(root.join("self"), root.join("self")).unwrap();
+        std::os::unix::fs::symlink(root.join("pong"), root.join("ping")).unwrap();
+        std::os::unix::fs::symlink(root.join("ping"), root.join("pong")).unwrap();
+
+        assert_eq!(
+            listing(&expand(&[root]).unwrap()),
+            vec![row("Set", "a.wav", 1)]
         );
     }
 
