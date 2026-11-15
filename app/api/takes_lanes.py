@@ -13,7 +13,6 @@ from pathlib import Path
 
 from app.core.takes import is_finished, read_json, read_tracks
 from app.core.takes_config import (
-    EXPORT_LIMIT_DBFS,
     SIDECAR_FILE,
     TAKE_ID_RE,
     TAKE_WAV_FILE,
@@ -21,9 +20,14 @@ from app.core.takes_config import (
     TRACK_ID_RE,
 )
 
+# Headroom for the overshoot a lossy encoder adds on top of the ceiling.
+EXPORT_CEILING_DBFS = -1.0
+_DB_PER_AMPLITUDE_DECADE = 20
+EXPORT_CEILING = 10 ** (EXPORT_CEILING_DBFS / _DB_PER_AMPLITUDE_DECADE)
 # level=disabled stops alimiter re-normalising the output; latency=1 removes
 # its look-ahead delay, so lanes keep their timing.
-EXPORT_LIMITER = f"alimiter=limit={10 ** (EXPORT_LIMIT_DBFS / 20):.6f}:level=disabled:latency=1"
+EXPORT_LIMITER = f"alimiter=limit={EXPORT_CEILING:.6f}:level=disabled:latency=1"
+NO_SHIFT = 0
 
 
 def is_take_lane(name: str) -> bool:
@@ -32,6 +36,11 @@ def is_take_lane(name: str) -> bool:
 
 def has_take_lane(names: Iterable[str]) -> bool:
     return any(is_take_lane(n) for n in names)
+
+
+def zero_take_pitches(names: list[str], pitches: list[int]) -> list[int]:
+    """`pitches` with every take lane's shift dropped: a take is never transposed."""
+    return [NO_SHIFT if is_take_lane(n) else p for n, p in zip(names, pitches, strict=True)]
 
 
 def _track(job_dir: Path, track_id: str) -> dict | None:
