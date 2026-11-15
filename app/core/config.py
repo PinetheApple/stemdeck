@@ -1150,10 +1150,11 @@ MASTER_LIMITER_OVERSAMPLE = 4
 MASTER_LIMITER_MARGIN_DB = 0.1
 MASTER_LIMITER_ATTACK_MS = 5
 MASTER_LIMITER_RELEASE_MS = 50
-# A true peak still over the ceiling after the limiter is trimmed to this far
-# under it; a lossy file is re-rendered with a deeper trim at most this often.
+# A true peak over the ceiling lowers the limiter's limit to this far under it,
+# and the gain follows the target, in at most this many passes (in-graph, or on
+# the decoded lossy file).
 MASTER_TRIM_MARGIN_DB = 0.1
-MASTER_LOSSY_RETRIES = 3
+MASTER_CEILING_RETRIES = 4
 MASTER_COMP_RATIO_PER_AMOUNT = 2.0
 MASTER_COMP_THRESHOLD_OFFSET_DB = 2.0
 MASTER_COMP_THRESHOLD_PER_AMOUNT_DB = 6.0

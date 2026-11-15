@@ -21,9 +21,9 @@ and the plan behind it is measured on the whole song:
 4. The result is measured; when limiting cost more than the tolerance, up to
    MASTER_CORRECTION_PASSES bounded correction passes step the gain along
    the measured loudness-per-dB slope.
-5. Resampling down from 4x rebuilds peaks over the ceiling, more the harder
-   the limiter is driven: a volume after it trims them, measured once more.
-   "Reached" needs the loudness in tolerance and the true peak under the ceiling.
+5. A true peak still over the ceiling lowers the limiter's limit, and the gain
+   follows the target again (app/pipeline/master_ceiling.py). "Reached" needs
+   the loudness in tolerance and the true peak under the ceiling.
 
 The plan is always made on the whole song, so a region export gets exactly the
 gain of the full master; app/pipeline/master_plan_cache.py keeps it on disk.
@@ -60,7 +60,6 @@ from app.core.config import (
     MASTER_COMP_THRESHOLD_FLOOR_DB,
     MASTER_COMP_THRESHOLD_OFFSET_DB,
     MASTER_COMP_THRESHOLD_PER_AMOUNT_DB,
-    MASTER_CORRECTION_MAX_DB,
     MASTER_CORRECTION_PASSES,
     MASTER_CORRECTION_TOL_LU,
     MASTER_GAIN_MAX_DB,
@@ -70,7 +69,6 @@ from app.core.config import (
     MASTER_LIMITER_OVERSAMPLE,
     MASTER_LIMITER_RELEASE_MS,
     MASTER_PARAM_MAX_CHARS,
-    MASTER_TRIM_MARGIN_DB,
     STEM_FORMAT_MP3,
     TIMEOUT_FFMPEG,
     ffmpeg_executable,
@@ -82,6 +80,7 @@ from app.pipeline.fx_filters import (
     linear_to_db,
     read_wire_number,
 )
+from app.pipeline.master_ceiling import correction_step, hold_ceiling, overshoot_db
 
 LOGGER_NAME = "stemdeck.mastering"
 logger = logging.getLogger(LOGGER_NAME)
@@ -100,9 +99,6 @@ MASTER_REQUIRED = f"{MASTER_PREFIX}: required"
 _SILENCE_LUFS = -69.9
 # The compressor's threshold reference when the pre-measurement found silence.
 _SILENT_REFERENCE_LUFS = -40.0
-# Loudness gained per dB of gain: 1 with no limiting, never assumed below this
-# (a limiter at its wall), so a correction step stays bounded.
-_LIMITED_SLOPE_MIN = 0.1
 _FLOAT_SLACK = 1e-9
 _MASTER_KEYS = frozenset({"v", "target", "ceiling", "comp"})
 _STDERR_TAIL_LINES = 8
@@ -152,6 +148,7 @@ class MasterPlan:
     gain_db: float
     post: Loudness
     reached: bool
+    limit_offset_db: float = 0.0
     trim_db: float = 0.0
 
     def to_json(self) -> dict:
@@ -167,6 +164,7 @@ class MasterPlan:
             "gain_db": self.gain_db,
             "post": asdict(self.post),
             "reached": self.reached,
+            "limit_offset_db": self.limit_offset_db,
             "trim_db": self.trim_db,
         }
 
@@ -275,38 +273,40 @@ def trim_filter(trim_db: float) -> str:
     return f"volume={_lin(-trim_db)}" if trim_db > 0 else ""
 
 
-def ceiling_trim(tp: float | None, ceiling_db: float) -> float:
-    """How far to turn a true peak down to sit a margin under the ceiling, 0 when it does."""
-    if tp is None or tp <= ceiling_db:
-        return 0.0
-    return round(tp - ceiling_db + MASTER_TRIM_MARGIN_DB, 3)
-
-
 def master_chain(
     comp: float,
     threshold_db: float | None,
     gain_db: float,
     ceiling_db: float,
     rate: int,
+    limit_offset_db: float = 0.0,
     trim_db: float = 0.0,
 ) -> str:
     """The whole master chain after the master EQ, without a trailing comma."""
     parts = [comp_filter(comp, threshold_db)]
     if gain_db != 0:
         parts.append(f"volume={_lin(gain_db)}")
-    parts.append(limiter_filter(ceiling_db, rate))
+    parts.append(limiter_filter(ceiling_db - limit_offset_db, rate))
     parts.append(trim_filter(trim_db))
     return ",".join(p for p in parts if p)
 
 
-def plan_chain(plan: MasterPlan, rate: int) -> str:
+def plan_chain(
+    plan: MasterPlan,
+    rate: int,
+    extra_offset_db: float = 0.0,
+    extra_trim_db: float = 0.0,
+    extra_gain_db: float = 0.0,
+) -> str:
+    """The plan's chain, with further gain, limit offset and trim when given."""
     return master_chain(
         plan.comp,
         plan.comp_threshold_db,
-        plan.gain_db,
+        plan.gain_db + extra_gain_db,
         plan.ceiling,
         rate,
-        plan.trim_db,
+        plan.limit_offset_db + extra_offset_db,
+        plan.trim_db + extra_trim_db,
     )
 
 
@@ -397,15 +397,6 @@ async def measure_chain(inputs: list[str], graph: str, chain: str, rate: int) ->
     return parse_meter(text)
 
 
-def _correction_step(miss: float, tried: list[tuple[float, float | None]]) -> float:
-    slope = 1.0
-    if len(tried) > 1:
-        (g0, l0), (g1, l1) = tried[-2], tried[-1]
-        if g1 != g0 and l0 is not None and l1 is not None:
-            slope = min(1.0, max(_LIMITED_SLOPE_MIN, (l1 - l0) / (g1 - g0)))
-    return max(-MASTER_CORRECTION_MAX_DB, min(MASTER_CORRECTION_MAX_DB, miss / slope))
-
-
 def _missed(target: float, post: Loudness) -> float | None:
     """How far the result is from the target, None when it is close enough."""
     if post.i is None or abs(target - post.i) <= MASTER_CORRECTION_TOL_LU:
@@ -425,7 +416,7 @@ async def _settle_gain(
         miss = _missed(target, post)
         if miss is None:
             break
-        fixed = clamp_gain(gain + _correction_step(miss, tried))
+        fixed = clamp_gain(gain + correction_step(miss, tried))
         if fixed == gain:
             break
         gain, post = fixed, await run(fixed)
@@ -435,7 +426,7 @@ async def _settle_gain(
 
 def target_reached(target: float | None, ceiling_db: float, post: Loudness) -> bool:
     """Loudness within tolerance of the target (any, with none) and the true peak under the ceiling."""
-    if ceiling_trim(post.tp, ceiling_db):
+    if overshoot_db(post.tp, ceiling_db):
         return False
     if target is None:
         return True
@@ -470,8 +461,8 @@ async def run_plan(
     comp_i = await _comp_loudness(inputs, graph, settings.comp, threshold, rate, measure)
     level = pre.i if threshold is None else comp_i
 
-    async def run(gain: float, trim: float = 0.0) -> Loudness:
-        chain = master_chain(settings.comp, threshold, gain, ceiling_db, rate, trim)
+    async def run(gain: float, offset: float = 0.0, trim: float = 0.0) -> Loudness:
+        chain = master_chain(settings.comp, threshold, gain, ceiling_db, rate, offset, trim)
         return await measure(inputs, graph, chain, rate)
 
     no_gain = settings.target is None or level is None
@@ -479,9 +470,7 @@ async def run_plan(
     post = await run(gain)
     if not no_gain:
         gain, post = await _settle_gain(gain, post, settings.target, run)
-    trim = ceiling_trim(post.tp, ceiling_db)
-    if trim:
-        post = await run(gain, trim)
+    gain, offset, trim, post = await hold_ceiling(gain, post, settings.target, ceiling_db, run)
     return MasterPlan(
         target=settings.target,
         ceiling=ceiling_db,
@@ -492,5 +481,6 @@ async def run_plan(
         gain_db=gain,
         post=post,
         reached=target_reached(settings.target, ceiling_db, post),
+        limit_offset_db=offset,
         trim_db=trim,
     )

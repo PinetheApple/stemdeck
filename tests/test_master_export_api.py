@@ -30,7 +30,8 @@ from app.api import export_fx, mixdown_loudness
 from app.api import stems as stems_mod
 from app.core.config import (
     EXPORT_LIMIT_LOSSY_DBTP,
-    MASTER_LOSSY_RETRIES,
+    MASTER_CEILING_RETRIES,
+    MASTER_CORRECTION_TOL_LU,
     MASTER_PARAM_MAX_CHARS,
     ffmpeg_executable,
 )
@@ -360,30 +361,40 @@ async def test_stems_and_bundles_never_take_a_master(jobs_dir, client, monkeypat
                 assert mastered.content == plain.content, url
 
 
-HOT_QUERY = "stems=vocals,bass,drums&gains=0.15,0.15,0.12"
+BURST_STEMS = "stems=vocals,bass,drums"
+HOT_GAINS = "gains=0.15,0.15,0.15"
+NORMAL_GAINS = "gains=1,1,1"
+LOUDER = encode_master_param(MasterSettings(-9.0, -1.0))
 BURST_EVERY_SEC = 0.5
 BURST_SEC = 0.05
+BURST_SECONDS = 4.0
+LUFS_READ_SLACK = 0.1
 
 
-def _hot_job(jobs_dir: Path, seconds: float = 4.0) -> None:
-    """A tone, a low sine and noise bursts: at +16 dB the bursts drive the
-    limiter hard enough that its way back from 4x overshoots the ceiling."""
-    _job(jobs_dir, seconds)
-    n = int(SR * seconds)
-    t = np.arange(n) / SR
+def _burst_job(jobs_dir: Path) -> None:
+    """Tone, low sine and noise bursts: mastered to -9 LUFS they overshoot in-graph."""
+    _job(jobs_dir, BURST_SECONDS)
+    t = np.arange(int(SR * BURST_SECONDS)) / SR
     rng = np.random.default_rng(7)
-    bursts = 0.3 * rng.standard_normal(n) * (np.mod(t, BURST_EVERY_SEC) < BURST_SEC)
-    low = 0.2 * np.sin(2 * np.pi * 55 * t)
-    stems = jobs_dir / JOB / "stems"
-    for name, x in (("bass", low), ("drums", bursts)):
-        sf.write(stems / f"{name}.wav", np.stack([x, x], 1), SR, subtype="PCM_16")
+    lanes = {
+        "vocals": 0.15 * np.sin(2 * np.pi * 330 * t) * (0.5 + 0.5 * np.sin(2 * np.pi * 0.25 * t)),
+        "bass": 0.2 * np.sin(2 * np.pi * 55 * t),
+        "drums": 0.3 * rng.standard_normal(t.size) * (np.mod(t, BURST_EVERY_SEC) < BURST_SEC),
+    }
+    for name, x in lanes.items():
+        sf.write(
+            jobs_dir / JOB / "stems" / f"{name}.wav", np.stack([x, x], 1), SR, subtype="PCM_16"
+        )
+    _real_video(jobs_dir, BURST_SECONDS)
 
 
+LIMIT_RE = re.compile(r"alimiter=limit=([\d.]+)")
+LUFS_RE = re.compile(r"I:\s+(-?[\d.]+) LUFS")
 PEAK_RE = re.compile(r"Peak:\s+(-?[\d.]+|-inf) dBFS")
 
 
-def _true_peak(path: Path) -> float:
-    """Decoded true peak, measured by ffmpeg itself rather than the code under test."""
+def _summary(path: Path) -> tuple[float, float]:
+    """Decoded loudness and true peak, by ffmpeg itself rather than the code under test."""
     err = subprocess.run(
         [ffmpeg_executable(), "-nostdin", "-hide_banner", "-i", str(path)]
         + ["-af", "ebur128=peak=true", "-f", "null", "-"],
@@ -392,7 +403,8 @@ def _true_peak(path: Path) -> float:
         check=True,
         timeout=120,
     ).stderr
-    return float(PEAK_RE.findall(err[err.rfind("Summary:") :])[-1])
+    summary = err[err.rfind("Summary:") :]
+    return float(LUFS_RE.findall(summary)[-1]), float(PEAK_RE.findall(summary)[-1])
 
 
 def _real_video(jobs_dir: Path, seconds: float) -> None:
@@ -413,21 +425,38 @@ HOT_ROUTES = [
 ]
 
 
-@pytest.mark.parametrize(("route", "cap"), HOT_ROUTES)
-async def test_a_hot_master_holds_its_ceiling(jobs_dir, client, tmp_path, route, cap):
-    """+14 dB or more into the limiter: the decoded file stays under the
-    ceiling, or under the lossy cap for mp3, ogg and the video's aac."""
-    skip_without_ffmpeg()
-    _hot_job(jobs_dir)
-    _real_video(jobs_dir, 4.0)
+async def _decoded_export(client, tmp_path: Path, route: str, query: str):
     async with client as c:
-        r = await c.get(f"/api/jobs/{JOB}/{route}?{HOT_QUERY}&master={STREAMING}")
+        r = await c.get(f"/api/jobs/{JOB}/{route}?{query}")
     assert r.status_code == 200, r.text
-    assert float(r.headers["x-stemdeck-master-gain"]) >= 14.0
     out = tmp_path / route
     out.write_bytes(r.content)
-    assert _true_peak(out) <= cap
+    return r, _summary(out)
+
+
+@pytest.mark.parametrize(("route", "cap"), HOT_ROUTES)
+async def test_a_hot_master_holds_its_ceiling(jobs_dir, client, tmp_path, route, cap):
+    """+14 dB into a -9 LUFS master: decoded, under the ceiling or the lossy cap."""
+    skip_without_ffmpeg()
+    _burst_job(jobs_dir)
+    query = f"{BURST_STEMS}&{HOT_GAINS}&master={LOUDER}"
+    r, (_lufs, peak) = await _decoded_export(client, tmp_path, route, query)
+    assert float(r.headers["x-stemdeck-master-gain"]) >= 14.0
+    assert peak <= cap
     assert float(r.headers["x-stemdeck-loudness-post"].split("tp=")[1]) <= cap
+
+
+@pytest.mark.parametrize(("route", "cap"), HOT_ROUTES)
+async def test_a_normal_master_holds_its_ceiling_and_its_loudness(
+    jobs_dir, client, tmp_path, route, cap
+):
+    skip_without_ffmpeg()
+    _burst_job(jobs_dir)
+    query = f"{BURST_STEMS}&{NORMAL_GAINS}&master={STREAMING}"
+    r, (lufs, peak) = await _decoded_export(client, tmp_path, route, query)
+    assert peak <= cap
+    assert abs(lufs - -14.0) <= MASTER_CORRECTION_TOL_LU + LUFS_READ_SLACK
+    assert r.headers["x-stemdeck-target-reached"] == "1"
 
 
 async def test_a_lossy_export_still_over_its_cap_reports_target_not_reached(
@@ -447,10 +476,17 @@ async def test_a_lossy_export_still_over_its_cap_reports_target_not_reached(
     assert r.status_code == 200
     assert r.headers["x-stemdeck-target-reached"] == "0"
     assert r.headers["x-stemdeck-loudness-post"] == "i=-14.00;tp=-0.50"
-    assert len(renders) == 1 + MASTER_LOSSY_RETRIES
+    # Each retry lowers the limit, then one last render adds a trim after it.
+    assert len(renders) == 2 + MASTER_CEILING_RETRIES
     tails = [_graph(cmd).split(";")[-1] for cmd in renders]
-    assert tails[0].endswith(f"aresample={SR}[mix]")
-    assert all(t.endswith("[mix]") and ",volume=" in t.split("alimiter")[1] for t in tails[1:])
+    limits = [float(LIMIT_RE.search(t).group(1)) for t in tails]
+    assert (
+        limits[: 1 + MASTER_CEILING_RETRIES]
+        == sorted(limits, reverse=True)[: 1 + MASTER_CEILING_RETRIES]
+    )
+    assert len(set(limits[: 1 + MASTER_CEILING_RETRIES])) == 1 + MASTER_CEILING_RETRIES
+    assert all(f"aresample={SR}[mix]" in t for t in tails[:-1])
+    assert ",volume=" in tails[-1].split(f"aresample={SR}")[-1]
 
 
 async def test_the_limiter_runs_at_the_export_rate(jobs_dir, client, monkeypatch, renders):

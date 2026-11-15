@@ -38,7 +38,7 @@ from typing import NamedTuple, Protocol, TypeVar
 import soundfile as sf
 from fastapi import HTTPException, Query
 
-from app.core.config import FX_PARAM_MAX_CHARS, MASTER_LOSSY_RETRIES, MASTER_PARAM_MAX_CHARS
+from app.core.config import FX_PARAM_MAX_CHARS, MASTER_CEILING_RETRIES, MASTER_PARAM_MAX_CHARS
 from app.core.settings import DEFAULT_EXPORT_SAMPLE_RATE, get_export_sample_rate
 from app.pipeline import master_plan_cache
 from app.pipeline.fx_filters import (
@@ -50,6 +50,7 @@ from app.pipeline.fx_filters import (
     slot_filter,
     slot_section_count,
 )
+from app.pipeline.master_ceiling import Tries, correction_step, loudness_miss, overshoot_db
 from app.pipeline.master_plan_cache import cached_plan
 from app.pipeline.mastering import (
     LOGGER_NAME,
@@ -59,14 +60,12 @@ from app.pipeline.mastering import (
     MasterPlan,
     MasterSettings,
     MeasureError,
-    ceiling_trim,
     measure_chain,
     parse_master_param,
     plan_chain,
     plan_graph,
     require_master_param,
     target_reached,
-    trim_filter,
 )
 
 logger = logging.getLogger("stemdeck.api")
@@ -132,11 +131,13 @@ class RenderFx(NamedTuple):
 
 class ExportFx(NamedTuple):
     """One export's EQ and master: the filter prefixes, the measured plan
-    (None with no master) and the chain the render runs after the master EQ."""
+    (None with no master), the chain the render runs after the master EQ and
+    the rate that chain limits at."""
 
     render_fx: RenderFx
     plan: MasterPlan | None
     chain: str
+    rate: int
 
     def prefix(self, index: int) -> str:
         return self.render_fx.prefix(index)
@@ -265,9 +266,9 @@ async def prepare_export(
     settings = _as_422(parse_master, master)
     render_fx = await asyncio.to_thread(build_render_fx, lanes, fx_req)
     if settings is None:
-        return ExportFx(render_fx, None, "")
+        return ExportFx(render_fx, None, "", 0)
     plan, rate = await _measured_plan(lanes, render_fx, settings, output_format, pitch_filter)
-    return ExportFx(render_fx, plan, plan_chain(plan, rate))
+    return ExportFx(render_fx, plan, plan_chain(plan, rate), rate)
 
 
 def sum_filter(count: int, tail: str) -> tuple[str | None, str]:
@@ -288,13 +289,12 @@ async def measure_file(path: str, rate: int) -> Loudness:
     return await measure_chain(["-i", path], DECODED_GRAPH, "", rate)
 
 
-def with_output_trim(cmd: list[str], trim_db: float) -> list[str]:
-    """``cmd`` with a level trim at the end of the master chain (before [mix])."""
-    if not trim_db:
+def with_chain(cmd: list[str], chain: str, replacement: str) -> list[str]:
+    """``cmd`` with the master ``chain`` in its filter graph swapped for ``replacement``."""
+    if chain == replacement:
         return cmd
     i = cmd.index(FILTER_COMPLEX) + 1
-    graph = cmd[i].removesuffix(_MIX_LABEL) + f",{trim_filter(trim_db)}{_MIX_LABEL}"
-    return [*cmd[:i], graph, *cmd[i + 1 :]]
+    return [*cmd[:i], cmd[i].replace(chain, replacement, 1), *cmd[i + 1 :]]
 
 
 def _note_path(cache_path: Path) -> Path:
@@ -343,18 +343,29 @@ async def render_verified(
     render: Render,
     cache_path: Path | None = None,
 ) -> tuple[Path, Loudness]:
-    """Render a mastered lossy export, decode it and, while its true peak is
-    over the plan's ceiling, render it again with the output trimmed by the
-    overshoot plus a margin, at most MASTER_LOSSY_RETRIES times. Returns the
-    file (the cache entry, or a temp file the caller removes) and its measurement."""
-    trim = 0.0
-    for attempt in range(MASTER_LOSSY_RETRIES + 1):
-        path = await render(with_output_trim(cmd, trim), suffix, context, cache_path)
+    """Render a mastered lossy export, decode it, and correct it as
+    app/pipeline/master_ceiling.py does in-graph: lower limit, gain following
+    the target, a trim as the last resort. Returns the file (the cache entry,
+    or a temp file the caller removes) and its decoded measurement."""
+    plan = export.plan
+    gain = offset = trim = 0.0
+    tried: Tries = []
+    for attempt in range(MASTER_CEILING_RETRIES + 2):
+        chain = plan_chain(plan, export.rate, offset, trim, gain)
+        path = await render(with_chain(cmd, export.chain, chain), suffix, context, cache_path)
         out = await _decoded(path, context)
-        over = ceiling_trim(out.tp, export.plan.ceiling)
-        if not over or attempt == MASTER_LOSSY_RETRIES:
+        over = overshoot_db(out.tp, plan.ceiling)
+        miss = loudness_miss(plan.target, out) if offset or over else 0.0
+        tried.append((gain, out.i))
+        settled = not over and (not miss or attempt == MASTER_CEILING_RETRIES)
+        if settled or trim:
             break
-        trim += over
+        if attempt < MASTER_CEILING_RETRIES:
+            if over:
+                offset, tried = offset + over, []
+            gain += correction_step(miss, tried)
+        else:
+            trim = over
         if cache_path is None:
             path.unlink(missing_ok=True)
     if over:
