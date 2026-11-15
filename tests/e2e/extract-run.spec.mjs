@@ -143,6 +143,7 @@ test("a failed run tells why in a notification and leaves the song as it was", a
   await expect.poll(() => failureMessages(page)).toEqual([OOM_SENTENCE]);
   await page.locator("#notifBtn").click();
   await expect(page.locator(".daw-notif-card-title").first()).toHaveText("Stems not extracted");
+  await expect(page.locator(".daw-notif-card-desc").first()).toContainText(OOM_SENTENCE);
   await page.keyboard.press("Escape");
   await expect(versionRows(page)).toHaveCount(2);
   await expect.poll(() => lanes(page)).toEqual([...TWO_STEMS].sort());

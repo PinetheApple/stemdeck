@@ -217,7 +217,6 @@ function reportFailed(trackId, view) {
   notifyFailure({
     kind: "extract",
     message: t(failureKey(view.error)),
-    cause: view.error,
     context: { jobId: trackId },
   });
 }
