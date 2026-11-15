@@ -20,11 +20,11 @@ jobs/<job_id>/takes/
     take.json        the sidecar
 ```
 
-The files are the record: nothing about takes is stored on the job. A take is finished once it has `take.json` and `audio.wav`. Until then it is open. Every JSON file is written to a temp file and renamed into place. An audio part is appended only up to the size `parts.json` records, so a retry after a crash never doubles a part.
+The files are the record: nothing about takes is stored on the job. A take is finished once it has `take.json` and `audio.wav`. Until then it is open. Every JSON file is written to a temp file, fsynced and renamed into place; `take.json` is written before `parts.json` records the take as finished. An audio part is appended only up to the size `parts.json` records, so a retry after a crash never doubles a part.
 
 Takes stay out of `stems/`. Stem storage as MP3, the bundle and the stem routes never see them. Deleting a song deletes its takes, the Trash keeps them, and a library move carries them. A song that holds a finished take, an open take with audio, or a take cut off mid-finish is never removed by automatic deletion (`app.core.takes.has_takes`).
 
-A track: `{"id": "k…", "name", "kind": "audio" | "video", "order", "created_at", "active_take_id", "input": {"device_id", "device_label", "channels": [0] | [0, 1]} | null}`. `kind: "video"` is stored for video takes, which are not built yet.
+A track: `{"id": "k…", "name", "order", "created_at", "active_take_id", "input": {"device_id", "device_label", "channels": [0] | [0, 1]} | null}`.
 
 `take.json`, version 1:
 
@@ -54,19 +54,19 @@ Every route answers 404 unless the song exists, has finished separating, and is 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/jobs/{id}/takes` | `{tracks, takes, open}`. `takes` are finished takes as lane entries, oldest first. `open` are takes still recording or left behind: `{id, track_id, label, created_at, updated_at, bytes, recoverable}`. `recoverable` is true once the take has been idle for 60 s; finish keeps what arrived |
-| POST | `/api/jobs/{id}/tracks` | `{name?, kind?, input?}` → the track (201); "Track N" by default. 409 past 32 tracks |
-| PATCH | `/api/jobs/{id}/tracks/{track_id}` | Any of `name`, `kind`, `input` (null clears it), `active_take_id` (a finished take of this track, else 422), `order` → the track |
+| POST | `/api/jobs/{id}/tracks` | `{name?, input?}` → the track (201); "Track N" by default. 409 past 32 tracks |
+| PATCH | `/api/jobs/{id}/tracks/{track_id}` | Any of `name`, `input` (null clears it), `active_take_id` (a finished take of this track, else 422), `order` → the track |
 | DELETE | `/api/jobs/{id}/tracks/{track_id}` | The track and every take on it → `{track_id, status: "deleted", takes_deleted}` |
 | POST | `/api/jobs/{id}/takes` | `{track_id, label?, timeline, latency, capture}` → `{take_id, label, track_id}` (201). 422 for an unknown track or a tempo other than 1. 409 past 50 takes |
-| PUT | `/api/jobs/{id}/takes/{take_id}/parts/audio?seq=n` | One part, `application/octet-stream`, whole sample frames, at most 4 MiB. `seq` starts at 0 and must be the next one (else 409); resending the last one is a no-op (`duplicate: true`). 413 for a part or take that is too large → `{take_id, kind, seq, bytes, duplicate}` |
-| GET | `/api/jobs/{id}/takes/{take_id}/parts` | `{audio: {next_seq, bytes}, finished}`, to resume after a 409 or a reload |
+| PUT | `/api/jobs/{id}/takes/{take_id}/parts?seq=n` | One part, `application/octet-stream`, whole sample frames, at most 4 MiB. `seq` starts at 0 and must be the next one (else 409); resending the last one is a no-op (`duplicate: true`). 413 for a part or take that is too large → `{take_id, seq, bytes, duplicate}` |
+| GET | `/api/jobs/{id}/takes/{take_id}/parts` | `{audio: {next_seq, bytes}, finished}`, to resume after a 409 or a reload. A take with `take.json` reads finished |
 | POST | `/api/jobs/{id}/takes/{take_id}/finish` | `{label?, end_song_sec?, dropped_quanta?}` → the lane entry; the take becomes its track's active take. 409 once finished or when its track was deleted; 422 without audio |
 | PATCH | `/api/jobs/{id}/takes/{take_id}` | Any of `label`, `round_trip_ms`, `user_nudge_ms` → the lane entry. A timing change re-renders the lane. 409 for an open take |
 | DELETE | `/api/jobs/{id}/takes/{take_id}` | Open or finished → `{take_id, status: "deleted"}`; the track falls back to its newest remaining take |
-| GET, HEAD | `/api/jobs/{id}/takes/{take_id}/audio.wav` | The lane, with Range support |
+| GET, HEAD | `/api/jobs/{id}/takes/{take_id}/audio.wav` | The lane, with Range support, downloaded as `<song>_<label>.wav` |
 | GET | `/api/jobs/{id}/takes/{take_id}/peaks` | The lane's waveform peaks |
 
-A lane entry: `{id, track_id, label, created_at, duration_sec, placement_sec, round_trip_ms, latency_source, user_nudge_ms, url, peaks_url, has_camera, camera_url}`.
+A lane entry: `{id, track_id, label, created_at, duration_sec, placement_sec, round_trip_ms, latency_source, user_nudge_ms, url, peaks_url}`.
 
 ## Exports
 
