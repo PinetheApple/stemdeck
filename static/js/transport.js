@@ -551,10 +551,13 @@ function _armCountIn(eng, startPos) {
 function _unlightIfNotStarted(eng, start) {
   start.then(
     function unlightUnlessPlaying(started) {
-      if (!started && audioEngine === eng && !eng.isPlaying()) playBtn.classList.remove("playing");
+      if (started || audioEngine !== eng || eng.isPlaying()) return;
+      playBtn.classList.remove("playing");
+      pauseMediaAnchor();
     },
     function warnPlayFailed(err) {
       console.warn("[transport] play failed:", err);
+      pauseMediaAnchor();
     },
   );
 }
