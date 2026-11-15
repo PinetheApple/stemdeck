@@ -113,6 +113,21 @@ STEM_NAMES: tuple[str, ...] = ("vocals", "drums", "bass", "guitar", "piano", "ot
 EXTRA_STEM_NAMES: tuple[str, ...] = ("lead_vocals", "backing_vocals")
 # Rendered beside the stems: the source re-encoded, and the picked stems mixed.
 RENDERED_TRACK_NAMES: tuple[str, ...] = ("original", "mix")
+CLICK_SOUNDS_TABLE = STATIC_DIR / "js" / "clickSounds.js"
+CLICK_SOUND_ID_MAX_CHARS = 32
+CLICK_STEM_NAME = "click"
+CLICK_MULT_DEFAULT = 1.0
+CLICK_GAIN_DEFAULT = 0.6
+CLICK_GAIN_MAX = 4.0
+CLICK_GROUPS_MAX_CHARS = 64
+# One table for the mix export and the stems zip, so a format encodes alike in both;
+# Vorbis q6 is the ~190 kbps tier that matches MP3 V2.
+EXPORT_ENCODE_ARGS: dict[str, list[str]] = {
+    "wav": ["-c:a", "pcm_s16le"],
+    "mp3": ["-q:a", "2"],
+    "flac": ["-c:a", "flac"],
+    "ogg": ["-c:a", "libvorbis", "-q:a", "6"],
+}
 # \Z, not $: $ also accepts a trailing newline.
 JOB_ID_RE = re.compile(r"^[a-f0-9]{12}\Z")
 # The file types an upload may be. A job keeps its upload as source<ext>.

@@ -17,6 +17,9 @@
 // clock, which is sample-accurate. Late or jittery wake-ups cost scheduling
 // headroom, never accuracy.
 
+import { LEVEL_DOWNBEAT, LEVEL_WEAK, levelAt } from "./clickAccents.js";
+import { DEFAULT_CLICK_SOUND, normaliseClickSound, renderVoice } from "./clickSounds.js";
+
 // How far ahead clicks are handed to the audio clock, and how often we wake to
 // do it. The gap between them is the jitter budget for the timer: a wake-up up
 // to ~200 ms late still schedules on time. Background tabs throttle timers to
@@ -24,80 +27,11 @@
 const LOOKAHEAD_SEC = 0.25;
 const TICK_MS = 50;
 
-// Click voice. Two sine partials give the tick some body without a sample
-// file; the short exponential decay keeps the transient tight so it reads as
-// percussive rather than tonal.
-const CLICK_FREQ = 1000;
-// Group starts sit between the downbeat and a plain beat in pitch and level, so
-// a grouped bar reads as strong/medium/weak rather than as identical accents
-// (#595). Geometric middle of the two: the ear hears pitch ratios, so the
-// midpoint of 1000 and 1500 is 1225, not 1250. Mirrored in click_render.py.
-const GROUP_FREQ = 1225;
-const ACCENT_FREQ = 1500;
-const CLICK_DECAY = 0.035;
-const CLICK_ATTACK = 0.001;
+// A click due sooner than this keeps its voice on a sound change: it may already
+// be sounding, and stopping it mid-voice pops.
+const REVOICE_MARGIN_SEC = 0.02;
 
-// Click strength at one beat. click_render.py defines the same three.
-export const LEVEL_WEAK = 0;
-export const LEVEL_GROUP = 1;
-export const LEVEL_DOWNBEAT = 2;
-
-/**
- * How a bar of `beatsPerBar` divides when the user has not said.
- *
- * Mirror of default_grouping() in app/pipeline/click_render.py -- keep both in
- * step. 2, 3 and 4 deliberately return one group so they sound exactly as they
- * did; 4/4's real secondary stress on beat 3 is a choice for the user, not a
- * default that changes the commonest meter for everyone.
- * @param {number} beatsPerBar
- * @returns {number[]}
- */
-export function defaultGrouping(beatsPerBar) {
-  if (!Number.isInteger(beatsPerBar) || beatsPerBar < 1) return [];
-  if (beatsPerBar === 5 || beatsPerBar === 7) {
-    // Long group first: Take Five is 3+2, and 7/8 is more often 3+2+2.
-    return [3, ...Array((beatsPerBar - 3) >> 1).fill(2)];
-  }
-  // Compound: 6, 9 and 12 are felt in dotted-quarter groups of three.
-  if (beatsPerBar >= 6 && beatsPerBar % 3 === 0) return Array(beatsPerBar / 3).fill(3);
-  return [beatsPerBar];
-}
-
-/**
- * A grouping safe to index a bar with, or the default. Anything that is not a
- * list of positive integers summing to the bar length is rejected wholesale
- * rather than repaired: a half-understood grouping would accent beats the user
- * never asked for, so falling back to the default is the honest failure.
- * @param {number[]|null|undefined} groups
- * @param {number} beatsPerBar
- * @returns {number[]}
- */
-export function normaliseGrouping(groups, beatsPerBar) {
-  if (!Number.isInteger(beatsPerBar) || beatsPerBar < 1) return [];
-  if (!Array.isArray(groups) || !groups.length) return defaultGrouping(beatsPerBar);
-  if (!groups.every((g) => Number.isInteger(g) && g >= 1)) return defaultGrouping(beatsPerBar);
-  if (groups.reduce((a, b) => a + b, 0) !== beatsPerBar) return defaultGrouping(beatsPerBar);
-  return groups.slice();
-}
-
-/** Beat offsets inside a bar that start a group, excluding the downbeat. */
-export function groupOffsets(groups) {
-  const out = new Set();
-  let at = 0;
-  for (let i = 0; i < groups.length - 1; i++) {
-    at += groups[i];
-    out.add(at);
-  }
-  return out;
-}
-
-/** The click level for a beat `offset` into a bar of `beatsPerBar`. */
-export function levelAt(offset, beatsPerBar, groups) {
-  if (offset === 0) return LEVEL_DOWNBEAT;
-  return groupOffsets(normaliseGrouping(groups, beatsPerBar)).has(offset)
-    ? LEVEL_GROUP
-    : LEVEL_WEAK;
-}
+export const DEFAULT_CLICK_VOLUME = 0.6;
 
 export const OVERRIDE_OFF = "off";
 export const OVERRIDE_LENGTH = "length";
@@ -114,102 +48,18 @@ export function accentOverride(accentMode, bars) {
   return bars.length === 1 && bars[0].beats_per_bar !== accentMode ? OVERRIDE_LENGTH : OVERRIDE_UNALIGNED;
 }
 
-// ─── Count-in (issue #269) ───────────────────────────────────────────────
-//
-// A count-in is one bar of click *before* playback, leading into the start
-// position. The maths below is a literal mirror of count_in_beats() in
-// app/pipeline/click_render.py so the live count-in and the exported one agree
-// beat-for-beat -- the same parity discipline that pins the click voice across
-// the two files. Kept pure and module-level so it can be unit-tested and reused
-// by the export URL builder without a live AudioContext.
-
-function _rescaleForCount(beats, mult) {
-  if (mult === 2) {
-    const out = [];
-    for (let i = 0; i < beats.length - 1; i++) out.push(beats[i], (beats[i] + beats[i + 1]) / 2);
-    if (beats.length) out.push(beats[beats.length - 1]);
-    return out;
-  }
-  if (mult === 0.5) return beats.filter((_, i) => i % 2 === 0);
-  return beats.slice();
-}
-
-function _countInBeatsPerBar(bars, accentMode, startIndex) {
-  if (accentMode > 0) return accentMode;
-  // Auto / off: the detected meter in force at the start beat, else 4. A
-  // count-in always needs a bar length, even with accents switched off.
-  let mark = null;
-  for (const b of bars) {
-    if (Number.isInteger(b.beat) && b.beat <= startIndex) mark = b;
-    else break;
-  }
-  if (mark && Number.isInteger(mark.beats_per_bar) && mark.beats_per_bar >= 1) {
-    return mark.beats_per_bar;
-  }
-  return 4;
-}
-
-function _intervalNear(grid, start, span) {
-  if (grid.length < 2) return null;
-  let i = 0;
-  while (i < grid.length && grid[i] < start) i++;
-  i = Math.min(i, grid.length - 2);
-  const diffs = [];
-  for (let k = i; k < Math.min(i + Math.max(1, span), grid.length - 1); k++) {
-    const d = grid[k + 1] - grid[k];
-    if (d > 0) diffs.push(d);
-  }
-  if (!diffs.length) return null;
-  diffs.sort((a, b) => a - b);
-  return diffs[diffs.length >> 1];
-}
-
-/**
- * The count-in that leads into playback at `start`.
- * @returns {{leadIn:number, clicks:{offset:number, level:number, accent:boolean}[]}}
- *   `leadIn` seconds of pre-roll, and clicks at offsets in `[0, leadIn)`.
- *   `level` is LEVEL_WEAK/GROUP/DOWNBEAT; `accent` stays as the downbeat-only
- *   boolean so callers that only care about "is this the 1" keep working.
- */
-export function computeCountIn(
-  beats,
-  bars,
-  { countBars = 1, multiplier = 1, accentMode = -1, start = 0, groups = null } = {},
-) {
-  if (countBars < 1) return { leadIn: 0, clicks: [] };
-  const clean = Array.isArray(beats) ? beats.filter((b) => Number.isFinite(b)) : [];
-  const grid = _rescaleForCount(clean, multiplier);
-  let startIndex = 0;
-  for (let k = 0; k < clean.length; k++) {
-    if (clean[k] <= start) startIndex = k;
-    else break;
-  }
-  const bpb = _countInBeatsPerBar(Array.isArray(bars) ? bars : [], accentMode, startIndex);
-  const interval = _intervalNear(grid, start, bpb);
-  if (interval === null) return { leadIn: 0, clicks: [] };
-  const n = countBars * bpb;
-  // The count-in is its own run of bars, so the grouping comes from bpb rather
-  // than from the bar marks: there is no detected bar in front of the audio.
-  // A user grouping only applies to an explicit meter, matching count_in_beats.
-  const barGroups = accentMode > 0 ? normaliseGrouping(groups, bpb) : defaultGrouping(bpb);
-  const starts = groupOffsets(barGroups);
-  const clicks = [];
-  for (let j = 0; j < n; j++) {
-    const offset = j % bpb;
-    const level = offset === 0 ? LEVEL_DOWNBEAT : starts.has(offset) ? LEVEL_GROUP : LEVEL_WEAK;
-    clicks.push({ offset: j * interval, level, accent: offset === 0 });
-  }
-  return { leadIn: n * interval, clicks };
-}
-
 /**
  * @param {object} engine        Audio engine exposing sourceTimeToCtxTime,
  *                               ctxTimeToSourceTime, getScheduleEpoch,
  *                               isClockReady, getMasterNode, audioContext.
  * @param {number[]} beats       Ascending beat times in seconds.
- * @param {{volume?:number, beatsPerBar?:number}} opts
+ * @param {{volume?:number, beatsPerBar?:number, sound?:string}} opts
  */
-export function createMetronome(engine, beats, { volume = 0.6, beatsPerBar = 0 } = {}) {
+export function createMetronome(
+  engine,
+  beats,
+  { volume = DEFAULT_CLICK_VOLUME, beatsPerBar = 0, sound = DEFAULT_CLICK_SOUND } = {},
+) {
   const ctx = engine?.audioContext;
   const master = engine?.getMasterNode?.();
   if (!ctx || !master
@@ -275,19 +125,22 @@ export function createMetronome(engine, beats, { volume = 0.6, beatsPerBar = 0 }
   let destroyed = false;
   let timerId = null;
   let _beatsPerBar = beatsPerBar;
+  let _sound = normaliseClickSound(sound);
+  // Rendered voices by `${sound}|${level}`, at this context's rate.
+  const _voices = new Map();
 
   // Index of the next beat to schedule, and the epoch that index belongs to.
   // A mismatch means the engine seeked/looped/changed rate under us and both
   // the cursor and every queued click are stale.
   let cursor = 0;
   let epoch = -1;
-  /** @type {{osc:OscillatorNode, env:GainNode}[]} */
+  /** @type {{src:AudioBufferSourceNode, when:number, level:number}[]} */
   let queued = [];
   // Count-in one-shots are tracked separately from the running click's `queued`:
   // they are scheduled outside the _tick loop (which may not even be running when
   // the click track is off) and must survive until they sound or the transport
   // cancels them. See playCountIn / cancelCountIn.
-  /** @type {{osc:OscillatorNode, env:GainNode}[]} */
+  /** @type {{src:AudioBufferSourceNode, when:number, level:number}[]} */
   let countInQueued = [];
 
   // First beat at or after `t`. Binary search rather than a scan: tracks run to
@@ -303,20 +156,43 @@ export function createMetronome(engine, beats, { volume = 0.6, beatsPerBar = 0 }
     return lo;
   }
 
+  function _release(src) {
+    try { src.stop(); } catch { /* already stopped */ }
+    try { src.disconnect(); } catch { /* noop */ }
+  }
+
   function _cancelQueued() {
-    for (const { osc, env } of queued) {
-      try { osc.stop(); } catch { /* already stopped */ }
-      try { env.disconnect(); } catch { /* noop */ }
-    }
+    for (const { src } of queued) _release(src);
     queued = [];
   }
 
   function _cancelCountIn() {
-    for (const { osc, env } of countInQueued) {
-      try { osc.stop(); } catch { /* already stopped */ }
-      try { env.disconnect(); } catch { /* noop */ }
-    }
+    for (const { src } of countInQueued) _release(src);
     countInQueued = [];
+  }
+
+  function _voice(level) {
+    const key = `${_sound}|${level}`;
+    let buf = _voices.get(key);
+    if (!buf) {
+      const samples = Float32Array.from(renderVoice(_sound, level, ctx.sampleRate));
+      buf = ctx.createBuffer(1, samples.length, ctx.sampleRate);
+      buf.copyToChannel(samples, 0);
+      _voices.set(key, buf);
+    }
+    return buf;
+  }
+
+  // Swap the voice of every click in `sink` not due yet: the old source stops
+  // before it starts (silent) and a new one takes its exact time.
+  function _revoice(sink) {
+    const cutoff = ctx.currentTime + REVOICE_MARGIN_SEC;
+    for (const entry of sink.slice()) {
+      if (entry.when <= cutoff) continue;
+      sink.splice(sink.indexOf(entry), 1);
+      _release(entry.src);
+      _scheduleClick(entry.when, entry.level, sink);
+    }
   }
 
   // Schedule one click to sound at AudioContext time `when`. `sink` is the list
@@ -325,31 +201,15 @@ export function createMetronome(engine, beats, { volume = 0.6, beatsPerBar = 0 }
   function _scheduleClick(when, level, sink = queued) {
     // Booleans still arrive from callers that only distinguish the downbeat.
     const lv = level === true ? LEVEL_DOWNBEAT : level === false ? LEVEL_WEAK : Number(level) || 0;
-    const osc = ctx.createOscillator();
-    const env = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.value =
-      lv === LEVEL_DOWNBEAT ? ACCENT_FREQ : lv === LEVEL_GROUP ? GROUP_FREQ : CLICK_FREQ;
+    const src = ctx.createBufferSource();
+    src.buffer = _voice(lv);
+    src.connect(gain);
+    src.start(when);
 
-    // Ramp from near-silence rather than 0: setValueAtTime(0) followed by an
-    // exponential ramp is a no-op in the spec (exponential ramps cannot start
-    // at zero), which would leave the click at full level and click twice.
-    env.gain.setValueAtTime(0.0001, when);
-    env.gain.exponentialRampToValueAtTime(
-      lv === LEVEL_DOWNBEAT ? 1.0 : lv === LEVEL_GROUP ? 0.85 : 0.7,
-      when + CLICK_ATTACK,
-    );
-    env.gain.exponentialRampToValueAtTime(0.0001, when + CLICK_DECAY);
-
-    osc.connect(env);
-    env.connect(gain);
-    osc.start(when);
-    osc.stop(when + CLICK_DECAY + 0.01);
-
-    const entry = { osc, env };
+    const entry = { src, when, level: lv };
     sink.push(entry);
-    osc.onended = () => {
-      try { env.disconnect(); } catch { /* noop */ }
+    src.onended = () => {
+      try { src.disconnect(); } catch { /* noop */ }
       const i = sink.indexOf(entry);
       if (i >= 0) sink.splice(i, 1);
     };
@@ -436,6 +296,15 @@ export function createMetronome(engine, beats, { volume = 0.6, beatsPerBar = 0 }
       else _stop();
     },
     isEnabled: () => enabled,
+    setSound(id) {
+      const next = normaliseClickSound(id);
+      if (destroyed || next === _sound) return;
+      _sound = next;
+      _revoice(queued);
+      _revoice(countInQueued);
+    },
+    /** Clicks handed to the audio clock and not yet ended (tests, leak checks). */
+    pendingCount: () => queued.length + countInQueued.length,
     setVolume(v) {
       if (destroyed) return;
       gain.gain.setTargetAtTime(Math.max(0, v), ctx.currentTime, 0.01);
@@ -521,6 +390,7 @@ export function createMetronome(engine, beats, { volume = 0.6, beatsPerBar = 0 }
       destroyed = true;
       _stop();
       _cancelCountIn();
+      _voices.clear();
       try { gain.disconnect(); } catch { /* noop */ }
     },
   };

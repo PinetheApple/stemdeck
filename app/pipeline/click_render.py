@@ -1,15 +1,16 @@
 """Render the click track to audio so it can be included in exports.
 
-Playback synthesises the click in the browser with Web Audio oscillators, which
-never reach the server -- the export path is ffmpeg summing stem WAVs. This
-module produces an equivalent WAV so the click can be mixed in as one more
-ffmpeg input.
+Playback synthesises the click in the browser with Web Audio, which never
+reaches the server -- the export path is ffmpeg summing stem WAVs. This module
+produces an equivalent WAV so the click can be mixed in as one more ffmpeg
+input, or shipped as its own file in the stems zip.
 
-The voice is reproduced from `static/js/metronome.js` deliberately literally,
-including its exponential gain ramps, because an export that sounds different
-from what the user monitored is worse than no export option at all. The two
-implementations are pinned together by `tests/test_click_render.py`, which
-asserts the rendered peaks land on the same beats the scheduler would use.
+The voices come from the click-sound presets (`click_sounds.py`, defined once
+in static/js/clickSounds.js), synthesised by the same formulas the browser
+uses, because an export that sounds different from what the user monitored is
+worse than no export option at all. The timing is pinned by
+`tests/test_click_render.py`, which asserts the rendered peaks land on the same
+beats the scheduler would use; the sound by tests/test_click_sounds.py.
 """
 
 from __future__ import annotations
@@ -20,10 +21,12 @@ import uuid
 import wave
 from pathlib import Path
 
+from app.pipeline.click_sounds import DEFAULT_CLICK_SOUND, render_voice
+
 logger = logging.getLogger("stemdeck.clickrender")
 
-# Mirrors the constants at the top of static/js/metronome.js. Changing either
-# side without the other makes exports diverge from playback.
+# The Classic preset's voice; tests/test_click_sounds.py pins the "classic"
+# entry of static/js/clickSounds.js to these numbers.
 CLICK_FREQ = 1000.0
 # Group starts sit between the downbeat and a plain beat in both pitch and
 # level, so a grouped bar reads as "strong, medium, weak" rather than as three
@@ -37,7 +40,7 @@ CLICK_PEAK = 0.7
 GROUP_PEAK = 0.85
 ACCENT_PEAK = 1.0
 
-# Click strength at one beat. The renderer and static/js/metronome.js must agree
+# Click strength at one beat. The renderer and static/js/clickAccents.js must agree
 # on these three, or a monitored click and an exported one differ.
 LEVEL_WEAK = 0
 LEVEL_GROUP = 1
@@ -52,6 +55,10 @@ ACCENT_OFF = 0
 
 _VALID_MULTIPLIERS = (0.5, 1.0, 2.0)
 
+# Web Audio up-mixes the mono click as L = R = M; amix's default mono-to-stereo
+# matrix would put it 3 dB lower on each channel.
+CLICK_TO_STEREO = "pan=stereo|c0=c0|c1=c0"
+
 
 def default_grouping(beats_per_bar: int) -> list[int]:
     """How a bar of `beats_per_bar` divides, when the user has not said.
@@ -65,7 +72,7 @@ def default_grouping(beats_per_bar: int) -> list[int]:
     turning that on by default would change the most common meter in the app for
     every existing user, which is a decision for them and not a default.
 
-    Mirrored by defaultGrouping() in static/js/metronome.js -- keep both in step.
+    Mirrored by defaultGrouping() in static/js/clickAccents.js -- keep both in step.
     """
     if beats_per_bar < 1:
         return []
@@ -271,7 +278,7 @@ def count_in_beats(
     a player into 7/8 gives them the 3+2+2 pulse they are about to play rather
     than seven flat clicks.
 
-    Pure and side-effect free so playback (metronome.js) and export
+    Pure and side-effect free so playback (countIn.js) and export
     (render_click_wav) can share one definition -- pinned by
     tests/test_click_render.py, exactly like rescale/source_index/is_downbeat.
     """
@@ -310,22 +317,6 @@ def count_in_beats(
     return lead_in, clicks
 
 
-def _voice(peak: float, freq: float, sample_rate: int):
-    """One click as a float array: a sine under the scheduler's two exponential
-    gain ramps (RAMP_FLOOR -> peak over the attack, then back down over the rest
-    of the decay). Phase starts at zero, exactly as a fresh OscillatorNode."""
-    import numpy as np
-
-    n = int(round(CLICK_DECAY * sample_rate))
-    t = np.arange(n) / sample_rate
-    attack = t <= CLICK_ATTACK
-    env = np.empty(n)
-    env[attack] = RAMP_FLOOR * (peak / RAMP_FLOOR) ** (t[attack] / CLICK_ATTACK)
-    span = CLICK_DECAY - CLICK_ATTACK
-    env[~attack] = peak * (RAMP_FLOOR / peak) ** ((t[~attack] - CLICK_ATTACK) / span)
-    return np.sin(2.0 * np.pi * freq * t) * env
-
-
 def cache_key(
     job_id: str,
     beats: list[float],
@@ -339,6 +330,7 @@ def cache_key(
     start: float | None = None,
     end: float | None = None,
     groups: list[int] | None = None,
+    sound: str = DEFAULT_CLICK_SOUND,
 ) -> str:
     """Every input to the render is in the key. Beats are included by digest
     rather than by job id alone: an edited grid must not hit a cache entry
@@ -363,6 +355,9 @@ def cache_key(
     if count_in_bars > 0:
         seg = f"{'' if start is None else f'{start:.3f}'}:{'' if end is None else f'{end:.3f}'}"
         raw += f"|ci{count_in_bars}|clk{int(include_click)}|{seg}"
+    # Only a non-default sound enters the key, so a Classic export keeps its cached render.
+    if sound != DEFAULT_CLICK_SOUND:
+        raw += f"|s{sound}"
     return hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
@@ -384,12 +379,18 @@ def _song_click_events(
 
 
 def _render_events(
-    dest: Path, events: list[tuple[float, int]], duration: float, sample_rate: int
+    dest: Path,
+    events: list[tuple[float, int]],
+    duration: float,
+    sample_rate: int,
+    sound: str = DEFAULT_CLICK_SOUND,
+    frames: int | None = None,
 ) -> Path | None:
     """Stamp a list of (time, level) clicks into a mono WAV of `duration`
-    seconds. The single place clicks become audio, so playback parity only has
-    to be maintained against the three voices, not against two render paths."""
-    total = int(round(duration * sample_rate))
+    seconds, or of exactly `frames` samples when given. The single place clicks
+    become audio, so playback parity only has to be maintained against the
+    preset voices (click_sounds.py), not against several render paths."""
+    total = int(frames) if frames is not None else int(round(duration * sample_rate))
     if not events or total <= 0:
         return None
 
@@ -402,9 +403,8 @@ def _render_events(
     buf = np.zeros(total, dtype=np.float32)
     # Only three distinct voices, so render each once and stamp it in.
     voices = {
-        LEVEL_WEAK: _voice(CLICK_PEAK, CLICK_FREQ, sample_rate),
-        LEVEL_GROUP: _voice(GROUP_PEAK, GROUP_FREQ, sample_rate),
-        LEVEL_DOWNBEAT: _voice(ACCENT_PEAK, ACCENT_FREQ, sample_rate),
+        level: render_voice(sound, level, sample_rate)
+        for level in (LEVEL_WEAK, LEVEL_GROUP, LEVEL_DOWNBEAT)
     }
 
     for t, level in events:
@@ -445,8 +445,14 @@ def render_click_wav(
     multiplier: float = 1.0,
     accent_mode: int = ACCENT_AUTO,
     groups: list[int] | None = None,
+    sound: str = DEFAULT_CLICK_SOUND,
+    frames: int | None = None,
 ) -> Path | None:
     """Write a mono WAV of the click track spanning the whole track.
+
+    `frames` fixes the length in samples instead of `duration`: the stems zip
+    passes the stems' own length so the click file matches them sample for
+    sample.
 
     Full length regardless of where the beats start, so the export's region trim
     (`-ss` before every ffmpeg input) lines the click up with the stems without
@@ -456,7 +462,7 @@ def render_click_wav(
     if multiplier not in _VALID_MULTIPLIERS:
         multiplier = 1.0
     events = _song_click_events(beats, bars, multiplier, accent_mode, groups)
-    out = _render_events(dest, events, duration, sample_rate)
+    out = _render_events(dest, events, duration, sample_rate, sound, frames)
     if out is not None:
         logger.info("click render: %d beats, %.1f s -> %s", len(events), duration, dest.name)
     return out
@@ -475,6 +481,7 @@ def render_count_in_wav(
     start: float = 0.0,
     end: float | None = None,
     groups: list[int] | None = None,
+    sound: str = DEFAULT_CLICK_SOUND,
 ) -> tuple[Path, float] | None:
     """Render the click WAV for a count-in export, in *output* coordinates.
 
@@ -500,7 +507,7 @@ def render_count_in_wav(
             if seg_start <= t < seg_end:
                 events.append((t - seg_start + lead_in, level))
 
-    out = _render_events(dest, events, lead_in + seg_len, sample_rate)
+    out = _render_events(dest, events, lead_in + seg_len, sample_rate, sound)
     if out is None:
         return None
     logger.info("count-in render: %.3f s lead-in, %d clicks -> %s", lead_in, len(events), dest.name)
