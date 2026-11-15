@@ -27,6 +27,10 @@ const LIBRARY_ROWS = "#catalogList :is(.cat-item, .folder-head)";
 const SETLIST_ROWS = "#setlistsList :is(.setlist-head, .setlist-song)";
 const UPNEXT_ROWS = "#upNextList .upnext-row";
 const ACTIVE = /\bactive\b/;
+const UPNEXT_STORE_KEY = "stemdeck.upNext";
+const MOVE_LATER = `Alt+${ROW_KEY.NEXT}`;
+const MOVE_EARLIER = `Alt+${ROW_KEY.PREVIOUS}`;
+const ABOVE_THE_FIRST_ROW = { x: 8, y: 2 };
 
 test.afterEach(async ({ request }) => {
   const res = await request.get("/api/setlists");
@@ -313,18 +317,26 @@ test.describe("setlists", () => {
   });
 });
 
+async function queueBoth(page) {
+  await openLibrary(page);
+  await page.evaluate(
+    (ids) => {
+      for (const id of ids) document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id } }));
+    },
+    [JOB_ID, SIBLING_JOB_ID],
+  );
+  await openInspectorTab(page, "upnext");
+  const rows = page.locator(UPNEXT_ROWS);
+  await expect(rows).toHaveCount(2);
+  return rows;
+}
+
+const queuedIds = (page) => page.locator(UPNEXT_ROWS).evaluateAll((rows) => rows.map((row) => row.dataset.id));
+const storedQueue = (page) => page.evaluate((key) => JSON.parse(localStorage.getItem(key)), UPNEXT_STORE_KEY);
+
 test.describe("Up Next", () => {
   test("Up Next is one Tab stop; Enter plays a row and Right reaches its buttons", async ({ page }) => {
-    await openLibrary(page);
-    await page.evaluate(
-      (ids) => {
-        for (const id of ids) document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id } }));
-      },
-      [JOB_ID, SIBLING_JOB_ID],
-    );
-    await openInspectorTab(page, "upnext");
-    const rows = page.locator(UPNEXT_ROWS);
-    await expect(rows).toHaveCount(2);
+    const rows = await queueBoth(page);
     expect(await rowTabStops(page, UPNEXT_ROWS)).toBe(1);
 
     await rows.first().focus();
@@ -340,5 +352,31 @@ test.describe("Up Next", () => {
     await expect(rows.first()).toBeFocused();
     await page.keyboard.press(ROW_KEY.OPEN);
     await expect(songRow(page, JOB_ID)).toHaveClass(ACTIVE, { timeout: OPEN_TIMEOUT_MS });
+  });
+
+  test("Alt+Up and Alt+Down move the focused row, which keeps focus", async ({ page }) => {
+    const rows = await queueBoth(page);
+    await rows.first().focus();
+    await page.keyboard.press(MOVE_LATER);
+    await expect.poll(() => queuedIds(page)).toEqual([SIBLING_JOB_ID, JOB_ID]);
+    await expect(rows.nth(1)).toBeFocused();
+    await page.keyboard.press(MOVE_LATER);
+    await expect(rows.nth(1)).toBeFocused();
+
+    await page.keyboard.press(ROW_KEY.INTO);
+    await page.keyboard.press(MOVE_EARLIER);
+    await expect.poll(() => queuedIds(page)).toEqual([JOB_ID, SIBLING_JOB_ID]);
+    await expect(rows.first().locator(".upnext-play")).toBeFocused();
+  });
+
+  test("a dragged row moves, and the order survives a reload", async ({ page }) => {
+    const rows = await queueBoth(page);
+    await rows.nth(1).dragTo(rows.first(), { targetPosition: ABOVE_THE_FIRST_ROW });
+    await expect.poll(() => queuedIds(page)).toEqual([SIBLING_JOB_ID, JOB_ID]);
+    await expect.poll(() => storedQueue(page)).toEqual([SIBLING_JOB_ID, JOB_ID]);
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await openInspectorTab(page, "upnext");
+    await expect.poll(() => queuedIds(page)).toEqual([SIBLING_JOB_ID, JOB_ID]);
   });
 });

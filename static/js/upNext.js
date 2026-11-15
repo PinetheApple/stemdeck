@@ -14,15 +14,23 @@ import {
 import { togglePlayPause, stopTransport, transport } from "./transport.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $, fmtTime, storeGet, storeSet } from "./utils.js";
-import { wireRovingRows } from "./rovingRows.js";
+import { ROW_KEY, wireRovingRows } from "./rovingRows.js";
 
 const STORE_KEY = "stemdeck.upNext";
 const UPNEXT_ROW = ".upnext-row";
 const UPNEXT_ROW_ACTIONS = ".upnext-play, .upnext-remove";
+const MOVE_STEP = Object.freeze({ [ROW_KEY.PREVIOUS]: -1, [ROW_KEY.NEXT]: 1 });
+const FRONT = null;
+const DRAGGING_CLASS = "dragging";
+const DROP_BELOW_CLASS = "drop-below";
+const DRAG_EFFECT = "move";
+const DRAG_PAYLOAD_TYPE = "text/plain";
+const ROW_MIDPOINT = 0.5;
 
 let queue = [];
 let pendingAutoplay = null;
 let upNextRows = null;
+let draggedId = null;
 
 async function readStoredQueue() {
   const stored = await storeGet(STORE_KEY, []);
@@ -63,6 +71,24 @@ function clearUpNext() {
   queue = [];
   persist();
   renderUpNext();
+}
+
+/** Put `trackId` right after `anchorId` in the queue, or first for FRONT. */
+function moveInUpNext(trackId, anchorId) {
+  const rest = queue.filter((id) => id !== trackId);
+  rest.splice(anchorId === FRONT ? 0 : rest.indexOf(anchorId) + 1, 0, trackId);
+  queue = rest;
+  persist();
+  renderUpNext();
+}
+
+/** The song `trackId` goes after when moved `step` rows, FRONT, or undefined past either end. */
+function anchorForStep(ids, trackId, step) {
+  const from = ids.indexOf(trackId);
+  const to = from + step;
+  if (from < 0 || to < 0 || to >= ids.length) return undefined;
+  const others = ids.filter((id) => id !== trackId);
+  return to === 0 ? FRONT : others[to - 1];
 }
 
 /** Open a queued song and start it; everything queued before it is skipped. */
@@ -152,6 +178,7 @@ function queueRow(trackId, position) {
   const li = document.createElement("li");
   li.className = "upnext-row";
   li.dataset.id = trackId;
+  li.draggable = true;
 
   const play = document.createElement("button");
   play.type = "button";
@@ -238,9 +265,78 @@ function playUpNextRow(row) {
   playFromUpNext(row.dataset.id);
 }
 
+function onUpNextMoveKey(e) {
+  const step = MOVE_STEP[e.key];
+  if (!step || !e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  const row = e.target.closest(UPNEXT_ROW);
+  if (!row) return;
+  e.preventDefault();
+  const anchor = anchorForStep(playableQueue(), row.dataset.id, step);
+  if (anchor !== undefined) moveInUpNext(row.dataset.id, anchor);
+}
+
+/** The id the dragged row should sit after, given where it was dropped, or FRONT. */
+function dropAnchorId(list, clientY) {
+  let anchor = FRONT;
+  for (const row of list.querySelectorAll(UPNEXT_ROW)) {
+    if (row.dataset.id === draggedId) continue;
+    const box = row.getBoundingClientRect();
+    if (clientY > box.top + box.height * ROW_MIDPOINT) anchor = row.dataset.id;
+  }
+  return anchor;
+}
+
+function showDropAnchor(list, anchor) {
+  for (const row of list.querySelectorAll(UPNEXT_ROW)) {
+    row.classList.toggle(DROP_BELOW_CLASS, anchor !== FRONT && row.dataset.id === anchor);
+  }
+}
+
+function onUpNextDragStart(e) {
+  const row = e.target.closest?.(UPNEXT_ROW);
+  if (!row) return;
+  draggedId = row.dataset.id;
+  row.classList.add(DRAGGING_CLASS);
+  e.dataTransfer.effectAllowed = DRAG_EFFECT;
+  // Firefox refuses to start a drag without payload.
+  e.dataTransfer.setData(DRAG_PAYLOAD_TYPE, draggedId);
+}
+
+function onUpNextDragEnd(e) {
+  draggedId = null;
+  e.target.closest?.(UPNEXT_ROW)?.classList.remove(DRAGGING_CLASS);
+  showDropAnchor(e.currentTarget, FRONT);
+}
+
+function onUpNextDragOver(e) {
+  if (!draggedId) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = DRAG_EFFECT;
+  showDropAnchor(e.currentTarget, dropAnchorId(e.currentTarget, e.clientY));
+}
+
+function onUpNextDrop(e) {
+  if (!draggedId) return;
+  e.preventDefault();
+  const dragged = draggedId;
+  const anchor = dropAnchorId(e.currentTarget, e.clientY);
+  draggedId = null;
+  showDropAnchor(e.currentTarget, FRONT);
+  moveInUpNext(dragged, anchor);
+}
+
+function wireUpNextReorder(list) {
+  list.addEventListener("keydown", onUpNextMoveKey);
+  list.addEventListener("dragstart", onUpNextDragStart);
+  list.addEventListener("dragend", onUpNextDragEnd);
+  list.addEventListener("dragover", onUpNextDragOver);
+  list.addEventListener("drop", onUpNextDrop);
+}
+
 function wireUpNextRows() {
   const list = $("upNextList");
   if (!list) return;
+  wireUpNextReorder(list);
   upNextRows = wireRovingRows(
     list,
     {
