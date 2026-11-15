@@ -1,0 +1,73 @@
+// Settings > Export, pure: the Video encoder choices and the Test encoders rows,
+// from GET /api/video-encoders (and the last test it reports).
+
+export const POLICY_AUTO = "auto";
+export const POLICY_CPU = "cpu";
+export const CPU_ENCODER = "libx264";
+
+export const ROW_STATE = { idle: "idle", testing: "testing", works: "works", failed: "failed" };
+
+const ENCODER_NAMES = {
+  h264_nvenc: ["NVENC", "NVIDIA"],
+  h264_vaapi: ["VAAPI", "AMD, Intel"],
+  h264_qsv: ["QSV", "Intel"],
+  h264_amf: ["AMF", "AMD"],
+  h264_videotoolbox: ["VideoToolbox", "Apple"],
+  [CPU_ENCODER]: ["CPU", "x264"],
+};
+const INVALID_PREFIX = "invalid-";
+const REASON_INVALID = "invalid";
+const ALWAYS_ON = new Set([POLICY_AUTO, POLICY_CPU]);
+
+function testedRow(status, encoder) {
+  return status?.last_test?.rows?.find((row) => row.encoder === encoder) ?? null;
+}
+
+function results(row) {
+  return Object.values(row?.results ?? {});
+}
+
+function failedTest(row) {
+  return results(row).some((result) => !result.ok);
+}
+
+/** `[{value, failed, disabled}]`: an encoder that failed its test, or is off this session, can't be picked. */
+export function encoderChoices(status) {
+  const off = new Set(status?.disabled ?? []);
+  const current = status?.policy?.value;
+  return (status?.choices ?? []).map(function choice(value) {
+    const failed = failedTest(testedRow(status, value));
+    const blocked = (failed || off.has(value)) && !ALWAYS_ON.has(value) && value !== current;
+    return { value, failed, disabled: blocked };
+  });
+}
+
+function reasonOf(row) {
+  const reason = results(row).find((result) => !result.ok)?.reason ?? null;
+  return reason?.startsWith(INVALID_PREFIX) ? REASON_INVALID : reason;
+}
+
+function rowState(row, testing) {
+  if (testing) return ROW_STATE.testing;
+  if (!row) return ROW_STATE.idle;
+  return failedTest(row) ? ROW_STATE.failed : ROW_STATE.works;
+}
+
+/** One row per candidate and the CPU: its names, state, failure reason and slowest speed. */
+export function testRows(status, { testing }) {
+  const encoders = [...(status?.candidates ?? []), CPU_ENCODER];
+  return encoders.map(function row(encoder) {
+    const tested = testedRow(status, encoder);
+    const state = rowState(tested, testing);
+    const speeds = results(tested).map((result) => result.speed).filter(Number.isFinite);
+    const [name, maker] = ENCODER_NAMES[encoder] ?? [encoder, ""];
+    return {
+      encoder,
+      name,
+      maker,
+      state,
+      reason: state === ROW_STATE.failed ? reasonOf(tested) : null,
+      speed: state === ROW_STATE.works && speeds.length ? Math.min(...speeds) : null,
+    };
+  });
+}
