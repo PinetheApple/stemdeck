@@ -41,7 +41,7 @@ import { pitchBlockedKey } from "./pitchBus.js";
 import { refitFooter } from "./footerFit.js";
 import { SPEED_MIN, SPEED_MAX, SPEED_STEP, SPEED_NOTCH, clampSpeed, nextNotch, parseSpeedInput } from "./speedInput.js";
 import { trackPlayhead, resumeFollowing } from "./autoScroll.js";
-import { startMediaAnchor, pauseMediaAnchor, releaseMediaAnchor } from "./mediaSession.js";
+import { startMediaAnchor, pauseMediaAnchor } from "./mediaSession.js";
 
 // Zoom range. 1 is the whole track fitted to the panel; there is nothing below
 // it to show, so it is the floor rather than a soft default.
@@ -604,7 +604,7 @@ export function stopTransport() {
   const tx = eng ?? multitrack;
   if (!tx) return;
   tx.pause();
-  releaseMediaAnchor();
+  pauseMediaAnchor();
   _dropCountIn(); // a count-in in progress must not outlive Stop
   if (!loadingMultitrack(tx)) tx.setTime(loopEnabled ? loopStart : 0); // engine: setTime → onTime → stop visual
   if (eng) playBtn.classList.remove("playing");

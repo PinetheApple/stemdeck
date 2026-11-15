@@ -178,7 +178,7 @@ test.describe("system media controls", () => {
     await expect.poll(() => currentTime(page)).toBe(0);
   });
 
-  test("the OS controls are held through a long pause and let go on Stop", async ({ page }) => {
+  test("the OS controls are held through a long pause and through Stop", async ({ page }) => {
     await openWithMediaSession(page);
 
     await runAction(page, "play");
@@ -192,7 +192,24 @@ test.describe("system media controls", () => {
     await expectPlaying(page, true);
     await expect.poll(() => anchorState(page)).toEqual(ANCHOR_PLAYING);
     await runAction(page, "stop");
-    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_RELEASED);
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_HELD);
+  });
+
+  test("next keeps the OS controls through the next song's load", async ({ page }) => {
+    await openWithMediaSession(page);
+    await page.evaluate((id) => {
+      document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id } }));
+    }, SIBLING_JOB_ID);
+    await expect.poll(() => handlerKind(page, "nexttrack")).toBe("set");
+    await runAction(page, "play");
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_PLAYING);
+
+    await runAction(page, "nexttrack");
+    expect((await anchorState(page)).loaded).toBe(true);
+    await expect(page.locator("#title")).toHaveText(SIBLING_TITLE, { timeout: 15000 });
+    await expectPlaying(page, true);
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_PLAYING);
+    expect(await page.evaluate(() => window.__media.anchors.length)).toBe(1);
   });
 
   test("when the OS controls come back, they are told the state again", async ({ page }) => {
