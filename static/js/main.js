@@ -37,7 +37,7 @@ import { initTrackMenu } from "./trackMenu.js";
 import { initConnection } from "./connection.js";
 import { clearBatch, setImportPill, startFileBatch, wireBatchImport } from "./batchImport.js";
 import {
-  MAX_UPLOAD_BYTES, PATH_SEP, capEntries, folderFiles, formatBytes, isAudioName, isUploadable, walkEntries,
+  MAX_UPLOAD_BYTES, PATH_SEP, folderFiles, formatBytes, isAudioName, walkEntries,
 } from "./batchImportModel.js";
 
 // ─── Stem choice toggles on the import page ───
@@ -830,13 +830,13 @@ function rootFolderName(entries) {
   return entries.find((e) => e.dir)?.dir.split(PATH_SEP)[0] ?? null;
 }
 
-function stageFolder(entries, showDropError) {
+function stageFolder(entries, showDropError, readFile = null) {
   document.getElementById("fileInput")?._clear?.();
   if (!entries.length) {
     showDropError(t("batch.emptyFolder"));
     return;
   }
-  startFileBatch(entries, { folder: rootFolderName(entries) });
+  startFileBatch(entries, { folder: rootFolderName(entries), readFile });
 }
 
 /** The drop's entries, read while the drop event lasts, or null when it holds no folder. */
@@ -943,11 +943,12 @@ function wireFileDrop() {
     if (screened) stageFiles(screened);
   }
 
-  /** Several files: the review lists each, with what is wrong with any of them. */
-  function stageLooseFiles(files) {
+  /** Several files: the review lists each, with what is wrong with any of them.
+   *  `readFile` reads one that arrived as a description, when it is sent. */
+  function stageLooseFiles(files, readFile = null) {
     clearFile();
     clearDropError();
-    startFileBatch(files.map((file) => ({ file, dir: "" })));
+    startFileBatch(files.map((file) => ({ file, dir: "" })), { readFile });
   }
 
   /** Arms the import with a file that has already passed screenFiles. */
@@ -1128,21 +1129,18 @@ function wireFileDrop() {
     showDropError(t("settings.stemsLocation.pickerFailed"));
   }
 
-  /** A folder the shell opened up: its files, each with the folder it sits in. Only
-   *  the audio the review keeps is read, so a huge folder is not loaded to be cut. */
-  async function applyNativeFolder(invoke, dropped) {
+  /** A folder the shell opened up: its files, each with the folder it sits in, each
+   *  read only when it is sent. */
+  function applyNativeFolder(invoke, dropped) {
     const entries = dropped.map((d) => ({ file: d, dir: d.dir }));
-    const kept = new Set(capEntries(entries).entries.map((e) => e.file));
-    const read = await readDropped(invoke, dropped.filter((d) => kept.has(d) && isUploadable(d)));
-    if (read) stageFolder(entries.map((e) => ({ file: read.get(e.file.id) ?? e.file, dir: e.dir })), showDropError);
+    stageFolder(entries, showDropError, (d) => readDroppedFile(invoke, d));
   }
 
-  // `dropped` is [{ id, name, size }]: descriptions, not files. They are
-  // screened as they are, and only what can be uploaded is read.
+  // `dropped` is [{ id, name, size }]: descriptions, not files. Several are
+  // reviewed as descriptions, each read only when it is sent.
   async function applyNativeDrop(invoke, dropped) {
     if (dropped.length > 1) {
-      const read = await readDropped(invoke, dropped.filter(isUploadable));
-      if (read) stageLooseFiles(dropped.map((d) => read.get(d.id) ?? d));
+      stageLooseFiles(dropped, (d) => readDroppedFile(invoke, d));
       return;
     }
     const screened = screenFiles(dropped);
@@ -1158,8 +1156,7 @@ function wireFileDrop() {
     // flight rather than one per file: parallel reads would only raise the peak.
     for (const d of descriptions) {
       try {
-        const bytes = await invoke("read_dropped_file", { id: d.id });
-        files.set(d.id, new File([bytes], d.name));
+        files.set(d.id, await readDroppedFile(invoke, d));
       } catch (e) {
         console.warn("[drop] could not read a dropped file:", e);
         showDropError(t("upload.dropReadFailed", { name: d.name }));
@@ -1167,6 +1164,12 @@ function wireFileDrop() {
       }
     }
     return files;
+  }
+
+  /** One dropped file, read back from the shell by its id. */
+  async function readDroppedFile(invoke, description) {
+    const bytes = await invoke("read_dropped_file", { id: description.id });
+    return new File([bytes], description.name);
   }
 }
 
