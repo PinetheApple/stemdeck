@@ -26,7 +26,7 @@ from app.core.registry import get as registry_get
 from app.core.song_folder import metadata_lock
 from app.core.stem_files import MP3_EXT, WAV_EXT, point_urls_at_disk, stem_exists
 from app.pipeline.collect import merge_stem_peaks, presence_for_split
-from app.pipeline.errors import classify_failure
+from app.pipeline.errors import CAUSE_SOURCE_UNAVAILABLE, CAUSE_UNKNOWN, classify_failure
 from app.pipeline.runs import CANCELLED, DONE, IDLE, Run, RunBoard, run_behind_lock
 from app.pipeline.separate import separate
 from app.pipeline.stem_storage import store_split_stems
@@ -46,6 +46,9 @@ _TEMP_PREFIX = ".extract."
 _TEMP_SUFFIX = ".tmp"
 _PROGRESS_DIGITS = 3
 _PEAKS_FILE = "peaks.json"
+# classify_failure's causes that only a download's wording matches; errors.py
+# names source-blocked with a bare string.
+_LINK_ONLY_CAUSES = frozenset({"source-blocked", CAUSE_SOURCE_UNAVAILABLE})
 
 # Records the version once the stems are in, under the metadata lock: the
 # song, the stems it shows and its name, returning the id of the version opened.
@@ -201,9 +204,11 @@ def _keep(
         point_urls_at_disk(song, stems_dir, placed)
         run.version_id = open_version(song, run.wanted, run.name)
     except Exception:
-        _take_back(stems_dir, placed)
-        _restore_peaks(stems_dir, peaks)
         _set(song, **before)
+        try:
+            _take_back(stems_dir, placed)
+        finally:
+            _restore_peaks(stems_dir, peaks)
         raise
 
 
@@ -237,7 +242,8 @@ def _failure_code(exc: Exception) -> str:
     if isinstance(exc, ExtractFailed):
         return exc.code
     tail = getattr(exc, "tail", None) or []
-    return classify_failure("\n".join([*tail, str(exc)]))
+    cause = classify_failure("\n".join([*tail, str(exc)]))
+    return CAUSE_UNKNOWN if cause in _LINK_ONLY_CAUSES else cause
 
 
 async def run_extract(

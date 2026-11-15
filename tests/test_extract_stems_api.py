@@ -1,9 +1,5 @@
-"""Extracting stems a song is missing: POST .../versions/extract separates
-the song's kept audio again, behind the pipeline lock, and moves in only the
-stems that are absent, then opens the version.
-
-The separator is stubbed, so no model runs; the run itself goes through the
-real endpoints, background task, pipeline lock and the job's trash and delete."""
+"""POST .../versions/extract on a song missing stems: only the absent ones move
+in. The separator is stubbed; endpoints, task, lock, trash and delete are real."""
 
 from __future__ import annotations
 
@@ -45,6 +41,8 @@ REFERENCE_PRESENCE = 50
 OLD_PEAKS = b'{\n  "vocals": [[0.0, 0.5]]\n}\n'
 # What separate() writes on the job it is given.
 SEPARATOR_STATUS = "separating"
+# classify_failure's cause for unreadable input, a bare string in errors.py.
+BAD_INPUT = "bad-input"
 
 _stubbed: list[FakeSeparator] = []
 
@@ -148,6 +146,13 @@ def tone() -> bytes:
         frames = [TONE_LEVEL if i % 2 else -TONE_LEVEL for i in range(TONE_FRAMES)]
         w.writeframes(b"".join(v.to_bytes(2, "little", signed=True) for v in frames))
     return buf.getvalue()
+
+
+def song_with_presence() -> Job:
+    job = song("guitar")
+    stem_file("vocals").write_bytes(tone())
+    job.stem_presence = {"vocals": REFERENCE_PRESENCE}
+    return job
 
 
 def full_versions() -> list[dict]:
@@ -270,6 +275,15 @@ def test_a_failed_separation_leaves_the_song_as_it_was(client, monkeypatch):
     assert_unchanged(job, before)
 
 
+def test_a_damaged_kept_file_fails_as_bad_input(client, monkeypatch):
+    song("guitar")
+    error = SeparationError("ffmpeg: Invalid data found when processing input")
+    stub(monkeypatch, FakeSeparator(error=error))
+    extract(client)
+
+    assert wait_ended(client)["error"] == BAD_INPUT
+
+
 def test_a_model_without_the_stem_fails_with_no_output(client, monkeypatch):
     job = song("guitar")
     before = snapshot()
@@ -305,7 +319,7 @@ def test_a_failed_move_takes_back_the_stems_already_moved(client, monkeypatch):
 
 
 def test_the_version_limit_reached_mid_run_fails_and_restores_peaks(client, monkeypatch):
-    job = song("guitar")
+    job = song_with_presence()
     (_stems_dir() / "peaks.json").write_bytes(OLD_PEAKS)
     before = contents()
     fake = stub(monkeypatch, FakeSeparator(audio=tone()))
@@ -320,12 +334,31 @@ def test_the_version_limit_reached_mid_run_fails_and_restores_peaks(client, monk
     assert view["error"] == ex_mod.EXTRACT_FAILED_TOO_MANY_VERSIONS
     assert contents() == before
     assert job.versions == full_versions()
+    assert job.stem_presence == {"vocals": REFERENCE_PRESENCE}
+
+
+def test_a_take_back_that_fails_still_restores_the_song(client, monkeypatch):
+    job = song_with_presence()
+    stems_before = job.stems
+    fake = stub(monkeypatch, FakeSeparator(audio=tone()))
+
+    def full_disk(stems_dir, placed):
+        raise OSError("No space left on device")
+
+    monkeypatch.setattr(ex_mod, "_take_back", full_disk)
+    extract(client)
+    assert fake.started.wait(WAIT_SEC)
+    job.versions = full_versions()
+    fake.release.set()
+
+    assert wait_ended(client)["state"] == FAILED
+    assert job.stems == stems_before
+    assert job.stem_presence == {"vocals": REFERENCE_PRESENCE}
+    assert not (_stems_dir() / "peaks.json").exists()
 
 
 def test_an_extracted_stem_gets_presence_on_the_songs_scale(client, monkeypatch):
-    job = song("guitar")
-    stem_file("vocals").write_bytes(tone())
-    job.stem_presence = {"vocals": REFERENCE_PRESENCE}
+    job = song_with_presence()
     fake = stub(monkeypatch, FakeSeparator(audio=tone()))
     extract(client)
     fake.release.set()
