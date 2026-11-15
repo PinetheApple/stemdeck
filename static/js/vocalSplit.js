@@ -2,6 +2,7 @@
 // the phone UI can both use it.
 
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
+import { FOLDER_MOVING_KEY, refusedForFolderMove } from "./folderMoving.js";
 
 export const SPLIT_STATE = Object.freeze({
   NONE: "none",
@@ -20,6 +21,7 @@ export const JOB_DONE = "done";
 export const UNREACHABLE_VIEW = Object.freeze({ state: SPLIT_STATE.ERROR, error: null });
 
 const VOCALS_STEM = "vocals";
+export const FAILED_FOLDER_MOVING = "folder_moving";
 const JSON_HEADERS = { "Content-Type": "application/json" };
 // app/core/models.py VOCAL_SPLIT_FAILED_*
 const FAILURE_KEYS = {
@@ -31,6 +33,7 @@ const FAILURE_KEYS = {
   no_vocals: "vocalSplit.failed.noVocals",
   no_output: "vocalSplit.failed.noOutput",
   worker_failed: "vocalSplit.failed.generic",
+  [FAILED_FOLDER_MOVING]: FOLDER_MOVING_KEY,
 };
 const GENERIC_FAILURE_KEY = "vocalSplit.failed.generic";
 
@@ -102,6 +105,9 @@ export async function startSplit(jobId, io = DEFAULT_IO) {
   const res = await io.fetch(splitUrl(jobId), { method: "POST" });
   if (res.ok) return res.json();
   if (res.status === HTTP_CONFLICT) {
+    if (await refusedForFolderMove(res)) {
+      return { state: SPLIT_STATE.ERROR, error: FAILED_FOLDER_MOVING };
+    }
     const view = await fetchSplitView(jobId, io);
     if (view?.state === SPLIT_STATE.RUNNING) return view;
   }

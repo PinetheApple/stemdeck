@@ -32,7 +32,7 @@ def test_the_committed_parity_fixture_matches_what_python_produces():
     assert committed == build(), (
         "Python's click levels no longer match tests/fixtures/click_levels.json. "
         "If the change is intended, regenerate the fixture and check that "
-        "static/js/metronome.js was changed to match -- tests/js/parity.test.mjs "
+        "static/js/clickAccents.js was changed to match -- tests/js/parity.test.mjs "
         "is pinned to the same file."
     )
 

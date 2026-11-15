@@ -17,21 +17,25 @@ import {
   footerTimeElapsed, footerTimeTotal, footerWaveTicks, npScrubFill, footerWaveDrawFn,
   loopStartInput, loopEndInput,
   metroBtn, metroPanel, metroMoreBtn, metroVolEl, metroVolBtn, metroVolPanel, metroVolLabel, metroBarEl, metroBarCustomEl, metroGroupEl, metroNoteEl,
-  metroCountInEl,
+  metroCountInEl, metroSoundEl,
   metronome, metronomeEnabled, metronomeVolume, metronomeBeatsPerBar, metronomeHasBars,
   metronomeCountInBars, setMetronomeCountInBars,
   metronomeGrouping, setMetronomeGrouping,
   setMetronomeHasBars,
   setMetronomeEnabled, setMetronomeVolume, setMetronomeBeatsPerBar,
+  metronomeSound, setMetronomeSound,
   setLoopEnabled, setLoopStart, setLoopEnd, setMasterVolume, setPlaybackSpeed, playbackSpeed,
   waveZoom, setWaveZoom, overviewRerenderFn,
 } from "./state.js";
 import { applyMix, nudgeAllLanePitches, resetAllLanePitches } from "./mixer.js";
 import { isDownbeatIndex, barPositionIndex, getBeats as getGridBeats, getBars as getGridBars } from "./beatgrid.js";
 import {
-  accentOverride, computeCountIn, defaultGrouping, normaliseGrouping,
+  accentOverride,
   OVERRIDE_LENGTH, OVERRIDE_OFF, OVERRIDE_UNALIGNED,
 } from "./metronome.js";
+import { defaultGrouping, normaliseGrouping } from "./clickAccents.js";
+import { computeCountIn } from "./countIn.js";
+import { CLICK_SOUNDS } from "./clickSounds.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { pitchBlockedKey } from "./pitchBus.js";
 import { refitFooter } from "./footerFit.js";
@@ -1218,7 +1222,35 @@ function _saveMetroPrefs() {
     beatsPerBar: metronomeBeatsPerBar,
     grouping: metronomeGrouping,
     countInBars: metronomeCountInBars,
+    sound: metronomeSound,
   }).catch((e) => console.warn("[transport] failed to save metronome prefs:", e));
+}
+
+/** Choose the click sound: the live click switches on its next beat, exports
+ *  read it when they are built, and it is saved with the other click prefs. */
+export function setClickSound(id) {
+  setMetronomeSound(id);
+  metronome?.setSound(metronomeSound);
+  if (metroSoundEl) metroSoundEl.value = metronomeSound;
+  _saveMetroPrefs();
+}
+
+// One option per preset, in the table's order, so a new preset needs no markup.
+function _renderMetroSound() {
+  if (!metroSoundEl) return;
+  metroSoundEl.replaceChildren(...CLICK_SOUNDS.presets.map(_metroSoundOption));
+  metroSoundEl.value = metronomeSound;
+}
+
+function _metroSoundOption(preset) {
+  const option = document.createElement("option");
+  option.value = preset.id;
+  option.textContent = t("click.soundOption", { name: t(preset.label) });
+  return option;
+}
+
+function _onMetroSoundChange() {
+  setClickSound(metroSoundEl.value);
 }
 
 /**
@@ -1666,6 +1698,9 @@ function wireMetronomeControl() {
   wireFooterPopovers();
   onLanguageChange(_renderMetroVolume);
   onLanguageChange(renderAccentState);
+  onLanguageChange(_renderMetroSound);
+  _renderMetroSound();
+  metroSoundEl?.addEventListener("change", _onMetroSoundChange);
   $("tempoAccentUseAuto")?.addEventListener("click", _onAccentUseAutoClick);
 
   // Restore preferences before the first track loads so the click comes back
@@ -1681,7 +1716,10 @@ function wireMetronomeControl() {
       // rather than silently turning it off.
       if (typeof prefs.countInBars === "number") setMetronomeCountInBars(prefs.countInBars);
       else if (typeof prefs.countIn === "boolean") setMetronomeCountInBars(prefs.countIn ? 1 : 0);
+      if (typeof prefs.sound === "string") setMetronomeSound(prefs.sound);
+      metronome?.setSound(metronomeSound);
     }
+    _renderMetroSound();
     _renderMetroVolume();
     _renderMetroBar();
     applyMetronomeAccent();
