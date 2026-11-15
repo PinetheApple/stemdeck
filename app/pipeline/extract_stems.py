@@ -32,13 +32,12 @@ from typing import Any, ClassVar
 from app.core.models import STATUS_DONE, Job, JobCancelled, _set
 from app.core.registry import get as registry_get
 from app.core.song_folder import metadata_lock
-from app.core.stem_files import MP3_EXT, WAV_EXT, stem_exists
+from app.core.stem_files import MP3_EXT, WAV_EXT, point_urls_at_disk, stem_exists
 from app.pipeline.collect import merge_stem_peaks
 from app.pipeline.errors import classify_failure
 from app.pipeline.runs import CANCELLED, DONE, Run, RunBoard, run_behind_lock
 from app.pipeline.separate import separate
 from app.pipeline.stem_storage import store_split_stems
-from app.pipeline.vocal_split import _point_urls_at_disk as point_urls_at_disk
 
 logger = logging.getLogger("stemdeck.pipeline")
 

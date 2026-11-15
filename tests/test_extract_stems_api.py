@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 import app.core.config as cfg
 from app.api.versions import EXTRACT_RUNNING, SOURCE_GONE
 from app.core.config import DEMUCS_MODEL, STEM_NAMES
-from app.core.models import Job, JobCancelled, _set
+from app.core.models import Job, JobBusy, JobCancelled, _set
 from app.core.registry import _jobs, set_proc
 from app.core.versions import DEFAULT_VERSION_ID
 from app.pipeline import extract_stems as ex_mod
@@ -298,6 +298,51 @@ def test_a_second_extract_while_one_runs_is_refused(client, monkeypatch):
 
     assert r.status_code == 409
     assert r.json()["detail"] == EXTRACT_RUNNING
+    fake.release.set()
+    wait_ended(client)
+
+
+def test_trashing_the_song_stops_the_run(client, monkeypatch):
+    job = song("guitar")
+    before = snapshot()
+    fake = stub(monkeypatch, FakeSeparator())
+    extract(client)
+    assert fake.started.wait(WAIT_SEC)
+    run = ex_mod.EXTRACT_RUNS.current(JOB_ID)
+
+    assert client.post(f"/api/jobs/{JOB_ID}/trash").status_code == 200
+
+    assert fake.flag_at_kill is True
+    assert run.ended.wait(WAIT_SEC)
+    assert run.state == "cancelled"
+    assert snapshot() == before
+    assert job.versions is None
+
+
+def test_deleting_the_song_waits_for_the_run_to_end(client, monkeypatch):
+    song("guitar")
+    fake = stub(monkeypatch, FakeSeparator())
+    extract(client)
+    assert fake.started.wait(WAIT_SEC)
+    run = ex_mod.EXTRACT_RUNS.current(JOB_ID)
+
+    assert client.delete(f"/api/jobs/{JOB_ID}").status_code == 200
+
+    assert run.ended.is_set()
+    assert ex_mod.EXTRACT_RUNS.current(JOB_ID) is None
+    assert not (cfg.JOBS_DIR / JOB_ID).exists()
+
+
+def test_a_library_move_is_refused_while_a_run_is_going(client, monkeypatch):
+    from app.main import _refuse_while_busy
+
+    song("guitar")
+    fake = stub(monkeypatch, FakeSeparator())
+    extract(client)
+    assert fake.started.wait(WAIT_SEC)
+
+    with pytest.raises(JobBusy):
+        _refuse_while_busy()
     fake.release.set()
     wait_ended(client)
 
