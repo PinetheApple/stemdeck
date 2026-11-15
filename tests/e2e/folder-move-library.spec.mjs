@@ -119,9 +119,11 @@ test.describe("studio", () => {
   test("songs of a folder deleted during the move come back to the library", async ({ page }) => {
     const moving = await openLibrary(page, null, [JOB_ID, SIBLING_JOB_ID]);
     const doomed = page.locator(`.folder[data-id="${DOOMED_FOLDER}"] > .folder-head`);
+    const more = doomed.locator(".f-more");
     await doomed.hover();
-    await doomed.locator(".f-del").click();
-    await doomed.locator(".f-del").click();
+    await more.click();
+    await page.locator(".lib-menu").getByRole("menuitem", { name: await uiText(page, "folder.deleteFolder") }).click();
+    await more.click();
 
     await expect.poll(() => failureMessages(page)).toEqual([moving]);
     expect(await trashItems(page)).toEqual([]);
