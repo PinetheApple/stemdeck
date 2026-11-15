@@ -200,6 +200,37 @@ export function capEntries(entries, max = MAX_BATCH_FILES) {
   return { entries: kept, refused: sorted.length - kept.length };
 }
 
+/** A File, as opposed to a `{ name, size }` description whose bytes are not in the page yet. */
+export const isLoaded = (file) => file instanceof Blob;
+
+export class FileReadError extends Error {
+  constructor(fileName, cause) {
+    super(fileName, { cause });
+    this.fileName = fileName;
+  }
+}
+
+/** The item's File: as it is, from `loaded`, or read with `readFile` now and kept in
+ *  `loaded` by its description. The item keeps its description, so rows still match. */
+async function loadItemFile(item, readFile, loaded) {
+  if (isLoaded(item.file)) return item.file;
+  if (loaded.has(item.file)) return loaded.get(item.file);
+  try {
+    loaded.set(item.file, await readFile(item.file));
+  } catch (err) {
+    throw new FileReadError(item.name, err);
+  }
+  return loaded.get(item.file);
+}
+
+/** Post the item's file with `post`; its bytes are let go once it is queued, and kept
+ *  only for a row left out, since a described file can be read only once. */
+export async function sendFileItem(item, { readFile, loaded, post }) {
+  const jobId = await post(await loadItemFile(item, readFile, loaded));
+  loaded.delete(item.file);
+  return jobId;
+}
+
 /** Rows still waiting on a preview that failed: nobody could check them. */
 export const markUnchecked = (items) => items.map((item) => (
   item.status === ITEM_STATUS.LOOKING_UP ? { ...item, status: ITEM_STATUS.UNCHECKED, ticked: false } : item
