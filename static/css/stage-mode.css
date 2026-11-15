@@ -37,6 +37,7 @@
   text-overflow: ellipsis;
 }
 .stage-artist { color: var(--text-2); font-size: var(--fs-md); }
+.stage-artist.np-extracting { color: var(--accent); }
 .stage-exit {
   display: inline-flex;
   align-items: center;
