@@ -1,0 +1,233 @@
+/* Batch import: the bar's folder button and chip, the review list hung under
+   the bar, and the queue view's batch header. */
+
+:root {
+  --batch-z-scrim: 49;
+  --batch-z-review: 50;
+  --batch-review-w: 640px;
+  --batch-review-clearance: 160px; /* the top bar and a margin below the list */
+  --batch-row-h: 40px;
+  --batch-check: 16px;
+  --batch-bar-h: 3px;
+  --batch-flag-tint: 14%;
+  --batch-disabled-opacity: 0.5;
+}
+
+/* ── The bar ── */
+.batch-icon-slot,
+.batch-pill-ic { display: inline-grid; place-items: center; }
+.batch-icon-slot .ic { width: var(--icon); height: var(--icon); }
+.batch-folder-btn[hidden] { display: none; }
+.daw-url-zone.batch-drop-target {
+  border-style: dashed;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: none;
+}
+.batch-drop-target #url::placeholder { color: var(--accent-hi); }
+
+.batch-pill-ic { display: none; flex: none; }
+.batch-pill-ic .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.batch-pill > svg { display: none; }
+.batch-pill[data-kind="links"] [data-kind-icon="links"],
+.batch-pill[data-kind="folder"] [data-kind-icon="folder"] { display: inline-grid; }
+.batch-pill .file-name { max-width: none; }
+
+/* ── The review list ── */
+.batch-scrim { position: fixed; inset: 0; z-index: var(--batch-z-scrim); background: var(--scrim); cursor: pointer; }
+.batch-review {
+  position: fixed;
+  z-index: var(--batch-z-review);
+  width: min(var(--batch-review-w), calc(100vw - 2 * var(--s-4)));
+  max-height: calc(100vh - var(--batch-review-clearance));
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-panel);
+  font-family: var(--font-sans);
+}
+.batch-review-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-4) var(--s-3);
+  border-bottom: 1px solid var(--line);
+}
+.batch-review-head > div { flex: 1; min-width: 0; }
+.batch-review-head h2 { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-bold); color: var(--text); }
+.batch-review-head p { margin: 2px 0 0; font-size: var(--fs-sm); color: var(--text-3); }
+.batch-review-note {
+  margin: 0;
+  padding: var(--s-2) var(--s-4);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-sm);
+  color: var(--warn);
+}
+.batch-review-error { display: flex; align-items: center; gap: var(--s-2); color: var(--danger); }
+.batch-review-error .batch-btn { margin-left: auto; }
+
+.batch-review-close,
+.batch-item-drop,
+.batch-item-retry,
+.batch-group-toggle {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  cursor: pointer;
+}
+.batch-review-close { width: var(--ctl-h-sm); height: var(--ctl-h-sm); color: var(--text-2); }
+.batch-review-close .ic { width: var(--icon); height: var(--icon); }
+.batch-item-drop,
+.batch-item-retry,
+.batch-group-toggle { width: var(--target-min); height: var(--target-min); color: var(--text-4); }
+.batch-item-retry,
+.batch-group-toggle { color: var(--text-2); }
+.batch-item-drop .ic,
+.batch-item-retry .ic,
+.batch-group-toggle .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.batch-review-close:hover,
+.batch-item-drop:hover,
+.batch-item-retry:hover,
+.batch-group-toggle:hover { background: var(--surface-3); color: var(--text); }
+.batch-group-toggle[aria-expanded="false"] .ic { transform: rotate(-90deg); }
+
+.batch-review-list { list-style: none; margin: 0; padding: var(--s-2); overflow-y: auto; flex: 1; min-height: 0; }
+.batch-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--batch-row-h);
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-1);
+}
+.batch-item:hover { background: var(--surface-2); }
+.batch-item.is-child { padding-left: calc(var(--s-2) + var(--s-6)); }
+.batch-item-check { flex: none; width: var(--batch-check); height: var(--batch-check); margin: 0; accent-color: var(--accent); cursor: pointer; }
+.batch-item-check:disabled { cursor: default; }
+.batch-item-ic { flex: none; display: inline-grid; place-items: center; color: var(--text-3); }
+.batch-item-ic .ic { width: var(--icon); height: var(--icon); }
+.batch-item-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.batch-item-title {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.batch-item-title.is-mono { font: var(--fs-sm) var(--font-mono); color: var(--text-2); }
+.batch-item-sub { font-size: var(--fs-xs); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.batch-item.is-blocked .batch-item-title,
+.batch-item.is-blocked .batch-item-ic { color: var(--text-4); }
+
+.batch-flag {
+  flex: none;
+  padding: 2px var(--s-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.batch-flag-dup { background: color-mix(in srgb, var(--warn) var(--batch-flag-tint), transparent); color: var(--warn); }
+.batch-flag-block { background: color-mix(in srgb, var(--danger) var(--batch-flag-tint), transparent); color: var(--danger); }
+
+.batch-folder {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-2) var(--s-1);
+  font: var(--fs-xs) var(--font-mono);
+  color: var(--text-3);
+}
+.batch-folder:first-child { padding-top: var(--s-1); }
+.batch-folder .ic { width: var(--icon-sm); height: var(--icon-sm); }
+/* Lined up with the songs' titles: past the indent, the tick and the gap after it. */
+.batch-more { padding: 0 var(--s-2) var(--s-1) calc(var(--s-2) + var(--s-6) + var(--batch-check) + var(--s-3)); }
+.batch-more-btn {
+  border: 0;
+  background: none;
+  padding: var(--s-1) 0;
+  cursor: pointer;
+  font: var(--fw-semibold) var(--fs-sm) var(--font-sans);
+  color: var(--accent-hi);
+}
+
+.batch-spin .ic { animation: batch-spin 1s linear infinite; }
+@keyframes batch-spin { to { transform: rotate(360deg); } }
+
+.batch-review-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--line);
+}
+.batch-review-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.batch-review-summary,
+.batch-review-clamp { font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.batch-review-summary { color: var(--text-3); }
+.batch-review-clamp { color: var(--warn); }
+.batch-review-clamp:empty { display: none; }
+
+.batch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-1);
+  background: var(--surface-2);
+  color: var(--text);
+  font: var(--fw-semibold) var(--fs-sm) var(--font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.batch-btn:hover { background: var(--surface-3); }
+.batch-btn:disabled { opacity: var(--batch-disabled-opacity); cursor: default; }
+.batch-btn .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.batch-btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.batch-btn-primary:hover:not(:disabled) { background: var(--accent-hi); }
+
+/* ── The queue view ── */
+.batch-head { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-2); padding: var(--s-1) var(--s-2) var(--s-3); }
+.batch-head-text { display: flex; flex-direction: column; gap: 1px; font-size: var(--fs-xs); color: var(--text-3); }
+.batch-head-text b { font-size: var(--fs-sm); color: var(--text); }
+.batch-head-bar {
+  align-self: stretch;
+  display: flex;
+  height: var(--batch-bar-h);
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+}
+.batch-head-done { background: var(--success); }
+.batch-head-failed { background: var(--danger); }
+.batch-failed-label { color: var(--danger); font-weight: var(--fw-semibold); }
+/* The reason is a sentence; it wraps rather than being cut. */
+.batch-failed-row .cat-sub { white-space: normal; overflow: visible; }
+
+.batch-failed-row .cat-thumb { display: grid; place-items: center; color: var(--text-3); }
+.batch-failed-row .cat-thumb .ic { width: var(--icon); height: var(--icon); }
+.batch-failed-retry,
+.batch-failed-drop {
+  flex: none;
+  width: var(--target-min);
+  height: var(--target-min);
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.batch-failed-retry .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.batch-failed-retry:hover,
+.batch-failed-drop:hover { background: var(--surface-3); color: var(--text); }

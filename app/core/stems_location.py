@@ -27,6 +27,7 @@ from pathlib import Path
 
 from app.core.config import SETLISTS_FILE
 from app.core.settings import fsync_dir, fsync_file
+from app.core.song_folder import FAILED_DIR_NAME, OWN_FILE_RE, is_real_entry
 
 logger = logging.getLogger("stemdeck.stems_location")
 
@@ -192,7 +193,7 @@ _MOVE_MARKER = ".stemdeck-move-from"
 # It holds one path; anything longer is not a marker StemDeck wrote.
 _MARKER_MAX_BYTES = 4096
 _MARKER_REFUSED = "That folder holds a file StemDeck did not expect. Pick an empty folder instead."
-_OURS = frozenset({"registry.json", "failed", "user-data.json", SETLISTS_FILE, _MOVE_MARKER})
+_OURS = frozenset({FAILED_DIR_NAME, _MOVE_MARKER, *_LIBRARY_RECORDS})
 # What Finder and Explorer write into any folder they show.
 _OS_FILES = frozenset({".ds_store", "desktop.ini", "thumbs.db"})
 
@@ -208,9 +209,21 @@ def _is_ours(entry: Path, current: Path) -> bool:
     """Whether an entry already in the target leaves it a folder StemDeck uses."""
     return (
         entry.name in _OURS
+        or _is_own_file(entry)
         or _looks_like_job_dir(entry)
         or entry.name.lower() in _OS_FILES
         or _partial_copy(entry.name, current)
+    )
+
+
+def _is_own_file(entry: Path) -> bool:
+    """A file reset would delete as StemDeck's, other than the store's copies:
+    those count only beside a library (_used_by_stemdeck)."""
+    return (
+        bool(OWN_FILE_RE.match(entry.name))
+        and not _is_store_copy(entry.name)
+        and entry.is_file()
+        and is_real_entry(entry)
     )
 
 

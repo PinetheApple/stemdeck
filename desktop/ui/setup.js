@@ -13,6 +13,15 @@ const detailsEl = document.getElementById("details");
 const retryBtn = document.getElementById("retry");
 const steps = [...document.querySelectorAll("[data-step]")];
 
+const BACKEND_ROCM = "rocm";
+const REASON_CUDA_UNSUPPORTED = "cuda-unsupported-gpu";
+const REASON_ROCM_UNSUPPORTED = "rocm-unsupported-gpu";
+const REASON_ROCM_NO_KFD_ACCESS = "rocm-no-kfd-access";
+const GROUP_FIX = "sudo usermod -aG render,video $USER";
+const UNSUPPORTED_GPU_REASONS = [REASON_CUDA_UNSUPPORTED, REASON_ROCM_UNSUPPORTED];
+// No /dev/kfd access stays unsettled: fixing the groups gets the GPU next launch.
+const SETTLED_CPU_REASONS = ["cpu-only-package", ...UNSUPPORTED_GPU_REASONS];
+
 function setStep(name, state) {
   const el = steps.find((item) => item.dataset.step === name);
   if (!el) return;
@@ -85,7 +94,7 @@ function startProgressStatus(messages) {
 }
 
 /**
- * Real progress for the pip passes that install CUDA acceleration.
+ * Real progress for the pip passes that install CUDA or ROCm acceleration.
  *
  * Those passes move several GB, and until the backend streamed pip's output
  * there was nothing to show but a timer counting up, which reads exactly like
@@ -131,6 +140,12 @@ async function startPipProgress(stopTimedMessages) {
 
 function isMac() {
   return /mac/i.test(navigator.userAgentData?.platform ?? navigator.platform ?? "");
+}
+
+// ROCm torch exists for Linux only, so only there does setup look for an AMD
+// GPU, and only there may the screen mention one.
+function isLinux() {
+  return /linux/i.test(navigator.userAgentData?.platform ?? navigator.platform ?? "");
 }
 
 async function installRuntimePack(appRoot) {
@@ -331,8 +346,7 @@ async function runSetup() {
     const torchDeviceSettled =
       runtime.torchDevice === "cuda" ||
       runtime.torchDevice === "mps" ||
-      (runtime.torchDevice === "cpu" && runtime.torchDeviceReason === "cpu-only-package") ||
-      (runtime.torchDevice === "cpu" && runtime.torchDeviceReason === "cuda-unsupported-gpu");
+      (runtime.torchDevice === "cpu" && SETTLED_CPU_REASONS.includes(runtime.torchDeviceReason));
 
     if (runtime.pythonReady && runtime.ffmpegReady && torchDeviceSettled && !versionMismatch) {
       for (const step of steps) {
@@ -414,6 +428,7 @@ async function runSetup() {
 
     await runStep("gpu", async () => {
       const macGPU = isMac();
+      const gpuKinds = isLinux() ? "NVIDIA or AMD" : "NVIDIA";
       const stopProgress = startProgressStatus(
         macGPU
           ? [
@@ -429,15 +444,15 @@ async function runSetup() {
           : [
               {
                 afterSeconds: 0,
-                text: "Checking NVIDIA GPU and compute support...",
+                text: `Checking ${gpuKinds} GPU and compute support...`,
               },
               {
                 afterSeconds: 20,
-                text: "Installing NVIDIA acceleration if needed... first run can take 5-15 minutes.",
+                text: `Installing ${gpuKinds} acceleration if needed... first run can take 5-15 minutes.`,
               },
               {
                 afterSeconds: 120,
-                text: "Still installing NVIDIA acceleration... CUDA Torch packages are large.",
+                text: `Still installing ${gpuKinds} acceleration... GPU Torch packages are large.`,
               },
               {
                 afterSeconds: 300,
@@ -456,20 +471,27 @@ async function runSetup() {
               ? `${gpu.gpuName} acceleration enabled`
               : "MPS acceleration unavailable - stem separation will use CPU";
         } else {
-          if (gpu.gpuDetected && !gpu.cudaVerified && gpu.reason === "cuda-unsupported-gpu") {
+          // NVIDIA through CUDA, or AMD through ROCm on Linux.
+          const api = gpu.backend === BACKEND_ROCM ? "ROCm" : "CUDA";
+          const unsupported = UNSUPPORTED_GPU_REASONS.includes(gpu.reason);
+          if (gpu.gpuDetected && !gpu.cudaVerified && unsupported) {
             showError(
-              `GPU detected (${gpu.gpuName}), but none of the CUDA builds StemDeck can install support it - stem separation will use CPU. StemDeck will not try again until the next update.`
+              `GPU detected (${gpu.gpuName}), but none of the ${api} builds StemDeck can install support it - stem separation will use CPU. StemDeck will not try again until the next update.`
+            );
+          } else if (gpu.gpuDetected && !gpu.cudaVerified && gpu.reason === REASON_ROCM_NO_KFD_ACCESS) {
+            showError(
+              `GPU detected (${gpu.gpuName}), but StemDeck cannot open /dev/kfd - stem separation will use CPU.\nAdd your user to the render and video groups (${GROUP_FIX}), log out and back in, and restart StemDeck.`
             );
           } else if (gpu.gpuDetected && !gpu.cudaVerified) {
             showError(
-              `GPU detected (${gpu.gpuName}) but CUDA setup failed - stem separation will use CPU.\nCheck logs/setup.log in the StemDeck data folder for details.`
+              `GPU detected (${gpu.gpuName}) but ${api} setup failed - stem separation will use CPU.\nCheck logs/setup.log in the StemDeck data folder for details.`
             );
           }
           gpuSummary = gpu.gpuDetected
             ? gpu.cudaVerified
-              ? `${gpu.gpuName} - CUDA ${gpu.cudaVersion} enabled`
-              : `${gpu.gpuName} found - falling back to CPU (CUDA unverified)`
-            : "No NVIDIA GPU - stem separation will use CPU";
+              ? `${gpu.gpuName} - ${api} ${gpu.cudaVersion} enabled`
+              : `${gpu.gpuName} found - falling back to CPU (${api} unverified)`
+            : `No ${gpuKinds} GPU - stem separation will use CPU`;
         }
         return gpu;
       } finally {

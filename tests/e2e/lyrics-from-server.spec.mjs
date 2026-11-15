@@ -115,6 +115,25 @@ test.describe("lyrics from the server", () => {
     expect(await stored(page)).toBeNull();
   });
 
+  test("the vocals envelope the wipe is timed by can be read, as the one kept", async ({ page }) => {
+    await setUp(page);
+    const read = () => page.evaluate(
+      async ([id, otherId]) => {
+        const { vocalEnvelope } = await import("/js/lyrics.js");
+        const levels = vocalEnvelope(id);
+        if (!levels) return null;
+        return {
+          hop: levels.hop > 0,
+          levels: levels.db instanceof Int8Array && levels.db.length > 0,
+          same: vocalEnvelope(id) === levels,
+          other: vocalEnvelope(otherId),
+        };
+      },
+      [JOB_ID, SIBLING_JOB_ID],
+    );
+    await expect.poll(read).toEqual({ hop: true, levels: true, same: true, other: null });
+  });
+
   test("a version picked from the server's others is kept on the server as the user's choice", async ({ page }) => {
     const { lrclib, choices } = await setUp(page);
     await page.locator(".lyrics-versions-toggle").click();
