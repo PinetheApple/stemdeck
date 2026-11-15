@@ -835,7 +835,6 @@ function stageFolder(entries, showDropError, shell = {}) {
   document.getElementById("fileInput")?._clear?.();
   if (!entries.length) {
     showDropError(t("batch.emptyFolder"));
-    shell.release?.();
     return;
   }
   startFileBatch(entries, { folder: rootFolderName(entries), ...shell });

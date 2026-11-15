@@ -45,13 +45,13 @@ pub fn duration(ffprobe: &Path, file: &Path, timeout: Duration) -> Option<f64> {
         Ok(output) if output.status.success() => seconds(&String::from_utf8_lossy(&output.stdout)),
         Ok(output) => {
             eprintln!(
-                "[dropin] ffprobe could not measure a dropped file: {}",
+                "[dropprobe] ffprobe could not measure a dropped file: {}",
                 output.status
             );
             None
         }
         Err(e) => {
-            eprintln!("[dropin] could not measure a dropped file: {e}");
+            eprintln!("[dropprobe] could not measure a dropped file: {e}");
             None
         }
     }

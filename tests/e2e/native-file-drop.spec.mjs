@@ -31,7 +31,7 @@ const MB = 1024 * 1024;
  * Replaces the shell's drop commands with a controllable stand-in.
  *
  * As in DropInbox, each drop is held under its ticket until the page releases
- * it, and a released drop's files cannot be read.
+ * it, a released drop's files cannot be read, and each file is read once.
  *
  * Registered after stubTauri, so it wraps the invoke that stub installed.
  * `window.__shell.emit(signal)` is a drag event reaching the shell; the page's
@@ -55,6 +55,14 @@ async function standInShell(page, { native = true } = {}) {
       measured: [],
       released: [],
       durations: {},
+      measuresHeld: new Map(),
+      holdMeasure(id) {
+        shell.measuresHeld.set(id, null);
+      },
+      letMeasure(id) {
+        shell.measuresHeld.get(id)?.();
+        shell.measuresHeld.delete(id);
+      },
       held: (id) => ticketOf.has(id) && !shell.released.includes(ticketOf.get(id)),
       picks: [],
       picked: null,
@@ -95,6 +103,7 @@ async function standInShell(page, { native = true } = {}) {
       if (cmd === "read_dropped_file") {
         shell.reads.push(args.id);
         if (!shell.held(args.id)) return Promise.reject("that file is no longer available");
+        ticketOf.delete(args.id);
         if (shell.unreadable.has(args.id)) {
           return Promise.reject("could not open the file: No such file or directory");
         }
@@ -102,7 +111,9 @@ async function standInShell(page, { native = true } = {}) {
       }
       if (cmd === "dropped_file_duration") {
         shell.measured.push(args.id);
-        return Promise.resolve(shell.held(args.id) ? shell.durations[args.id] ?? null : null);
+        const length = shell.held(args.id) ? shell.durations[args.id] ?? null : null;
+        if (!shell.measuresHeld.has(args.id)) return Promise.resolve(length);
+        return new Promise((resolve) => shell.measuresHeld.set(args.id, () => resolve(length)));
       }
       if (cmd === "release_dropped_files") {
         shell.released.push(args.ticket);
@@ -353,6 +364,51 @@ test.describe("a file dropped on the Linux desktop app", () => {
     await expect(row(page, "b.flac").locator("input")).not.toBeChecked();
     expect(await page.evaluate(() => window.__shell.measured)).toEqual([1, 3, 4]);
     expect((await state(page)).reads).toEqual([]);
+  });
+
+  test("Add a folder flags a long file the same way", async ({ page }) => {
+    await page.addInitScript(() => { delete HTMLInputElement.prototype.webkitdirectory; });
+    await openDesktop(page);
+    await stubFolderPreview(page, ["a.wav", "b.flac", "c.m4a"]);
+    await page.evaluate(({ files, long }) => {
+      window.__shell.durations = { 4: long };
+      window.__shell.picked = { kind: "drop", folder: true, files };
+    }, { files: FOLDER, long: TOO_LONG_SEC });
+    await page.locator("#addFolderBtn").click();
+
+    await expect(row(page, "c.m4a").locator(".batch-flag-block")).toBeVisible();
+    await expect(row(page, "c.m4a").locator("input")).not.toBeChecked();
+    expect((await state(page)).reads).toEqual([]);
+  });
+
+  test("a length that arrives while the review is queueing keeps the rows the server refused", async ({ page }) => {
+    await openDesktop(page);
+    await stubPreview(page, filePreview(["ok", "ok"]));
+    const uploads = [];
+    let letFirstThrough;
+    const firstHeld = new Promise(function holdFirst(resolve) { letFirstThrough = resolve; });
+    await page.route(/\/api\/jobs$/, async function answerImport(route) {
+      if (route.request().method() !== "POST") return route.fallback();
+      uploads.push(uploadedFile(route.request()));
+      if (uploads.length === 1) await firstHeld;
+      if (uploads.length === 2) return route.fulfill({ status: 422, json: { detail: "refused: too long" } });
+      return route.fulfill({ json: { job_id: "e2e0b0000001" } });
+    });
+    await page.evaluate(() => window.__shell.holdMeasure(1));
+    await drop(page, [
+      { id: 1, name: "a.wav", size: 1000 },
+      { id: 2, name: "b.wav", size: 1000 },
+    ]);
+    await expect(row(page, "b.wav").locator("input")).toBeChecked();
+    await queueButton(page).click();
+    await expect.poll(() => uploads.length).toBe(1);
+
+    await page.evaluate(() => window.__shell.letMeasure(1));
+    await expect.poll(() => page.evaluate(() => window.__shell.measured)).toEqual([1, 2]);
+    letFirstThrough();
+
+    await expect(row(page, "b.wav")).toContainText("refused: too long");
+    await expect(row(page, "a.wav")).toHaveCount(0);
   });
 
   test("a refused drop while the review is open leaves the review's files readable", async ({ page }) => {

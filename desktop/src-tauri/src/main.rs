@@ -3680,7 +3680,8 @@ async fn next_drop_signal(
     .map_err(|e| e.to_string())
 }
 
-/// The bytes of one file from the latest drop, by the id the drop reported.
+/// The bytes of one file from a drop the page has not released, by the id the
+/// drop reported.
 ///
 /// Takes an id, never a path: see "Paths stay on this side" in `dropin`. Each
 /// id can be read once, and only while its drop has not been released.
