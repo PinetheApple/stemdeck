@@ -16,6 +16,8 @@ from typing import Any
 
 from app.core.config import JOB_ID_RE
 from app.core.song_folder import write_json_atomic
+from app.core.take_video import holds_camera, video_entry_fields
+from app.core.take_video_config import TRACK_KIND_AUDIO
 from app.core.takes_config import (
     AUDIO_PART_FILE,
     ID_HEX_BYTES,
@@ -102,7 +104,7 @@ def _holds_recording(folder: Path) -> bool:
     if (folder / SIDECAR_FILE).is_file() or (folder / RAW_WAV_FILE).is_file():
         return True
     part = folder / AUDIO_PART_FILE
-    return part.is_file() and part.stat().st_size > 0
+    return (part.is_file() and part.stat().st_size > 0) or holds_camera(folder)
 
 
 def has_takes(job_dir: Path) -> bool:
@@ -157,8 +159,13 @@ def placement_sec(sidecar: dict[str, Any]) -> float:
     )
 
 
-def take_entry(job_id: str, sidecar: dict[str, Any]) -> dict[str, Any]:
-    """The lane record the studio reads for a finished take."""
+def take_entry(
+    job_id: str,
+    sidecar: dict[str, Any],
+    song_sec: float | None = None,
+) -> dict[str, Any]:
+    """The lane record the studio reads for a finished take; `song_sec`
+    bounds the take's span."""
     take_id = str(sidecar["id"])
     latency = sidecar.get("latency") or {}
     base = f"/api/jobs/{job_id}/takes/{take_id}"
@@ -174,6 +181,7 @@ def take_entry(job_id: str, sidecar: dict[str, Any]) -> dict[str, Any]:
         "user_nudge_ms": float(latency.get("user_nudge_ms") or 0.0),
         "url": f"{base}/audio.wav",
         "peaks_url": f"{base}/peaks",
+        **video_entry_fields(job_id, {**sidecar, "id": take_id}, song_sec),
     }
 
 
@@ -182,6 +190,8 @@ def make_track(
     name: str,
     order: int,
     input_: dict[str, Any] | None = None,
+    kind: str = TRACK_KIND_AUDIO,
+    i_play: list[str] | None = None,
 ) -> dict[str, Any]:
     return {
         "id": track_id,
@@ -190,6 +200,8 @@ def make_track(
         "created_at": time.time(),
         "active_take_id": None,
         "input": input_,
+        "kind": kind,
+        "i_play": list(i_play or []),
     }
 
 

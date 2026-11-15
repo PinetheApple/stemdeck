@@ -11,6 +11,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from app.api.takes_camera_files import filmed_state, finish_camera, start_fields
 from app.api.takes_models import CreateTakeBody, FinishBody
 from app.core.song_folder import write_json_atomic
 from app.core.takes import (
@@ -44,6 +45,8 @@ from app.pipeline.take_render import (
     write_take_peaks,
 )
 
+AUDIO_STREAM = "audio"
+
 
 def capture_of(state: dict[str, Any]) -> dict[str, Any]:
     """The capture block of an open take's start sidecar."""
@@ -65,9 +68,15 @@ def open_state(folder: Path) -> dict[str, Any]:
     return state
 
 
-def open_take(job_dir: Path, body: CreateTakeBody, take_max: int) -> tuple[str, str]:
+def open_take(
+    job_dir: Path,
+    body: CreateTakeBody,
+    take_max: int,
+    track: dict[str, Any],
+) -> tuple[str, str]:
     """Make the take's folder and parts.json, holding the start sidecar, so
-    an orphaned take can still be finished. Returns (take_id, label)."""
+    an orphaned take can still be finished. A video track's "I play" stems
+    are copied in. Returns (take_id, label)."""
     root = job_dir / TAKES_DIRNAME
     root.mkdir(parents=True, exist_ok=True)
     existing = {p.name for p in take_folders(root)}
@@ -83,33 +92,48 @@ def open_take(job_dir: Path, body: CreateTakeBody, take_max: int) -> tuple[str, 
         "created_at": now,
         "updated_at": now,
         "finished": False,
-        "audio": {"next_seq": 0, "bytes": 0},
-        "start": body.model_dump(include={"timeline", "latency", "capture"}),
+        AUDIO_STREAM: {"next_seq": 0, "bytes": 0},
+        "start": body.model_dump(include=start_fields(body)),
+        **filmed_state(body, track),
     }
     write_json_atomic(root / take_id / PARTS_FILE, state)
     return take_id, label
 
 
 def append_part(folder: Path, seq: int, data: bytes, cap: int) -> dict[str, Any]:
-    """Append part `seq`. Repeating the last part is a no-op; any other seq
-    than the next is a 409. Returns {"seq", "bytes", "duplicate"}."""
+    """Append audio part `seq` (whole sample frames)."""
     state = open_state(folder)
     if len(data) % frame_bytes(state):
         raise HTTPException(status_code=422, detail="part must hold whole sample frames")
-    next_seq, received = int(state["audio"]["next_seq"]), int(state["audio"]["bytes"])
+    return append_stream(folder, state, AUDIO_STREAM, AUDIO_PART_FILE, seq, data, cap)
+
+
+def append_stream(
+    folder: Path,
+    state: dict[str, Any],
+    stream: str,
+    part_file: str,
+    seq: int,
+    data: bytes,
+    cap: int,
+) -> dict[str, Any]:
+    """Append part `seq` of `stream` to `part_file`. Repeating the last part
+    is a no-op; any other seq than the next is a 409. Returns {"seq",
+    "bytes", "duplicate"}."""
+    next_seq, received = int(state[stream]["next_seq"]), int(state[stream]["bytes"])
     if next_seq > 0 and seq == next_seq - 1:
         return {"seq": seq, "bytes": received, "duplicate": True}
     if seq != next_seq:
         raise HTTPException(status_code=409, detail="unexpected part sequence")
     if received + len(data) > cap:
         raise HTTPException(status_code=413, detail="take too large for this song")
-    with (folder / AUDIO_PART_FILE).open("ab") as fh:
+    with (folder / part_file).open("ab") as fh:
         # Cut back to what parts.json says arrived: a crash between the write
         # and the state update must not leave the retried part in twice.
         fh.truncate(received)
         fh.seek(received)
         fh.write(data)
-    state["audio"] = {"next_seq": seq + 1, "bytes": received + len(data)}
+    state[stream] = {"next_seq": seq + 1, "bytes": received + len(data)}
     state["updated_at"] = time.time()
     write_json_atomic(folder / PARTS_FILE, state)
     return {"seq": seq, "bytes": received + len(data), "duplicate": False}
@@ -133,6 +157,7 @@ def _build_sidecar(folder: Path, state: dict[str, Any], body: FinishBody) -> dic
     if body.end_song_sec is not None:
         timeline["end_song_sec"] = body.end_song_sec
     return {
+        **({"i_play": state["i_play"]} if "i_play" in state else {}),
         "v": SIDECAR_VERSION,
         "id": folder.name,
         "track_id": state["track_id"],
@@ -174,7 +199,7 @@ def finish_take_files(job_dir: Path, folder: Path, body: FinishBody) -> dict[str
     parts.json. Returns the sidecar."""
     state = open_state(folder)
     _check_audio(folder, state)
-    sidecar = _build_sidecar(folder, state, body)
+    sidecar = {**_build_sidecar(folder, state, body), **finish_camera(folder, state, body.camera)}
     part = folder / AUDIO_PART_FILE
     if part.is_file() and part.stat().st_size > 0:
         capture = capture_of(state)
