@@ -42,7 +42,9 @@ from app.core.versions import (
     versions_of,
 )
 from app.pipeline.extract_stems import (
+    EXTRACT_FAILED_TOO_MANY_VERSIONS,
     EXTRACT_RUNS,
+    ExtractFailed,
     cancel_extract,
     claim_extract,
     extract_view,
@@ -117,8 +119,12 @@ def _known_stems(value: list[str]) -> list[str]:
     return stems
 
 
+def _has_room(versions: list[dict[str, Any]]) -> bool:
+    return len(versions) < MAX_VERSIONS_PER_SONG
+
+
 def _room_for_one_more(versions: list[dict[str, Any]]) -> None:
-    if len(versions) >= MAX_VERSIONS_PER_SONG:
+    if not _has_room(versions):
         raise HTTPException(status_code=409, detail=TOO_MANY_VERSIONS)
 
 
@@ -204,6 +210,8 @@ def _open_extracted(job: Job, wanted: list[str], name: str) -> str:
     """Open the version showing `wanted` once its stems are in, saving the
     song's new stem URLs with it."""
     versions = versions_of(job)
+    if find_by_stems(versions, wanted) is None and not _has_room(versions):
+        raise ExtractFailed(TOO_MANY_VERSIONS, EXTRACT_FAILED_TOO_MANY_VERSIONS)
     version, created = _find_or_make(versions, wanted, name)
     _save(job, versions if created else job.versions, version["id"])
     return version["id"]
