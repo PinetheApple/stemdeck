@@ -26,10 +26,13 @@ from fastapi.staticfiles import StaticFiles
 from app.api.jobs import (
     LYRICS_RUNNING_BLOCKS_MOVE,
     LYRICS_RUNNING_BLOCKS_RESET,
+    STEMS_FOLDER_MOVING_EDIT,
+    _refuse_while_relocating,
     lyrics_run_active,
     settle_pending_replacements,
 )
 from app.api.router import router
+from app.api.takes_video_runs import cancel_all_renders
 from app.core import lan_interfaces, tls_listener
 from app.core.compression import COMPRESS_LEVEL, MINIMUM_SIZE, TextGZipMiddleware
 from app.core.config import (
@@ -52,6 +55,7 @@ from app.core.config import (
     torch_gpu_backend,
     torch_load_error,
 )
+from app.core.gpu_unused import gpu_unused
 from app.core.logging_setup import configure_logging
 from app.core.models import JobBusy
 from app.core.process import process_exists as _process_exists
@@ -300,6 +304,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # blocked in asyncio.to_thread, which cannot be cancelled. This also makes
     # the runner keep the job the worker kill below interrupts, to resume.
     jobqueue.request_stop()
+    cancel_all_renders()
     idle_task.cancel()
     # Tear down the persistent demucs worker (#309) so a clean shutdown never
     # leaves it as an orphaned process -- it has no parent-death watchdog of
@@ -459,6 +464,7 @@ def _settings_payload() -> dict[str, object]:
         # Set when torch is installed but cannot load, which stops separation
         # on every device (#730). Read after the probe above refreshed it.
         "torch_error": torch_load_error(),
+        "gpu_unused": gpu_unused(),
     }
 
 
@@ -834,6 +840,8 @@ def reset_app_data() -> dict[str, object]:
     the caller's -- same blast radius as changing the compute device or any
     other setting from a device with network access, not a new class of
     risk this endpoint introduces on its own."""
+    # It deletes job folders the move may be copying.
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     active = [j for j in registry_all_jobs().values() if j.status in _ACTIVE_JOB_STATUSES]
     if active:
         raise HTTPException(status_code=409, detail="cannot reset while a job is in progress")

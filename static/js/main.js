@@ -37,7 +37,7 @@ import { initTrackMenu } from "./trackMenu.js";
 import { initConnection } from "./connection.js";
 import { clearBatch, setImportPill, startFileBatch, wireBatchImport } from "./batchImport.js";
 import {
-  MAX_UPLOAD_BYTES, PATH_SEP, capEntries, folderFiles, formatBytes, isAudioName, isUploadable, walkEntries,
+  MAX_UPLOAD_BYTES, PATH_SEP, folderFiles, formatBytes, isAudioName, walkEntries,
 } from "./batchImportModel.js";
 
 // ─── Stem choice toggles on the import page ───
@@ -830,13 +830,14 @@ function rootFolderName(entries) {
   return entries.find((e) => e.dir)?.dir.split(PATH_SEP)[0] ?? null;
 }
 
-function stageFolder(entries, showDropError) {
+/** `shell` is how a batch of described files reaches the shell: { readFile, measure, release }. */
+function stageFolder(entries, showDropError, shell = {}) {
   document.getElementById("fileInput")?._clear?.();
   if (!entries.length) {
     showDropError(t("batch.emptyFolder"));
     return;
   }
-  startFileBatch(entries, { folder: rootFolderName(entries) });
+  startFileBatch(entries, { folder: rootFolderName(entries), ...shell });
 }
 
 /** The drop's entries, read while the drop event lasts, or null when it holds no folder. */
@@ -943,11 +944,12 @@ function wireFileDrop() {
     if (screened) stageFiles(screened);
   }
 
-  /** Several files: the review lists each, with what is wrong with any of them. */
-  function stageLooseFiles(files) {
+  /** Several files: the review lists each, with what is wrong with any of them.
+   *  `shell` reaches the ones that arrived as descriptions (see stageFolder). */
+  function stageLooseFiles(files, shell = {}) {
     clearFile();
     clearDropError();
-    startFileBatch(files.map((file) => ({ file, dir: "" })));
+    startFileBatch(files.map((file) => ({ file, dir: "" })), shell);
   }
 
   /** Arms the import with a file that has already passed screenFiles. */
@@ -1107,8 +1109,9 @@ function wireFileDrop() {
         showDropError(t("batch.folderUnreadable"));
       } else if (signal.kind === "drop") {
         setDragHover(false);
-        if (signal.folder) await applyNativeFolder(invoke, signal.files);
-        else await applyNativeDrop(invoke, signal.files);
+        const shell = droppedFilesShell(invoke, signal.ticket);
+        if (signal.folder) applyNativeFolder(signal.files, shell);
+        else await applyNativeDrop(signal.files, shell);
       }
     }
   }
@@ -1128,38 +1131,52 @@ function wireFileDrop() {
     showDropError(t("settings.stemsLocation.pickerFailed"));
   }
 
-  /** A folder the shell opened up: its files, each with the folder it sits in. Only
-   *  the audio the review keeps is read, so a huge folder is not loaded to be cut. */
-  async function applyNativeFolder(invoke, dropped) {
-    const entries = dropped.map((d) => ({ file: d, dir: d.dir }));
-    const kept = new Set(capEntries(entries).entries.map((e) => e.file));
-    const read = await readDropped(invoke, dropped.filter((d) => kept.has(d) && isUploadable(d)));
-    if (read) stageFolder(entries.map((e) => ({ file: read.get(e.file.id) ?? e.file, dir: e.dir })), showDropError);
+  /** How one drop's described files are read, measured and let go in the shell. */
+  function droppedFilesShell(invoke, ticket) {
+    return {
+      readFile: (d) => readDroppedFile(invoke, d),
+      measure: (d) => invoke("dropped_file_duration", { id: d.id }).catch(onMeasureFailed),
+      release: () => invoke("release_dropped_files", { ticket }).catch(onReleaseFailed),
+    };
   }
 
-  // `dropped` is [{ id, name, size }]: descriptions, not files. They are
-  // screened as they are, and only what can be uploaded is read.
-  async function applyNativeDrop(invoke, dropped) {
+  function onMeasureFailed(err) {
+    console.warn("[drop] could not measure a dropped file:", err);
+    return null;
+  }
+
+  function onReleaseFailed(err) {
+    console.warn("[drop] could not release a drop:", err);
+  }
+
+  /** A folder the shell opened up: its files, each with the folder it sits in, each
+   *  read only when it is sent. */
+  function applyNativeFolder(dropped, shell) {
+    const entries = dropped.map((d) => ({ file: d, dir: d.dir }));
+    stageFolder(entries, showDropError, shell);
+  }
+
+  // `dropped` is [{ id, name, size }]: descriptions, not files. Several are
+  // reviewed as descriptions, each read only when it is sent; one is read now.
+  async function applyNativeDrop(dropped, shell) {
     if (dropped.length > 1) {
-      const read = await readDropped(invoke, dropped.filter(isUploadable));
-      if (read) stageLooseFiles(dropped.map((d) => read.get(d.id) ?? d));
+      stageLooseFiles(dropped, shell);
       return;
     }
     const screened = screenFiles(dropped);
-    if (!screened) return;
-    const read = await readDropped(invoke, screened);
+    const read = screened && await readDropped(shell, screened);
+    shell.release();
     if (read) stageFiles([...read.values()]);
   }
 
   /** The dropped files' bytes, by id; null, having said which, when one cannot be read. */
-  async function readDropped(invoke, descriptions) {
+  async function readDropped(shell, descriptions) {
     const files = new Map();
     // One at a time, so a single transfer of up to MAX_UPLOAD_BYTES is in
     // flight rather than one per file: parallel reads would only raise the peak.
     for (const d of descriptions) {
       try {
-        const bytes = await invoke("read_dropped_file", { id: d.id });
-        files.set(d.id, new File([bytes], d.name));
+        files.set(d.id, await shell.readFile(d));
       } catch (e) {
         console.warn("[drop] could not read a dropped file:", e);
         showDropError(t("upload.dropReadFailed", { name: d.name }));
@@ -1167,6 +1184,12 @@ function wireFileDrop() {
       }
     }
     return files;
+  }
+
+  /** One dropped file, read back from the shell by its id. */
+  async function readDroppedFile(invoke, description) {
+    const bytes = await invoke("read_dropped_file", { id: description.id });
+    return new File([bytes], description.name);
   }
 }
 

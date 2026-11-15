@@ -1,6 +1,6 @@
 """On-disk cache of measured masters (app/pipeline/mastering.py).
 
-Measuring a master runs ffmpeg over the whole song two to five times, so a
+Measuring a master runs ffmpeg over the whole song up to ten times, so a
 plan is measured once and kept as a small JSON file. The export, a region
 export and the loudness readout of the same mix then share one measurement.
 The key holds everything the measurement depends on: the input graph (lanes,
@@ -17,6 +17,7 @@ oldest entries past MASTER_PLAN_MAX_FILES are pruned on write.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import logging
@@ -37,7 +38,7 @@ from app.pipeline.mastering import (
 
 logger = logging.getLogger(LOGGER_NAME)
 
-PLAN_CACHE_VERSION = "1"
+PLAN_CACHE_VERSION = "3"
 
 _plan_slots = asyncio.Semaphore(MASTER_PLAN_CONCURRENCY)
 _plan_locks: dict[str, asyncio.Lock] = {}
@@ -60,35 +61,59 @@ def plan_cache_key(
     return hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
-def _read_plan(path: Path) -> MasterPlan | None:
+def read_cache(path: Path) -> dict | None:
+    """A cached JSON object, or None when it is missing or unreadable."""
     try:
-        return MasterPlan.from_json(json.loads(path.read_text(encoding="utf-8")))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return None
-    except (OSError, ValueError, KeyError, TypeError):
-        logger.debug("unreadable master plan %s", path, exc_info=True)
+    except (OSError, ValueError):
+        logger.debug("unreadable cache entry %s", path, exc_info=True)
         return None
+    return data if isinstance(data, dict) else None
 
 
-def _prune(cache_dir: Path, keep: Path) -> None:
+def _prune(cache_dir: Path, keep: Path, max_files: int) -> None:
     try:
         entries = sorted(
             (p for p in cache_dir.iterdir() if p.is_file() and not p.name.startswith(".")),
             key=lambda p: p.stat().st_mtime,
         )
-        for old in entries[: max(0, len(entries) - MASTER_PLAN_MAX_FILES)]:
+        for old in entries[: max(0, len(entries) - max_files)]:
             if old != keep:
                 old.unlink(missing_ok=True)
     except OSError:
-        logger.debug("master plan prune failed", exc_info=True)
+        logger.debug("cache prune failed in %s", cache_dir, exc_info=True)
 
 
-def _write_plan(path: Path, plan: MasterPlan) -> None:
+def write_cache(path: Path, body: dict, max_files: int) -> None:
+    """Write ``body`` atomically, then keep only the newest ``max_files``."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
-    tmp.write_text(json.dumps(plan.to_json()), encoding="utf-8")
+    tmp.write_text(json.dumps(body, separators=(",", ":")), encoding="utf-8")
     os.replace(tmp, path)
-    _prune(path.parent, path)
+    _prune(path.parent, path, max_files)
+
+
+@contextlib.asynccontextmanager
+async def keyed_lock(locks: dict[str, asyncio.Lock], key: str):
+    """Hold the lock for ``key``, so one entry is never measured twice at once."""
+    lock = locks.setdefault(key, asyncio.Lock())
+    try:
+        async with lock:
+            yield
+    finally:
+        if not lock.locked():
+            locks.pop(key, None)
+
+
+def _read_plan(path: Path) -> MasterPlan | None:
+    data = read_cache(path)
+    try:
+        return None if data is None else MasterPlan.from_json(data)
+    except (KeyError, TypeError, ValueError):
+        logger.debug("unreadable master plan %s", path, exc_info=True)
+        return None
 
 
 async def cached_plan(
@@ -104,17 +129,12 @@ async def cached_plan(
     ceiling = effective_ceiling(settings, output_format)
     key = await asyncio.to_thread(plan_cache_key, stems, graph, settings, ceiling, rate)
     path = MASTER_PLAN_CACHE_DIR / f"{key}.json"
-    lock = _plan_locks.setdefault(key, asyncio.Lock())
-    try:
-        async with lock:
-            cached = await asyncio.to_thread(_read_plan, path)
-            if cached is not None:
-                return cached
-            inputs = [arg for p in stems for arg in ("-i", str(p))]
-            async with _plan_slots:
-                plan = await run_plan(inputs, graph, settings, ceiling, rate, measure)
-            await asyncio.to_thread(_write_plan, path, plan)
-            return plan
-    finally:
-        if not lock.locked():
-            _plan_locks.pop(key, None)
+    async with keyed_lock(_plan_locks, key):
+        cached = await asyncio.to_thread(_read_plan, path)
+        if cached is not None:
+            return cached
+        inputs = [arg for p in stems for arg in ("-i", str(p))]
+        async with _plan_slots:
+            plan = await run_plan(inputs, graph, settings, ceiling, rate, measure)
+        await asyncio.to_thread(write_cache, path, plan.to_json(), MASTER_PLAN_MAX_FILES)
+        return plan

@@ -13,10 +13,11 @@ function allTrackNames() {
   return [...TRACK_NAMES, ...EXTRA_STEM_NAMES];
 }
 import {
-  mixerState, mixerEl, stemListEl, currentJobId, multitrack, trackIndex,
+  mixerState, mixerEl, stemListEl, currentJobId, currentVersionId, multitrack, trackIndex,
   masterVolume, audioEngine,
 } from "./state.js";
 import { storeGet, storeSetDebounced, storeFlushPending } from "./utils.js";
+import { DEFAULT_VERSION_ID, mixStoreKey } from "./versionModel.js";
 import { t } from "./i18n.js";
 import {
   GLOBAL_PITCH_FIELD, PITCH_MAX, PITCH_MIN, clampPitch, pitchBlockedKey, savedGlobalPitch,
@@ -44,6 +45,10 @@ export function ensureMixerStateDefaults() {
   ensureFxDefaults(allTrackNames());
 }
 
+export const MIX_CHANGE_EVENT = "mixchange";
+
+const announceMixChange = () => document.dispatchEvent(new CustomEvent(MIX_CHANGE_EVENT));
+
 let globalPitch = 0;
 // Never saved: a view's silence must not leak into the song's mix.
 const silencedStems = new Set();
@@ -64,15 +69,14 @@ export function mixGlobalPitch() {
   return globalPitch;
 }
 
-const mixKey = (jobId) => `stemdeck:mix:${jobId}`;
-
-export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES) {
+export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES, versionId = DEFAULT_VERSION_ID) {
+  const key = mixStoreKey(jobId, versionId);
   silencedStems.clear();
   let stored = {};
   try {
     // Write any pending save for this song before reading it.
-    await storeFlushPending(mixKey(jobId));
-    const data = await storeGet(mixKey(jobId), {});
+    await storeFlushPending(key);
+    const data = await storeGet(key, {});
     if (data && typeof data === "object") stored = data;
   } catch (e) { console.warn("[mixer] failed to load mix state:", e); }
   for (const name of allTrackNames()) {
@@ -98,7 +102,7 @@ export function resetMixerState() {
 
 function saveMix() {
   if (!currentJobId) return;
-  storeSetDebounced(mixKey(currentJobId), { ...mixerState, [GLOBAL_PITCH_FIELD]: globalPitch });
+  storeSetDebounced(mixStoreKey(currentJobId, currentVersionId), { ...mixerState, [GLOBAL_PITCH_FIELD]: globalPitch });
 }
 bindFxStore({ save: saveMix, laneNames: allTrackNames });
 
@@ -205,17 +209,41 @@ export function setLaneKeysAvailable(available) {
   }
 }
 
+/**
+ * True when this lane is not heard: muted or silenced, or another loaded lane soloed while this one is not.
+ * A silenced lane's solo does not count.
+ */
+export function isLaneSilenced(name) {
+  const s = mixerState[name];
+  if (!s) return false;
+  if (s.muted || silencedStems.has(name)) return true;
+  const anySolo = allTrackNames().some(
+    (lane) => trackIndex[lane] !== undefined && mixerState[lane]?.soloed && !silencedStems.has(lane),
+  );
+  return anySolo && !s.soloed;
+}
+
+/** The lanes this song has mounted, in lane order, without the original. */
+export function loadedLaneNames() {
+  return Object.keys(trackIndex).filter((n) => n !== "original");
+}
+
+const SILENT_DB_TEXT = "-∞";
+const DB_PER_GAIN_DECADE = 20;
+
+/** A lane gain as the mixer shows it: dB to one decimal, signed when above unity. */
+export function laneGainDbText(gain) {
+  if (gain <= 0) return SILENT_DB_TEXT;
+  const db = (DB_PER_GAIN_DECADE * Math.log10(gain)).toFixed(1);
+  return parseFloat(db) > 0 ? `+${db}` : db;
+}
+
 export function applyMix() {
   if (!multitrack) return;
-  const anySolo = allTrackNames().some(
-    (name) => trackIndex[name] !== undefined && mixerState[name]?.soloed && !silencedStems.has(name),
-  );
   for (const name of allTrackNames()) {
     const s = mixerState[name];
     if (!s) continue;
-    let effective = s.volume;
-    if (s.muted || silencedStems.has(name)) effective = 0;
-    else if (anySolo && !s.soloed) effective = 0;
+    const effective = isLaneSilenced(name) ? 0 : s.volume;
     const idx = trackIndex[name];
     if (idx === undefined) continue;
 
@@ -254,10 +282,7 @@ export function updateLaneKnobVisual(knobEl, v) {
     input.style.setProperty("--lane-pos", frac.toFixed(3));
   }
   const val = knobEl.closest(".lane-header")?.querySelector(".mx-val");
-  if (val) {
-    const db = v <= 0 ? "-∞" : (20 * Math.log10(v)).toFixed(1);
-    val.textContent = db === "-∞" ? "-∞" : `${parseFloat(db) > 0 ? "+" : ""}${db}`;
-  }
+  if (val) val.textContent = laneGainDbText(v);
 }
 
 export function setLaneVolume(name, v) {
@@ -268,6 +293,7 @@ export function setLaneVolume(name, v) {
   if (knob) updateLaneKnobVisual(knob, state.volume);
   applyMix();
   saveMix();
+  announceMixChange();
 }
 
 export function refreshMixerVisuals() {
@@ -315,6 +341,7 @@ export function refreshMixerVisuals() {
       }
     }
   }
+  announceMixChange();
 }
 
 export function setLaneControlsEnabled(enabled) {
@@ -756,7 +783,7 @@ export function muteAll() {
   // or drums/bass/lead_vocals/backing_vocals/guitar/piano/other when the
   // on-demand split, #275, is active) rather than always the fixed 6 --
   // trackIndex is the live "what's actually mounted" source of truth.
-  const loadedNames = Object.keys(trackIndex).filter((n) => n !== "original");
+  const loadedNames = loadedLaneNames();
   const allMuted = loadedNames.length > 0 && loadedNames.every((n) => mixerState[n]?.muted);
   for (const name of allTrackNames()) {
     const s = mixerState[name];

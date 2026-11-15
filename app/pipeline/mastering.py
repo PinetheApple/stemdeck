@@ -21,13 +21,16 @@ and the plan behind it is measured on the whole song:
 4. The result is measured; when limiting cost more than the tolerance, up to
    MASTER_CORRECTION_PASSES bounded correction passes step the gain along
    the measured loudness-per-dB slope.
+5. A true peak still over the ceiling lowers the limiter's limit, and the gain
+   follows the target again (app/pipeline/master_ceiling.py). "Reached" needs
+   the loudness in tolerance and the true peak under the ceiling.
 
 The plan is always made on the whole song, so a region export gets exactly the
 gain of the full master; app/pipeline/master_plan_cache.py keeps it on disk.
 
 The caller supplies the graph of the whole song up to the label ``[pre]``
-(``plan_graph`` builds one from per-lane chains); this module never builds the
-lanes itself. ``parse_master_param`` validates the ``master=`` export
+(app/api/export_fx.py builds it as the render sums the lanes); this module
+never builds the lanes itself. ``parse_master_param`` validates the ``master=`` export
 parameter: base64url JSON, size-capped, every field typed and range-checked,
 every refusal a ``MasterError`` whose message is safe to show as a 422.
 """
@@ -57,11 +60,8 @@ from app.core.config import (
     MASTER_COMP_THRESHOLD_FLOOR_DB,
     MASTER_COMP_THRESHOLD_OFFSET_DB,
     MASTER_COMP_THRESHOLD_PER_AMOUNT_DB,
-    MASTER_CORRECTION_MAX_DB,
     MASTER_CORRECTION_PASSES,
     MASTER_CORRECTION_TOL_LU,
-    MASTER_GAIN_MAX_DB,
-    MASTER_GAIN_MIN_DB,
     MASTER_LIMITER_ATTACK_MS,
     MASTER_LIMITER_MARGIN_DB,
     MASTER_LIMITER_OVERSAMPLE,
@@ -77,6 +77,13 @@ from app.pipeline.fx_filters import (
     decode_wire_object,
     linear_to_db,
     read_wire_number,
+)
+from app.pipeline.master_ceiling import (
+    clamp_gain,
+    correction_step,
+    hold_ceiling,
+    missed,
+    overshoot_db,
 )
 
 LOGGER_NAME = "stemdeck.mastering"
@@ -96,9 +103,6 @@ MASTER_REQUIRED = f"{MASTER_PREFIX}: required"
 _SILENCE_LUFS = -69.9
 # The compressor's threshold reference when the pre-measurement found silence.
 _SILENT_REFERENCE_LUFS = -40.0
-# Loudness gained per dB of gain: 1 with no limiting, never assumed below this
-# (a limiter at its wall), so a correction step stays bounded.
-_LIMITED_SLOPE_MIN = 0.1
 _FLOAT_SLACK = 1e-9
 _MASTER_KEYS = frozenset({"v", "target", "ceiling", "comp"})
 _STDERR_TAIL_LINES = 8
@@ -148,6 +152,8 @@ class MasterPlan:
     gain_db: float
     post: Loudness
     reached: bool
+    limit_offset_db: float = 0.0
+    trim_db: float = 0.0
 
     def to_json(self) -> dict:
         """The loudness route's JSON; ``comp_ratio`` is null when the compressor is off."""
@@ -162,6 +168,8 @@ class MasterPlan:
             "gain_db": self.gain_db,
             "post": asdict(self.post),
             "reached": self.reached,
+            "limit_offset_db": self.limit_offset_db,
+            "trim_db": self.trim_db,
         }
 
     @classmethod
@@ -264,37 +272,46 @@ def limiter_filter(ceiling_db: float, rate: int) -> str:
     )
 
 
+def trim_filter(trim_db: float) -> str:
+    """A level trim after the limiter, "" for none."""
+    return f"volume={_lin(-trim_db)}" if trim_db > 0 else ""
+
+
 def master_chain(
     comp: float,
     threshold_db: float | None,
     gain_db: float,
     ceiling_db: float,
     rate: int,
+    limit_offset_db: float = 0.0,
+    trim_db: float = 0.0,
 ) -> str:
     """The whole master chain after the master EQ, without a trailing comma."""
     parts = [comp_filter(comp, threshold_db)]
     if gain_db != 0:
         parts.append(f"volume={_lin(gain_db)}")
-    parts.append(limiter_filter(ceiling_db, rate))
+    parts.append(limiter_filter(ceiling_db - limit_offset_db, rate))
+    parts.append(trim_filter(trim_db))
     return ",".join(p for p in parts if p)
 
 
-def plan_chain(plan: MasterPlan, rate: int) -> str:
-    return master_chain(plan.comp, plan.comp_threshold_db, plan.gain_db, plan.ceiling, rate)
-
-
-def plan_graph(lane_chains: list[str], master_eq: str) -> str:
-    """Input i through ``lane_chains[i]``, summed, then the master EQ (""
-    or a prefix ending in a comma), labelled [pre]. No click: the loudness is
-    set for the music, not the practice aid."""
-    filters = [f"[{i}:a]{chain}[a{i}]" for i, chain in enumerate(lane_chains)]
-    n = len(lane_chains)
-    if n > 1:
-        labels = "".join(f"[a{i}]" for i in range(n))
-        filters.append(f"{labels}amix=inputs={n}:normalize=0,{master_eq}anull[pre]")
-    else:
-        filters.append(f"[a0]{master_eq}anull[pre]")
-    return ";".join(filters)
+def plan_chain(
+    plan: MasterPlan,
+    rate: int,
+    extra_offset_db: float = 0.0,
+    extra_trim_db: float = 0.0,
+    extra_gain_db: float = 0.0,
+) -> str:
+    """The plan's chain, with further gain, limit offset and trim when given."""
+    return master_chain(
+        plan.comp,
+        plan.comp_threshold_db,
+        plan.gain_db + extra_gain_db,
+        plan.ceiling,
+        rate,
+        plan.limit_offset_db + extra_offset_db,
+        plan.trim_db + extra_trim_db,
+    )
 
 
 def meter_filter(rate: int) -> str:
@@ -332,10 +349,6 @@ def parse_meter(text: str) -> Loudness:
     return Loudness(_rounded(i), _rounded(tp), _rounded(_last_float(_LRA_RE, text)))
 
 
-def clamp_gain(gain_db: float) -> float:
-    return round(min(MASTER_GAIN_MAX_DB, max(MASTER_GAIN_MIN_DB, gain_db)), 4)
-
-
 def _measure_cmd(inputs: list[str], graph: str, chain: str, rate: int) -> list[str]:
     tail = f"{chain}," if chain else ""
     return [
@@ -370,22 +383,6 @@ async def measure_chain(inputs: list[str], graph: str, chain: str, rate: int) ->
     return parse_meter(text)
 
 
-def _correction_step(miss: float, tried: list[tuple[float, float | None]]) -> float:
-    slope = 1.0
-    if len(tried) > 1:
-        (g0, l0), (g1, l1) = tried[-2], tried[-1]
-        if g1 != g0 and l0 is not None and l1 is not None:
-            slope = min(1.0, max(_LIMITED_SLOPE_MIN, (l1 - l0) / (g1 - g0)))
-    return max(-MASTER_CORRECTION_MAX_DB, min(MASTER_CORRECTION_MAX_DB, miss / slope))
-
-
-def _missed(target: float, post: Loudness) -> float | None:
-    """How far the result is from the target, None when it is close enough."""
-    if post.i is None or abs(target - post.i) <= MASTER_CORRECTION_TOL_LU:
-        return None
-    return target - post.i
-
-
 async def _settle_gain(
     gain: float,
     post: Loudness,
@@ -395,10 +392,10 @@ async def _settle_gain(
     """Up to MASTER_CORRECTION_PASSES bounded steps toward the target."""
     tried = [(gain, post.i)]
     for _ in range(MASTER_CORRECTION_PASSES):
-        miss = _missed(target, post)
-        if miss is None:
+        miss = missed(target, post)
+        if not miss:
             break
-        fixed = clamp_gain(gain + _correction_step(miss, tried))
+        fixed = clamp_gain(gain + correction_step(miss, tried))
         if fixed == gain:
             break
         gain, post = fixed, await run(fixed)
@@ -406,10 +403,56 @@ async def _settle_gain(
     return gain, post
 
 
-def _reached(target: float | None, post: Loudness) -> bool:
+def target_reached(target: float | None, ceiling_db: float, post: Loudness) -> bool:
+    """Loudness within tolerance of the target (any, with none) and the true peak under the ceiling."""
+    if overshoot_db(post.tp, ceiling_db):
+        return False
     if target is None:
         return True
     return post.i is not None and abs(target - post.i) <= MASTER_CORRECTION_TOL_LU + _FLOAT_SLACK
+
+
+async def _comp_loudness(
+    inputs: list[str],
+    graph: str,
+    comp: float,
+    threshold: float | None,
+    rate: int,
+    measure: Measurer,
+) -> float | None:
+    """The loudness after the glue compressor, None when it is off."""
+    if threshold is None:
+        return None
+    return (await measure(inputs, graph, comp_filter(comp, threshold), rate)).i
+
+
+async def _gain_under_ceiling(
+    target: float | None,
+    level: float | None,
+    ceiling_db: float,
+    run: Callable[..., Awaitable[Loudness]],
+) -> tuple[float, float, float, Loudness]:
+    """The gain toward ``target`` from ``level``, then the ceiling held (master_ceiling)."""
+    no_gain = target is None or level is None
+    gain = 0.0 if no_gain else clamp_gain(target - level)
+    post = await run(gain)
+    if not no_gain:
+        gain, post = await _settle_gain(gain, post, target, run)
+    return await hold_ceiling(gain, post, target, ceiling_db, run)
+
+
+async def _levels(
+    inputs: list[str],
+    graph: str,
+    settings: MasterSettings,
+    rate: int,
+    measure: Measurer,
+) -> tuple[Loudness, float | None, float | None]:
+    """The mix's loudness, the glue compressor's threshold and the loudness after it."""
+    pre = await measure(inputs, graph, "", rate)
+    threshold = comp_threshold_db(settings.comp, settings.target, pre.i)
+    comp_i = await _comp_loudness(inputs, graph, settings.comp, threshold, rate, measure)
+    return pre, threshold, comp_i
 
 
 async def run_plan(
@@ -420,23 +463,15 @@ async def run_plan(
     rate: int,
     measure: Measurer = measure_chain,
 ) -> MasterPlan:
-    """Measure the mix and decide the gain. ``graph`` ends in the label [pre]."""
-    pre = await measure(inputs, graph, "", rate)
-    threshold = comp_threshold_db(settings.comp, settings.target, pre.i)
-    comp_i = None
-    if threshold is not None:
-        comp_i = (await measure(inputs, graph, comp_filter(settings.comp, threshold), rate)).i
+    """Measure the mix and decide the gain and trim. ``graph`` ends in the label [pre]."""
+    pre, threshold, comp_i = await _levels(inputs, graph, settings, rate, measure)
     level = pre.i if threshold is None else comp_i
 
-    async def run(gain: float) -> Loudness:
-        chain = master_chain(settings.comp, threshold, gain, ceiling_db, rate)
+    async def run(gain: float, offset: float = 0.0, trim: float = 0.0) -> Loudness:
+        chain = master_chain(settings.comp, threshold, gain, ceiling_db, rate, offset, trim)
         return await measure(inputs, graph, chain, rate)
 
-    no_gain = settings.target is None or level is None
-    gain = 0.0 if no_gain else clamp_gain(settings.target - level)
-    post = await run(gain)
-    if not no_gain:
-        gain, post = await _settle_gain(gain, post, settings.target, run)
+    gain, offset, trim, post = await _gain_under_ceiling(settings.target, level, ceiling_db, run)
     return MasterPlan(
         target=settings.target,
         ceiling=ceiling_db,
@@ -446,5 +481,7 @@ async def run_plan(
         comp_i=comp_i,
         gain_db=gain,
         post=post,
-        reached=_reached(settings.target, post),
+        reached=target_reached(settings.target, ceiling_db, post),
+        limit_offset_db=offset,
+        trim_db=trim,
     )

@@ -15,6 +15,7 @@ import {
   textInput,
 } from "./libraryControls.js";
 import { $ } from "./utils.js";
+import { FOLDER_MOVING_KEY, isFolderMovingError } from "./folderMoving.js";
 import { ARM_MS } from "./armConfirm.js";
 import { OUT_OF_TAB_ORDER, ROW_PLAY_CLASS, wireRovingRows } from "./rovingRows.js";
 
@@ -59,7 +60,8 @@ async function attempt(change) {
       return null;
     }
     const reason = refusalReason(err);
-    showError(reason ? t("setlists.rejected", { reason }) : t("setlists.saveFailed"));
+    if (isFolderMovingError(err)) showError(t(FOLDER_MOVING_KEY));
+    else showError(reason ? t("setlists.rejected", { reason }) : t("setlists.saveFailed"));
     return null;
   } finally {
     render();

@@ -11,6 +11,7 @@ import asyncio
 import base64
 import json
 import os
+import re
 import subprocess
 
 import numpy as np
@@ -28,6 +29,7 @@ from app.core.config import (
     MASTER_GAIN_MAX_DB,
     MASTER_LIMITER_MARGIN_DB,
     MASTER_PARAM_MAX_CHARS,
+    MASTER_TRIM_MARGIN_DB,
     ffmpeg_executable,
 )
 from app.pipeline import master_plan_cache as cache
@@ -37,6 +39,8 @@ from tests.ffmpeg_probe import skip_without_ffmpeg
 
 SR = 44100
 STREAMING = MasterSettings(-14.0, -1.0)
+# One lane up to [pre], as app/api/export_fx.py measures a single stem.
+ONE_LANE_GRAPH = "[0:a]anull[a0];[a0]anull[pre]"
 INTEGRATION_TOLERANCE_LU = 0.5
 
 
@@ -156,14 +160,6 @@ def test_filter_strings_carry_only_numbers():
             assert value in {"rms", "average", "disabled"} or float(value) == float(value)
 
 
-def test_plan_graph_sums_lanes_and_ends_in_pre():
-    assert m.plan_graph(["volume=0.5"], "") == "[0:a]volume=0.5[a0];[a0]anull[pre]"
-    assert m.plan_graph(["anull", "volume=2"], "biquad=b0=1.0,") == (
-        "[0:a]anull[a0];[1:a]volume=2[a1];"
-        "[a0][a1]amix=inputs=2:normalize=0,biquad=b0=1.0,anull[pre]"
-    )
-
-
 def test_meter_output_parser_takes_the_last_values():
     text = "\n".join(
         [
@@ -277,6 +273,8 @@ CONTRACT_PLAN_KEYS = [
     "gain_db",
     "post",
     "reached",
+    "limit_offset_db",
+    "trim_db",
 ]
 
 
@@ -287,6 +285,87 @@ def test_plan_json_is_the_loudness_route_shape():
     assert set(off["pre"]) == {"i", "tp", "lra"}
     glued = _plan(MasterSettings(-14.0, -1.0, 0.5), _stub_meter(-20.0, 0.0, 1.0)).to_json()
     assert glued["comp_ratio"] == 2.0
+
+
+LIMIT_RE = re.compile(r"alimiter=limit=([\d.]+)")
+TRIM_RE = re.compile(r"volume=([\d.]+)$")
+
+
+def _limiter_meter(overshoot_db: float, follows_limit: bool = True):
+    """The limiter's output peaks ``overshoot_db`` over its limit (or over its
+    first limit, when it does not follow it); a lower limit costs a little
+    loudness, a trim after it costs its full amount."""
+
+    async def measure(inputs, graph, chain, rate):
+        if not chain:
+            return Loudness(-20.0, -3.0)
+        limit = m.linear_to_db(float(LIMIT_RE.search(chain).group(1)))
+        offset = -1.0 - MASTER_LIMITER_MARGIN_DB - limit
+        trim_match = TRIM_RE.search(chain.split(f"aresample={rate}")[-1])
+        trim = -m.linear_to_db(float(trim_match.group(1))) if trim_match else 0.0
+        peak_limit = limit if follows_limit else limit + offset
+        loudness = -14.0 - 0.02 * offset - trim
+        return Loudness(round(loudness, 3), round(peak_limit + overshoot_db - trim, 3))
+
+    return measure
+
+
+def test_an_overshoot_lowers_the_limit_and_keeps_the_loudness():
+    calls: list[str] = []
+    plan = _plan(STREAMING, _logged(_limiter_meter(0.4), calls))
+    assert plan.limit_offset_db == pytest.approx(0.3 + MASTER_TRIM_MARGIN_DB)
+    assert plan.trim_db == 0.0 and plan.gain_db == pytest.approx(6.0)
+    assert m.limiter_filter(-1.0 - plan.limit_offset_db, SR) in m.plan_chain(plan, SR)
+    assert plan.post.tp <= STREAMING.ceiling
+    assert abs(plan.post.i - STREAMING.target) <= MASTER_CORRECTION_TOL_LU and plan.reached
+
+
+def test_a_lower_limit_that_costs_loudness_is_made_up_with_gain():
+    """A hard-working limiter: each dB off its limit costs half an LU, each dB
+    of gain into it buys 0.6, so the gain follows the target once the limit moved."""
+
+    async def measure(inputs, graph, chain, rate):
+        if not chain:
+            return Loudness(-20.0, -3.0)
+        limit = m.linear_to_db(float(LIMIT_RE.search(chain).group(1)))
+        offset = -1.0 - MASTER_LIMITER_MARGIN_DB - limit
+        loudness = -14.0 + 0.6 * (_chain_gain_db(chain) - 6.0) - 0.5 * offset
+        return Loudness(round(loudness, 3), round(limit + 0.4, 3))
+
+    plan = _plan(STREAMING, measure)
+    assert plan.limit_offset_db == pytest.approx(0.3 + MASTER_TRIM_MARGIN_DB)
+    assert plan.gain_db > 6.0 and plan.trim_db == 0.0
+    assert plan.post.tp <= STREAMING.ceiling
+    assert abs(plan.post.i - STREAMING.target) <= MASTER_CORRECTION_TOL_LU and plan.reached
+
+
+def test_a_limit_that_does_not_help_falls_back_to_a_trim():
+    plan = _plan(STREAMING, _limiter_meter(0.4, follows_limit=False))
+    assert plan.limit_offset_db > 0 and plan.trim_db > 0
+    assert plan.post.tp <= STREAMING.ceiling
+    assert not plan.reached
+
+
+def test_a_ceiling_still_missed_means_the_target_is_not_reached():
+    async def stuck(inputs, graph, chain, rate):
+        return Loudness(-20.0, -3.0) if not chain else Loudness(-14.0, -0.7)
+
+    plan = _plan(STREAMING, stuck)
+    assert plan.post.i == -14.0 and plan.post.tp > STREAMING.ceiling
+    assert not plan.reached
+
+
+def test_a_peak_under_the_ceiling_is_left_alone():
+    plan = _plan(STREAMING, _stub_meter(-20.0, 0.0, 1.0))
+    assert plan.limit_offset_db == 0.0 and plan.trim_db == 0.0 and m.trim_filter(0.0) == ""
+
+
+def _logged(measure, calls: list[str]):
+    async def logged(inputs, graph, chain, rate):
+        calls.append(chain)
+        return await measure(inputs, graph, chain, rate)
+
+    return logged
 
 
 def test_plan_round_trips_through_json():
@@ -361,7 +440,7 @@ def test_a_tone_is_mastered_to_the_target_under_the_ceiling(tmp_path, plan_dir):
     skip_without_ffmpeg()
     src = tmp_path / "tone.wav"
     sf.write(src, _tone_with_spikes(), SR, subtype="PCM_16")
-    graph = m.plan_graph(["anull"], "")
+    graph = ONE_LANE_GRAPH
     plan = asyncio.run(cache.cached_plan([src], graph, STREAMING, "wav", SR))
     x = _render(tmp_path, src, graph, m.plan_chain(plan, SR))
     lufs = pyloudnorm.Meter(SR).integrated_loudness(x)

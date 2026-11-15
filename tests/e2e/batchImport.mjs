@@ -21,6 +21,7 @@ export const TOO_LONG_SEC = 11560;
 export const ROWS = 10;
 export const TICKED_BY_DEFAULT = 7;
 export const HTTP_FULL = 503;
+export const QUEUE_ROOM = 20;
 
 export function linkItem(line, url, status, extra = {}) {
   return {
@@ -30,7 +31,7 @@ export function linkItem(line, url, status, extra = {}) {
   };
 }
 
-export function preview({ links = 20 } = {}) {
+export function preview({ links = QUEUE_ROOM } = {}) {
   const tracks = PLAYLIST_SONGS.map((title, i) => linkItem(3, `${YT}p${i}pppppppppp`.slice(0, 43), "ok", {
     title, playlist: { url: LINE.playlist, title: PLAYLIST_TITLE, index: i + 1 },
   }));
@@ -46,18 +47,41 @@ export function preview({ links = 20 } = {}) {
     playlists: [{ input: LINE.playlist, line: 3, url: LINE.playlist, title: PLAYLIST_TITLE, found: tracks.length, unavailable: 0, truncated: false }],
     files: [],
     max_duration_sec: MAX_DURATION_SEC,
-    capacity_left: { links, files: 20 },
+    capacity_left: { links, files: QUEUE_ROOM },
   };
 }
 
-/** Answer each new import with the next status; record every request body. */
-export async function stubImports(page, statuses = []) {
+/** The preview's answer for files alone: one status per uploadable file, in review order. */
+export function filePreview(statuses) {
+  return {
+    items: [],
+    playlists: [],
+    files: statuses.map((status) => ({ status, existing_job_id: null, replaces: null })),
+    max_duration_sec: MAX_DURATION_SEC,
+    capacity_left: { links: QUEUE_ROOM, files: QUEUE_ROOM },
+  };
+}
+
+const requestBody = (request) => request.postDataJSON?.() ?? request.postData();
+const UPLOAD_NAME = /filename="([^"]+)"/;
+const PART_BREAK = "\r\n\r\n";
+const PART_END = "\r\n--";
+
+/** An upload's file name and byte count, read from its multipart body. */
+export function uploadedFile(request) {
+  const body = request.postDataBuffer().toString("latin1");
+  const part = body.split(PART_BREAK)[1] ?? "";
+  return { name: body.match(UPLOAD_NAME)?.[1], bytes: part.slice(0, part.indexOf(PART_END)).length };
+}
+
+/** Answer each new import with the next status; record each request with `record`. */
+export async function stubImports(page, statuses = [], record = requestBody) {
   const posts = [];
   await page.route(/\/api\/jobs$/, (route) => {
     if (route.request().method() !== "POST") return route.fallback();
     const status = statuses[posts.length] ?? 200;
     const n = posts.length + 1;
-    posts.push(route.request().postDataJSON?.() ?? route.request().postData());
+    posts.push(record(route.request()));
     const body = status === 200 ? { job_id: `e2e0b00000${String(n).padStart(2, "0")}` } : { detail: `refused ${status}` };
     return route.fulfill({ status, json: body });
   });

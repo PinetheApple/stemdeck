@@ -4,9 +4,9 @@
 import { t, plural } from "./i18n.js";
 import { selectedStems } from "./state.js";
 import {
-  ITEM_KIND, ITEM_STATUS, MAX_BATCH_FILES, MAX_BATCH_LINKS, PATH_SEP, capEntries, capLines, fileItems, formatBytes,
-  isPastedList, isTickable, isUploadable, linkItems, lookingUpItems, markUnchecked, pastedLines, previewNames,
-  queueItems, queuePlan,
+  FileReadError, ITEM_KIND, ITEM_STATUS, MAX_BATCH_FILES, MAX_BATCH_LINKS, PATH_SEP, capEntries, capLines, fileItems,
+  formatBytes, isLoaded, isPastedList, isTickable, isUploadable, linkItems, lookingUpItems, markUnchecked,
+  pastedLines, previewNames, queueItems, queuePlan, sendFileItem,
 } from "./batchImportModel.js";
 import {
   currentSplitChoice, importResponse, interceptSubmit, isQueueFull, keepSplitChoice, postFileJob, postLinkImport,
@@ -70,9 +70,22 @@ function refreshPill() {
   }
 }
 
+/** Let `target` go: what it holds in the shell is released now, or once it has finished queueing. */
+function retire(target) {
+  if (!target || target.queuing || target.released) return;
+  target.released = true;
+  target.release?.();
+}
+
+function replaceBatch(next) {
+  const old = batch;
+  batch = next;
+  if (old !== next) retire(old);
+}
+
 /** Forget the batch; clearing the chip in the bar calls this. */
 export function clearBatch() {
-  batch = null;
+  replaceBatch(null);
   setBatchNotQueued(0);
   closePanel({ refocus: false });
   refreshSubmitLabel();
@@ -92,7 +105,7 @@ function finishBatch() {
 export function startLinkBatch(text, { inBar = false } = {}) {
   const { lines, refused } = capLines(pastedLines(text));
   const items = lookingUpItems(lines);
-  batch = {
+  replaceBatch({
     source: SOURCE.LINKS,
     inBar,
     lines,
@@ -102,27 +115,32 @@ export function startLinkBatch(text, { inBar = false } = {}) {
     groups: [],
     droppedLines: new Set(),
     loading: true,
-  };
+  });
   setBatchNotQueued(0);
   begin(fetchLinkPreview);
 }
 
-/** Several files, or a folder (`folder` is its name): each with the folder it sits in. */
-export function startFileBatch(entries, { folder = null } = {}) {
+/** Several files, or a folder (`folder` is its name): each with the folder it sits in.
+ *  A file may be a `{ name, size }` description; `readFile` makes it a File only when it is sent,
+ *  `measure` reads its length, and `release` says the batch no longer needs any of them. */
+export function startFileBatch(entries, { folder = null, readFile = null, measure = null, release = null } = {}) {
   const capped = capEntries(entries);
   const durations = new Map();
-  batch = {
+  replaceBatch({
     source: folder ? SOURCE.FOLDER : SOURCE.FILES,
     name: folder,
     entries: capped.entries,
+    readFile,
+    measure,
+    release,
+    loaded: new Map(),
     refused: capped.refused,
-    dropped: new Set(),
     durations,
     preview: null,
     items: fileItems(capped.entries, null, durations),
     groups: [],
     loading: true,
-  };
+  });
   setBatchNotQueued(0);
   begin(fetchFilePreview);
   readDurations(batch);
@@ -179,15 +197,19 @@ async function fetchFilePreview(target) {
   rebuildFileItems(target);
 }
 
-/** Rows again from the files, the preview and the lengths read so far, keeping the user's ticks. */
+/** A rebuilt row keeps the user's tick, and a row the queue left out keeps its reason
+ *  unless it has since turned out not to be sendable. */
+function keptRow(old, fresh) {
+  if (old.status === ITEM_STATUS.NOT_QUEUED && isTickable(fresh)) return old;
+  return old.status === fresh.status ? { ...fresh, ticked: old.ticked } : fresh;
+}
+
+/** The rows still listed, again from the files, the preview and the lengths read so far. */
 function rebuildFileItems(target) {
   const before = new Map(target.items.map((i) => [i.file, i]));
   const items = fileItems(target.entries, target.preview, target.durations)
-    .filter((item) => !target.dropped.has(item.file))
-    .map((item) => {
-      const old = before.get(item.file);
-      return old && old.status === item.status ? { ...item, ticked: old.ticked } : item;
-    });
+    .filter((item) => before.has(item.file))
+    .map((item) => keptRow(before.get(item.file), item));
   target.items = target.error ? markUnchecked(items) : items;
   renderReview();
 }
@@ -223,14 +245,21 @@ function readDuration(file) {
   });
 }
 
-/** Length is checked here: the server only sees file names until upload. */
+const lengthOf = (target, file) => {
+  if (isLoaded(file)) return readDuration(file);
+  return target.measure ? target.measure(file) : null;
+};
+
+/** Length is checked here: the server only sees file names until upload. A file
+ *  known only by its description is measured by `measure`, or not at all. */
 async function readDurations(target) {
   for (const { file } of target.entries) {
     if (!isCurrent(target)) return;
     if (!isUploadable(file)) continue;
-    const seconds = await readDuration(file);
+    const seconds = await lengthOf(target, file);
     if (seconds !== null) target.durations.set(file, seconds);
-    if (!target.loading && isCurrent(target)) rebuildFileItems(target);
+    // Not while queueing: what is left is picked out of the rows being sent.
+    if (!target.loading && !target.queuing && isCurrent(target)) rebuildFileItems(target);
   }
 }
 
@@ -386,7 +415,6 @@ function toggleGroup(group, flag) {
 function dropRow(btn) {
   const group = groupOf(btn);
   const item = group ? null : itemOf(btn);
-  if (item?.file) batch.dropped.add(item.file);
   if (item?.status === ITEM_STATUS.LOOKING_UP) batch.droppedLines.add(item.line);
   if (group) batch.groups = batch.groups.filter((g) => g !== group);
   showWhatIsLeft(batch.items.filter((i) => (group ? i.group !== group.key : i !== item)));
@@ -411,6 +439,15 @@ function addLibraryRows(target, queued) {
   for (const [key, jobs] of playlists) addPlaylistToLibrary(target.groups.find((g) => g.key === key)?.title, jobs);
 }
 
+function postFileItem(target, item, { stems, autoSections }) {
+  const post = (file) => postFileJob(file, { stems, autoSections, replaces: item.replaces });
+  return sendFileItem(item, { readFile: target.readFile, loaded: target.loaded, post });
+}
+
+const notQueuedReason = (err) => (
+  err instanceof FileReadError ? t("upload.dropReadFailed", { name: err.fileName }) : readableError(err)
+);
+
 /** Queue `items` of `target` with the choice the batch was first queued with; what was left out. */
 async function queueSome(target, items) {
   target.choice ??= liveChoice();
@@ -419,14 +456,15 @@ async function queueSome(target, items) {
   renderFooter();
   const outcome = await queueItems(items, {
     postLink: (item) => postLinkImport({ url: item.url, stems, replaces: item.replaces, title: item.title, autoSections }),
-    postFile: (item) => postFileJob(item.file, { stems, autoSections, replaces: item.replaces }),
+    postFile: (item) => postFileItem(target, item, { stems, autoSections }),
     isQueueFull,
-    reasonOf: readableError,
+    reasonOf: notQueuedReason,
     queueFullReason: t("upload.reasonQueueFull"),
   });
   addLibraryRows(target, outcome.queued);
   recordBatch(outcome.queued.map((q) => q.jobId));
   target.queuing = false;
+  if (!isCurrent(target)) retire(target);
   target.capacity = null;
   for (const { item, reason } of outcome.notQueued) Object.assign(item, { status: ITEM_STATUS.NOT_QUEUED, reason, ticked: true });
   return outcome.notQueued.map((n) => n.item);
@@ -448,7 +486,9 @@ function showWhatIsLeft(items) {
 async function send(items, kept) {
   const target = batch;
   const notQueued = await queueSome(target, items);
-  if (isCurrent(target)) showWhatIsLeft(target.items.filter((i) => notQueued.includes(i) || kept.includes(i)));
+  if (!isCurrent(target)) return;
+  showWhatIsLeft(target.items.filter((i) => notQueued.includes(i) || kept.includes(i)));
+  if (isCurrent(target) && target.entries) rebuildFileItems(target);
 }
 
 /** Ticked items the queue had no room for stay, as not queued, beside those it refused. */

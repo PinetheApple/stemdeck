@@ -1130,6 +1130,11 @@ def ensure_runtime_dirs() -> None:
         path.mkdir(parents=True, exist_ok=True)
 
 
+# Song versions (app/core/versions.py): the longest name a version keeps,
+# and how many versions one song keeps; more is a script, not a person.
+VERSION_NAME_MAX_CHARS = 60
+MAX_VERSIONS_PER_SONG = 32
+
 # Export EQ and mastering. fx= stays inside the 16 KB request line, and 160
 # biquads stay under Windows' 32767-character command line.
 FX_PARAM_MAX_CHARS = 8192
@@ -1137,6 +1142,8 @@ FX_MAX_LANES = 32
 FX_MAX_BANDS = 12
 FX_MAX_SECTIONS = 160
 MASTER_PARAM_MAX_CHARS = 256
+# How often a loudness request checks that its client is still there.
+MASTER_LOUDNESS_POLL_SEC = 0.5
 # Lossy encoders add peak of their own (MP3 measured +0.7 dB, AAC more), so a
 # lossy master never asks for a true-peak ceiling above this.
 EXPORT_LIMIT_LOSSY_DBTP = -1.5
@@ -1148,6 +1155,10 @@ MASTER_LIMITER_OVERSAMPLE = 4
 MASTER_LIMITER_MARGIN_DB = 0.1
 MASTER_LIMITER_ATTACK_MS = 5
 MASTER_LIMITER_RELEASE_MS = 50
+# A true peak over the ceiling lowers the limit to this far under it, the gain
+# following the target, in at most this many passes (in-graph or decoded).
+MASTER_TRIM_MARGIN_DB = 0.1
+MASTER_CEILING_RETRIES = 4
 MASTER_COMP_RATIO_PER_AMOUNT = 2.0
 MASTER_COMP_THRESHOLD_OFFSET_DB = 2.0
 MASTER_COMP_THRESHOLD_PER_AMOUNT_DB = 6.0
@@ -1171,3 +1182,34 @@ MASTER_PLAN_CONCURRENCY = 2
 # ebur128 logs a line per 100 ms frame at "info"; "verbose" drops them below
 # the default level. Not "quiet": ffmpeg 5.1 and 4.4 reject it and the whole graph.
 EBUR128_FRAMELOG = "verbose"
+
+# Suggest EQ (app/pipeline/eq_*.py). A lane must play this long (loud frames)
+# and this loud to be measured at all.
+SUGGEST_MIN_GATED_SECONDS = 3.0
+SUGGEST_MIN_LANE_LUFS = -50.0
+SUGGEST_MAX_BANDS_LANE = 5
+SUGGEST_GAIN_MAX_DB = 6.0
+SUGGEST_MIN_GAIN_DB = 1.0
+SUGGEST_GAIN_STEP_DB = 0.5
+SUGGEST_OUT_MAX_DB = 12.0
+# Each band costs this much (per (gain/6 dB)^2), and must improve the fit by
+# at least the larger of the two thresholds to be added.
+SUGGEST_BAND_PENALTY = 0.15
+SUGGEST_MIN_IMPROVEMENT_ABS = 0.1
+SUGGEST_MIN_IMPROVEMENT_REL = 0.06
+SUGGEST_ERROR_CLIP_DB = 15.0
+SUGGEST_REFINE_ROUNDS = 2
+SUGGEST_CROWD_OCTAVES = 1.0
+# Two overlapping +6 dB bands would make +12: the whole curve stays inside this.
+SUGGEST_COMBINED_MAX_DB = 7.0
+# Less bass than the target is tolerated this much more below this frequency.
+SUGGEST_BASS_LOW_HZ = 125.0
+SUGGEST_BASS_SHORT_FACTOR = 2.0
+# A band this far under the target is missing content, not dull: boosts fade
+# out between the two (dB, level removed).
+SUGGEST_BOOST_DEFICIT_FULL_DB = 12.0
+SUGGEST_BOOST_DEFICIT_NONE_DB = 20.0
+SUGGEST_CACHE_DIR = CACHE_DIR / "suggest"
+SUGGEST_CACHE_MAX_FILES = 200
+SUGGEST_CONCURRENCY = 2
+SUGGEST_DISCONNECT_POLL_SEC = 0.5

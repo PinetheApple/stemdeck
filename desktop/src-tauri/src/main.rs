@@ -2,6 +2,7 @@ mod certs;
 mod dragout;
 mod dropfolder;
 mod dropin;
+mod dropprobe;
 #[cfg(any(target_os = "linux", test))]
 mod rocm;
 mod store_file;
@@ -546,6 +547,8 @@ fn main() {
             native_file_drop,
             next_drop_signal,
             read_dropped_file,
+            dropped_file_duration,
+            release_dropped_files,
             pick_import_folder,
             save_audio_file,
             pick_export_destination,
@@ -2175,7 +2178,7 @@ fn ensure_torch_device(
 
     // CPU-only portable build: skip GPU detection and pip entirely.
     if is_cpu_only_package(&root) {
-        persist_torch_device(&data_dir, "cpu", "cpu-only-package");
+        persist_torch_device(&data_dir, "cpu", "cpu-only-package", None);
         return Ok(GpuSetup {
             gpu_detected: false,
             gpu_name: None,
@@ -2202,7 +2205,7 @@ fn ensure_torch_device(
         } else {
             ("cpu", "mps-unavailable")
         };
-        persist_torch_device(&data_dir, device, reason);
+        persist_torch_device(&data_dir, device, reason, None);
         Ok(GpuSetup {
             gpu_detected: mps_available,
             gpu_name: if mps_available {
@@ -2379,7 +2382,12 @@ fn ensure_torch_device(
         // cpu on a cpu-only package) as settled -- a CPU result born from a
         // failure is re-probed on the next launch instead of pinning the
         // install to CPU forever (#247).
-        persist_torch_device(&data_dir, &setup.torch_device, &setup.reason);
+        persist_torch_device(
+            &data_dir,
+            &setup.torch_device,
+            &setup.reason,
+            setup.backend.as_deref(),
+        );
         append_to_setup_log(
             &data_dir,
             &format!(
@@ -2445,7 +2453,14 @@ fn clear_stale_cpu_marker(root: &Path, data_dir: &Path) {
     }
 }
 
-fn persist_torch_device(data_dir: &std::path::Path, device: &str, reason: &str) {
+/// `backend` is written on every run, null included, so the server's Settings
+/// can name the card a CPU reason is about and a stale value never survives.
+fn persist_torch_device(
+    data_dir: &std::path::Path,
+    device: &str,
+    reason: &str,
+    backend: Option<&str>,
+) {
     let _ = update_setup_config(
         data_dir,
         [
@@ -2454,6 +2469,7 @@ fn persist_torch_device(data_dir: &std::path::Path, device: &str, reason: &str) 
                 "torchDeviceReason",
                 serde_json::Value::String(reason.to_string()),
             ),
+            ("gpuBackend", serde_json::json!(backend)),
         ],
     );
 }
@@ -3664,10 +3680,11 @@ async fn next_drop_signal(
     .map_err(|e| e.to_string())
 }
 
-/// The bytes of one file from the latest drop, by the id the drop reported.
+/// The bytes of one file from a drop the page has not released, by the id the
+/// drop reported.
 ///
 /// Takes an id, never a path: see "Paths stay on this side" in `dropin`. Each
-/// id can be read once, and only the latest drop's ids are readable at all.
+/// id can be read once, and only while its drop has not been released.
 /// The bytes go back raw rather than as JSON, so a 400 MB file is not also
 /// turned into a 1.4 GB array of numbers on the way.
 #[tauri::command]
@@ -3682,6 +3699,29 @@ async fn read_dropped_file(app: tauri::AppHandle, id: u64) -> Result<tauri::ipc:
     .await
     .map_err(|e| e.to_string())??;
     Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// How long one dropped file plays, in seconds, without reading it into the
+/// page; null when it cannot be told. See `dropprobe`.
+#[tauri::command]
+async fn dropped_file_duration(app: tauri::AppHandle, id: u64) -> Result<Option<f64>, String> {
+    let Some(path) = app.state::<dropin::DropInbox>().peek(id) else {
+        return Ok(None);
+    };
+    let Some((_, ffprobe)) = verified_ffmpeg_pair(&local_data_dir()?) else {
+        return Ok(None);
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        dropprobe::duration(&ffprobe, &path, dropprobe::PROBE_TIMEOUT)
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// The page is done with a drop: whatever of it was not read is forgotten.
+#[tauri::command]
+fn release_dropped_files(app: tauri::AppHandle, ticket: u64) {
+    app.state::<dropin::DropInbox>().release(ticket);
 }
 
 /// The native folder chooser behind Add a folder, which WebKitGTK cannot
@@ -7356,6 +7396,30 @@ mod tests {
         // Absent reason stays absent (already unsettled) in both package kinds.
         assert_eq!(super::effective_device_reason(None, false), None);
         assert_eq!(super::effective_device_reason(None, true), None);
+    }
+
+    /// The server names the card behind a CPU reason from this key, and a run
+    /// without a GPU clears what an earlier run recorded.
+    #[test]
+    fn the_device_record_carries_the_gpu_backend() {
+        let dir = make_tmp();
+        let record = |dir: &Path| -> serde_json::Value {
+            serde_json::from_str(&fs::read_to_string(dir.join("config.json")).unwrap()).unwrap()
+        };
+        super::persist_torch_device(
+            dir.path(),
+            "cpu",
+            "cuda-verify-failed",
+            Some(super::rocm::BACKEND),
+        );
+        let amd = record(dir.path());
+        assert_eq!(amd["torchDeviceReason"], "cuda-verify-failed");
+        assert_eq!(amd["gpuBackend"], super::rocm::BACKEND);
+        super::persist_torch_device(dir.path(), "cpu", "no-gpu-detected", None);
+        let none = record(dir.path());
+        assert!(none
+            .get("gpuBackend")
+            .is_some_and(serde_json::Value::is_null));
     }
 
     #[cfg(target_os = "macos")]

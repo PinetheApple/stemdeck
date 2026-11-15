@@ -7,14 +7,14 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 
 from app.core.config import JOB_ID_RE, JOBS_DIR
 from app.core.models import STATUS_DONE, Job
 from app.core.registry import get as registry_get
 from app.core.stems_location import is_relocating
 from app.core.takes import normalise_tracks, scan_takes, take_dir, write_tracks
-from app.core.takes_config import TAKE_RELOCATING_RETRY_SEC
+from app.core.takes_config import TAKE_PART_MAX_BYTES, TAKE_RELOCATING_RETRY_SEC
 
 # One lock per song serialises every change to its takes and tracks: only one
 # take records at a time, and a part is a few hundred KB.
@@ -66,3 +66,16 @@ def commit_tracks(job_dir: Path, tracks: list[dict[str, Any]]) -> list[dict[str,
     normalised = normalise_tracks(tracks, finished)
     write_tracks(job_dir, normalised)
     return normalised
+
+
+async def read_body_capped(request: Request) -> bytes:
+    """The raw body, refused past TAKE_PART_MAX_BYTES while it streams in:
+    the declared length can be absent or wrong."""
+    chunks: list[bytes] = []
+    total = 0
+    async for chunk in request.stream():
+        total += len(chunk)
+        if total > TAKE_PART_MAX_BYTES:
+            raise HTTPException(status_code=413, detail="part too large")
+        chunks.append(chunk)
+    return b"".join(chunks)
