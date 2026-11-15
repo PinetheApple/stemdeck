@@ -18,6 +18,8 @@ import { dblclickFrozen } from "./saveRaces.mjs";
 
 const BEAT_PERIOD = 0.5;
 const BEATS_PER_BAR = 4;
+const BAR_SEC = BEAT_PERIOD * BEATS_PER_BAR;
+const SLOWED_SPEED = 0.75;
 const FRAME_SLOP_SEC = 0.1;
 // Nothing announces that something did not happen, so these wait this long for it.
 const NOTHING_HAPPENS_MS = 300;
@@ -42,7 +44,6 @@ const SECTION_COLOR = "#4a7fff";
 const LONG_LINE = "A line long enough that it has to wrap over several rows on any desktop window rather than run out past the sides of it";
 
 const ui = (page) => ({
-  count: page.locator("#stageCount"),
   dots: page.locator("#stageBeats i"),
   lyrics: page.locator("#stageLyrics"),
   lyric: page.locator("#stageLyric"),
@@ -57,13 +58,21 @@ const SEEK_RETRY_NUDGE_SEC = 0.001;
 
 // Asked again because an engine still coming up can drop a seek, and each time
 // a hair apart because the same position again leaves the footer's fill untouched.
-const seekShows = (page, seconds, locator, text) => {
+const seekUntil = (page, seconds, settled) => {
   let tries = 0;
   return expect(async () => {
     await seek(page, seconds + tries++ * SEEK_RETRY_NUDGE_SEC);
-    await expect(locator).toHaveText(text, { timeout: SEEK_SETTLE_MS });
+    await settled();
   }).toPass();
 };
+const seekShows = (page, seconds, locator, text) =>
+  seekUntil(page, seconds, () => expect(locator).toHaveText(text, { timeout: SEEK_SETTLE_MS }));
+
+const litBeatInBarOrNone = (page) =>
+  page.evaluate(() => [...document.querySelectorAll("#stageBeats i")].findIndex((dot) => dot.classList.contains("on")));
+const expectLit = (page, index, timeout = undefined) =>
+  expect.poll(() => litBeatInBarOrNone(page), { timeout }).toBe(index);
+const seekLights = (page, seconds, index) => seekUntil(page, seconds, () => expectLit(page, index, SEEK_SETTLE_MS));
 
 async function openTrack(page, id) {
   await dblclickFrozen(page, `.cat-item[data-id="${id}"]`);
@@ -173,49 +182,44 @@ test.describe("stage mode counter", () => {
     });
     await waitForGrid(page);
     await enterStage(page);
-    const { count, dots } = ui(page);
+    const { dots } = ui(page);
 
-    await expect(count).toHaveText("1.4");
     await expect(dots).toHaveCount(4);
-    await expect(dots.nth(3)).toHaveClass(/on/);
+    await expectLit(page, 3);
 
-    await seekShows(page, 0.6, count, "2.1");
-    await expect(dots.nth(0)).toHaveClass(/on/);
+    await seekLights(page, 0.6, 0);
     await expect(dots.nth(0)).toHaveClass(/down/);
     await expect(dots.nth(3)).not.toHaveClass(/on/);
 
-    await seekShows(page, 4.6, count, "4.1");
-    await expect(dots).toHaveCount(2);
+    await seekUntil(page, 4.6, () => expect(dots).toHaveCount(2, { timeout: SEEK_SETTLE_MS }));
+    await expectLit(page, 0);
 
-    await seekShows(page, 5.1, count, "4.2");
-    await expect(dots.nth(1)).toHaveClass(/on/);
+    await seekLights(page, 5.1, 1);
     await expect(dots.nth(1)).not.toHaveClass(/down/);
   });
 
-  test("shows the empty value before the first beat, and runs from it", async ({ page }) => {
+  test("lights no dot before the first beat, and runs from it", async ({ page }) => {
     await setUp(page, { grid: gridAnswer(fixtureBeats(8, 2), [{ beat: 0, beats_per_bar: 4 }]) });
     await waitForGrid(page);
     await enterStage(page);
-    const { count, dots } = ui(page);
-    await expect(count).toHaveText("—");
-    await expect(dots).toHaveCount(4);
+    await expect(ui(page).dots).toHaveCount(4);
     await expect(page.locator("#stageBeats i.on")).toHaveCount(0);
 
-    await seekShows(page, 2.1, count, "1.1");
+    await seekLights(page, 2.1, 0);
   });
 
   test("with empty bars, counts at the fallback bar length", async ({ page }) => {
     await setUp(page, { grid: gridAnswer(fixtureBeats(), []) });
     await waitForGrid(page);
     await enterStage(page);
-    await seekShows(page, 2.1, ui(page).count, "2.1");
+    await seekLights(page, 2.6, 1);
     await expect(ui(page).dots).toHaveCount(4);
   });
 
-  test("with no grid, shows the empty value and no dots", async ({ page }) => {
+  test("with no grid, shows no dots", async ({ page }) => {
     await setUp(page, { grid: async () => ({ status: 404, json: { detail: "no grid" } }) });
     await enterStage(page);
-    await expect(ui(page).count).toHaveText("—");
+    await expect(page.locator("#stageBeats")).toBeAttached();
     await expect(ui(page).dots).toHaveCount(0);
   });
 
@@ -228,9 +232,10 @@ test.describe("stage mode counter", () => {
       },
     });
     await enterStage(page);
-    await expect(ui(page).count).toHaveText("—");
+    await expect(ui(page).dots).toHaveCount(0);
     release();
-    await expect(ui(page).count).toHaveText("1.1");
+    await expect(ui(page).dots).toHaveCount(4);
+    await expectLit(page, 0);
   });
 
   test("rebuilds when the tempo mode switches while in stage", async ({ page }) => {
@@ -238,40 +243,42 @@ test.describe("stage mode counter", () => {
     await waitForGrid(page);
     await page.locator("#tempoModeConstant").waitFor({ state: "attached" });
     await enterStage(page);
-    await seekShows(page, 2.1, ui(page).count, "2.1");
+    await seekLights(page, 2.6, 1);
 
     await page.evaluate(() => {
       const bpm = document.querySelector("#tempoBpm");
       bpm.value = "60";
       bpm.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    await expect(ui(page).count).toHaveText("1.3");
+    await expectLit(page, 2);
 
     await clickHidden(page, "#tempoReset");
-    await expect(ui(page).count).toHaveText("2.1");
+    await expectLit(page, 1);
   });
 
   test("keeps to the song's own time at a slowed speed", async ({ page }) => {
     await setUp(page, { grid: gridAnswer(fixtureBeats(), [{ beat: 0, beats_per_bar: 4 }]) });
     await waitForGrid(page);
-    await page.locator("#t-speed-value").fill("0.75");
+    await page.locator("#t-speed-value").fill(String(SLOWED_SPEED));
     await page.locator("#t-speed-value").press("Enter");
     await enterStage(page);
     await page.locator("#stagePlayBtn").click();
-    await expect(ui(page).count).toHaveText(/^2\./, { timeout: 15000 });
+    const songTime = () => page.evaluate(async () => (await import("/js/transport.js")).transport().getCurrentTime());
+    await expect.poll(songTime, { timeout: 15000 }).toBeGreaterThan(BAR_SEC);
 
-    const { bar, beat, elapsed } = await page.evaluate(async () => {
+    const { lit, elapsed } = await page.evaluate(async () => {
       const { transport } = await import("/js/transport.js");
-      const [shownBar, shownBeat] = document.querySelector("#stageCount").textContent.split(".").map(Number);
-      return { bar: shownBar, beat: shownBeat, elapsed: transport().getCurrentTime() };
+      const dots = [...document.querySelectorAll("#stageBeats i")];
+      return { lit: dots.findIndex((dot) => dot.classList.contains("on")), elapsed: transport().getCurrentTime() };
     });
-    const beatTime = ((bar - 1) * BEATS_PER_BAR + beat - 1) * BEAT_PERIOD;
-    expect(elapsed - beatTime).toBeGreaterThanOrEqual(0);
-    expect(elapsed - beatTime).toBeLessThan(BEAT_PERIOD + FRAME_SLOP_SEC);
+    // A clock running at the wrong speed is off by this much; kept under a bar, it can only show as a wrong dot.
+    expect(elapsed * (1 / SLOWED_SPEED - 1)).toBeLessThan(BAR_SEC);
+    const beatInBar = (sec) => Math.floor(sec / BEAT_PERIOD) % BEATS_PER_BAR;
+    expect([beatInBar(elapsed), beatInBar(elapsed - FRAME_SLOP_SEC)]).toContain(lit);
   });
 });
 
-test("the section, tempo, next section and clock stay beside the counter", async ({ page }) => {
+test("the section, tempo, next section and clock stay beside the beat dots", async ({ page }) => {
   await setUp(page, {
     sections: [
       { id: "a", start: 0, end: 3, name: "Verse one" },
@@ -280,7 +287,7 @@ test("the section, tempo, next section and clock stay beside the counter", async
   });
   await waitForGrid(page);
   await enterStage(page);
-  await seekShows(page, 1.1, ui(page).count, "1.3");
+  await seekLights(page, 1.1, 2);
   await expect(page.locator("#stageSection")).toHaveText("Verse one");
   await expect(page.locator("#stageNext")).toHaveText("Big chorus in 00:01");
   await expect(page.locator("#stageTempo")).toHaveText("120.0 BPM");
@@ -331,11 +338,11 @@ test.describe("stage mode lyrics", () => {
     expect(lookups).toEqual([JOB_ID]);
   });
 
-  test("fall back to no block without lyrics, the counter still running", async ({ page }) => {
+  test("fall back to no block without lyrics, the beat dots still running", async ({ page }) => {
     await setUp(page);
     await waitForGrid(page);
     await enterStage(page);
-    await expect(ui(page).count).toHaveText("1.1");
+    await expectLit(page, 0);
     await expect(ui(page).lyrics).toBeHidden();
     await expect(page.locator("#stageView")).not.toContainText("Instrumental");
   });
@@ -355,7 +362,7 @@ test.describe("stage mode lyrics", () => {
     await page.locator(".lyrics-sync-toggle").click();
     await expect(page.locator("#lyricsSync")).toBeVisible();
     await enterStage(page);
-    await expect(ui(page).count).toBeVisible();
+    await expect(ui(page).dots.first()).toBeVisible();
     await page.waitForTimeout(NOTHING_HAPPENS_MS);
     await expect(ui(page).lyrics).toBeHidden();
 
@@ -495,7 +502,7 @@ test.describe("stage mode and the Lyrics tab's load", () => {
     const { errors } = await setUp(page);
     await waitForGrid(page);
     await enterStage(page);
-    await expect(ui(page).count).toHaveText("1.1");
+    await expectLit(page, 0);
     await expect(ui(page).lyrics).toBeHidden();
     expect(errors).toEqual([]);
   });

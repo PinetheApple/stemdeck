@@ -1,5 +1,6 @@
 import Multitrack from "/vendor/multitrack.js";
 import { fmtTime } from "./utils.js";
+import { deviceScale, fitWaveCanvas, drawWaveBars } from "./waveBars.js";
 // job.js imports this module in turn. The cycle is pre-existing (catalog.js does
 // the same) and safe: these are only ever called from a callback, long after both
 // module bodies have run, and they close over DOM handles from dom.js rather than
@@ -279,10 +280,21 @@ let visualRenderToken = 0;
 let visualAudioContext = null;
 let stemVuRafId = null;
 let _footerWavePeaks = null;
+export const WAVE_PEAKS_EVENT = "wavepeaks";
+export const DURATION_EVENT = "songduration";
+const announceWavePeaks = () => document.dispatchEvent(new CustomEvent(WAVE_PEAKS_EVENT));
+
+/** The open song's whole-song `[min, max]` peaks, or null until they load. Read-only. */
+export function getWavePeaks() {
+  return _footerWavePeaks;
+}
 let _footerAccent = "";
 let _lastFooterProgress = 0;
 let _footerPlaceholderResizeObs = null;
 const _FOOTER_BARS = 300;
+const _FOOTER_REST_COLOR = "rgba(255,255,255,0.13)";
+const _FOOTER_WAVE_FILL = 0.78;
+const _FOOTER_MIN_BAR_H = 3;
 
 function isAudioBufferLike(value) {
   return value && typeof value.getChannelData === "function";
@@ -996,6 +1008,11 @@ function renderAllMiniWaves(mt, stems) {
 let _loadingShownAt = 0;
 const _LOADING_MIN_MS = 900;
 let _currentStems = [];
+
+/** The lanes the open song actually loaded, "original" included when it has one. */
+export function getLoadedStemNames() {
+  return _currentStems.map((s) => s.name);
+}
 let _mixUrl = null;
 let _currentTitle = "";
 // Whether the current job has a preserved video track (mp4 upload). Gates the
@@ -1357,6 +1374,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
     if (footerPeaks?.length) {
       const step = Math.ceil(footerPeaks.length / _FOOTER_BARS);
       _footerWavePeaks = footerPeaks.filter((_, i) => i % step === 0).slice(0, _FOOTER_BARS);
+      announceWavePeaks();
       setFooterWaveDrawFn(_drawFooterWave);
       _drawFooterWave(0);
     } else if (waveformUrl) {
@@ -1412,6 +1430,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
     if (!totalDuration) setTotalDuration(mt.getDuration() || 0);
     timeEl.textContent = `00:00 / ${fmtTime(totalDuration)}`;
     buildRuler(totalDuration);
+    document.dispatchEvent(new CustomEvent(DURATION_EVENT));
     buildPresenceRuler(totalDuration);
     buildFooterWaveTicks(totalDuration);
     updateFooterTimes(0);
@@ -1761,39 +1780,18 @@ function _drawFooterWave(progress) {
   const canvas = document.getElementById("footer-waveform");
   if (!canvas) return;
   if (!_footerWavePeaks) { _drawPlaceholderWave(); return; }
-  const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth;
-  const h = canvas.clientHeight;
-  if (!w || !h) return;
-  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(h * dpr);
-  }
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const n = _footerWavePeaks.length;
-  let maxAbs = 0;
-  for (const [mn, mx] of _footerWavePeaks) {
-    if (mx > maxAbs) maxAbs = mx;
-    if (-mn > maxAbs) maxAbs = -mn;
-  }
-  const norm = maxAbs > 0 ? 1 / maxAbs : 1;
+  const ctx = fitWaveCanvas(canvas);
+  if (!ctx) return;
+  const dpr = deviceScale();
   const cy = canvas.height / 2;
-  const barW = canvas.width / n;
-  const gap = 1;
-  const playedIdx = Math.floor(progress * n);
   const accent = (_footerAccent ||= getComputedStyle(canvas).getPropertyValue("--accent").trim());
-  for (let i = 0; i < n; i++) {
-    const [mn, mx] = _footerWavePeaks[i];
-    const top = cy - mx * norm * cy * 0.78;
-    const bot = cy - mn * norm * cy * 0.78;
-    const barH = Math.max(3, bot - top);
-    const x = Math.round(i * barW);
-    const nextX = i === n - 1 ? canvas.width : Math.round((i + 1) * barW);
-    const bw = Math.max(1, nextX - x - gap);
-    ctx.fillStyle = i < playedIdx ? accent : "rgba(255,255,255,0.13)";
-    ctx.fillRect(x, top, bw, barH);
-  }
+  drawWaveBars(ctx, _footerWavePeaks, {
+    playedBars: Math.floor(progress * _footerWavePeaks.length),
+    playedColor: accent,
+    restColor: _FOOTER_REST_COLOR,
+    fill: _FOOTER_WAVE_FILL,
+    minBarHeight: _FOOTER_MIN_BAR_H,
+  });
   if (progress > 0.001 && progress < 0.999) {
     const px = progress * canvas.width;
     ctx.beginPath();
@@ -1818,6 +1816,7 @@ async function initFooterWaveform(stemUrl) {
     if (!res.ok) return;
     const buf = await visualAudioContext.decodeAudioData(await res.arrayBuffer());
     _footerWavePeaks = bufferMinMaxPeaks(buf, _FOOTER_BARS);
+    announceWavePeaks();
     setFooterWaveDrawFn(_drawFooterWave);
     _drawFooterWave(0);
     // Redraw on resize so the canvas fills its container correctly

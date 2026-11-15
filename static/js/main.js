@@ -832,13 +832,14 @@ function rootFolderName(entries) {
   return entries.find((e) => e.dir)?.dir.split(PATH_SEP)[0] ?? null;
 }
 
-function stageFolder(entries, showDropError, readFile = null) {
+/** `shell` is how a batch of described files reaches the shell: { readFile, measure, release }. */
+function stageFolder(entries, showDropError, shell = {}) {
   document.getElementById("fileInput")?._clear?.();
   if (!entries.length) {
     showDropError(t("batch.emptyFolder"));
     return;
   }
-  startFileBatch(entries, { folder: rootFolderName(entries), readFile });
+  startFileBatch(entries, { folder: rootFolderName(entries), ...shell });
 }
 
 /** The drop's entries, read while the drop event lasts, or null when it holds no folder. */
@@ -946,11 +947,11 @@ function wireFileDrop() {
   }
 
   /** Several files: the review lists each, with what is wrong with any of them.
-   *  `readFile` reads one that arrived as a description, when it is sent. */
-  function stageLooseFiles(files, readFile = null) {
+   *  `shell` reaches the ones that arrived as descriptions (see stageFolder). */
+  function stageLooseFiles(files, shell = {}) {
     clearFile();
     clearDropError();
-    startFileBatch(files.map((file) => ({ file, dir: "" })), { readFile });
+    startFileBatch(files.map((file) => ({ file, dir: "" })), shell);
   }
 
   /** Arms the import with a file that has already passed screenFiles. */
@@ -1110,8 +1111,9 @@ function wireFileDrop() {
         showDropError(t("batch.folderUnreadable"));
       } else if (signal.kind === "drop") {
         setDragHover(false);
-        if (signal.folder) await applyNativeFolder(invoke, signal.files);
-        else await applyNativeDrop(invoke, signal.files);
+        const shell = droppedFilesShell(invoke, signal.ticket);
+        if (signal.folder) applyNativeFolder(signal.files, shell);
+        else await applyNativeDrop(signal.files, shell);
       }
     }
   }
@@ -1131,34 +1133,52 @@ function wireFileDrop() {
     showDropError(t("settings.stemsLocation.pickerFailed"));
   }
 
+  /** How one drop's described files are read, measured and let go in the shell. */
+  function droppedFilesShell(invoke, ticket) {
+    return {
+      readFile: (d) => readDroppedFile(invoke, d),
+      measure: (d) => invoke("dropped_file_duration", { id: d.id }).catch(onMeasureFailed),
+      release: () => invoke("release_dropped_files", { ticket }).catch(onReleaseFailed),
+    };
+  }
+
+  function onMeasureFailed(err) {
+    console.warn("[drop] could not measure a dropped file:", err);
+    return null;
+  }
+
+  function onReleaseFailed(err) {
+    console.warn("[drop] could not release a drop:", err);
+  }
+
   /** A folder the shell opened up: its files, each with the folder it sits in, each
    *  read only when it is sent. */
-  function applyNativeFolder(invoke, dropped) {
+  function applyNativeFolder(dropped, shell) {
     const entries = dropped.map((d) => ({ file: d, dir: d.dir }));
-    stageFolder(entries, showDropError, (d) => readDroppedFile(invoke, d));
+    stageFolder(entries, showDropError, shell);
   }
 
   // `dropped` is [{ id, name, size }]: descriptions, not files. Several are
-  // reviewed as descriptions, each read only when it is sent.
-  async function applyNativeDrop(invoke, dropped) {
+  // reviewed as descriptions, each read only when it is sent; one is read now.
+  async function applyNativeDrop(dropped, shell) {
     if (dropped.length > 1) {
-      stageLooseFiles(dropped, (d) => readDroppedFile(invoke, d));
+      stageLooseFiles(dropped, shell);
       return;
     }
     const screened = screenFiles(dropped);
-    if (!screened) return;
-    const read = await readDropped(invoke, screened);
+    const read = screened && await readDropped(shell, screened);
+    shell.release();
     if (read) stageFiles([...read.values()]);
   }
 
   /** The dropped files' bytes, by id; null, having said which, when one cannot be read. */
-  async function readDropped(invoke, descriptions) {
+  async function readDropped(shell, descriptions) {
     const files = new Map();
     // One at a time, so a single transfer of up to MAX_UPLOAD_BYTES is in
     // flight rather than one per file: parallel reads would only raise the peak.
     for (const d of descriptions) {
       try {
-        files.set(d.id, await readDroppedFile(invoke, d));
+        files.set(d.id, await shell.readFile(d));
       } catch (e) {
         console.warn("[drop] could not read a dropped file:", e);
         showDropError(t("upload.dropReadFailed", { name: d.name }));

@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException
 from app.api.takes_common import commit_tracks, job_lock, known_job, ready_job, refuse_while_moving
 from app.api.takes_files import remove_take
 from app.api.takes_models import CreateTrackBody, PatchTrackBody
+from app.core.take_video_config import TRACK_KIND_AUDIO
 from app.core.takes import make_track, new_id, read_tracks, scan_takes, takes_on_track
 from app.core.takes_config import (
     LOGGER_NAME,
@@ -52,6 +53,8 @@ def _add_track(job_dir: Path, body: CreateTrackBody, track_max: int) -> dict[str
         body.name or _default_name(tracks),
         len(tracks),
         body.input.model_dump() if body.input else None,
+        body.kind or TRACK_KIND_AUDIO,
+        body.i_play,
     )
     saved = commit_tracks(job_dir, [*tracks, track])
     return _track_or_404(saved, track["id"])
@@ -91,6 +94,9 @@ def _apply_patch(job_dir: Path, track_id: str, body: PatchTrackBody) -> dict[str
         track["name"] = body.name
     if "input" in fields:
         track["input"] = body.input.model_dump() if body.input else None
+    for name in ("kind", "i_play"):
+        if name in fields and getattr(body, name) is not None:
+            track[name] = getattr(body, name)
     if "active_take_id" in fields:
         track["active_take_id"] = _check_active(job_dir, track_id, body.active_take_id)
     others = [t for t in tracks if t["id"] != track_id]

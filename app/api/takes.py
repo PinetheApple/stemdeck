@@ -19,18 +19,24 @@ from fastapi.responses import FileResponse
 
 from app.api import takes_files
 from app.api.stems import _title_slug
+from app.api.takes_camera import router as camera_router
+from app.api.takes_camera_files import CAMERA_STREAM
 from app.api.takes_common import (
     commit_tracks,
     job_lock,
     known_job,
+    read_body_capped,
     ready_job,
     refuse_while_moving,
     take_folder_or_404,
 )
 from app.api.takes_models import CreateTakeBody, FinishBody, PatchTakeBody
 from app.api.takes_tracks import router as tracks_router
+from app.api.takes_video_edit import apply_video_patch, asks_change
+from app.api.takes_video_render import router as render_router
 from app.core.models import Job
 from app.core.song_folder import write_json_atomic
+from app.core.take_video_config import TRACK_KIND_VIDEO
 from app.core.takes import (
     is_finished,
     normalise_tracks,
@@ -40,13 +46,13 @@ from app.core.takes import (
     take_entry,
 )
 from app.core.takes_config import (
+    EMPTY_PART_STATE,
     LOGGER_NAME,
     PARTS_FILE,
     SIDECAR_FILE,
     TAKE_DOWNLOAD_FALLBACK,
     TAKE_MAX_PER_JOB,
     TAKE_MAX_SEQ,
-    TAKE_PART_MAX_BYTES,
     TAKE_PEAKS_FILE,
     TAKE_SAMPLE_BYTES,
     TAKE_SLACK_SEC,
@@ -58,6 +64,8 @@ logger = logging.getLogger(LOGGER_NAME)
 
 router = APIRouter()
 router.include_router(tracks_router)
+router.include_router(camera_router)
+router.include_router(render_router)
 
 # A nudged take is rewritten under the same URL: revalidate every time.
 _NO_CACHE = {"Cache-Control": "no-cache"}
@@ -66,9 +74,10 @@ _TIMING_FIELDS = ("round_trip_ms", "user_nudge_ms")
 
 def _listing(job_id: str, job_dir: Path) -> dict[str, Any]:
     finished, open_ = scan_takes(job_dir, now=time.time())
+    song_sec = takes_files.song_seconds(job_dir)
     return {
         "tracks": normalise_tracks(read_tracks(job_dir), finished),
-        "takes": [take_entry(job_id, s) for s in finished],
+        "takes": [take_entry(job_id, s, song_sec) for s in finished],
         "open": open_,
     }
 
@@ -85,29 +94,20 @@ async def create_take(job_id: str, body: CreateTakeBody) -> dict[str, str]:
     _job, job_dir = ready_job(job_id)
     async with job_lock(job_id):
         tracks = await asyncio.to_thread(read_tracks, job_dir)
-        if not any(t["id"] == body.track_id for t in tracks):
+        track = next((t for t in tracks if t["id"] == body.track_id), None)
+        if track is None:
             raise HTTPException(status_code=422, detail="unknown track")
+        if body.camera is not None and track.get("kind") != TRACK_KIND_VIDEO:
+            raise HTTPException(status_code=422, detail="camera on an audio track")
         take_id, label = await asyncio.to_thread(
             takes_files.open_take,
             job_dir,
             body,
             TAKE_MAX_PER_JOB,
+            track,
         )
     logger.info("[%s] take %s opened on track %s", job_id, take_id, body.track_id)
     return {"take_id": take_id, "label": label, "track_id": body.track_id}
-
-
-async def _read_body_capped(request: Request) -> bytes:
-    """The raw body, refused past TAKE_PART_MAX_BYTES while it streams in:
-    the declared length can be absent or wrong."""
-    chunks: list[bytes] = []
-    total = 0
-    async for chunk in request.stream():
-        total += len(chunk)
-        if total > TAKE_PART_MAX_BYTES:
-            raise HTTPException(status_code=413, detail="part too large")
-        chunks.append(chunk)
-    return b"".join(chunks)
 
 
 def _size_cap(job: Job, state: dict[str, Any]) -> int:
@@ -132,7 +132,7 @@ async def put_part(
     refuse_while_moving()
     job, _job_dir = ready_job(job_id)
     folder = take_folder_or_404(job_id, take_id)
-    data = await _read_body_capped(request)
+    data = await read_body_capped(request)
     if not data:
         raise HTTPException(status_code=422, detail="empty part")
     async with job_lock(job_id):
@@ -142,14 +142,16 @@ async def put_part(
 
 def _parts_view(folder: Path) -> dict[str, Any]:
     state = read_json(folder / PARTS_FILE)
-    audio = state.get("audio") or {}
-    return {
-        "audio": {
-            "next_seq": int(audio.get("next_seq") or 0),
-            "bytes": int(audio.get("bytes") or 0),
-        },
-        "finished": bool(state.get("finished")) or is_finished(folder),
+    view = {
+        name: {
+            "next_seq": int(state[name].get("next_seq") or 0),
+            "bytes": int(state[name].get("bytes") or 0),
+        }
+        for name in (takes_files.AUDIO_STREAM, CAMERA_STREAM)
+        if isinstance(state.get(name), dict)
     }
+    view.setdefault(takes_files.AUDIO_STREAM, dict(EMPTY_PART_STATE))
+    return {**view, "finished": bool(state.get("finished")) or is_finished(folder)}
 
 
 @router.get("/{job_id}/takes/{take_id}/parts")
@@ -173,7 +175,7 @@ def _finish(job_dir: Path, folder: Path, body: FinishBody) -> dict[str, Any]:
         raise HTTPException(status_code=409, detail="track deleted")
     sidecar = takes_files.finish_take_files(job_dir, folder, body)
     _activate(job_dir, sidecar["track_id"], folder.name)
-    return sidecar
+    return take_entry(job_dir.name, sidecar, takes_files.song_seconds(job_dir))
 
 
 @router.post("/{job_id}/takes/{take_id}/finish")
@@ -183,9 +185,9 @@ async def finish_take(job_id: str, take_id: str, body: FinishBody) -> dict[str, 
     _job, job_dir = ready_job(job_id)
     folder = take_folder_or_404(job_id, take_id)
     async with job_lock(job_id):
-        sidecar = await asyncio.to_thread(_finish, job_dir, folder, body)
-    logger.info("[%s] take %s finished at %.4f s", job_id, take_id, sidecar["placement_sec"])
-    return take_entry(job_id, sidecar)
+        entry = await asyncio.to_thread(_finish, job_dir, folder, body)
+    logger.info("[%s] take %s finished at %.4f s", job_id, take_id, entry["placement_sec"])
+    return entry
 
 
 def _patch_files(job_dir: Path, folder: Path, body: PatchTakeBody) -> dict[str, Any]:
@@ -203,8 +205,9 @@ def _patch_files(job_dir: Path, folder: Path, body: PatchTakeBody) -> dict[str, 
         sidecar["label"] = body.label
     if retime:
         takes_files.render_lane(job_dir, folder, sidecar)
+    apply_video_patch(job_dir, sidecar, body)
     write_json_atomic(folder / SIDECAR_FILE, sidecar)
-    return sidecar
+    return take_entry(job_dir.name, sidecar, takes_files.song_seconds(job_dir))
 
 
 @router.patch("/{job_id}/takes/{take_id}")
@@ -213,11 +216,10 @@ async def patch_take(job_id: str, take_id: str, body: PatchTakeBody) -> dict[str
     refuse_while_moving()
     _job, job_dir = ready_job(job_id)
     folder = take_folder_or_404(job_id, take_id)
-    if not any(getattr(body, name) is not None for name in body.model_fields_set):
+    if not asks_change(body):
         raise HTTPException(status_code=422, detail="nothing to change")
     async with job_lock(job_id):
-        sidecar = await asyncio.to_thread(_patch_files, job_dir, folder, body)
-    return take_entry(job_id, sidecar)
+        return await asyncio.to_thread(_patch_files, job_dir, folder, body)
 
 
 def _delete_files(job_dir: Path, folder: Path) -> None:

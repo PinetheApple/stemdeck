@@ -38,6 +38,8 @@ TRACK_MAX_PER_JOB = 32
 # The same 4 MB as the JSON body middleware in app/main.py, which also sees
 # these octet-stream bodies; the route re-checks while the body streams.
 TAKE_PART_MAX_BYTES = 4 * 1024 * 1024
+# Upload counters of a stream no part of which has arrived; copy before use.
+EMPTY_PART_STATE = {"next_seq": 0, "bytes": 0}
 TAKE_MAX_SEQ = 100_000
 TAKE_SAMPLE_BYTES = 4
 # Room past the song's end for a count-in, pickup notes or a late Stop.
