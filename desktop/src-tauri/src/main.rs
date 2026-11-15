@@ -1,6 +1,8 @@
 mod certs;
 mod dragout;
 mod dropin;
+#[cfg(any(target_os = "linux", test))]
+mod rocm;
 mod store_file;
 #[cfg(any(not(target_os = "macos"), test))]
 mod torchswap;
@@ -333,6 +335,10 @@ struct AssetStatus {
 struct GpuSetup {
     gpu_detected: bool,
     gpu_name: Option<String>,
+    /// "cuda" (NVIDIA) or "rocm" (AMD): which torch build serves the GPU. Both
+    /// run as torch's "cuda" device, so torch_device cannot tell them apart.
+    backend: Option<String>,
+    /// The driver's CUDA version, or the ROCm line of the AMD build.
     cuda_version: Option<String>,
     torch_device: String,
     cuda_verified: bool,
@@ -2048,6 +2054,9 @@ fn spawn_backend(
         .env("TORCH_HOME", data_dir.join("models").join("torch"))
         .stdout(stdout)
         .stderr(stderr);
+    // The AMD GPU setup verified, for the backend and every worker it starts.
+    #[cfg(target_os = "linux")]
+    rocm::show_chosen_gpu(&mut cmd);
 
     // tls_listener needs all three. Removed otherwise, so a copy in the user's
     // own environment cannot start the LAN listener while access is off.
@@ -2161,6 +2170,7 @@ fn ensure_torch_device(
         return Ok(GpuSetup {
             gpu_detected: false,
             gpu_name: None,
+            backend: None,
             cuda_version: None,
             torch_device: "cpu".to_string(),
             cuda_verified: false,
@@ -2191,6 +2201,7 @@ fn ensure_torch_device(
             } else {
                 None
             },
+            backend: None,
             cuda_version: None,
             torch_device: device.to_string(),
             cuda_verified: false,
@@ -2221,13 +2232,26 @@ fn ensure_torch_device(
                 ),
             }
         }
-        let setup = match detect_nvidia_gpu(&data_dir) {
-            Some((gpu_name, cuda_version, compute_cap)) => {
+        // Without an NVIDIA GPU, an AMD one a ROCm build of torch can drive.
+        // ROCm torch exists for Linux only.
+        #[cfg(target_os = "linux")]
+        let amd = || rocm::detect(Path::new("/"), &data_dir);
+        #[cfg(not(target_os = "linux"))]
+        let amd = || None;
+        let setup = match detect_gpu(detect_nvidia_gpu(&data_dir), amd) {
+            // Found, but no build StemDeck installs can use it: say why, and
+            // leave the bundled torch alone.
+            Some(
+                gpu @ DetectedGpu {
+                    unusable: Some(reason),
+                    ..
+                },
+            ) => GpuSetup::from_detection(Some(&gpu), false, reason),
+            Some(gpu) => {
                 // Try each candidate wheel in turn. A build that installs but
                 // cannot launch a kernel is not a reason to give up on the GPU
                 // if another build might work -- that was the whole failure in
                 // #502, where cu128 was the only thing ever offered.
-                let candidates = wheel_candidates(compute_cap.as_deref(), &cuda_version);
                 let mut cuda_verified = false;
                 // Whether any candidate got far enough to be verified at all.
                 // Without this the reason below says "cuda-verify-failed" for a
@@ -2245,14 +2269,14 @@ fn ensure_torch_device(
                 // works has nothing to install.
                 let already = verify_cuda_torch(&python) == CudaVerify::Verified;
                 if already {
-                    append_to_setup_log(&data_dir, "CUDA torch already installed and verified");
+                    append_to_setup_log(&data_dir, "GPU torch already installed and verified");
                     cuda_verified = true;
                 }
-                for tag in candidates.iter().filter(|_| !already) {
+                for tag in gpu.candidates.iter().filter(|_| !already) {
                     append_to_setup_log(
                         &data_dir,
                         &format!(
-                            "trying CUDA wheel {tag} (torch {})",
+                            "trying GPU wheel {tag} (torch {})",
                             torch_version_for_tag(tag)
                         ),
                     );
@@ -2277,7 +2301,7 @@ fn ensure_torch_device(
                         } else if let Err(e) = torchswap::discard_installed(site) {
                             append_to_setup_log(
                                 &data_dir,
-                                &format!("could not clear the previous CUDA build ({e})"),
+                                &format!("could not clear the previous GPU build ({e})"),
                             );
                         }
                     }
@@ -2338,23 +2362,9 @@ fn ensure_torch_device(
                         }
                     }
                 };
-                GpuSetup {
-                    gpu_detected: true,
-                    gpu_name: Some(gpu_name),
-                    cuda_version: Some(cuda_version),
-                    torch_device: if cuda_verified { "cuda" } else { "cpu" }.to_string(),
-                    cuda_verified,
-                    reason: reason.to_string(),
-                }
+                GpuSetup::from_detection(Some(&gpu), cuda_verified, reason)
             }
-            None => GpuSetup {
-                gpu_detected: false,
-                gpu_name: None,
-                cuda_version: None,
-                torch_device: "cpu".to_string(),
-                cuda_verified: false,
-                reason: "no-gpu-detected".to_string(),
-            },
+            None => GpuSetup::from_detection(None, false, "no-gpu-detected"),
         };
         // Persist device + reason. The setup gate only treats "cuda"/"mps" (or
         // cpu on a cpu-only package) as settled -- a CPU result born from a
@@ -2601,6 +2611,71 @@ fn parse_cuda_version(smi_output: &str) -> Option<String> {
     None
 }
 
+/// What GpuSetup.backend says for an NVIDIA GPU.
+#[cfg(any(not(target_os = "macos"), test))]
+const GPU_BACKEND_CUDA: &str = "cuda";
+
+/// The newest ROCm line torch 2.8.0, the last with torchaudio's soundfile
+/// backend, is published for.
+macro_rules! rocm_version {
+    () => {
+        "6.4"
+    };
+}
+#[cfg(any(target_os = "linux", test))]
+const ROCM_VERSION: &str = rocm_version!();
+#[cfg(any(not(target_os = "macos"), test))]
+const ROCM_TAG: &str = concat!("rocm", rocm_version!());
+
+/// A GPU setup can install a torch build for.
+#[cfg(any(not(target_os = "macos"), test))]
+struct DetectedGpu {
+    name: String,
+    /// "cuda" or "rocm". Either build serves the GPU as torch's "cuda" device.
+    backend: &'static str,
+    /// The driver's CUDA version, or the ROCm line the AMD build carries.
+    version: String,
+    /// Wheel tags to try, best first.
+    candidates: Vec<&'static str>,
+    /// Set when the GPU is there but no build can use it: the setup reason.
+    unusable: Option<&'static str>,
+}
+
+#[cfg(any(not(target_os = "macos"), test))]
+impl GpuSetup {
+    fn from_detection(gpu: Option<&DetectedGpu>, cuda_verified: bool, reason: &str) -> Self {
+        GpuSetup {
+            gpu_detected: gpu.is_some(),
+            gpu_name: gpu.map(|g| g.name.clone()),
+            backend: gpu.map(|g| g.backend.to_string()),
+            cuda_version: gpu.map(|g| g.version.clone()),
+            torch_device: if cuda_verified { "cuda" } else { "cpu" }.to_string(),
+            cuda_verified,
+            reason: reason.to_string(),
+        }
+    }
+}
+
+/// The NVIDIA GPU nvidia-smi found, else the AMD one `amd` finds. AMD
+/// detection only runs without an NVIDIA GPU, so those machines are offered
+/// exactly the wheel candidates they always were.
+#[cfg(any(not(target_os = "macos"), test))]
+fn detect_gpu(
+    nvidia: Option<(String, String, Option<String>)>,
+    amd: impl FnOnce() -> Option<DetectedGpu>,
+) -> Option<DetectedGpu> {
+    let Some((name, cuda_version, compute_cap)) = nvidia else {
+        return amd();
+    };
+    Some(DetectedGpu {
+        candidates: wheel_candidates(compute_cap.as_deref(), &cuda_version),
+        name,
+        backend: GPU_BACKEND_CUDA,
+        version: cuda_version,
+        unusable: None,
+    })
+}
+
 #[cfg(any(not(target_os = "macos"), test))]
 fn cuda_tag(cuda_version: &str) -> &'static str {
     let parts: Vec<u32> = cuda_version
@@ -2689,10 +2764,11 @@ fn wheel_candidates(compute_cap: Option<&str>, cuda_version: &str) -> Vec<&'stat
 /// because 2.7.1 shipped them incomplete (#239). 2.8.0 is also the last line
 /// that still carries torchaudio's soundfile backend, which is what demucs'
 /// `ta.save()` needs -- see `wheel_candidates` for why that rules out cu130.
+/// ROCm takes the same line.
 #[cfg(any(not(target_os = "macos"), test))]
 fn torch_version_for_tag(tag: &str) -> &'static str {
     match tag {
-        "cu128" => "2.8.0",
+        "cu128" | ROCM_TAG => "2.8.0",
         _ => "2.6.0",
     }
 }
@@ -2719,7 +2795,7 @@ fn torch_version_for_tag(tag: &str) -> &'static str {
 #[cfg(not(target_os = "macos"))]
 fn torchvision_version_for_tag(tag: &str) -> &'static str {
     match tag {
-        "cu128" => "0.23.0",
+        "cu128" | ROCM_TAG => "0.23.0",
         _ => CPU_TORCHVISION_VERSION,
     }
 }
@@ -3009,9 +3085,11 @@ struct SetupProgress {
 /// they dlopen libcublas/libcudnn/... out of the `nvidia-*` PyPI packages at
 /// import time. Windows wheels ship those DLLs inside torch/lib and declare no
 /// such dependencies, so the leaner --no-deps swap stays correct there (#324).
+/// ROCm wheels carry HIP, MIOpen and rocBLAS inside torch/lib; their one
+/// dependency, pytorch-triton-rocm, serves torch.compile, which is never called.
 #[cfg(not(target_os = "macos"))]
-fn cuda_wheel_needs_runtime_deps() -> bool {
-    cfg!(target_os = "linux")
+fn cuda_wheel_needs_runtime_deps(tag: &str) -> bool {
+    cfg!(target_os = "linux") && tag.starts_with("cu")
 }
 
 /// Builds the per-line callback `run_pip_install` hands to the reader thread.
@@ -3379,7 +3457,7 @@ fn install_cuda_torch(
         &torchaudio_spec,
         &torchvision_spec,
         index_url,
-        cuda_wheel_needs_runtime_deps(),
+        cuda_wheel_needs_runtime_deps(tag),
     ) {
         run_pip_install(python, &args, state, app, label)?;
     }
@@ -3459,11 +3537,13 @@ enum CudaVerify {
 }
 
 /// Whether a failed verification was the "this build has no kernels for your
-/// GPU" error. Matched on CUDA's exact wording, because a looser match would
-/// settle a driver or install problem as permanent.
+/// GPU" error. Matched on CUDA's and HIP's exact wording, because a looser
+/// match would settle a driver or install problem as permanent.
 #[cfg(any(not(target_os = "macos"), test))]
 fn is_no_kernel_image(stderr: &str) -> bool {
     stderr.contains("no kernel image is available for execution on the device")
+        || stderr.contains("hipErrorNoBinaryForGpu")
+        || stderr.contains("HIP error: invalid device function")
 }
 
 /// The reason recorded when CUDA setup does not end on the GPU.
@@ -3514,6 +3594,8 @@ fn verify_cuda_torch(python: &Path) -> CudaVerify {
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
     hide_console_window(&mut command);
+    #[cfg(target_os = "linux")]
+    rocm::show_chosen_gpu(&mut command);
 
     let log = |msg: &str| {
         if let Ok(data_dir) = local_data_dir() {
@@ -7768,9 +7850,125 @@ b6052160df96b31c9b1e33854a4dcda3d4b57641b880270f31736fb9f445d384  ffmpeg-n7.1-la
     #[test]
     fn cuda_runtime_deps_needed_on_linux_only() {
         assert_eq!(
-            super::cuda_wheel_needs_runtime_deps(),
+            super::cuda_wheel_needs_runtime_deps("cu124"),
             cfg!(target_os = "linux")
         );
+        // ROCm wheels carry their runtime inside torch/lib; the dependency
+        // pass would only add pytorch-triton-rocm, which nothing here uses.
+        assert!(!super::cuda_wheel_needs_runtime_deps(super::ROCM_TAG));
+    }
+
+    // --- AMD GPUs through ROCm ---
+
+    fn nvidia(cap: Option<&str>, driver: &str) -> Option<(String, String, Option<String>)> {
+        Some((
+            "NVIDIA GeForce RTX 5070 Ti".to_string(),
+            driver.to_string(),
+            cap.map(str::to_string),
+        ))
+    }
+
+    /// An NVIDIA machine is offered exactly what it was before ROCm existed,
+    /// and AMD detection never runs on it.
+    #[test]
+    fn an_nvidia_gpu_keeps_its_cuda_candidates_and_never_looks_for_amd() {
+        let no_amd_lookup = || -> Option<super::DetectedGpu> { panic!("looked for an AMD GPU") };
+        let blackwell = super::detect_gpu(nvidia(Some("12.0"), "13.0"), no_amd_lookup).unwrap();
+        assert_eq!(blackwell.candidates, vec!["cu128"]);
+        assert_eq!(blackwell.backend, super::GPU_BACKEND_CUDA);
+        assert_eq!(blackwell.version, "13.0");
+        assert_eq!(blackwell.unusable, None);
+        let ada = super::detect_gpu(nvidia(Some("8.9"), "12.4"), no_amd_lookup).unwrap();
+        assert_eq!(ada.candidates, vec!["cu124", "cu118"]);
+        for (cap, driver) in [(None, "13.0"), (Some("5.2"), "13.0"), (Some("8.6"), "11.8")] {
+            let gpu = super::detect_gpu(nvidia(cap, driver), no_amd_lookup).unwrap();
+            assert_eq!(gpu.candidates, super::wheel_candidates(cap, driver));
+        }
+    }
+
+    #[test]
+    fn without_an_nvidia_gpu_an_amd_one_is_looked_for() {
+        let amd = || {
+            Some(super::DetectedGpu {
+                name: "AMD GPU (gfx1100)".to_string(),
+                backend: super::rocm::BACKEND,
+                version: super::ROCM_VERSION.to_string(),
+                candidates: vec![super::ROCM_TAG],
+                unusable: None,
+            })
+        };
+        let gpu = super::detect_gpu(None, amd).unwrap();
+        assert_eq!(gpu.backend, super::rocm::BACKEND);
+        assert_eq!(gpu.candidates, vec![super::ROCM_TAG]);
+        assert!(super::detect_gpu(None, || None).is_none());
+    }
+
+    /// The setup result an NVIDIA GPU reports, field for field as before.
+    #[test]
+    fn a_setup_result_carries_what_detection_found() {
+        let nvidia = super::detect_gpu(nvidia(Some("8.9"), "12.4"), || None).unwrap();
+        let verified = super::GpuSetup::from_detection(Some(&nvidia), true, "verified");
+        assert_eq!(
+            serde_json::to_value(&verified).unwrap(),
+            serde_json::json!({
+                "gpuDetected": true,
+                "gpuName": "NVIDIA GeForce RTX 5070 Ti",
+                "backend": "cuda",
+                "cudaVersion": "12.4",
+                "torchDevice": "cuda",
+                "cudaVerified": true,
+                "reason": "verified",
+            })
+        );
+        let failed = super::GpuSetup::from_detection(Some(&nvidia), false, "cuda-verify-failed");
+        assert_eq!(failed.torch_device, "cpu");
+        let none = super::GpuSetup::from_detection(None, false, "no-gpu-detected");
+        assert_eq!(
+            serde_json::to_value(&none).unwrap(),
+            serde_json::json!({
+                "gpuDetected": false,
+                "gpuName": null,
+                "backend": null,
+                "cudaVersion": null,
+                "torchDevice": "cpu",
+                "cudaVerified": false,
+                "reason": "no-gpu-detected",
+            })
+        );
+    }
+
+    #[test]
+    fn rocm_tag_is_built_from_its_version() {
+        assert_eq!(super::ROCM_TAG, format!("rocm{}", super::ROCM_VERSION));
+    }
+
+    #[test]
+    fn hips_own_wording_counts_as_no_kernel_image() {
+        assert!(super::is_no_kernel_image(
+            "RuntimeError: HIP error: invalid device function\nHIP kernel errors might be asynchronously reported"
+        ));
+        assert!(super::is_no_kernel_image(
+            "hipErrorNoBinaryForGpu: Unable to find code object for all current devices!"
+        ));
+        // A runtime that cannot reach the card (no /dev/kfd access) can go
+        // differently next launch, so it must not be settled.
+        assert!(!super::is_no_kernel_image(
+            "RuntimeError: No HIP GPUs are available"
+        ));
+    }
+
+    /// torch 2.8.0, like cu128, is the last line with torchaudio's soundfile
+    /// backend, and rocm6.4 the newest ROCm index it is published on.
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn rocm_takes_the_torch_2_8_line() {
+        assert_eq!(super::torch_version_for_tag(super::ROCM_TAG), "2.8.0");
+        assert_eq!(
+            super::torchvision_version_for_tag(super::ROCM_TAG),
+            "0.23.0"
+        );
+        let url = format!("https://download.pytorch.org/whl/{}", super::ROCM_TAG);
+        assert_eq!(super::cuda_tag_from_url(&url), super::ROCM_TAG);
     }
 
     // --- cpu-only marker precedence + self-heal (#247) ---
