@@ -135,7 +135,6 @@ export function startFileBatch(entries, { folder = null, readFile = null, measur
     release,
     loaded: new Map(),
     refused: capped.refused,
-    dropped: new Set(),
     durations,
     preview: null,
     items: fileItems(capped.entries, null, durations),
@@ -198,15 +197,18 @@ async function fetchFilePreview(target) {
   rebuildFileItems(target);
 }
 
-/** Rows again from the files, the preview and the lengths read so far, keeping the user's ticks. */
+/** A rebuilt row keeps the user's tick, and a row the queue left out keeps its reason. */
+function keptRow(old, fresh) {
+  if (old.status === ITEM_STATUS.NOT_QUEUED) return old;
+  return old.status === fresh.status ? { ...fresh, ticked: old.ticked } : fresh;
+}
+
+/** The rows still listed, again from the files, the preview and the lengths read so far. */
 function rebuildFileItems(target) {
   const before = new Map(target.items.map((i) => [i.file, i]));
   const items = fileItems(target.entries, target.preview, target.durations)
-    .filter((item) => !target.dropped.has(item.file))
-    .map((item) => {
-      const old = before.get(item.file);
-      return old && old.status === item.status ? { ...item, ticked: old.ticked } : item;
-    });
+    .filter((item) => before.has(item.file))
+    .map((item) => keptRow(before.get(item.file), item));
   target.items = target.error ? markUnchecked(items) : items;
   renderReview();
 }
@@ -255,7 +257,8 @@ async function readDurations(target) {
     if (!isUploadable(file)) continue;
     const seconds = await lengthOf(target, file);
     if (seconds !== null) target.durations.set(file, seconds);
-    if (!target.loading && isCurrent(target)) rebuildFileItems(target);
+    // Not while queueing: what is left is picked out of the rows being sent.
+    if (!target.loading && !target.queuing && isCurrent(target)) rebuildFileItems(target);
   }
 }
 
@@ -411,7 +414,6 @@ function toggleGroup(group, flag) {
 function dropRow(btn) {
   const group = groupOf(btn);
   const item = group ? null : itemOf(btn);
-  if (item?.file) batch.dropped.add(item.file);
   if (item?.status === ITEM_STATUS.LOOKING_UP) batch.droppedLines.add(item.line);
   if (group) batch.groups = batch.groups.filter((g) => g !== group);
   showWhatIsLeft(batch.items.filter((i) => (group ? i.group !== group.key : i !== item)));
@@ -483,7 +485,9 @@ function showWhatIsLeft(items) {
 async function send(items, kept) {
   const target = batch;
   const notQueued = await queueSome(target, items);
-  if (isCurrent(target)) showWhatIsLeft(target.items.filter((i) => notQueued.includes(i) || kept.includes(i)));
+  if (!isCurrent(target)) return;
+  showWhatIsLeft(target.items.filter((i) => notQueued.includes(i) || kept.includes(i)));
+  if (isCurrent(target) && target.entries) rebuildFileItems(target);
 }
 
 /** Ticked items the queue had no room for stay, as not queued, beside those it refused. */
