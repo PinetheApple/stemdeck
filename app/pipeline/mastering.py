@@ -62,8 +62,6 @@ from app.core.config import (
     MASTER_COMP_THRESHOLD_PER_AMOUNT_DB,
     MASTER_CORRECTION_PASSES,
     MASTER_CORRECTION_TOL_LU,
-    MASTER_GAIN_MAX_DB,
-    MASTER_GAIN_MIN_DB,
     MASTER_LIMITER_ATTACK_MS,
     MASTER_LIMITER_MARGIN_DB,
     MASTER_LIMITER_OVERSAMPLE,
@@ -80,7 +78,13 @@ from app.pipeline.fx_filters import (
     linear_to_db,
     read_wire_number,
 )
-from app.pipeline.master_ceiling import correction_step, hold_ceiling, overshoot_db
+from app.pipeline.master_ceiling import (
+    clamp_gain,
+    correction_step,
+    hold_ceiling,
+    missed,
+    overshoot_db,
+)
 
 LOGGER_NAME = "stemdeck.mastering"
 logger = logging.getLogger(LOGGER_NAME)
@@ -359,10 +363,6 @@ def parse_meter(text: str) -> Loudness:
     return Loudness(_rounded(i), _rounded(tp), _rounded(_last_float(_LRA_RE, text)))
 
 
-def clamp_gain(gain_db: float) -> float:
-    return round(min(MASTER_GAIN_MAX_DB, max(MASTER_GAIN_MIN_DB, gain_db)), 4)
-
-
 def _measure_cmd(inputs: list[str], graph: str, chain: str, rate: int) -> list[str]:
     tail = f"{chain}," if chain else ""
     return [
@@ -397,13 +397,6 @@ async def measure_chain(inputs: list[str], graph: str, chain: str, rate: int) ->
     return parse_meter(text)
 
 
-def _missed(target: float, post: Loudness) -> float | None:
-    """How far the result is from the target, None when it is close enough."""
-    if post.i is None or abs(target - post.i) <= MASTER_CORRECTION_TOL_LU:
-        return None
-    return target - post.i
-
-
 async def _settle_gain(
     gain: float,
     post: Loudness,
@@ -413,8 +406,8 @@ async def _settle_gain(
     """Up to MASTER_CORRECTION_PASSES bounded steps toward the target."""
     tried = [(gain, post.i)]
     for _ in range(MASTER_CORRECTION_PASSES):
-        miss = _missed(target, post)
-        if miss is None:
+        miss = missed(target, post)
+        if not miss:
             break
         fixed = clamp_gain(gain + correction_step(miss, tried))
         if fixed == gain:

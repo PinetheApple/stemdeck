@@ -176,7 +176,10 @@ def _prune_mixdown_cache(cache_dir: Path, keep: Path | None = None) -> None:
             (
                 p
                 for p in cache_dir.iterdir()
-                if p.is_file() and not p.name.startswith(".") and p != keep
+                if p.is_file()
+                and not p.name.startswith(".")
+                and not p.name.endswith(export_fx.OUTPUT_NOTE_SUFFIX)
+                and p != keep
             ),
             key=lambda p: p.stat().st_mtime,
         )
@@ -190,6 +193,7 @@ def _prune_mixdown_cache(cache_dir: Path, keep: Path | None = None) -> None:
         try:
             total -= oldest.stat().st_size
             oldest.unlink()
+            export_fx.note_path(oldest).unlink(missing_ok=True)
         except OSError:
             logger.debug("mixdown cache prune: could not remove %s", oldest, exc_info=True)
 
@@ -1131,6 +1135,7 @@ def _mixdown_download_name(job_id: str, ext: str, is_region: bool) -> str:
 
 @router.get("/jobs/{job_id}/mixdown.{ext}", response_model=None)
 async def get_mixdown(
+    request: Request,
     job_id: str,
     ext: str,
     stems: str = Query(..., description="Comma-separated lane names to sum"),
@@ -1208,7 +1213,9 @@ async def get_mixdown(
     # stale cache entry from before the job was removed.
     render_lanes, unpitched = _expand_render_lanes(job_id, names, parsed_gains, parsed_pitches)
     paths = [lane.path for lane in render_lanes]
-    export = await export_fx.prepare_export(render_lanes, fx, master, ext, _pitch_filter)
+    export = await export_fx.prepare_export(
+        render_lanes, fx, master, ext, _pitch_filter, region=start is not None
+    )
 
     media_type = AUDIO_MEDIA_TYPES[ext]
     click_lane = await asyncio.to_thread(
@@ -1237,13 +1244,14 @@ async def get_mixdown(
         export.cache_suffix(),
     )
     cache_path = _MIXDOWN_CACHE_DIR / f"{cache_key}.{ext}"
+    hit, out = await export_fx.cached_output(export, ext, cache_path)
     headers = {
         "Content-Disposition": (
             f'attachment; filename="{_mixdown_download_name(job_id, ext, start is not None)}"'
         ),
-        **export.headers(await export_fx.stored_output(export, ext, cache_path)),
+        **export.headers(out),
     }
-    if cache_path.is_file():
+    if hit:
         return FileResponse(cache_path, media_type=media_type, headers=headers)
 
     pre_seek = ["-ss", str(start)] if start is not None else []
@@ -1302,16 +1310,11 @@ async def get_mixdown(
 
     context = f"mixdown job={job_id} ext={ext} stems={stems}"
     if export.verifies(ext):
-        rendered, out = await export_fx.render_verified(
-            export,
-            cmd,
-            f".{ext}",
-            context,
-            _render_to_file,
-            cache_path,
-        )
+        job = export_fx.VerifyJob(cmd, f".{ext}", context, _render_to_file, request.is_disconnected)
+        rendered, out = await export_fx.render_verified(export, job)
         headers.update(export.headers(out))
-        return FileResponse(rendered, media_type=media_type, headers=headers)
+        published = export_fx.publish(rendered, out, cache_path, _prune_mixdown_cache)
+        return FileResponse(published, media_type=media_type, headers=headers)
     if ext in _SEEKABLE_OUTPUT_EXTS:
         # Rendered to a file so the muxer can seek back and finish its header
         # (#458). It lands in the cache, so nothing is deleted afterwards --
@@ -1347,6 +1350,7 @@ def _safe_title(title: str | None) -> str:
 
 @router.get("/jobs/{job_id}/video.mp4", response_model=None)
 async def get_video_mixdown(
+    request: Request,
     job_id: str,
     stems: str = Query(..., description="Comma-separated lane names to sum"),
     gains: str = Query(..., description="Comma-separated linear gains, parallel to stems"),
@@ -1461,13 +1465,8 @@ async def get_video_mixdown(
     headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
     context = f"video-mux job={job_id} stems={stems}"
     if export.verifies(EXPORT_AUDIO_CODEC_AAC):
-        rendered, out = await export_fx.render_verified(
-            export,
-            cmd,
-            ".mp4",
-            context,
-            _render_to_file,
-        )
+        job = export_fx.VerifyJob(cmd, ".mp4", context, _render_to_file, request.is_disconnected)
+        rendered, out = await export_fx.render_verified(export, job)
         headers.update(export.headers(out))
         return FileResponse(
             rendered,

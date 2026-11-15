@@ -18,7 +18,13 @@ from typing import Annotated, TypeVar
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from app.api.export_fx import fx_query, master_query, prepare_export
+from app.api.export_fx import (
+    CLIENT_GONE_DETAIL,
+    HTTP_CLIENT_GONE,
+    fx_query,
+    master_query,
+    prepare_export,
+)
 from app.api.stems import (
     NO_TRANSPOSE_DETAIL,
     PITCHES_MAX_CHARS,
@@ -32,8 +38,6 @@ from app.core.config import JOB_ID_RE, MASTER_LOUDNESS_POLL_SEC, STEM_FORMAT_MP3
 
 router = APIRouter(tags=["stems"])
 
-HTTP_CLIENT_GONE = 499
-CLIENT_GONE_DETAIL = "client went away"
 # Any lossy format plans for the same capped ceiling.
 _LOSSY_PLAN_FORMAT = STEM_FORMAT_MP3
 _LOSSLESS_PLAN_FORMAT = STEM_FORMAT_WAV

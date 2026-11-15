@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 CeilingRun = Callable[[float, float, float], Awaitable["Loudness"]]
 Tries = list[tuple[float, float | None]]
 _DB_DECIMALS = 3
+_GAIN_DECIMALS = 4
 # Loudness gained per dB of gain: 1 with no limiting, never assumed below this
 # (a limiter at its wall), so a correction step stays bounded.
 _LIMITED_SLOPE_MIN = 0.1
@@ -44,7 +45,7 @@ def overshoot_db(tp: float | None, ceiling_db: float) -> float:
     return round(tp - ceiling_db + MASTER_TRIM_MARGIN_DB, _DB_DECIMALS)
 
 
-def loudness_miss(target: float | None, post: Loudness) -> float:
+def missed(target: float | None, post: Loudness) -> float:
     """How far the loudness is from the target, 0 within tolerance or with no target."""
     if target is None or post.i is None or abs(target - post.i) <= MASTER_CORRECTION_TOL_LU:
         return 0.0
@@ -63,8 +64,8 @@ def correction_step(miss: float, tried: list[tuple[float, float | None]]) -> flo
     return round(step, _DB_DECIMALS)
 
 
-def clamped_gain(gain_db: float) -> float:
-    return round(min(MASTER_GAIN_MAX_DB, max(MASTER_GAIN_MIN_DB, gain_db)), _DB_DECIMALS)
+def clamp_gain(gain_db: float) -> float:
+    return round(min(MASTER_GAIN_MAX_DB, max(MASTER_GAIN_MIN_DB, gain_db)), _GAIN_DECIMALS)
 
 
 async def hold_ceiling(
@@ -80,12 +81,12 @@ async def hold_ceiling(
     tried: Tries = [(gain, post.i)]
     for _ in range(MASTER_CEILING_RETRIES):
         over = overshoot_db(post.tp, ceiling_db)
-        miss = loudness_miss(target, post) if offset or over else 0.0
+        miss = missed(target, post) if offset or over else 0.0
         if not over and not miss:
             return gain, offset, 0.0, post
         if over:
             offset, tried = round(offset + over, _DB_DECIMALS), []
-        gain = clamped_gain(gain + correction_step(miss, tried))
+        gain = clamp_gain(gain + correction_step(miss, tried))
         post = await run(gain, offset, 0.0)
         tried.append((gain, post.i))
     trim = overshoot_db(post.tp, ceiling_db)

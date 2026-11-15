@@ -18,9 +18,11 @@ numbers; every refusal is a 422 with a message safe to show.
 The master is measured on the whole song at the export rate (the plan is kept
 by app/pipeline/master_plan_cache.py), so a region export gets the full
 master's gain. A lossy encoder adds peak the graph cannot see, so a mastered
-mp3, ogg or video is decoded and measured, and rendered again with a deeper
-trim while it is over its capped ceiling. The response carries the final
-measurement as X-StemDeck-* headers.
+mp3, ogg or video is decoded and measured, and rendered again with a lower
+limit while it is over its capped ceiling (a region keeps the song's gain and
+corrects only that). Only a verified render reaches the render cache, with its
+decoded measurement in a note beside it; an entry with no note is measured
+again. The response carries the final measurement as X-StemDeck-* headers.
 """
 
 from __future__ import annotations
@@ -31,16 +33,16 @@ import logging
 import os
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import NamedTuple, Protocol, TypeVar
 
 import soundfile as sf
 from fastapi import HTTPException, Query
 
+from app.api import takes_lanes
 from app.core.config import FX_PARAM_MAX_CHARS, MASTER_CEILING_RETRIES, MASTER_PARAM_MAX_CHARS
 from app.core.settings import DEFAULT_EXPORT_SAMPLE_RATE, get_export_sample_rate
-from app.pipeline import master_plan_cache
 from app.pipeline.fx_filters import (
     Eq,
     FxError,
@@ -50,8 +52,8 @@ from app.pipeline.fx_filters import (
     slot_filter,
     slot_section_count,
 )
-from app.pipeline.master_ceiling import Tries, correction_step, loudness_miss, overshoot_db
-from app.pipeline.master_plan_cache import cached_plan
+from app.pipeline.master_ceiling import Tries, correction_step, missed, overshoot_db
+from app.pipeline.master_plan_cache import cached_plan, read_cache
 from app.pipeline.mastering import (
     LOGGER_NAME,
     LOSSY_FORMATS,
@@ -63,7 +65,6 @@ from app.pipeline.mastering import (
     measure_chain,
     parse_master_param,
     plan_chain,
-    plan_graph,
     require_master_param,
     target_reached,
 )
@@ -86,12 +87,14 @@ FX_DESCRIPTION = "The studio EQ: base64url JSON (docs/api.md). Empty means no EQ
 MASTER_DESCRIPTION = "The master: base64url JSON (docs/api.md). Empty means no master."
 FILTER_COMPLEX = "-filter_complex"
 DECODED_GRAPH = "[0:a]anull[pre]"
-_OUTPUT_NOTE_PREFIX = "out-"
+OUTPUT_NOTE_SUFFIX = ".out.json"
+HTTP_CLIENT_GONE = 499
+CLIENT_GONE_DETAIL = "client went away"
 _NO_VALUE = "none"
-_MIX_LABEL = "[mix]"
 
 T = TypeVar("T")
 Render = Callable[..., Awaitable[Path]]
+Gone = Callable[[], Awaitable[bool]]
 
 
 class RenderLaneLike(Protocol):
@@ -131,12 +134,13 @@ class RenderFx(NamedTuple):
 class ExportFx(NamedTuple):
     """One export's EQ and master: the filter prefixes, the measured plan
     (None with no master), the chain the render runs after the master EQ and
-    the rate that chain limits at."""
+    the rate that chain limits at. A region is held to the song's plan."""
 
     render_fx: RenderFx
     plan: MasterPlan | None
     chain: str
     rate: int
+    region: bool = False
 
     def prefix(self, index: int) -> str:
         return self.render_fx.prefix(index)
@@ -159,12 +163,13 @@ class ExportFx(NamedTuple):
 
     def headers(self, out: Loudness | None = None) -> dict[str, str]:
         """The loudness before and after the master; ``out`` is the decoded
-        file's own measurement when there is one, else the plan's."""
+        file's own measurement when there is one, else (and for a region) the plan's."""
         if self.plan is None:
             return {}
         plan = self.plan
-        post = out or plan.post
-        reached = plan.reached if out is None else target_reached(plan.target, plan.ceiling, out)
+        measured = out is not None and not self.region
+        post = out if measured else plan.post
+        reached = target_reached(plan.target, plan.ceiling, out) if measured else plan.reached
         return {
             HEADER_LOUDNESS_PRE: f"i={_fmt(plan.pre.i)};tp={_fmt(plan.pre.tp)}",
             HEADER_LOUDNESS_POST: f"i={_fmt(post.i)};tp={_fmt(post.tp)}",
@@ -236,13 +241,15 @@ async def _measured_plan(
     output_format: str,
     pitch_filter: Callable[[int], str],
 ) -> tuple[MasterPlan, int]:
-    """The whole song's master for these music lanes, and the rate it runs at."""
+    """The whole song's master for these music lanes, summed as the render
+    sums them (take limiter included), and the rate it runs at."""
     rate = get_export_sample_rate()
-    chains = [
-        lane_chain(render_fx.prefix(i), pitch_filter(lane.pitch), lane.gain)
+    filters = [
+        f"[{i}:a]{lane_chain(render_fx.prefix(i), pitch_filter(lane.pitch), lane.gain)}[a{i}]"
         for i, lane in enumerate(lanes)
     ]
-    graph = plan_graph(chains, render_fx.master)
+    label = takes_lanes.sum_lanes(filters, len(lanes), [lane.name for lane in lanes])
+    graph = ";".join([*filters, f"{label}{render_fx.master}anull[pre]"])
     paths = [lane.path for lane in lanes]
     try:
         return await cached_plan(paths, graph, settings, output_format, rate), rate
@@ -258,6 +265,7 @@ async def prepare_export(
     output_format: str,
     pitch_filter: Callable[[int], str],
     master_required: bool = False,
+    region: bool = False,
 ) -> ExportFx:
     """Validate ``fx`` and ``master`` (422), build the EQ and measure the master."""
     fx_req = _as_422(parse_fx_param, fx)
@@ -267,7 +275,7 @@ async def prepare_export(
     if settings is None:
         return ExportFx(render_fx, None, "", 0)
     plan, rate = await _measured_plan(lanes, render_fx, settings, output_format, pitch_filter)
-    return ExportFx(render_fx, plan, plan_chain(plan, rate), rate)
+    return ExportFx(render_fx, plan, plan_chain(plan, rate), rate, region)
 
 
 def attach_tail(filters: list[str], out_label: str, tail: str) -> str:
@@ -276,11 +284,12 @@ def attach_tail(filters: list[str], out_label: str, tail: str) -> str:
     no tail, the graph is left exactly as it is."""
     if not tail:
         return out_label
-    if out_label == _MIX_LABEL:
-        filters[-1] = f"{filters[-1].removesuffix(_MIX_LABEL)},{tail}{_MIX_LABEL}"
+    mix = takes_lanes.MIX_LABEL
+    if out_label == mix:
+        filters[-1] = f"{filters[-1].removesuffix(mix)},{tail}{mix}"
     else:
-        filters.append(f"{out_label}{tail}{_MIX_LABEL}")
-    return _MIX_LABEL
+        filters.append(f"{out_label}{tail}{mix}")
+    return mix
 
 
 async def measure_file(path: str, rate: int) -> Loudness:
@@ -296,79 +305,157 @@ def with_chain(cmd: list[str], chain: str, replacement: str) -> list[str]:
     return [*cmd[:i], cmd[i].replace(chain, replacement, 1), *cmd[i + 1 :]]
 
 
-def _note_path(cache_path: Path) -> Path:
-    return master_plan_cache.MASTER_PLAN_CACHE_DIR / f"{_OUTPUT_NOTE_PREFIX}{cache_path.name}.json"
+def note_path(entry: Path) -> Path:
+    """Where a verified cache entry's decoded measurement is kept: beside it."""
+    return entry.with_name(entry.name + OUTPUT_NOTE_SUFFIX)
 
 
-def _write_note(cache_path: Path, out: Loudness) -> None:
-    note = _note_path(cache_path)
+def _write_note(entry: Path, out: Loudness) -> None:
+    note = note_path(entry)
     note.parent.mkdir(parents=True, exist_ok=True)
     tmp = note.with_name(f".{note.name}.{uuid.uuid4().hex}.tmp")
-    tmp.write_text(json.dumps(asdict(out)), encoding="utf-8")
-    os.replace(tmp, note)
-
-
-def _read_note(cache_path: Path) -> Loudness | None:
     try:
-        return Loudness(**json.loads(_note_path(cache_path).read_text(encoding="utf-8")))
-    except FileNotFoundError:
-        return None
-    except (OSError, ValueError, TypeError):
-        logger.debug("unreadable output note for %s", cache_path, exc_info=True)
+        tmp.write_text(json.dumps(asdict(out)), encoding="utf-8")
+        os.replace(tmp, note)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def _read_note(entry: Path) -> Loudness | None:
+    body = read_cache(note_path(entry))
+    try:
+        return None if body is None else Loudness(**body)
+    except TypeError:
+        logger.debug("unreadable output note for %s", entry, exc_info=True)
         return None
 
 
-async def stored_output(export: ExportFx, output_format: str, cache_path: Path) -> Loudness | None:
-    """A cached verified render's decoded measurement, None when there is none."""
-    if not export.verifies(output_format) or not cache_path.is_file():
+def _drop(entry: Path) -> None:
+    entry.unlink(missing_ok=True)
+    note_path(entry).unlink(missing_ok=True)
+
+
+async def _remeasured(export: ExportFx, entry: Path) -> Loudness | None:
+    try:
+        out = await measure_file(str(entry), get_export_sample_rate())
+    except MeasureError as exc:
+        mastering_logger.warning("%s [%s]: %s", MEASURE_FAILED_DETAIL, entry.name, exc)
+        out = None
+    if out is None or overshoot_db(out.tp, export.plan.ceiling):
+        await asyncio.to_thread(_drop, entry)
         return None
-    return await asyncio.to_thread(_read_note, cache_path)
+    await asyncio.to_thread(_write_note, entry, out)
+    return out
+
+
+async def cached_output(
+    export: ExportFx, output_format: str, entry: Path
+) -> tuple[bool, Loudness | None]:
+    """Whether ``entry`` can be served, and a verified one's decoded measurement.
+    A verified entry with no note is measured again; one over its ceiling is dropped."""
+    if not entry.is_file():
+        return False, None
+    if not export.verifies(output_format):
+        return True, None
+    out = await asyncio.to_thread(_read_note, entry)
+    if out is None:
+        out = await _remeasured(export, entry)
+    return out is not None, out
+
+
+def publish(path: Path, out: Loudness, entry: Path, prune: Callable[..., None]) -> Path:
+    """Move a verified render into the cache as ``entry``, its note written first."""
+    try:
+        _write_note(entry, out)
+        os.replace(path, entry)
+    except OSError:
+        path.unlink(missing_ok=True)
+        _drop(entry)
+        raise
+    prune(entry.parent, keep=entry)
+    return entry
+
+
+class VerifyJob(NamedTuple):
+    """One lossy export to verify: its ffmpeg command (no output path), the
+    output suffix, a log context, the renderer (to a temp file) and whether
+    the client has gone."""
+
+    cmd: list[str]
+    suffix: str
+    context: str
+    render: Render
+    gone: Gone
+
+
+@dataclass
+class _Correction:
+    """The decoded-file loop's settings, and the (gain, loudness) tries since the limit last moved."""
+
+    export: ExportFx
+    gain: float = 0.0
+    offset: float = 0.0
+    trim: float = 0.0
+    tried: Tries = field(default_factory=list)
+
+    def chain(self) -> str:
+        return plan_chain(self.export.plan, self.export.rate, self.offset, self.trim, self.gain)
+
+    def settled(self, out: Loudness, attempt: int) -> bool:
+        """Whether ``out`` is final; if not, the settings move for the next pass.
+        A region follows only the ceiling: its gain is the whole song's."""
+        plan = self.export.plan
+        over = overshoot_db(out.tp, plan.ceiling)
+        follows = not self.export.region and (self.offset or over)
+        miss = missed(plan.target, out) if follows else 0.0
+        self.tried.append((self.gain, out.i))
+        last = attempt >= MASTER_CEILING_RETRIES
+        if self.trim or (not over and (not miss or last)):
+            return True
+        if last:
+            self.trim = over
+            return False
+        if over:
+            self.offset, self.tried = self.offset + over, []
+        self.gain += correction_step(miss, self.tried)
+        return False
 
 
 async def _decoded(path: Path, context: str) -> Loudness:
     try:
         return await measure_file(str(path), get_export_sample_rate())
     except MeasureError as exc:
-        path.unlink(missing_ok=True)
         mastering_logger.warning("%s [%s]: %s", MEASURE_FAILED_DETAIL, context, exc)
         raise HTTPException(status_code=500, detail=MEASURE_FAILED_DETAIL) from None
 
 
-async def render_verified(
-    export: ExportFx,
-    cmd: list[str],
-    suffix: str,
-    context: str,
-    render: Render,
-    cache_path: Path | None = None,
-) -> tuple[Path, Loudness]:
+async def _measured_pass(job: VerifyJob, chain: str, export: ExportFx) -> tuple[Path, Loudness]:
+    """One render to a temp file and its decoded measurement; the file is
+    removed when the measurement fails or the request is cancelled."""
+    path = await job.render(with_chain(job.cmd, export.chain, chain), job.suffix, job.context)
+    try:
+        return path, await _decoded(path, job.context)
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+
+
+async def render_verified(export: ExportFx, job: VerifyJob) -> tuple[Path, Loudness]:
     """Render a mastered lossy export, decode it, and correct it as
     app/pipeline/master_ceiling.py does in-graph: lower limit, gain following
-    the target, a trim as the last resort. Returns the file (the cache entry,
-    or a temp file the caller removes) and its decoded measurement."""
-    plan = export.plan
-    gain = offset = trim = 0.0
-    tried: Tries = []
+    the target, a trim as the last resort. Returns the final temp file, which
+    the caller publishes or removes, and its decoded measurement. 499 when the
+    client leaves between passes."""
+    fix = _Correction(export)
     for attempt in range(MASTER_CEILING_RETRIES + 2):
-        chain = plan_chain(plan, export.rate, offset, trim, gain)
-        path = await render(with_chain(cmd, export.chain, chain), suffix, context, cache_path)
-        out = await _decoded(path, context)
-        over = overshoot_db(out.tp, plan.ceiling)
-        miss = loudness_miss(plan.target, out) if offset or over else 0.0
-        tried.append((gain, out.i))
-        settled = not over and (not miss or attempt == MASTER_CEILING_RETRIES)
-        if settled or trim:
+        path, out = await _measured_pass(job, fix.chain(), export)
+        if fix.settled(out, attempt):
             break
-        if attempt < MASTER_CEILING_RETRIES:
-            if over:
-                offset, tried = offset + over, []
-            gain += correction_step(miss, tried)
-        else:
-            trim = over
-        if cache_path is None:
-            path.unlink(missing_ok=True)
-    if over:
-        mastering_logger.warning("still over the ceiling after %d retries [%s]", attempt, context)
-    if cache_path is not None:
-        await asyncio.to_thread(_write_note, cache_path, out)
+        path.unlink(missing_ok=True)
+        if await job.gone():
+            raise HTTPException(status_code=HTTP_CLIENT_GONE, detail=CLIENT_GONE_DETAIL)
+    if overshoot_db(out.tp, export.plan.ceiling):
+        mastering_logger.warning(
+            "still over the ceiling after %d retries [%s]", attempt, job.context
+        )
     return path, out
