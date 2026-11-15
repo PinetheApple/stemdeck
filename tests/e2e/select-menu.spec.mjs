@@ -151,7 +151,7 @@ test.describe("select lists", () => {
     await expect(option(page, itemName(5))).toHaveClass(/active/);
   });
 
-  test("letters on a closed select type ahead natively, and shortcut letters still reach the app", async ({ page }) => {
+  test("letters on a closed select type ahead natively, and shortcut letters stay with the select", async ({ page }) => {
     await openStudio(page);
     await waitForClickTrack(page);
     await openClickOptions(page);
@@ -160,10 +160,14 @@ test.describe("select lists", () => {
     await page.keyboard.press("3");
     await expect(accent).toHaveValue("3");
     await expect(list(page)).toHaveCount(0);
-    await expect(page.locator("#t-loop")).not.toHaveClass(/active/);
+    await page.keyboard.press("l");
+    await expect(accent).toBeFocused();
+    await expect(list(page)).toHaveCount(0);
+
+    // L off the select turns the loop on, so an L the select let through would have it off again.
+    await accent.blur();
     await page.keyboard.press("l");
     await expect(page.locator("#t-loop")).toHaveClass(/active/);
-    await expect(list(page)).toHaveCount(0);
   });
 
   test("on a closed select the arrows step the value, as a native one does", async ({ page }) => {
@@ -319,19 +323,26 @@ test.describe("select lists", () => {
     await expect(page.locator("body")).toHaveClass(/help-mode/);
   });
 
-  test("Space on a select the user just picked from still plays and pauses", async ({ page }) => {
+  test("Space on a select the user just picked from opens its list, not playback", async ({ page }) => {
     await openStudio(page);
     await waitForClickTrack(page);
     await openClickOptions(page);
-    await page.locator("#t-metro-countin").click();
+    const countIn = page.locator("#t-metro-countin");
+    await countIn.click();
     await option(page, "Count-in: 1 bar").click();
-    await expect(page.locator("#t-metro-countin")).toBeFocused();
+    await expect(countIn).toBeFocused();
 
     await page.keyboard.press("Space");
+    await expect(list(page)).toBeVisible();
+    expect(await isPlaying(page)).toBe(false);
+    await page.keyboard.press("Escape");
     await expect(list(page)).toHaveCount(0);
-    await expect.poll(() => isPlaying(page)).toBe(true);
+    await expect(countIn).toBeFocused();
+
+    // Space off the select plays, so a Space the select let through would have paused it again.
+    await countIn.blur();
     await page.keyboard.press("Space");
-    await expect.poll(() => isPlaying(page)).toBe(false);
+    await expect.poll(() => isPlaying(page)).toBe(true);
   });
 
   test("picking Custom accent in the Tempo tab reveals the beats field", async ({ page }) => {

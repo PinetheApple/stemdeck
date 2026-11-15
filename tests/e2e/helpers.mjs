@@ -708,3 +708,21 @@ export const KEY = Object.freeze({
   ESCAPE: "Escape",
   DELETE: "Delete",
 });
+
+const ADDED_INPUT_ID = "e2e-added-input";
+
+/** Add an `<input>` of `type` to the page and focus it, for a control the page has no visible copy of. */
+export async function focusAddedInput(page, type) {
+  await page.evaluate(
+    ([id, inputType]) => {
+      const input = document.createElement("input");
+      input.id = id;
+      input.type = inputType;
+      document.body.append(input);
+    },
+    [ADDED_INPUT_ID, type],
+  );
+  const input = page.locator(`#${ADDED_INPUT_ID}`);
+  await input.focus();
+  return input;
+}
