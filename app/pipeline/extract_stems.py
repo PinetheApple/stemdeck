@@ -2,7 +2,9 @@
 .../versions/extract.
 
 The song's kept audio is separated again behind the pipeline lock, as a run of
-its own kind (EXTRACT_RUNS). Only stems the song has no file for are moved in,
+its own kind (EXTRACT_RUNS). A link song keeps no audio, so its audio is
+fetched again from the link by the import's downloader, into the run's temp
+folder, and goes with it. Only stems the song has no file for are moved in,
 so no file the player is using is replaced. The separator gets a scratch Job
 with the song's id, never registered, so the song stays "done". Nothing of the
 song changes unless the whole run succeeds, and nothing about a run is
@@ -15,6 +17,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import urllib.parse
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -26,6 +29,7 @@ from app.core.registry import get as registry_get
 from app.core.song_folder import metadata_lock
 from app.core.stem_files import MP3_EXT, WAV_EXT, point_urls_at_disk, stem_exists
 from app.pipeline.collect import merge_stem_peaks, presence_for_split
+from app.pipeline.download import download
 from app.pipeline.errors import CAUSE_SOURCE_UNAVAILABLE, CAUSE_UNKNOWN, classify_failure
 from app.pipeline.runs import CANCELLED, DONE, IDLE, Run, RunBoard, run_behind_lock
 from app.pipeline.separate import separate
@@ -34,6 +38,7 @@ from app.pipeline.stem_storage import store_split_stems
 logger = logging.getLogger("stemdeck.pipeline")
 
 PHASE_QUEUED = "queued"
+PHASE_DOWNLOADING = "downloading"
 PHASE_SEPARATING = "separating"
 PHASE_FINISHING = "finishing"
 
@@ -46,6 +51,7 @@ _TEMP_PREFIX = ".extract."
 _TEMP_SUFFIX = ".tmp"
 _PROGRESS_DIGITS = 3
 _PEAKS_FILE = "peaks.json"
+_LINK_SCHEMES = frozenset({"http", "https"})
 # classify_failure's causes that only a download's wording matches; errors.py
 # names source-blocked with a bare string.
 _LINK_ONLY_CAUSES = frozenset({"source-blocked", CAUSE_SOURCE_UNAVAILABLE})
@@ -53,6 +59,8 @@ _LINK_ONLY_CAUSES = frozenset({"source-blocked", CAUSE_SOURCE_UNAVAILABLE})
 # Records the version once the stems are in, under the metadata lock: the
 # song, the stems it shows and its name, returning the id of the version opened.
 OpenVersion = Callable[[Job, list[str], str], str]
+# The audio to separate: the song's kept file, or the link to fetch it from.
+ExtractSource = Path | str
 
 
 class ExtractFailed(Exception):
@@ -94,6 +102,12 @@ def missing_stems(stems_dir: Path, wanted: list[str]) -> list[str]:
     return [name for name in wanted if not stem_exists(stems_dir, name)]
 
 
+def link_of(song: Job) -> str | None:
+    """The http(s) link the song was imported from, or None for an upload."""
+    url = song.source_url or ""
+    return url if urllib.parse.urlparse(url).scheme in _LINK_SCHEMES else None
+
+
 def claim_extract(
     song: Job,
     missing: list[str],
@@ -108,6 +122,22 @@ def claim_extract(
         run.name = name
         run.scratch = Job(id=song.id)
     return run
+
+
+def _fetch(run: ExtractRun, url: str, work: Path) -> Path:
+    """The link's audio, downloaded into `work`. A failed download fails the
+    run with its own cause, never separating anything."""
+    run.phase = PHASE_DOWNLOADING
+    try:
+        return download(run.scratch, url, work)
+    except JobCancelled:
+        raise
+    except Exception as exc:
+        raise ExtractFailed(str(exc), classify_failure(str(exc))) from exc
+
+
+def _audio(run: ExtractRun, source: ExtractSource, work: Path) -> Path:
+    return source if isinstance(source, Path) else _fetch(run, source, work)
 
 
 def _separate_missing(run: ExtractRun, source: Path, work: Path) -> Path:
@@ -215,7 +245,7 @@ def _keep(
 def extract_now(
     song: Job,
     stems_dir: Path,
-    source: Path,
+    source: ExtractSource,
     run: ExtractRun,
     cancelled: Callable[[], bool],
     open_version: OpenVersion,
@@ -225,8 +255,9 @@ def extract_now(
     work = stems_dir / f"{_TEMP_PREFIX}{uuid.uuid4().hex}{_TEMP_SUFFIX}"
     try:
         work.mkdir()
+        audio = _audio(run, source, work)
         run.phase = PHASE_SEPARATING
-        stems_root = _separate_missing(run, source, work)
+        stems_root = _separate_missing(run, audio, work)
         run.phase = PHASE_FINISHING
         with metadata_lock:
             if cancelled() or not _still_wanted(song):
@@ -249,7 +280,7 @@ def _failure_code(exc: Exception) -> str:
 async def run_extract(
     song: Job,
     stems_dir: Path,
-    source: Path,
+    source: ExtractSource,
     run: ExtractRun,
     open_version: OpenVersion,
 ) -> None:

@@ -1,9 +1,10 @@
 """The routes that list, open, rename, save, extract and delete a song's
 versions. Every GET, and opening the open version, writes nothing.
 
-Extracting stems whose files the song is missing separates its kept audio
-again in the background (app/pipeline/extract_stems.py), followed and
-cancelled through .../versions/extract."""
+Extracting stems whose files the song is missing separates its kept audio,
+or a link song's audio fetched again, in the background
+(app/pipeline/extract_stems.py), followed and cancelled through
+.../versions/extract."""
 
 from __future__ import annotations
 
@@ -48,6 +49,7 @@ from app.pipeline.extract_stems import (
     cancel_extract,
     claim_extract,
     extract_view,
+    link_of,
     missing_stems,
     run_extract,
 )
@@ -245,7 +247,7 @@ def _start_extract(
         _room_for_one_more(versions)
     if is_relocating():
         raise HTTPException(status_code=409, detail=STEMS_FOLDER_MOVING_IMPORT)
-    source = _retained_source(job.id)
+    source = _retained_source(job.id) or link_of(job)
     if source is None:
         raise HTTPException(status_code=409, detail=SOURCE_GONE)
     run = claim_extract(job, missing, wanted, name)
@@ -278,9 +280,10 @@ async def extract_more_stems(job_id: str, body: ExtractBody, response: Response)
     """Open the version showing `from`'s stems plus `stems`, made (201) when
     none shows exactly those, else the existing one (200) under its own name.
     When the song is missing a stem file for it, 202 instead: the stems are
-    extracted from the song's kept audio first, followed by GET
-    .../versions/extract, and the version opens once they are in. 409 when
-    the audio is not kept or an extraction is already going."""
+    extracted from the song's kept audio, or its link's audio downloaded
+    again, followed by GET .../versions/extract, and the version opens once
+    they are in. 409 when an upload's audio is not kept or an extraction is
+    already going."""
     payload, status, task = await asyncio.to_thread(_extract, job_id, body)
     if task is not None:
         start_run_task(task)
