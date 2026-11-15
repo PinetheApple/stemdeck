@@ -4,6 +4,7 @@
 import { barsWaveformSvg, overviewBarCount, overviewLaneNames } from "./player.js";
 import { STEM_COLORS, STEM_DISPLAY } from "./constants.js";
 import { npThumb } from "./state.js";
+import { refitFooter } from "./footerFit.js";
 import { $ } from "./utils.js";
 
 const SHOWN_CLASS = "is-previewing";
@@ -72,6 +73,7 @@ export function showOpenPreview({ stems, peaks, thumbnail, playingTitle }) {
   showThumb(thumbnail);
   $("footerPlayingTitle").textContent = playingTitle;
   appEl()?.classList.add(SHOWN_CLASS);
+  refitFooter();
 }
 
 /** Take the shown song away; the loaded one is on screen again. */
@@ -81,4 +83,5 @@ export function clearOpenPreview() {
   $("openPreview")?.replaceChildren();
   showThumb(loadedSongThumb);
   loadedSongThumb = null;
+  refitFooter();
 }
