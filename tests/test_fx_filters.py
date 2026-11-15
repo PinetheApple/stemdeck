@@ -2,8 +2,8 @@
 
 tests/fixtures/eq_golden.json holds, for every band type, both cut slopes,
 high and low frequencies and a full cascade, the response Chromium's own
-BiquadFilterNodes report at 44.1 and 48 kHz (taken from upstream b5f48e1; the
-future static/js/eqMath.js reads the same file). The Python coefficients are
+BiquadFilterNodes report at 44.1 and 48 kHz (static/js/eqMath.js reads the
+same file). The Python coefficients are
 held to that independent reference, and an ffmpeg render of an impulse through
 the export's filter string is held to the Python maths, so the three cannot
 drift apart.
@@ -75,9 +75,6 @@ def _band(band: list) -> str:
     return _lane({"id": "eq", "b": [band]})
 
 
-# ─── Maths ───────────────────────────────────────────────────────────────
-
-
 @pytest.mark.parametrize("rate", GOLDEN["rates"])
 @pytest.mark.parametrize("case", sorted(GOLDEN["cases"]))
 def test_python_response_matches_chromium(rate, case):
@@ -126,9 +123,6 @@ def test_tilt_is_two_opposite_shelves():
     assert hi == pytest.approx(3, abs=0.1)
 
 
-# ─── Filter strings ──────────────────────────────────────────────────────
-
-
 def test_neutral_bands_and_flat_eq_add_nothing():
     neutral = (
         Band("bell", 1000, 0, 1, 12),
@@ -168,9 +162,6 @@ def test_filter_string_is_numbers_only():
             assert value == "f64" if key == "r" else float(value) == float(value)
 
 
-# ─── ffmpeg runs exactly these coefficients ──────────────────────────────
-
-
 def _ffmpeg_impulse(
     tmp_path: Path, chain: str, rate: int, seconds: float = 1.0, subtype: str = "DOUBLE"
 ) -> np.ndarray:
@@ -205,9 +196,6 @@ def test_ffmpeg_filters_a_16_bit_stem_in_double_precision(tmp_path):
     h = _ffmpeg_impulse(tmp_path, eq_filter(eq, 44100), 44100, seconds=0.1, subtype="PCM_16")
     steps = h[:2000] * 32768
     assert np.any(np.abs(steps - np.round(steps)) > 1e-3)
-
-
-# ─── Parsing fx= ─────────────────────────────────────────────────────────
 
 
 def test_parse_valid_and_empty():

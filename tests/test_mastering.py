@@ -45,9 +45,6 @@ def raw_param(body) -> str:
     return base64.urlsafe_b64encode(text.encode()).decode().rstrip("=")
 
 
-# ─── The parameter ───────────────────────────────────────────────────────
-
-
 def test_parse_round_trips_and_canonicalises():
     s = m.parse_master_param(raw_param({"v": 1, "target": -14.04, "ceiling": -1.01, "comp": 0.333}))
     assert s == MasterSettings(target=-14.0, ceiling=-1.0, comp=0.33)
@@ -112,9 +109,6 @@ def test_malformed_master_values_are_refused(raw, message):
 )
 def test_lossy_ceiling_never_above_the_lossy_limit(fmt, ceiling, expected):
     assert m.effective_ceiling(MasterSettings(-14.0, ceiling), fmt) == expected
-
-
-# ─── Filter strings ──────────────────────────────────────────────────────
 
 
 def test_compressor_threshold_follows_the_measured_loudness():
@@ -188,9 +182,6 @@ def test_meter_output_parser_takes_the_last_values():
     assert silent.i is None and silent.tp is None
     assert m.parse_meter("garbage") == Loudness(None, None, None)
     assert m.parse_meter("lavfi.r128.I=nan").i is None
-
-
-# ─── The plan (a stubbed meter) ──────────────────────────────────────────
 
 
 def _chain_gain_db(chain: str) -> float:
@@ -303,27 +294,29 @@ def test_plan_round_trips_through_json():
     assert m.MasterPlan.from_json(json.loads(json.dumps(plan.to_json()))) == plan
 
 
-# ─── The plan cache ──────────────────────────────────────────────────────
-
-
 def _stem(tmp_path, name="drums.wav"):
     path = tmp_path / name
     path.write_bytes(b"RIFF")
     return path
 
 
-def _cached(tmp_path, stem, settings, calls, graph="g", fmt="wav"):
+@pytest.fixture
+def plan_dir(tmp_path, monkeypatch):
+    path = tmp_path / "plans"
+    monkeypatch.setattr(cache, "MASTER_PLAN_CACHE_DIR", path)
+    return path
+
+
+def _cached(stem, settings, calls, graph="g", fmt="wav"):
     meter = _stub_meter(-20.0, 0.0, 1.0, calls)
-    return asyncio.run(
-        cache.cached_plan(tmp_path / "plans", [stem], graph, settings, fmt, SR, measure=meter)
-    )
+    return asyncio.run(cache.cached_plan([stem], graph, settings, fmt, SR, measure=meter))
 
 
-def test_a_plan_is_measured_once_and_read_back(tmp_path):
+def test_a_plan_is_measured_once_and_read_back(tmp_path, plan_dir):
     stem, calls = _stem(tmp_path), []
-    first = _cached(tmp_path, stem, STREAMING, calls)
+    first = _cached(stem, STREAMING, calls)
     measured = len(calls)
-    assert _cached(tmp_path, stem, STREAMING, calls) == first
+    assert _cached(stem, STREAMING, calls) == first
     assert len(calls) == measured
 
 
@@ -338,17 +331,15 @@ def test_the_key_follows_mix_master_format_and_the_stem_files(tmp_path):
     assert cache.plan_cache_key([stem], "g", STREAMING, -1.0, SR) != key
 
 
-def test_a_corrupt_cache_entry_is_measured_again(tmp_path):
+def test_a_corrupt_cache_entry_is_measured_again(tmp_path, plan_dir):
     stem, calls = _stem(tmp_path), []
-    _cached(tmp_path, stem, STREAMING, calls)
-    for entry in (tmp_path / "plans").iterdir():
+    _cached(stem, STREAMING, calls)
+    assert any(plan_dir.iterdir())
+    for entry in plan_dir.iterdir():
         entry.write_text("{", encoding="utf-8")
     measured = len(calls)
-    _cached(tmp_path, stem, STREAMING, calls)
+    _cached(stem, STREAMING, calls)
     assert len(calls) > measured
-
-
-# ─── Real ffmpeg ─────────────────────────────────────────────────────────
 
 
 def _tone_with_spikes(seconds: float = 6.0) -> np.ndarray:
@@ -366,12 +357,12 @@ def _render(tmp_path, src, graph: str, chain: str) -> np.ndarray:
     return sf.read(dst, dtype="float64", always_2d=True)[0]
 
 
-def test_a_tone_is_mastered_to_the_target_under_the_ceiling(tmp_path):
+def test_a_tone_is_mastered_to_the_target_under_the_ceiling(tmp_path, plan_dir):
     skip_without_ffmpeg()
     src = tmp_path / "tone.wav"
     sf.write(src, _tone_with_spikes(), SR, subtype="PCM_16")
     graph = m.plan_graph(["anull"], "")
-    plan = asyncio.run(cache.cached_plan(tmp_path / "plans", [src], graph, STREAMING, "wav", SR))
+    plan = asyncio.run(cache.cached_plan([src], graph, STREAMING, "wav", SR))
     x = _render(tmp_path, src, graph, m.plan_chain(plan, SR))
     lufs = pyloudnorm.Meter(SR).integrated_loudness(x)
     true_peak = 20 * np.log10(np.abs(resample_poly(x, 4, 1, axis=0)).max())

@@ -30,9 +30,6 @@ The caller supplies the graph of the whole song up to the label ``[pre]``
 lanes itself. ``parse_master_param`` validates the ``master=`` export
 parameter: base64url JSON, size-capped, every field typed and range-checked,
 every refusal a ``MasterError`` whose message is safe to show as a 422.
-
-Ported from upstream b6164e7 (app/pipeline/mastering.py) with the ebur128
-framelog fix from upstream 4ac8965.
 """
 
 from __future__ import annotations
@@ -46,9 +43,12 @@ import re
 from collections import deque
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
+from functools import partial
 
 from app.core.config import (
     EBUR128_FRAMELOG,
+    EXPORT_AUDIO_CODEC_AAC,
+    EXPORT_FORMAT_OGG,
     EXPORT_LIMIT_LOSSY_DBTP,
     MASTER_COMP_ATTACK_MS,
     MASTER_COMP_KNEE_DB,
@@ -67,23 +67,30 @@ from app.core.config import (
     MASTER_LIMITER_OVERSAMPLE,
     MASTER_LIMITER_RELEASE_MS,
     MASTER_PARAM_MAX_CHARS,
+    STEM_FORMAT_MP3,
     TIMEOUT_FFMPEG,
     ffmpeg_executable,
 )
-from app.pipeline.fx_filters import checked_number, decode_wire_param
+from app.pipeline.fx_filters import (
+    check_wire_version,
+    db_to_linear,
+    decode_wire_object,
+    linear_to_db,
+    read_wire_number,
+)
 
-logger = logging.getLogger("stemdeck.mastering")
+LOGGER_NAME = "stemdeck.mastering"
+logger = logging.getLogger(LOGGER_NAME)
 
 MASTER_WIRE_VERSION = 1
 TARGET_MIN, TARGET_MAX = -24.0, -6.0
 CEILING_MIN, CEILING_MAX = -3.0, -0.1
 COMP_MIN, COMP_MAX = 0.0, 1.0
-LOSSY_FORMATS = frozenset({"mp3", "ogg", "aac"})
+LOSSY_FORMATS = frozenset({STEM_FORMAT_MP3, EXPORT_FORMAT_OGG, EXPORT_AUDIO_CODEC_AAC})
 
-MASTER_MALFORMED = "master: malformed"
-MASTER_UNSUPPORTED_VERSION = "master: unsupported version"
-MASTER_TARGET_CEILING_REQUIRED = "master: target and ceiling are required"
-MASTER_REQUIRED = "master: required"
+MASTER_PREFIX = "master"
+MASTER_TARGET_CEILING_REQUIRED = f"{MASTER_PREFIX}: target and ceiling are required"
+MASTER_REQUIRED = f"{MASTER_PREFIX}: required"
 
 # ebur128 reports its -70 LUFS absolute gate for silence.
 _SILENCE_LUFS = -69.9
@@ -93,7 +100,7 @@ _SILENT_REFERENCE_LUFS = -40.0
 # (a limiter at its wall), so a correction step stays bounded.
 _LIMITED_SLOPE_MIN = 0.1
 _FLOAT_SLACK = 1e-9
-_MASTER_KEYS = {"v", "target", "ceiling", "comp"}
+_MASTER_KEYS = frozenset({"v", "target", "ceiling", "comp"})
 _STDERR_TAIL_LINES = 8
 _I_RE = re.compile(r"lavfi\.r128\.I=(\S+)")
 _TP_RE = re.compile(r"lavfi\.r128\.true_peak=(\S+)")
@@ -167,28 +174,12 @@ class MasterPlan:
 Measurer = Callable[[list[str], str, str, int], Awaitable[Loudness]]
 
 
-# ─── The master= parameter ───────────────────────────────────────────────
-
-
-def _number(v: object, lo: float, hi: float, what: str) -> float:
-    try:
-        return checked_number(v, lo, hi)
-    except TypeError:
-        raise MasterError(MASTER_MALFORMED) from None
-    except ValueError:
-        raise MasterError(f"master: {what} out of range") from None
+_number = partial(read_wire_number, error=MasterError, prefix=MASTER_PREFIX)
 
 
 def _decode(raw: str) -> dict:
-    try:
-        body = decode_wire_param(raw, MASTER_PARAM_MAX_CHARS)
-    except ValueError:
-        raise MasterError(MASTER_MALFORMED) from None
-    if not isinstance(body, dict) or set(body) - _MASTER_KEYS:
-        raise MasterError(MASTER_MALFORMED)
-    version = body.get("v")
-    if isinstance(version, bool) or version != MASTER_WIRE_VERSION:
-        raise MasterError(MASTER_UNSUPPORTED_VERSION)
+    body = decode_wire_object(raw, MASTER_PARAM_MAX_CHARS, _MASTER_KEYS, MasterError, MASTER_PREFIX)
+    check_wire_version(body, MASTER_WIRE_VERSION, MasterError, MASTER_PREFIX)
     if "target" not in body or "ceiling" not in body:
         raise MasterError(MASTER_TARGET_CEILING_REQUIRED)
     return body
@@ -232,11 +223,8 @@ def effective_ceiling(settings: MasterSettings, output_format: str) -> float:
     return settings.ceiling
 
 
-# ─── Filter strings ──────────────────────────────────────────────────────
-
-
 def _lin(db: float) -> str:
-    return f"{10.0 ** (db / 20.0):.8f}"
+    return f"{db_to_linear(db):.8f}"
 
 
 def comp_threshold_db(comp: float, target: float | None, pre_i: float | None) -> float | None:
@@ -257,7 +245,7 @@ def comp_filter(comp: float, threshold_db: float | None) -> str:
     """``acompressor`` for the glue compressor, "" when off."""
     if comp <= 0 or threshold_db is None:
         return ""
-    knee = 10.0 ** (MASTER_COMP_KNEE_DB / 20.0)
+    knee = db_to_linear(MASTER_COMP_KNEE_DB)
     return (
         f"acompressor=threshold={_lin(threshold_db)}:ratio={comp_ratio(comp)}"
         f":attack={MASTER_COMP_ATTACK_MS}:release={MASTER_COMP_RELEASE_MS}:knee={knee:.6f}"
@@ -340,15 +328,12 @@ def parse_meter(text: str) -> Loudness:
     if i is not None and i <= _SILENCE_LUFS:
         i = None
     tp_lin = _last_float(_TP_RE, text)
-    tp = 20.0 * math.log10(tp_lin) if tp_lin and tp_lin > 0 else None
+    tp = linear_to_db(tp_lin) if tp_lin and tp_lin > 0 else None
     return Loudness(_rounded(i), _rounded(tp), _rounded(_last_float(_LRA_RE, text)))
 
 
 def clamp_gain(gain_db: float) -> float:
     return round(min(MASTER_GAIN_MAX_DB, max(MASTER_GAIN_MIN_DB, gain_db)), 4)
-
-
-# ─── Measuring with ffmpeg ───────────────────────────────────────────────
 
 
 def _measure_cmd(inputs: list[str], graph: str, chain: str, rate: int) -> list[str]:
@@ -383,9 +368,6 @@ async def measure_chain(inputs: list[str], graph: str, chain: str, rate: int) ->
         tail_lines = deque(text.splitlines(), maxlen=_STDERR_TAIL_LINES)
         raise MeasureError(f"ffmpeg exit {proc.returncode}: {' | '.join(tail_lines)}")
     return parse_meter(text)
-
-
-# ─── The plan ────────────────────────────────────────────────────────────
 
 
 def _correction_step(miss: float, tried: list[tuple[float, float | None]]) -> float:

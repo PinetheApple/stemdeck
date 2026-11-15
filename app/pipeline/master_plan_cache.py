@@ -24,8 +24,9 @@ import os
 import uuid
 from pathlib import Path
 
-from app.core.config import MASTER_PLAN_CONCURRENCY, MASTER_PLAN_MAX_FILES
+from app.core.config import MASTER_PLAN_CACHE_DIR, MASTER_PLAN_CONCURRENCY, MASTER_PLAN_MAX_FILES
 from app.pipeline.mastering import (
+    LOGGER_NAME,
     MasterPlan,
     MasterSettings,
     Measurer,
@@ -34,7 +35,7 @@ from app.pipeline.mastering import (
     run_plan,
 )
 
-logger = logging.getLogger("stemdeck.mastering")
+logger = logging.getLogger(LOGGER_NAME)
 
 PLAN_CACHE_VERSION = "1"
 
@@ -91,7 +92,6 @@ def _write_plan(path: Path, plan: MasterPlan) -> None:
 
 
 async def cached_plan(
-    cache_dir: Path,
     stems: list[Path],
     graph: str,
     settings: MasterSettings,
@@ -103,7 +103,7 @@ async def cached_plan(
     once and never twice at the same time. Raises MeasureError."""
     ceiling = effective_ceiling(settings, output_format)
     key = await asyncio.to_thread(plan_cache_key, stems, graph, settings, ceiling, rate)
-    path = cache_dir / f"{key}.json"
+    path = MASTER_PLAN_CACHE_DIR / f"{key}.json"
     lock = _plan_locks.setdefault(key, asyncio.Lock())
     try:
         async with lock:
