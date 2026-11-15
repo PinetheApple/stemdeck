@@ -1,5 +1,5 @@
-"""Section, beat grid, favourite and rename edits while the stems folder moves
-(#177): 409, nothing written, and working again once the move is over."""
+"""Section, beat grid, favourite and rename edits while the stems folder moves:
+409, nothing written, and working again once the move is over."""
 
 from __future__ import annotations
 
@@ -25,7 +25,6 @@ SECTIONS = {
 BAND = {"id": "Q42", "name": "The Band"}
 RENAME = None
 
-# (method, route under the job or RENAME for the job itself, JSON body)
 GUARDED: list[tuple[str, str | None, dict | None]] = [
     ("PATCH", "sections", SECTIONS),
     ("PATCH", "beats", EDITED_BEATS),
