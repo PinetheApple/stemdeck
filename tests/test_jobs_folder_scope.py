@@ -59,6 +59,9 @@ def test_reset_removes_only_what_stemdeck_made(tmp_path: Path):
         _put(jobs / f".registry.json.{uuid.uuid4().hex}.tmp"),
         _put(jobs / "setlists.json"),
         _put(jobs / "user-data.json"),
+        _put(jobs / "user-data.json.bak"),
+        _put(jobs / "user-data.json.tmp"),
+        _put(jobs / "user-data.json.corrupt-2"),
     ]
     theirs = [
         _put(jobs / "My Photos" / "beach.jpg"),
