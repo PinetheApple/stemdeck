@@ -2072,14 +2072,10 @@ export function downloadCurrentMix(ext = "wav", onTransferStart) {
 // Only meaningful for mp4-sourced jobs (currentJobHasVideo()); returns false when
 // there's no video track or every lane is muted.
 export function downloadCurrentVideo(onTransferStart) {
-  if (!currentJobId || !_currentHasVideo) return false;
-  const { names, gains, pitches } = withExportTakes(_effectiveMixGains());
-  if (!names.length) return false;
-  const q = new URLSearchParams({
-    stems: names.join(","),
-    gains: gains.map((g) => g.toFixed(3)).join(","),
-    ...(pitches.some((p) => p !== 0) ? { pitches: pitches.join(",") } : {}),
-  });
+  if (!_currentHasVideo) return false;
+  const mix = _mixQuery();
+  if (!mix) return false;
+  const { names, q } = mix;
   _clickParams(q);
   addExportFx(q, names);
   const safe = _currentTitle

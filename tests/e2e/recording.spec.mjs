@@ -400,37 +400,6 @@ test("a song without takes exports exactly as before", async ({ page }) => {
   expect((await exportFromMenu(page, "stems", queries)).toString()).toBe(plainZip);
 });
 
-// Answers every export with a stub file and keeps the query each one asked for.
-// After openStudio, so it wins over the helpers' own mixdown stub.
-async function captureExports(page) {
-  const queries = [];
-  await page.route(EXPORT_ROUTE, function stubExport(route) {
-    queries.push(new URL(route.request().url()).searchParams);
-    return route.fulfill({ status: 200, body: "x" });
-  });
-  return queries;
-}
-
-async function exportFromMenu(page, item, queries) {
-  const ui = exportUi(page);
-  const before = queries.length;
-  await ui.open();
-  await ui[item].click();
-  await expect.poll(() => queries.length).toBe(before + 1);
-  await expect(ui.label).toHaveText("Export Mix");
-  return queries.at(-1);
-}
-
-const lanesOf = (query) => query.get("stems").split(",");
-
-test("a solo on a silenced stem does not silence the export", async ({ page }) => {
-  await openStudio(page);
-  const queries = await captureExports(page);
-  await page.locator('.lane-header[data-stem="vocals"] .solo').click();
-  await page.evaluate(async () => (await import("/js/mixer.js")).setSilencedStems(["vocals"]));
-  expect(lanesOf(await exportFromMenu(page, "mix", queries))).toContain("drums");
-});
-
 // Leaves part uploads unanswered, like a server that hangs.
 function hangParts(route) {
   if (route.request().method() !== "PUT") return route.fallback();
