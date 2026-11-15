@@ -270,7 +270,7 @@
 .daw-sections-header .daw-label-title { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
 
 /* ── Transport bar ── */
-.footer-row-controls { align-items: center; padding: var(--s-2) var(--s-4); }
+.footer-row-controls { align-items: center; padding: var(--s-2) var(--s-3); }
 /* The strip's overflow clips vertically, so this is the room focus rings need. */
 .footer-clusters { align-items: center; padding-block: var(--s-1); }
 .footer-clusters > .footer-group { flex-direction: row; align-items: center; gap: var(--s-2); }
