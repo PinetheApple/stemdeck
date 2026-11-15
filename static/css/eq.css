@@ -1,0 +1,187 @@
+/* EQ inspector tab: lane graph, pedal knobs, the lane-header EQ mark. */
+
+:root {
+  --eq-graph-h: 168px;
+  --eq-graph-sm-h: 112px;
+  --eq-graph-bg: var(--bg);
+  --eq-dot: 8px;
+  --eq-knob-dial: 44px;
+  --eq-readout-n: 18px;
+  --eq-handle-font: 9.5px;
+  --eq-mark-w: 22px;
+  --eq-mark-h: 14px;
+  --eq-mark-icon-w: 18px;
+  --eq-mark-icon-h: 10px;
+  --eq-mark-radius: var(--r-1);
+  --eq-mark-inset: 10px;
+  --eq-legend-w: 14px;
+  --eq-fill-mix: 14%;
+  --eq-fitted-mix: 35%;
+  --eq-spectrum-fill-mix: 22%;
+  --eq-spectrum-line-mix: 45%;
+  --eq-bypassed-opacity: 0.45;
+}
+
+.eq-pane [hidden] { display: none !important; }
+.eq-scope { margin-bottom: 0; }
+.eq-scope .tempo-mode-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-1); min-width: 0; }
+.eq-scope-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eq-dot { width: var(--eq-dot); height: var(--eq-dot); border-radius: var(--r-pill); background: currentColor; flex: none; }
+
+.eq-card { display: flex; flex-direction: column; gap: var(--s-2); padding: 0; background: none; border: 0; }
+.eq-card + .eq-card { padding-top: var(--s-4); border-top: 1px solid var(--line); border-radius: 0; }
+.eq-head { display: flex; align-items: center; gap: var(--s-2); }
+.eq-head .inspector-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.eq-power {
+  display: inline-grid;
+  place-items: center;
+  width: var(--ctl-h-sm);
+  height: var(--ctl-h-sm);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.eq-power .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.eq-power[aria-pressed="true"] { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+.eq-power:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+.eq-graph {
+  position: relative;
+  height: var(--eq-graph-h);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--eq-graph-bg);
+  overflow: hidden;
+  touch-action: none;
+}
+.eq-graph.eq-graph-sm { height: var(--eq-graph-sm-h); }
+.eq-svg { display: block; }
+.eq-grid line { stroke: var(--line); stroke-width: 1; }
+.eq-grid line.eq-zero { stroke: var(--line-strong); }
+.eq-grid text { fill: var(--text-4); font: var(--fs-2xs) var(--font-mono); }
+.eq-spectrum {
+  fill: color-mix(in srgb, var(--text-3) var(--eq-spectrum-fill-mix), transparent);
+  stroke: color-mix(in srgb, var(--text-3) var(--eq-spectrum-line-mix), transparent);
+  stroke-width: 1;
+}
+.eq-fill { fill: color-mix(in srgb, var(--eq-c, var(--text)) var(--eq-fill-mix), transparent); }
+.eq-curve { fill: none; stroke: var(--eq-c, var(--text)); stroke-width: 2; }
+.eq-ghost { fill: none; stroke: var(--text-4); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.eq-bypassed :is(.eq-curve, .eq-fill, .eq-handle) { opacity: var(--eq-bypassed-opacity); }
+.eq-handle { cursor: pointer; outline: none; }
+.eq-dragging, .eq-dragging .eq-handle { cursor: grabbing; }
+.eq-handle circle { fill: var(--surface-1); stroke: var(--eq-c, var(--text)); stroke-width: 2; }
+.eq-handle text { fill: var(--text); font: var(--fw-bold) var(--eq-handle-font) var(--font-sans); text-anchor: middle; pointer-events: none; }
+.eq-handle.selected circle,
+.eq-handle:focus-visible circle { stroke: var(--text); stroke-width: 2.5; }
+.eq-handle.fitted circle { fill: color-mix(in srgb, var(--eq-c, var(--text)) var(--eq-fitted-mix), var(--surface-1)); }
+
+.eq-readout {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  min-height: var(--eq-readout-n);
+  font: var(--fw-medium) var(--fs-xs) / 1.2 var(--font-mono);
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.eq-readout [data-r="n"] {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--eq-readout-n);
+  height: var(--eq-readout-n);
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1px var(--text);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-weight: var(--fw-bold);
+}
+.eq-readout [data-r="n"]:empty { display: none; }
+.eq-readout [data-r="type"] { color: var(--text-3); font-family: var(--font-sans); }
+
+.eq-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-1); }
+.eq-actions .tempo-btn { justify-content: center; cursor: pointer; }
+.eq-actions .tempo-btn:disabled { cursor: default; }
+.eq-legend { display: flex; gap: var(--s-3); font-size: var(--fs-2xs); color: var(--text-3); }
+.eq-legend i { display: inline-block; width: var(--eq-legend-w); margin-right: var(--s-1); vertical-align: middle; border-top: 1px dashed var(--text-4); }
+.eq-hint { font-size: var(--fs-2xs); color: var(--text-3); }
+.eq-status:empty { display: none; }
+
+.eq-suggest-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-1) var(--s-1) var(--s-1) var(--s-2);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-2);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
+}
+.eq-suggest-bar > span { flex: 1 1 auto; display: inline-flex; align-items: center; gap: var(--s-1); }
+.eq-suggest-bar .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.eq-suggest-bar .inspector-quiet-btn { cursor: pointer; }
+.eq-apply {
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-1);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: var(--fw-bold) var(--fs-sm) / 1 var(--font-sans);
+  cursor: pointer;
+}
+.eq-apply:hover { background: var(--accent-hi); }
+
+.eq-knobs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-1);
+  padding: var(--s-3) var(--s-1) var(--s-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-3);
+  background: linear-gradient(180deg, var(--surface-3), var(--surface-2));
+  touch-action: none;
+}
+.eq-knob { display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; outline: none; border-radius: var(--r-1); }
+.eq-knob:focus-visible { box-shadow: 0 0 0 2px var(--focus-ring); }
+.eq-dragging .eq-knob { cursor: ns-resize; }
+.eq-knob-dial { width: var(--eq-knob-dial); height: var(--eq-knob-dial); }
+.eq-knob-svg { width: 100%; height: 100%; }
+.eq-knob-track, .eq-knob-value { fill: none; stroke-width: 3; stroke-linecap: round; }
+.eq-knob-track { stroke: var(--surface-4); }
+.eq-knob-value { stroke: var(--eq-c, var(--text)); }
+.eq-knob-cap { fill: var(--surface-3); stroke: var(--line-strong); }
+.eq-knob-pointer { stroke: var(--text); stroke-width: 2; stroke-linecap: round; }
+.eq-knob-name { font: var(--fw-semibold) var(--fs-2xs) / 1 var(--font-sans); color: var(--text-2); }
+.eq-knob-val { font: var(--fs-2xs) / 1 var(--font-mono); color: var(--text-3); }
+
+/* The lane header's EQ mark: a thumbnail of the lane's own curve. */
+.eq-lane-mark {
+  position: absolute;
+  top: var(--s-2);
+  left: var(--eq-mark-inset);
+  display: inline-grid;
+  place-items: center;
+  width: var(--eq-mark-w);
+  height: var(--eq-mark-h);
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--eq-mark-radius);
+  background: none;
+  color: var(--text-4);
+  cursor: pointer;
+  z-index: 1;
+}
+.eq-lane-mark svg { width: var(--eq-mark-icon-w); height: var(--eq-mark-icon-h); overflow: visible; }
+.eq-lane-mark path { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.eq-lane-mark[data-eq="active"] { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+.eq-lane-mark[data-eq="bypassed"] { border-style: dashed; color: var(--text-3); }
+.eq-lane-mark:hover:not(:disabled) { color: var(--text); border-color: var(--text-3); }
+.eq-lane-mark:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.eq-lane-mark:disabled { visibility: hidden; }
+.eq-editing { box-shadow: inset 0 0 0 1px var(--text-3); }

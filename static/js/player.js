@@ -62,6 +62,10 @@ import { t, plural, onLanguageChange } from "./i18n.js";
 import { paintNowPlayingArt } from "./formatIcon.js";
 import { noteMediaPosition, clearMediaSession } from "./mediaSession.js";
 import { trackPlayhead, resetFollowing } from "./autoScroll.js";
+import { applyAllFx } from "./mixFx.js";
+import { setMixSource } from "./masterEngine.js";
+import { addExportFx } from "./eq/eqExport.js";
+import { createLaneEqMark } from "./eq/eqLaneMark.js";
 
 // Playback-engine selection. All engines play decoded AudioBuffers off a single
 // AudioContext clock (no N streaming <audio> elements — that was the source of
@@ -943,6 +947,7 @@ export function renderEmptyShell() {
   // job is loaded yet, and shows them in place of "vocals" once one is.
   for (const name of ["original", ...STEM_NAMES, ...EXTRA_STEM_NAMES]) {
     const { row } = renderMixerRow({ name, url: "#" });
+    row.prepend(createLaneEqMark(name));
     mixerEl.appendChild(row);
   }
   requestAnimationFrame(() => _applyLaneHeight(1 + STEM_NAMES.length));
@@ -1574,6 +1579,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
             if (pitchable) resetPitch(mixGlobalPitch());
             setLaneKeysAvailable(pitchable);
             applyAllLanePitches();
+            applyAllFx();
           });
           document.dispatchEvent(new CustomEvent("playbackready", { detail: { id: jobId } }));
 
@@ -1994,8 +2000,25 @@ function _mixdownUrl(ext, region) {
   }
   _clickParams(q);
   _countInParam(q);
+  addExportFx(q, names);
   return `/api/jobs/${currentJobId}/mixdown.${ext}?${q}`;
 }
+
+// The mix the master measures: the export's lanes and EQ, without master=.
+function _masterMixSource() {
+  if (!currentJobId) return null;
+  const { names, gains, pitches } = _effectiveMixGains();
+  if (!names.length) return null;
+  const q = new URLSearchParams({
+    stems: names.join(","),
+    gains: gains.map((g) => g.toFixed(3)).join(","),
+    ...(pitches.some((p) => p !== 0) ? { pitches: pitches.join(",") } : {}),
+  });
+  addExportFx(q, names, { master: false });
+  return { jobId: currentJobId, query: q.toString() };
+}
+
+setMixSource(_masterMixSource);
 
 // One stem, named after the song so it stays identifiable once dragged into a
 // project folder next to other songs' stems (#336). Falls back to the bare stem
@@ -2040,6 +2063,7 @@ export function downloadCurrentVideo(onTransferStart) {
     ...(pitches.some((p) => p !== 0) ? { pitches: pitches.join(",") } : {}),
   });
   _clickParams(q);
+  addExportFx(q, names);
   const safe = _currentTitle
     .replace(/[^a-zA-Z0-9]+/g, "_")
     .replace(/_{2,}/g, "_")

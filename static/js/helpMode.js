@@ -100,6 +100,19 @@ const HELP = [
   ['[data-tempo-mode="follow"]', "help.tempoFollow"],
   ['.inspector-tab[data-tab="upnext"]', "help.inspectorUpNext"],
   ['.inspector-tab[data-tab="details"]', "help.inspectorDetails"],
+  [".eq-lane-mark", "help.eqLaneMark", laneName],
+  ['.inspector-tab[data-tab="eq"]', "help.inspectorEq"],
+  ["#eqScopeLane", "help.eqScopeLane"],
+  ["#eqScopeMaster", "help.eqScopeMaster"],
+  [".eq-power", "help.eqPower"],
+  [".eq-graph", "help.eqGraph", null, "eq.title"],
+  [".eq-knob", "help.eqKnob"],
+  ["#eqSuggestLane", "help.eqSuggest"],
+  ["#eqFlatLane, #eqFlatMaster", "help.eqFlat"],
+  ["#eqGlue", "help.eqGlue", null, "eq.glue"],
+  ["#eqLoudness", "help.eqLoudness", null, "eq.exportLoudness"],
+  ["#eqCeilingDown, #eqCeilingUp", "help.eqCeiling", null, "eq.ceiling"],
+  ["#t-export-master-wrap", "help.exportMaster", null, "export.master"],
 ];
 
 // Every option in Settings, by tab: the tab and option names are the dialog's
