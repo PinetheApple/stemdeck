@@ -165,6 +165,7 @@ STEMS_FOLDER_MOVING_IMPORT = "Restart StemDeck to finish moving your stems folde
 STEMS_FOLDER_MOVING_SPLIT = (
     "Restart StemDeck to finish moving your stems folder, then split the vocals."
 )
+STEMS_FOLDER_MOVING_EDIT = "Restart StemDeck to finish moving your stems folder, then try again."
 JOB_NOT_FAILED = "job has not failed"
 SOURCE_FILE_GONE = "source file is gone"
 RESTORE_FROM_TRASH_FIRST = "restore it from the Trash first"
@@ -756,6 +757,7 @@ def set_favorite(job_id: str, body: FavoriteBody) -> dict:
     so the desktop and the phone share one answer."""
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     job = registry_set_favorite(job_id, body.favorite)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
@@ -817,6 +819,7 @@ def rename_job(job_id: str, body: RenameBody) -> dict:
     job = registry_get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     sent = body.model_fields_set
     if not sent:
         raise HTTPException(status_code=422, detail="send title, artist or band")
@@ -1209,6 +1212,7 @@ def update_sections(job_id: str, body: SectionsBody) -> dict:
     job = registry_get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
 
     validated = [s.model_dump(exclude_none=True) for s in body.sections]
 
@@ -2319,6 +2323,7 @@ async def update_beats(job_id: str, request: Request) -> dict:
     job = registry_get(job_id)
     if job is None or job.status != "done":
         raise HTTPException(status_code=404, detail="job not ready")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
 
     computed_path, user_path = _beats_paths(job_id)
     grid = read_detected_grid(computed_path)
@@ -2372,6 +2377,7 @@ def reset_beats(job_id: str) -> dict:
     job = registry_get(job_id)
     if job is None or job.status != "done":
         raise HTTPException(status_code=404, detail="job not ready")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
 
     _, user_path = _beats_paths(job_id)
     tempo = read_beat_edits(user_path).get("tempo")

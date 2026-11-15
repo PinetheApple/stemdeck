@@ -1,7 +1,8 @@
 """The upload limit is one number, written in three languages.
 
 The server refuses anything larger (app/api/jobs.py). The page refuses it first
-so a file is not uploaded only to be turned away (static/js/main.js). And on
+so a file is not uploaded only to be turned away
+(static/js/batchImportModel.js). And on
 Linux, where a dropped file reaches the page through the shell rather than the
 WebView, the shell refuses to read anything larger into memory
 (desktop/src-tauri/src/dropin.rs).
@@ -40,7 +41,7 @@ def _constant(path: Path, pattern: str) -> int:
 
 def test_the_page_refuses_what_the_server_would_refuse():
     page = _constant(
-        ROOT / "static" / "js" / "main.js",
+        ROOT / "static" / "js" / "batchImportModel.js",
         rf"const MAX_UPLOAD_BYTES\s*=\s*{_PRODUCT}\s*;",
     )
     assert page == _MAX_UPLOAD_BYTES

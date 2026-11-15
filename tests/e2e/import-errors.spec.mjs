@@ -11,33 +11,6 @@ const UPLOAD_IDS = ["e2e0feed0011", "e2e0feed0012", "e2e0feed0013"];
 const FILE_NAMES = ["one.wav", "two.wav", "three.wav"];
 const YOUTUBE_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
 
-const PREVIEW = {
-  playlist_title: PLAYLIST_TITLE,
-  total_found: 3,
-  will_queue: 1,
-  skipped_unavailable: 0,
-  skipped_too_long: 0,
-  skipped_in_library: 2,
-  capacity_left: 10,
-  cap: 50,
-  truncated: false,
-  items: [],
-};
-
-const CREATED = {
-  playlist_title: PLAYLIST_TITLE,
-  jobs: [],
-  queued: 0,
-  skipped_unavailable: 0,
-  skipped_too_long: 0,
-  skipped_in_library: 1,
-  skipped_no_capacity: 1,
-  skipped: [
-    { title: "Old Song", source_url: "https://www.youtube.com/watch?v=aaaaaaaaaaa", reason: "in_library" },
-    { title: "Late Song", source_url: "https://www.youtube.com/watch?v=bbbbbbbbbbb", reason: "no_capacity" },
-  ],
-};
-
 const wav = (name) => ({ name, mimeType: "audio/wav", buffer: Buffer.from("RIFF0000WAVE") });
 
 /** Answer each upload in turn with the next of `statuses`; record every one. */
@@ -53,21 +26,27 @@ async function stubUploads(page, statuses) {
   return posts;
 }
 
+/** Pick the files, then queue all three from the review list. */
 async function submitFiles(page) {
   await page.locator("#fileInput").setInputFiles(FILE_NAMES.map(wav));
-  await page.locator("#submit").click();
+  const queue = page.locator("#batchReview .batch-queue");
+  await expect(queue).toBeEnabled();
+  await queue.click();
 }
+
+const reviewRow = (page, name) => page.locator("#batchReview .batch-item", { hasText: name });
 
 test.describe("a batch of files", () => {
   test("goes past a file the server refuses, and names it", async ({ page }) => {
     await openStudio(page);
+    // The review lists files by name: one, three, two.
     const posts = await stubUploads(page, [200, 422, 200]);
     await submitFiles(page);
 
     await expect.poll(() => posts.length).toBe(3);
-    const error = page.locator("#error");
-    await expect(error).toContainText("two.wav (refused 422)");
-    await expect(error).not.toContainText("one.wav");
+    await expect(reviewRow(page, "three.wav")).toContainText("refused 422");
+    await expect(reviewRow(page, "one.wav")).toHaveCount(0);
+    await expect(reviewRow(page, "two.wav")).toHaveCount(0);
   });
 
   test("stops at a full queue, and names every file left out", async ({ page }) => {
@@ -76,23 +55,11 @@ test.describe("a batch of files", () => {
     await submitFiles(page);
 
     const reason = await uiText(page, "upload.reasonQueueFull");
-    const error = page.locator("#error");
-    await expect(error).toContainText(`two.wav (${reason})`);
-    await expect(error).toContainText(`three.wav (${reason})`);
+    await expect(reviewRow(page, "two.wav")).toContainText(reason);
+    await expect(reviewRow(page, "three.wav")).toContainText(reason);
+    await expect(reviewRow(page, "one.wav")).toHaveCount(0);
     expect(posts).toHaveLength(2);
   });
-});
-
-test("files dropped beside audio are named with their reason", async ({ page }) => {
-  await openStudio(page);
-  await page.locator("#fileInput").setInputFiles([
-    wav("song.wav"),
-    { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hi") },
-  ]);
-
-  const reason = await uiText(page, "upload.reasonNotAudio");
-  await expect(page.locator("#error")).toContainText(`notes.txt (${reason})`);
-  await expect(page.locator("#error")).not.toContainText("song.wav");
 });
 
 test("a lost connection reads as words, not as the browser's message", async ({ page }) => {
@@ -119,31 +86,45 @@ test("the error box leaves Extract stems, the mixer and the transport uncovered"
   expect(error.x).toBeGreaterThanOrEqual(mixer.x + mixer.width);
 });
 
-test("a playlist import names each track it left out, and why", async ({ page }) => {
-  await openStudio(page);
-  await page.route("**/api/playlist/preview", (route) => route.fulfill({ json: PREVIEW }));
-  await page.route("**/api/playlist", (route) => route.fulfill({ json: CREATED }));
-
-  await page.locator("#url").fill(PLAYLIST_URL);
-  await page.locator("#submit").click();
-  await expect(page.locator(".playlist-confirm")).toContainText(await uiText(page, "playlist.skip.inLibrary.other", { count: 2 }));
-  await page.locator(".playlist-confirm-go").click();
-
-  const inLibrary = await uiText(page, "playlist.reason.inLibrary");
-  const full = await uiText(page, "playlist.reason.noCapacity");
-  await expect.poll(() => failureMessages(page).then((m) => m[0] ?? "")).toContain(`Old Song (${inLibrary})`);
-  expect((await failureMessages(page))[0]).toContain(`Late Song (${full})`);
+const playlistItem = (n, title, status) => ({
+  input: PLAYLIST_URL, line: 1, url: `https://www.youtube.com/watch?v=skip${n}aaaaaa`, title, artist: null,
+  duration_sec: status === "too_long" ? 9000 : 200, status, existing_job_id: null, replaces: null,
+  playlist: { url: PLAYLIST_URL, title: PLAYLIST_TITLE, index: n },
 });
 
-test("a playlist already in the library says so instead of importing", async ({ page }) => {
+/** The review's answer for the playlist: `rows` as [title, status]. */
+function stubPlaylistReview(page, rows) {
+  return page.route("**/api/import/preview", (route) => route.fulfill({
+    json: {
+      items: rows.map(([title, status], i) => playlistItem(i + 1, title, status)),
+      playlists: [{ input: PLAYLIST_URL, line: 1, url: PLAYLIST_URL, title: PLAYLIST_TITLE, found: rows.length, unavailable: 0, truncated: false }],
+      files: [],
+      max_duration_sec: 1200,
+      capacity_left: { links: 10, files: 10 },
+    },
+  }));
+}
+
+test("a playlist's review names each track it would leave out, and why", async ({ page }) => {
   await openStudio(page);
-  await page.route("**/api/playlist/preview", (route) =>
-    route.fulfill({ json: { ...PREVIEW, will_queue: 0, skipped_in_library: 3 } }));
+  await stubPlaylistReview(page, [["Old Song", "in_library"], ["Long Song", "too_long"], ["New Song", "ok"]]);
 
   await page.locator("#url").fill(PLAYLIST_URL);
   await page.locator("#submit").click();
-  await expect(page.locator("#error")).toContainText(await uiText(page, "playlist.allInLibrary"));
-  await expect(page.locator(".playlist-confirm")).toHaveCount(0);
+  const row = (title) => page.locator("#batchReview .batch-item", { hasText: title });
+  await expect(row("Old Song")).toContainText(await uiText(page, "batch.flag.inLibrary"));
+  await expect(row("Long Song")).toContainText(await uiText(page, "batch.flag.tooLong", { minutes: 20 }));
+  await expect(page.locator("#batchReview .batch-queue")).toHaveText(await uiText(page, "batch.queue.one", { count: 1 }));
+});
+
+test("a playlist already in the library offers nothing to queue", async ({ page }) => {
+  await openStudio(page);
+  await stubPlaylistReview(page, [["Old Song", "in_library"], ["Older Song", "in_library"]]);
+
+  await page.locator("#url").fill(PLAYLIST_URL);
+  await page.locator("#submit").click();
+  await expect(page.locator("#batchReview .batch-item-check:checked")).toHaveCount(0);
+  await expect(page.locator("#batchReview .batch-queue")).toBeDisabled();
 });
 
 test("a queue that will not start says so, and Start comes back", async ({ page }) => {

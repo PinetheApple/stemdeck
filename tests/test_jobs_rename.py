@@ -20,6 +20,7 @@ from app.core.models import Job, _set, clean_artist
 from app.core.registry import _jobs, persist, register, restore
 from app.main import app
 from app.pipeline.runner import _write_metadata
+from tests.test_versions_api import THREE_OPEN, THREE_VERSIONS
 
 JOB_ID = "aaaaaaaaaaaa"
 
@@ -341,3 +342,10 @@ def test_a_rename_still_drops_lyrics_the_new_names_disown(client: TestClient, re
     job = _with_lyrics(audio_tags=SONG_TAGS, user_band=OTHER_BAND)
     assert client.patch(f"/api/jobs/{JOB_ID}", json=rename).status_code == 200
     assert not _lyrics_kept(client, job)
+
+
+def test_a_song_rename_leaves_its_versions(client: TestClient) -> None:
+    _done(versions=THREE_VERSIONS, open_version=THREE_OPEN)
+    state = client.patch(f"/api/jobs/{JOB_ID}", json={"title": "Renamed"}).json()
+    assert (state["versions"], state["open_version"]) == (THREE_VERSIONS, THREE_OPEN)
+    assert (_metadata()["versions"], _metadata()["open_version"]) == (THREE_VERSIONS, THREE_OPEN)

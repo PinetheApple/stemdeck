@@ -3,7 +3,14 @@ import { STEM_NAMES } from "./constants.js";
 import { STEM_EXT_MP3 } from "./playbackStems.js";
 import { wireUpAudio, updateFooterTrack } from "./player.js";
 import { initSections } from "./sections.js";
-import { audioEngine, bpmChip, foregroundJobId, keyChip, multitrack, saveSelectedStems, selectedStems, titleEl } from "./state.js";
+import {
+  audioEngine, bpmChip, foregroundJobId, keyChip, multitrack, saveSelectedStems, selectedStems, titleEl,
+} from "./state.js";
+import { DEFAULT_VERSION_ID, hasVersionRows, openVersionOf, sameLanes } from "./versionModel.js";
+import {
+  forgetVersionMixes, initVersions, openVersion, paintOpenVersion, paintVersionPill, versionExtras, versionToggleHtml,
+  wireVersionToggle,
+} from "./versions.js";
 import { refreshStemChoiceVisuals } from "./stemChoice.js";
 import { trackFormat, formatIconSvg, paintNowPlayingArt } from "./formatIcon.js";
 import { formatKey } from "./keyLabel.js";
@@ -17,9 +24,9 @@ import {
 } from "./importSource.js";
 import { confirmDialog } from "./confirmDialog.js";
 import {
-  cancelQueuedJob, currentIds, getQueueSnapshot, isPaused, onJobSettled, onQueueChange,
-  queueCount, queueRowStates, refreshQueue, reorderQueuedJob, runningLabel, startQueue,
-  startQueueStream,
+  batchProgress, batchStillShown, cancelQueuedJob, currentIds, dropFromBatch, getBatch, getQueueSnapshot,
+  isPaused, onJobSettled, onQueueChange, queueCount, queueRowStates, refreshQueue, reorderQueuedJob,
+  resendNotQueued, runningLabel, startQueue, startQueueStream,
 } from "./queue.js";
 import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
@@ -32,6 +39,7 @@ import { KEYBOARD_FOCUS, ON_ROW, OUT_OF_TAB_ORDER, ROW_KEY, ROW_PLAY_CLASS, isSh
 import { icon } from "./libraryIcons.js";
 import { HTTP_NOT_FOUND, fetchJson, isNotFound } from "./libraryControls.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
+import { FOLDER_MOVING_KEY, isFolderMovingError, noticeKey, refusedForFolderMove } from "./folderMoving.js";
 import { lookupArtist } from "./artistLookup.js";
 import { HELD_DROP, HELD_SEND, HTTP_UNPROCESSABLE, heldBandAction, libraryArtist, mergedBand, sendHeldBand, uploadBands } from "./trackBand.js";
 import {
@@ -42,6 +50,7 @@ import { wireRecordingSettings } from "./recorderSettings.js";
 import { finishTakeBeforeTeardown } from "./recorder.js";
 import { t as i18nT, plural as i18nPlural, LANGUAGES, getLanguage, setLanguage, onLanguageChange, applyTranslations } from "./i18n.js";
 import { applyNetworkSwitch, networkSwitchOn } from "./networkRestart.js";
+import { GPU_BACKEND_ROCM, gpuUnusedMessage } from "./gpuUnused.js";
 
 // Escape user-supplied strings before inserting into innerHTML.
 function esc(s) {
@@ -186,9 +195,14 @@ function trackMatchesSearch(track) {
   ].some((value) => String(value || "").toLowerCase().includes(q));
 }
 
+// A re-import is a new job: the server's state says which versions it has.
+const VERSION_FIELDS = ["versions", "openVersion", "versionsExpanded"];
+
 function replaceTrackId(oldId, newId) {
   if (!oldId || !newId || oldId === newId || !tracks[oldId]) return;
-  tracks[newId] = { ...tracks[oldId], ...(tracks[newId] || {}), id: newId };
+  const carried = { ...tracks[oldId] };
+  for (const field of VERSION_FIELDS) delete carried[field];
+  tracks[newId] = { ...carried, ...(tracks[newId] || {}), id: newId };
   delete tracks[oldId];
   moveHeldBand(oldId, newId);
   for (const folder of folders) {
@@ -203,6 +217,7 @@ function purgeTrash(deletedIds) {
   if (!trash?.items.length) return false;
   const trashIds = new Set(trash.items.filter((id) => deletedIds.includes(id)));
   for (const id of trashIds) {
+    forgetVersionMixes(id, tracks[id]);
     delete tracks[id];
     dropHeldBand(id);
   }
@@ -625,13 +640,13 @@ function settleHeldBand(trackId, state) {
   if (action === HELD_SEND && unsent) saveHeldBand(trackId, entry);
 }
 
-function rollBackBand(trackId, previous, title) {
+function rollBackBand(trackId, previous, title, err) {
   const track = tracks[trackId];
   if (track) track.artist = previous;
   afterNamesChanged(trackId);
   notifyFailure({
     kind: "band",
-    message: i18nT("artist.saveFailed", { title }),
+    message: isFolderMovingError(err) ? i18nT(FOLDER_MOVING_KEY) : i18nT("artist.saveFailed", { title }),
     context: { stage: "Saving a band" },
   });
 }
@@ -655,7 +670,7 @@ export async function setCurrentTrackArtist(artist) {
     console.warn("[catalog] saving a band failed:", err);
     if (_bandSaves.get(trackId) !== save) return false;
     _bandSaves.delete(trackId);
-    rollBackBand(trackId, save.before, title);
+    rollBackBand(trackId, save.before, title, err);
     return false;
   }
   const newest = _bandSaves.get(trackId);
@@ -739,6 +754,7 @@ function paintNowPlayingArtist(track) {
   // The whole name on hover, since a long title can leave it clipped.
   el.title = name;
   el.hidden = !name;
+  paintVersionPill(track);
 }
 
 // ─── Tags for tracks imported before they were read ───
@@ -973,6 +989,8 @@ function stateMetadataToTrack(state, fallbackTrack) {
     hasVideo: state.has_video ?? fallbackTrack.hasVideo ?? false,
     videoStatus: state.video_status ?? fallbackTrack.videoStatus ?? null,
     createdAt: fallbackTrack.createdAt ?? state.created_at,
+    versions: state.versions ?? fallbackTrack.versions ?? null,
+    openVersion: state.open_version ?? fallbackTrack.openVersion ?? null,
     favorite: fallbackTrack.favorite ?? false,
     artist: serverBand(state.job_id, fallbackTrack.artist, state),
     bandSaved: Boolean(state.user_band),
@@ -1261,14 +1279,17 @@ function resendUnconfirmedTrash() {
   return Promise.all(Object.entries(_unconfirmedTrashState).map(([id, trashed]) => sendTrashChange(id, trashed)));
 }
 
+const FAVORITE_KIND = "favorite";
+const FAVORITE_SAVE_FAILED_KEY = "notif.favoriteSaveFailed";
+
 /**
  * Tell the server a track was favourited or taken back out (#734).
  *
  * The server holds the answer the phone reads, and the phone can change it, so
  * this side adopts the server's value on every sync (applyServerFavorite) and
  * only says something when the user presses a heart here. Not awaited, for the
- * same reason as the Trash: a heart must answer at once. Resolves to whether
- * the server saved it.
+ * same reason as the Trash: a heart must answer at once. Resolves to null when
+ * the server saved it, else to the key of the notice that says why not.
  */
 async function syncFavoriteToServer(trackId, favorite) {
   try {
@@ -1277,10 +1298,11 @@ async function syncFavoriteToServer(trackId, favorite) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ favorite }),
     });
-    return res.ok;
+    if (res.ok) return null;
+    return noticeKey(await refusedForFolderMove(res), FAVORITE_SAVE_FAILED_KEY);
   } catch (e) {
     console.warn(`[catalog] could not save the favourite for ${trackId}`, e);
-    return false;
+    return FAVORITE_SAVE_FAILED_KEY;
   }
 }
 
@@ -1355,8 +1377,15 @@ export function showLibraryView() {
   if (catalogView !== "library") setCatalogView("library");
 }
 
+// The default version alone plays the import's selection, read as before; the
+// server fills its stems with every stem when an old record has no selection.
+function playsVersionStems(track) {
+  const open = openVersionOf(track);
+  return Boolean(open) && (hasVersionRows(track) || open.id !== DEFAULT_VERSION_ID);
+}
+
 function applyStoredStemSelection(track) {
-  const stored = track.selectedStems || track.stems || [];
+  const stored = playsVersionStems(track) ? openVersionOf(track).stems : track.selectedStems || track.stems || [];
   const next = stored.filter((name) => STEM_NAMES.includes(name));
   if (!next.length) return;
   selectedStems.clear();
@@ -1401,6 +1430,12 @@ async function reimportUnavailableTrack(trackId, track) {
   } finally {
     _reimportsAsked.delete(trackId);
   }
+}
+
+/** mix.wav is the import's selection, so a version playing other stems has none. */
+function importMixUrl(track) {
+  if (!playsVersionStems(track)) return track.mixUrl ?? null;
+  return sameLanes(openVersionOf(track).stems, track.selectedStems || []) ? track.mixUrl ?? null : null;
 }
 
 export async function loadTrackIntoStudio(trackId) {
@@ -1472,7 +1507,18 @@ export async function loadTrackIntoStudio(trackId) {
   setResplitTarget(resplittable ? track : null);
 
   applyTrackInfoToPanel(track);
-  wireUpAudio(trackId, track.audioStems, track.duration || 0, track.thumb, track.mixUrl ?? null, track.title || "", peaksPromise, track.hasVideo ?? false, track.videoStatus ?? null);
+  wireUpAudio(
+    trackId,
+    track.audioStems,
+    track.duration || 0,
+    track.thumb,
+    importMixUrl(track),
+    track.title || "",
+    peaksPromise,
+    track.hasVideo ?? false,
+    track.videoStatus ?? null,
+    openVersionOf(track)?.id ?? DEFAULT_VERSION_ID,
+  );
   initSections(trackId, track.sections, track.duration || 0);
   // Not awaited: the track is already loading, and the answer arrives as a
   // "tracktags" event.
@@ -1526,6 +1572,7 @@ export function setCurrentTrack(trackId) {
   for (const el of document.querySelectorAll(`.cat-item[data-id="${trackId}"]`)) el.classList.add("active");
   for (const el of document.querySelectorAll(".strip-thumb.active")) el.classList.remove("active");
   for (const el of document.querySelectorAll(`.strip-thumb[data-id="${trackId}"]`)) el.classList.add("active");
+  paintOpenVersion(trackId);
 }
 
 // ─── Folder operations ───
@@ -1890,21 +1937,21 @@ export function toggleFavorite(trackId) {
   if (!track) return;
   track.favorite = !track.favorite;
   const favorite = track.favorite;
-  syncFavoriteToServer(trackId, favorite).then((saved) => {
-    if (!saved) undoFavorite(trackId, favorite);
+  syncFavoriteToServer(trackId, favorite).then((failureKey) => {
+    if (failureKey) undoFavorite(trackId, favorite, failureKey);
   });
   saveState();
   paintFavoriteHearts(trackId);
 }
 
-/** The server refused a heart: take it back, unless it was pressed again since. */
-function undoFavorite(trackId, favorite) {
+/** The server refused a heart: take it back, unless it was pressed again since, and say why. */
+function undoFavorite(trackId, favorite, failureKey) {
   const track = tracks[trackId];
   if (!track || Boolean(track.favorite) !== favorite) return;
   track.favorite = !favorite;
   saveState();
   paintFavoriteHearts(trackId);
-  notifyFailure({ kind: "favorite", message: i18nT("notif.favoriteSaveFailed") });
+  notifyFailure({ kind: FAVORITE_KIND, message: i18nT(failureKey) });
 }
 
 function paintFavoriteHearts(trackId) {
@@ -2237,6 +2284,7 @@ const SONG_ROW_SELECTOR = ".cat-item:not(.in-trash):not(.queue-row)";
 const TRASH_ROW_SELECTOR = ".cat-item.in-trash";
 const FOLDER_ROW_SELECTOR = ".folder-head";
 const LIBRARY_ROW_SELECTOR = `#catalogList ${SONG_ROW_SELECTOR}`;
+const VERSION_ROW_SELECTOR = ".cat-version:not(.queue-running):not(.renaming-row)";
 
 let libraryRows = null;
 
@@ -2250,13 +2298,15 @@ function toggleFolderCollapsed(folderEl) {
 }
 
 function libraryRowKey(row) {
-  return row.matches(FOLDER_ROW_SELECTOR) ? `folder:${row.parentElement.dataset.id}` : row.dataset.id;
+  if (row.matches(FOLDER_ROW_SELECTOR)) return `folder:${row.parentElement.dataset.id}`;
+  return row.dataset.version ? `${row.dataset.id}:${row.dataset.version}` : row.dataset.id;
 }
 
 // A Trash row's own Enter is hold-to-restore (wireTrashRow); it never opens the song.
 function openLibraryRow(row) {
   if (row.matches(TRASH_ROW_SELECTOR)) return;
   if (row.matches(FOLDER_ROW_SELECTOR)) toggleFolderCollapsed(row.parentElement);
+  else if (row.dataset.version) openVersion(row.dataset.id, row.dataset.version);
   else loadTrackIntoStudio(row.dataset.id);
 }
 
@@ -2270,12 +2320,18 @@ function wireLibraryRows() {
   libraryRows = wireRovingRows(
     list,
     {
-      rowSelector: `${SONG_ROW_SELECTOR}, ${TRASH_ROW_SELECTOR}, ${FOLDER_ROW_SELECTOR}`,
-      actionSelector: `${SONG_ROW_SELECTOR} .cat-actions button, ${SONG_ROW_SELECTOR} .import-fail-panel :is(button, a), ${FOLDER_ROW_SELECTOR} button`,
+      rowSelector: `${SONG_ROW_SELECTOR}, ${VERSION_ROW_SELECTOR}, ${TRASH_ROW_SELECTOR}, ${FOLDER_ROW_SELECTOR}`,
+      actionSelector: [
+        `${SONG_ROW_SELECTOR} .cat-actions button`,
+        `${SONG_ROW_SELECTOR} .import-fail-panel :is(button, a)`,
+        `${FOLDER_ROW_SELECTOR} button`,
+        ".cat-version .cat-actions button",
+        ".cat-item .cat-versions-toggle",
+      ].join(", "),
       keyOf: libraryRowKey,
       openRow: openLibraryRow,
       preferredRow: preferredLibraryRow,
-      selectableRow: SONG_ROW_SELECTOR,
+      selectableRow: `${SONG_ROW_SELECTOR}, ${VERSION_ROW_SELECTOR}`,
     },
   );
 }
@@ -2401,15 +2457,20 @@ function trackSublineHtml(track, { inTrash = false } = {}) {
     parts = [i18nT("track.stopped")];
   } else {
     // No stem count: forty rows saying "6 stems" says nothing (#699).
-    parts = [nowPlayingArtist(track), track.duration ? fmtTime(track.duration) : ""];
+    const timeShown = track.duration && !showsVersionRows(track, inTrash);
+    parts = [nowPlayingArtist(track), timeShown ? fmtTime(track.duration) : ""];
   }
   if (inTrash) parts.push(i18nT("track.removed"));
   // Spaced as text as well as by the row's flex gap, so what a screen reader
   // or a copy gets reads "05:57 · 6 stems" rather than "05:57·6 stems".
-  return parts
-    .filter(Boolean)
-    .map((part) => `<span>${esc(part)}</span>`)
-    .join(' <span class="dot">·</span> ');
+  return [
+    ...parts.filter(Boolean).map((part) => `<span>${esc(part)}</span>`),
+    ...(showsVersionRows(track, inTrash) ? [versionToggleHtml(track)] : []),
+  ].join(' <span class="dot">·</span> ');
+}
+
+function showsVersionRows(track, inTrash = false) {
+  return !inTrash && track.status === "done" && hasVersionRows(track);
 }
 
 function renderRecentItem(trackId) {
@@ -2417,7 +2478,7 @@ function renderRecentItem(trackId) {
   if (!track) return null;
   const el = document.createElement("div");
   const isUnavailable = track.status === "unavailable";
-  el.className = `cat-item${trackId === _currentTrackId ? " active" : ""}${isUnavailable ? " unavailable" : ""}${track.favorite ? " is-fav" : ""}`;
+  el.className = `cat-item${trackId === _currentTrackId ? " active" : ""}${isUnavailable ? " unavailable" : ""}${track.favorite ? " is-fav" : ""}${showsVersionRows(track) ? " has-versions" : ""}`;
   el.dataset.id = trackId;
   el.innerHTML = `
     <div class="cat-thumb">${thumbHtml(track)}${playButtonHtml(track)}</div>
@@ -2431,6 +2492,7 @@ function renderRecentItem(trackId) {
   wireFavButton(el, trackId);
   wireUpNextButton(el, trackId);
   wireMoreButton(el, trackId);
+  wireVersionToggle(el);
   wireTrackDrag(el, trackId);
   return el;
 }
@@ -2519,7 +2581,7 @@ function renderTrackItem(trackId, { inTrash = false } = {}) {
   const el = document.createElement("div");
   const isUnavailable = track.status === "unavailable";
   const isFailed = !inTrash && track.status === FAILED_STATUS;
-  el.className = `cat-item${trackId === _currentTrackId ? " active" : ""}${isUnavailable ? " unavailable" : ""}${!inTrash && track.favorite ? " is-fav" : ""}${!inTrash && track.status === "stopped" ? " is-stopped" : ""}${inTrash ? " in-trash" : ""}${inTrash && _trashSelection.has(trackId) ? " selected" : ""}${isFailed ? " is-failed" : ""}`;
+  el.className = `cat-item${trackId === _currentTrackId ? " active" : ""}${isUnavailable ? " unavailable" : ""}${!inTrash && track.favorite ? " is-fav" : ""}${!inTrash && track.status === "stopped" ? " is-stopped" : ""}${inTrash ? " in-trash" : ""}${inTrash && _trashSelection.has(trackId) ? " selected" : ""}${isFailed ? " is-failed" : ""}${showsVersionRows(track, inTrash) ? " has-versions" : ""}`;
   el.dataset.id = trackId;
 
   el.innerHTML = `
@@ -2547,6 +2609,7 @@ function renderTrackItem(trackId, { inTrash = false } = {}) {
   wireFavButton(el, trackId);
   wireUpNextButton(el, trackId);
   wireMoreButton(el, trackId);
+  wireVersionToggle(el);
   if (isFailed) wireFailedRow(el);
 
   if (inTrash) {
@@ -2785,7 +2848,7 @@ function renderFolder(folder) {
   } else {
     for (const id of visibleItems) {
       const item = renderTrackItem(id);
-      if (item) body.appendChild(item);
+      if (item) body.append(item, ...versionExtras(id));
     }
     for (const child of childFolders) {
       const childEl = renderFolder(child);
@@ -2934,7 +2997,56 @@ function renderStrip(strip, nonTrash) {
 function render() {
   const saved = libraryRows?.remember();
   drawCatalog();
+  paintOpenVersion(_currentTrackId);
   libraryRows?.restore(saved);
+}
+
+export function redrawLibrary() {
+  render();
+}
+
+/** A song's versions as the server answered them. */
+export function applyVersionsState(trackId, state) {
+  const track = tracks[trackId];
+  if (!track) return;
+  takeVersions(track, state);
+  saveState();
+  render();
+  if (trackId === _currentTrackId) paintVersionPill(track);
+}
+
+/** Show or hide a song's version rows; kept on this side only. */
+export function setVersionsExpanded(trackId, expanded) {
+  if (!tracks[trackId]) return;
+  tracks[trackId].versionsExpanded = expanded;
+  saveState();
+  render();
+}
+
+/** Open the folder holding a song, and every folder above it, so its row shows. */
+export function expandFoldersOf(trackId) {
+  let folder = folders.find((f) => f.id !== TRASH_ID && f.items.includes(trackId));
+  while (folder) {
+    folder.collapsed = false;
+    const { parentId } = folder;
+    folder = folders.find((f) => f.id === parentId);
+  }
+  saveState();
+  render();
+}
+
+/** Take the server's versions for a known song; whether anything changed. */
+function applyServerVersions(track, state) {
+  if (!state.versions) return false;
+  const same = JSON.stringify(track.versions) === JSON.stringify(state.versions);
+  if (same && track.openVersion === state.open_version) return false;
+  takeVersions(track, state);
+  return true;
+}
+
+function takeVersions(track, state) {
+  track.versions = state.versions;
+  track.openVersion = state.open_version;
 }
 
 function drawCatalog() {
@@ -3028,7 +3140,7 @@ function drawCatalog() {
     } else {
       for (const id of favIds) {
         const item = renderRecentItem(id);
-        if (item) list.appendChild(item);
+        if (item) list.append(item, ...versionExtras(id));
       }
     }
     renderStrip(strip, nonTrash);
@@ -3334,14 +3446,16 @@ function onQueueCancelClick(e) {
   });
 }
 
+async function onQueueTopClick(e) {
+  e.stopPropagation();
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  await reorderQueuedJob(btn.closest(QUEUE_ROW).dataset.id, null);
+}
+
 function wireQueueRow(el, listEl) {
   el.querySelector(".queue-cancel")?.addEventListener("click", onQueueCancelClick);
-
-  el.querySelector(".queue-top")?.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    e.currentTarget.disabled = true;
-    await reorderQueuedJob(el.dataset.id, null);
-  });
+  el.querySelector(".queue-top")?.addEventListener("click", onQueueTopClick);
 
   if (el.getAttribute("draggable") !== "true") return;
 
@@ -3356,30 +3470,30 @@ function wireQueueRow(el, listEl) {
   el.addEventListener("dragend", () => {
     _queueDragId = null;
     el.classList.remove("dragging");
-    for (const r of listEl.querySelectorAll(".queue-row")) r.classList.remove("drop-below");
+    for (const r of listEl.querySelectorAll(QUEUE_ROW)) r.classList.remove("drop-below");
   });
 }
 
-function wireQueueListDrop(listEl) {
-  listEl.addEventListener("dragover", (e) => {
-    if (!_queueDragId) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    const anchor = dropAnchorId(listEl, _queueDragId, e.clientY);
-    for (const r of listEl.querySelectorAll(".queue-row")) {
-      r.classList.toggle("drop-below", !!anchor && r.dataset.id === anchor);
-    }
-  });
+function onQueueListDragOver(e) {
+  if (!_queueDragId) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+  const listEl = e.currentTarget;
+  const anchor = dropAnchorId(listEl, _queueDragId, e.clientY);
+  for (const r of listEl.querySelectorAll(QUEUE_ROW)) {
+    r.classList.toggle("drop-below", !!anchor && r.dataset.id === anchor);
+  }
+}
 
-  listEl.addEventListener("drop", async (e) => {
-    if (!_queueDragId) return;
-    e.preventDefault();
-    const dragged = _queueDragId;
-    const anchor = dropAnchorId(listEl, dragged, e.clientY);
-    _queueDragId = null;
-    for (const r of listEl.querySelectorAll(".queue-row")) r.classList.remove("drop-below");
-    if (anchor !== dragged) await reorderQueuedJob(dragged, anchor);
-  });
+async function onQueueListDrop(e) {
+  if (!_queueDragId) return;
+  e.preventDefault();
+  const listEl = e.currentTarget;
+  const dragged = _queueDragId;
+  const anchor = dropAnchorId(listEl, dragged, e.clientY);
+  _queueDragId = null;
+  for (const r of listEl.querySelectorAll(QUEUE_ROW)) r.classList.remove("drop-below");
+  if (anchor !== dragged) await reorderQueuedJob(dragged, anchor);
 }
 
 function queuePausedBannerHtml(count) {
@@ -3402,9 +3516,18 @@ async function onQueueStartClick(e) {
   btn.textContent = i18nT("queue.start");
 }
 
-const QUEUE_CONTROLS = [".queue-cancel", ".queue-top", ".queue-start-btn"];
+const QUEUE_CONTROLS = [
+  ".queue-cancel",
+  ".queue-top",
+  ".queue-start-btn",
+  ".batch-retry-failed",
+  ".batch-failed-retry",
+  ".batch-failed-drop",
+];
 const QUEUE_SECTION = ".queue-section";
 const QUEUE_ROW = ".queue-row";
+const BATCH_FAILED_ROW = ".batch-failed-row";
+const QUEUE_JOB_ROWS = [QUEUE_ROW, BATCH_FAILED_ROW];
 const QUEUE_BANNER = ".queue-paused-banner";
 const DRAGGABLE = "draggable";
 const QUEUE_CONTROL_TEXT = ["title", "aria-label"];
@@ -3412,7 +3535,7 @@ const QUEUE_KEYBOARD_FOCUS = ":focus-visible";
 // The queue control that last took focus, read as it is focused: by the time the
 // queue redraws, render() may already have cleared the list and focus is on <body>.
 let _queueFocus = null;
-const _queueFocusLists = new WeakSet();
+const _wiredQueueLists = new WeakSet();
 
 function describeQueueControl(el) {
   const control = QUEUE_CONTROLS.find((selector) => el.matches?.(selector));
@@ -3421,7 +3544,7 @@ function describeQueueControl(el) {
   return {
     el,
     control,
-    jobId: el.closest(QUEUE_ROW)?.dataset.id ?? null,
+    jobId: el.closest(QUEUE_JOB_ROWS.join(", "))?.dataset.id ?? null,
     index: [...section.querySelectorAll(control)].indexOf(el),
     byKeyboard: el.matches(QUEUE_KEYBOARD_FOCUS),
   };
@@ -3441,11 +3564,13 @@ function onQueueFocusOut(e) {
   });
 }
 
-function trackQueueFocus(listEl) {
-  if (_queueFocusLists.has(listEl)) return;
-  _queueFocusLists.add(listEl);
+function wireQueueList(listEl) {
+  if (_wiredQueueLists.has(listEl)) return;
+  _wiredQueueLists.add(listEl);
   listEl.addEventListener("focusin", onQueueFocusIn);
   listEl.addEventListener("focusout", onQueueFocusOut);
+  listEl.addEventListener("dragover", onQueueListDragOver);
+  listEl.addEventListener("drop", onQueueListDrop);
 }
 
 function queueFocusToRestore() {
@@ -3453,6 +3578,11 @@ function queueFocusToRestore() {
   const active = document.activeElement;
   const dropped = !_queueFocus.el.isConnected && (!active || active === document.body);
   return _queueFocus.el === active || dropped ? _queueFocus : null;
+}
+
+function jobRowSelector(jobId, inside = "") {
+  const id = CSS.escape(jobId);
+  return QUEUE_JOB_ROWS.map((row) => `${row}[data-id="${id}"]${inside}`).join(", ");
 }
 
 function makeQueueHeadFocusable(section) {
@@ -3464,7 +3594,7 @@ function makeQueueHeadFocusable(section) {
 // The same row's control, else the one now in its place, else anything in the section.
 function queueFocusTarget(section, saved) {
   const enabled = `${saved.control}:not(:disabled)`;
-  const sameRow = saved.jobId ? `${QUEUE_ROW}[data-id="${CSS.escape(saved.jobId)}"] ${enabled}` : enabled;
+  const sameRow = saved.jobId ? jobRowSelector(saved.jobId, ` ${enabled}`) : enabled;
   const peers = [...section.querySelectorAll(enabled)];
   return section.querySelector(sameRow)
     ?? peers[Math.min(saved.index, peers.length - 1)]
@@ -3495,7 +3625,7 @@ function replaceChildrenAround(parent, kept, children, standIn) {
 
 // A row is its job's; the paused banner, holding Start, has no job and is the only one.
 function queueBlockSelector(saved) {
-  return saved.jobId ? `${QUEUE_ROW}[data-id="${CSS.escape(saved.jobId)}"]` : QUEUE_BANNER;
+  return saved.jobId ? jobRowSelector(saved.jobId) : QUEUE_BANNER;
 }
 
 /** The focused control's row or banner and its freshly drawn counterpart, when there still is one. */
@@ -3542,26 +3672,134 @@ function mountQueueSection(listEl, section, saved) {
   }
   const shown = kept.block.parentElement;
   replaceChildrenAround(shown, kept.block, [...section.children], kept.fresh);
+  shown.dataset.batch = section.dataset.batch;
   removeChildrenExcept(listEl, shown);
 }
 
-function appendQueueRows(listEl, section, entries, snap) {
+const PERCENT = 100;
+
+function queueBatchProgress(snap) {
+  const { jobIds, notQueued } = getBatch();
+  const progress = batchProgress(jobIds, snap, (id) => tracks[id]?.status);
+  if (!batchStillShown(progress, notQueued)) return null;
+  return { ...progress, notQueued, total: progress.total + notQueued };
+}
+
+const batchSignature = (progress) => (progress ? JSON.stringify(progress) : "");
+const share = (part, total) => (total ? Math.round((part / total) * PERCENT) : 0);
+
+const failedLabelHtml = (text) => `<span class="batch-failed-label">${esc(text)}</span>`;
+const barHtml = (part, total, className) => `<span class="${className}" style="width:${share(part, total)}%"></span>`;
+
+function batchRetryFailedHtml() {
+  const label = `<span>${esc(i18nT("batch.retryFailed"))}</span>`;
+  return `<button class="batch-btn batch-retry-failed" type="button">${icon("restore")}${label}</button>`;
+}
+
+function batchHeaderHtml(progress) {
+  const parts = [];
+  if (progress.failed) parts.push(failedLabelHtml(i18nPlural("batch.failedCount", progress.failed)));
+  if (progress.notQueued) parts.push(failedLabelHtml(i18nPlural("batch.notQueuedCount", progress.notQueued)));
+  if (progress.waiting) parts.push(esc(i18nPlural("batch.waitingCount", progress.waiting)));
+  const retry = progress.failed || progress.notQueued ? batchRetryFailedHtml() : "";
+  const doneOf = i18nT("batch.doneOf", { done: progress.done, total: progress.total });
+  const doneBar = barHtml(progress.done, progress.total, "batch-head-done");
+  const failedBar = barHtml(progress.failed + progress.notQueued, progress.total, "batch-head-failed");
+  return `<div class="batch-head">
+      <div class="batch-head-text"><b>${esc(doneOf)}</b><span>${parts.join(" · ")}</span></div>
+      <div class="batch-head-bar" aria-hidden="true">${doneBar}${failedBar}</div>
+      ${retry}
+    </div>`;
+}
+
+function batchFailedButtonHtml(className, tooltip, label, content) {
+  const text = `title="${esc(tooltip)}" aria-label="${esc(label)}"`;
+  return `<button class="${className}" type="button" ${text}>${content}</button>`;
+}
+
+function batchFailedRowHtml(trackId) {
+  const track = tracks[trackId];
+  const title = displayTitle(libraryTitle(track));
+  return `
+    <div class="cat-item batch-failed-row" data-id="${esc(trackId)}">
+      <div class="cat-thumb">${icon(sourceKindOf(track))}</div>
+      <div class="cat-meta">
+        <div class="cat-title">${esc(title)}</div>
+        <div class="cat-sub">${failedLabelHtml(i18nT(failureReasonKey(track.errorCode)))}</div>
+      </div>
+      ${batchFailedButtonHtml(
+        "batch-failed-retry",
+        i18nT("importFail.retry"),
+        i18nT("batch.retryTitle", { title }),
+        icon("restore"),
+      )}
+      ${batchFailedButtonHtml(
+        "batch-failed-drop",
+        i18nT("batch.remove"),
+        i18nT("batch.removeTitle", { title }),
+        CANCEL_ICON_SVG,
+      )}
+    </div>`;
+}
+
+function onBatchFailedRetryClick(e) {
+  e.stopPropagation();
+  e.currentTarget.disabled = true;
+  retryFailedImport(e.currentTarget.closest(BATCH_FAILED_ROW).dataset.id);
+}
+
+function onBatchFailedDropClick(e) {
+  e.stopPropagation();
+  dropFromBatch(e.currentTarget.closest(BATCH_FAILED_ROW).dataset.id);
+  const snap = getQueueSnapshot();
+  if (queueCount(snap) === 0 && !queueBatchProgress(snap)) setCatalogView("library");
+  else renderQueueList(document.getElementById("catalogList"), snap);
+}
+
+/** Failed jobs retry as themselves; the items the queue did not take are sent again. */
+async function onRetryFailedClick(e) {
+  e.currentTarget.disabled = true;
+  const failed = queueBatchProgress(getQueueSnapshot())?.failedIds ?? [];
+  for (const id of failed) await retryFailedImport(id);
+  await resendNotQueued();
+  renderQueueList(document.getElementById("catalogList"));
+}
+
+function onEachClick(section, selector, handler) {
+  for (const btn of section.querySelectorAll(selector)) btn.addEventListener("click", handler);
+}
+
+function wireBatchRows(section) {
+  onEachClick(section, ".batch-retry-failed", onRetryFailedClick);
+  onEachClick(section, ".batch-failed-retry", onBatchFailedRetryClick);
+  onEachClick(section, ".batch-failed-drop", onBatchFailedDropClick);
+}
+
+function queueRowsHtml(entries, snap, progress) {
   const paused = isPaused(snap);
-  section.insertAdjacentHTML(
-    "beforeend",
-    entries.map((entry, i) => queueRowHtml(entry, i + 1, { paused })).join(""),
-  );
+  const rows = entries.map((entry, i) => queueRowHtml(entry, i + 1, { paused }));
+  const failed = (progress?.failedIds ?? []).filter((id) => tracks[id]).map(batchFailedRowHtml);
+  const afterRunningRow = snap.running ? 1 : 0;
+  rows.splice(afterRunningRow, 0, ...failed);
+  return rows.join("");
+}
+
+function appendQueueRows(listEl, section, entries, snap, progress) {
+  if (progress) section.insertAdjacentHTML("beforeend", batchHeaderHtml(progress));
+  section.insertAdjacentHTML("beforeend", queueRowsHtml(entries, snap, progress));
   for (const el of section.querySelectorAll(QUEUE_ROW)) wireQueueRow(el, listEl);
-  wireQueueListDrop(listEl);
+  wireBatchRows(section);
 }
 
 function renderQueueList(listEl, snap = getQueueSnapshot()) {
   const entries = queueEntries(snap);
   const focus = queueFocusToRestore();
-  trackQueueFocus(listEl);
+  wireQueueList(listEl);
+  const progress = queueBatchProgress(snap);
 
   const section = document.createElement("div");
   section.className = "lib-section queue-section";
+  section.dataset.batch = batchSignature(progress);
   section.innerHTML = `<div class="lib-section-head"><span>${esc(i18nT("queue.importQueue"))}</span></div>`;
 
   if (isPaused(snap)) {
@@ -3569,13 +3807,13 @@ function renderQueueList(listEl, snap = getQueueSnapshot()) {
     section.querySelector(".queue-start-btn")?.addEventListener("click", onQueueStartClick);
   }
 
-  if (!entries.length) {
+  if (!entries.length && !progress) {
     section.insertAdjacentHTML("beforeend", emptyStateHtml("queue", "queue.emptyTitle", "queue.emptyHint"));
     mountQueueSection(listEl, section, focus);
     return;
   }
 
-  appendQueueRows(listEl, section, entries, snap);
+  appendQueueRows(listEl, section, entries, snap, progress);
   mountQueueSection(listEl, section, focus);
   updateQueueRows(snap);
 }
@@ -3594,10 +3832,12 @@ function updateQueueRows(snap = getQueueSnapshot()) {
   const shown = [...listEl.querySelectorAll(".queue-row")].map((el) => el.dataset.id);
   const wanted = entries.map((e) => e.job.job_id);
   const bannerShown = !!listEl.querySelector(".queue-paused-banner");
+  const batchShown = listEl.querySelector(QUEUE_SECTION)?.dataset.batch ?? "";
   if (
     shown.length !== wanted.length ||
     shown.some((id, i) => id !== wanted[i]) ||
-    bannerShown !== isPaused(snap)
+    bannerShown !== isPaused(snap) ||
+    batchShown !== batchSignature(queueBatchProgress(snap))
   ) {
     renderQueueList(listEl, snap);
     return;
@@ -3625,7 +3865,7 @@ function updateQueueBadge(snap = getQueueSnapshot()) {
   const badge = document.getElementById("queueBadge");
   if (!btn) return;
   const count = queueCount(snap);
-  btn.classList.toggle("hidden", count === 0 && catalogView !== "queue");
+  btn.classList.toggle("hidden", count === 0 && catalogView !== "queue" && !queueBatchProgress(snap));
   if (badge) {
     badge.textContent = count > 99 ? "99+" : String(count);
     badge.classList.toggle("hidden", count === 0);
@@ -3638,7 +3878,7 @@ function onQueueFrame(snap) {
     applyQueueDecorations(snap);
     return;
   }
-  if (queueCount(snap) === 0) {
+  if (queueCount(snap) === 0 && !queueBatchProgress(snap)) {
     // Nothing left to manage. Fall back to the library rather than leaving the
     // user in a view that can only ever be empty from here. Deliberately not
     // done inside updateQueueBadge, which render() calls -- that would recurse.
@@ -4561,6 +4801,7 @@ async function syncWithServer() {
           backfilled = true;
         }
         if (applyServerNames(known, state)) backfilled = true;
+        if (applyServerVersions(known, state)) backfilled = true;
         continue;
       }
       if (trashIds.has(state.job_id)) continue;   // soft-deleted, skip
@@ -5052,7 +5293,6 @@ function wireDiscogsSetting(overlay) {
 }
 
 const DEVICE_CUDA = "cuda";
-const GPU_BACKEND_ROCM = "rocm";
 
 function deviceOptionLabel(opt, gpuBackend) {
   return opt.value === DEVICE_CUDA && gpuBackend === GPU_BACKEND_ROCM ? i18nT("settings.device.rocm") : opt.dataset.baseLabel;
@@ -5093,6 +5333,7 @@ async function wireGeneralSettings(overlay) {
   const portInput = overlay.querySelector(".set-port");
   const deviceSel = overlay.querySelector(".set-demucs-device");
   const deviceDesc = overlay.querySelector(".set-demucs-desc");
+  const gpuUnusedDesc = overlay.querySelector(".set-gpu-unused-desc");
   const qualitySel = overlay.querySelector(".set-separation-quality");
   const stemFormatSel = overlay.querySelector(".set-stem-format");
   const stemKbpsSel = overlay.querySelector(".set-stem-mp3-kbps");
@@ -5200,6 +5441,10 @@ async function wireGeneralSettings(overlay) {
         ? i18nT("settings.device.torchBroken")
         : i18nT("settings.device.desc");
       deviceDesc.classList.toggle("is-broken", !!d.torch_error);
+    }
+    if (gpuUnusedDesc) {
+      const unused = gpuUnusedMessage(d);
+      gpuUnusedDesc.textContent = unused ? i18nT(unused.key, unused.vars) : "";
     }
   };
 
@@ -5982,6 +6227,7 @@ function openLibraryEditor() {
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.device.title">Compute device</div>
               <div class="settings-row-desc set-demucs-desc">Device used for stem separation. Applies to the next track.</div>
+              <div class="settings-row-desc set-gpu-unused-desc"></div>
             </div>
             <select class="settings-select set-demucs-device" aria-label="Compute device" data-i18n-aria-label="settings.device.title">
               <option value="auto" data-i18n="settings.device.auto">Auto</option>
@@ -6370,6 +6616,7 @@ export async function initCatalog() {
   wireRailLibraryDrop();
   wireLibraryDeleteKeys();
   wireLibraryRows();
+  initVersions();
   wireAboutDialog();
   wireReleaseDialog();
   wireSettingsMenu();
