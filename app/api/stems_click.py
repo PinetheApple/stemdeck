@@ -6,7 +6,9 @@ Two parts, kept out of stems.py so that module stays about the stems:
   (a stem region, the mix and video exports, the stems zip) takes them under the
   same names with the same bounds, defaults and descriptions. Each `click_*_query()`
   builds a fresh `Query` per route: FastAPI mutates the instance it binds (its
-  alias), so one instance must never be shared between routes.
+  alias), so one instance must never be shared between routes. It goes in the
+  parameter's `Annotated` type and the default (`CLICK_*_DEFAULT`, `ACCENT_AUTO`,
+  `DEFAULT_CLICK_SOUND`) in its signature, so a direct call gets real values.
 - The stems zip's click file: the isolated click track, rendered from the grid
   the app clicks to with the same rate, accents, grouping, level and sound as
   the click in a mix export. It starts at the song's first sample like every
@@ -48,7 +50,29 @@ from app.core.config import (
     ffmpeg_executable,
 )
 from app.pipeline.click_render import ACCENT_AUTO, CLICK_TO_STEREO, render_click_wav
-from app.pipeline.click_sounds import CLICK_SOUND_IDS, DEFAULT_CLICK_SOUND
+from app.pipeline.click_sounds import CLICK_SOUND_IDS
+
+# The click params' defaults are re-exported for the route signatures in stems.py.
+__all__ = [
+    "ACCENT_AUTO",
+    "CLICK_GAIN_DEFAULT",
+    "CLICK_MULT_DEFAULT",
+    "ZIP_WORK_PREFIX",
+    "ClickStem",
+    "check_click_sound",
+    "click_accent_query",
+    "click_file_query",
+    "click_gain_query",
+    "click_groups_query",
+    "click_level_filter",
+    "click_mix_query",
+    "click_mult_query",
+    "click_sound_query",
+    "click_stem_sources",
+    "render_click_stem",
+    "run_ffmpeg",
+    "zip_work_dir",
+]
 
 # The click file shares the zip's namespace with the stems: refuse to start
 # rather than let it overwrite one.
@@ -74,20 +98,19 @@ CLICK_SOUND_DESCRIPTION = (
 
 
 def click_mix_query():
-    return Query(default=False, description=CLICK_MIX_DESCRIPTION)
+    return Query(description=CLICK_MIX_DESCRIPTION)
 
 
 def click_file_query():
-    return Query(default=False, description=CLICK_FILE_DESCRIPTION)
+    return Query(description=CLICK_FILE_DESCRIPTION)
 
 
 def click_mult_query():
-    return Query(default=CLICK_MULT_DEFAULT, description=CLICK_MULT_DESCRIPTION)
+    return Query(description=CLICK_MULT_DESCRIPTION)
 
 
 def click_accent_query():
     return Query(
-        default=ACCENT_AUTO,
         ge=ACCENT_AUTO,
         le=TEMPO_MAX_BEATS_PER_BAR,
         description=CLICK_ACCENT_DESCRIPTION,
@@ -96,7 +119,6 @@ def click_accent_query():
 
 def click_gain_query():
     return Query(
-        default=CLICK_GAIN_DEFAULT,
         ge=0,
         le=CLICK_GAIN_MAX,
         description=CLICK_GAIN_DESCRIPTION,
@@ -105,7 +127,6 @@ def click_gain_query():
 
 def click_groups_query():
     return Query(
-        default="",
         max_length=CLICK_GROUPS_MAX_CHARS,
         description=CLICK_GROUPS_DESCRIPTION,
     )
@@ -113,7 +134,6 @@ def click_groups_query():
 
 def click_sound_query():
     return Query(
-        default=DEFAULT_CLICK_SOUND,
         max_length=CLICK_SOUND_ID_MAX_CHARS,
         description=CLICK_SOUND_DESCRIPTION,
     )
