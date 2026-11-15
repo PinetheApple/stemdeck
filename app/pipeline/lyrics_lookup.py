@@ -1305,11 +1305,16 @@ def kept_lyrics_belong(entry: dict[str, Any], job: Job) -> bool:
     return saved_lyrics_belong(entry, build_query(replace(job, user_band=None)))
 
 
+def another_songs_lyrics(entry: dict[str, Any], job: Job) -> bool:
+    """Whether ``entry`` is LRCLIB's version of a song the job is not
+    (kept_lyrics_belong) that the user did not work on."""
+    return not lyrics_worked_on(entry) and not kept_lyrics_belong(entry, job)
+
+
 def drop_if_another_song(job_dir: Path, entry: dict[str, Any], job: Job) -> bool:
-    """Delete the job's lyrics.json when ``entry`` (what it holds) is LRCLIB's
-    version of a song the job is not (kept_lyrics_belong), unless the user
-    worked on it. True when it was deleted."""
-    if lyrics_worked_on(entry) or kept_lyrics_belong(entry, job):
+    """Delete the job's lyrics.json when ``entry`` (what it holds) is
+    another_songs_lyrics. True when it was deleted."""
+    if not another_songs_lyrics(entry, job):
         return False
     lyrics_path(job_dir).unlink(missing_ok=True)
     return True

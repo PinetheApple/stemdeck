@@ -26,6 +26,8 @@ from fastapi.staticfiles import StaticFiles
 from app.api.jobs import (
     LYRICS_RUNNING_BLOCKS_MOVE,
     LYRICS_RUNNING_BLOCKS_RESET,
+    STEMS_FOLDER_MOVING_EDIT,
+    _refuse_while_relocating,
     lyrics_run_active,
     settle_pending_replacements,
 )
@@ -838,6 +840,8 @@ def reset_app_data() -> dict[str, object]:
     the caller's -- same blast radius as changing the compute device or any
     other setting from a device with network access, not a new class of
     risk this endpoint introduces on its own."""
+    # It deletes job folders the move may be copying.
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     active = [j for j in registry_all_jobs().values() if j.status in _ACTIVE_JOB_STATUSES]
     if active:
         raise HTTPException(status_code=409, detail="cannot reset while a job is in progress")
