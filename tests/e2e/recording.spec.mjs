@@ -19,6 +19,7 @@ const HTTP_NOT_FOUND = 404;
 const MS_PER_SEC = 1000;
 // Short enough that the stems already sit at their minimum lane height.
 const SHORT_WINDOW = { width: 1440, height: 800 };
+const STEMS_PLUS_TWO_TRACKS = 8;
 // Well under recorder.js's TEARDOWN_WAIT_MS (500), so a wait that ran would show.
 const FAST_PATH_MAX_MS = 100;
 
@@ -84,6 +85,44 @@ test("+ Track stays above the footer on a short window", async ({ page }) => {
   const add = await page.locator("#recAddTrack").boundingBox();
   const footer = await page.locator(".daw-footer").boundingBox();
   expect(add.y + add.height).toBeLessThanOrEqual(footer.y);
+});
+
+// Every mixer row inside the visible column, with its name, M, S and fader inside the row.
+const headersFit = (page) =>
+  page.evaluate(() => {
+    const column = document.querySelector(".mixer-column");
+    const view = column.getBoundingClientRect();
+    const inside = (r, box) => r.top >= box.top - 0.5 && r.bottom <= box.bottom + 0.5;
+    const rows = [...column.querySelectorAll(".lane-header.mx-row:not(.rec-take-row)")].filter((row) => row.offsetHeight);
+    const problems = rows.flatMap(function rowProblems(row) {
+      const box = row.getBoundingClientRect();
+      const parts = [".mx-name", ".mute", ".solo", ".mx-fader"].map((sel) => row.querySelector(sel));
+      const clipped = parts.filter((el) => !el || !inside(el.getBoundingClientRect(), box)).length;
+      return [inside(box, view) ? null : "row hidden", clipped ? "part clipped" : null].filter(Boolean);
+    });
+    return { rows: rows.length, problems, scrollTop: column.scrollTop };
+  });
+
+const laneHeight = (page) =>
+  page.evaluate(() => getComputedStyle(document.querySelector(".app")).getPropertyValue("--lane-h").trim());
+
+test("six stems and two recording tracks fit without scrolling; a song without tracks keeps its rows", async ({ page }) => {
+  await page.setViewportSize(SHORT_WINDOW);
+  await openStudio(page);
+  const withoutTracks = await laneHeight(page);
+  await addArmedTrack(page);
+  await page.locator("#recAddTrack").click();
+  await page.getByRole("menuitem", { name: "Audio track" }).click();
+  await expect(page.locator(".rec-row")).toHaveCount(2);
+  await expect.poll(() => headersFit(page)).toEqual({ rows: STEMS_PLUS_TWO_TRACKS, problems: [], scrollTop: 0 });
+  const add = await page.locator(".rec-add-row").boundingBox();
+  const footer = await page.locator(".daw-footer").boundingBox();
+  expect(add.y + add.height).toBeLessThanOrEqual(footer.y);
+
+  await removeTracks({ request: page.request });
+  await page.reload();
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
+  await expect.poll(() => laneHeight(page)).toBe(withoutTracks);
 });
 
 test("Record waits for a recording track and says so", async ({ page }) => {

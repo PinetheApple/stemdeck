@@ -49,12 +49,14 @@
   background: var(--bg-2);
   box-sizing: border-box;
 }
-/* Lanes floor at their minimum height on short windows and the column scrolls; + Track stays in reach. */
-.mixer-column > .rec-add-row {
+/* With recording rows, + Track stays in reach if the lanes still overflow; a song without them scrolls as before. */
+.mixer-column:has(> .rec-row) > .rec-add-row {
   position: sticky;
   bottom: 0;
   z-index: 1;
 }
+/* With recording rows the lane fit may go below the stems' 72px floor; rows follow --lane-h, floored in takesLayout.js. */
+.mixer-column:has(> .rec-row) > .lane-header.mx-row { min-height: 0; }
 .rec-add-btn {
   display: inline-flex;
   align-items: center;
@@ -130,6 +132,9 @@
 .rec-input-btn .ic { width: var(--rec-dot); height: var(--rec-dot); flex-shrink: 0; color: var(--text-3); }
 .rec-input-btn .ic:last-child { margin-left: auto; }
 .rec-input-btn[aria-expanded="true"] { border-color: var(--accent); }
+/* On short rows the input picker gives up height first, so the name and meter stay inside the row. */
+.rec-row .rec-left { align-self: stretch; }
+.rec-row .rec-input-btn { flex: 0 1 auto; min-height: calc(var(--fs-2xs) + var(--s-1)); }
 .rec-row .lane-vu.mx-meter { height: 6px; }
 
 /* Arm: a red dot, outlined until armed. Same box as M and S. */
