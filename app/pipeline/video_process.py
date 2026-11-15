@@ -31,7 +31,22 @@ class ProcessStopped(Exception):
         self.reason = reason
 
 
-def _kill(proc: subprocess.Popen) -> None:
+def spawn_group(cmd: list[str]) -> subprocess.Popen:
+    """Start `cmd` in its own process group, its output as text pipes."""
+    return subprocess.Popen(  # noqa: S603 -- list args, trusted ffmpeg/ffprobe
+        cmd,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        start_new_session=_POSIX,
+    )
+
+
+def kill_group(proc: subprocess.Popen) -> None:
+    """Kill a process started by spawn_group, and anything it started."""
     if proc.poll() is not None:
         return
     try:
@@ -56,7 +71,7 @@ def _watch(
             return
         if cancelled() or time.monotonic() > deadline:
             why.append(STOP_CANCELLED if cancelled() else STOP_TIMEOUT)
-            _kill(proc)
+            kill_group(proc)
             return
 
 
@@ -70,16 +85,7 @@ def run_watched(
     process that exited 0 on its own as the limit hit is not reported stopped."""
     if cancelled():
         raise ProcessStopped(STOP_CANCELLED)
-    proc = subprocess.Popen(  # noqa: S603 -- list args, trusted ffmpeg/ffprobe
-        cmd,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        start_new_session=_POSIX,
-    )
+    proc = spawn_group(cmd)
     stop = threading.Event()
     why: list[str] = []
     guard = threading.Thread(
