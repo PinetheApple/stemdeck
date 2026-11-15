@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mockup #208: rename a folder | StemDeck</title>
+  <link rel="stylesheet" href="folders-fonts.css">
+  <link rel="stylesheet" href="../../static/css/variables.css">
+  <link rel="stylesheet" href="../../static/css/waves.css">
+  <link rel="stylesheet" href="../../static/css/daw.css">
+  <link rel="stylesheet" href="../../static/css/studio.css">
+  <link rel="stylesheet" href="../../static/css/footer-fit.css">
+  <link rel="stylesheet" href="../../static/css/inspector.css">
+  <link rel="stylesheet" href="../../static/css/library.css">
+  <link rel="stylesheet" href="../../static/css/forms.css">
+  <link rel="stylesheet" href="folders-mock.css">
+</head>
+<body>
+  <div id="mockRoot"></div>
+  <p class="mock-note" id="mockNote"></p>
+  <nav class="mock-states" aria-label="Mockup states"></nav>
+  <script src="folders-mock.js"></script>
+  <script>
+  (function renameMockup() {
+    const M = window.FolderMock;
+    const STATES = [
+      ["menu-open", "Menu (recommended)"],
+      ["row-hover", "Row hover"],
+      ["keyboard", "Keyboard focus"],
+      ["dialog-open", "Rename dialog"],
+      ["empty-refused", "Empty name"],
+      ["renamed", "Renamed"],
+      ["alt-pencil", "Alt: pencil button"],
+      ["alt-inline", "Alt: inline field"],
+    ];
+    const NOTES = {
+      "menu-open": "<strong>Recommended.</strong> A ⋯ on a folder row opens its menu, drawn like a song's ⋯ menu. Delete arms the ⋯ with “Delete?”, as a version's Delete does. Unsorted has no ⋯.",
+      "row-hover": "Hover: grip and ⋯ on a folder and on a subfolder. Unsorted shows nothing.",
+      "keyboard": "Keyboard: the focused folder row wears the focus frame and shows its ⋯. F2 opens Rename; Right reaches the ⋯.",
+      "dialog-open": "Rename opens the existing folder dialog, retitled, with the name selected. Double-click on the row still opens it.",
+      "empty-refused": "A blank name is refused with the existing message; the row keeps its old name.",
+      "renamed": "Saved: the row shows the new name and keeps focus. No toast.",
+      "alt-pencil": "Alternative: a pencil between New subfolder and Delete on every non-system folder row.",
+      "alt-inline": "Alternative: the name becomes a text field in the row, as a setlist's rename does. Enter saves, Esc cancels.",
+    };
+    const state = M.currentState("menu-open");
+    const lib = M.sampleLibrary();
+    const [unsorted, rehearsal] = lib.folders;
+    const ballads = rehearsal.children[0];
+    const useTools = (tools) => lib.folders.concat(ballads).forEach((f) => { f.tools = tools; });
+
+    if (state === "alt-pencil") useTools("pencil");
+    else useTools("menu");
+
+    if (["menu-open", "row-hover", "alt-pencil"].includes(state)) {
+      rehearsal.hover = true;
+      unsorted.hover = true;
+    }
+    if (["row-hover", "alt-pencil"].includes(state)) ballads.hover = true;
+    if (["keyboard", "dialog-open", "empty-refused", "renamed"].includes(state)) rehearsal.focus = true;
+    if (state === "renamed") rehearsal.name = "Tuesday rehearsal";
+    if (state === "alt-inline") rehearsal.inline = rehearsal.name;
+
+    M.mountShell();
+    M.drawLibrary(lib);
+    M.stateBar(STATES, state);
+    document.getElementById("mockNote").innerHTML = NOTES[state] || "";
+
+    const rehearsalHead = document.querySelector('.folder[data-id="f-rehearsal"] > .folder-head');
+    if (state === "menu-open") {
+      M.openMenu(rehearsalHead, [
+        { text: "Rename…", icon: "pencil" },
+        { text: "New subfolder", icon: "folderPlus" },
+        { separator: true },
+        { text: "Delete folder", icon: "trash", danger: true },
+      ], "More for Rehearsal");
+    }
+    const dialog = { title: "Rename folder", name: rehearsal.name, color: rehearsal.color, colors: M.FOLDER_COLORS };
+    if (state === "dialog-open") M.openDialog(dialog);
+    if (state === "empty-refused") M.openDialog({ ...dialog, name: "   ", message: "Enter a folder name." });
+    if (state === "alt-inline") {
+      const input = rehearsalHead.querySelector(".f-name-input");
+      input.focus();
+      input.select();
+    }
+  })();
+  </script>
+</body>
+</html>

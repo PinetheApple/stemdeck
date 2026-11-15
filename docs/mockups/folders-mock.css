@@ -1,0 +1,53 @@
+/* Mockup-only rules for #208/#209. The new row buttons copy .f-subfolder (daw.css);
+   .mock-hover / .mock-focus / .mock-selected stand in for :hover, :focus-visible and
+   the selected frame so a still screenshot can show them. */
+html, body { height: 100%; margin: 0; }
+#mockRoot { height: 100vh; }
+#mockRoot .app { height: 100%; }
+.mock-studio { background: var(--bg); }
+
+.mock-states {
+  position: fixed; right: 12px; bottom: 12px; z-index: 2000;
+  display: flex; flex-wrap: wrap; gap: 4px; max-width: 560px;
+  padding: 6px; border: 1px solid var(--line-strong); border-radius: var(--r-2);
+  background: var(--surface-2); font: var(--fs-xs) / 1.2 var(--font-sans);
+}
+.mock-states a { padding: 3px 7px; border-radius: var(--r-1); color: var(--text-2); text-decoration: none; cursor: pointer; }
+.mock-states a[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
+.mock-note {
+  position: fixed; right: 12px; top: 12px; z-index: 2000; max-width: 420px;
+  margin: 0; padding: 8px 10px; border: 1px dashed var(--line-strong); border-radius: var(--r-2);
+  background: var(--surface-1); color: var(--text-2); font: var(--fs-sm) / 1.4 var(--font-sans);
+}
+.mock-note strong { color: var(--text); }
+body.mock-shot .mock-states { display: none; }
+
+.folder-head :is(.f-more, .f-rename, .f-setlist) {
+  width: var(--target-min); height: var(--target-min);
+  margin-block: calc((var(--icon-lg) - var(--target-min)) / 2);
+  border: none; background: transparent; color: var(--muted); cursor: pointer; opacity: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px; padding: 0; flex-shrink: 0;
+  transition: opacity var(--t-fast), color var(--t-fast);
+}
+.folder-head :is(.f-more, .f-rename, .f-setlist) .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.folder-head:hover :is(.f-more, .f-rename, .f-setlist),
+.folder-head:focus-within :is(.f-more, .f-rename, .f-setlist),
+.folder-head .f-more[aria-expanded="true"] { opacity: 1; }
+.folder-head :is(.f-more, .f-rename, .f-setlist):hover,
+.folder-head .f-more[aria-expanded="true"] { background: color-mix(in srgb, var(--surface-2) 80%, transparent); color: var(--fg-2); }
+
+.folder-head.mock-hover:not(.system) { background: var(--panel); color: var(--fg); }
+.folder-head.mock-hover :is(.f-del, .f-subfolder, .f-more, .f-rename, .f-setlist) { opacity: 1; }
+.folder-head.mock-hover .f-grip { display: flex; }
+.folder-head.mock-focus { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.folder-head.mock-focus :is(.f-more, .f-rename, .f-setlist, .f-del, .f-subfolder) { opacity: 1; }
+.folder-head.mock-selected,
+.setlist-head.mock-selected { box-shadow: inset 0 0 0 1px var(--text-3); border-radius: var(--r-2); }
+.setlist-head.mock-selected { padding-top: var(--s-1); }
+
+.folder-head .f-name-input { flex: 1; font-size: 12px; }
+.mock-row-error { padding: 2px 8px 4px 30px; }
+
+.mock-check { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--fg); font-size: 11px; cursor: pointer; }
+.mock-check input { accent-color: var(--accent); cursor: pointer; }

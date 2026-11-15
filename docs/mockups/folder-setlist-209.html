@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mockup #209: folder to setlist and back | StemDeck</title>
+  <link rel="stylesheet" href="folders-fonts.css">
+  <link rel="stylesheet" href="../../static/css/variables.css">
+  <link rel="stylesheet" href="../../static/css/waves.css">
+  <link rel="stylesheet" href="../../static/css/daw.css">
+  <link rel="stylesheet" href="../../static/css/studio.css">
+  <link rel="stylesheet" href="../../static/css/footer-fit.css">
+  <link rel="stylesheet" href="../../static/css/inspector.css">
+  <link rel="stylesheet" href="../../static/css/library.css">
+  <link rel="stylesheet" href="../../static/css/forms.css">
+  <link rel="stylesheet" href="folders-mock.css">
+</head>
+<body>
+  <div id="mockRoot"></div>
+  <p class="mock-note" id="mockNote"></p>
+  <nav class="mock-states" aria-label="Mockup states"></nav>
+  <script src="folders-mock.js"></script>
+  <script>
+  (function conversionMockup() {
+    const M = window.FolderMock;
+    const S = M.SONGS;
+    const STATES = [
+      ["folder-menu-setlist", "Folder menu (recommended)"],
+      ["folder-hover", "Alt: folder row button"],
+      ["setlist-created", "Setlist made"],
+      ["setlist-hover", "Setlist row"],
+      ["folder-created", "Folder made"],
+      ["clash", "Name taken"],
+      ["alt-dialog", "Alt: dialog"],
+      ["too-many", "Too many songs"],
+    ];
+    const NOTES = {
+      "folder-menu-setlist": "<strong>Recommended.</strong> “Make a setlist” in the folder's ⋯ menu (the #208 menu). Unsorted has no ⋯.",
+      "folder-hover": "Alternative: a “Make a setlist” button on the folder row, between New subfolder and Delete.",
+      "setlist-created": "The Setlists tab opens on the new setlist, selected: the folder's own songs, then Ballads'. The folder stays.",
+      "setlist-hover": "A setlist row gets “Make a folder” between Rename and Delete (setlist tools are always shown).",
+      "folder-created": "From “Friday set”: the new folder holds its songs, moved out of their old folders. “Old Demo” stays in the Trash. The setlist stays.",
+      "clash": "A setlist named Rehearsal already exists, so the new one is “Rehearsal (2)”.",
+      "alt-dialog": "Alternative: a small dialog to name the setlist and, optionally, remove the folder.",
+      "too-many": "Over 1000 songs: nothing is made; the row says why.",
+    };
+    const state = M.currentState("folder-menu-setlist");
+    const lib = M.sampleLibrary();
+    const [unsorted, rehearsal, gig] = lib.folders;
+    const ballads = rehearsal.children[0];
+    const allFolders = lib.folders.concat(ballads);
+    let view = "songs";
+
+    allFolders.forEach((f) => { f.tools = state === "folder-hover" ? "setlist" : "menu"; });
+    if (state === "folder-menu-setlist" || state === "folder-hover") {
+      rehearsal.hover = true;
+      unsorted.hover = true;
+    }
+    if (state === "folder-hover") ballads.hover = true;
+
+    const fromRehearsal = (name) => ({
+      id: "s-new", name, selected: true,
+      songs: [S.hold, S.glass, S.burn, S.north, S.still, S.last],
+    });
+    if (state === "setlist-created") {
+      view = "setlists";
+      lib.setlists.push(fromRehearsal("Rehearsal"));
+    }
+    if (state === "clash") {
+      view = "setlists";
+      lib.setlists.push({ id: "s-old", name: "Rehearsal", songs: [S.hold, S.burn, S.paper] }, fromRehearsal("Rehearsal (2)"));
+    }
+    if (state === "setlist-hover") {
+      view = "setlists";
+      lib.setlists.push({ id: "s-old", name: "Rehearsal", songs: [S.hold, S.burn, S.paper] });
+      lib.setlists.forEach((s) => { s.makeFolder = true; });
+    }
+    if (state === "folder-created") {
+      const moved = new Set(["north", "neon", "still"]);
+      for (const f of allFolders) f.songs = f.songs.filter((s) => !moved.has(s.id));
+      rehearsal.count = rehearsal.songs.length;
+      gig.songs = new Array(5).fill(S.paper);
+      lib.folders.push({ id: "f-friday", name: "Friday set", color: M.FOLDER_COLORS[0], songs: [S.north, S.neon, S.still], tools: "menu", selected: true });
+    }
+    if (state === "too-many") {
+      rehearsal.collapsed = true;
+      rehearsal.count = 1204;
+      rehearsal.focus = true;
+      rehearsal.error = "Too many songs for a setlist (max 1000).";
+    }
+
+    M.mountShell();
+    M.drawLibrary({ ...lib, view });
+    M.stateBar(STATES, state);
+    document.getElementById("mockNote").innerHTML = NOTES[state] || "";
+
+    const rehearsalHead = document.querySelector('.folder[data-id="f-rehearsal"] > .folder-head');
+    if (state === "folder-menu-setlist") {
+      M.openMenu(rehearsalHead, [
+        { text: "Rename…", icon: "pencil" },
+        { text: "New subfolder", icon: "folderPlus" },
+        { text: "Make a setlist", icon: "listPlus" },
+        { separator: true },
+        { text: "Delete folder", icon: "trash", danger: true },
+      ], "More for Rehearsal");
+    }
+    if (state === "alt-dialog") {
+      M.openDialog({
+        title: "Make a setlist from Rehearsal",
+        name: "Rehearsal",
+        color: rehearsal.color,
+        colors: M.FOLDER_COLORS,
+        showColors: false,
+        saveText: "Make setlist",
+        extraHtml: '<label class="mock-check"><input type="checkbox"> Remove the folder</label>',
+      });
+    }
+  })();
+  </script>
+</body>
+</html>
