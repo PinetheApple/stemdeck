@@ -115,7 +115,7 @@ The sound is the export mix the client sends, without the take's `i_play` stems,
 
 The picture is moved onto the song clock first and cut after, then put on the nearest output frame. The H.264 encoder is chosen as in [the encoder settings](configuration.md): a GPU encoder that fails, stalls or writes a file that fails its check is redone on libx264 and `fallback_reason` says why.
 
-A render waits behind a running separation, and only one runs at a time. It writes a temp file; a finished render replaces `render.mp4` and writes `render.json`, so the result and its encoder survive a restart. A cancel or a failure keeps the previous `render.mp4`.
+A render waits behind a running separation, and only one runs at a time. It writes a temp file. When it finishes, `render.json` is written first, naming the new file by size and modification time, and then the temp file replaces `render.mp4`; `render.json` is trusted only for the file it names, so a crash between the two never credits an old file to a new encoder. The result and its encoder survive a restart. A cancel or a failure keeps the previous `render.mp4`. Temp files a crash left behind are removed when that take renders again, and once per server run for every take (only those older than the longest render allowed).
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -124,4 +124,4 @@ A render waits behind a running separation, and only one runs at a time. It writ
 | POST | `/api/jobs/{id}/takes/{take_id}/render/cancel` | Stop the render → the view |
 | GET, HEAD | `/api/jobs/{id}/takes/{take_id}/render.mp4` | The export, downloaded as `<song>_<label>.mp4` |
 
-The render view: `{status: "none" | "queued" | "running" | "done" | "error" | "cancelled", progress, error, url, encoder, family, fallback_reason, size, fps, span, stale, made_at}`. `stale` is true once the take, its trim or camera offset, or the request changed since `render.mp4` was made.
+The render view: `{status: "none" | "queued" | "running" | "done" | "error" | "cancelled", progress, error, url, encoder, family, fallback_reason, size, fps, span, stale, made_at}`. `error` names what went wrong: `disk-full`, `files`, `timeout`, `failed`, or the encoder's reason (`missing`, `no-device`, `busy`). The encoder fields are null when `render.json` does not name the `render.mp4` on disk. `stale` is true once the take, its trim or camera offset, or the request changed since `render.mp4` was made.
