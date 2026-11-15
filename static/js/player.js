@@ -67,6 +67,13 @@ import { laneRowFloor, takeLaneSpace, onTakeLayoutChange } from "./takesLayout.j
 import { takeSoloActive } from "./takesMix.js";
 import { finishTakeBeforeTeardown } from "./recorder.js";
 import { DEFAULT_VERSION_ID } from "./versionModel.js";
+import { applyAllFx } from "./mixFx.js";
+import { setMixSource } from "./masterEngine.js";
+import { addExportFx } from "./eq/eqExport.js";
+import { createLaneEqMark } from "./eq/eqLaneMark.js";
+
+/** Fired on document once a song's engine is up and playable. */
+export const PLAYBACK_READY_EVENT = "playbackready";
 
 // Playback-engine selection. All engines play decoded AudioBuffers off a single
 // AudioContext clock (no N streaming <audio> elements — that was the source of
@@ -959,6 +966,7 @@ export function renderEmptyShell() {
   // job is loaded yet, and shows them in place of "vocals" once one is.
   for (const name of ["original", ...STEM_NAMES, ...EXTRA_STEM_NAMES]) {
     const { row } = renderMixerRow({ name, url: "#" });
+    row.prepend(createLaneEqMark(name));
     mixerEl.appendChild(row);
   }
   requestAnimationFrame(() => _applyLaneHeight(1 + STEM_NAMES.length));
@@ -1604,8 +1612,10 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
             if (pitchable) resetPitch(mixGlobalPitch());
             setLaneKeysAvailable(pitchable);
             applyAllLanePitches();
+            setMixSource(_masterMixSource);
+            applyAllFx();
           });
-          document.dispatchEvent(new CustomEvent("playbackready", { detail: { id: jobId } }));
+          document.dispatchEvent(new CustomEvent(PLAYBACK_READY_EVENT, { detail: { id: jobId } }));
 
           // Click track. Bound to this engine instance, so it is rebuilt on
           // every engine bring-up (including the chunked -> fulldecode swap
@@ -1993,6 +2003,21 @@ export function setExportClickAvailable(on) {
 // Dynamic mixdown URL for the current mixer state. Returns null (no download)
 // when every lane is silenced; `region` appends the loop bounds.
 function _mixdownUrl(ext, region) {
+  const mix = _mixQuery();
+  if (!mix) return null;
+  const { names, q } = mix;
+  if (region) {
+    q.set("start", loopStart.toFixed(3));
+    q.set("end", loopEnd.toFixed(3));
+  }
+  _clickParams(q);
+  _countInParam(q);
+  addExportFx(q, names);
+  return `/api/jobs/${currentJobId}/mixdown.${ext}?${q}`;
+}
+
+// The audible lanes as a mixdown query, or null when there is no song or every lane is silent.
+function _mixQuery() {
   if (!currentJobId) return null;
   const { names, gains, pitches } = _effectiveMixGains();
   if (!names.length) return null;
@@ -2001,13 +2026,15 @@ function _mixdownUrl(ext, region) {
     gains: gains.map((g) => g.toFixed(3)).join(","),
     ...(pitches.some((p) => p !== 0) ? { pitches: pitches.join(",") } : {}),
   });
-  if (region) {
-    q.set("start", loopStart.toFixed(3));
-    q.set("end", loopEnd.toFixed(3));
-  }
-  _clickParams(q);
-  _countInParam(q);
-  return `/api/jobs/${currentJobId}/mixdown.${ext}?${q}`;
+  return { names, q };
+}
+
+// The mix the master measures: the export's lanes and EQ, without master=.
+function _masterMixSource() {
+  const mix = _mixQuery();
+  if (!mix) return null;
+  addExportFx(mix.q, mix.names, { master: false });
+  return { jobId: currentJobId, query: mix.q.toString() };
 }
 
 // One stem, named after the song so it stays identifiable once dragged into a
@@ -2053,6 +2080,7 @@ export function downloadCurrentVideo(onTransferStart) {
     ...(pitches.some((p) => p !== 0) ? { pitches: pitches.join(",") } : {}),
   });
   _clickParams(q);
+  addExportFx(q, names);
   const safe = _currentTitle
     .replace(/[^a-zA-Z0-9]+/g, "_")
     .replace(/_{2,}/g, "_")
