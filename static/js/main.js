@@ -23,6 +23,7 @@ import { initFooterFit, refitFooter } from "./footerFit.js";
 import { initArtistInfo } from "./artistInfo.js";
 import { initLyrics } from "./lyrics.js";
 import { initHelpMode } from "./helpMode.js";
+import { initAutoScroll } from "./autoScroll.js";
 import { initInspector } from "./inspector.js";
 import { initLibraryResize } from "./libraryResize.js";
 import { initUpNext, renderUpNext } from "./upNext.js";
@@ -481,6 +482,7 @@ initFooterFit();
 initArtistInfo();
 initLyrics();
 initHelpMode();
+initAutoScroll();
 initInspector();
 initLibraryResize();
 // Before Up Next, which reports its first count as it starts.

@@ -535,6 +535,7 @@ const en = {
   "notifKind.vocalSplitFailed": "Vocal split failed",
   "help.detectStructure": "Experimental. When on, the next song you import gets its intro, verse and chorus marked for you.",
   "help.sectionsToggle": "Shows or hides the sections bar, where the parts of the song are marked.",
+  "help.autoScroll": "When zoomed in, the track view turns the page to keep the playhead in view while playing. Scrolling by hand pauses it until the playhead is back in view, or until you seek or press Play.",
   "help.extract": "Starts splitting the song into its instruments. Each one gets its own lane below.",
   "help.favorite": "Adds the open song to Favorites, or takes it out.",
   "help.songDetails": "Details about the open song.",
@@ -667,6 +668,8 @@ const en = {
   "panels.timelineTitle": "Show or hide the timeline",
 
   "panels.collapse": "Collapse",
+  "autoScroll.label": "Auto-scroll",
+  "autoScroll.title": "Keep the playhead in view while playing when zoomed in",
   "mixer.hint": "Drag fader · M/S",
   "stemsPanel.ariaLabel": "Stems",
 
@@ -1703,6 +1706,7 @@ const pl = {
   "notifKind.vocalSplitFailed": "Rozdzielanie wokalu nie powiodło się",
   "help.detectStructure": "Eksperymentalne. Gdy włączone, następny importowany utwór dostanie oznaczone intro, zwrotki i refreny.",
   "help.sectionsToggle": "Pokazuje lub ukrywa pasek sekcji, na którym oznaczone są części utworu.",
+  "help.autoScroll": "Po powiększeniu widok ścieżek przewija się stronami, żeby głowica była widoczna podczas odtwarzania. Ręczne przewinięcie wstrzymuje to, dopóki głowica nie wróci do widoku albo dopóki nie przeskoczysz w inne miejsce lub nie naciśniesz Odtwórz.",
   "help.extract": "Zaczyna rozdzielać utwór na instrumenty. Każdy dostaje własną ścieżkę poniżej.",
   "help.favorite": "Dodaje otwarty utwór do Ulubionych albo go z nich usuwa.",
   "help.songDetails": "Szczegóły otwartego utworu.",
@@ -1835,6 +1839,8 @@ const pl = {
   "panels.timelineTitle": "Pokaż lub ukryj oś czasu",
 
   "panels.collapse": "Zwiń",
+  "autoScroll.label": "Autoprzewijanie",
+  "autoScroll.title": "Utrzymuj głowicę w widoku podczas odtwarzania po powiększeniu",
   "mixer.hint": "Przeciągnij suwak · M/S",
   "stemsPanel.ariaLabel": "Ścieżki",
 
@@ -2863,6 +2869,7 @@ const ja = {
   "notifKind.vocalSplitFailed": "ボーカル分離に失敗しました",
   "help.detectStructure": "実験的機能。オンにすると、次に取り込む曲のイントロ、Aメロ、サビに印が付きます。",
   "help.sectionsToggle": "曲のパートが示されるセクションバーを表示または非表示にします。",
+  "help.autoScroll": "拡大中は、再生中に再生位置が見えるようにトラック表示がページ送りされます。手動でスクロールすると、再生位置が表示内に戻るか、移動または再生を押すまで一時停止します。",
   "help.extract": "曲を楽器ごとに分け始めます。それぞれ下に専用のレーンができます。",
   "help.favorite": "開いている曲をお気に入りに追加するか、外します。",
   "help.songDetails": "開いている曲の詳細です。",
@@ -2995,6 +3002,8 @@ const ja = {
   "panels.timelineTitle": "タイムラインの表示を切り替えます",
 
   "panels.collapse": "折りたたむ",
+  "autoScroll.label": "自動スクロール",
+  "autoScroll.title": "拡大中、再生中に再生位置を表示し続けます",
   "mixer.hint": "フェーダーをドラッグ · M/S",
   "stemsPanel.ariaLabel": "パート",
 
@@ -3994,6 +4003,7 @@ const zhHans = {
   "notifKind.vocalSplitFailed": "人声分离失败",
   "help.detectStructure": "实验功能。开启后，下一首导入的歌曲会自动标出前奏、主歌和副歌。",
   "help.sectionsToggle": "显示或隐藏段落栏，歌曲的各个部分在那里标出。",
+  "help.autoScroll": "放大时，播放过程中轨道视图会整页翻动，让播放头保持可见。手动滚动会暂停自动滚动，直到播放头回到视图中，或你跳转位置、按下播放。",
   "help.extract": "开始把歌曲分离成各个乐器。每个乐器在下方有自己的音轨。",
   "help.favorite": "把当前歌曲加入收藏，或移出收藏。",
   "help.songDetails": "当前歌曲的详细信息。",
@@ -4126,6 +4136,8 @@ const zhHans = {
   "panels.timelineTitle": "显示或隐藏时间轴",
 
   "panels.collapse": "折叠",
+  "autoScroll.label": "自动滚动",
+  "autoScroll.title": "放大时，播放中保持播放头可见",
   "mixer.hint": "拖动推子 · M/S",
   "stemsPanel.ariaLabel": "音轨",
 
@@ -5125,6 +5137,7 @@ const de = {
   "notifKind.vocalSplitFailed": "Gesangstrennung fehlgeschlagen",
   "help.detectStructure": "Experimentell. Wenn an, bekommt der nächste importierte Song Intro, Strophe und Refrain markiert.",
   "help.sectionsToggle": "Zeigt oder versteckt die Abschnittsleiste, in der die Teile des Songs markiert sind.",
+  "help.autoScroll": "Wenn hineingezoomt ist, blättert die Spuransicht beim Abspielen weiter, damit die Abspielposition sichtbar bleibt. Scrollst du von Hand, pausiert das, bis die Abspielposition wieder sichtbar ist oder du springst oder Wiedergabe drückst.",
   "help.extract": "Startet das Zerlegen des Songs in seine Instrumente. Jedes bekommt unten eine eigene Spur.",
   "help.favorite": "Fügt den offenen Song zu den Favoriten hinzu oder nimmt ihn wieder heraus.",
   "help.songDetails": "Details zum offenen Song.",
@@ -5257,6 +5270,8 @@ const de = {
   "panels.timelineTitle": "Zeitleiste ein- oder ausblenden",
 
   "panels.collapse": "Einklappen",
+  "autoScroll.label": "Auto-Scroll",
+  "autoScroll.title": "Beim Abspielen die Abspielposition im Blick behalten, wenn hineingezoomt ist",
   "mixer.hint": "Fader ziehen · M/S",
   "stemsPanel.ariaLabel": "Stems",
 
@@ -6269,6 +6284,7 @@ const pt = {
   "notifKind.vocalSplitFailed": "Falha na separação de voz",
   "help.detectStructure": "Experimental. Ligado, a próxima música importada recebe a intro, os versos e os refrões marcados.",
   "help.sectionsToggle": "Mostra ou esconde a barra de seções, onde as partes da música são marcadas.",
+  "help.autoScroll": "Com zoom, a vista das faixas vira a página para manter o cursor de reprodução à vista durante a reprodução. Rolar manualmente pausa isso até o cursor voltar à vista, ou até você pular para outro ponto ou apertar Reproduzir.",
   "help.extract": "Começa a separar a música em instrumentos. Cada um ganha sua própria faixa abaixo.",
   "help.favorite": "Adiciona a música aberta aos Favoritos, ou a retira.",
   "help.songDetails": "Detalhes da música aberta.",
@@ -6401,6 +6417,8 @@ const pt = {
   "panels.timelineTitle": "Mostrar ou ocultar a linha do tempo",
 
   "panels.collapse": "Recolher",
+  "autoScroll.label": "Rolagem automática",
+  "autoScroll.title": "Manter o cursor de reprodução à vista durante a reprodução com zoom",
   "mixer.hint": "Arraste o fader · M/S",
   "stemsPanel.ariaLabel": "Stems",
 
@@ -7415,6 +7433,7 @@ const id = {
   "notifKind.vocalSplitFailed": "Pemisahan vokal gagal",
   "help.detectStructure": "Eksperimental. Jika aktif, lagu berikutnya yang Anda impor ditandai intro, bait, dan reff-nya.",
   "help.sectionsToggle": "Menampilkan atau menyembunyikan bilah bagian, tempat bagian-bagian lagu ditandai.",
+  "help.autoScroll": "Saat diperbesar, tampilan trek berganti halaman agar penanda putar tetap terlihat selama diputar. Menggulir sendiri menjedanya sampai penanda putar terlihat lagi, atau sampai Anda melompat atau menekan Putar.",
   "help.extract": "Mulai memisahkan lagu menjadi instrumen. Masing-masing mendapat jalurnya sendiri di bawah.",
   "help.favorite": "Menambahkan lagu yang terbuka ke Favorit, atau mengeluarkannya.",
   "help.songDetails": "Detail tentang lagu yang terbuka.",
@@ -7547,6 +7566,8 @@ const id = {
   "panels.timelineTitle": "Tampilkan atau sembunyikan lini masa",
 
   "panels.collapse": "Ciutkan",
+  "autoScroll.label": "Gulir otomatis",
+  "autoScroll.title": "Jaga penanda putar tetap terlihat saat diputar dalam keadaan diperbesar",
   "mixer.hint": "Seret fader · M/S",
   "stemsPanel.ariaLabel": "Stem",
 
@@ -8546,6 +8567,7 @@ const fr = {
   "notifKind.vocalSplitFailed": "Échec de la séparation des voix",
   "help.detectStructure": "Expérimental. Activé, le prochain morceau importé reçoit son intro, ses couplets et ses refrains marqués.",
   "help.sectionsToggle": "Affiche ou masque la barre des sections, où les parties du morceau sont marquées.",
+  "help.autoScroll": "En mode zoomé, la vue des pistes tourne la page pour garder la tête de lecture visible pendant la lecture. Faire défiler à la main le met en pause jusqu'à ce que la tête de lecture soit de nouveau visible, ou jusqu'à un saut ou un appui sur Lecture.",
   "help.extract": "Lance la séparation du morceau en instruments. Chacun obtient sa propre piste en dessous.",
   "help.favorite": "Ajoute le morceau ouvert aux Favoris, ou l'en retire.",
   "help.songDetails": "Détails sur le morceau ouvert.",
@@ -8678,6 +8700,8 @@ const fr = {
   "panels.timelineTitle": "Afficher ou masquer la chronologie",
 
   "panels.collapse": "Réduire",
+  "autoScroll.label": "Défilement auto",
+  "autoScroll.title": "Garder la tête de lecture visible pendant la lecture en mode zoomé",
   "mixer.hint": "Glissez le fader · M/S",
   "stemsPanel.ariaLabel": "Pistes",
 
@@ -9676,6 +9700,9 @@ const ptPT = {
   "reimport.title": "Importar esta música novamente?",
   "reimport.body": "Os ficheiros dela já não estão neste computador. Importar transfere a música novamente e para o que está a tocar.",
   "reimport.confirm": "Importar novamente",
+  "autoScroll.label": "Deslocamento automático",
+  "autoScroll.title": "Manter o cursor de reprodução à vista durante a reprodução com zoom",
+  "help.autoScroll": "Com zoom, a vista das faixas vira a página para manter o cursor de reprodução à vista durante a reprodução. Deslocar manualmente pausa isto até o cursor voltar à vista, ou até saltar para outro ponto ou premir Reproduzir.",
 };
 
 const es = {
@@ -9996,6 +10023,7 @@ const es = {
   "notifKind.vocalSplitFailed": "La separación de voces falló",
   "help.detectStructure": "Experimental. Activado, la próxima canción que importes tendrá marcados la intro, las estrofas y los estribillos.",
   "help.sectionsToggle": "Muestra u oculta la barra de secciones, donde se marcan las partes de la canción.",
+  "help.autoScroll": "Con zoom, la vista de pistas pasa de página para mantener el cursor de reproducción a la vista mientras suena. Desplazarte a mano lo pausa hasta que el cursor vuelve a la vista, o hasta que saltas a otro punto o pulsas Reproducir.",
   "help.extract": "Empieza a separar la canción en sus instrumentos. Cada uno tiene su propia pista abajo.",
   "help.favorite": "Añade la canción abierta a Favoritos, o la quita.",
   "help.songDetails": "Detalles de la canción abierta.",
@@ -10128,6 +10156,8 @@ const es = {
   "panels.timelineTitle": "Mostrar u ocultar la línea de tiempo",
 
   "panels.collapse": "Contraer",
+  "autoScroll.label": "Desplazamiento automático",
+  "autoScroll.title": "Mantener el cursor de reproducción a la vista al reproducir con zoom",
   "mixer.hint": "Arrastra el fader · M/S",
   "stemsPanel.ariaLabel": "Stems",
 
@@ -11163,6 +11193,7 @@ const ko = {
   "notifKind.vocalSplitFailed": "보컬 분리 실패",
   "help.detectStructure": "실험 기능이에요. 켜면 다음에 가져오는 곡의 인트로, 벌스, 코러스가 표시돼요.",
   "help.sectionsToggle": "곡의 구간이 표시되는 섹션 막대를 보이거나 숨겨요.",
+  "help.autoScroll": "확대했을 때 재생 중에는 재생 위치가 보이도록 트랙 화면이 페이지 단위로 넘어가요. 직접 스크롤하면 재생 위치가 다시 화면에 들어오거나, 위치를 옮기거나 재생을 누를 때까지 멈춰요.",
   "help.extract": "곡을 악기별로 나누기 시작해요. 악기마다 아래에 레인이 생겨요.",
   "help.favorite": "열린 곡을 즐겨찾기에 넣거나 빼요.",
   "help.songDetails": "열린 곡의 자세한 정보예요.",
@@ -11295,6 +11326,8 @@ const ko = {
   "panels.timelineTitle": "타임라인 표시하거나 숨기기",
 
   "panels.collapse": "접기",
+  "autoScroll.label": "자동 스크롤",
+  "autoScroll.title": "확대했을 때 재생 중 재생 위치를 화면에 유지해요",
   "mixer.hint": "페이더 드래그 · M/S",
   "stemsPanel.ariaLabel": "스템",
 

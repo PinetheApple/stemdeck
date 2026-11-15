@@ -38,6 +38,7 @@ const HELP = [
   ['.vocal-mode-btn[data-mode="split"]', "help.vocalSplit"],
   ["#autoSectionsBtn", "help.detectStructure"],
   ['.daw-panel-toggle[data-panel="sections"]', "help.sectionsToggle"],
+  ["#autoScrollBtn", "help.autoScroll"],
   ["#submit", "help.extract"],
   ["#fav-btn", "help.favorite"],
   ["#np-details-btn", "help.songDetails"],
