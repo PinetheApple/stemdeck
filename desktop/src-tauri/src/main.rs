@@ -1,5 +1,6 @@
 mod certs;
 mod dragout;
+mod dropfolder;
 mod dropin;
 #[cfg(any(target_os = "linux", test))]
 mod rocm;
@@ -509,7 +510,14 @@ fn main() {
                 match drop {
                     tauri::DragDropEvent::Enter { .. } => inbox.enter(),
                     tauri::DragDropEvent::Drop { paths, .. } => {
-                        inbox.drop_paths(paths);
+                        // Off the window's thread: opening a large dropped
+                        // folder must not freeze the window while it walks.
+                        let ticket = inbox.begin_drop();
+                        let app = window.app_handle().clone();
+                        let paths = paths.clone();
+                        tauri::async_runtime::spawn_blocking(move || {
+                            app.state::<dropin::DropInbox>().drop_paths(ticket, &paths);
+                        });
                     }
                     tauri::DragDropEvent::Leave => inbox.leave(),
                     _ => {}
@@ -538,6 +546,7 @@ fn main() {
             native_file_drop,
             next_drop_signal,
             read_dropped_file,
+            pick_import_folder,
             save_audio_file,
             pick_export_destination,
             download_to_path,
@@ -2166,7 +2175,7 @@ fn ensure_torch_device(
 
     // CPU-only portable build: skip GPU detection and pip entirely.
     if is_cpu_only_package(&root) {
-        persist_torch_device(&data_dir, "cpu", "cpu-only-package");
+        persist_torch_device(&data_dir, "cpu", "cpu-only-package", None);
         return Ok(GpuSetup {
             gpu_detected: false,
             gpu_name: None,
@@ -2193,7 +2202,7 @@ fn ensure_torch_device(
         } else {
             ("cpu", "mps-unavailable")
         };
-        persist_torch_device(&data_dir, device, reason);
+        persist_torch_device(&data_dir, device, reason, None);
         Ok(GpuSetup {
             gpu_detected: mps_available,
             gpu_name: if mps_available {
@@ -2370,7 +2379,12 @@ fn ensure_torch_device(
         // cpu on a cpu-only package) as settled -- a CPU result born from a
         // failure is re-probed on the next launch instead of pinning the
         // install to CPU forever (#247).
-        persist_torch_device(&data_dir, &setup.torch_device, &setup.reason);
+        persist_torch_device(
+            &data_dir,
+            &setup.torch_device,
+            &setup.reason,
+            setup.backend.as_deref(),
+        );
         append_to_setup_log(
             &data_dir,
             &format!(
@@ -2436,7 +2450,14 @@ fn clear_stale_cpu_marker(root: &Path, data_dir: &Path) {
     }
 }
 
-fn persist_torch_device(data_dir: &std::path::Path, device: &str, reason: &str) {
+/// `backend` is written on every run, null included, so the server's Settings
+/// can name the card a CPU reason is about and a stale value never survives.
+fn persist_torch_device(
+    data_dir: &std::path::Path,
+    device: &str,
+    reason: &str,
+    backend: Option<&str>,
+) {
     let _ = update_setup_config(
         data_dir,
         [
@@ -2445,6 +2466,7 @@ fn persist_torch_device(data_dir: &std::path::Path, device: &str, reason: &str) 
                 "torchDeviceReason",
                 serde_json::Value::String(reason.to_string()),
             ),
+            ("gpuBackend", serde_json::json!(backend)),
         ],
     );
 }
@@ -3673,6 +3695,34 @@ async fn read_dropped_file(app: tauri::AppHandle, id: u64) -> Result<tauri::ipc:
     .await
     .map_err(|e| e.to_string())??;
     Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// The native folder chooser behind Add a folder, which WebKitGTK cannot
+/// offer the page. The folder arrives as a drop does, through
+/// `next_drop_signal`, so its path stays on this side too. `title` is the
+/// page's own translated label for the button.
+#[tauri::command]
+async fn pick_import_folder(app: tauri::AppHandle, title: String) -> Result<(), String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.dialog()
+        .file()
+        .set_title(title)
+        .pick_folder(move |path| {
+            let _ = tx.send(path);
+        });
+    let Some(picked) = rx.recv().map_err(|e| e.to_string())? else {
+        return Ok(()); // user cancelled
+    };
+    let folder = picked.into_path().map_err(|e| e.to_string())?;
+    let ticket = app.state::<dropin::DropInbox>().begin_drop();
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<dropin::DropInbox>()
+            .drop_paths(ticket, &[folder]);
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// Opens an http/https URL in the system browser. Rejects non-http schemes.
@@ -7319,6 +7369,30 @@ mod tests {
         // Absent reason stays absent (already unsettled) in both package kinds.
         assert_eq!(super::effective_device_reason(None, false), None);
         assert_eq!(super::effective_device_reason(None, true), None);
+    }
+
+    /// The server names the card behind a CPU reason from this key, and a run
+    /// without a GPU clears what an earlier run recorded.
+    #[test]
+    fn the_device_record_carries_the_gpu_backend() {
+        let dir = make_tmp();
+        let record = |dir: &Path| -> serde_json::Value {
+            serde_json::from_str(&fs::read_to_string(dir.join("config.json")).unwrap()).unwrap()
+        };
+        super::persist_torch_device(
+            dir.path(),
+            "cpu",
+            "cuda-verify-failed",
+            Some(super::rocm::BACKEND),
+        );
+        let amd = record(dir.path());
+        assert_eq!(amd["torchDeviceReason"], "cuda-verify-failed");
+        assert_eq!(amd["gpuBackend"], super::rocm::BACKEND);
+        super::persist_torch_device(dir.path(), "cpu", "no-gpu-detected", None);
+        let none = record(dir.path());
+        assert!(none
+            .get("gpuBackend")
+            .is_some_and(serde_json::Value::is_null));
     }
 
     #[cfg(target_os = "macos")]

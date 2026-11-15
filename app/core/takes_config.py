@@ -70,8 +70,5 @@ TAKE_RATE = 44100
 TAKE_CHANNELS = 2
 TAKE_PEAK_POINTS = 3000
 
-# Headroom for the overshoot a lossy encoder adds on top of the limit.
-EXPORT_LIMIT_DBFS = -1.0
-
 TAKE_RELOCATING_RETRY_SEC = 2
 FFMPEG_STDERR_TAIL_BYTES = 2000

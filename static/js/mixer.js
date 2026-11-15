@@ -13,14 +13,21 @@ function allTrackNames() {
   return [...TRACK_NAMES, ...EXTRA_STEM_NAMES];
 }
 import {
-  mixerState, mixerEl, stemListEl, currentJobId, multitrack, trackIndex,
+  mixerState, mixerEl, stemListEl, currentJobId, currentVersionId, multitrack, trackIndex,
   masterVolume, audioEngine,
 } from "./state.js";
 import { storeGet, storeSetDebounced, storeFlushPending } from "./utils.js";
+import { DEFAULT_VERSION_ID, mixStoreKey } from "./versionModel.js";
 import { t } from "./i18n.js";
 import {
   GLOBAL_PITCH_FIELD, PITCH_MAX, PITCH_MIN, clampPitch, pitchBlockedKey, savedGlobalPitch,
 } from "./pitchBus.js";
+import {
+  bindFxStore,
+  ensureFxDefaults,
+  loadFxIntoState,
+  resetFxState,
+} from "./mixFx.js";
 
 function defaultMixerEntry() {
   // `pitch` is the key this lane is actually in, in semitones from the
@@ -35,6 +42,7 @@ export function ensureMixerStateDefaults() {
   for (const name of allTrackNames()) {
     if (!mixerState[name]) mixerState[name] = defaultMixerEntry();
   }
+  ensureFxDefaults(allTrackNames());
 }
 
 export const MIX_CHANGE_EVENT = "mixchange";
@@ -42,24 +50,39 @@ export const MIX_CHANGE_EVENT = "mixchange";
 const announceMixChange = () => document.dispatchEvent(new CustomEvent(MIX_CHANGE_EVENT));
 
 let globalPitch = 0;
+// Never saved: a view's silence must not leak into the song's mix.
+const silencedStems = new Set();
+
+/** Silence `stemNames` on top of the mix, leaving the mix itself alone. */
+export function setSilencedStems(stemNames) {
+  silencedStems.clear();
+  for (const stemName of stemNames) silencedStems.add(stemName);
+  applyMix();
+}
+
+export function clearSilencedStems() {
+  silencedStems.clear();
+  applyMix();
+}
 
 export function mixGlobalPitch() {
   return globalPitch;
 }
 
-const mixKey = (jobId) => `stemdeck:mix:${jobId}`;
-
-export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES) {
+export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES, versionId = DEFAULT_VERSION_ID) {
+  const key = mixStoreKey(jobId, versionId);
+  silencedStems.clear();
   let stored = {};
   try {
     // Write any pending save for this song before reading it.
-    await storeFlushPending(mixKey(jobId));
-    const data = await storeGet(mixKey(jobId), {});
+    await storeFlushPending(key);
+    const data = await storeGet(key, {});
     if (data && typeof data === "object") stored = data;
   } catch (e) { console.warn("[mixer] failed to load mix state:", e); }
   for (const name of allTrackNames()) {
     Object.assign(mixerState[name], defaultMixerEntry(), stored[name] || {});
   }
+  loadFxIntoState(stored, allTrackNames());
   // If all loaded stems are muted the session is unplayable -- unmute as recovery.
   const loadedStems = loadedStemNames.filter((n) => mixerState[n]);
   if (loadedStems.length > 0 && loadedStems.every((n) => mixerState[n].muted)) {
@@ -69,16 +92,19 @@ export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES) {
 }
 
 export function resetMixerState() {
+  silencedStems.clear();
   for (const name of allTrackNames()) {
     Object.assign(mixerState[name], defaultMixerEntry());
   }
+  resetFxState(allTrackNames());
   globalPitch = 0;
 }
 
 function saveMix() {
   if (!currentJobId) return;
-  storeSetDebounced(mixKey(currentJobId), { ...mixerState, [GLOBAL_PITCH_FIELD]: globalPitch });
+  storeSetDebounced(mixStoreKey(currentJobId, currentVersionId), { ...mixerState, [GLOBAL_PITCH_FIELD]: globalPitch });
 }
+bindFxStore({ save: saveMix, laneNames: allTrackNames });
 
 /** Push one lane's transpose into whichever engine is playing. */
 export function applyLanePitch(name) {
@@ -183,12 +209,17 @@ export function setLaneKeysAvailable(available) {
   }
 }
 
-/** True when this lane is not heard: muted, or another loaded lane soloed while this one is not. */
+/**
+ * True when this lane is not heard: muted or silenced, or another loaded lane soloed while this one is not.
+ * A silenced lane's solo does not count.
+ */
 export function isLaneSilenced(name) {
   const s = mixerState[name];
   if (!s) return false;
-  if (s.muted) return true;
-  const anySolo = allTrackNames().some((lane) => trackIndex[lane] !== undefined && mixerState[lane]?.soloed);
+  if (s.muted || silencedStems.has(name)) return true;
+  const anySolo = allTrackNames().some(
+    (lane) => trackIndex[lane] !== undefined && mixerState[lane]?.soloed && !silencedStems.has(lane),
+  );
   return anySolo && !s.soloed;
 }
 

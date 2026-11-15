@@ -52,6 +52,7 @@ from app.core.config import (
     torch_gpu_backend,
     torch_load_error,
 )
+from app.core.gpu_unused import gpu_unused
 from app.core.logging_setup import configure_logging
 from app.core.models import JobBusy
 from app.core.process import process_exists as _process_exists
@@ -459,6 +460,7 @@ def _settings_payload() -> dict[str, object]:
         # Set when torch is installed but cannot load, which stops separation
         # on every device (#730). Read after the probe above refreshed it.
         "torch_error": torch_load_error(),
+        "gpu_unused": gpu_unused(),
     }
 
 

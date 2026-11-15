@@ -16,6 +16,7 @@ from typing import Any
 from app.core.config import JOB_ID_RE, STEM_NAMES, UPLOAD_EXTS
 from app.core.models import Job
 from app.core.stem_files import holds_stem_audio, is_stem_audio
+from app.core.versions import clean_versions, is_version_id
 
 logger = logging.getLogger("stemdeck.registry")
 
@@ -40,6 +41,8 @@ SAVED_FIELDS = (
     "source_format",
     "source_name",
     "created_at",
+    "versions",
+    "open_version",
 )
 
 
@@ -75,6 +78,10 @@ def _clean_value(name: str, value: object) -> tuple[bool, object]:
     if name == "selected_stems":
         stems = _clean_stems(value)
         return stems is not None, stems
+    if name == "versions":
+        return value is None or clean_versions(value) is not None, value
+    if name == "open_version":
+        return value is None or is_version_id(value), value
     if name in ("source_url", "source_name"):
         return value is None or isinstance(value, str), value
     # source_format: drawn as the upload's format icon, so only a known one.
@@ -143,7 +150,7 @@ def quarantine_dirs(jobs_dir: Path) -> list[Path]:
 # set-aside copies (persist, keep_bad_records), the setlists and the desktop
 # shell's store with the copies its save keeps, each with the temp name of an
 # atomic write. A copy left behind would bring the old library back.
-_OWN_FILE_RE = re.compile(
+OWN_FILE_RE = re.compile(
     r"(registry\.json(\.bad-[\w-]+)?|user-data\.json(\.(bak|tmp|corrupt-[0-9]+))?"
     r"|setlists\.json)\Z"
     r"|\.(registry|registry\.json|setlists\.json)\.[0-9a-f]{32}\.tmp\Z"
@@ -160,7 +167,7 @@ def own_entries(jobs_dir: Path, known: set[str]) -> list[Path]:
     targets += [
         f
         for f in jobs_dir.iterdir()
-        if _OWN_FILE_RE.match(f.name) and f.is_file() and is_real_entry(f)
+        if OWN_FILE_RE.match(f.name) and f.is_file() and is_real_entry(f)
     ]
     return targets
 

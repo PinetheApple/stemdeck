@@ -5,6 +5,7 @@ import { applyRenamedState, getCurrentTrackInfo, getTrackNames, relookupTrack } 
 import { t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
 import { SONG_NAME_MAX_CHARS, fetchJson, iconButton, isNotFound, refusalReason, textInput } from "./libraryControls.js";
+import { FOLDER_MOVING_KEY, isFolderMovingError } from "./folderMoving.js";
 import { $ } from "./utils.js";
 
 let editor = null; // { trackId, place: "head" | "row", close }
@@ -26,6 +27,7 @@ function restoreButton(names) {
 
 function failureMessage(err) {
   if (isNotFound(err)) return t("rename.gone");
+  if (isFolderMovingError(err)) return t(FOLDER_MOVING_KEY);
   const reason = refusalReason(err);
   return reason ? t("rename.rejected", { reason }) : t("rename.failed");
 }
