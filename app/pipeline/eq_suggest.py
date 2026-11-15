@@ -19,33 +19,15 @@ replace mode, against the lane through its current EQ in merge mode).
 A lane with too little to measure (under SUGGEST_MIN_GATED_SECONDS of loud
 audio, or quieter than SUGGEST_MIN_LANE_LUFS) is refused with
 ``NotEnoughSignal`` rather than guessed at.
-
-``recommend_master`` picks a master loudness preset from the mix's measured
-integrated loudness and true peak: never louder than the material allows,
-i.e. never asking the limiter for more than SUGGEST_LIMIT_ALLOWANCE_DB on
-the loudest peaks.
 """
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 
 import numpy as np
 
-from app.core.config import (
-    FX_MAX_BANDS,
-    SUGGEST_CEILING_DBTP,
-    SUGGEST_CUSTOM_MIN_LUFS,
-    SUGGEST_DEFAULT_TARGET_LUFS,
-    SUGGEST_DENSE_LUFS,
-    SUGGEST_DENSE_PLR_DB,
-    SUGGEST_LIMIT_ALLOWANCE_DB,
-    SUGGEST_LOUDER_COMP,
-    SUGGEST_LOUDER_LUFS,
-    SUGGEST_MIN_GATED_SECONDS,
-    SUGGEST_MIN_LANE_LUFS,
-)
+from app.core.config import FX_MAX_BANDS, SUGGEST_MIN_GATED_SECONDS, SUGGEST_MIN_LANE_LUFS
 from app.pipeline.eq_analysis import (
     CENTRES_HZ,
     N_BANDS,
@@ -85,13 +67,6 @@ _REGIONS = (
     (10000, "high"),
 )
 _TOP_REGION = "air"
-
-PRESET_GENTLE = "gentle"
-PRESET_STREAMING = "streaming"
-PRESET_LOUDER = "louder"
-PRESET_CUSTOM = "custom"
-# Custom targets are offered on a half-dB grid.
-_CUSTOM_STEPS_PER_DB = 2.0
 
 
 class NotEnoughSignal(ValueError):
@@ -243,76 +218,3 @@ def band_reasons(fit: FitResult) -> list[dict]:
     is from the target where the band acts (``dev``: measured minus target,
     positive means too much there), and what the band does."""
     return [_band_reason(fb.band, -fit.error_db, fit.weights) for fb in fit.bands]
-
-
-@dataclass(frozen=True)
-class MasterSuggestion:
-    preset: str
-    target_lufs: float | None
-    comp: float
-    limit_db: float  # what the limiter is estimated to take off the loudest peaks
-    reason: dict
-    ceiling_dbtp: float = SUGGEST_CEILING_DBTP
-
-    def to_json(self) -> dict:
-        return {
-            "preset": self.preset,
-            "target_lufs": self.target_lufs,
-            "ceiling_dbtp": self.ceiling_dbtp,
-            "comp": self.comp,
-        }
-
-
-def _limiting(target: float, plr: float) -> float:
-    return round(max(0.0, target - SUGGEST_CEILING_DBTP + plr), _REASON_DECIMALS)
-
-
-def _louder_or_streaming(
-    i: float,
-    plr: float,
-    want: float,
-    allowed: float,
-) -> MasterSuggestion | None:
-    nums = {"i": round(i, 1), "plr": round(plr, 1)}
-    if plr < SUGGEST_DENSE_PLR_DB and i > SUGGEST_DENSE_LUFS and allowed >= SUGGEST_LOUDER_LUFS:
-        why = {"key": "suggest.why.master.louder", "vars": {**nums, "target": SUGGEST_LOUDER_LUFS}}
-        limit = _limiting(SUGGEST_LOUDER_LUFS, plr)
-        return MasterSuggestion(PRESET_LOUDER, SUGGEST_LOUDER_LUFS, SUGGEST_LOUDER_COMP, limit, why)
-    if allowed >= want:
-        limit = _limiting(want, plr)
-        why = {
-            "key": "suggest.why.master.streaming",
-            "vars": {**nums, "target": want, "limit": limit},
-        }
-        return MasterSuggestion(PRESET_STREAMING, want, 0.0, limit, why)
-    return None
-
-
-def _quieter(i: float, tp: float, want: float, allowed: float) -> MasterSuggestion:
-    plr, nums = tp - i, {"i": round(i, 1), "plr": round(tp - i, 1)}
-    if allowed < SUGGEST_CUSTOM_MIN_LUFS:
-        # Even the quietest target would squash the peaks: only the limiter, against clipping.
-        limit = round(max(0.0, tp - SUGGEST_CEILING_DBTP), _REASON_DECIMALS)
-        why = {"key": "suggest.why.master.gentle", "vars": nums}
-        return MasterSuggestion(PRESET_GENTLE, None, 0.0, limit, why)
-    target = math.floor(allowed * _CUSTOM_STEPS_PER_DB) / _CUSTOM_STEPS_PER_DB
-    limit = _limiting(target, plr)
-    vars_ = {**nums, "target": target, "want": want, "limit": limit}
-    why = {"key": "suggest.why.master.dynamic", "vars": vars_}
-    return MasterSuggestion(PRESET_CUSTOM, target, 0.0, limit, why)
-
-
-def recommend_master(
-    i: float | None,
-    tp: float | None,
-    target_lufs: float | None,
-) -> MasterSuggestion:
-    """A master preset from the mix's integrated loudness ``i`` and true peak
-    ``tp``: the loudest target whose peaks the limiter trims by at most the
-    allowance, dense loud material kept loud, silence left alone."""
-    if i is None or tp is None:
-        why = {"key": "suggest.why.master.silent", "vars": {}}
-        return MasterSuggestion(PRESET_GENTLE, None, 0.0, 0.0, why)
-    want = SUGGEST_DEFAULT_TARGET_LUFS if target_lufs is None else float(target_lufs)
-    allowed = SUGGEST_CEILING_DBTP - (tp - i) + SUGGEST_LIMIT_ALLOWANCE_DB
-    return _louder_or_streaming(i, tp - i, want, allowed) or _quieter(i, tp, want, allowed)

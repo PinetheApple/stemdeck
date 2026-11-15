@@ -10,7 +10,6 @@
 - Loudness-neutral: the suggested EQ rendered through the export's own ffmpeg
   filters changes the measured integrated loudness by under 0.5 LU.
 - A lane too short or too quiet is refused, not guessed at.
-- The master preset never asks the limiter for more than the allowance.
 """
 
 from __future__ import annotations
@@ -25,22 +24,13 @@ import soundfile as sf
 from app.core.config import (
     SUGGEST_COMBINED_MAX_DB,
     SUGGEST_GAIN_MAX_DB,
-    SUGGEST_LIMIT_ALLOWANCE_DB,
     SUGGEST_MAX_BANDS_LANE,
-    SUGGEST_MAX_BANDS_MASTER,
     SUGGEST_MIN_GAIN_DB,
     ffmpeg_executable,
 )
 from app.pipeline import eq_analysis as A
 from app.pipeline import eq_fit as F
-from app.pipeline.eq_suggest import (
-    MERGE,
-    REPLACE,
-    NotEnoughSignal,
-    band_reasons,
-    make_suggestion,
-    recommend_master,
-)
+from app.pipeline.eq_suggest import MERGE, REPLACE, NotEnoughSignal, band_reasons, make_suggestion
 from app.pipeline.eq_targets import default_target, get_target, load_targets
 from app.pipeline.fx_filters import BELL, HIGHSHELF, LOWCUT, LOWSHELF, Band, Eq, eq_filter
 from tests.ffmpeg_probe import skip_without_ffmpeg
@@ -137,7 +127,7 @@ def test_pink_noise_against_a_flat_target_needs_nothing():
 
 
 def test_noise_shaped_like_balanced_needs_nothing():
-    _s, bands, before, _after = fit_of(shaped_noise(BALANCED), BALANCED, F.MASTER)
+    _s, bands, before, _after = fit_of(shaped_noise(BALANCED), BALANCED, F.FREE)
     assert bands == []
     assert before < 0.5
 
@@ -158,7 +148,7 @@ def test_a_bump_at_250_hz_comes_back_as_a_cut_there(target):
 
 def test_a_dark_signal_gets_a_high_boost():
     x = shaped_noise(BALANCED, extra=[DARK])
-    _s, bands, before, after = fit_of(x, BALANCED, F.MASTER, max_bands=SUGGEST_MAX_BANDS_MASTER)
+    _s, bands, before, after = fit_of(x, BALANCED, F.FREE, max_bands=SUGGEST_MAX_BANDS_LANE)
     high = [b for b in bands if b.f >= 2000 and b.type in (HIGHSHELF, BELL)]
     assert high and all(b.g > 0 for b in high)
     assert after < before - 0.5
@@ -183,11 +173,11 @@ def test_the_fit_lowers_the_distance_to_the_target(target, extra):
 
 def test_suggesting_on_a_suggested_result_changes_little():
     s = A.analyse(shaped_noise(BALANCED, extra=MUD_AND_DARK))
-    first = F.fit_eq(s.bands, BALANCED, F.MASTER, SUGGEST_MAX_BANDS_MASTER)
+    first = F.fit_eq(s.bands, BALANCED, F.FREE, SUGGEST_MAX_BANDS_LANE)
     bands = [fb.band for fb in first.bands]
     assert bands
     after = A.band_levels_after(s.power, bands, F.neutral_out_db(s.power, bands))
-    again = F.fit_eq(after, BALANCED, F.MASTER, SUGGEST_MAX_BANDS_MASTER)
+    again = F.fit_eq(after, BALANCED, F.FREE, SUGGEST_MAX_BANDS_LANE)
     assert len(again.bands) <= 1
     assert all(abs(fb.band.g) <= 1.5 for fb in again.bands if fb.band.type != LOWCUT)
 
@@ -205,11 +195,11 @@ def _assert_fixed_panel(fit, slots) -> None:
     assert [f for _i, f in sorted(bells)] == sorted(f for _i, f in bells), "bells out of order"
 
 
-@pytest.mark.parametrize("layout", [F.FREE, F.MASTER, *F.FIXED_LAYOUTS])
+@pytest.mark.parametrize("layout", [F.FREE, *F.FIXED_LAYOUTS])
 def test_bounds_are_respected(layout):
     rng = np.random.default_rng(7)
     slots = {s.id: s for s in F.LAYOUTS[layout]}
-    max_bands = SUGGEST_MAX_BANDS_MASTER if layout == F.MASTER else SUGGEST_MAX_BANDS_LANE
+    max_bands = SUGGEST_MAX_BANDS_LANE
     target = get_target(
         f"{layout}.balanced" if layout in ("bass", "guitar", "keys") else "mix.balanced"
     )
@@ -245,11 +235,10 @@ def test_the_bass_shelf_corner_moves_with_its_gain_like_the_panel():
     ],
     ids=["no-low-end", "encoder-cutoff", "audible-hole"],
 )
-@pytest.mark.parametrize("layout", [F.FREE, F.MASTER])
-def test_no_boost_where_content_is_missing(missing, drop_db, region, layout):
+def test_no_boost_where_content_is_missing(missing, drop_db, region):
     levels = np.asarray(BALANCED).copy()
     levels[missing] -= drop_db
-    fit = F.fit_eq(levels, BALANCED, layout, SUGGEST_MAX_BANDS_MASTER)
+    fit = F.fit_eq(levels, BALANCED, F.FREE, SUGGEST_MAX_BANDS_LANE)
     lo, hi = region
     assert not [fb for fb in fit.bands if lo <= fb.band.f < hi and fb.band.g > 0], fit.bands
 
@@ -295,7 +284,7 @@ def test_the_suggested_eq_keeps_the_loudness(tmp_path, extra, target):
     src, dst = tmp_path / "in.wav", tmp_path / "out.wav"
     sf.write(src, x, SR, subtype="FLOAT")
     s = A.analyse(x)
-    bands = [fb.band for fb in F.fit_eq(s.bands, target, F.MASTER, SUGGEST_MAX_BANDS_MASTER).bands]
+    bands = [fb.band for fb in F.fit_eq(s.bands, target, F.FREE, SUGGEST_MAX_BANDS_LANE).bands]
     assert bands
     _ffmpeg_render(src, dst, eq_filter(Eq(F.neutral_out_db(s.power, bands), tuple(bands)), SR))
     y, _ = sf.read(dst, dtype="float64")
@@ -305,7 +294,7 @@ def test_the_suggested_eq_keeps_the_loudness(tmp_path, extra, target):
 
 def _suggest(spec, mode, current=None):
     target = get_target("mix.balanced")
-    return make_suggestion(spec, target, F.MASTER, mode, current, SUGGEST_MAX_BANDS_MASTER, [])
+    return make_suggestion(spec, target, F.FREE, mode, current, SUGGEST_MAX_BANDS_LANE, [])
 
 
 def test_merge_keeps_the_current_bands_and_adds_new_ones():
@@ -337,27 +326,6 @@ def test_not_enough_signal_is_refused(gain_db, seconds):
     x = shaped_noise(FLAT, seconds=seconds) * 10 ** (gain_db / 20)
     with pytest.raises(NotEnoughSignal):
         make_suggestion(A.analyse(x), get_target("other.balanced"), F.FREE, REPLACE, None, 5, [])
-
-
-@pytest.mark.parametrize(
-    ("i", "tp", "preset", "target"),
-    [
-        (-16.2, -2.0, "streaming", -14.0),
-        (-13.6, 1.4, "streaming", -14.0),
-        (-9.1, 0.75, "louder", -9.0),
-        (-20.0, -0.5, "custom", -16.5),
-        (-30.0, -2.0, "gentle", None),
-    ],
-)
-def test_master_preset_respects_the_material(i, tp, preset, target):
-    m = recommend_master(i, tp, -14.0)
-    assert (m.preset, m.target_lufs, m.ceiling_dbtp) == (preset, target, -1.0)
-    assert m.limit_db <= SUGGEST_LIMIT_ALLOWANCE_DB + 1e-9
-    assert set(m.to_json()) == {"preset", "target_lufs", "ceiling_dbtp", "comp"}
-
-
-def test_master_preset_for_silence_is_gentle():
-    assert recommend_master(None, None, -14.0).preset == "gentle"
 
 
 def test_targets_are_complete():

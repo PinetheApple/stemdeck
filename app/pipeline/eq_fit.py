@@ -2,8 +2,7 @@
 
 The output is nothing but the studio EQ's own bands (bell, shelves, low cut,
 the Keys panel's tilt), designed by the engine's maths (fx_filters.py), so a
-suggestion is an EQ the user can see, drag, preview, keep or undo. It works
-for a lane as well as for the master.
+suggestion is an EQ the user can see, drag, preview, keep or undo.
 
 The fit, on the 31 third-octave bands (eq_analysis.py):
 
@@ -38,8 +37,7 @@ The fit, on the 31 third-octave bands (eq_analysis.py):
    (BS.1770) loudness the bands cause on the measured, gated spectrum.
 
 Layouts: "free" (the graphical panels: bells and shelves up to the band
-limit, plus a gentle low cut), "master" (the same, low cut only in the sub
-range), and the fixed pedal panels "bass", "guitar" and "keys", whose knobs
+limit, plus a gentle low cut) and the fixed pedal panels "bass", "guitar" and "keys", whose knobs
 are fixed bands: each slot is used at most once, in its own frequency range,
 and the result maps back onto the knobs.
 """
@@ -79,7 +77,6 @@ from app.pipeline.eq_analysis import (
 from app.pipeline.fx_filters import BELL, DEFAULT_Q, HIGHSHELF, LOWCUT, LOWSHELF, TILT, Band
 
 FREE = "free"
-MASTER = "master"
 FIXED_LAYOUTS = ("bass", "guitar", "keys")
 SLOPE = 12
 FREE_Q = (0.7, 1.0, 1.4, 2.0)
@@ -158,7 +155,6 @@ _FREE = (
 )
 LAYOUTS: dict[str, tuple[Slot, ...]] = {
     FREE: (*_FREE, Slot("lowcut", LOWCUT, _nominal_between(25, 125))),
-    MASTER: (*_FREE, Slot("lowcut", LOWCUT, _nominal_between(20, 31.5))),
     "bass": (
         Slot("hpf", LOWCUT, _nominal_between(25, 63)),
         Slot("ls", LOWSHELF, (_SHELF_MIN_HZ,), dynamic_shelf=True),
