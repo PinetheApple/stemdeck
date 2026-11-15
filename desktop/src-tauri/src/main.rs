@@ -502,10 +502,11 @@ fn main() {
                     tauri::DragDropEvent::Drop { paths, .. } => {
                         // Off the window's thread: opening a large dropped
                         // folder must not freeze the window while it walks.
+                        let ticket = inbox.begin_drop();
                         let app = window.app_handle().clone();
                         let paths = paths.clone();
                         tauri::async_runtime::spawn_blocking(move || {
-                            app.state::<dropin::DropInbox>().drop_paths(&paths);
+                            app.state::<dropin::DropInbox>().drop_paths(ticket, &paths);
                         });
                     }
                     tauri::DragDropEvent::Leave => inbox.leave(),
@@ -3508,8 +3509,10 @@ async fn pick_import_folder(app: tauri::AppHandle, title: String) -> Result<(), 
         return Ok(()); // user cancelled
     };
     let folder = picked.into_path().map_err(|e| e.to_string())?;
+    let ticket = app.state::<dropin::DropInbox>().begin_drop();
     tauri::async_runtime::spawn_blocking(move || {
-        app.state::<dropin::DropInbox>().drop_paths(&[folder]);
+        app.state::<dropin::DropInbox>()
+            .drop_paths(ticket, &[folder]);
     })
     .await
     .map_err(|e| e.to_string())

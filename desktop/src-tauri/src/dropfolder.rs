@@ -5,10 +5,11 @@
 //! `webkitGetAsEntry`, and reviews every file under it with the folder it sits
 //! in (`walkEntries` in `static/js/batchImportModel.js`). On Linux the drop
 //! never reaches the page (see `dropin`), so the same walk happens here and
-//! follows the same rules: hidden names are skipped at every level, and each
-//! file carries the folder path below the drop, `/`-separated, starting with
-//! the dropped folder's own name.
+//! follows the same rules: hidden names are skipped at every level, linked
+//! folders are followed, and each file carries the folder path below the drop,
+//! `/`-separated, starting with the dropped folder's own name.
 
+use std::collections::HashSet;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -50,36 +51,55 @@ pub fn expand(paths: &[PathBuf]) -> io::Result<Expanded> {
             files,
         });
     }
-    let mut files = Vec::new();
+    let mut walk = Walk::default();
     for path in paths {
-        visit(path, "", &mut files)?;
+        walk.visit(path, "")?;
     }
     Ok(Expanded {
         folder: true,
-        files,
+        files: walk.files,
     })
 }
 
-fn visit(path: &Path, dir: &str, out: &mut Vec<Found>) -> io::Result<()> {
-    let name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    if name.starts_with(HIDDEN_PREFIX) {
-        return Ok(());
-    }
-    // Not following a linked folder keeps a link back up the tree from
-    // walking forever.
-    let kind = fs::symlink_metadata(path)?.file_type();
-    if kind.is_dir() {
-        let below = join(dir, &name);
-        for entry in fs::read_dir(path)? {
-            visit(&entry?.path(), &below, out)?;
+#[derive(Default)]
+struct Walk {
+    files: Vec<Found>,
+    /// Folders already opened, by their real path, so a link back up the tree
+    /// is walked once rather than forever.
+    opened: HashSet<PathBuf>,
+}
+
+impl Walk {
+    fn visit(&mut self, path: &Path, dir: &str) -> io::Result<()> {
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        if name.starts_with(HIDDEN_PREFIX) {
+            return Ok(());
         }
-    } else if path.is_file() {
-        out.push(found(path.to_path_buf(), dir.to_string()));
+        // Follows links. A link to nothing is left out, as the page leaves it.
+        let meta = match fs::metadata(path) {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+            meta => meta?,
+        };
+        if meta.is_dir() {
+            self.open(path, &join(dir, &name))?;
+        } else if meta.is_file() {
+            self.files.push(found(path.to_path_buf(), dir.to_string()));
+        }
+        Ok(())
     }
-    Ok(())
+
+    fn open(&mut self, folder: &Path, below: &str) -> io::Result<()> {
+        if !self.opened.insert(fs::canonicalize(folder)?) {
+            return Ok(());
+        }
+        for entry in fs::read_dir(folder)? {
+            self.visit(&entry?.path(), below)?;
+        }
+        Ok(())
+    }
 }
 
 fn join(dir: &str, name: &str) -> String {
@@ -207,7 +227,38 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn a_link_back_up_the_tree_is_not_followed() {
+    fn a_dropped_link_to_a_folder_is_opened_under_the_link_name() {
+        let tmp = tempfile::tempdir().unwrap();
+        let real = tmp.path().join("Real");
+        write(&real.join("a.wav"), b"a");
+        let link = tmp.path().join("Set");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        let expanded = expand(&[link]).unwrap();
+
+        assert!(expanded.folder);
+        assert_eq!(listing(&expanded), vec![row("Set", "a.wav", 1)]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_linked_subfolder_is_walked_as_the_page_walks_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("Set");
+        let other = tmp.path().join("Other");
+        write(&root.join("a.wav"), b"a");
+        write(&other.join("b.wav"), b"bb");
+        std::os::unix::fs::symlink(&other, root.join("Live")).unwrap();
+
+        assert_eq!(
+            listing(&expand(&[root]).unwrap()),
+            vec![row("Set", "a.wav", 1), row("Set/Live", "b.wav", 2)]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_link_back_up_the_tree_is_walked_once() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path().join("Set");
         write(&root.join("a.wav"), b"a");

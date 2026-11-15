@@ -110,9 +110,16 @@ pub struct NextSignal {
     pub signal: Option<DropSignal>,
 }
 
+/// One drop, taken when it lands and before its folders are walked, so the
+/// walk that finishes last cannot overwrite a drop that landed after it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DropTicket(u64);
+
 #[derive(Default)]
 struct Inner {
     next_id: u64,
+    /// The ticket of the drop that landed last; only its walk is recorded.
+    latest_drop: u64,
     /// Files from the most recent drop that the page has not read yet.
     pending: HashMap<u64, PathBuf>,
     /// Sequence number of the newest signal; 0 before there has been one.
@@ -163,26 +170,50 @@ impl DropInbox {
         self.publish(&mut inner, DropSignal::Leave);
     }
 
+    /// Takes a ticket for a drop that has just landed.
+    pub fn begin_drop(&self) -> DropTicket {
+        let mut inner = self.lock();
+        inner.latest_drop += 1;
+        DropTicket(inner.latest_drop)
+    }
+
     /// Records a drop and publishes it, a dropped folder as the files in it.
+    /// A drop overtaken by a later one is discarded, leaving the later one's
+    /// files readable.
     ///
     /// Replaces whatever an earlier drop left unread: the page only ever acts
     /// on the latest drop, so older paths would sit here for the life of the
     /// app, still readable, for no reason.
-    pub fn drop_paths(&self, paths: &[PathBuf]) -> Vec<DroppedFile> {
+    pub fn drop_paths(&self, ticket: DropTicket, paths: &[PathBuf]) -> Vec<DroppedFile> {
         // Walked before taking the lock: a folder on a network mount can take
         // a while, and nothing else needs to wait for it.
-        let expanded = match dropfolder::expand(paths) {
-            Ok(expanded) => expanded,
+        match dropfolder::expand(paths) {
+            Ok(expanded) => self.record(ticket, expanded),
             Err(e) => {
-                eprintln!("[dropin] could not read a dropped folder: {e}");
-                let mut inner = self.lock();
-                inner.pending.clear();
-                self.publish(&mut inner, DropSignal::FolderUnreadable);
-                return vec![];
+                self.refuse_unreadable(ticket, &e);
+                vec![]
             }
-        };
+        }
+    }
 
-        let mut inner = self.lock();
+    /// The lock, if `ticket` is still the latest drop.
+    fn lock_if_latest(&self, ticket: DropTicket) -> Option<std::sync::MutexGuard<'_, Inner>> {
+        let inner = self.lock();
+        (inner.latest_drop == ticket.0).then_some(inner)
+    }
+
+    fn refuse_unreadable(&self, ticket: DropTicket, err: &std::io::Error) {
+        eprintln!("[dropin] could not read a dropped folder: {err}");
+        if let Some(mut inner) = self.lock_if_latest(ticket) {
+            inner.pending.clear();
+            self.publish(&mut inner, DropSignal::FolderUnreadable);
+        }
+    }
+
+    fn record(&self, ticket: DropTicket, expanded: dropfolder::Expanded) -> Vec<DroppedFile> {
+        let Some(mut inner) = self.lock_if_latest(ticket) else {
+            return vec![];
+        };
         inner.pending.clear();
         let mut files = Vec::with_capacity(expanded.files.len());
         for found in expanded.files {
@@ -274,6 +305,35 @@ mod tests {
     use super::*;
     use std::io::Write;
 
+    /// A drop with nothing landing after it.
+    fn drop_now(inbox: &DropInbox, paths: &[PathBuf]) -> Vec<DroppedFile> {
+        inbox.drop_paths(inbox.begin_drop(), paths)
+    }
+
+    #[test]
+    fn a_walk_overtaken_by_a_later_drop_leaves_that_drop_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let slow = file_with(dir.path(), "slow.wav", b"a");
+        let quick = file_with(dir.path(), "quick.wav", b"b");
+        let inbox = DropInbox::default();
+        let first = inbox.begin_drop();
+        let second = inbox.begin_drop();
+
+        let quick_id = inbox.drop_paths(second, &[quick])[0].id;
+        let stale = inbox.drop_paths(first, &[slow]);
+
+        assert!(stale.is_empty());
+        assert!(
+            inbox.take(quick_id).is_some(),
+            "the later drop is still readable"
+        );
+        assert_eq!(
+            drain(&inbox, 0).len(),
+            1,
+            "only the later drop is published"
+        );
+    }
+
     fn file_with(dir: &Path, name: &str, bytes: &[u8]) -> PathBuf {
         let path = dir.join(name);
         fs::File::create(&path).unwrap().write_all(bytes).unwrap();
@@ -286,7 +346,7 @@ mod tests {
         let a = file_with(dir.path(), "Take 3.flac", b"abcd");
         let inbox = DropInbox::default();
 
-        let files = inbox.drop_paths(&[a]);
+        let files = drop_now(&inbox, &[a]);
 
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].name, "Take 3.flac");
@@ -305,7 +365,7 @@ mod tests {
         file_with(&root.join("Live"), "b.flac", b"fLaC");
         let inbox = DropInbox::default();
 
-        let files = inbox.drop_paths(&[root]);
+        let files = drop_now(&inbox, &[root]);
 
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].name, "b.flac");
@@ -334,7 +394,7 @@ mod tests {
         fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
         let inbox = DropInbox::default();
 
-        let files = inbox.drop_paths(std::slice::from_ref(&locked));
+        let files = drop_now(&inbox, std::slice::from_ref(&locked));
 
         fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
         assert!(files.is_empty());
@@ -349,7 +409,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let a = file_with(dir.path(), "a.wav", b"RIFF");
         let inbox = DropInbox::default();
-        let id = inbox.drop_paths(&[a])[0].id;
+        let id = drop_now(&inbox, &[a])[0].id;
 
         let path = inbox.take(id).expect("first read is allowed");
         assert_eq!(
@@ -373,8 +433,8 @@ mod tests {
         let b = file_with(dir.path(), "b.wav", b"b");
         let inbox = DropInbox::default();
 
-        let first = inbox.drop_paths(&[a])[0].id;
-        let second = inbox.drop_paths(&[b])[0].id;
+        let first = drop_now(&inbox, &[a])[0].id;
+        let second = drop_now(&inbox, &[b])[0].id;
 
         assert_ne!(first, second, "ids are never reused");
         assert!(inbox.take(first).is_none());
@@ -400,7 +460,7 @@ mod tests {
         inbox.enter();
         inbox.leave();
         inbox.enter();
-        inbox.drop_paths(&[]);
+        drop_now(&inbox, &[]);
 
         assert_eq!(
             drain(&inbox, 0),
@@ -449,7 +509,7 @@ mod tests {
         let inbox = DropInbox::default();
         let old_page = inbox.next_signal(None, Duration::from_millis(1)).seq;
         let new_page = inbox.next_signal(None, Duration::from_millis(1)).seq;
-        inbox.drop_paths(&[]);
+        drop_now(&inbox, &[]);
 
         assert!(inbox.next_signal(Some(old_page), WAIT).signal.is_some());
         assert!(inbox.next_signal(Some(new_page), WAIT).signal.is_some());
