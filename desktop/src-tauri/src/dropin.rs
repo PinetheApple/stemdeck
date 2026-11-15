@@ -25,8 +25,16 @@
 //! The rule that follows, and that `dragout` and `download_to_path` already
 //! keep, is that no command accepts a filesystem path from JavaScript. Here a
 //! drop is recorded against opaque ids and the page is told only a name and a
-//! size for each. It can read back a file the user dropped, once, by id, and
-//! nothing else.
+//! size for each. It can read back a file the user dropped, once, by id, ask
+//! for its length, and nothing else.
+//!
+//! ## Held until the page lets go
+//!
+//! The page reviews a drop of several files before reading any of them, and
+//! may still be queueing one review when the next drop lands, so every drop
+//! stays readable under its ticket until the page releases it. The page
+//! releases a drop when its review is cleared or has finished queueing; a page
+//! that reloads never does, so only the newest [`MAX_HELD_DROPS`] are kept.
 //!
 //! ## Why a waiting command rather than an event
 //!
@@ -69,6 +77,10 @@ pub const MAX_DROPPED_FILE_BYTES: u64 = 400 * 1024 * 1024;
 /// waiting command never outlives the app by much when it quits.
 pub const WAIT: Duration = Duration::from_secs(25);
 
+/// Drops whose unread files are kept for the page. A backstop only: the page
+/// releases each drop it is done with, and holds one review at a time.
+pub const MAX_HELD_DROPS: usize = 16;
+
 /// Signals kept for the page to catch up on. Nothing older than a handful is
 /// still useful, and a page that has stopped asking must not make this grow.
 const LOG_LIMIT: usize = 16;
@@ -92,9 +104,12 @@ pub enum DropSignal {
     Leave,
     /// `folder` is whether the drop held a folder, so an empty one can be
     /// told apart from a drop of nothing the page can use.
+    /// `ticket` is what the page names in `release` once it is done with
+    /// these files.
     Drop {
         files: Vec<DroppedFile>,
         folder: bool,
+        ticket: u64,
     },
     FolderUnreadable,
 }
@@ -115,13 +130,19 @@ pub struct NextSignal {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DropTicket(u64);
 
+/// The files of one drop that the page has not read yet.
+struct HeldDrop {
+    ticket: u64,
+    unread: HashMap<u64, PathBuf>,
+}
+
 #[derive(Default)]
 struct Inner {
     next_id: u64,
     /// The ticket of the drop that landed last; only its walk is recorded.
     latest_drop: u64,
-    /// Files from the most recent drop that the page has not read yet.
-    pending: HashMap<u64, PathBuf>,
+    /// Oldest first, at most [`MAX_HELD_DROPS`].
+    held: VecDeque<HeldDrop>,
     /// Sequence number of the newest signal; 0 before there has been one.
     seq: u64,
     log: VecDeque<(u64, DropSignal)>,
@@ -179,11 +200,7 @@ impl DropInbox {
 
     /// Records a drop and publishes it, a dropped folder as the files in it.
     /// A drop overtaken by a later one is discarded, leaving the later one's
-    /// files readable.
-    ///
-    /// Replaces whatever an earlier drop left unread: the page only ever acts
-    /// on the latest drop, so older paths would sit here for the life of the
-    /// app, still readable, for no reason.
+    /// files readable. Earlier drops stay readable until released.
     pub fn drop_paths(&self, ticket: DropTicket, paths: &[PathBuf]) -> Vec<DroppedFile> {
         // Walked before taking the lock: a folder on a network mount can take
         // a while, and nothing else needs to wait for it.
@@ -205,7 +222,6 @@ impl DropInbox {
     fn refuse_unreadable(&self, ticket: DropTicket, err: &std::io::Error) {
         eprintln!("[dropin] could not read a dropped folder: {err}");
         if let Some(mut inner) = self.lock_if_latest(ticket) {
-            inner.pending.clear();
             self.publish(&mut inner, DropSignal::FolderUnreadable);
         }
     }
@@ -214,8 +230,8 @@ impl DropInbox {
         let Some(mut inner) = self.lock_if_latest(ticket) else {
             return vec![];
         };
-        inner.pending.clear();
         let mut files = Vec::with_capacity(expanded.files.len());
+        let mut unread = HashMap::with_capacity(expanded.files.len());
         for found in expanded.files {
             inner.next_id += 1;
             let id = inner.next_id;
@@ -225,13 +241,21 @@ impl DropInbox {
                 size: found.size,
                 dir: found.dir,
             });
-            inner.pending.insert(id, found.path);
+            unread.insert(id, found.path);
         }
+        hold(
+            &mut inner,
+            HeldDrop {
+                ticket: ticket.0,
+                unread,
+            },
+        );
         self.publish(
             &mut inner,
             DropSignal::Drop {
                 files: files.clone(),
                 folder: expanded.folder,
+                ticket: ticket.0,
             },
         );
         files
@@ -261,8 +285,34 @@ impl DropInbox {
 
     /// Hands over the path behind `id`, once.
     pub fn take(&self, id: u64) -> Option<PathBuf> {
-        self.lock().pending.remove(&id)
+        self.lock()
+            .held
+            .iter_mut()
+            .find_map(|held| held.unread.remove(&id))
     }
+
+    /// The path behind `id`, left readable.
+    pub fn peek(&self, id: u64) -> Option<PathBuf> {
+        self.lock()
+            .held
+            .iter()
+            .find_map(|held| held.unread.get(&id).cloned())
+    }
+
+    /// Forgets whatever the drop with `ticket` left unread.
+    pub fn release(&self, ticket: u64) {
+        self.lock().held.retain(|held| held.ticket != ticket);
+    }
+}
+
+fn hold(inner: &mut Inner, held: HeldDrop) {
+    if held.unread.is_empty() {
+        return;
+    }
+    if inner.held.len() >= MAX_HELD_DROPS {
+        inner.held.pop_front();
+    }
+    inner.held.push_back(held);
 }
 
 /// The name the page shows for a dropped path. Only the last component: the
@@ -427,7 +477,8 @@ mod tests {
     }
 
     #[test]
-    fn a_new_drop_retires_what_the_last_one_left_unread() {
+    fn a_new_drop_leaves_an_earlier_drop_readable() {
+        // The page may still be reviewing or queueing the earlier drop.
         let dir = tempfile::tempdir().unwrap();
         let a = file_with(dir.path(), "a.wav", b"a");
         let b = file_with(dir.path(), "b.wav", b"b");
@@ -437,8 +488,99 @@ mod tests {
         let second = drop_now(&inbox, &[b])[0].id;
 
         assert_ne!(first, second, "ids are never reused");
-        assert!(inbox.take(first).is_none());
+        assert!(inbox.take(first).is_some());
         assert!(inbox.take(second).is_some());
+    }
+
+    /// The ticket a drop was published under, as the page sees it.
+    fn ticket_of(inbox: &DropInbox) -> u64 {
+        match drain(inbox, 0).pop() {
+            Some(DropSignal::Drop { ticket, .. }) => ticket,
+            other => panic!("expected a drop, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn releasing_a_drop_retires_only_its_unread_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = file_with(dir.path(), "a.wav", b"a");
+        let b = file_with(dir.path(), "b.wav", b"b");
+        let inbox = DropInbox::default();
+        let kept = drop_now(&inbox, &[a])[0].id;
+        let released = drop_now(&inbox, &[b])[0].id;
+
+        inbox.release(ticket_of(&inbox));
+
+        assert!(inbox.take(released).is_none());
+        assert!(inbox.take(kept).is_some());
+    }
+
+    #[test]
+    fn releasing_an_unknown_drop_changes_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = file_with(dir.path(), "a.wav", b"a");
+        let inbox = DropInbox::default();
+        let id = drop_now(&inbox, &[a])[0].id;
+
+        inbox.release(u64::MAX);
+
+        assert!(inbox.take(id).is_some());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_unreadable_folder_leaves_earlier_drops_readable() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let a = file_with(dir.path(), "a.wav", b"a");
+        let locked = dir.path().join("Locked");
+        fs::create_dir(&locked).unwrap();
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+        let inbox = DropInbox::default();
+        let id = drop_now(&inbox, &[a])[0].id;
+
+        drop_now(&inbox, std::slice::from_ref(&locked));
+
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(inbox.take(id).is_some());
+    }
+
+    #[test]
+    fn only_the_newest_drops_are_held() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = file_with(dir.path(), "a.wav", b"a");
+        let inbox = DropInbox::default();
+        let ids: Vec<u64> = (0..=MAX_HELD_DROPS)
+            .map(|_| drop_now(&inbox, std::slice::from_ref(&a))[0].id)
+            .collect();
+
+        assert!(inbox.take(ids[0]).is_none(), "the oldest is let go");
+        assert!(ids[1..].iter().all(|id| inbox.take(*id).is_some()));
+    }
+
+    #[test]
+    fn a_drop_tells_the_page_its_ticket() {
+        let inbox = DropInbox::default();
+        let ticket = inbox.begin_drop();
+        inbox.drop_paths(ticket, &[]);
+
+        let json = serde_json::to_string(&inbox.next_signal(Some(0), WAIT)).unwrap();
+        assert!(json.contains(&format!("\"ticket\":{}", ticket.0)), "{json}");
+    }
+
+    #[test]
+    fn a_dropped_file_can_be_looked_at_without_using_up_its_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = file_with(dir.path(), "a.wav", b"a");
+        let inbox = DropInbox::default();
+        let id = drop_now(&inbox, std::slice::from_ref(&a))[0].id;
+
+        assert_eq!(inbox.peek(id), Some(a));
+        assert!(inbox.take(id).is_some());
+        assert!(
+            inbox.peek(id).is_none(),
+            "nothing to look at once it is read"
+        );
     }
 
     /// Reads everything after `from`, the way the page walks the log.
@@ -471,6 +613,7 @@ mod tests {
                 DropSignal::Drop {
                     files: vec![],
                     folder: false,
+                    ticket: 1,
                 },
             ]
         );

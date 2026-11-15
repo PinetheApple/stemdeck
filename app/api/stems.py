@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Annotated, NamedTuple
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 
 from app.api import export_fx, stems_click, takes_lanes
@@ -38,6 +38,7 @@ from app.core.config import (
 from app.core.registry import get as registry_get
 from app.core.settings import get_export_sample_rate
 from app.core.stem_files import MP3_EXT, stem_ext, stem_media_type, stem_path
+from app.core.stems_location import is_relocating
 from app.pipeline.audio_stats import VOCAL_ENVELOPE_FILE, vocal_envelope
 from app.pipeline.click_render import cache_key as click_cache_key
 from app.pipeline.click_render import count_in_beats, render_click_wav, render_count_in_wav
@@ -970,13 +971,18 @@ async def get_stem_peaks(job_id: str, request: Request) -> Response:
 _VOCAL_ENVELOPE_HOP_SEC = 0.04
 
 
-def _write_vocal_envelope(src: Path, dest: Path) -> None:
+def _vocal_envelope_body(src: Path) -> dict:
     hop, levels = vocal_envelope(src, _VOCAL_ENVELOPE_HOP_SEC)
+    return {"hop": hop, "db": levels}
+
+
+def _write_vocal_envelope(src: Path, dest: Path) -> None:
+    body = _vocal_envelope_body(src)
     # A unique temp name: two first requests for the same track may compute at
     # once, and each moves a whole file into place.
     tmp = dest.with_name(f"{dest.name}.{uuid.uuid4().hex}.tmp")
     try:
-        tmp.write_text(json.dumps({"hop": hop, "db": levels}), encoding="utf-8")
+        tmp.write_text(json.dumps(body), encoding="utf-8")
         os.replace(tmp, dest)
     finally:
         tmp.unlink(missing_ok=True)
@@ -996,6 +1002,9 @@ async def get_vocal_envelope(job_id: str) -> Response:
     _pipeline_lock: it is one streamed read of one stem, under a second for a
     five minute track, and waiting behind a whole separation would leave the
     lyrics on the rough estimate for minutes.
+
+    While the stems folder moves it is computed and served but not kept, so
+    nothing is written into the folder being moved.
     """
     if not JOB_ID_RE.match(job_id):
         raise HTTPException(status_code=404, detail="job not found")
@@ -1008,13 +1017,17 @@ async def get_vocal_envelope(job_id: str) -> Response:
     jobs_root = JOBS_DIR.resolve()
     if not src.is_file() or not src.is_relative_to(jobs_root) or not dest.is_relative_to(jobs_root):
         raise HTTPException(status_code=404, detail="no vocals")
+    headers = {"Cache-Control": "no-cache"}
     try:
         if not dest.is_file() or dest.stat().st_mtime_ns < src.stat().st_mtime_ns:
+            if is_relocating():
+                body = await asyncio.to_thread(_vocal_envelope_body, src)
+                return JSONResponse(body, headers=headers)
             await asyncio.to_thread(_write_vocal_envelope, src, dest)
     except Exception:
         logger.exception("could not compute the vocal envelope for %s", job_id)
         raise HTTPException(status_code=500, detail="vocal envelope unavailable") from None
-    return FileResponse(dest, media_type="application/json", headers={"Cache-Control": "no-cache"})
+    return FileResponse(dest, media_type="application/json", headers=headers)
 
 
 @router.get("/jobs/{job_id}/stems/beats.json")
@@ -1131,7 +1144,8 @@ async def get_stem_mp3(
 
     # Full-stem requests (no trim) are cached to disk so repeat loads — the
     # common case for the mobile player — are instant instead of re-encoding.
-    if start is None:
+    # While the stems folder moves a WAV song is transcoded below, uncached.
+    if start is None and (path.suffix.lower() == MP3_EXT or not is_relocating()):
         cached = path if path.suffix.lower() == MP3_EXT else await _ensure_cached_mp3(path)
         return FileResponse(
             cached,
@@ -1163,8 +1177,8 @@ async def get_stem_mp3(
         "-f",
         "mp3",
     ]
-    # Only the trimmed branch reaches here; the untrimmed one returned above.
-    filename = _stem_download_name(job_id, name, "mp3", "_region")
+    region_suffix = "_region" if start is not None else ""
+    filename = _stem_download_name(job_id, name, "mp3", region_suffix)
     # Rendered rather than streamed for the same reason as the WAV region
     # above: on a pipe ffmpeg omits the Xing frame entirely, and these are VBR,
     # so the result has no duration and no seek table (#458).

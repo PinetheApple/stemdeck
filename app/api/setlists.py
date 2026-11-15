@@ -16,6 +16,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.api.jobs import STEMS_FOLDER_MOVING_EDIT, _refuse_while_relocating
 from app.core import setlists as store
 from app.core.config import (
     JOB_ID_RE,
@@ -106,6 +107,7 @@ def list_setlists() -> list[dict[str, Any]]:
 
 @router.post("", status_code=201)
 def create_setlist(body: SetlistCreate) -> dict[str, Any]:
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     _require_known(body.song_ids)
     try:
         return store.create(JOBS_DIR, body.name, body.song_ids)
@@ -119,6 +121,7 @@ def update_setlist(setlist_id: str, body: SetlistUpdate) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="setlist not found")
     if not body.model_fields_set:
         raise HTTPException(status_code=422, detail="nothing to change")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     if body.song_ids is not None:
         _require_known(body.song_ids)
     try:
@@ -134,6 +137,7 @@ def update_setlist(setlist_id: str, body: SetlistUpdate) -> dict[str, Any]:
 def delete_setlist(setlist_id: str) -> dict[str, str]:
     if not _SETLIST_ID_RE.match(setlist_id):
         raise HTTPException(status_code=404, detail="setlist not found")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     try:
         deleted = store.delete(JOBS_DIR, setlist_id)
     except OSError as exc:
