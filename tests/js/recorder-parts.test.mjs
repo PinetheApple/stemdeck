@@ -225,5 +225,38 @@ function countingWait() {
   check("discarding ends an upload stuck in an outage", Boolean(result.error) && result.error === UPLOAD_ERROR.discarded && waited === 3);
 }
 
+const RELEASE_WITHIN_MS = 1000;
+const TIMED_OUT = "timed out";
+
+/** A send that never answers, but gives up when its signal aborts, as fetch does. */
+function hangingSend(seq, bytes, signal) {
+  return new Promise(function neverAnswer(_resolve, reject) {
+    signal?.addEventListener("abort", function onAbort() {
+      reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+    });
+  });
+}
+
+function within(ms, promise) {
+  return Promise.race([promise, new Promise((resolve) => setTimeout(resolve, ms, TIMED_OUT))]);
+}
+
+{
+  const server = fakeServer();
+  const up = createPartUploader(
+    { send: hangingSend, readState: server.readState, wait: noWait },
+    { partSamples: PART_SAMPLES, channels: STEREO },
+  );
+  up.push(ramp(0, 16));
+  const finishing = up.finish();
+  up.discard();
+  const result = await within(RELEASE_WITHIN_MS, finishing);
+  check(
+    "discarding frees an upload stuck on a request that never answers",
+    result !== TIMED_OUT && result.error === UPLOAD_ERROR.discarded,
+    JSON.stringify(result),
+  );
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

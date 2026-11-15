@@ -103,11 +103,14 @@ function canDiscard(t) {
   return t.phase === REC_PHASE.finishing && performance.now() - t.finishingSince > SAVING_DISCARD_AFTER_MS;
 }
 
-/** Give up on a save stuck behind a server that does not answer. */
+/** Give up on a save stuck behind a server that does not answer; Record is free again at once. */
 function discardSaving(t) {
   if (!canDiscard(t)) return null;
   t.discarded = true;
   t.uploader?.discard();
+  if (take === t) take = null;
+  emit({ type: "change" });
+  emit({ type: "failed", jobId: t.jobId, trackId: t.trackId, takeId: t.takeId, error: UPLOAD_ERROR.discarded });
   return null;
 }
 
@@ -217,8 +220,8 @@ async function abandonTake(t, err) {
 function createUploader(t) {
   return createPartUploader(
     {
-      send: function sendTakePart(seq, bytes) {
-        return sendPart(t.jobId, t.takeId, seq, bytes);
+      send: function sendTakePart(seq, bytes, signal) {
+        return sendPart(t.jobId, t.takeId, seq, bytes, signal);
       },
       readState: function readTakeParts() {
         return readParts(t.jobId, t.takeId);
@@ -254,7 +257,7 @@ export async function stopTake(reason) {
   if (take === t) take = null;
   if (isLostUpload(outcome?.error)) setArmProblem(t.trackId, ARM_PROBLEM_SAVE_FAILED);
   emit({ type: "change" });
-  if (outcome) emit({ ...outcome, jobId: t.jobId, trackId: t.trackId, reason });
+  if (outcome && !t.discarded) emit({ ...outcome, jobId: t.jobId, trackId: t.trackId, reason });
   return outcome;
 }
 

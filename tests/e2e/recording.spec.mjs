@@ -21,6 +21,10 @@ const MS_PER_SEC = 1000;
 const SHORT_WINDOW = { width: 1440, height: 800 };
 const STEMS_PLUS_TWO_TRACKS = 8;
 const STEM_ROWS = 6;
+// recorder.js offers the discard after SAVING_DISCARD_AFTER_MS (10 s) of "Saving…".
+const DISCARD_OFFER_WAIT_MS = 15000;
+const DISCARD_TEST_TIMEOUT_MS = 60000;
+const RELEASE_WITHIN_MS = 1000;
 const IMPORT_JOB_ID = "e2eimport0001";
 const IMPORT_URL = "https://example.com/song";
 // player.js WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT: the row a song had before + Track.
@@ -283,6 +287,25 @@ test("a soloed take leaves no stems to export", async ({ page, request }) => {
   await trackRow(page).locator(".solo").click();
   const exported = await page.evaluate(async () => (await import("/js/player.js")).downloadCurrentMix("wav"));
   expect(exported).toBe(false);
+});
+
+// Leaves part uploads unanswered, like a server that hangs.
+function hangParts(route) {
+  if (route.request().method() !== "PUT") return route.fallback();
+  return new Promise(function neverAnswer() {});
+}
+
+test("discarding a save stuck on a hung server frees Record at once", async ({ page }) => {
+  test.setTimeout(DISCARD_TEST_TIMEOUT_MS);
+  await openStudio(page);
+  await addArmedTrack(page);
+  await page.route("**/takes/*/parts*", hangParts);
+  await recordTake(page);
+  await expect(recordBtn(page)).toHaveClass(/\bis-saving\b/);
+  await expect(recordBtn(page)).toHaveAttribute("title", /Click to stop/, { timeout: DISCARD_OFFER_WAIT_MS });
+  await recordBtn(page).click();
+  await expect(recordBtn(page)).not.toHaveClass(/\bis-saving\b/, { timeout: RELEASE_WITHIN_MS });
+  await expect(recordBtn(page)).toBeEnabled({ timeout: RELEASE_WITHIN_MS });
 });
 
 test("a take the server no longer has ends with an error on its track", async ({ page }) => {

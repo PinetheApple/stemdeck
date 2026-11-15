@@ -72,7 +72,7 @@ function asBytes(samples) {
 
 /**
  * @param {object} io
- * @param {(seq:number, bytes:Uint8Array) => Promise<{status:number}>} io.send
+ * @param {(seq:number, bytes:Uint8Array, signal:AbortSignal) => Promise<{status:number}>} io.send
  * @param {() => Promise<{next_seq:number, finished:boolean}>} io.readState
  * @param {(ms:number) => Promise<void>} io.wait
  */
@@ -86,6 +86,12 @@ export function createPartUploader(
   let sent = 0;
   let error = null;
   let pumping = null;
+  // Ending the upload aborts the request in flight and cuts any backoff short.
+  const abort = new AbortController();
+  const ended = new Promise(function whenEnded(resolve) {
+    abort.signal.addEventListener("abort", resolve);
+  });
+  const pause = (ms) => Promise.race([wait(ms), ended]);
 
   function enqueue(parts) {
     for (const samples of parts) queue.push({ seq: nextSeq++, bytes: asBytes(samples) });
@@ -107,6 +113,7 @@ export function createPartUploader(
     if (error) return;
     error = reason;
     queue.length = 0;
+    abort.abort();
   }
 
   async function sendHead() {
@@ -120,15 +127,16 @@ export function createPartUploader(
       }
       if (status === HTTP_CONFLICT) return resync();
       if (!isTransient(status)) return stop(failureFor(status));
-      await wait(delayFor(attempt));
+      await pause(delayFor(attempt));
     }
   }
 
   async function trySend(part, attempt) {
     try {
-      const answer = await send(part.seq, part.bytes);
+      const answer = await send(part.seq, part.bytes, abort.signal);
       return answer.status;
     } catch (err) {
+      if (abort.signal.aborted) return null;
       if (attempt === 0) console.warn("[recorder] part upload failed, retrying:", err);
       return null;
     }
@@ -137,11 +145,11 @@ export function createPartUploader(
   async function readServerState() {
     for (let attempt = 0; !error; attempt++) {
       try {
-        return await readState();
+        return await Promise.race([readState(), ended.then(() => null)]);
       } catch (err) {
         if (!isTransient(err?.status)) return stop(failureFor(err.status));
         if (attempt === 0) console.warn("[recorder] could not read the take's upload state:", err);
-        await wait(delayFor(attempt));
+        await pause(delayFor(attempt));
       }
     }
     return null;

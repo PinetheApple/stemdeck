@@ -28,12 +28,13 @@ export const readParts = (jobId, takeId) =>
     finished: state.finished,
   }));
 
-/** Resolves with the answer's status; a network failure rejects. */
-export function sendPart(jobId, takeId, seq, bytes) {
+/** Resolves with the answer's status; a network failure or an abort through `signal` rejects. */
+export function sendPart(jobId, takeId, seq, bytes, signal) {
   return fetch(`${takeUrl(jobId, takeId)}/parts?seq=${seq}`, {
     method: "PUT",
     headers: { "Content-Type": "application/octet-stream" },
     body: bytes,
+    signal,
   }).then((res) => ({ status: res.status }));
 }
 
