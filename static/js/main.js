@@ -1104,7 +1104,7 @@ function wireFileDrop() {
       } else if (signal.kind === "leave") {
         setDragHover(false);
       } else if (signal.kind === "folderUnreadable") {
-        onFolderUnreadable(signal.kind);
+        showDropError(t("batch.folderUnreadable"));
       } else if (signal.kind === "drop") {
         setDragHover(false);
         if (signal.folder) await applyNativeFolder(invoke, signal.files);
@@ -1118,9 +1118,14 @@ function wireFileDrop() {
     const folderInput = document.getElementById("folderInput");
     if (!folderInput) return;
     folderInput._pickInShell = function pickFolderInShell() {
-      invoke("pick_import_folder", { title: t("batch.addFolder") }).catch(onFolderUnreadable);
+      invoke("pick_import_folder", { title: t("batch.addFolder") }).catch(onShellPickerFailed);
     };
     showFolderButtons(true);
+  }
+
+  function onShellPickerFailed(err) {
+    console.warn("[drop] the folder chooser failed:", err);
+    showDropError(t("settings.stemsLocation.pickerFailed"));
   }
 
   /** A folder the shell opened up: its files, each with the folder it sits in. Only

@@ -21,6 +21,7 @@ import {
   uiText,
 } from "./helpers.mjs";
 import { MAX_DURATION_SEC, review, row, stubPreview } from "./batchImport.mjs";
+import { MAX_BATCH_FILES } from "../../static/js/batchImportModel.js";
 
 const MB = 1024 * 1024;
 
@@ -43,6 +44,7 @@ async function standInShell(page, { native = true } = {}) {
       reads: [],
       picks: [],
       picked: null,
+      pickFails: false,
       unreadable: new Set(),
       sizes: {},
       emit(signal) {
@@ -60,6 +62,7 @@ async function standInShell(page, { native = true } = {}) {
       if (cmd === "pick_import_folder") {
         // The shell's chooser hands the picked folder over as a drop.
         shell.picks.push(args);
+        if (shell.pickFails) return Promise.reject("the dialog could not be shown");
         if (shell.picked) shell.emit(shell.picked);
         return Promise.resolve(null);
       }
@@ -195,15 +198,16 @@ test.describe("a file dropped on the Linux desktop app", () => {
   test("a dropped folder over the server's limit reads no more than it keeps", async ({ page }) => {
     await openDesktop(page);
     await stubFolderPreview(page);
-    const files = Array.from({ length: 502 }, (_, i) => ({
+    const over = 2;
+    const files = Array.from({ length: MAX_BATCH_FILES + over }, (_, i) => ({
       id: i + 1, name: `${String(i).padStart(4, "0")}.wav`, size: 10, dir: "Archive",
     }));
     await dropFolder(page, files);
 
     await expect(review(page).locator(".batch-review-note")).toHaveText(
-      await uiText(page, "batch.overCapFiles.other", { max: 500, count: 2 }),
+      await uiText(page, "batch.overCapFiles.other", { max: MAX_BATCH_FILES, count: over }),
     );
-    expect((await state(page)).reads).toHaveLength(500);
+    expect((await state(page)).reads).toHaveLength(MAX_BATCH_FILES);
   });
 
   test("an empty folder says so", async ({ page }) => {
@@ -236,6 +240,14 @@ test.describe("a file dropped on the Linux desktop app", () => {
     const picks = await page.evaluate(() => window.__shell.picks);
     expect(picks).toEqual([{ title: await uiText(page, "batch.addFolder") }]);
     expect(webviewChoosers).toBe(0);
+  });
+
+  test("a folder chooser that fails to open says so, not that a folder was unreadable", async ({ page }) => {
+    await openDesktop(page);
+    await page.evaluate(() => { window.__shell.pickFails = true; });
+    await page.locator("#addFolderBtn").click();
+
+    await expect.poll(() => state(page).then((s) => s.error)).toBe(await uiText(page, "settings.stemsLocation.pickerFailed"));
   });
 
   test("of a mixed drop, only the audio is read, and the rest is flagged in the review", async ({ page }) => {
