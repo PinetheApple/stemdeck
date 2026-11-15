@@ -5695,3 +5695,8 @@ input, textarea { font-family: inherit; }
   right: var(--s-6);
   max-width: calc(100% - 2 * var(--s-6));
 }
+
+/* The open song's More button stays lit while its menu is open, as a library row's does. */
+#songHead #nowPlayingPanel #songMoreBtn[aria-expanded="true"] { background: var(--surface-2); color: var(--text); }
+/* Disabled as the library row hides its own: a trashed or unfinished song is queued nowhere. */
+#songHead #nowPlayingPanel .track-panel-head :is(#songUpNextBtn, #songMoreBtn):disabled { opacity: var(--disabled-opacity); cursor: default; pointer-events: none; }
