@@ -99,6 +99,7 @@ const HELP = [
   ["#t-metro-sound", "help.clickSound", null, "click.soundAria"],
   ["#t-export-btn", "help.export"],
   ["#stageModeBtn", "help.stageMode"],
+  ["#filmBtn", "help.film"],
   ['.inspector-tab[data-tab="tempo"]', "help.inspectorTempo"],
   ['[data-tempo-mode="constant"]', "help.tempoConstant"],
   ['[data-tempo-mode="follow"]', "help.tempoFollow"],

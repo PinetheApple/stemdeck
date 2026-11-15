@@ -1,0 +1,359 @@
+/* Film yourself (#102) and video export (#99). The Film view is a Stage variant:
+   drawn over the lanes with the same panes put away, so closing it leaves the
+   studio, Stage and the footer exactly as they were. Existing tokens only. */
+
+.film-view {
+  --film-side-w: 248px;
+  --film-take-h: 44px;
+  --film-song-h: 28px;
+  --film-ruler-h: 16px;
+  --film-label-w: 72px;
+  --film-handle-w: 10px;
+  --film-meter-h: 8px;
+  --film-rec-size: 56px;
+  --film-rec-dot: 22px;
+  --film-rec-square: 18px;
+  --film-badge-dot: 8px;
+  --film-problem-w: 420px;
+  --film-playhead-w: 1.5px;
+}
+.vid-export {
+  --vid-dialog-w: 440px;
+  --vid-bar-h: 6px;
+  --vid-fmt-min-w: 56px;
+}
+
+/* The panes Stage puts away, put away for Film too. */
+.daw.film-mode .daw-topbar,
+.daw.film-mode .sidebar,
+.daw.film-mode .inspector,
+.daw.film-mode .inspector-toggle,
+.daw.film-mode .library-resizer,
+.daw.film-mode .footer-group-transport,
+.daw.film-mode .footer-group-transport + .footer-divider { display: none; }
+.daw.film-mode #error {
+  position: absolute;
+  top: calc(var(--s-4) + var(--ctl-h) + var(--s-3));
+  right: var(--s-5);
+  max-width: calc(100% - 2 * var(--s-5));
+}
+
+.film-btn { cursor: pointer; }
+.film-btn[aria-pressed="true"] { border-color: var(--accent-line); color: var(--accent); }
+.rec-name-line > .ic { width: var(--icon-sm); height: var(--icon-sm); flex-shrink: 0; color: var(--text-3); }
+
+.film-view {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  background: var(--bg);
+}
+.film-view[hidden] { display: none; }
+.film-top { display: flex; align-items: center; gap: var(--s-4); }
+.film-top .stage-song { flex: 1; min-width: 0; }
+
+.film-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--film-side-w);
+  gap: var(--s-4);
+  min-height: 0;
+}
+.film-preview {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-3);
+  background: var(--surface-2);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-4);
+}
+.film-preview.is-live { border-color: color-mix(in srgb, var(--danger) 55%, transparent); }
+/* 16:9 letterboxed, as the export draws it. */
+.film-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: var(--bg); }
+.film-video[hidden], .film-video.is-outside { visibility: hidden; }
+.film-badge {
+  position: absolute;
+  top: var(--s-3);
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-1);
+  font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.film-badge[hidden] { display: none; }
+.film-badge.is-time { right: var(--s-3); background: var(--surface-1); color: var(--text-2); }
+.film-badge.is-rec { left: var(--s-3); background: var(--danger); color: var(--accent-ink); }
+.film-badge.is-rec::before {
+  content: "";
+  width: var(--film-badge-dot);
+  height: var(--film-badge-dot);
+  border-radius: var(--r-1);
+  background: var(--accent-ink);
+}
+.film-badge.is-review { left: var(--s-3); background: var(--surface-1); color: var(--text-2); font-family: var(--font-sans); }
+.film-note {
+  position: absolute;
+  bottom: var(--s-3);
+  left: 50%;
+  z-index: 1;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-1);
+  background: var(--surface-1);
+  color: var(--warn);
+  font: var(--fw-medium) var(--fs-xs) / 1.4 var(--font-sans);
+}
+.film-note[hidden] { display: none; }
+
+/* A plain-words problem in place of the picture: what happened, what to do. */
+.film-problem {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  max-width: var(--film-problem-w);
+  padding: var(--s-5);
+  text-align: center;
+  color: var(--text);
+  font: var(--fw-medium) var(--fs-sm) / 1.45 var(--font-sans);
+}
+.film-problem[hidden], .film-problem [hidden] { display: none; }
+.film-problem p { margin: 0; }
+.film-problem code {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-1);
+  background: var(--surface-1);
+  font: var(--fw-medium) var(--fs-xs) / 1.4 var(--font-mono);
+  color: var(--text-2);
+  text-align: left;
+  user-select: all;
+}
+.film-problem .settings-btn { cursor: pointer; }
+
+/* Side panel: what is being filmed and heard, and what you play. */
+.film-side { display: flex; flex-direction: column; gap: var(--s-3); min-height: 0; overflow-y: auto; }
+.film-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--surface-1);
+}
+.film-card-title { font: var(--fw-semibold) var(--fs-xs) / 1.2 var(--font-sans); color: var(--text-3); }
+.film-card-note { margin: 0; font: var(--fw-medium) var(--fs-xs) / 1.4 var(--font-sans); color: var(--text-3); }
+.film-card-note[hidden] { display: none; }
+.film-device {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  font: var(--fw-medium) var(--fs-sm) / 1.2 var(--font-sans);
+  color: var(--text);
+}
+.film-device .ic { width: var(--icon-sm); height: var(--icon-sm); color: var(--text-3); flex-shrink: 0; }
+.film-device span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.film-device.is-missing { color: var(--text-3); }
+.film-meter {
+  position: relative;
+  height: var(--film-meter-h);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--bg);
+  overflow: hidden;
+}
+.film-meter i { position: absolute; inset: 0 auto 0 0; width: var(--level, 0%); border-radius: inherit; background: var(--success); }
+.film-link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font: var(--fw-medium) var(--fs-xs) / 1.2 var(--font-sans);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.film-link:hover { color: var(--text); }
+
+/* "I play": the stems you play, as toggles in their stem colours. */
+.film-stems { display: flex; flex-wrap: wrap; gap: var(--s-1); }
+.film-stem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-2);
+  font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-sans);
+  cursor: pointer;
+}
+.film-stem::before { content: ""; width: var(--film-badge-dot); height: var(--film-badge-dot); border-radius: 50%; background: var(--stem); }
+.film-stem:hover { color: var(--text); border-color: var(--text-4); }
+.film-stem[aria-pressed="true"] { border-color: var(--stem); color: var(--text); background: color-mix(in srgb, var(--stem) 14%, transparent); }
+
+/* Take timeline: the song above, the take below, trim handles on the take. */
+.film-timeline {
+  display: grid;
+  grid-template-columns: var(--film-label-w) minmax(0, 1fr);
+  row-gap: var(--s-1);
+  align-items: center;
+}
+.film-tl-label { font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-sans); color: var(--text-3); }
+.film-tl-track {
+  position: relative;
+  height: var(--film-take-h);
+  border-radius: var(--r-1);
+  background: var(--surface-1);
+}
+.film-tl-track.is-song { height: var(--film-song-h); --stem-color: var(--text-4); cursor: pointer; }
+.app .film-tl-track .stem-waveform-svg { inset: 2px 0; height: calc(100% - 4px); }
+.film-tl-ruler { position: relative; height: var(--film-ruler-h); font: var(--fw-medium) var(--fs-2xs) / var(--film-ruler-h) var(--font-mono); color: var(--text-3); }
+.film-tl-ruler span { position: absolute; transform: translateX(-50%); }
+.film-tl-ruler span:first-child { transform: none; }
+.film-take {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border: 1px solid color-mix(in srgb, var(--text) 22%, transparent);
+  border-radius: var(--r-1);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  --stem-color: var(--text-2);
+  overflow: hidden;
+  cursor: pointer;
+}
+.film-take.is-review { --stem-color: var(--text); border-color: color-mix(in srgb, var(--text) 45%, transparent); }
+.film-take.is-live {
+  --stem-color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  cursor: default;
+}
+.film-trim-out {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  z-index: 1;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  pointer-events: none;
+}
+.film-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: var(--film-handle-w);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: var(--accent);
+  cursor: ew-resize;
+  transform: translateX(-50%);
+  touch-action: none;
+}
+.film-handle-time {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px var(--s-1);
+  border-radius: var(--r-1);
+  background: var(--surface-3);
+  font: var(--fw-semibold) var(--fs-2xs) / 1.3 var(--font-mono);
+  color: var(--text);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.film-playhead {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  z-index: 3;
+  width: var(--film-playhead-w);
+  background: var(--danger);
+  pointer-events: none;
+}
+
+/* Transport for the view: Stop, Play, Record; Export MP4 once there is a take. */
+.film-transport { position: relative; display: flex; align-items: center; justify-content: center; gap: var(--s-4); }
+.film-rec {
+  display: grid;
+  place-items: center;
+  width: var(--film-rec-size);
+  height: var(--film-rec-size);
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.film-rec::before { content: ""; width: var(--film-rec-dot); height: var(--film-rec-dot); border-radius: 50%; background: var(--danger); }
+.film-rec.is-live { background: var(--danger); border-color: var(--danger); }
+.film-rec.is-live::before { width: var(--film-rec-square); height: var(--film-rec-square); border-radius: var(--r-1); background: var(--accent-ink); }
+.film-rec:disabled { cursor: not-allowed; opacity: var(--disabled-opacity); }
+.film-rec:disabled::before { background: var(--text-4); }
+.film-export { position: absolute; right: 0; cursor: pointer; }
+.film-export:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
+
+/* Export dialog (#99): the Settings dialog's frame, sized to its content. */
+.library-editor.vid-export {
+  width: var(--vid-dialog-w);
+  min-width: 0;
+  max-width: calc(100vw - 2 * var(--s-4));
+  height: auto;
+  min-height: 0;
+}
+.vid-export-body { display: flex; flex-direction: column; }
+.vid-export .settings-row:last-of-type { border-bottom: 0; }
+.vid-export .export-format-toggle { flex-shrink: 0; display: inline-flex; gap: var(--seg-inset); }
+.vid-export .export-fmt {
+  min-width: var(--vid-fmt-min-w);
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-3);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
+  letter-spacing: 0;
+  cursor: pointer;
+}
+.vid-export .settings-foot { gap: var(--s-2); }
+.vid-export .settings-foot button { cursor: pointer; }
+.vid-progress { display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-3) 0; }
+.vid-progress-bar { height: var(--vid-bar-h); border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; }
+.vid-progress-bar i { display: block; height: 100%; width: var(--done, 0%); background: var(--accent); }
+.vid-progress-line { display: flex; justify-content: space-between; gap: var(--s-3); font: var(--fw-medium) var(--fs-xs) / 1.3 var(--font-sans); color: var(--text-2); }
+.vid-progress-line .num { font-family: var(--font-mono); }
+.vid-result { display: flex; gap: var(--s-3); align-items: flex-start; padding: var(--s-3) 0; font: var(--fw-medium) var(--fs-sm) / 1.45 var(--font-sans); }
+.vid-result > .ic { width: var(--icon-lg); height: var(--icon-lg); flex-shrink: 0; color: var(--success); }
+.vid-result.is-failed > .ic { color: var(--danger); }
+.vid-result p { margin: 0; }
+.vid-result .vid-sub { color: var(--text-3); font-size: var(--fs-xs); }
+
+/* Settings > Export: encoder choice and the test table. */
+.vid-enc-section[hidden] { display: none; }
+.vid-enc-select { cursor: pointer; }
+.vid-enc-ok { color: var(--success); font-weight: var(--fw-semibold); }
+.vid-enc-bad { color: var(--danger); font-weight: var(--fw-semibold); }
+.vid-enc-why { display: block; margin-top: 2px; color: var(--text-3); }
+.vid-enc-time { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vid-enc-wait { color: var(--text-3); }
+.library-editor-table .vid-enc-name { color: var(--text); white-space: nowrap; }

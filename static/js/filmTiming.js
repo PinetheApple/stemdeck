@@ -59,3 +59,20 @@ export function dragTrim({ span, trim, edge, sec }) {
   if (inSec <= start && outSec >= end) return null;
   return { in_sec: inSec, out_sec: outSec };
 }
+
+const ORIGINAL = "original";
+
+/** The song's waveform for the timeline: the original's peaks, else the loudest stem at each point. */
+export function mergePeaks(peaksByStem) {
+  if (!peaksByStem || typeof peaksByStem !== "object") return [];
+  if (Array.isArray(peaksByStem[ORIGINAL])) return peaksByStem[ORIGINAL];
+  const merged = [];
+  for (const points of Object.values(peaksByStem)) {
+    if (!Array.isArray(points)) continue;
+    points.forEach(function mergePoint([low, high], i) {
+      const amp = Math.max(Math.abs(low), Math.abs(high), merged[i]?.[1] ?? 0);
+      merged[i] = [-amp, amp];
+    });
+  }
+  return merged;
+}

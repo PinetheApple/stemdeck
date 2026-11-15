@@ -7,6 +7,7 @@ import { loadRecorderPrefs, recorderPrefs, setRecorderPref } from "./recorderPre
 import { saveRoundTrip, savedRoundTrip } from "./latencyStore.js";
 import { runLatencyTest } from "./latencyTest.js";
 import { LATENCY_CLICKS } from "./latency.js";
+import { cameraSelect } from "./filmCamera.js";
 
 const PANE_SELECTOR = '[data-pane="recording"]';
 const FAILED_CLASS = "is-failed";
@@ -18,7 +19,7 @@ export function setLatencyTestInput(deviceId) {
   nextTestInput = deviceId;
 }
 
-function settingsRow(title, desc, controls) {
+export function settingsRow(title, desc, controls) {
   const row = document.createElement("div");
   row.className = "settings-row";
   const text = document.createElement("div");
@@ -44,7 +45,7 @@ function section(...children) {
   return el;
 }
 
-function btn(text, primary, onClick) {
+export function settingsButton(text, primary, onClick) {
   const el = document.createElement("button");
   el.type = "button";
   el.className = `settings-btn${primary ? " is-primary" : ""}`;
@@ -118,13 +119,13 @@ async function showLatency(panel) {
 }
 
 function measureButton(panel, label, primary) {
-  return btn(label, primary, function onMeasureClick() {
+  return settingsButton(label, primary, function onMeasureClick() {
     measure(panel);
   });
 }
 
 function cancelButton(panel) {
-  return btn(t("settings.recording.cancel"), false, function onCancelTestClick() {
+  return settingsButton(t("settings.recording.cancel"), false, function onCancelTestClick() {
     resetTest(panel);
   });
 }
@@ -182,7 +183,7 @@ async function measure(panel) {
 function latencySection(inputId) {
   const panel = { inputId, value: document.createElement("span"), host: document.createElement("div"), abort: null };
   panel.value.className = "rec-latency-value";
-  panel.testBtn = btn(t("settings.recording.test"), false, function onTestLatencyClick() {
+  panel.testBtn = settingsButton(t("settings.recording.test"), false, function onTestLatencyClick() {
     showStart(panel);
   });
   showLatency(panel);
@@ -230,6 +231,7 @@ export async function wireRecordingSettings(overlay) {
   nextTestInput = null;
   pane.replaceChildren(
     section(settingsRow(t("settings.recording.input"), "", [await inputSelect()])),
+    section(settingsRow(t("film.camera"), "", [await cameraSelect()])),
     latencySection(inputId),
     section(settingsRow(t("settings.recording.monitor"), t("settings.recording.monitorDesc"), [monitorSwitch()])),
   );
