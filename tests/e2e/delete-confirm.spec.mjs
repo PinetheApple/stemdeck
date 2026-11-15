@@ -173,14 +173,15 @@ test.describe("deleting a folder", () => {
 
     const head = page.locator('.folder[data-id="f-band"] > .folder-head');
     await head.hover();
-    const del = head.locator(".f-del");
-    await del.click();
-    await expect(del).toHaveAttribute("data-armed", "1");
-    await expect(del).toContainText("Delete?");
+    const more = head.locator(".f-more");
+    await more.click();
+    await page.locator(".lib-menu").getByRole("menuitem", { name: await uiText(page, "folder.deleteFolder") }).click();
+    await expect(more).toHaveAttribute("data-armed", "1");
+    await expect(more).toContainText(await uiText(page, "folder.deleteConfirm"));
     await expect(page.locator('.folder[data-id="f-band"]')).toHaveCount(1);
     expect(calls.trashed).toEqual([]);
 
-    await del.click();
+    await more.click();
     await expect(page.locator('.folder[data-id="f-band"]')).toHaveCount(0);
     await expect(page.locator('.folder[data-id="f-live"]')).toHaveCount(0);
     await expect.poll(async () => (await trashItems(page)).sort()).toEqual([JOB_ID, SIBLING_JOB_ID].sort());

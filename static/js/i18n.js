@@ -1094,6 +1094,7 @@ const en = {
 
   // ── Folder editor dialog (static/js/catalog.js openFolderEditor) ──
   "folderEditor.title": "Edit folder",
+  "folderEditor.renameTitle": "Rename folder",
   "folderEditor.closeAria": "Close",
   "folderEditor.nameLabel": "Name",
   "folderEditor.colorLabel": "Color",
@@ -2391,6 +2392,7 @@ const pl = {
   "settings.dangerZone": "Strefa zagrożenia",
 
   "folderEditor.title": "Edytuj folder",
+  "folderEditor.renameTitle": "Zmień nazwę folderu",
   "folderEditor.closeAria": "Zamknij",
   "folderEditor.nameLabel": "Nazwa",
   "folderEditor.colorLabel": "Kolor",
@@ -3686,6 +3688,7 @@ const ja = {
   "settings.dangerZone": "危険な操作",
 
   "folderEditor.title": "フォルダを編集",
+  "folderEditor.renameTitle": "フォルダ名を変更",
   "folderEditor.closeAria": "閉じる",
   "folderEditor.nameLabel": "名前",
   "folderEditor.colorLabel": "色",
@@ -4932,6 +4935,7 @@ const zhHans = {
   "settings.dangerZone": "危险操作区",
 
   "folderEditor.title": "编辑文件夹",
+  "folderEditor.renameTitle": "重命名文件夹",
   "folderEditor.closeAria": "关闭",
   "folderEditor.nameLabel": "名称",
   "folderEditor.colorLabel": "颜色",
@@ -6183,6 +6187,7 @@ const de = {
   "settings.dangerZone": "Gefahrenzone",
 
   "folderEditor.title": "Ordner bearbeiten",
+  "folderEditor.renameTitle": "Ordner umbenennen",
   "folderEditor.closeAria": "Schließen",
   "folderEditor.nameLabel": "Name",
   "folderEditor.colorLabel": "Farbe",
@@ -7456,6 +7461,7 @@ const pt = {
   "settings.dangerZone": "Zona de perigo",
 
   "folderEditor.title": "Editar pasta",
+  "folderEditor.renameTitle": "Renomear pasta",
   "folderEditor.closeAria": "Fechar",
   "folderEditor.nameLabel": "Nome",
   "folderEditor.colorLabel": "Cor",
@@ -8726,6 +8732,7 @@ const id = {
   "settings.dangerZone": "Zona berbahaya",
 
   "folderEditor.title": "Edit folder",
+  "folderEditor.renameTitle": "Ganti nama folder",
   "folderEditor.closeAria": "Tutup",
   "folderEditor.nameLabel": "Nama",
   "folderEditor.colorLabel": "Warna",
@@ -9977,6 +9984,7 @@ const fr = {
   "settings.dangerZone": "Zone sensible",
 
   "folderEditor.title": "Modifier le dossier",
+  "folderEditor.renameTitle": "Renommer le dossier",
   "folderEditor.closeAria": "Fermer",
   "folderEditor.nameLabel": "Nom",
   "folderEditor.colorLabel": "Couleur",
@@ -11610,6 +11618,7 @@ const es = {
 
   // ── Folder editor dialog (static/js/catalog.js openFolderEditor) ──
   "folderEditor.title": "Editar carpeta",
+  "folderEditor.renameTitle": "Renombrar carpeta",
   "folderEditor.closeAria": "Cerrar",
   "folderEditor.nameLabel": "Nombre",
   "folderEditor.colorLabel": "Color",
@@ -12899,6 +12908,7 @@ const ko = {
   "settings.dangerZone": "위험 구역",
 
   "folderEditor.title": "폴더 편집",
+  "folderEditor.renameTitle": "폴더 이름 바꾸기",
   "folderEditor.closeAria": "닫기",
   "folderEditor.nameLabel": "이름",
   "folderEditor.colorLabel": "색상",
