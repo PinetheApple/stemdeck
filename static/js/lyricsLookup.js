@@ -442,6 +442,16 @@ function layPhrase(tokens, weights, phrase, out) {
   });
 }
 
+const FULL_FILL = 100;
+
+/** How far `word` ({ start, end }) is sung at `time`: sung, or singing with `fill` per cent. */
+export function wordFill(word, time) {
+  const sung = time >= word.end;
+  const singing = !sung && time > word.start;
+  const share = singing ? (time - word.start) / (word.end - word.start) : Number(sung);
+  return { sung, singing, fill: Math.round(share * FULL_FILL) };
+}
+
 /**
  * When each word of `line` is sung, for the karaoke wipe: [{ text, start,
  * end }], the texts joined giving back the line. From the line's own word

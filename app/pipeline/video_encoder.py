@@ -47,7 +47,7 @@ from app.pipeline.video_probe import (
     probe,
     run_probe,
 )
-from app.pipeline.video_probe_store import drop_passes
+from app.pipeline.video_probe_store import cached_results, drop_passes
 from app.pipeline.video_process import STOP_CANCELLED, never
 from app.pipeline.video_validate import OutputInvalid, validate_output
 
@@ -282,6 +282,19 @@ def choose(
         if reason == STOP_CANCELLED:
             break
     return Choice(VIDEO_CPU_ENCODER, reason=reason)
+
+
+def auto_pick(platform: str | None = None) -> str | None:
+    """The GPU encoder Auto would use now, judged by the cached probes alone
+    (a pass at any geometry); None for the CPU. Never probes."""
+    off = disabled(platform)
+    passed = {(r.encoder, r.device) for r in cached_results() if r.ok}
+    for encoder in AUTO[os_key(platform)]:
+        if encoder in off:
+            continue
+        if any(e == encoder and not _node_off(d) for e, d in passed):
+            return encoder
+    return None
 
 
 def _gpu_attempt(

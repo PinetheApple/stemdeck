@@ -1,5 +1,6 @@
 import Multitrack from "/vendor/multitrack.js";
 import { fmtTime } from "./utils.js";
+import { deviceScale, fitWaveCanvas, drawWaveBars } from "./waveBars.js";
 // job.js imports this module in turn. The cycle is pre-existing (catalog.js does
 // the same) and safe: these are only ever called from a callback, long after both
 // module bodies have run, and they close over DOM handles from dom.js rather than
@@ -63,6 +64,13 @@ import { paintNowPlayingArt } from "./formatIcon.js";
 import { noteMediaPosition, clearMediaSession } from "./mediaSession.js";
 import { trackPlayhead, resetFollowing } from "./autoScroll.js";
 import { DEFAULT_VERSION_ID } from "./versionModel.js";
+import { applyAllFx } from "./mixFx.js";
+import { setMixSource } from "./masterEngine.js";
+import { addExportFx } from "./eq/eqExport.js";
+import { createLaneEqMark } from "./eq/eqLaneMark.js";
+
+/** Fired on document once a song's engine is up and playable. */
+export const PLAYBACK_READY_EVENT = "playbackready";
 
 // Playback-engine selection. All engines play decoded AudioBuffers off a single
 // AudioContext clock (no N streaming <audio> elements — that was the source of
@@ -275,10 +283,21 @@ let visualRenderToken = 0;
 let visualAudioContext = null;
 let stemVuRafId = null;
 let _footerWavePeaks = null;
+export const WAVE_PEAKS_EVENT = "wavepeaks";
+export const DURATION_EVENT = "songduration";
+const announceWavePeaks = () => document.dispatchEvent(new CustomEvent(WAVE_PEAKS_EVENT));
+
+/** The open song's whole-song `[min, max]` peaks, or null until they load. Read-only. */
+export function getWavePeaks() {
+  return _footerWavePeaks;
+}
 let _footerAccent = "";
 let _lastFooterProgress = 0;
 let _footerPlaceholderResizeObs = null;
 const _FOOTER_BARS = 300;
+const _FOOTER_REST_COLOR = "rgba(255,255,255,0.13)";
+const _FOOTER_WAVE_FILL = 0.78;
+const _FOOTER_MIN_BAR_H = 3;
 
 function isAudioBufferLike(value) {
   return value && typeof value.getChannelData === "function";
@@ -944,6 +963,7 @@ export function renderEmptyShell() {
   // job is loaded yet, and shows them in place of "vocals" once one is.
   for (const name of ["original", ...STEM_NAMES, ...EXTRA_STEM_NAMES]) {
     const { row } = renderMixerRow({ name, url: "#" });
+    row.prepend(createLaneEqMark(name));
     mixerEl.appendChild(row);
   }
   requestAnimationFrame(() => _applyLaneHeight(1 + STEM_NAMES.length));
@@ -992,6 +1012,11 @@ function renderAllMiniWaves(mt, stems) {
 let _loadingShownAt = 0;
 const _LOADING_MIN_MS = 900;
 let _currentStems = [];
+
+/** The lanes the open song actually loaded, "original" included when it has one. */
+export function getLoadedStemNames() {
+  return _currentStems.map((s) => s.name);
+}
 let _mixUrl = null;
 let _currentTitle = "";
 // Whether the current job has a preserved video track (mp4 upload). Gates the
@@ -1348,6 +1373,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
     if (footerPeaks?.length) {
       const step = Math.ceil(footerPeaks.length / _FOOTER_BARS);
       _footerWavePeaks = footerPeaks.filter((_, i) => i % step === 0).slice(0, _FOOTER_BARS);
+      announceWavePeaks();
       setFooterWaveDrawFn(_drawFooterWave);
       _drawFooterWave(0);
     } else if (waveformUrl) {
@@ -1403,6 +1429,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
     if (!totalDuration) setTotalDuration(mt.getDuration() || 0);
     timeEl.textContent = `00:00 / ${fmtTime(totalDuration)}`;
     buildRuler(totalDuration);
+    document.dispatchEvent(new CustomEvent(DURATION_EVENT));
     buildPresenceRuler(totalDuration);
     buildFooterWaveTicks(totalDuration);
     updateFooterTimes(0);
@@ -1577,8 +1604,10 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
             if (pitchable) resetPitch(mixGlobalPitch());
             setLaneKeysAvailable(pitchable);
             applyAllLanePitches();
+            setMixSource(_masterMixSource);
+            applyAllFx();
           });
-          document.dispatchEvent(new CustomEvent("playbackready", { detail: { id: jobId } }));
+          document.dispatchEvent(new CustomEvent(PLAYBACK_READY_EVENT, { detail: { id: jobId } }));
 
           // Click track. Bound to this engine instance, so it is rebuilt on
           // every engine bring-up (including the chunked -> fulldecode swap
@@ -1749,39 +1778,18 @@ function _drawFooterWave(progress) {
   const canvas = document.getElementById("footer-waveform");
   if (!canvas) return;
   if (!_footerWavePeaks) { _drawPlaceholderWave(); return; }
-  const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth;
-  const h = canvas.clientHeight;
-  if (!w || !h) return;
-  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(h * dpr);
-  }
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const n = _footerWavePeaks.length;
-  let maxAbs = 0;
-  for (const [mn, mx] of _footerWavePeaks) {
-    if (mx > maxAbs) maxAbs = mx;
-    if (-mn > maxAbs) maxAbs = -mn;
-  }
-  const norm = maxAbs > 0 ? 1 / maxAbs : 1;
+  const ctx = fitWaveCanvas(canvas);
+  if (!ctx) return;
+  const dpr = deviceScale();
   const cy = canvas.height / 2;
-  const barW = canvas.width / n;
-  const gap = 1;
-  const playedIdx = Math.floor(progress * n);
   const accent = (_footerAccent ||= getComputedStyle(canvas).getPropertyValue("--accent").trim());
-  for (let i = 0; i < n; i++) {
-    const [mn, mx] = _footerWavePeaks[i];
-    const top = cy - mx * norm * cy * 0.78;
-    const bot = cy - mn * norm * cy * 0.78;
-    const barH = Math.max(3, bot - top);
-    const x = Math.round(i * barW);
-    const nextX = i === n - 1 ? canvas.width : Math.round((i + 1) * barW);
-    const bw = Math.max(1, nextX - x - gap);
-    ctx.fillStyle = i < playedIdx ? accent : "rgba(255,255,255,0.13)";
-    ctx.fillRect(x, top, bw, barH);
-  }
+  drawWaveBars(ctx, _footerWavePeaks, {
+    playedBars: Math.floor(progress * _footerWavePeaks.length),
+    playedColor: accent,
+    restColor: _FOOTER_REST_COLOR,
+    fill: _FOOTER_WAVE_FILL,
+    minBarHeight: _FOOTER_MIN_BAR_H,
+  });
   if (progress > 0.001 && progress < 0.999) {
     const px = progress * canvas.width;
     ctx.beginPath();
@@ -1806,6 +1814,7 @@ async function initFooterWaveform(stemUrl) {
     if (!res.ok) return;
     const buf = await visualAudioContext.decodeAudioData(await res.arrayBuffer());
     _footerWavePeaks = bufferMinMaxPeaks(buf, _FOOTER_BARS);
+    announceWavePeaks();
     setFooterWaveDrawFn(_drawFooterWave);
     _drawFooterWave(0);
     // Redraw on resize so the canvas fills its container correctly
@@ -1983,6 +1992,21 @@ export function setExportClickAvailable(on) {
 // Dynamic mixdown URL for the current mixer state. Returns null (no download)
 // when every lane is silenced; `region` appends the loop bounds.
 function _mixdownUrl(ext, region) {
+  const mix = _mixQuery();
+  if (!mix) return null;
+  const { names, q } = mix;
+  if (region) {
+    q.set("start", loopStart.toFixed(3));
+    q.set("end", loopEnd.toFixed(3));
+  }
+  _clickParams(q);
+  _countInParam(q);
+  addExportFx(q, names);
+  return `/api/jobs/${currentJobId}/mixdown.${ext}?${q}`;
+}
+
+// The audible lanes as a mixdown query, or null when there is no song or every lane is silent.
+function _mixQuery() {
   if (!currentJobId) return null;
   const { names, gains, pitches } = _effectiveMixGains();
   if (!names.length) return null;
@@ -1991,13 +2015,15 @@ function _mixdownUrl(ext, region) {
     gains: gains.map((g) => g.toFixed(3)).join(","),
     ...(pitches.some((p) => p !== 0) ? { pitches: pitches.join(",") } : {}),
   });
-  if (region) {
-    q.set("start", loopStart.toFixed(3));
-    q.set("end", loopEnd.toFixed(3));
-  }
-  _clickParams(q);
-  _countInParam(q);
-  return `/api/jobs/${currentJobId}/mixdown.${ext}?${q}`;
+  return { names, q };
+}
+
+// The mix the master measures: the export's lanes and EQ, without master=.
+function _masterMixSource() {
+  const mix = _mixQuery();
+  if (!mix) return null;
+  addExportFx(mix.q, mix.names, { master: false });
+  return { jobId: currentJobId, query: mix.q.toString() };
 }
 
 // One stem, named after the song so it stays identifiable once dragged into a
@@ -2043,6 +2069,7 @@ export function downloadCurrentVideo(onTransferStart) {
     ...(pitches.some((p) => p !== 0) ? { pitches: pitches.join(",") } : {}),
   });
   _clickParams(q);
+  addExportFx(q, names);
   const safe = _currentTitle
     .replace(/[^a-zA-Z0-9]+/g, "_")
     .replace(/_{2,}/g, "_")

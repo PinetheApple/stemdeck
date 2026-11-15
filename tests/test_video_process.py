@@ -63,7 +63,7 @@ def test_a_cancel_stops_the_process():
 
 
 def test_an_exit_on_its_own_at_the_limit_is_not_stopped(monkeypatch):
-    monkeypatch.setattr(video_process, "_kill", lambda proc: None)
+    monkeypatch.setattr(video_process, "kill_group", lambda proc: None)
     rc, _out, _err = run_watched(
         [sys.executable, "-c", "import time; time.sleep(0.8)"],
         timeout=0.3,

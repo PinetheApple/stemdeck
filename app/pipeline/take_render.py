@@ -4,6 +4,7 @@ engine or export applies an offset of its own. Blocking: run in a thread."""
 
 from __future__ import annotations
 
+import functools
 import logging
 import os
 import shutil
@@ -40,6 +41,7 @@ _BITS_PER_BYTE = 8
 _FMT_CHUNK_BYTES = 16
 _RIFF_HEADER_REST = 36
 _COPY_CHUNK = 1024 * 1024
+SONG_FRAMES_CACHE_SIZE = 256
 # Any stem: one Demucs pass writes them all, so they share a frame count.
 _REFERENCE_NAMES = (*STEM_NAMES, *EXTRA_STEM_NAMES, "original")
 
@@ -123,8 +125,30 @@ def song_frames(stems_dir: Path) -> int | None:
             continue
         if path.suffix.lower() == WAV_EXT:
             return wav_frames(path)
-        return _probe_frames(path)
+        st = path.stat()
+        try:
+            return _probed_frames(str(path), st.st_mtime_ns, st.st_size)
+        except _Unprobed:
+            return None
     return None
+
+
+class _Unprobed(Exception):
+    """ffprobe gave no length; raised so the cache keeps no answer for it."""
+
+
+@functools.lru_cache(maxsize=SONG_FRAMES_CACHE_SIZE)
+def _probed_frames(path: str, mtime_ns: int, size: int) -> int:
+    """An MP3-stored song's length, asked of ffprobe once per file version:
+    the takes listing reads it on every call."""
+    frames = _probe_frames(Path(path))
+    if frames is None:
+        raise _Unprobed
+    return frames
+
+
+def song_frames_cache_clear() -> None:
+    _probed_frames.cache_clear()
 
 
 def take_audio_filter(placement_sec: float, frames: int, source_channels: int) -> str:

@@ -46,13 +46,12 @@ const background = (page, sel) =>
   page.locator(sel).evaluate((el) => getComputedStyle(el).backgroundColor);
 
 test.describe("Unsorted folder row", () => {
-  test("has no grip, no New subfolder and no delete", async ({ page }) => {
+  test("has no grip and no … menu", async ({ page }) => {
     await open(page);
     const head = page.locator(UNSORTED);
     await head.hover();
     await expect(head.locator(".f-grip")).toHaveCount(0);
-    await expect(head.locator(".f-subfolder")).toHaveCount(0);
-    await expect(head.locator(".f-del")).toHaveCount(0);
+    await expect(head.locator(".f-more")).toHaveCount(0);
     // The one New Folder button is on the section header.
     await expect(page.locator("#newFolderBtn")).toHaveCount(1);
   });
@@ -64,15 +63,14 @@ test.describe("Unsorted folder row", () => {
     expect(await background(page, UNSORTED)).toBe(before);
   });
 
-  test("a user folder keeps its grip, New subfolder, delete and hover", async ({ page }) => {
+  test("a user folder keeps its grip, … menu and hover", async ({ page }) => {
     await open(page);
     const head = page.locator(MINE);
     const before = await background(page, MINE);
     await head.hover();
     await expect(head.locator(".f-grip")).toBeVisible();
     await expect(head.locator(".f-grip")).toHaveAttribute("draggable", "true");
-    await expect(head.locator(".f-subfolder")).toHaveCount(1);
-    await expect(head.locator(".f-del")).toHaveCount(1);
+    await expect(head.locator(".f-more")).toBeVisible();
     expect(await background(page, MINE)).not.toBe(before);
   });
 });

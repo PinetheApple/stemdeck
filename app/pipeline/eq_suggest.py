@@ -25,16 +25,28 @@ panel draws it as the dashed Target line.
 A lane with too little to measure (under SUGGEST_MIN_GATED_SECONDS of loud
 audio, or quieter than SUGGEST_MIN_LANE_LUFS) is refused with
 ``NotEnoughSignal`` rather than guessed at.
+
+``recommend_master`` picks a master loudness preset from the mix's measured
+integrated loudness and true peak: never louder than the material allows,
+i.e. never asking the limiter for more than SUGGEST_LIMIT_ALLOWANCE_DB on
+the loudest peaks. The streaming target is the mix target's own loudness.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
 
 from app.core.config import (
     FX_MAX_BANDS,
+    MASTER_PRESET_CEILING_DBTP,
+    MASTER_PRESET_LOUDER_COMP,
+    MASTER_PRESET_LOUDER_LUFS,
+    SUGGEST_DENSE_LUFS,
+    SUGGEST_DENSE_PLR_DB,
+    SUGGEST_LIMIT_ALLOWANCE_DB,
     SUGGEST_MIN_GATED_SECONDS,
     SUGGEST_MIN_LANE_LUFS,
     SUGGEST_OUT_MAX_DB,
@@ -69,6 +81,7 @@ from app.pipeline.fx_filters import (
     Band,
     Eq,
 )
+from app.pipeline.mastering import TARGET_MIN
 
 REPLACE = "replace"
 MERGE = "merge"
@@ -103,9 +116,26 @@ WHY_BY_TYPE = {
     TILT: ("suggest.why.tiltDarker", "suggest.why.tiltBrighter"),
 }
 
+PRESET_GENTLE = "gentle"
+PRESET_STREAMING = "streaming"
+PRESET_LOUDER = "louder"
+PRESET_CUSTOM = "custom"
+WHY_MASTER_GENTLE = "suggest.why.master.gentle"
+WHY_MASTER_STREAMING = "suggest.why.master.streaming"
+WHY_MASTER_LOUDER = "suggest.why.master.louder"
+WHY_MASTER_DYNAMIC = "suggest.why.master.dynamic"
+# Custom targets are offered on a half-dB grid.
+_CUSTOM_STEPS_PER_DB = 2.0
+_NO_COMP = 0.0
+
 
 class NotEnoughSignal(ValueError):
     """Too little loud audio to measure. The message is safe to show."""
+
+
+def _why(key: str, **values: object) -> dict:
+    """A reason: an i18n key and the numbers its text needs."""
+    return {"key": key, "vars": values}
 
 
 def is_quiet(spec: Spectrum) -> bool:
@@ -186,7 +216,7 @@ def _distance_reason(spec: Spectrum, target: Target, before_db, done: _Fitted) -
     after_db = bands_db(apply_eq(spec.power, done.kept + done.new, done.out))
     before = round(weighted_rms_db(tgt - before_db, w), _DECIMALS)
     after = round(weighted_rms_db(tgt - after_db, w), _DECIMALS)
-    return {"key": WHY_DISTANCE, "vars": {"before": before, "after": after}}
+    return _why(WHY_DISTANCE, before=before, after=after)
 
 
 def _reasons(spec: Spectrum, target: Target, done: _Fitted) -> list[dict]:
@@ -194,9 +224,9 @@ def _reasons(spec: Spectrum, target: Target, done: _Fitted) -> list[dict]:
     if done.new:
         change = round(loudness_change_db(done.base, done.new), _REASON_DECIMALS)
         out = round(done.out - done.ref_out, _REASON_DECIMALS)
-        reasons.append({"key": WHY_OUT, "vars": {"d": change, "out": out}})
+        reasons.append(_why(WHY_OUT, d=change, out=out))
     else:
-        reasons.append({"key": WHY_CLOSE, "vars": {}})
+        reasons.append(_why(WHY_CLOSE))
     reasons.append(_distance_reason(spec, target, bands_db(done.base), done))
     return reasons
 
@@ -256,10 +286,10 @@ def _band_mask(band: Band) -> np.ndarray:
 def _band_reason(band: Band, dev: np.ndarray, w: np.ndarray) -> dict:
     if band.type == LOWCUT:
         d = round(_mean_dev(dev, w, np.asarray(CENTRES_HZ) < band.f), _REASON_DECIMALS)
-        return {"key": WHY_LOW_CUT, "vars": {"f": band.f, "dev": d}}
+        return _why(WHY_LOW_CUT, f=band.f, dev=d)
     key = WHY_BY_TYPE[band.type][band.g >= 0]
     d = round(_mean_dev(dev, w, _band_mask(band)), _REASON_DECIMALS)
-    return {"key": key, "vars": {"f": band.f, "g": band.g, "dev": d, "region": region_of(band.f)}}
+    return _why(key, f=band.f, g=band.g, dev=d, region=region_of(band.f))
 
 
 def band_reasons(fit: FitResult) -> list[dict]:
@@ -267,3 +297,74 @@ def band_reasons(fit: FitResult) -> list[dict]:
     is from the target where the band acts (``dev``: measured minus target,
     positive means too much there), and what the band does."""
     return [_band_reason(fb.band, -fit.error_db, fit.weights) for fb in fit.bands]
+
+
+@dataclass(frozen=True)
+class MasterSuggestion:
+    preset: str
+    target_lufs: float | None
+    comp: float
+    reason: dict
+    ceiling_dbtp: float = MASTER_PRESET_CEILING_DBTP
+
+    def to_json(self) -> dict:
+        return {
+            "preset": self.preset,
+            "target_lufs": self.target_lufs,
+            "ceiling_dbtp": self.ceiling_dbtp,
+            "comp": self.comp,
+        }
+
+
+@dataclass(frozen=True)
+class _Material:
+    """The mix's integrated loudness, true peak and peak-to-loudness ratio."""
+
+    i: float
+    tp: float
+
+    @property
+    def plr(self) -> float:
+        return self.tp - self.i
+
+    def why(self, key: str, **extra: float) -> dict:
+        """A master reason with the mix's numbers and ``extra``."""
+        nums = {"i": self.i, "tp": self.tp, "plr": self.plr}
+        rounded = {k: round(v, _REASON_DECIMALS) for k, v in nums.items()}
+        return _why(key, **rounded, **extra)
+
+
+def _limiting(target: float, plr: float) -> float:
+    """What the limiter is estimated to take off the loudest peaks at ``target``."""
+    return round(max(0.0, target - MASTER_PRESET_CEILING_DBTP + plr), _REASON_DECIMALS)
+
+
+def _louder_or_streaming(m: _Material, want: float, allowed: float) -> MasterSuggestion | None:
+    # Dense material always has room for the louder preset under the allowance.
+    if m.plr < SUGGEST_DENSE_PLR_DB and m.i > SUGGEST_DENSE_LUFS:
+        louder = MASTER_PRESET_LOUDER_LUFS
+        why = m.why(WHY_MASTER_LOUDER, target=louder)
+        return MasterSuggestion(PRESET_LOUDER, louder, MASTER_PRESET_LOUDER_COMP, why)
+    if allowed >= want:
+        why = m.why(WHY_MASTER_STREAMING, target=want, limit=_limiting(want, m.plr))
+        return MasterSuggestion(PRESET_STREAMING, want, _NO_COMP, why)
+    return None
+
+
+def _quieter(m: _Material, want: float, allowed: float) -> MasterSuggestion:
+    if allowed < TARGET_MIN:
+        # Even the quietest target would squash the peaks: only the limiter, against clipping.
+        return MasterSuggestion(PRESET_GENTLE, None, _NO_COMP, m.why(WHY_MASTER_GENTLE))
+    target = math.floor(allowed * _CUSTOM_STEPS_PER_DB) / _CUSTOM_STEPS_PER_DB
+    limit = _limiting(target, m.plr)
+    why = m.why(WHY_MASTER_DYNAMIC, target=target, want=want, limit=limit)
+    return MasterSuggestion(PRESET_CUSTOM, target, _NO_COMP, why)
+
+
+def recommend_master(i: float, tp: float, want: float) -> MasterSuggestion:
+    """A master preset from the mix's integrated loudness ``i`` and true peak
+    ``tp``: the loudest target up to ``want`` whose peaks the limiter trims by
+    at most the allowance, dense loud material kept loud."""
+    m, want_lufs = _Material(i, tp), float(want)
+    allowed = MASTER_PRESET_CEILING_DBTP - m.plr + SUGGEST_LIMIT_ALLOWANCE_DB
+    return _louder_or_streaming(m, want_lufs, allowed) or _quieter(m, want_lufs, allowed)

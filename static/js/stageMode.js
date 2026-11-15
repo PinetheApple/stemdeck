@@ -1,7 +1,7 @@
 // Stage mode: a full-window play-along view drawn over the lanes, so the studio keeps its size.
 // F toggles it, Esc leaves it.
 
-import { metronomeBeatsPerBar, npScrubFill } from "./state.js";
+import { metronomeBeatsPerBar, npScrubFill, totalDuration } from "./state.js";
 import { togglePlayPause, stopTransport, transport } from "./transport.js";
 import { getSections, sectionDisplayName } from "./sections.js";
 import { getCurrentTrackInfo, isTextEditingTarget } from "./catalog.js";
@@ -9,46 +9,56 @@ import { playNextInUpNext } from "./upNext.js";
 import { shownBpm } from "./tempoTools.js";
 import { isBeatGridEditing, getBeats, barPositionIndex, barLengthAt } from "./beatgrid.js";
 import { buildBeatTable, beatAt } from "./stageBeats.js";
-import { ensureLyricsLoaded, getTimedLyricLines, tagLang } from "./lyrics.js";
+import { ensureLyricsLoaded, getTimedLyricLines } from "./lyrics.js";
 import { currentLineIndex } from "./lyricsLookup.js";
 import { refitFooter } from "./footerFit.js";
+import { initStageMixer, paintStageMixer, forgetStageMixer } from "./stageMixer.js";
+import { initStageOverview, paintStageOverview, paintStageSections, forgetStageOverview } from "./stageOverview.js";
+import { LYRIC_LEAD_SEC, setTextOnce } from "./stageModel.js";
+import { lineText, setLyric } from "./stageLyricLine.js";
+import { DURATION_EVENT } from "./player.js";
+import {
+  forgetSingPainted,
+  initSingAlong,
+  isSingAlong,
+  paintSingFrame,
+  singSongChange,
+  singStageShown,
+} from "./stageSingAlong.js";
+import { closeSingPanel, dismissSingHandoff, singPlayheadAt, singQueueSettles } from "./stageSingQueue.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $, fmtTime } from "./utils.js";
 
 const OPEN_MODAL = 'dialog[open], [role="dialog"][aria-modal="true"]';
-// As lyrics.js: a seek lands on a line's stamp, and the time read back can be a hair before it.
-const LYRIC_LEAD_SEC = 0.05;
-const GAP_LINE = "♪";
 
 let frameId = 0;
 let sections = [];
+let sectionsKey = "";
 let beatTable = [];
 let playObserver = null;
 // Last values written, so a frame that changes nothing writes nothing.
 const shown = {
   section: null, next: null, playing: null,
-  count: null, dotCount: null, dotOn: null, hasLyrics: null, lyric: null, nextLyric: null,
+  dotCount: null, dotOn: null, hasLyrics: null, lyric: null, nextLyric: null,
 };
 
 export function isStageMode() {
   return document.querySelector(".app")?.classList.contains("stage-mode") ?? false;
 }
 
-function setText(el, key, text) {
-  if (!el || shown[key] === text) return;
-  shown[key] = text;
-  el.textContent = text;
-}
-
 function readSections() {
   const all = getSections();
-  sections = all.map((s) => ({ start: s.start, name: sectionDisplayName(s, all) }));
+  sections = all.map((s) => ({ start: s.start, end: s.end, name: sectionDisplayName(s, all) }));
+  const key = JSON.stringify([totalDuration, sections]);
+  if (key === sectionsKey) return;
+  sectionsKey = key;
+  paintStageSections(sections);
 }
 
 function sectionsAt(time) {
   const at = sections.findLastIndex((s) => s.start <= time);
-  return { current: sections[at] ?? null, next: sections[at + 1] ?? null };
+  return { at, current: sections[at] ?? null, next: sections[at + 1] ?? null };
 }
 
 function nextLabel(time, next) {
@@ -80,18 +90,8 @@ function paintDots(length, onIndex) {
 
 function paintBeat(time) {
   const at = beatAt(beatTable, time);
-  setText($("stageCount"), "count", at ? `${at.bar}.${at.beat}` : EMPTY_VALUE);
   paintDots(at?.length ?? beatTable[0]?.length ?? 0, at ? at.beat - 1 : null);
 }
-
-function setLyric(el, key, text) {
-  if (!el || shown[key] === text) return;
-  setText(el, key, text);
-  el.removeAttribute("lang");
-  tagLang(el, text);
-}
-
-const lineText = (line) => (line ? line.text || GAP_LINE : "");
 
 function paintLyrics(time) {
   const lines = getTimedLyricLines();
@@ -101,8 +101,8 @@ function paintLyrics(time) {
     $("stageLyrics").hidden = !hasLyrics;
   }
   const index = currentLineIndex(lines, time + LYRIC_LEAD_SEC);
-  setLyric($("stageLyric"), "lyric", lineText(lines[index]));
-  setLyric($("stageLyricNext"), "nextLyric", lineText(lines[index + 1]));
+  setLyric(shown, "lyric", $("stageLyric"), lineText(lines[index]));
+  setLyric(shown, "nextLyric", $("stageLyricNext"), lineText(lines[index + 1]));
 }
 
 function isPlaying() {
@@ -111,15 +111,19 @@ function isPlaying() {
 
 function paintFrame() {
   const time = transport()?.getCurrentTime?.() ?? 0;
-  const { current, next } = sectionsAt(time);
-  setText($("stageSection"), "section", current?.name ?? "");
-  setText($("stageNext"), "next", nextLabel(time, next));
+  const { at, current, next } = sectionsAt(time);
+  setTextOnce(shown, "section", $("stageSection"), current?.name ?? "");
+  setTextOnce(shown, "next", $("stageNext"), nextLabel(time, next));
+  paintStageOverview(time, at);
   paintBeat(time);
   paintLyrics(time);
+  if (isSingAlong()) paintSingFrame(time);
+  singPlayheadAt(time);
 
   const playing = isPlaying();
   if (shown.playing !== playing) {
     shown.playing = playing;
+    if (playing) singQueueSettles();
     const play = $("stagePlayBtn");
     play?.classList.toggle("playing", playing);
     play?.setAttribute("aria-pressed", String(playing));
@@ -145,6 +149,7 @@ function syncLoop() {
     return;
   }
   stopLoop();
+  readSections();
   paintFrame();
 }
 
@@ -156,6 +161,7 @@ function paintSong() {
   readSections();
   readBeatTable();
   ensureLyricsLoaded();
+  paintStageMixer();
 }
 
 function paintTempo() {
@@ -165,6 +171,10 @@ function paintTempo() {
 
 function forgetPainted() {
   for (const key of Object.keys(shown)) shown[key] = null;
+  sectionsKey = "";
+  forgetStageOverview();
+  forgetStageMixer();
+  forgetSingPainted();
 }
 
 function onTempoChange() {
@@ -176,6 +186,10 @@ function onTempoChange() {
 
 function onLyricsChange() {
   if (isStageMode()) paintFrame();
+}
+
+function onDurationKnown() {
+  if (isStageMode()) syncLoop();
 }
 
 /**
@@ -197,6 +211,7 @@ export function setStageMode(on) {
   view.hidden = !on;
   $("stageModeBtn")?.setAttribute("aria-pressed", String(on));
   refitFooter();
+  singStageShown(on);
   if (on) {
     forgetPainted();
     paintSong();
@@ -227,7 +242,7 @@ function onStageKeydown(e) {
     e.preventDefault();
     setStageMode(!isStageMode());
   } else if (e.key === "Escape" && isStageMode()) {
-    setStageMode(false);
+    if (!dismissSingHandoff() && !closeSingPanel()) setStageMode(false);
   }
 }
 
@@ -239,11 +254,16 @@ function onStageExitClick() {
   setStageMode(false);
 }
 
-function onSongChangeInStage() {
-  if (!isStageMode()) return;
+function redrawStage() {
   forgetPainted();
   paintSong();
   syncLoop();
+}
+
+function onSongChangeInStage() {
+  if (!isStageMode()) return;
+  singSongChange();
+  redrawStage();
 }
 
 function onUpNextChange(e) {
@@ -257,6 +277,9 @@ export function initStageMode() {
   $("stagePlayBtn")?.addEventListener("click", togglePlayPause);
   $("stageStopBtn")?.addEventListener("click", stopTransport);
   $("stageNextBtn")?.addEventListener("click", playNextInUpNext);
+  initStageMixer(isStageMode);
+  initStageOverview(isStageMode);
+  initSingAlong({ showing: isStageMode, redraw: redrawStage, leaveStage: onStageExitClick });
   window.addEventListener("keydown", onStageKeydown);
   document.addEventListener("trackopen", onSongChangeInStage);
   document.addEventListener("tracktags", onSongChangeInStage);
@@ -264,5 +287,6 @@ export function initStageMode() {
   document.addEventListener("upnext:change", onUpNextChange);
   document.addEventListener("tempochange", onTempoChange);
   document.addEventListener("lyricschange", onLyricsChange);
+  document.addEventListener(DURATION_EVENT, onDurationKnown);
   onLanguageChange(onSongChangeInStage);
 }

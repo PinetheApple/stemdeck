@@ -18,6 +18,7 @@ import {
 } from "./helpers.mjs";
 
 const EMPTY_FOLDER_ID = "f-empty";
+const UNSORTED_ID = "f-unsorted";
 const NO_MATCH_QUERY = "zzzz-no-such-song";
 const LANGUAGES = ["en", "pl", "ja", "ko", "zh-Hans", "de", "fr", "es", "pt", "pt-PT", "id"];
 
@@ -38,7 +39,7 @@ async function loadSeededLibrary(page) {
 async function seedWithEmptyFolder(page) {
   await seedCatalogState(page, {
     folders: [
-      { id: "f-unsorted", name: "Unsorted", items: [JOB_ID, SIBLING_JOB_ID], color: null },
+      { id: UNSORTED_ID, name: "Unsorted", items: [JOB_ID, SIBLING_JOB_ID], color: null },
       { id: EMPTY_FOLDER_ID, name: "Rehearsal", items: [], color: null },
       { id: "trash", name: "Trash", items: [], color: null },
     ],
@@ -91,7 +92,7 @@ test("the Songs count is the number of songs the search leaves", async ({ page }
   await search(page, "again");
   await expect(page.locator("#catalogList .cat-item")).toHaveCount(1);
   await expect(count).toHaveText("1");
-  await expect(page.locator('.folder[data-id="f-unsorted"] .f-count')).toHaveText("1");
+  await expect(page.locator(`.folder[data-id="${UNSORTED_ID}"] .f-count`)).toHaveText("1");
 
   await search(page, NO_MATCH_QUERY);
   await expect(count).toHaveText("0");
@@ -206,7 +207,7 @@ test("New folder opens a dialog titled New folder; editing one says Edit folder"
   await expect(dialog).toHaveAttribute("aria-label", newTitle);
   await dialog.locator(".folder-editor-cancel").click();
 
-  await page.locator('.folder[data-id="f-unsorted"] > .folder-head .f-name').dblclick();
+  await page.locator(`.folder[data-id="${UNSORTED_ID}"] > .folder-head .f-name`).dblclick();
   await expect(dialog.locator(".folder-editor-head > span")).toHaveText(await uiText(page, "folderEditor.title"));
 });
 
@@ -236,7 +237,7 @@ async function seedPaddedList(page) {
   const padding = [...paddingIds("above"), ...paddingIds("below")];
   await seedCatalogState(page, {
     folders: [
-      { id: "f-unsorted", name: "Unsorted", items: [...paddingIds("above"), JOB_ID, SIBLING_JOB_ID, ...paddingIds("below")], color: null },
+      { id: UNSORTED_ID, name: "Unsorted", items: [...paddingIds("above"), JOB_ID, SIBLING_JOB_ID, ...paddingIds("below")], color: null },
       { id: "trash", name: "Trash", items: [], color: null },
     ],
     tracks: {
@@ -353,7 +354,7 @@ test("typing hides the ⌘K hint and clearing brings it back", async ({ page }) 
 test("a tag chip that sets or clears the search moves the ⌘K hint with it", async ({ page }) => {
   await seedCatalogState(page, {
     folders: [
-      { id: "f-unsorted", name: "Unsorted", items: [JOB_ID], color: null },
+      { id: UNSORTED_ID, name: "Unsorted", items: [JOB_ID], color: null },
       { id: "trash", name: "Trash", items: [], color: null },
     ],
     tracks: { [JOB_ID]: { ...fixtureTrack(JOB_ID, TRACK_TITLE), tags: [CHIP_TAG] } },
