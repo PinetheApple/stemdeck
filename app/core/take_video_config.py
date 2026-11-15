@@ -1,6 +1,6 @@
-"""Names and tunable numbers of filmed takes (#102): the camera upload, the
-"I play" stems, the export range, and the take's MP4 render. Contracts with
-the Film view's recorder; the layout is in docs/takes.md."""
+"""Names and tunable numbers of filmed takes: the camera upload, the "I play"
+stems, the export range, and the take's MP4 render. The layout is in
+docs/takes.md."""
 
 from __future__ import annotations
 
@@ -16,7 +16,6 @@ VOCAL_HALVES = EXTRA_STEM_NAMES
 ORIGINAL = "original"
 
 CAMERA_PART_FILE = "camera.part"
-CAMERA_STEM = "camera"
 CAMERA_WEBM = "camera.webm"
 CAMERA_MP4 = "camera.mp4"
 CAMERA_FILES = (CAMERA_WEBM, CAMERA_MP4)
@@ -47,6 +46,7 @@ RENDER_FILE = "render.mp4"
 RENDER_SIDECAR = "render.json"
 RENDER_SIDECAR_VERSION = 1
 RENDER_TMP_TEMPLATE = ".render.mp4.{token}.tmp"
+RENDER_TMP_GLOB = ".render.mp4.*.tmp"
 RENDER_SIZES = {"720": (1280, 720), "1080": (1920, 1080)}
 RENDER_SIZE_DEFAULT = "1080"
 RENDER_FPS = (24, 30, 60)
@@ -58,9 +58,13 @@ RENDER_STOP_WAIT_SEC = 10.0
 RENDER_DOWNLOAD_SUFFIX = ".mp4"
 RENDER_MEDIA_TYPE = "video/mp4"
 
+# The render view's own words; running, done and cancelled are the run's.
 STATUS_NONE = "none"
 STATUS_QUEUED = "queued"
-STATUS_RUNNING = "running"
-STATUS_DONE = "done"
 STATUS_ERROR = "error"
-STATUS_CANCELLED = "cancelled"
+RENDER_BUSY_DETAIL = "a render of this take is running"
+
+# What a failed render says went wrong, besides the encoder's own reasons.
+ERROR_DISK_FULL = "disk-full"
+ERROR_FILES = "files"
+ERROR_FAILED = "failed"

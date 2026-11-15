@@ -1,6 +1,6 @@
-"""What a filmed take's export renders (#102, #99): the request checked and
-turned into a RenderPlan, before the render queues, so a bad request is a
-422 at once rather than a failed render later. Blocking: run in a thread.
+"""What a filmed take's export renders: the request checked and turned into
+a RenderPlan before the render queues, so a bad request is a 422 at once
+rather than a failed render later. Blocking: run in a thread.
 
 The backing goes through the mixdown export's own helpers in
 app/api/stems.py, so its lanes, gains, transposes and rebuilt original are
@@ -24,8 +24,8 @@ from app.api.stems import (
     _pitch_filter,
     _rubberband_available,
 )
+from app.api.takes_files import song_seconds
 from app.api.takes_lanes import EXPORT_LIMITER, is_take_lane
-from app.api.takes_video_edit import song_seconds
 from app.api.takes_video_iplay import Lane, without_played
 from app.api.takes_video_models import RenderBody
 from app.core.settings import get_export_sample_rate

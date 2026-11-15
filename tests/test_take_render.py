@@ -159,3 +159,26 @@ def test_write_peaks_names_the_take(tmp_path):
     assert list(peaks) == ["t0000000a"]
     assert len(peaks["t0000000a"]) > 100
     assert all(len(pair) == 2 for pair in peaks["t0000000a"])
+
+
+def test_an_mp3_songs_length_is_probed_once_per_file(tmp_path, monkeypatch):
+    from app.core.stem_files import MP3_STEMS_MARKER
+    from app.pipeline import take_render
+
+    stems = tmp_path / "stems"
+    stems.mkdir()
+    (stems / MP3_STEMS_MARKER).touch()
+    mp3 = stems / "drums.mp3"
+    mp3.write_bytes(b"not decoded here")
+    probes = []
+
+    def probe(path):
+        probes.append(path)
+        return 1000
+
+    monkeypatch.setattr(take_render, "_probe_frames", probe)
+    take_render.song_frames_cache_clear()
+    assert take_render.song_frames(stems) == take_render.song_frames(stems) == 1000
+    mp3.write_bytes(b"replaced by a new import")
+    assert take_render.song_frames(stems) == 1000
+    assert len(probes) == 2

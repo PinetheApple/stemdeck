@@ -1,6 +1,6 @@
-"""Edits to a finished filmed take (#102): the export trim and the camera
-offset. Neither re-renders audio.wav: the trim changes only what an export
-covers, and the offset moves only the picture."""
+"""Edits to a finished filmed take: the export trim and the camera offset.
+Neither re-renders audio.wav: the trim changes only what an export covers,
+and the offset moves only the picture."""
 
 from __future__ import annotations
 
@@ -9,19 +9,10 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from app.api.takes_files import song_seconds
 from app.api.takes_models import PatchTakeBody
 from app.core.take_video import has_camera, take_span
 from app.core.take_video_config import SPAN_EPSILON_SEC, TRIM_MIN_SEC
-from app.core.takes_config import STEMS_DIRNAME, TAKE_RATE
-from app.pipeline.take_render import song_frames
-
-VIDEO_PATCH_FIELDS = ("trim", "camera_offset_ms")
-
-
-def song_seconds(job_dir: Path) -> float | None:
-    """The song's length from its stems, or None without one. Blocking."""
-    frames = song_frames(job_dir / STEMS_DIRNAME)
-    return None if frames is None else frames / TAKE_RATE
 
 
 def asks_change(body: PatchTakeBody) -> bool:

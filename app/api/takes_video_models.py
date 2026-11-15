@@ -1,6 +1,6 @@
-"""Request bodies of filmed takes (#102): the camera a take opens and
-finishes with, the export trim, the "I play" stems and the MP4 render.
-Unknown fields are refused, as in app/api/takes_models.py."""
+"""Request bodies of filmed takes: the camera a take opens and finishes with,
+the export trim, the "I play" stems and the MP4 render. Unknown fields are
+refused."""
 
 from __future__ import annotations
 
@@ -17,8 +17,10 @@ from app.core.take_video_config import (
     FIRST_FRAME_CLOCKS,
     FIRST_FRAME_OFFSET_MAX_MS,
     I_PLAY_STEMS,
+    RENDER_FPS,
     RENDER_FPS_DEFAULT,
     RENDER_SIZE_DEFAULT,
+    RENDER_SIZES,
     TAKE_GAIN_MAX,
     TRACK_KINDS,
 )
@@ -34,6 +36,8 @@ def _known_stems(value: list[str]) -> list[str]:
 
 IPlay = Annotated[list[str], Field(max_length=len(I_PLAY_STEMS) * 2), AfterValidator(_known_stems)]
 TrackKind = Literal[TRACK_KINDS]
+RenderSize = Literal[tuple(RENDER_SIZES)]
+RenderFps = Literal[RENDER_FPS]
 OffsetMs = Annotated[
     float,
     Field(ge=-CAMERA_OFFSET_MAX_MS, le=CAMERA_OFFSET_MAX_MS, allow_inf_nan=False),
@@ -88,6 +92,6 @@ class RenderBody(_Strict):
     pitches: list[int] | None = None
     take_gain: float = Field(default=1.0, ge=0, le=TAKE_GAIN_MAX, allow_inf_nan=False)
     i_play: IPlay | None = None
-    size: Literal["720", "1080"] = RENDER_SIZE_DEFAULT
-    fps: Literal[24, 30, 60] = RENDER_FPS_DEFAULT
+    size: RenderSize = RENDER_SIZE_DEFAULT
+    fps: RenderFps = RENDER_FPS_DEFAULT
     mirror: bool | None = None

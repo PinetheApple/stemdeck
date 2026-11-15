@@ -1,8 +1,6 @@
-"""Filmed takes on disk (#102): where a take's camera file is, when its
-picture starts on the song clock, and the span an export covers.
-
-Free of FastAPI and ffmpeg, like app/core/takes.py, which reads these for
-has_takes() and the lane entries.
+"""Filmed takes on disk: where a take's camera file is, when its picture
+starts on the song clock, and the span an export covers. Free of FastAPI
+and ffmpeg.
 """
 
 from __future__ import annotations

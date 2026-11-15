@@ -24,6 +24,7 @@ from app.core.takes import (
 )
 from app.core.takes_config import (
     AUDIO_PART_FILE,
+    EMPTY_PART_STATE,
     PARTS_FILE,
     RAW_WAV_FILE,
     SIDECAR_FILE,
@@ -32,6 +33,7 @@ from app.core.takes_config import (
     TAKE_ID_PREFIX,
     TAKE_LABEL_TEMPLATE,
     TAKE_PEAKS_FILE,
+    TAKE_RATE,
     TAKE_SAMPLE_BYTES,
     TAKE_WAV_FILE,
     TAKES_DIRNAME,
@@ -92,7 +94,7 @@ def open_take(
         "created_at": now,
         "updated_at": now,
         "finished": False,
-        AUDIO_STREAM: {"next_seq": 0, "bytes": 0},
+        AUDIO_STREAM: dict(EMPTY_PART_STATE),
         "start": body.model_dump(include=start_fields(body)),
         **filmed_state(body, track),
     }
@@ -167,6 +169,12 @@ def _build_sidecar(folder: Path, state: dict[str, Any], body: FinishBody) -> dic
         "latency": {**start["latency"]},
         "capture": capture,
     }
+
+
+def song_seconds(job_dir: Path) -> float | None:
+    """The song's length from its stems, or None without one."""
+    frames = song_frames(job_dir / STEMS_DIRNAME)
+    return None if frames is None else frames / TAKE_RATE
 
 
 def render_lane(job_dir: Path, folder: Path, sidecar: dict[str, Any]) -> None:

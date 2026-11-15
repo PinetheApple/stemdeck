@@ -1,89 +1,42 @@
-"""The filmed-take export routes (#102, #99): start, follow, cancel and
-download a render, with real libx264 for the CPU path and the GPU encoder
+"""The filmed-take export routes: start, follow, cancel and download a
+render, with real libx264 for the CPU path and the GPU encoder
 mocked. Scratch jobs dir and probe cache."""
 
 from __future__ import annotations
 
 import threading
 import time
+from pathlib import Path
 
 import pytest
 
-import app.core.config as cfg
 from app.api import takes_video_render, takes_video_runs
-from app.core.registry import _jobs
 from app.core.take_video_config import RENDER_FILE, RENDER_SIDECAR
-from app.core.takes_config import TAKES_DIRNAME
 from app.core.video_config import ENCODER_ENV, NVENC
 from app.pipeline import video_encoder
 from app.pipeline.video_encoder import Choice, EncodeError
-from tests._take_video_helpers import filmed_take, make_camera, video_track
-from tests._takes_helpers import (
-    CAPTURE_RATE,
-    JOB,
-    add_done_job,
-    make_client,
-    new_track,
-    pcm,
-    recorded_take,
+from tests._take_render_helpers import (
+    BASE,
+    POLL_SEC,
+    WAIT_SEC,
+    client,
+    render_isolation,
+    start_render,
+    take,
+    take_folder,
+    wait_render,
 )
+from tests._takes_helpers import JOB, make_client, new_track, recorded_take
 from tests._video_helpers import fresh_encoders, needs_libx264
 
-__all__ = ["fresh_encoders"]
+__all__ = ["client", "fresh_encoders", "render_isolation", "take"]
 
-pytestmark = needs_libx264
-
-BASE = f"/api/jobs/{JOB}"
-TAKE_PCM = pcm(CAPTURE_RATE * 3)
-BODY = {"stems": ["drums"], "gains": [1.0], "size": "720", "fps": 24}
-POLL_SEC = 0.1
-WAIT_SEC = 120.0
-
-
-@pytest.fixture(autouse=True)
-def _isolate(fresh_encoders, monkeypatch):
-    _jobs.clear()
-    monkeypatch.setenv(ENCODER_ENV, "cpu")
-    yield
-    _jobs.clear()
-    takes_video_runs.RENDER_RUNS.runs.clear()
-
-
-@pytest.fixture
-def client():
-    job = add_done_job(cfg.JOBS_DIR)
-    job.title = "Song: A"
-    with make_client() as c:
-        yield c
-
-
-@pytest.fixture
-def take(client, tmp_path):
-    camera = make_camera(tmp_path / "cam.webm")
-    return filmed_take(client, video_track(client), camera, audio=TAKE_PCM)["id"]
-
-
-def _folder(take_id: str):
-    return cfg.JOBS_DIR / JOB / TAKES_DIRNAME / take_id
-
-
-def _render(client, take_id: str, **over):
-    return client.post(f"{BASE}/takes/{take_id}/render", json={**BODY, **over})
-
-
-def _wait(client, take_id: str, until=("done", "error", "cancelled")) -> dict:
-    deadline = time.monotonic() + WAIT_SEC
-    while time.monotonic() < deadline:
-        view = client.get(f"{BASE}/takes/{take_id}/render").json()
-        if view["status"] in until:
-            return view
-        time.sleep(POLL_SEC)
-    raise AssertionError(f"render still {view['status']}")
+pytestmark = [needs_libx264, pytest.mark.usefixtures("render_isolation")]
 
 
 def test_cpu_render_is_done_and_outlives_a_restart(client, take):
-    assert _render(client, take).status_code == 202
-    view = _wait(client, take)
+    assert start_render(client, take).status_code == 202
+    view = wait_render(client, take)
     assert (view["status"], view["encoder"], view["family"]) == ("done", "libx264", "cpu")
     assert view["url"] == f"{BASE}/takes/{take}/{RENDER_FILE}" and not view["stale"]
     with make_client() as fresh:
@@ -96,44 +49,69 @@ def test_cpu_render_is_done_and_outlives_a_restart(client, take):
 
 
 def test_trim_makes_the_render_stale(client, take):
-    _render(client, take)
-    _wait(client, take)
+    start_render(client, take)
+    wait_render(client, take)
     span = client.get(f"{BASE}/takes").json()["takes"][0]["span"]
     trim = {"in_sec": span["start_sec"], "out_sec": span["start_sec"] + 1.5}
     client.patch(f"{BASE}/takes/{take}", json={"trim": trim})
     assert client.get(f"{BASE}/takes/{take}/render").json()["stale"] is True
 
 
+class Held:
+    """A render stuck in its encode: it has written part of its temp file,
+    and `stopped` is set once the encode gave up on a cancel."""
+
+    def __init__(self) -> None:
+        self.release = threading.Event()
+        self.stopped = threading.Event()
+        self.temps: list[Path] = []
+
+    def encode(self, job, setting, cancelled):
+        job.dest.write_bytes(b"partial")
+        self.temps.append(job.dest)
+        try:
+            while not self.release.wait(POLL_SEC):
+                if cancelled():
+                    raise EncodeError("cancelled")
+            raise EncodeError("cancelled")
+        finally:
+            self.stopped.set()
+
+
 @pytest.fixture
 def held(monkeypatch):
-    """Renders block until the event is set, then fail as cancelled when asked."""
-    release = threading.Event()
+    stuck = Held()
+    monkeypatch.setattr(takes_video_runs, "encode", stuck.encode)
+    yield stuck
+    stuck.release.set()
 
-    def blocked_encode(job, setting, cancelled):
-        while not release.wait(POLL_SEC):
-            if cancelled():
-                raise EncodeError("cancelled")
-        raise EncodeError("cancelled")
 
-    monkeypatch.setattr(takes_video_runs, "encode", blocked_encode)
-    yield release
-    release.set()
+def _wait_running(client, take_id: str, held: Held) -> None:
+    wait_render(client, take_id, until=("running",))
+    deadline = time.monotonic() + WAIT_SEC
+    while not held.temps and time.monotonic() < deadline:
+        time.sleep(POLL_SEC)
+    assert held.temps and held.temps[0].is_file()
 
 
 def test_a_second_render_is_409_and_cancel_keeps_the_old_file(client, take, held):
-    (_folder(take) / RENDER_FILE).write_bytes(b"previous")
-    assert _render(client, take).status_code == 202
-    assert _render(client, take).status_code == 409
+    (take_folder(take) / RENDER_FILE).write_bytes(b"previous")
+    assert start_render(client, take).status_code == 202
+    assert start_render(client, take).status_code == 409
+    _wait_running(client, take, held)
     client.post(f"{BASE}/takes/{take}/render/cancel")
-    assert _wait(client, take)["status"] == "cancelled"
-    assert (_folder(take) / RENDER_FILE).read_bytes() == b"previous"
-    assert not list(_folder(take).glob(".render.mp4.*"))
+    assert wait_render(client, take)["status"] == "cancelled"
+    assert held.stopped.is_set()
+    assert (take_folder(take) / RENDER_FILE).read_bytes() == b"previous"
+    assert not list(take_folder(take).glob(".render.mp4.*"))
 
 
-def test_deleting_the_song_cancels_its_render(client, take, held):
-    _render(client, take)
-    _wait(client, take, until=("running",))
+def test_deleting_the_song_stops_itsstart_render(client, take, held):
+    start_render(client, take)
+    _wait_running(client, take, held)
     takes_video_runs.cancel_job_renders(JOB)
+    assert held.stopped.is_set()
+    assert not held.temps[0].exists()
     assert takes_video_runs.RENDER_RUNS.current(takes_video_runs.run_key(JOB, take)) is None
 
 
@@ -174,11 +152,11 @@ def _junk_output(cmd):
 )
 def test_a_failed_gpu_render_is_redone_on_the_cpu(client, take, monkeypatch, failure, reason):
     _gpu_fails_with(monkeypatch, failure)
-    _render(client, take)
-    view = _wait(client, take)
+    start_render(client, take)
+    view = wait_render(client, take)
     assert (view["encoder"], view["fallback_reason"]) == ("libx264", reason)
-    _render(client, take)
-    _wait(client, take)
+    start_render(client, take)
+    wait_render(client, take)
     assert NVENC in video_encoder.disabled()
 
 
@@ -187,28 +165,28 @@ def test_cpu_policy_never_probes(client, take, monkeypatch):
         raise AssertionError("probed under STEMDECK_VIDEO_ENCODER=cpu")
 
     monkeypatch.setattr(video_encoder, "probe", no_probe)
-    _render(client, take)
-    assert _wait(client, take)["status"] == "done"
+    start_render(client, take)
+    assert wait_render(client, take)["status"] == "done"
 
 
 def test_the_take_itself_cannot_be_in_the_backing(client, take):
     track = client.get(f"{BASE}/takes").json()["takes"][0]["track_id"]
-    assert _render(client, take, stems=[take], gains=[1.0]).status_code == 422
-    assert _render(client, take, stems=[track], gains=[1.0]).status_code == 422
+    assert start_render(client, take, stems=[take], gains=[1.0]).status_code == 422
+    assert start_render(client, take, stems=[track], gains=[1.0]).status_code == 422
 
 
 def test_a_take_without_camera_is_422(client):
     audio = recorded_take(client, new_track(client))["id"]
-    assert _render(client, audio).status_code == 422
+    assert start_render(client, audio).status_code == 422
 
 
 def test_no_libx264_is_503(client, take, monkeypatch):
     monkeypatch.setattr(takes_video_render, "render_tools_available", lambda: False)
-    assert _render(client, take).status_code == 503
+    assert start_render(client, take).status_code == 503
 
 
 def test_no_render_yet(client, take):
     view = client.get(f"{BASE}/takes/{take}/render").json()
     assert (view["status"], view["url"]) == ("none", None)
     assert client.get(f"{BASE}/takes/{take}/{RENDER_FILE}").status_code == 404
-    assert not (_folder(take) / RENDER_SIDECAR).exists()
+    assert not (take_folder(take) / RENDER_SIDECAR).exists()

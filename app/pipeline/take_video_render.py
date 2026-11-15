@@ -1,4 +1,4 @@
-"""The ffmpeg command that renders a filmed take to MP4 (#102, #99).
+"""The ffmpeg command that renders a filmed take to MP4.
 
 The picture is the camera file shifted onto the song clock, cut to the
 export span, snapped to the output frame rate and letterboxed into a 16:9
@@ -7,10 +7,10 @@ plus the take, through the export limiter.
 
 Sync: the camera's frame 0 sits at `camera_start_sec` on the song clock
 (app.core.take_video.camera_start_sec). Its timestamps are moved there
-first and cut after; the other order measured a 25 ms error upstream. The
-fps filter then puts each frame on the nearest output frame, so the server
-adds at most half a frame of error. Every audio lane starts at the span's
-first whole 44.1 kHz sample.
+first and cut after: cutting first resets the start the shift counts from.
+The fps filter then puts each frame on the nearest output frame, so the
+server adds at most half a frame of error. Every audio lane starts at the
+span's first whole 44.1 kHz sample.
 """
 
 from __future__ import annotations
@@ -96,11 +96,13 @@ def picture_filters(plan: RenderPlan, index: int, encoder: str) -> list[str]:
 
 
 def audio_filters(plan: RenderPlan) -> list[str]:
-    """Each lane cut to the span at its gain and shift, summed without
+    """Each lane resampled to the stems' rate, so the cut counts the same
+    samples whatever the file's own rate, then cut to the span at its gain and shift, summed without
     normalising, then the export limiter: a take is always in this mix."""
     first, end = span_samples(plan.start_sec, plan.duration_sec)
     filters = [
-        f"[{i}:a]atrim=start_sample={first}:end_sample={end},asetpts=PTS-STARTPTS,"
+        f"[{i}:a]aresample={TAKE_RATE},atrim=start_sample={first}:end_sample={end},"
+        "asetpts=PTS-STARTPTS,"
         f"{lane.pitch_stage}volume={lane.gain:.6f}[a{i}]"
         for i, lane in enumerate(plan.lanes)
     ]
@@ -123,7 +125,8 @@ def render_cmd(
     cmd += ["-progress", "pipe:1", *global_args(encoder, device)]
     for lane in plan.lanes:
         cmd += ["-i", str(lane.path)]
-    cmd += ["-i", str(plan.camera)]
+    # A browser's webm can lack timestamps on some frames; ffmpeg makes them up.
+    cmd += ["-fflags", "+genpts", "-i", str(plan.camera)]
     graph = [*audio_filters(plan), *picture_filters(plan, len(plan.lanes), encoder)]
     cmd += ["-filter_complex", ";".join(graph), "-map", VIDEO_LABEL, "-map", MIX_LABEL]
     cmd += encoder_args(encoder, plan.width, plan.height, plan.fps, variant)

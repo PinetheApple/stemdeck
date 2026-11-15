@@ -1,5 +1,5 @@
-"""A filmed take's camera at open and finish time (#102), run in a thread
-under the song's lock by app/api/takes_files.py.
+"""A filmed take's camera at open and finish time. Blocking: run in a thread
+under the song's lock.
 
 The picture is kept only when every chunk arrived, the bytes are a webm or
 an mp4, and ffprobe finds a video stream in them. Otherwise it is dropped
@@ -24,7 +24,7 @@ from app.core.take_video_config import (
     DROP_PARTS_MISSING,
     TRACK_KIND_VIDEO,
 )
-from app.core.takes_config import LOGGER_NAME
+from app.core.takes_config import EMPTY_PART_STATE, LOGGER_NAME
 from app.pipeline.take_camera import CameraInfo, probe_camera, sniff_camera
 
 logger = logging.getLogger(LOGGER_NAME)
@@ -45,7 +45,7 @@ def filmed_state(body: CreateTakeBody, track: dict[str, Any]) -> dict[str, Any]:
     if track.get("kind") == TRACK_KIND_VIDEO:
         out["i_play"] = list(track.get("i_play") or [])
     if body.camera is not None:
-        out[CAMERA_STREAM] = {"next_seq": 0, "bytes": 0}
+        out[CAMERA_STREAM] = dict(EMPTY_PART_STATE)
     return out
 
 

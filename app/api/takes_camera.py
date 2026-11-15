@@ -1,9 +1,8 @@
-"""Routes for a filmed take's camera (#102): its MediaRecorder chunks while
-the take records, and the finished camera file for review.
+"""Routes for a filmed take's camera: its MediaRecorder chunks while the take
+records, and the finished camera file for review.
 
-Chunks have their own route, so the audio /parts route stays as #98 shipped
-it. They follow the same rules: the next seq only, the last one repeated is a
-no-op, and a crash never leaves a part in twice.
+Chunks follow the audio parts' rules: the next seq only, the last one
+repeated is a no-op, and a crash never leaves a part in twice.
 """
 
 from __future__ import annotations

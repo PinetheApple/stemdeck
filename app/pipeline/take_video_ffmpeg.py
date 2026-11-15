@@ -17,7 +17,7 @@ from typing import IO
 
 from app.pipeline.video_encoder import EncodeError
 from app.pipeline.video_probe import CODE_EXIT
-from app.pipeline.video_process import _POSIX, STOP_CANCELLED, STOP_TIMEOUT, _kill
+from app.pipeline.video_process import STOP_CANCELLED, STOP_TIMEOUT, kill_group, spawn_group
 
 CODE_STALL = "stall"
 _OUT_TIME_KEY = "out_time_us"
@@ -64,28 +64,21 @@ def _stop_reason(
     return None
 
 
-def _watch(proc, progress, timeout, stall, cancelled) -> str | None:
+def _watch(
+    proc: subprocess.Popen,
+    progress: _Progress,
+    timeout: float,
+    stall: float | None,
+    cancelled: Callable[[], bool],
+) -> str | None:
     started = time.monotonic()
     while proc.poll() is None:
         why = _stop_reason(started, progress, timeout, stall, cancelled)
         if why is not None:
-            _kill(proc)
+            kill_group(proc)
             return why
         time.sleep(_POLL_SEC)
     return None
-
-
-def _spawn(cmd: list[str]) -> subprocess.Popen:
-    return subprocess.Popen(  # noqa: S603 -- list args, trusted ffmpeg
-        cmd,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        start_new_session=_POSIX,
-    )
 
 
 def run_render(
@@ -98,7 +91,7 @@ def run_render(
     """Run `cmd` to the end, reporting each output time in seconds."""
     if cancelled():
         raise EncodeError(STOP_CANCELLED)
-    proc = _spawn(cmd)
+    proc = spawn_group(cmd)
     progress = _Progress(on_time)
     tail: deque[str] = deque(maxlen=_STDERR_TAIL_LINES)
     readers = [

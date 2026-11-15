@@ -26,11 +26,12 @@ class Lane(NamedTuple):
     pitch: int
 
 
-def played_set(i_play: list[str]) -> set[str]:
-    played = set(i_play)
-    if VOCALS in played:
-        played |= set(VOCAL_HALVES)
-    return played
+Exists = Callable[[str], bool]
+
+
+def _with_halves(names: list[str]) -> set[str]:
+    """`names`, with vocals standing for both of its halves too."""
+    return set(names) | (set(VOCAL_HALVES) if VOCALS in names else set())
 
 
 def _inside_original(names: list[str]) -> list[str]:
@@ -49,7 +50,7 @@ def _audible(name: str, played: set[str]) -> list[str]:
     return [name]
 
 
-def _need(names: list[str], exists: Callable[[str], bool]) -> list[str]:
+def _need(names: list[str], exists: Exists) -> list[str]:
     missing = [n for n in names if not exists(n)]
     if missing:
         raise HTTPException(
@@ -59,19 +60,20 @@ def _need(names: list[str], exists: Callable[[str], bool]) -> list[str]:
     return names
 
 
-def _rebuilt_original(lane: Lane, inside: list[str], played: set[str], exists) -> list[Lane]:
+def _rebuilt_original(
+    lane: Lane,
+    inside: list[str],
+    played: set[str],
+    exists: Exists,
+) -> list[Lane]:
     parts = _need([s for n in inside for s in _audible(n, played)], exists)
     return [Lane(p, lane.gain, effective_pitch(p, lane.pitch)) for p in parts]
 
 
-def _hidden_in(inside: list[str]) -> set[str]:
-    return set(inside) | (set(VOCAL_HALVES) if VOCALS in inside else set())
-
-
-def _original(lane: Lane, inside: list[str], played: set[str], exists) -> list[Lane]:
+def _original(lane: Lane, inside: list[str], played: set[str], exists: Exists) -> list[Lane]:
     """Rebuilt here when transposed too: the export would take its complement
     from the rewritten lane names, which can bring a played half back."""
-    if played & _hidden_in(inside):
+    if played & _with_halves(inside):
         return _rebuilt_original(lane, inside, played, exists)
     if lane.pitch and all(exists(n) for n in inside):
         return [Lane(n, lane.gain, effective_pitch(n, lane.pitch)) for n in inside]
@@ -79,7 +81,7 @@ def _original(lane: Lane, inside: list[str], played: set[str], exists) -> list[L
     return [Lane(lane.name, lane.gain, 0)]
 
 
-def _rewrite(lane: Lane, inside: list[str], played: set[str], exists) -> list[Lane]:
+def _rewrite(lane: Lane, inside: list[str], played: set[str], exists: Exists) -> list[Lane]:
     if lane.name == ORIGINAL:
         return _original(lane, inside, played, exists)
     audible = _audible(lane.name, played)
@@ -91,11 +93,11 @@ def _rewrite(lane: Lane, inside: list[str], played: set[str], exists) -> list[La
 def without_played(
     lanes: list[Lane],
     i_play: list[str],
-    exists: Callable[[str], bool],
+    exists: Exists,
 ) -> list[Lane]:
     """`lanes` with every played stem taken out; `exists` says whether this
     song has a stem's file."""
-    played = played_set(i_play)
+    played = _with_halves(i_play)
     inside = _inside_original([lane.name for lane in lanes])
     out: list[Lane] = []
     for lane in lanes:

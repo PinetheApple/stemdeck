@@ -32,7 +32,7 @@ from app.api.takes_common import (
 )
 from app.api.takes_models import CreateTakeBody, FinishBody, PatchTakeBody
 from app.api.takes_tracks import router as tracks_router
-from app.api.takes_video_edit import apply_video_patch, asks_change, song_seconds
+from app.api.takes_video_edit import apply_video_patch, asks_change
 from app.api.takes_video_render import router as render_router
 from app.core.models import Job
 from app.core.song_folder import write_json_atomic
@@ -46,6 +46,7 @@ from app.core.takes import (
     take_entry,
 )
 from app.core.takes_config import (
+    EMPTY_PART_STATE,
     LOGGER_NAME,
     PARTS_FILE,
     SIDECAR_FILE,
@@ -73,7 +74,7 @@ _TIMING_FIELDS = ("round_trip_ms", "user_nudge_ms")
 
 def _listing(job_id: str, job_dir: Path) -> dict[str, Any]:
     finished, open_ = scan_takes(job_dir, now=time.time())
-    song_sec = song_seconds(job_dir)
+    song_sec = takes_files.song_seconds(job_dir)
     return {
         "tracks": normalise_tracks(read_tracks(job_dir), finished),
         "takes": [take_entry(job_id, s, song_sec) for s in finished],
@@ -149,7 +150,7 @@ def _parts_view(folder: Path) -> dict[str, Any]:
         for name in (takes_files.AUDIO_STREAM, CAMERA_STREAM)
         if isinstance(state.get(name), dict)
     }
-    view.setdefault(takes_files.AUDIO_STREAM, {"next_seq": 0, "bytes": 0})
+    view.setdefault(takes_files.AUDIO_STREAM, dict(EMPTY_PART_STATE))
     return {**view, "finished": bool(state.get("finished")) or is_finished(folder)}
 
 
@@ -174,7 +175,7 @@ def _finish(job_dir: Path, folder: Path, body: FinishBody) -> dict[str, Any]:
         raise HTTPException(status_code=409, detail="track deleted")
     sidecar = takes_files.finish_take_files(job_dir, folder, body)
     _activate(job_dir, sidecar["track_id"], folder.name)
-    return take_entry(job_dir.name, sidecar, song_seconds(job_dir))
+    return take_entry(job_dir.name, sidecar, takes_files.song_seconds(job_dir))
 
 
 @router.post("/{job_id}/takes/{take_id}/finish")
@@ -206,7 +207,7 @@ def _patch_files(job_dir: Path, folder: Path, body: PatchTakeBody) -> dict[str, 
         takes_files.render_lane(job_dir, folder, sidecar)
     apply_video_patch(job_dir, sidecar, body)
     write_json_atomic(folder / SIDECAR_FILE, sidecar)
-    return take_entry(job_dir.name, sidecar, song_seconds(job_dir))
+    return take_entry(job_dir.name, sidecar, takes_files.song_seconds(job_dir))
 
 
 @router.patch("/{job_id}/takes/{take_id}")

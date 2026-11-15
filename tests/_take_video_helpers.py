@@ -4,6 +4,7 @@ finished filmed take made through the routes."""
 
 from __future__ import annotations
 
+import math
 import subprocess
 from pathlib import Path
 
@@ -19,7 +20,7 @@ CAM_SEC = 4.0
 FLASH_FRAME = 45
 # Two frames, so a 24 fps export, which drops one camera frame in five, keeps one.
 FLASH_FRAMES = 2
-FLASH_SEC = FLASH_FRAME / CAM_FPS
+TIMEBASE_HZ = 1000
 BLACK_Y = 16
 WHITE_Y = 235
 FLASH_YAVG = 100
@@ -28,16 +29,33 @@ CAMERA_START = {"mime": "video/webm;codecs=vp8", "width": CAM_W, "height": CAM_H
 CAMERA_CODECS = {".webm": ["-c:v", "libvpx", "-b:v", "1M"], ".mp4": ["-c:v", "libx264"]}
 
 
-def make_camera(dest: Path, first_pts_sec: float = 0.0, seconds: float = CAM_SEC) -> Path:
-    """A black clip at CAM_FPS, white from FLASH_FRAME for FLASH_FRAMES frames; webm
-    (VP8) or mp4 (H.264) by suffix, its first timestamp at `first_pts_sec`."""
+def _clip_source(seconds: float, jitter_sec: float) -> str:
     last = FLASH_FRAME + FLASH_FRAMES - 1
     flash = f"geq=lum='if(between(N,{FLASH_FRAME},{last}),{WHITE_Y},{BLACK_Y})':cb=128:cr=128"
     source = f"color=black:s={CAM_W}x{CAM_H}:r={CAM_FPS}:d={seconds},format=yuv420p,{flash}"
-    cmd = [ffmpeg_executable(), "-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i", source]
-    cmd += [*CAMERA_CODECS[dest.suffix], "-pix_fmt", "yuv420p"]
-    cmd += ["-output_ts_offset", f"{first_pts_sec}", str(dest)]
-    subprocess.run(cmd, check=True, timeout=_TIMEOUT)
+    if jitter_sec:
+        source += f",settb=1/{TIMEBASE_HZ},setpts='(N/{CAM_FPS}+{jitter_sec}*sin(N))/TB'"
+    return source
+
+
+def frame_time(n: int, jitter_sec: float = 0.0) -> float:
+    """When frame `n` of make_camera's clip is shown, in seconds."""
+    return n / CAM_FPS + jitter_sec * math.sin(n)
+
+
+def make_camera(dest: Path, seconds: float = CAM_SEC, jitter_sec: float = 0.0) -> Path:
+    """A black clip, white from FLASH_FRAME for FLASH_FRAMES frames; webm
+    (VP8) or mp4 (H.264) by suffix. With `jitter_sec` the frame times wander
+    (variable rate) and the webm is written to a pipe, so like a browser's
+    MediaRecorder file it carries no duration and no cues."""
+    cmd = [ffmpeg_executable(), "-nostdin", "-v", "error", "-y", "-f", "lavfi"]
+    cmd += ["-i", _clip_source(seconds, jitter_sec), *CAMERA_CODECS[dest.suffix]]
+    cmd += ["-pix_fmt", "yuv420p"]
+    if not jitter_sec:
+        subprocess.run([*cmd, str(dest)], check=True, timeout=_TIMEOUT)
+        return dest
+    cmd += ["-fps_mode", "passthrough", "-f", "webm", "pipe:1"]
+    dest.write_bytes(subprocess.run(cmd, check=True, capture_output=True, timeout=_TIMEOUT).stdout)
     return dest
 
 

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import logging
-import subprocess
 from pathlib import Path
 from typing import NamedTuple
 
@@ -23,10 +22,15 @@ from app.core.take_video_config import (
     SNIFF_BYTES,
 )
 from app.core.takes_config import LOGGER_NAME
+from app.pipeline.video_process import ProcessStopped, run_watched
 
 logger = logging.getLogger(LOGGER_NAME)
 
 _PACKET_FIELDS = "stream=width,height:packet=pts_time,duration_time"
+
+
+class CameraUnreadable(Exception):
+    """ffprobe could not read the file."""
 
 
 class CameraInfo(NamedTuple):
@@ -53,13 +57,9 @@ def sniff_camera(path: Path) -> str | None:
 def _ffprobe_json(path: Path) -> dict:
     cmd = [ffprobe_executable(), "-v", "error", "-select_streams", "v:0"]
     cmd += ["-show_entries", _PACKET_FIELDS, "-of", "json", str(path)]
-    out = subprocess.run(  # noqa: S603 -- list args, no shell, trusted ffprobe
-        cmd,
-        capture_output=True,
-        timeout=TIMEOUT_FFMPEG,
-        check=True,
-        text=True,
-    ).stdout
+    returncode, out, err = run_watched(cmd, TIMEOUT_FFMPEG)
+    if returncode != 0:
+        raise CameraUnreadable(err.strip())
     return json.loads(out or "{}")
 
 
@@ -79,7 +79,7 @@ def probe_camera(path: Path) -> CameraInfo | None:
     video stream with a frame in it."""
     try:
         info = _ffprobe_json(path)
-    except (OSError, subprocess.SubprocessError, ValueError):
+    except (OSError, ProcessStopped, CameraUnreadable, ValueError):
         logger.warning("could not read the camera file %s", path, exc_info=True)
         return None
     streams = info.get("streams") or []

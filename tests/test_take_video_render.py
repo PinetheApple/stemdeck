@@ -60,7 +60,7 @@ def test_golden_libx264_command():
     cmd = render_cmd(_plan(), Path("out.tmp"), "libx264")
     graph = cmd[cmd.index("-filter_complex") + 1].split(";")
     assert graph[0] == (
-        "[0:a]atrim=start_sample=88200:end_sample=264600,asetpts=PTS-STARTPTS,"
+        "[0:a]aresample=44100,atrim=start_sample=88200:end_sample=264600,asetpts=PTS-STARTPTS,"
         "rubberband=pitch=2,volume=0.500000[a0]"
     )
     assert graph[2] == f"[a0][a1]amix=inputs=2:normalize=0,{LIMITER}[mix]"

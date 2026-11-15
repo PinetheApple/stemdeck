@@ -28,7 +28,7 @@ from app.pipeline.take_render import render_take_audio
 from app.pipeline.take_video_ffmpeg import run_render
 from app.pipeline.take_video_render import AudioLane, RenderPlan, render_cmd
 from app.pipeline.video_process import never
-from tests._take_video_helpers import FLASH_SEC, flash_time, make_camera
+from tests._take_video_helpers import FLASH_FRAME, flash_time, frame_time, make_camera
 from tests._video_helpers import needs_libx264
 
 pytestmark = needs_libx264
@@ -39,6 +39,14 @@ SONG_SEC = 6.0
 CLICK_LEVEL = 0.9
 OUT_W, OUT_H = 640, 360
 RENDER_TIMEOUT = 120.0
+# The render puts a frame on the nearest output frame (at most half a frame
+# off). The slack covers what measuring adds: the AAC peak can sit a few
+# samples off the click, and mp4 timestamps are rounded to their timebase.
+SYNC_SLACK_SEC = 0.002
+LANE_RATE = 48000
+LANE_CLICK_SEC = 2.0
+LANE_SPAN_START = 1.0
+LANE_TOLERANCE_SEC = 0.001
 
 
 class Case(NamedTuple):
@@ -47,8 +55,8 @@ class Case(NamedTuple):
     camera_offset_ms: float = 0.0
     first_frame_offset_ms: float = 0.0
     trim: tuple[float, float] | None = None
-    first_pts: float = 0.0
     suffix: str = ".webm"
+    jitter_sec: float = 0.0
 
 
 CASES = {
@@ -57,8 +65,9 @@ CASES = {
     "late-picture": Case(60, frame0=0.52, camera_offset_ms=80.0),
     "early-picture": Case(30, frame0=0.52, camera_offset_ms=-80.0),
     "trim-between-frames": Case(24, frame0=0.52, trim=(1.013, 3.5)),
-    "first-pts-not-0-mp4": Case(30, frame0=0.52, first_pts=0.5, suffix=".mp4"),
+    "mp4": Case(30, frame0=0.52, suffix=".mp4"),
     "negative-first-frame": Case(60, frame0=0.3, first_frame_offset_ms=-41.7),
+    "browser-like-vfr-webm": Case(60, frame0=0.52, camera_offset_ms=20.0, jitter_sec=0.004),
 }
 
 
@@ -80,9 +89,10 @@ def _sidecar(case: Case) -> dict:
 
 def _click_sample(case: Case) -> int:
     """Where the click goes in the raw take, so it is the flash's instant: the
-    flash is FLASH_SEC after the camera's first frame, which was taken
+    flash is frame FLASH_FRAME of the camera, whose first frame was taken
     first_frame_offset_ms after the first audio frame and seen camera_offset_ms late."""
-    at = FLASH_SEC + (case.first_frame_offset_ms - case.camera_offset_ms) / MS_PER_SEC
+    flash = frame_time(FLASH_FRAME, case.jitter_sec)
+    at = flash + (case.first_frame_offset_ms - case.camera_offset_ms) / MS_PER_SEC
     return round(at * RAW_RATE)
 
 
@@ -99,7 +109,7 @@ def _take_wav(tmp: Path, case: Case, sidecar: dict) -> Path:
 def _plan(tmp: Path, case: Case, sidecar: dict) -> RenderPlan:
     start, end = export_span(sidecar, SONG_SEC)
     return RenderPlan(
-        camera=make_camera(tmp / f"cam{case.suffix}", first_pts_sec=case.first_pts),
+        camera=make_camera(tmp / f"cam{case.suffix}", jitter_sec=case.jitter_sec),
         camera_start_sec=camera_start_sec(sidecar),
         mirror=False,
         lanes=(AudioLane(_take_wav(tmp, case, sidecar), 1.0),),
@@ -130,4 +140,30 @@ def test_flash_and_click_land_within_one_frame(tmp_path, case):
     flash = flash_time(out)
     click = click_time(out, plan.sample_rate)
     assert flash is not None, "the flash frame is missing from the export"
-    assert abs(flash - click) <= 1 / case.fps, f"flash {flash:.4f} s, click {click:.4f} s"
+    limit = 1 / case.fps / 2 + SYNC_SLACK_SEC
+    assert abs(flash - click) <= limit, f"flash {flash:.4f} s, click {click:.4f} s"
+
+
+def test_a_lane_at_another_rate_is_cut_at_the_same_instant(tmp_path):
+    """A stem stored at 48 kHz starts the export at the span's start, not at
+    the sample count that would be right at 44.1 kHz."""
+    lane = np.zeros(int(SONG_SEC * LANE_RATE), dtype=np.float32)
+    lane[int(LANE_CLICK_SEC * LANE_RATE)] = CLICK_LEVEL
+    sf.write(str(tmp_path / "stem48.wav"), lane, LANE_RATE, subtype="FLOAT")
+    plan = RenderPlan(
+        camera=make_camera(tmp_path / "cam.webm"),
+        camera_start_sec=0.0,
+        mirror=False,
+        lanes=(AudioLane(tmp_path / "stem48.wav", 1.0),),
+        start_sec=LANE_SPAN_START,
+        duration_sec=2.0,
+        width=OUT_W,
+        height=OUT_H,
+        fps=30,
+        sample_rate=TAKE_RATE,
+        limiter=EXPORT_LIMITER,
+    )
+    out = tmp_path / "out.mp4"
+    run_render(render_cmd(plan, out, "libx264"), RENDER_TIMEOUT, None, never, lambda _t: None)
+    expected = LANE_CLICK_SEC - LANE_SPAN_START
+    assert abs(click_time(out, TAKE_RATE) - expected) <= LANE_TOLERANCE_SEC
