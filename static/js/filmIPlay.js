@@ -3,14 +3,16 @@
 
 import { t } from "./i18n.js";
 import { STEM_DISPLAY } from "./constants.js";
-import { trackIndex } from "./state.js";
 import { clearSilencedStems, setSilencedStems } from "./mixer.js";
 import { pickableStems, silencedLanes } from "./filmIPlayModel.js";
 
 const $ = (id) => document.getElementById(id);
 
+// The mixer greys and hides the lanes this song has no audio for.
+const LOADED_LANE_SELECTOR = ".mixer-column .lane-header[data-stem]:not(.unavailable):not(.hidden)";
+
 function laneNames() {
-  return Object.keys(trackIndex);
+  return [...document.querySelectorAll(LOADED_LANE_SELECTOR)].map((row) => row.dataset.stem);
 }
 
 /** Silence what `iPlay` names among the song's lanes. */

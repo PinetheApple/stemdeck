@@ -10,7 +10,8 @@ test.use({
 });
 
 const TAKES_URL = `/api/jobs/${JOB_ID}/takes`;
-const RECORD_MS = 2500;
+// Past the count-in, so the take is longer than the shortest trim.
+const RECORD_SEC = 3;
 const SAVE_TIMEOUT_MS = 20000;
 const RECORD_TEST_TIMEOUT_MS = 60000;
 const VIEWPORTS = [
@@ -123,10 +124,15 @@ test("a missing GStreamer package says so with the command to copy", async ({ pa
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "userAgent", { get: () => "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15" });
   });
+  await page.route("**/api/video-encoders", async (route) => {
+    const response = await route.fetch();
+    const json = { ...(await response.json()), os: { key: "linux", distro: "endeavouros", distro_like: ["arch"] } };
+    await route.fulfill({ response, json });
+  });
   await openStudio(page);
   await openFilm(page);
   await expect(page.locator("#filmProblemText")).toContainText("GStreamer");
-  await expect(page.locator("#filmProblemCode")).toContainText("sudo apt install");
+  await expect(page.locator("#filmProblemCode")).toContainText("sudo pacman -S");
   await expect(page.locator("#filmProblemBtn")).toHaveText("Copy command");
   await expect(page.locator("#filmRecBtn")).toBeDisabled();
 });
@@ -167,7 +173,11 @@ test("a filmed take keeps camera and sound, then reviews and trims", async ({ pa
   await expect(page.locator("#filmRecBtn")).toBeEnabled();
   await page.locator("#filmRecBtn").click();
   await expect(page.locator("#filmRecBadge")).toBeVisible({ timeout: SAVE_TIMEOUT_MS });
-  await page.waitForTimeout(RECORD_MS);
+  await page.waitForFunction(
+    async (sec) => (await import("/js/transport.js")).transport().getCurrentTime() > sec,
+    RECORD_SEC,
+    { timeout: SAVE_TIMEOUT_MS },
+  );
   await page.locator("#filmRecBtn").click();
   await expect(page.locator("#filmTakeBadge")).toHaveText("Take 1", { timeout: SAVE_TIMEOUT_MS });
 

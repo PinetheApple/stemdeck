@@ -27,6 +27,7 @@ function el(tag, className, text = "") {
 }
 
 function choiceText(choice, names) {
+  if (choice.pick) return t("settings.export.encoder.autoWith", { name: names.get(choice.pick) ?? choice.pick });
   const name = CHOICE_KEYS[choice.value] ? t(CHOICE_KEYS[choice.value]) : names.get(choice.value) ?? choice.value;
   return choice.failed ? t("settings.export.encoder.failed", { name }) : name;
 }

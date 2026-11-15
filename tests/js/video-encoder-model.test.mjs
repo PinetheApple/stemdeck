@@ -89,5 +89,18 @@ check("while testing every row says so", testRows(STATUS, { testing: true }).eve
   }, { testing: false })[0].reason === "invalid");
 }
 
+{
+  const of = (status, v) => encoderChoices(status).find((c) => c.value === v);
+  const picked = { ...STATUS, auto_pick: "h264_nvenc" };
+  check("Auto names what it would use when Auto is the policy", of(picked, "auto").pick === "h264_nvenc");
+  check("no other choice carries the pick", of(picked, "cpu").pick === null && of(picked, "h264_nvenc").pick === null);
+  check(
+    "a forced CPU or encoder keeps Auto's label plain",
+    of({ ...picked, policy: { value: "cpu", source: "env" } }, "auto").pick === null
+      && of({ ...picked, policy: { value: "h264_vaapi", source: "setting" } }, "auto").pick === null,
+  );
+  check("nothing cached: plain Auto", of({ ...STATUS, auto_pick: null }, "auto").pick === null);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

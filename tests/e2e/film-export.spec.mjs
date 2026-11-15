@@ -45,7 +45,7 @@ async function stubFilmedTake(page) {
     body.tracks = [{ id: "trkvideo", name: "Video 1", kind: "video", i_play: ["drums"], order: 0 }];
     body.takes = [{
       id: TAKE_ID, track_id: "trkvideo", label: "Take 1", placement_sec: 0.5, duration_sec: 3, created_at: 1,
-      has_camera: true, camera_url: `${TAKES_URL}/${TAKE_ID}/camera`, camera_dropped: null, camera_start_sec: 0.45,
+      has_camera: true, camera_url: null, camera_dropped: null, camera_start_sec: 0.45,
       span: { start_sec: 0.5, end_sec: 3.5 }, trim: { in_sec: 1, out_sec: 3 }, i_play: ["drums"],
       peaks_url: `${TAKES_URL}/${TAKE_ID}/peaks`,
     }];
@@ -130,7 +130,7 @@ test("an export redone on the CPU and a failed one say so", async ({ page }) => 
 });
 
 test("Settings > Export picks the encoder and tests them", async ({ page }) => {
-  await stubEncoders(page);
+  await stubEncoders(page, { ...ENCODERS, auto_pick: "h264_nvenc" });
   const saved = [];
   await page.route("**/api/settings", (route) => {
     if (route.request().method() === "POST") saved.push(route.request().postDataJSON());
@@ -141,7 +141,7 @@ test("Settings > Export picks the encoder and tests them", async ({ page }) => {
   await page.locator('.settings-tab[data-tab="export"]').click();
   const select = page.locator(".vid-enc-select");
   await expect(select).toHaveValue("auto");
-  await expect(select.locator("option")).toHaveText(["Auto", "CPU only", "NVENC", "VAAPI", "QSV"]);
+  await expect(select.locator("option")).toHaveText(["Auto (NVENC)", "CPU only", "NVENC", "VAAPI", "QSV"]);
   await page.getByRole("button", { name: "Test encoders" }).click();
   const table = page.locator(".vid-enc-table");
   await expect(table).toContainText("Works");
@@ -151,6 +151,17 @@ test("Settings > Export picks the encoder and tests them", async ({ page }) => {
   await expect(select.locator('option[value="h264_vaapi"]')).toHaveText("VAAPI (failed test)");
   await select.selectOption("h264_nvenc");
   await expect.poll(() => saved.at(-1)?.video_encoder).toBe("h264_nvenc");
+});
+
+test("a forced CPU keeps the Auto choice plain and the select locked", async ({ page }) => {
+  await stubEncoders(page, { ...ENCODERS, auto_pick: "h264_nvenc", policy: { value: "cpu", source: "env" } });
+  await openStudio(page);
+  await page.locator("#settingsBtn").click();
+  await page.locator('.settings-tab[data-tab="export"]').click();
+  const select = page.locator(".vid-enc-select");
+  await expect(select).toHaveValue("cpu");
+  await expect(select).toBeDisabled();
+  await expect(select.locator('option[value="auto"]')).toHaveText("Auto");
 });
 
 for (const viewport of VIEWPORTS) {

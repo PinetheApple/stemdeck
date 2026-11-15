@@ -31,14 +31,16 @@ function failedTest(row) {
   return results(row).some((result) => !result.ok);
 }
 
-/** `[{value, failed, disabled}]`: an encoder that failed its test, or is off this session, can't be picked. */
+/** `[{value, failed, disabled, pick}]`: `pick` is the encoder Auto would use; an encoder that failed its test, or is off this session, can't be picked. */
 export function encoderChoices(status) {
   const off = new Set(status?.disabled ?? []);
   const current = status?.policy?.value;
+  // Only while Auto is the policy: under a forced CPU or encoder it would mislead.
+  const autoPick = current === POLICY_AUTO ? status?.auto_pick ?? null : null;
   return (status?.choices ?? []).map(function choice(value) {
     const failed = failedTest(testedRow(status, value));
     const blocked = (failed || off.has(value)) && !ALWAYS_ON.has(value) && value !== current;
-    return { value, failed, disabled: blocked };
+    return { value, failed, disabled: blocked, pick: value === POLICY_AUTO ? autoPick : null };
   });
 }
 
