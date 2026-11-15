@@ -15,7 +15,10 @@ import {
   fetchSplitView,
   followSplit,
   cancelSplit,
+  SPLIT_FOLDER_MOVING_DETAIL,
 } from "../../static/js/vocalSplit.js";
+import { FOLDER_MOVING_KEY } from "../../static/js/lyricsFolderMoving.js";
+import { readFileSync } from "node:fs";
 import { TRANSLATIONS } from "../../static/js/i18n.js";
 
 let pass = 0, fail = 0;
@@ -116,6 +119,15 @@ const doneJob = (overrides = {}) => ({
   let threw = null;
   try { await startSplit(JOB, noVocals.io); } catch (err) { threw = err; }
   check("a refusal with nothing running is an error", threw instanceof Error);
+
+  const moving = scriptedFetch([reply(409, { detail: SPLIT_FOLDER_MOVING_DETAIL })]);
+  const refusedForMove = await startSplit(JOB, moving.io);
+  check("refused while StemData moves: a failure saying so, nothing asked again",
+    refusedForMove.state === SPLIT_STATE.ERROR
+      && failureKey(refusedForMove.error) === FOLDER_MOVING_KEY
+      && moving.calls.length === 1);
+  const server = readFileSync(new URL("../../app/api/jobs.py", import.meta.url), "utf8");
+  check("the server's own sentence", server.includes(`"${SPLIT_FOLDER_MOVING_DETAIL}"`));
 
   const broken = scriptedFetch([reply(500, {})]);
   threw = null;
