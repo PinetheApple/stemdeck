@@ -141,15 +141,27 @@ class MasterPlan:
     gain_db: float
     post: Loudness
     reached: bool
-    passes: int
 
     def to_json(self) -> dict:
-        return asdict(self)
+        """The loudness route's JSON; ``comp_ratio`` is null when the compressor is off."""
+        return {
+            "target": self.target,
+            "ceiling": self.ceiling,
+            "comp": self.comp,
+            "comp_ratio": None if self.comp_threshold_db is None else comp_ratio(self.comp),
+            "pre": asdict(self.pre),
+            "comp_threshold_db": self.comp_threshold_db,
+            "comp_i": self.comp_i,
+            "gain_db": self.gain_db,
+            "post": asdict(self.post),
+            "reached": self.reached,
+        }
 
     @classmethod
     def from_json(cls, data: dict) -> MasterPlan:
+        fields = {k: v for k, v in data.items() if k != "comp_ratio"}
         pre, post = Loudness(**data["pre"]), Loudness(**data["post"])
-        return cls(**{**data, "pre": pre, "post": post})
+        return cls(**{**fields, "pre": pre, "post": post})
 
 
 Measurer = Callable[[list[str], str, str, int], Awaitable[Loudness]]
@@ -227,9 +239,10 @@ def _lin(db: float) -> str:
     return f"{10.0 ** (db / 20.0):.8f}"
 
 
-def comp_threshold_db(comp: float, pre_i: float | None) -> float | None:
-    """The compressor threshold for a measured loudness, None when off."""
-    if comp <= 0:
+def comp_threshold_db(comp: float, target: float | None, pre_i: float | None) -> float | None:
+    """The compressor threshold for a measured loudness, None when off. With no
+    target only the limiter runs, whatever the amount."""
+    if comp <= 0 or target is None:
         return None
     base = pre_i if pre_i is not None else _SILENT_REFERENCE_LUFS
     raw = base + MASTER_COMP_THRESHOLD_OFFSET_DB - MASTER_COMP_THRESHOLD_PER_AMOUNT_DB * comp
@@ -396,9 +409,9 @@ async def _settle_gain(
     post: Loudness,
     target: float,
     run: Callable[[float], Awaitable[Loudness]],
-) -> tuple[float, Loudness, int]:
+) -> tuple[float, Loudness]:
     """Up to MASTER_CORRECTION_PASSES bounded steps toward the target."""
-    tried, passes = [(gain, post.i)], 0
+    tried = [(gain, post.i)]
     for _ in range(MASTER_CORRECTION_PASSES):
         miss = _missed(target, post)
         if miss is None:
@@ -406,9 +419,9 @@ async def _settle_gain(
         fixed = clamp_gain(gain + _correction_step(miss, tried))
         if fixed == gain:
             break
-        gain, post, passes = fixed, await run(fixed), passes + 1
+        gain, post = fixed, await run(fixed)
         tried.append((gain, post.i))
-    return gain, post, passes
+    return gain, post
 
 
 def _reached(target: float | None, post: Loudness) -> bool:
@@ -427,7 +440,7 @@ async def run_plan(
 ) -> MasterPlan:
     """Measure the mix and decide the gain. ``graph`` ends in the label [pre]."""
     pre = await measure(inputs, graph, "", rate)
-    threshold = comp_threshold_db(settings.comp, pre.i)
+    threshold = comp_threshold_db(settings.comp, settings.target, pre.i)
     comp_i = None
     if threshold is not None:
         comp_i = (await measure(inputs, graph, comp_filter(settings.comp, threshold), rate)).i
@@ -439,9 +452,9 @@ async def run_plan(
 
     no_gain = settings.target is None or level is None
     gain = 0.0 if no_gain else clamp_gain(settings.target - level)
-    post, corrections = await run(gain), 0
+    post = await run(gain)
     if not no_gain:
-        gain, post, corrections = await _settle_gain(gain, post, settings.target, run)
+        gain, post = await _settle_gain(gain, post, settings.target, run)
     return MasterPlan(
         target=settings.target,
         ceiling=ceiling_db,
@@ -452,5 +465,4 @@ async def run_plan(
         gain_db=gain,
         post=post,
         reached=_reached(settings.target, post),
-        passes=(2 if threshold is None else 3) + corrections,
     )

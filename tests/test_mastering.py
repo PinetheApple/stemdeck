@@ -118,11 +118,12 @@ def test_lossy_ceiling_never_above_the_lossy_limit(fmt, ceiling, expected):
 
 
 def test_compressor_threshold_follows_the_measured_loudness():
-    assert m.comp_threshold_db(0.0, -12.0) is None
-    assert m.comp_threshold_db(0.5, -12.0) == pytest.approx(-13.0)
-    assert m.comp_threshold_db(1.0, -12.0) == pytest.approx(-16.0)
-    assert m.comp_threshold_db(1.0, -69.0) == MASTER_COMP_THRESHOLD_FLOOR_DB
-    assert m.comp_threshold_db(0.1, 0.0) == 0.0
+    assert m.comp_threshold_db(0.0, -14.0, -12.0) is None
+    assert m.comp_threshold_db(0.5, None, -12.0) is None
+    assert m.comp_threshold_db(0.5, -14.0, -12.0) == pytest.approx(-13.0)
+    assert m.comp_threshold_db(1.0, -14.0, -12.0) == pytest.approx(-16.0)
+    assert m.comp_threshold_db(1.0, -14.0, -69.0) == MASTER_COMP_THRESHOLD_FLOOR_DB
+    assert m.comp_threshold_db(0.1, -14.0, 0.0) == 0.0
     assert m.comp_ratio(0.5) == 2.0
 
 
@@ -216,9 +217,10 @@ def _plan(settings: MasterSettings, measure) -> m.MasterPlan:
 
 
 def test_a_clean_mix_reaches_the_target_in_one_pass():
-    plan = _plan(STREAMING, _stub_meter(-20.0, 0.0, 1.0))
+    calls: list[str] = []
+    plan = _plan(STREAMING, _stub_meter(-20.0, 0.0, 1.0, calls))
     assert plan.gain_db == pytest.approx(6.0)
-    assert plan.post.i == -14.0 and plan.reached and plan.passes == 2
+    assert plan.post.i == -14.0 and plan.reached and len(calls) == 2
 
 
 def test_correction_steps_along_the_measured_slope():
@@ -227,7 +229,7 @@ def test_correction_steps_along_the_measured_slope():
     assert plan.pre.i == -16.0
     assert abs(plan.post.i - -9.0) <= MASTER_CORRECTION_TOL_LU
     assert plan.reached
-    assert plan.passes == len(calls) <= 2 + MASTER_CORRECTION_PASSES
+    assert len(calls) <= 2 + MASTER_CORRECTION_PASSES
 
 
 def test_corrections_are_bounded_in_count_and_step():
@@ -255,12 +257,45 @@ def test_the_compressor_is_measured_before_the_gain():
 def test_no_target_and_silence_mean_no_gain():
     limiter_only = _plan(MasterSettings(None, -1.0), _stub_meter(-20.0, 0.0, 1.0))
     assert limiter_only.gain_db == 0.0 and limiter_only.reached
+    calls: list[str] = []
 
     async def silence(inputs, graph, chain, rate):
+        calls.append(chain)
         return Loudness(None, None)
 
     silent = _plan(MasterSettings(-14.0, -1.0, 0.5), silence)
-    assert silent.gain_db == 0.0 and silent.passes == 3 and not silent.reached
+    assert silent.gain_db == 0.0 and len(calls) == 3 and not silent.reached
+
+
+def test_no_target_runs_only_the_limiter_whatever_the_comp():
+    calls: list[str] = []
+    plan = _plan(MasterSettings(None, -1.0, 0.5), _stub_meter(-20.0, 0.0, 1.0, calls))
+    assert not any("acompressor" in c for c in calls)
+    assert plan.comp_threshold_db is None and plan.comp_i is None
+    assert m.plan_chain(plan, SR) == m.limiter_filter(-1.0, SR)
+
+
+CONTRACT_PLAN_KEYS = [
+    "target",
+    "ceiling",
+    "comp",
+    "comp_ratio",
+    "pre",
+    "comp_threshold_db",
+    "comp_i",
+    "gain_db",
+    "post",
+    "reached",
+]
+
+
+def test_plan_json_is_the_loudness_route_shape():
+    off = _plan(STREAMING, _stub_meter(-20.0, 0.0, 1.0)).to_json()
+    assert list(off) == CONTRACT_PLAN_KEYS
+    assert off["comp_ratio"] is None
+    assert set(off["pre"]) == {"i", "tp", "lra"}
+    glued = _plan(MasterSettings(-14.0, -1.0, 0.5), _stub_meter(-20.0, 0.0, 1.0)).to_json()
+    assert glued["comp_ratio"] == 2.0
 
 
 def test_plan_round_trips_through_json():
