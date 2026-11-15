@@ -32,7 +32,7 @@ from app.core.models import (
     clean_user_name,
     clean_work,
 )
-from app.core.registry_records import drop_non_finite
+from app.core.registry_records import reset_bad_fields
 from app.core.song_folder import (
     STEMS_COMPLETE,
     backfill_stems_complete,
@@ -193,7 +193,7 @@ def recover_done_job(job_dir: Path, legacy: bool = False) -> Job | None:
     )
     for name, value in saved_from_meta(meta).items():
         setattr(job, name, value)
-    drop_non_finite(job)
+    reset_bad_fields(job)
     return job
 
 
