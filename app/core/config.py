@@ -1142,6 +1142,8 @@ FX_MAX_LANES = 32
 FX_MAX_BANDS = 12
 FX_MAX_SECTIONS = 160
 MASTER_PARAM_MAX_CHARS = 256
+# How often a loudness request checks that its client is still there.
+MASTER_LOUDNESS_POLL_SEC = 0.5
 # Lossy encoders add peak of their own (MP3 measured +0.7 dB, AAC more), so a
 # lossy master never asks for a true-peak ceiling above this.
 EXPORT_LIMIT_LOSSY_DBTP = -1.5
@@ -1153,6 +1155,10 @@ MASTER_LIMITER_OVERSAMPLE = 4
 MASTER_LIMITER_MARGIN_DB = 0.1
 MASTER_LIMITER_ATTACK_MS = 5
 MASTER_LIMITER_RELEASE_MS = 50
+# A true peak over the ceiling lowers the limit to this far under it, the gain
+# following the target, in at most this many passes (in-graph or decoded).
+MASTER_TRIM_MARGIN_DB = 0.1
+MASTER_CEILING_RETRIES = 4
 MASTER_COMP_RATIO_PER_AMOUNT = 2.0
 MASTER_COMP_THRESHOLD_OFFSET_DB = 2.0
 MASTER_COMP_THRESHOLD_PER_AMOUNT_DB = 6.0
