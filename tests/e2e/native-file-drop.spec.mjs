@@ -411,6 +411,29 @@ test.describe("a file dropped on the Linux desktop app", () => {
     await expect(row(page, "a.wav")).toHaveCount(0);
   });
 
+  test("a refused row whose length turns out too long is flagged and left unticked", async ({ page }) => {
+    await openDesktop(page);
+    await stubPreview(page, filePreview(["ok", "ok"]));
+    await stubImports(page, [422, 200], uploadedFile);
+    await page.evaluate((long) => {
+      window.__shell.durations = { 1: long };
+      window.__shell.holdMeasure(1);
+    }, TOO_LONG_SEC);
+    await drop(page, [
+      { id: 1, name: "a.wav", size: 1000 },
+      { id: 2, name: "b.wav", size: 1000 },
+    ]);
+    await expect(row(page, "b.wav").locator("input")).toBeChecked();
+    await queueButton(page).click();
+    await expect(row(page, "a.wav")).toContainText("refused 422");
+
+    await page.evaluate(() => window.__shell.letMeasure(1));
+
+    const tooLong = await uiText(page, "batch.flag.tooLong", { minutes: MAX_DURATION_SEC / 60 });
+    await expect(row(page, "a.wav").locator(".batch-flag-block")).toHaveText(tooLong);
+    await expect(row(page, "a.wav").locator("input")).not.toBeChecked();
+  });
+
   test("a refused drop while the review is open leaves the review's files readable", async ({ page }) => {
     await openDesktop(page);
     await stubPreview(page, filePreview(["ok", "ok"]));

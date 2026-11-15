@@ -197,9 +197,10 @@ async function fetchFilePreview(target) {
   rebuildFileItems(target);
 }
 
-/** A rebuilt row keeps the user's tick, and a row the queue left out keeps its reason. */
+/** A rebuilt row keeps the user's tick, and a row the queue left out keeps its reason
+ *  unless it has since turned out not to be sendable. */
 function keptRow(old, fresh) {
-  if (old.status === ITEM_STATUS.NOT_QUEUED) return old;
+  if (old.status === ITEM_STATUS.NOT_QUEUED && isTickable(fresh)) return old;
   return old.status === fresh.status ? { ...fresh, ticked: old.ticked } : fresh;
 }
 
