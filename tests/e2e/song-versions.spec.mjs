@@ -249,6 +249,46 @@ test("Extract more stems is offered in the row's menu and the open song's More m
   await expect(menu.getByRole("menuitem", { name: "Rename…" })).toHaveCount(0);
 });
 
+async function expectExtractFormFocused(page) {
+  await expect(page.locator("#catalogList .cat-extract-more")).toBeVisible();
+  await expect(page.locator("#catalogList .cat-extract-more-go")).toBeFocused();
+}
+
+test("Extract more stems from Stage leaves Stage and opens the form in the song's collapsed folder", async ({ page, request }) => {
+  await createVersion(request, JOB_ID, { name: "Two lanes", stems: TWO_STEMS, open: true });
+  await openStudio(page);
+  await expect.poll(() => studioState(page)).toMatchObject({ lanes: [...TWO_STEMS].sort() });
+  const folder = page.locator('#catalogList .folder[data-id="f-unsorted"]');
+  await folder.locator(".folder-head").click();
+  await expect(folder).toHaveClass(/\bcollapsed\b/);
+
+  await page.locator("#stageModeBtn").click();
+  await page.locator("#stageMoreBtn").click();
+  const extract = page.locator(".lib-menu").getByRole("menuitem", { name: "Extract more stems…" });
+  await expect(extract).toBeVisible();
+  await extract.click();
+
+  await expect(page.locator("#stageView")).toBeHidden();
+  await expect(folder).not.toHaveClass(/\bcollapsed\b/);
+  await expectExtractFormFocused(page);
+});
+
+test("Extract more stems from the song head clears a search that hides the song's row", async ({ page, request }) => {
+  await createVersion(request, JOB_ID, { name: "Two lanes", stems: TWO_STEMS, open: true });
+  await openStudio(page);
+  await expect.poll(() => studioState(page)).toMatchObject({ lanes: [...TWO_STEMS].sort() });
+  const search = page.locator("#catalogSearch");
+  await search.fill("again");
+  await expect(songRow(page)).toHaveCount(0);
+
+  await page.locator("#songMoreBtn").click();
+  await page.getByRole("menuitem", { name: "Extract more stems…" }).click();
+
+  await expect(search).toHaveValue("");
+  await expect(songRow(page)).toBeVisible();
+  await expectExtractFormFocused(page);
+});
+
 test("a deleted version takes its mix with it, and one version left is a plain row", async ({ page, request }) => {
   const v2 = await createVersion(request, JOB_ID, { name: "Doomed", stems: TWO_STEMS });
   await seedMixes(page, { [versionKey(v2.id)]: laneMix(V2_DRUMS) });
