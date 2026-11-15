@@ -135,6 +135,25 @@ def test_bundle_mix_keeps_only_shipped_lanes_and_never_transposes_drums(client, 
     assert "piano" not in mix
 
 
+def test_bundle_mix_lanes_carry_only_the_frozen_fields(client, tmp_path):
+    # The bundle format is frozen: studio EQ and mastering never reach mix.json.
+    skip_without_ffmpeg()
+    job_id = "abcdef000811"
+    _done_job(job_id)
+    for name in ("vocals", "bass"):
+        _write_stem(tmp_path, job_id, name)
+
+    zf = _bundle(
+        client,
+        job_id,
+        {"stems": "vocals,bass", "volumes": "1,0.8", "muted": "0,1", "soloed": "0,0"},
+    )
+    mix = json.loads(zf.read("mix.json"))
+    assert set(mix) == {"stems"}
+    for lane in mix["stems"].values():
+        assert set(lane) == {"volume", "muted", "soloed", "pitch"}
+
+
 def test_bundle_default_skips_the_vocal_split_and_honours_a_requested_subset(client, tmp_path):
     skip_without_ffmpeg()
     job_id = "abcdef000803"
