@@ -69,16 +69,22 @@ def new_take(client: TestClient, track_id: str, job_id: str = JOB, **over) -> st
 
 def put_part(client: TestClient, take_id: str, seq: int, data: bytes, job_id: str = JOB):
     return client.put(
-        f"/api/jobs/{job_id}/takes/{take_id}/parts/audio?seq={seq}",
+        f"/api/jobs/{job_id}/takes/{take_id}/parts?seq={seq}",
         content=data,
         headers=OCTET,
     )
 
 
-def recorded_take(client: TestClient, track_id: str, job_id: str = JOB, **over) -> dict:
+def recorded_take(
+    client: TestClient,
+    track_id: str,
+    job_id: str = JOB,
+    impulse: int | None = None,
+    **over,
+) -> dict:
     """A take created, given one part and finished: its entry."""
     take_id = new_take(client, track_id, job_id, **over)
-    assert put_part(client, take_id, 0, pcm(), job_id).status_code == 200
+    assert put_part(client, take_id, 0, pcm(impulse=impulse), job_id).status_code == 200
     r = client.post(f"/api/jobs/{job_id}/takes/{take_id}/finish", json={})
     assert r.status_code == 200, r.text
     return r.json()

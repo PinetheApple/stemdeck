@@ -26,15 +26,18 @@ def needs_ffmpeg():
     skip_without_ffmpeg()
 
 
-def _raw_capture(path, impulse_frame, frames=CAPTURE_RATE * 2, channels=1):
-    pcm = np.zeros((frames, channels), dtype=np.float32)
-    pcm[impulse_frame, :] = 0.9
+def _raw_capture(path, impulse_frames, frames=CAPTURE_RATE * 2):
+    """One impulse per channel, at that channel's frame."""
+    pcm = np.zeros((frames, len(impulse_frames)), dtype=np.float32)
+    for channel, frame in enumerate(impulse_frames):
+        pcm[frame, channel] = 0.9
     path.write_bytes(pcm.tobytes())
     return path
 
 
-def _render(tmp_path, placement, impulse_frame, channels=1):
-    part = _raw_capture(tmp_path / "audio.part", impulse_frame, channels=channels)
+def _render(tmp_path, placement, impulse_frames):
+    channels = len(impulse_frames)
+    part = _raw_capture(tmp_path / "audio.part", impulse_frames)
     raw = tmp_path / "audio.raw.wav"
     take_render.assemble_raw_wav(part, raw, CAPTURE_RATE, channels)
     out = tmp_path / "audio.wav"
@@ -45,7 +48,7 @@ def _render(tmp_path, placement, impulse_frame, channels=1):
 def test_assemble_raw_wav_writes_a_float_header(tmp_path):
     folder = tmp_path / "take"
     folder.mkdir()
-    part = _raw_capture(folder / "audio.part", 10, frames=100, channels=2)
+    part = _raw_capture(folder / "audio.part", (10, 20), frames=100)
     raw = folder / "audio.raw.wav"
     take_render.assemble_raw_wav(part, raw, CAPTURE_RATE, 2)
     info = sf.info(str(raw))
@@ -74,20 +77,29 @@ def test_filter_delays_a_take_that_starts_inside_the_song():
 
 @pytest.mark.usefixtures("needs_ffmpeg")
 @pytest.mark.parametrize("placement", [0.75, -0.25, 0.0])
-def test_impulse_lands_on_the_expected_song_sample(tmp_path, placement):
+def test_mono_impulse_lands_on_the_expected_song_sample(tmp_path, placement):
     impulse_frame = CAPTURE_RATE // 2
-    out = _render(tmp_path, placement, impulse_frame)
+    out = _render(tmp_path, placement, (impulse_frame,))
     data, rate = sf.read(str(out), dtype="float32", always_2d=True)
     assert rate == TAKE_RATE
     assert data.shape == (SONG_FRAMES, 2)
     expected = round((placement + impulse_frame / CAPTURE_RATE) * TAKE_RATE)
-    assert abs(int(np.argmax(np.abs(data[:, 0]))) - expected) <= 1
+    assert int(np.argmax(np.abs(data[:, 0]))) == expected
     assert np.array_equal(data[:, 0], data[:, 1])
 
 
 @pytest.mark.usefixtures("needs_ffmpeg")
+def test_stereo_impulses_keep_their_channels_and_samples(tmp_path):
+    left, right = CAPTURE_RATE // 4, CAPTURE_RATE // 2
+    out = _render(tmp_path, 0.5, (left, right))
+    data, _ = sf.read(str(out), dtype="float32", always_2d=True)
+    assert int(np.argmax(np.abs(data[:, 0]))) == round((0.5 + left / CAPTURE_RATE) * TAKE_RATE)
+    assert int(np.argmax(np.abs(data[:, 1]))) == round((0.5 + right / CAPTURE_RATE) * TAKE_RATE)
+
+
+@pytest.mark.usefixtures("needs_ffmpeg")
 def test_take_entirely_outside_the_song_renders_silence_of_song_length(tmp_path):
-    out = _render(tmp_path, -10.0, 100)
+    out = _render(tmp_path, -10.0, (100,))
     data, _ = sf.read(str(out), dtype="float32", always_2d=True)
     assert data.shape == (SONG_FRAMES, 2)
     assert not data.any()
@@ -140,7 +152,7 @@ def test_song_frames_of_an_mp3_song_comes_from_its_duration(tmp_path):
 
 @pytest.mark.usefixtures("needs_ffmpeg")
 def test_write_peaks_names_the_take(tmp_path):
-    out = _render(tmp_path, 0.0, 1000)
+    out = _render(tmp_path, 0.0, (1000,))
     peaks_path = tmp_path / "peaks.json"
     take_render.write_take_peaks(out, peaks_path, "t0000000a")
     peaks = json.loads(peaks_path.read_text(encoding="utf-8"))

@@ -1,17 +1,6 @@
-"""ffmpeg work for recorded takes: the raw capture becomes a playable lane.
-
-Everything here blocks and runs in a thread (asyncio.to_thread) from
-app/api/takes.py. The filter builder is a pure function, so the graph can be
-tested without ffmpeg.
-
-The playable take is in the stems' own format (pcm_s16le, 44.1 kHz, stereo),
-starts at song 0 and is exactly the song's length. Every engine, the mixdown
-and the zip then read it like a stem: no take-specific offset anywhere else.
-The placement (round trip and nudge already folded in, app.core.takes) is
-applied once, here, rounded at the output rate: at most half a sample out.
-
-After upstream 900234d (app/pipeline/take_render.py), audio part only.
-"""
+"""ffmpeg work for recorded takes: the raw capture becomes a playable lane in
+the stems' format, starting at song 0 and exactly the song's length, so no
+engine or export applies an offset of its own. Blocking: run in a thread."""
 
 from __future__ import annotations
 
@@ -32,19 +21,25 @@ from app.core.config import (
     ffmpeg_executable,
     ffprobe_executable,
 )
+from app.core.song_folder import write_json_atomic
 from app.core.stem_files import WAV_EXT, stem_path
-from app.core.takes import write_json_atomic
-from app.core.takes_config import TAKE_CHANNELS, TAKE_PEAK_POINTS, TAKE_RATE
+from app.core.takes_config import (
+    FFMPEG_STDERR_TAIL_BYTES,
+    LOGGER_NAME,
+    TAKE_CHANNELS,
+    TAKE_PEAK_POINTS,
+    TAKE_RATE,
+    TAKE_SAMPLE_BYTES,
+)
 from app.pipeline.audio_stats import scan_stem
 
-logger = logging.getLogger("stemdeck.takes")
+logger = logging.getLogger(LOGGER_NAME)
 
 _WAVE_FORMAT_IEEE_FLOAT = 3
-_FLOAT_BYTES = 4
+_BITS_PER_BYTE = 8
 _FMT_CHUNK_BYTES = 16
 _RIFF_HEADER_REST = 36
 _COPY_CHUNK = 1024 * 1024
-_STDERR_TAIL = 2000
 # Any stem: one Demucs pass writes them all, so they share a frame count.
 _REFERENCE_NAMES = (*STEM_NAMES, *EXTRA_STEM_NAMES, "original")
 
@@ -57,7 +52,7 @@ def write_float_wav_header(fh, data_bytes: int, rate: int, channels: int) -> Non
     """A WAVE_FORMAT_IEEE_FLOAT header for 32-bit interleaved samples. The
     stdlib wave module writes integer PCM only, and the raw capture is kept
     bit-exact so a later re-render starts from what the microphone gave."""
-    block_align = channels * _FLOAT_BYTES
+    block_align = channels * TAKE_SAMPLE_BYTES
     fh.write(b"RIFF")
     fh.write(struct.pack("<I", _RIFF_HEADER_REST + data_bytes))
     fh.write(b"WAVEfmt ")
@@ -70,7 +65,7 @@ def write_float_wav_header(fh, data_bytes: int, rate: int, channels: int) -> Non
             rate,
             rate * block_align,
             block_align,
-            _FLOAT_BYTES * 8,
+            TAKE_SAMPLE_BYTES * _BITS_PER_BYTE,
         )
     )
     fh.write(b"data")
@@ -107,7 +102,11 @@ def _probe_frames(path: Path) -> int | None:
     ]
     try:
         out = subprocess.run(  # noqa: S603 -- list args, no shell, trusted ffprobe
-            cmd, capture_output=True, timeout=TIMEOUT_FFMPEG, check=True, text=True
+            cmd,
+            capture_output=True,
+            timeout=TIMEOUT_FFMPEG,
+            check=True,
+            text=True,
         ).stdout
         return round(float(out.strip()) * TAKE_RATE)
     except (OSError, subprocess.SubprocessError, ValueError):
@@ -147,7 +146,13 @@ def take_audio_filter(placement_sec: float, frames: int, source_channels: int) -
     return ",".join(parts)
 
 
-def _input_args(raw: Path, placement: float, frames: int, rate: int, channels: int) -> list[str]:
+def _input_args(
+    raw: Path,
+    placement: float,
+    frames: int,
+    rate: int,
+    channels: int,
+) -> list[str]:
     raw_end = placement + wav_frames(raw) / rate
     if raw_end <= 0 or placement * TAKE_RATE >= frames:
         # Nothing lands inside the song: a silent lane of the right length.
@@ -165,7 +170,7 @@ def _run(cmd: list[str], context: str) -> None:
         timeout=TIMEOUT_FFMPEG,
     )
     if proc.returncode != 0:
-        tail = proc.stderr[-_STDERR_TAIL:].decode("utf-8", "replace")
+        tail = proc.stderr[-FFMPEG_STDERR_TAIL_BYTES:].decode("utf-8", "replace")
         raise TakeRenderError(f"ffmpeg failed [{context}]: {tail}")
 
 

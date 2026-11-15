@@ -4,7 +4,6 @@ keep rule auto-delete will ask, the track list, and export lane resolution."""
 from __future__ import annotations
 
 import json
-import os
 import time
 
 import pytest
@@ -75,9 +74,6 @@ def _open(job_dir, take_id=TAKE, part=b"\0" * 8, updated_at=None):
     return folder
 
 
-# --- paths -----------------------------------------------------------------
-
-
 def test_take_dir_resolves_inside_the_jobs_dir(tmp_path):
     assert takes.take_dir(tmp_path, JOB, TAKE) == (tmp_path / JOB / TAKES_DIRNAME / TAKE).resolve()
 
@@ -96,21 +92,11 @@ def test_new_id_avoids_existing_ids():
     assert made.startswith("t") and len(made) == 9
 
 
-def test_write_json_atomic_leaves_no_temp(tmp_path):
-    path = tmp_path / "a" / "x.json"
-    takes.write_json_atomic(path, {"a": 1})
-    assert json.loads(path.read_text(encoding="utf-8")) == {"a": 1}
-    assert os.listdir(path.parent) == ["x.json"]
-
-
 def test_read_json_answers_empty_for_missing_or_bad_files(tmp_path):
     assert takes.read_json(tmp_path / "none.json") == {}
     bad = tmp_path / "bad.json"
     bad.write_text("{nope", encoding="utf-8")
     assert takes.read_json(bad) == {}
-
-
-# --- has_takes: the auto-delete keep rule ------------------------------------
 
 
 def test_has_takes_false_without_a_takes_folder(job_dir):
@@ -124,6 +110,11 @@ def test_has_takes_true_for_a_finished_take(job_dir):
 
 def test_has_takes_true_for_an_open_take_with_audio(job_dir):
     _open(job_dir)
+    assert takes.has_takes(job_dir) is True
+
+
+def test_has_takes_true_for_a_folder_with_only_a_sidecar(job_dir):
+    (_take_folder(job_dir) / SIDECAR_FILE).write_text("{}", encoding="utf-8")
     assert takes.has_takes(job_dir) is True
 
 
@@ -151,9 +142,6 @@ def test_has_takes_true_when_the_takes_folder_cannot_be_read(job_dir, monkeypatc
 
     monkeypatch.setattr(type(job_dir), "iterdir", unreadable)
     assert takes.has_takes(job_dir) is True
-
-
-# --- scan ------------------------------------------------------------------
 
 
 def test_scan_splits_finished_and_open_takes(job_dir):
@@ -194,7 +182,7 @@ def test_take_entry_carries_urls_and_timing():
     assert entry["round_trip_ms"] == 20.0
     assert entry["latency_source"] == "estimated"
     assert entry["user_nudge_ms"] == -4.0
-    assert entry["has_camera"] is False and entry["camera_url"] is None
+    assert "has_camera" not in entry
 
 
 def test_placement_folds_round_trip_and_nudge():
@@ -203,9 +191,6 @@ def test_placement_folds_round_trip_and_nudge():
         "latency": {"round_trip_ms": 25.0, "user_nudge_ms": 5.0},
     }
     assert takes.placement_sec(sidecar) == pytest.approx(9.97)
-
-
-# --- tracks ----------------------------------------------------------------
 
 
 def test_tracks_round_trip_through_the_file(job_dir):
@@ -234,9 +219,6 @@ def test_normalise_renumbers_and_falls_back_to_the_newest_take():
     assert [(t["id"], t["order"]) for t in out] == [(TRACK, 0), ("k0000000b", 1)]
     assert out[0]["active_take_id"] is None
     assert out[1]["active_take_id"] == TAKE_B
-
-
-# --- export lanes (takes_lanes) --------------------------------------------
 
 
 def test_take_and_track_ids_are_lanes_and_stems_are_not():
@@ -269,6 +251,15 @@ def test_lane_versions_change_when_the_take_is_re_rendered(job_dir):
     after = takes_lanes.take_lane_versions(job_dir, ["vocals", TAKE])
     assert len(before) == 1 and before != after
     assert takes_lanes.take_lane_versions(job_dir, ["vocals"]) == []
+
+
+def test_lane_label_is_the_take_label_or_the_track_name(job_dir):
+    _finished(job_dir)
+    takes.write_tracks(job_dir, [takes.make_track(TRACK, "Lead vox", 0)])
+    assert takes_lanes.take_lane_label(job_dir, TAKE) == "Take 1"
+    assert takes_lanes.take_lane_label(job_dir, TRACK) == "Lead vox"
+    assert takes_lanes.take_lane_label(job_dir, "k0000000f") is None
+    assert takes_lanes.take_lane_label(job_dir, "vocals") is None
 
 
 def test_limiter_only_when_a_take_lane_is_mixed():
