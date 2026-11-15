@@ -50,6 +50,7 @@ A save writes `user-data.json.tmp` first, then keeps the file it replaces as `us
 
 ```
 jobs/<job_id>/
+├── source.<ext>        # the audio the song was separated from (see below)
 └── stems/
     ├── vocals.wav      # the 6 Demucs stems (always present)
     ├── drums.wav
@@ -61,5 +62,7 @@ jobs/<job_id>/
     ├── mix.wav         # ffmpeg amix of selected stems (subset only)
     └── .complete       # written last: the separation finished
 ```
+
+`source.<ext>` is kept so the song can be separated again without the original file or a fresh download: an upload's `source.wav` (16-bit 44.1 kHz, about 10 MB a minute), or a link's download as it came, with a `.webm` stream-copied to `source.opus` (about 1 MB a minute). Link songs imported before downloads were kept have no `source.<ext>`.
 
 The library itself is one file, `jobs/registry.json`, so it survives a restart. If that file is lost or damaged, the next start rebuilds each song whose separation finished from its folder (an upload never separated comes back as a stopped song, ready to Extract), and the song's `metadata.json` keeps its favourite, Trash state, stem selection, source and date added for that. A damaged registry record is kept aside as `registry.json.bad-<time>`. A song's folder is only removed when you empty the Trash, or by the opt-in **Automatically delete finished tracks** setting, which is off unless you turn it on.

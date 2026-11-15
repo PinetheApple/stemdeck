@@ -442,7 +442,7 @@ def _common_stage_patches(job_dir: Path, sections):
         patch("app.pipeline.runner.analyze"),
         patch("app.pipeline.runner.separate", return_value=job_dir / "model"),
         patch("app.pipeline.runner.collect", return_value=["bass", "drums", "vocals"]),
-        patch("app.pipeline.runner.cleanup_source"),
+        patch("app.pipeline.runner.keep_link_source"),
         patch("app.pipeline.runner.make_original_track", return_value=None),
         patch("app.pipeline.runner.make_selected_mix", return_value=None),
         patch("app.pipeline.runner.compute_stem_peaks", return_value={}),
@@ -452,24 +452,13 @@ def _common_stage_patches(job_dir: Path, sections):
 
 
 @pytest.mark.parametrize(
-    ("source_url", "kept"),
-    [
-        ("local:my song.mp3", True),
-        ("https://www.youtube.com/watch?v=dQw4w9WgXcQ", False),
-        # No source recorded at all is not an upload, so it is reclaimed as
-        # before. Nothing depends on holding it.
-        (None, False),
-    ],
+    "source_url",
+    ["local:my song.mp3", "https://www.youtube.com/watch?v=dQw4w9WgXcQ", None],
 )
-def test_only_a_source_that_can_be_fetched_again_is_deleted(
-    tmp_path: Path, source_url: str | None, kept: bool
-):
-    """An upload's source is the only copy StemDeck will ever have.
-
-    Deleting it is the bulk of disk reclaim per job, which is why it happens
-    at all, but a link can be downloaded again and an upload cannot. Throwing
-    an upload's source away means the track can never be separated again, with
-    any model, and the person who imported it may no longer have the file.
+def test_every_song_keeps_its_source(tmp_path: Path, source_url: str | None):
+    """An upload's source is the only copy StemDeck will ever have, and a
+    link's saves fetching it again: either way the song can be separated
+    again, with any model, from the file it was made from.
     """
     job = Job(id="abcdefabc120", duration_sec=60.0, source_url=source_url)
     job_dir = tmp_path / job.id
@@ -478,7 +467,7 @@ def test_only_a_source_that_can_be_fetched_again_is_deleted(
     source.write_bytes(b"ID3")
 
     patches = _common_stage_patches(job_dir, [])
-    # Index 3 is the cleanup_source patch; let the real one run so this
+    # Index 3 is the keep_link_source patch; let the real one run so this
     # asserts on the file rather than on a call count.
     with (
         patches[0],
@@ -492,7 +481,7 @@ def test_only_a_source_that_can_be_fetched_again_is_deleted(
     ):
         _run_common(job, source, job_dir)
 
-    assert source.exists() is kept
+    assert source.exists()
 
 
 def test_common_pipeline_stores_automatic_section_suggestions(tmp_path: Path):

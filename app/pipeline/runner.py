@@ -37,9 +37,9 @@ from app.pipeline.beatgrid import compute_beat_grid
 from app.pipeline.cancel import check_cancel as _check_cancel
 from app.pipeline.cancel import run_registered
 from app.pipeline.collect import (
-    cleanup_source,
     collect,
     compute_stem_peaks,
+    keep_link_source,
     make_original_track,
     make_selected_mix,
     remove_job_dir,
@@ -202,19 +202,14 @@ def _run_common(job: Job, source: Path, job_dir: Path) -> None:
     mark = _lap(job, "separate", mark)
     found = collect(job, stems_root, job_dir)
     stems_dir = job_dir / "stems"
-    # Deleting the source is the bulk of disk reclaim per job, and it happens
-    # before the ffmpeg amix steps below in case scratch space is tight. But
-    # only a job that can fetch its source again is allowed to give it up.
-    #
-    # An upload is the one copy StemDeck will ever have. Throwing it away means
-    # the track can never be separated again -- not with a different model, not
-    # at all -- and the person who imported it may no longer have the file
-    # either. A link costs a re-download; an upload costs the recording.
+    # Every song keeps its source, so it can be separated again -- with another
+    # model, other stems -- without fetching it. An upload already kept its
+    # source.wav; a link keeps its download as it came (a .webm remuxed).
     if not is_upload(job):
-        # A fingerprint still reading the source would make the delete fail
-        # on Windows. It finished long ago, so this is nearly always a no-op.
+        # A fingerprint still reading the source would make the remux's delete
+        # fail on Windows. It finished long ago, so this is nearly always a no-op.
         release_source(job.id)
-        cleanup_source(job_dir)
+        keep_link_source(job, job_dir)
     job.stems = [{"name": name, "url": f"/api/jobs/{job.id}/stems/{name}.wav"} for name in found]
     _check_cancel(job)
     # The key was first estimated from the mix, before separation. The stems
