@@ -1,4 +1,4 @@
-#[cfg(any(not(target_os = "macos"), test))]
+#[cfg(any(windows, test))]
 mod amd_windows;
 mod certs;
 mod dragout;

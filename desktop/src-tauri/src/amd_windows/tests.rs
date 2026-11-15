@@ -20,6 +20,11 @@ const BASIC_DISPLAY: &str = "ROOT\\BASICDISPLAY\\0000\tMicrosoft Basic Display A
 const RX_7800: &str =
     "PCI\\VEN_1002&DEV_747E&SUBSYS_E3291DA2&REV_C8\\6&2B9C1F34&0&00000019\tAMD Radeon RX 7800 XT\r\n";
 const RX_7800_NAME: &str = "AMD Radeon RX 7800 XT";
+const RADEON_IGPU_LOWERCASE: &str =
+    "pci\\ven_1002&dev_1681&subsys_0b291028&rev_c7\\4&3a1b2c3d&0&0041\tAMD Radeon(TM) Graphics\r\n";
+const RADEON_IGPU_NAME: &str = "AMD Radeon(TM) Graphics";
+const RTX_4060: &str =
+    "PCI\\VEN_10DE&DEV_28E0&SUBSYS_0C661028&REV_A1\\4&2F0E1D3C&0&0008\tNVIDIA GeForce RTX 4060 Laptop GPU\r\n";
 const UNNAMED_AMD: &str = "PCI\\VEN_1002&DEV_15BF&SUBSYS_0B8C1028&REV_C1\\4&1E2D3A5B&0&0041\t\r\n";
 const PROBE_FAILURE: &str = "failed to start powershell: not found";
 const PROBE_TIMED_OUT: &str = "video controller query timed out after 30s";
@@ -67,6 +72,30 @@ fn a_listing_without_an_amd_card_names_none() {
     let listing = format!("{INTEL_UHD}{BASIC_DISPLAY}");
     assert_eq!(amd_adapter_name(&listing), None);
     assert_eq!(amd_adapter_name(""), None);
+}
+
+#[test]
+fn a_lowercase_device_id_is_still_amd() {
+    assert_eq!(
+        amd_adapter_name(RADEON_IGPU_LOWERCASE).as_deref(),
+        Some(RADEON_IGPU_NAME)
+    );
+}
+
+#[test]
+fn of_two_amd_cards_the_first_listed_is_named() {
+    let listing = format!("{RX_7800}{RADEON_IGPU_LOWERCASE}");
+    assert_eq!(amd_adapter_name(&listing).as_deref(), Some(RX_7800_NAME));
+}
+
+/// nvidia-smi can fail once while a laptop's dGPU wakes; recording the Radeon
+/// iGPU then would settle the machine on CPU instead of retrying next launch.
+#[test]
+fn an_amd_card_beside_an_nvidia_one_is_left_to_the_nvidia_path() {
+    let data = make_tmp();
+    let listing = format!("{RADEON_IGPU_LOWERCASE}{RTX_4060}");
+    assert_eq!(amd_adapter_name(&listing), None);
+    assert!(detect_gpu(None, || detect(data.path(), || Ok(listing))).is_none());
 }
 
 #[test]
@@ -133,7 +162,7 @@ fn a_probe_that_times_out_or_fails_is_logged_and_finds_no_amd_card() {
     assert!(!log.contains(RX_7800_NAME));
 }
 
-/// #196: the card is recorded as a GPU StemDeck can't use, which is what the
+/// The card is recorded as a GPU StemDeck can't use, which is what the
 /// Settings line reads, instead of as no GPU.
 #[test]
 fn a_windows_amd_card_is_recorded_as_a_gpu_stemdeck_cannot_use() {
@@ -143,8 +172,9 @@ fn a_windows_amd_card_is_recorded_as_a_gpu_stemdeck_cannot_use() {
     assert_eq!(gpu.name, RX_7800_NAME);
     assert_eq!(gpu.backend, GPU_BACKEND_ROCM);
     assert!(gpu.candidates.is_empty());
-    assert_eq!(gpu.unusable, Some(REASON_ROCM_UNSUPPORTED));
-    let setup = GpuSetup::from_detection(Some(&gpu), false, REASON_ROCM_UNSUPPORTED);
+    let reason = gpu.unusable.expect("recorded as unusable");
+    let setup = GpuSetup::from_detection(Some(&gpu), false, reason);
+    assert_eq!(setup.reason, REASON_ROCM_UNSUPPORTED);
     assert!(setup.gpu_detected);
     assert_eq!(setup.backend.as_deref(), Some(GPU_BACKEND_ROCM));
     assert_eq!(setup.torch_device, CPU_DEVICE);
