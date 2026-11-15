@@ -22,7 +22,7 @@ import {
   resendNotQueued, runningLabel, startQueue, startQueueStream,
 } from "./queue.js";
 import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
-import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind } from "./notifications.js";
+import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind, getFailures, restoreFailures } from "./notifications.js";
 import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
 import { isModalOpen } from "./stageMode.js";
 import { queueUpNext } from "./upNext.js";
@@ -1242,6 +1242,7 @@ async function sendTrashChange(trackId, trashed) {
     if (!res.ok && !isFinalRefusal(res.status)) return;
     if (_unconfirmedTrashState[trackId] !== trashed) return;
     delete _unconfirmedTrashState[trackId];
+    _placesBeforeTrash.delete(trackId);
     persistUnconfirmedTrash();
   } catch (e) {
     console.warn(`[catalog] could not ${action} ${trackId} on the server`, e);
@@ -1253,11 +1254,49 @@ function undoTrashChange(trackId, trashed) {
   if (_unconfirmedTrashState[trackId] !== trashed) return;
   delete _unconfirmedTrashState[trackId];
   persistUnconfirmedTrash();
-  if (trashed) takeOutOfTrash([trackId]);
+  const before = _placesBeforeTrash.get(trackId);
+  _placesBeforeTrash.delete(trackId);
+  if (before) putBack(trackId, before);
+  else if (trashed) takeOutOfTrash([trackId]);
   else putInTrash([trackId]);
   saveState();
   render();
   notifyFailure({ kind: "trash", message: i18nT(FOLDER_MOVING_KEY) });
+}
+
+// Per song with an unconfirmed trash or restore: how the library held it before, for putBack.
+const _placesBeforeTrash = new Map();
+
+/** How the library holds a song now: its folder places, the song it replaces, whether it is open, its cards. */
+function libraryPlaceOf(trackId) {
+  return {
+    places: folders.map((f) => [f.id, f.items.indexOf(trackId)]).filter(([, at]) => at !== -1),
+    replaced: tracks[trackId]?.replaced ?? null,
+    wasOpen: _currentTrackId === trackId,
+    notices: getFailures().filter((f) => f.context?.jobId === trackId),
+  };
+}
+
+function rememberPlaceBeforeTrash(trackId) {
+  _placesBeforeTrash.set(trackId, libraryPlaceOf(trackId));
+}
+
+/** Put a song back the way libraryPlaceOf found it. */
+function putBack(trackId, { places, replaced, wasOpen, notices }) {
+  if (replaced && !tracks[trackId]?.replaced) undoReinstate(trackId, replaced);
+  removeTrackFromFolders(trackId);
+  for (const [folderId, at] of places) folders.find((f) => f.id === folderId)?.items.splice(at, 0, trackId);
+  if (wasOpen) _currentTrackId = trackId;
+  restoreFailures(notices);
+  announceTrashChange([trackId]);
+}
+
+/** The opposite of reinstateReplaced: the song it replaces goes again. */
+function undoReinstate(trackId, replaced) {
+  removeTrackFromFolders(replaced.id);
+  delete tracks[replaced.id];
+  tracks[trackId].replaced = replaced;
+  moveHeldBand(replaced.id, trackId);
 }
 
 function isFinalRefusal(status) {
@@ -1328,6 +1367,7 @@ function moveTrackToTrash(trackId) {
 
 /** moveTrackToTrash without the save and repaint, for binning several at once. */
 function binTrack(trackId) {
+  rememberPlaceBeforeTrash(trackId);
   putInTrash([trackId]);
   // The server stops a job that is still importing when it is trashed, its
   // files kept. Ask for the queue again so the row goes now, not on the next frame.
@@ -2051,6 +2091,7 @@ function restoreTracksFromTrash(trackIds) {
   const trash = getTrashFolder();
   const ids = trackIds.filter((id) => tracks[id] && trash?.items.includes(id));
   if (!ids.length) return;
+  for (const id of ids) rememberPlaceBeforeTrash(id);
   takeOutOfTrash(ids);
   for (const id of ids) syncTrashToServer(id, false);
   saveState();

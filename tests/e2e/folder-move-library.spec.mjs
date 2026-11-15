@@ -65,6 +65,29 @@ test.describe("studio", () => {
     await expect(page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first()).toBeVisible();
   });
 
+  test("the open song binned from a folder during the move is back in its place, still open", async ({ page }) => {
+    const live = { id: "f-live", name: "Live", items: [SIBLING_JOB_ID, JOB_ID], color: null };
+    await openStudio(page, {
+      catalog: {
+        folders: [{ id: "f-unsorted", name: "Unsorted", items: [], color: null }, live, { id: "trash", name: "Trash", items: [], color: null }],
+        tracks: { [JOB_ID]: fixtureTrack(JOB_ID, TRACK_TITLE), [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, SIBLING_TITLE) },
+      },
+    });
+    await page.route(TRASH_OR_RESTORE, refuse);
+    const moving = await uiText(page, FOLDER_MOVING_KEY);
+    const row = page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first();
+    await expect(row).toHaveClass(/\bactive\b/);
+
+    await row.locator(".cat-fav").focus();
+    await page.keyboard.press("Delete");
+
+    await expect.poll(() => failureMessages(page)).toEqual([moving]);
+    const folders = (await readCatalogState(page))?.folders ?? [];
+    expect(folders.find((f) => f.id === live.id)?.items).toEqual(live.items);
+    expect(await trashItems(page)).toEqual([]);
+    await expect(row).toHaveClass(/\bactive\b/);
+  });
+
   test("a song restored during the move goes back to the Trash and says to wait for it", async ({ page }) => {
     const moving = await openLibrary(page, JOB_ID);
     await page.locator(".rail-trash").click();
