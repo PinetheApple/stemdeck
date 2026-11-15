@@ -331,6 +331,14 @@ test("with one of two takes soloed, the mix carries only that one", async ({ pag
   expect(lanesOf(await exportFromMenu(page, "mix", queries))).toEqual([guitar.id]);
 });
 
+test("a solo on a silenced stem does not silence the export", async ({ page }) => {
+  await openStudio(page);
+  const queries = await captureExports(page);
+  await page.locator('.lane-header[data-stem="vocals"] .solo').click();
+  await page.evaluate(async () => (await import("/js/mixer.js")).setSilencedStems(["vocals"]));
+  expect(lanesOf(await exportFromMenu(page, "mix", queries))).toContain("drums");
+});
+
 test("the export carries the ticked takes, a muted track's unticked", async ({ page, request }) => {
   await openStudio(page);
   const queries = await captureExports(page);

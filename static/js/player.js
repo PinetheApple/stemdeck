@@ -48,7 +48,7 @@ import {
   loadMixIntoState, resetMixerState, refreshMixerVisuals,
   setLaneControlsEnabled, ensureMixerStateDefaults, applyMix,
   renderRealMiniWave, renderRealMiniWaveFromPeaks, renderMixerRow,
-  applyAllLanePitches, setLaneKeysAvailable, mixGlobalPitch,
+  applyAllLanePitches, setLaneKeysAvailable, mixGlobalPitch, anySoloActive,
 } from "./mixer.js";
 import {
   buildRuler, updatePlayheadMarker, updateLoopRegionVisual,
@@ -1922,7 +1922,7 @@ async function _errorDetail(res) {
 // is heard. _currentStems already includes "original" when the user picked a
 // subset, so summing these lanes reconstructs the adjusted full song.
 function _effectiveMixGains() {
-  const anySolo = takeSoloActive() || _currentStems.some((s) => mixerState[s.name]?.soloed);
+  const anySolo = anySoloActive();
   const names = [];
   const gains = [];
   const pitches = [];
