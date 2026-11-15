@@ -470,6 +470,11 @@ async function loadEnvelope(trackId) {
   }
 }
 
+/** The vocals stem's level over time for `trackId`, as kept (not a copy), or null until fetched. */
+export function vocalEnvelope(trackId) {
+  return envelopeFor === trackId ? envelope : null;
+}
+
 /** Give the words on screen the envelope's timings, or the estimate without
  * one, at the lines' times now: once, not per frame. */
 function retime() {
