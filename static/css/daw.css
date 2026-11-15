@@ -5728,7 +5728,6 @@ input, textarea { font-family: inherit; }
 .np-version:hover,
 .np-version[aria-expanded="true"] { background: var(--surface-2); color: var(--text); }
 .np-version:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
-/* The open song's own extraction, after its version. */
 .np-extracting {
   color: var(--accent);
   font: var(--fw-medium) var(--fs-xs) / 1 var(--font-sans);

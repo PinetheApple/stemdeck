@@ -3295,9 +3295,8 @@ function progressBarHtml() {
   return '<div class="cat-progress"><div class="cat-progress-fill"></div></div>';
 }
 
-// A row whose song is busy with a run of its own but still plays: a muted label, no bar.
 export const ROW_PENDING = "pending";
-// Songs decorated for a run of their own, kept through renders and queue frames.
+// Not in the queue's snapshot, so queue frames would otherwise clear these rows.
 const runRowStates = new Map();
 
 /** Decorate a song's row for a run of its own, as an import's row is; null takes it off. */
