@@ -8,15 +8,11 @@ const TORCH_BROKEN_START = "The separation engine could not start";
 const CARDS = { cuda: "NVIDIA", rocm: "AMD" };
 const LINES = {
   unsupported: (card) => `Your ${card} graphics card isn't supported, so separation uses the processor.`,
-  "no-access": (card) =>
-    `StemDeck can't reach your ${card} graphics card, so separation uses the processor. `
-    + "Add your user to the render and video groups, then sign in again.",
+  "no-access": (card) => `StemDeck can't reach your ${card} graphics card, so separation uses the processor.`,
   "install-failed": (card) =>
-    `Setting up your ${card} graphics card didn't finish, so separation uses the processor. `
-    + "Restart StemDeck while online to try again.",
+    `Setting up your ${card} graphics card didn't finish, so separation uses the processor.`,
   "check-failed": (card) =>
-    `Your ${card} graphics card didn't pass StemDeck's check, so separation uses the processor. `
-    + "Updating its driver and restarting StemDeck may help.",
+    `Your ${card} graphics card didn't pass StemDeck's check, so separation uses the processor.`,
 };
 
 async function stubSettings(page, extra) {
