@@ -209,6 +209,17 @@ def test_a_lookalike_of_stemdecks_leftovers_is_refused(tmp_path, name):
         validate_target(target, current)
 
 
+def test_a_folder_named_like_set_aside_records_is_refused(tmp_path):
+    current = tmp_path / "old"
+    current.mkdir()
+    target = tmp_path / "new"
+    _job_dir(target, "aaaaaaaaaaaa")
+    (target / "registry.json.bad-x").mkdir()
+
+    with pytest.raises(StemsLocationError, match="empty folder"):
+        validate_target(target, current)
+
+
 def test_a_move_that_stopped_after_the_set_aside_records_can_still_be_finished(
     client,  # noqa: F811
     tmp_path,
