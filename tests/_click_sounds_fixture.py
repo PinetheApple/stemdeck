@@ -39,10 +39,11 @@ from __future__ import annotations
 
 import numpy as np
 
+from app.pipeline.click_render import LEVEL_DOWNBEAT, LEVEL_GROUP, LEVEL_WEAK
 from app.pipeline.click_sounds import CLICK_SOUND_IDS, render_voice
 
 RATES = (44100, 48000)
-LEVELS = (0, 1, 2)
+LEVELS = (LEVEL_WEAK, LEVEL_GROUP, LEVEL_DOWNBEAT)
 FRAME_SEC = 0.001
 
 

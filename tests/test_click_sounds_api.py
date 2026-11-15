@@ -28,19 +28,26 @@ import soundfile as sf
 
 from app.api import stems as stems_mod
 from app.core import config
-from app.core.config import CLICK_STEM_NAME, EXTRA_STEM_NAMES, STEM_NAMES, ffmpeg_executable
+from app.core.config import (
+    CLICK_GAIN_DEFAULT,
+    CLICK_MULT_DEFAULT,
+    CLICK_STEM_NAME,
+    EXTRA_STEM_NAMES,
+    RENDERED_TRACK_NAMES,
+    STEM_NAMES,
+    ffmpeg_executable,
+)
 from app.core.models import Job
 from app.core.registry import _jobs
 from app.pipeline import click_sounds as cs
-from app.pipeline.click_render import LEVEL_DOWNBEAT, beat_level, render_click_wav
+from app.pipeline.click_render import ACCENT_AUTO, LEVEL_DOWNBEAT, beat_level, render_click_wav
 from tests.ffmpeg_probe import skip_without_ffmpeg
 
 SR = 44100
 JOB = "c1c2c3c4c5c6"
 STEM_SECONDS = 3.3  # deliberately not the grid's 3.0: the stems decide the length
-# "tempo": null is a grid analysis found no tempo for, so these beats are the
-# ones the app clicks to as they stand (a grid without the key would be fitted
-# and continued to cover the song; see the GET /beats test below).
+# "tempo": null means analysis found no tempo, so the app clicks these beats as
+# they stand instead of fitting and continuing them over the song.
 GRID = {
     "version": 1,
     "beats": [0.5, 1.0, 1.5, 2.0, 2.5, 3.0],
@@ -51,6 +58,7 @@ GRID = {
 ONSET_THRESHOLD = 0.02
 LIVE_LEVEL_TOLERANCE_DB = 0.05
 INT16_LSB = 1 / 32767
+MP3_FRAME_SAMPLES = 1152
 
 
 @pytest.fixture(autouse=True)
@@ -105,7 +113,7 @@ def _expected_onsets(beats: list[float], bars: list[dict], sound: str, gain: flo
     """Where each beat's voice first crosses the threshold, from the beat's own sample."""
     out = []
     for i, t in enumerate(beats):
-        voice = cs.render_voice(sound, beat_level(i, bars, -1), SR) * gain
+        voice = cs.render_voice(sound, beat_level(i, bars, ACCENT_AUTO), SR) * gain
         out.append(int(round(t * SR)) + int(np.flatnonzero(np.abs(voice) > ONSET_THRESHOLD)[0]))
     return out
 
@@ -139,7 +147,7 @@ async def test_the_zip_click_is_sample_aligned_with_the_stems(client, jobs_dir, 
     within one sample, at the click's export level."""
     skip_without_ffmpeg()
     _make_job(jobs_dir)
-    gain = 0.6
+    gain = CLICK_GAIN_DEFAULT
     async with client as c:
         r = await c.get(
             f"/api/jobs/{JOB}/stems/all.zip?click=1&click_gain={gain}&click_sound={sound}"
@@ -166,7 +174,8 @@ async def test_the_zip_click_follows_rate_accent_and_edited_beats(client, jobs_d
     _make_job(jobs_dir)
     edited = [0.25, 0.75, 1.25, 1.75]
     (jobs_dir / JOB / "stems" / "beats.user.json").write_text(
-        json.dumps({"beats": edited, "bars": []}), encoding="utf-8"
+        json.dumps({"beats": edited, "bars": []}),
+        encoding="utf-8",
     )
     async with client as c:
         r = await c.get(f"/api/jobs/{JOB}/stems/all.zip?click=1&click_mult=2&click_accent=0")
@@ -185,14 +194,15 @@ async def test_the_zip_click_follows_a_user_tempo_edit(client, jobs_dir):
     _make_job(jobs_dir)
     tempo = {"mode": "constant", "bpm": 100.0, "anchor": 0.3, "beats_per_bar": 4}
     (jobs_dir / JOB / "stems" / "beats.user.json").write_text(
-        json.dumps({"tempo": tempo}), encoding="utf-8"
+        json.dumps({"tempo": tempo}),
+        encoding="utf-8",
     )
     async with client as c:
-        r = await c.get(f"/api/jobs/{JOB}/stems/all.zip?click=1&click_gain=0.6")
+        r = await c.get(f"/api/jobs/{JOB}/stems/all.zip?click=1&click_gain={CLICK_GAIN_DEFAULT}")
     click, _ = sf.read(io.BytesIO(_zip(r.content).read("Clicky_click.wav")))
     beats = [0.3, 0.9, 1.5, 2.1, 2.7]
     bars = [{"beat": 0, "beats_per_bar": 4}]
-    expected = _expected_onsets(beats, bars, "classic", 0.6)
+    expected = _expected_onsets(beats, bars, "classic", CLICK_GAIN_DEFAULT)
     got = _onsets(click[:, 0])
     assert len(got) == len(expected), (got, expected)
     assert max(abs(g - e) for g, e in zip(got, expected, strict=True)) <= 1, (got, expected)
@@ -208,10 +218,10 @@ async def test_the_zip_click_is_the_grid_the_app_clicks_to(client, jobs_dir):
     (jobs_dir / JOB / "stems" / "beats.json").write_text(json.dumps(legacy), encoding="utf-8")
     async with client as c:
         served = (await c.get(f"/api/jobs/{JOB}/beats")).json()
-        r = await c.get(f"/api/jobs/{JOB}/stems/all.zip?click=1&click_gain=0.6")
+        r = await c.get(f"/api/jobs/{JOB}/stems/all.zip?click=1&click_gain={CLICK_GAIN_DEFAULT}")
     assert len(served["beats"]) > len(GRID["beats"]), "the served grid is the continued one"
     click, _ = sf.read(io.BytesIO(_zip(r.content).read("Clicky_click.wav")))
-    expected = _expected_onsets(served["beats"], served["bars"], "classic", 0.6)
+    expected = _expected_onsets(served["beats"], served["bars"], "classic", CLICK_GAIN_DEFAULT)
     got = _onsets(click[:, 0])
     assert len(got) == len(expected), (got, expected)
     assert max(abs(g - e) for g, e in zip(got, expected, strict=True)) <= 1, (got, expected)
@@ -234,7 +244,7 @@ async def test_the_zip_click_is_in_the_zips_format_and_length(client, jobs_dir, 
     else:
         # Both went through the same encoder from the same frame count; lossy
         # decoded lengths can still differ by the codec's framing.
-        assert abs(b.frames - a.frames) <= 1152
+        assert abs(b.frames - a.frames) <= MP3_FRAME_SAMPLES
 
 
 async def test_no_grid_means_no_click_file_not_an_error(client, jobs_dir):
@@ -248,7 +258,7 @@ async def test_no_grid_means_no_click_file_not_an_error(client, jobs_dir):
 
 def test_the_click_entry_cannot_collide_with_a_stem():
     assert CLICK_STEM_NAME == "click"
-    assert CLICK_STEM_NAME not in (*STEM_NAMES, *EXTRA_STEM_NAMES, "original", "mix")
+    assert CLICK_STEM_NAME not in (*STEM_NAMES, *EXTRA_STEM_NAMES, *RENDERED_TRACK_NAMES)
 
 
 async def test_the_zip_sums_to_the_mix_export(client, jobs_dir):
@@ -259,9 +269,10 @@ async def test_the_zip_sums_to_the_mix_export(client, jobs_dir):
     # The mix's click ends at the grid's recorded duration; on a real song that
     # is the stems' length, so make it so here.
     (jobs_dir / JOB / "stems" / "beats.json").write_text(
-        json.dumps({**GRID, "duration": STEM_SECONDS}), encoding="utf-8"
+        json.dumps({**GRID, "duration": STEM_SECONDS}),
+        encoding="utf-8",
     )
-    q = "click=1&click_gain=0.6&click_sound=woodblock"
+    q = f"click=1&click_gain={CLICK_GAIN_DEFAULT}&click_sound=woodblock"
     async with client as c:
         z = _zip((await c.get(f"/api/jobs/{JOB}/stems/all.zip?{q}")).content)
         mix = _wav(
@@ -318,10 +329,19 @@ async def test_the_mix_export_uses_the_chosen_sound(client, jobs_dir):
 
 def test_the_click_lane_renders_the_chosen_sound(jobs_dir):
     _make_job(jobs_dir)
-    a = stems_mod._click_lane(JOB, True, 1.0, -1, 0.6)
-    b = stems_mod._click_lane(JOB, True, 1.0, -1, 0.6, sound="soft")
-    ci = stems_mod._click_lane(JOB, False, 1.0, -1, 0.6, count_in_bars=1, sound="soft")
-    named = stems_mod._click_lane(JOB, True, 1.0, -1, 0.6, sound="classic")
+    args = (JOB, True, CLICK_MULT_DEFAULT, ACCENT_AUTO, CLICK_GAIN_DEFAULT)
+    a = stems_mod._click_lane(*args)
+    b = stems_mod._click_lane(*args, sound="soft")
+    ci = stems_mod._click_lane(
+        JOB,
+        False,
+        CLICK_MULT_DEFAULT,
+        ACCENT_AUTO,
+        CLICK_GAIN_DEFAULT,
+        count_in_bars=1,
+        sound="soft",
+    )
+    named = stems_mod._click_lane(*args, sound=cs.DEFAULT_CLICK_SOUND)
     assert named.path == a.path, "a client that sends classic reuses the cached click"
     assert a.path != b.path
     assert a.path.read_bytes() != b.path.read_bytes()
@@ -329,10 +349,7 @@ def test_the_click_lane_renders_the_chosen_sound(jobs_dir):
 
 
 # ── The exported click's level is the live click's ──
-#
-# Live, the click is a mono AudioBuffer through a GainNode at the click volume
-# into the stereo master, and Web Audio's mono-to-stereo up-mix copies it to
-# both channels at full level. Every export must match that on each channel.
+# Web Audio up-mixes the live mono click to both channels at full level.
 
 
 def _live_click(level: int, gain: float) -> np.ndarray:
@@ -346,9 +363,9 @@ def _db(a: np.ndarray, b: np.ndarray) -> float:
 
 # (query, the first click's start sample in the export, its level).
 _LEVEL_CASES = {
-    "mix": ("", int(round(GRID["beats"][0] * SR)), beat_level(0, GRID["bars"], -1)),
+    "mix": ("", int(round(GRID["beats"][0] * SR)), beat_level(0, GRID["bars"], ACCENT_AUTO)),
     # The region starts on the second beat, so its first click is at sample 0.
-    "region": ("&start=1.0&end=3.0", 0, beat_level(1, GRID["bars"], -1)),
+    "region": ("&start=1.0&end=3.0", 0, beat_level(1, GRID["bars"], ACCENT_AUTO)),
     # The count-in's first click is its downbeat, at sample 0.
     "count_in": ("&count_in=1", 0, LEVEL_DOWNBEAT),
 }
@@ -358,10 +375,10 @@ _LEVEL_CASES = {
 @pytest.mark.parametrize("case", sorted(_LEVEL_CASES))
 async def test_the_exported_click_is_at_the_live_level_on_each_channel(client, jobs_dir, case, ext):
     """Each channel carries the live click's level within 0.05 dB (16-bit
-    rounding); it was 3.01 dB lower while amix did the mono-to-stereo step."""
+    rounding)."""
     skip_without_ffmpeg()
     _make_job(jobs_dir)
-    gain = 0.6
+    gain = CLICK_GAIN_DEFAULT
     query, at, level = _LEVEL_CASES[case]
     async with client as c:
         r = await c.get(
@@ -379,11 +396,11 @@ async def test_the_exported_click_is_at_the_live_level_on_each_channel(client, j
 async def test_the_zip_click_is_at_the_live_level_on_each_channel(client, jobs_dir):
     skip_without_ffmpeg()
     _make_job(jobs_dir)
-    gain = 0.6
+    gain = CLICK_GAIN_DEFAULT
     async with client as c:
         r = await c.get(f"/api/jobs/{JOB}/stems/all.zip?click=1&click_gain={gain}")
     click, _ = sf.read(io.BytesIO(_zip(r.content).read("Clicky_click.wav")))
-    live = _live_click(beat_level(0, GRID["bars"], -1), gain)
+    live = _live_click(beat_level(0, GRID["bars"], ACCENT_AUTO), gain)
     at = int(round(GRID["beats"][0] * SR))
     for ch in (0, 1):
         diff = _db(click[at : at + len(live), ch], live)
@@ -415,20 +432,25 @@ def _tiny_video(dest: Path, seconds: float) -> None:
 def _decode_stereo(path: Path) -> np.ndarray:
     cmd = [ffmpeg_executable(), "-nostdin", "-loglevel", "error", "-i", str(path), "-vn"]
     pcm = subprocess.run(
-        [*cmd, "-f", "f32le", "-ac", "2", "pipe:1"], capture_output=True, check=True, timeout=60
+        [*cmd, "-f", "f32le", "-ac", "2", "pipe:1"],
+        capture_output=True,
+        check=True,
+        timeout=60,
     ).stdout
     return np.frombuffer(pcm, dtype="<f4").reshape(-1, 2)
 
 
 async def test_the_video_export_click_is_at_the_live_level_on_each_channel(
-    client, jobs_dir, tmp_path
+    client,
+    jobs_dir,
+    tmp_path,
 ):
     """AAC, so compared by the RMS of the whole click track (timing-blind, the
     encoder's priming does not matter), within 0.2 dB."""
     skip_without_ffmpeg()
     _make_job(jobs_dir)
     _tiny_video(jobs_dir / JOB / "video.mp4", STEM_SECONDS)
-    gain = 0.6
+    gain = CLICK_GAIN_DEFAULT
     async with client as c:
         r = await c.get(f"/api/jobs/{JOB}/video.mp4?stems=drums&gains=0&click=1&click_gain={gain}")
     assert r.status_code == 200, r.text
@@ -436,7 +458,11 @@ async def test_the_video_export_click_is_at_the_live_level_on_each_channel(
     out.write_bytes(r.content)
     x = _decode_stereo(out)
     mono = render_click_wav(
-        tmp_path / "live.wav", GRID["beats"], GRID["bars"], GRID["duration"], sample_rate=SR
+        tmp_path / "live.wav",
+        GRID["beats"],
+        GRID["bars"],
+        GRID["duration"],
+        sample_rate=SR,
     )
     live, _ = sf.read(mono)
     for ch in (0, 1):

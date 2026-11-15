@@ -25,10 +25,11 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from app.core.config import ffmpeg_executable
+from app.core.config import CLICK_MULT_DEFAULT, ffmpeg_executable
 from app.pipeline import click_render
 from app.pipeline import click_sounds as cs
 from app.pipeline.click_render import (
+    ACCENT_AUTO,
     LEVEL_DOWNBEAT,
     LEVEL_GROUP,
     LEVEL_WEAK,
@@ -102,7 +103,7 @@ def test_an_unknown_sound_is_a_key_error_not_the_default():
 
 # ── Classic is unchanged ──
 
-# sha256 of each render, taken on main before presets existed.
+# sha256 of the Classic renders from before presets: Classic must not change.
 _CLASSIC_FINGERPRINTS = {
     "44100": "93183f477c35b7259bda9465a462b430f6af687af7a03e93d3e88629b2e30222",
     "48000": "7cd370a6e71a8f588060c7ceb2306a8adbd62cc4c0530021eb4f87cca0c47270",
@@ -124,7 +125,13 @@ def test_the_default_sound_renders_byte_for_byte_what_it_did_before_presets(tmp_
     p = render_click_wav(tmp_path / "g.wav", _BEATS, [], 9.0, accent_mode=7, groups=[3, 2, 2])
     assert _sha(p) == _CLASSIC_FINGERPRINTS["grouped"]
     p, lead = render_count_in_wav(
-        tmp_path / "ci.wav", _BEATS, _BARS, 9.0, count_in_bars=1, start=2.0, end=6.0
+        tmp_path / "ci.wav",
+        _BEATS,
+        _BARS,
+        9.0,
+        count_in_bars=1,
+        start=2.0,
+        end=6.0,
     )
     assert lead == 2.0
     assert _sha(p) == _CLASSIC_FINGERPRINTS["countin"]
@@ -134,8 +141,10 @@ def test_naming_classic_is_the_same_as_naming_nothing(tmp_path):
     a = render_click_wav(tmp_path / "a.wav", _BEATS, _BARS, 9.0)
     b = render_click_wav(tmp_path / "b.wav", _BEATS, _BARS, 9.0, sound="classic")
     assert _sha(a) == _sha(b)
-    assert click_render.cache_key("j", _BEATS, _BARS, 9.0, SR, 1.0, -1) == click_render.cache_key(
-        "j", _BEATS, _BARS, 9.0, SR, 1.0, -1, sound="classic"
+    key_args = ("j", _BEATS, _BARS, 9.0, SR, CLICK_MULT_DEFAULT, ACCENT_AUTO)
+    assert click_render.cache_key(*key_args) == click_render.cache_key(
+        *key_args,
+        sound="classic",
     ), "a classic export must keep the cache key it always had"
 
 
@@ -251,9 +260,11 @@ def test_the_committed_drift_fixture_matches_what_python_measures():
     assert FIXTURE.is_file(), "drift fixture is missing; regenerate it (see _click_sounds_fixture)"
     committed = json.loads(FIXTURE.read_text(encoding="utf-8"))
     now = build_fixture()
-    assert [(v["sound"], v["sampleRate"], v["level"]) for v in committed["voices"]] == [
-        (v["sound"], v["sampleRate"], v["level"]) for v in now["voices"]
-    ], "the fixture no longer covers every preset; regenerate it"
+
+    def covered(fixture: dict) -> list[tuple]:
+        return [(v["sound"], v["sampleRate"], v["level"]) for v in fixture["voices"]]
+
+    assert covered(committed) == covered(now), "the fixture no longer covers every preset"
     for want, got in zip(committed["voices"], now["voices"], strict=True):
         tag = f"{got['sound']} {got['level']} @ {got['sampleRate']}"
         assert got["length"] == want["length"], tag

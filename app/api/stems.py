@@ -970,10 +970,10 @@ async def get_stem(
     name: str,
     start: float | None = Query(default=None, ge=0, description="Trim start in seconds"),
     end: float | None = Query(default=None, gt=0, description="Trim end in seconds"),
-    click: bool = stems_click.CLICK_MIX_QUERY,
-    click_mult: float = stems_click.CLICK_MULT_QUERY,
-    click_accent: int = stems_click.CLICK_ACCENT_QUERY,
-    click_gain: float = stems_click.CLICK_GAIN_QUERY,
+    click: bool = stems_click.click_mix_query(),
+    click_mult: float = stems_click.click_mult_query(),
+    click_accent: int = stems_click.click_accent_query(),
+    click_gain: float = stems_click.click_gain_query(),
 ) -> FileResponse | StreamingResponse:
     """A stem as the song stores it: WAV, or MP3 for a song stored as MP3, with
     its own type and file name whatever this URL says. Optional ?start=&end=
@@ -1116,12 +1116,12 @@ async def get_mixdown(
     ),
     start: float | None = Query(default=None, ge=0, description="Trim start in seconds"),
     end: float | None = Query(default=None, gt=0, description="Trim end in seconds"),
-    click: bool = stems_click.CLICK_MIX_QUERY,
-    click_mult: float = stems_click.CLICK_MULT_QUERY,
-    click_accent: int = stems_click.CLICK_ACCENT_QUERY,
-    click_gain: float = stems_click.CLICK_GAIN_QUERY,
-    click_groups: str = stems_click.CLICK_GROUPS_QUERY,
-    click_sound: str = stems_click.CLICK_SOUND_QUERY,
+    click: bool = stems_click.click_mix_query(),
+    click_mult: float = stems_click.click_mult_query(),
+    click_accent: int = stems_click.click_accent_query(),
+    click_gain: float = stems_click.click_gain_query(),
+    click_groups: str = stems_click.click_groups_query(),
+    click_sound: str = stems_click.click_sound_query(),
     count_in: int = Query(
         # Ceiling matches MAX_COUNT_IN_BARS in static/js/state.js, the longest
         # count-in the UI can ask for (#587). The lead-in it prepends is
@@ -1312,11 +1312,11 @@ async def get_video_mixdown(
         max_length=128,
         description="Comma-separated semitone shifts parallel to stems (-6..6). Empty = none.",
     ),
-    click: bool = stems_click.CLICK_MIX_QUERY,
-    click_mult: float = stems_click.CLICK_MULT_QUERY,
-    click_accent: int = stems_click.CLICK_ACCENT_QUERY,
-    click_gain: float = stems_click.CLICK_GAIN_QUERY,
-    click_sound: str = stems_click.CLICK_SOUND_QUERY,
+    click: bool = stems_click.click_mix_query(),
+    click_mult: float = stems_click.click_mult_query(),
+    click_accent: int = stems_click.click_accent_query(),
+    click_gain: float = stems_click.click_gain_query(),
+    click_sound: str = stems_click.click_sound_query(),
 ) -> StreamingResponse:
     """Mux a fresh audio mixdown of the current mixer state with the job's preserved
     video into an MP4 (issue #219). Mirrors get_mixdown's audio graph (encoded
@@ -1452,12 +1452,12 @@ async def get_all_stems_zip(
     job_id: str,
     fmt: str = Query(default="wav", alias="format"),
     stems: str | None = Query(default=None, description="Comma-separated stems; default all"),
-    click: bool = stems_click.CLICK_FILE_QUERY,
-    click_mult: float = stems_click.CLICK_MULT_QUERY,
-    click_accent: int = stems_click.CLICK_ACCENT_QUERY,
-    click_gain: float = stems_click.CLICK_GAIN_QUERY,
-    click_groups: str = stems_click.CLICK_GROUPS_QUERY,
-    click_sound: str = stems_click.CLICK_SOUND_QUERY,
+    click: bool = stems_click.click_file_query(),
+    click_mult: float = stems_click.click_mult_query(),
+    click_accent: int = stems_click.click_accent_query(),
+    click_gain: float = stems_click.click_gain_query(),
+    click_groups: str = stems_click.click_groups_query(),
+    click_sound: str = stems_click.click_sound_query(),
 ) -> FileResponse:
     """Bundle the requested stems into a single ZIP, named after the song.
 
@@ -1523,10 +1523,8 @@ async def get_all_stems_zip(
 
     def build() -> None:
         try:
-            with stems_click.click_stem_sources(
-                click_stem, sources[0][1], tmp_path
-            ) as click_sources:
-                _build_stems_zip([*sources, *click_sources], fmt, tmp_path, prefix)
+            with stems_click.click_stem_sources(click_stem, sources[0][1], tmp_path) as clicks:
+                _build_stems_zip([*sources, *clicks], fmt, tmp_path, prefix)
         except Exception:
             # Logged here: after a cancel nobody awaits the thread.
             logger.exception("failed to build stems zip for job %s", job_id)

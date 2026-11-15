@@ -25,9 +25,8 @@ from app.pipeline.click_sounds import DEFAULT_CLICK_SOUND, render_voice
 
 logger = logging.getLogger("stemdeck.clickrender")
 
-# The Classic preset's voice, as it was before presets existed. The sound
-# itself is now the "classic" entry of static/js/clickSounds.js;
-# tests/test_click_sounds.py asserts that entry still says exactly this.
+# The Classic preset's voice; tests/test_click_sounds.py pins the "classic"
+# entry of static/js/clickSounds.js to these numbers.
 CLICK_FREQ = 1000.0
 # Group starts sit between the downbeat and a plain beat in both pitch and
 # level, so a grouped bar reads as "strong, medium, weak" rather than as three
@@ -41,7 +40,7 @@ CLICK_PEAK = 0.7
 GROUP_PEAK = 0.85
 ACCENT_PEAK = 1.0
 
-# Click strength at one beat. The renderer and static/js/metronome.js must agree
+# Click strength at one beat. The renderer and static/js/clickAccents.js must agree
 # on these three, or a monitored click and an exported one differ.
 LEVEL_WEAK = 0
 LEVEL_GROUP = 1
@@ -56,11 +55,8 @@ ACCENT_OFF = 0
 
 _VALID_MULTIPLIERS = (0.5, 1.0, 2.0)
 
-# The rendered click is mono; every export takes it to stereo with this filter,
-# the mono click on both channels at unity. That is what the app plays: Web
-# Audio up-mixes the mono click into the stereo master as L = R = M. Left to
-# amix, the mix graph would insert libswresample's default mono-to-stereo
-# matrix instead, which puts the click 3 dB lower on each channel.
+# Web Audio up-mixes the mono click as L = R = M; amix's default mono-to-stereo
+# matrix would put it 3 dB lower on each channel.
 CLICK_TO_STEREO = "pan=stereo|c0=c0|c1=c0"
 
 
@@ -76,7 +72,7 @@ def default_grouping(beats_per_bar: int) -> list[int]:
     turning that on by default would change the most common meter in the app for
     every existing user, which is a decision for them and not a default.
 
-    Mirrored by defaultGrouping() in static/js/metronome.js -- keep both in step.
+    Mirrored by defaultGrouping() in static/js/clickAccents.js -- keep both in step.
     """
     if beats_per_bar < 1:
         return []
@@ -359,8 +355,7 @@ def cache_key(
     if count_in_bars > 0:
         seg = f"{'' if start is None else f'{start:.3f}'}:{'' if end is None else f'{end:.3f}'}"
         raw += f"|ci{count_in_bars}|clk{int(include_click)}|{seg}"
-    # Only a non-default sound enters the key, for the same reason as the
-    # grouping: every Classic export keeps the key it always had.
+    # Only a non-default sound enters the key, so a Classic export keeps its cached render.
     if sound != DEFAULT_CLICK_SOUND:
         raw += f"|s{sound}"
     return hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()

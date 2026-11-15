@@ -27,33 +27,58 @@ import numpy as np
 from app.core.config import CLICK_SOUND_ID_MAX_CHARS, CLICK_SOUNDS_TABLE
 
 _JSON_BLOCK = re.compile(
-    r"/\*\s*CLICK_SOUNDS_JSON_BEGIN\s*\*/(.*?)/\*\s*CLICK_SOUNDS_JSON_END\s*\*/", re.DOTALL
+    r"/\*\s*CLICK_SOUNDS_JSON_BEGIN\s*\*/(.*?)/\*\s*CLICK_SOUNDS_JSON_END\s*\*/",
+    re.DOTALL,
 )
 
 # Click strength at one beat, as click_render.py numbers it.
 _LEVEL_VOICE = ("beat", "group", "accent")
+_FALLBACK_VOICE = _LEVEL_VOICE[0]
 _ID_RE = re.compile(rf"^[a-z][a-z0-9_]{{0,{CLICK_SOUND_ID_MAX_CHARS - 1}}}\Z")
+
+_KIND_SYNTH = "synth"
+_COMPONENT_SINE = "sine"
+_COMPONENT_NOISE = "noise"
+_ENVELOPE_KEYS = ("attack", "decay", "peak")
+_ENVELOPE_MAX = 1.0
+_AUDIBLE_MIN_HZ = 20.0
+_AUDIBLE_MAX_HZ = 20000.0
+_PRESET_GAIN_MAX = 4.0
+_FLOOR_MAX = 0.01
+_UNITY_GAIN = 1.0
+_VOICE_CACHE_SIZE = 64
+
+# xorshift32 (Marsaglia), bit for bit the recurrence clickSounds.js runs.
+_UINT32_RANGE = 2**32
+_UINT32_MASK = _UINT32_RANGE - 1
+_XORSHIFT_LEFT_1 = 13
+_XORSHIFT_RIGHT = 17
+_XORSHIFT_LEFT_2 = 5
 
 
 class ClickSoundTableError(RuntimeError):
     """static/js/clickSounds.js is missing, or its table is malformed."""
 
 
+def _audible(hz: float) -> bool:
+    return _AUDIBLE_MIN_HZ <= float(hz) <= _AUDIBLE_MAX_HZ
+
+
 def _check_component(pid: str, c: dict) -> None:
     kind = c.get("type")
-    if kind not in ("sine", "noise"):
+    if kind not in (_COMPONENT_SINE, _COMPONENT_NOISE):
         raise ClickSoundTableError(f"{pid}: unknown component type {kind!r}")
-    for key in ("attack", "decay", "peak"):
+    for key in _ENVELOPE_KEYS:
         if not isinstance(c.get(key), (int, float)):
             raise ClickSoundTableError(f"{pid}: component needs a number for {key}")
-    if not (0 < c["attack"] < c["decay"] <= 1.0) or not (0 < c["peak"] <= 1.0):
+    if not (0 < c["attack"] < c["decay"] <= _ENVELOPE_MAX) or not (0 < c["peak"] <= _ENVELOPE_MAX):
         raise ClickSoundTableError(f"{pid}: envelope out of range")
-    if kind == "sine" and not (20 <= float(c.get("freq", 0)) <= 20000):
-        raise ClickSoundTableError(f"{pid}: sine needs a freq in 20..20000")
-    if kind == "noise":
-        if not (20 <= float(c.get("center", 0)) <= 20000) or not float(c.get("q", 0)) > 0:
+    if kind == _COMPONENT_SINE and not _audible(c.get("freq", 0)):
+        raise ClickSoundTableError(f"{pid}: sine needs an audible freq")
+    if kind == _COMPONENT_NOISE:
+        if not _audible(c.get("center", 0)) or not float(c.get("q", 0)) > 0:
             raise ClickSoundTableError(f"{pid}: noise needs a center and a q")
-        if not isinstance(c.get("seed"), int) or not 0 < c["seed"] < 2**32:
+        if not isinstance(c.get("seed"), int) or not 0 < c["seed"] < _UINT32_RANGE:
             raise ClickSoundTableError(f"{pid}: noise needs a 32-bit seed")
 
 
@@ -79,9 +104,9 @@ def parse_table(text: str) -> dict:
         if not isinstance(pid, str) or not _ID_RE.match(pid) or pid in seen:
             raise ClickSoundTableError(f"bad or duplicate preset id {pid!r}")
         seen.add(pid)
-        if p.get("kind") != "synth":
+        if p.get("kind") != _KIND_SYNTH:
             raise ClickSoundTableError(f"{pid}: only synth presets are supported")
-        if not isinstance(p.get("gain"), (int, float)) or not 0 < p["gain"] <= 4:
+        if not isinstance(p.get("gain"), (int, float)) or not 0 < p["gain"] <= _PRESET_GAIN_MAX:
             raise ClickSoundTableError(f"{pid}: gain out of range")
         voices = p.get("voices") or {}
         for level in _LEVEL_VOICE:
@@ -92,7 +117,7 @@ def parse_table(text: str) -> dict:
                 _check_component(pid, c)
     if table.get("default") not in seen:
         raise ClickSoundTableError("the default click sound is not a preset")
-    if not isinstance(table.get("floor"), (int, float)) or not 0 < table["floor"] < 0.01:
+    if not isinstance(table.get("floor"), (int, float)) or not 0 < table["floor"] < _FLOOR_MAX:
         raise ClickSoundTableError("floor out of range")
     return table
 
@@ -147,7 +172,7 @@ def _noise(c: dict, m: int, sample_rate: int) -> np.ndarray:
 
     A plain loop on purpose: it has to be the same recurrence as the JS one,
     and a voice is a few thousand samples, rendered once per export."""
-    x = int(c["seed"]) & 0xFFFFFFFF or 1
+    x = int(c["seed"]) & _UINT32_MASK or 1
     w0 = 2 * math.pi * float(c["center"]) / sample_rate
     alpha = math.sin(w0) / (2 * float(c["q"]))
     a0 = 1 + alpha
@@ -158,10 +183,10 @@ def _noise(c: dict, m: int, sample_rate: int) -> np.ndarray:
     x1 = x2 = y1 = y2 = 0.0
     out = np.empty(m)
     for i in range(m):
-        x ^= (x << 13) & 0xFFFFFFFF
-        x ^= x >> 17
-        x ^= (x << 5) & 0xFFFFFFFF
-        u = (x / 4294967296) * 2 - 1
+        x ^= (x << _XORSHIFT_LEFT_1) & _UINT32_MASK
+        x ^= x >> _XORSHIFT_RIGHT
+        x ^= (x << _XORSHIFT_LEFT_2) & _UINT32_MASK
+        u = (x / _UINT32_RANGE) * 2 - 1
         y = b0 * u + b2 * x2 - a1 * y1 - a2 * y2
         x2, x1 = x1, u
         y2, y1 = y1, y
@@ -169,19 +194,20 @@ def _noise(c: dict, m: int, sample_rate: int) -> np.ndarray:
     return out
 
 
-@lru_cache(maxsize=64)
+@lru_cache(maxsize=_VOICE_CACHE_SIZE)
 def _voice_cached(sound: str, level: int, sample_rate: int) -> np.ndarray:
     preset = _BY_ID[sound]
-    comps = preset["voices"][_LEVEL_VOICE[level] if 0 <= level < 3 else "beat"]
+    voice = _LEVEL_VOICE[level] if 0 <= level < len(_LEVEL_VOICE) else _FALLBACK_VOICE
+    comps = preset["voices"][voice]
     n = max(_samples(float(c["decay"]), sample_rate) for c in comps)
     out = np.zeros(n)
     for c in comps:
         m = _samples(float(c["decay"]), sample_rate)
         t = np.arange(m) / sample_rate
-        src = _noise(c, m, sample_rate) if c["type"] == "noise" else np.sin(_phase(c, t))
+        src = _noise(c, m, sample_rate) if c["type"] == _COMPONENT_NOISE else np.sin(_phase(c, t))
         out[:m] += src * _envelope(t, float(c["attack"]), float(c["decay"]), float(c["peak"]))
     gain = float(preset["gain"])
-    if gain != 1.0:
+    if gain != _UNITY_GAIN:
         out *= gain
     out.setflags(write=False)
     return out
