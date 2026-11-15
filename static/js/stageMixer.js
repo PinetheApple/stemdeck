@@ -12,7 +12,7 @@ import {
 } from "./mixer.js";
 import { getLoadedStemNames } from "./player.js";
 import { LANE_VOLUME_MAX, STEM_COLORS, STEM_DISPLAY } from "./constants.js";
-import { PERCENT, stripStems } from "./stageModel.js";
+import { PERCENT, readChoice, saveChoice, stripStems } from "./stageModel.js";
 import { t } from "./i18n.js";
 import { $ } from "./utils.js";
 
@@ -28,23 +28,8 @@ let isShowing = () => false;
 
 const stemLabel = (name) => STEM_DISPLAY[name] || name;
 
-function readMixHidden() {
-  try {
-    return localStorage.getItem(HIDDEN_STORE_KEY) === HIDDEN_STORED;
-  } catch (e) {
-    console.warn("[stage] could not read the mixer's shown state:", e);
-    return false;
-  }
-}
-
-function saveMixHidden(hidden) {
-  try {
-    if (hidden) localStorage.setItem(HIDDEN_STORE_KEY, HIDDEN_STORED);
-    else localStorage.removeItem(HIDDEN_STORE_KEY);
-  } catch (e) {
-    console.warn("[stage] could not save the mixer's shown state:", e);
-  }
-}
+const readMixHidden = () => readChoice(HIDDEN_STORE_KEY) === HIDDEN_STORED;
+const saveMixHidden = (hidden) => saveChoice(HIDDEN_STORE_KEY, hidden ? HIDDEN_STORED : null);
 
 function showMixHidden(hidden) {
   $("stageView")?.classList.toggle(HIDDEN_CLASS, hidden);

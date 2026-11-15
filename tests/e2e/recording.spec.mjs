@@ -1,6 +1,6 @@
 // Recording tracks and takes, on Chromium's fake microphone.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, openStudio } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, exportUi, openStudio } from "./helpers.mjs";
 import { openSong } from "./saveRaces.mjs";
 
 test.use({
@@ -13,7 +13,6 @@ const RECORD_MS = 1500;
 const SLOW_SPEED = "0.75x";
 const PART_FRAMES = 4800;
 const MONO_FLOAT_BYTES = 4;
-const WORKLET_BATCH_FRAMES = 2048;
 const HTTP_CONFLICT = 409;
 const HTTP_NOT_FOUND = 404;
 const MS_PER_SEC = 1000;
@@ -33,9 +32,28 @@ const STEM_FLOOR_PX = 72;
 const NO_TRACK_SHRINK_MAX_PX = 8;
 // Well under recorder.js's TEARDOWN_WAIT_MS (500), so a wait that ran would show.
 const FAST_PATH_MAX_MS = 100;
+const EXPORT_ROUTE = /\/(mixdown\.wav|stems\/all\.zip)\?/;
 
 const recordBtn = (page) => page.locator("#t-rec");
 const trackRow = (page) => page.locator(".rec-row").first();
+
+// The frame count recorderWorklet.js reports on "stopped": everything it captured, tail included.
+function spyOnCapturedFrames(page) {
+  return page.addInitScript(function installCaptureSpy() {
+    const Native = window.AudioWorkletNode;
+    window.__e2e = { capturedFrames: null };
+    window.AudioWorkletNode = class extends Native {
+      constructor(ctx, name, options) {
+        super(ctx, name, options);
+        this.port.addEventListener("message", function onWorkletMessage({ data }) {
+          if (data.type === "stopped") window.__e2e.capturedFrames = data.frames;
+        });
+      }
+    };
+  });
+}
+
+const capturedFrames = (page) => page.evaluate(() => window.__e2e.capturedFrames);
 
 async function listing(request, jobId = JOB_ID) {
   return (await request.get(`/api/jobs/${jobId}/takes`)).json();
@@ -173,6 +191,7 @@ test("arm, record, stop, then keep or delete the take", async ({ page, request }
 });
 
 test("a song switch mid-take finishes the take on its own song", async ({ page, request }) => {
+  await spyOnCapturedFrames(page);
   await openStudio(page);
   await addArmedTrack(page);
   await recordBtn(page).click();
@@ -184,9 +203,8 @@ test("a song switch mid-take finishes the take on its own song", async ({ page, 
   await expect(page.locator(".rec-notice")).toBeVisible({ timeout: 15000 });
   await expect.poll(async () => (await listing(request)).takes.length, { timeout: 15000 }).toBe(1);
   expect((await listing(request)).open).toHaveLength(0);
-  // Whole worklet batches only would mean the tail captured before the switch was lost.
   const frames = Math.round((await listing(request)).takes[0].duration_sec * rate);
-  expect(frames % WORKLET_BATCH_FRAMES).not.toBe(0);
+  expect(frames).toBe(await capturedFrames(page));
   expect((await listing(request, SIBLING_JOB_ID)).takes).toHaveLength(0);
   await expect(page.locator(".rec-row")).toHaveCount(0);
 });
@@ -197,6 +215,7 @@ async function acceptImport(route) {
 }
 
 test("an import started mid-take finishes the take first, tail included", async ({ page, request }) => {
+  await spyOnCapturedFrames(page);
   await openStudio(page);
   await addArmedTrack(page);
   await recordBtn(page).click();
@@ -209,7 +228,7 @@ test("an import started mid-take finishes the take first, tail included", async 
   await expect.poll(async () => (await listing(request)).takes.length, { timeout: 15000 }).toBe(1);
   expect((await listing(request)).open).toHaveLength(0);
   const frames = Math.round((await listing(request)).takes[0].duration_sec * rate);
-  expect(frames % WORKLET_BATCH_FRAMES).not.toBe(0);
+  expect(frames).toBe(await capturedFrames(page));
 });
 
 test("a reload brings the track and its take back", async ({ page, request }) => {
@@ -287,6 +306,37 @@ test("a soloed take leaves no stems to export", async ({ page, request }) => {
   await trackRow(page).locator(".solo").click();
   const exported = await page.evaluate(async () => (await import("/js/player.js")).downloadCurrentMix("wav"));
   expect(exported).toBe(false);
+});
+
+// Answers every export with a stub file and keeps the query each one asked for.
+// After openStudio, so it wins over the helpers' own mixdown stub.
+async function captureExports(page) {
+  const queries = [];
+  await page.route(EXPORT_ROUTE, function stubExport(route) {
+    queries.push(new URL(route.request().url()).searchParams);
+    return route.fulfill({ status: 200, body: "x" });
+  });
+  return queries;
+}
+
+async function exportFromMenu(page, item, queries) {
+  const ui = exportUi(page);
+  const before = queries.length;
+  await ui.open();
+  await ui[item].click();
+  await expect.poll(() => queries.length).toBe(before + 1);
+  await expect(ui.label).toHaveText("Export Mix");
+  return queries.at(-1);
+}
+
+const lanesOf = (query) => query.get("stems").split(",");
+
+test("a solo on a silenced stem does not silence the export", async ({ page }) => {
+  await openStudio(page);
+  const queries = await captureExports(page);
+  await page.locator('.lane-header[data-stem="vocals"] .solo').click();
+  await page.evaluate(async () => (await import("/js/mixer.js")).setSilencedStems(["vocals"]));
+  expect(lanesOf(await exportFromMenu(page, "mix", queries))).toContain("drums");
 });
 
 // Leaves part uploads unanswered, like a server that hangs.

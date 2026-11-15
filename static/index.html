@@ -16,6 +16,9 @@
     <link rel="stylesheet" href="/css/stage-mode.css" />
     <link rel="stylesheet" href="/css/recording.css" />
     <link rel="stylesheet" href="/css/film.css" />
+    <link rel="stylesheet" href="/css/stage-sing.css" />
+<link rel="stylesheet" href="/css/eq.css" />
+<link rel="stylesheet" href="/css/mastering.css" />
     <link rel="stylesheet" href="/css/vocal-split.css" />
     <link rel="stylesheet" href="/css/forms.css" />
 <link rel="stylesheet" href="/css/import-source.css" />
@@ -742,15 +745,60 @@
                   <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
                 </button>
               </div>
+              <div class="stage-look" id="stageLook" role="radiogroup" aria-label="Stage view" data-i18n-aria-label="stage.look">
+                <button type="button" role="radio" id="stageLookPlay" aria-checked="true">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 11.4V9.1"/><path d="m12 17 6.59-6.59"/><path d="m15.05 5.7-.218-.691a3 3 0 0 0-5.663 0L4.418 19.695A1 1 0 0 0 5.37 21h13.253a1 1 0 0 0 .951-1.31L18.45 16.2"/><circle cx="20" cy="9" r="2"/></svg>
+                  <span data-i18n="stage.playAlong">Play along</span>
+                </button>
+                <button type="button" role="radio" id="stageLookSing" aria-checked="false">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 7.601-5.994 8.19a1 1 0 0 0 .1 1.298l.817.818a1 1 0 0 0 1.314.087L15.09 12"/><path d="M16.5 21.174C15.5 20.5 14.372 20 13 20c-2.058 0-3.928 2.356-6 2-2.072-.356-2.775-3.369-1.5-4.5"/><circle cx="16" cy="7" r="5"/></svg>
+                  <span data-i18n="stage.singAlong">Sing along</span>
+                </button>
+              </div>
               <button class="stage-exit" id="stageExitBtn" type="button" title="Exit stage (Esc)" data-i18n-title="stage.exitTitle">
                 <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/></svg>
                 <span data-i18n="stage.exit">Exit stage</span>
               </button>
             </header>
             <div class="stage-center">
-              <div class="stage-section" id="stageSection"></div>
-              <div class="stage-count">
-                <span class="stage-beats" id="stageBeats" aria-hidden="true"></span>
+              <div class="stage-meta">
+                <div class="stage-section" id="stageSection"></div>
+                <div class="stage-count">
+                  <span class="stage-beats" id="stageBeats" aria-hidden="true"></span>
+                </div>
+              </div>
+              <div class="sing-intro sing-only" id="singIntro" hidden>
+                <span data-i18n="sing.vocalsIn">Vocals in</span>
+                <span class="num" id="singIntroTime"></span>
+              </div>
+              <div class="sing-lyrics sing-only" id="singLyrics" hidden>
+                <p class="sing-line past" id="singLinePast"></p>
+                <p class="sing-line now" id="singLineNow"></p>
+                <p class="sing-line near" id="singLineNear"></p>
+                <p class="sing-line far" id="singLineFar"></p>
+              </div>
+              <div class="sing-handoff sing-only" id="singHandoff" hidden>
+                <span class="sing-handoff-label" data-i18n="upNext.heading">Up next</span>
+                <span class="sing-handoff-title" id="singHandoffTitle"></span>
+                <span class="stage-artist" id="singHandoffArtist"></span>
+                <div class="sing-ring" id="singRing" role="timer">
+                  <svg viewBox="0 0 112 112" aria-hidden="true"><circle class="track" cx="56" cy="56" r="50"/><circle class="left" id="singRingLeft" cx="56" cy="56" r="50" pathLength="1"/></svg>
+                  <span class="num" id="singRingNum" aria-hidden="true"></span>
+                </div>
+                <div class="sing-actions">
+                  <button class="sing-btn primary" id="singPlayNowBtn" type="button" data-i18n="upNext.playNow">Play now</button>
+                  <button class="sing-btn" id="singStayBtn" type="button" data-i18n="sing.stay">Stay here</button>
+                </div>
+              </div>
+              <div class="sing-empty sing-only" id="singEmpty" hidden>
+                <span id="singEmptyText"></span>
+                <div class="sing-actions">
+                  <button class="sing-btn primary" id="singTranscribeBtn" type="button" hidden>
+                    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="14" x="3" y="5" rx="2" ry="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/></svg>
+                    <span data-i18n="lyrics.transcribe.open">Transcribe lyrics</span>
+                  </button>
+                  <button class="sing-btn" id="singOpenLyricsBtn" type="button" data-i18n="sing.openLyrics">Open lyrics</button>
+                </div>
               </div>
               <div class="stage-lyrics" id="stageLyrics" hidden>
                 <p class="stage-lyric" id="stageLyric"></p>
@@ -777,17 +825,49 @@
               <span class="stage-time stage-time-total num" id="stageTotal"></span>
             </div>
             <div class="stage-transport">
-              <button class="stage-btn" id="stageStopBtn" type="button" title="Stop" aria-label="Stop" data-i18n-title="transport.stop" data-i18n-aria-label="transport.stop">
-                <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
-              </button>
-              <button class="stage-play" id="stagePlayBtn" type="button" aria-label="Play / Pause" data-i18n-aria-label="transport.playPause" aria-pressed="false">
-                <svg class="ic ic-fill stage-play-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>
-                <svg class="ic ic-fill stage-pause-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></svg>
-              </button>
-              <button class="stage-btn" id="stageNextBtn" type="button" title="Play the next song in Up Next" aria-label="Play the next song in Up Next" data-i18n-title="upNext.nextTitle" data-i18n-aria-label="upNext.nextTitle" disabled>
-                <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4v16"/><path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z"/></svg>
-              </button>
+              <div class="sing-voice sing-only" role="group" aria-label="Voices" data-i18n-aria-label="sing.voices">
+                <button class="sing-switch" id="singVoiceBtn" type="button" role="switch" aria-checked="false"><span class="sing-knob" aria-hidden="true"></span><span data-i18n="sing.voice">Voice</span></button>
+                <button class="sing-switch" id="singBackingBtn" type="button" role="switch" aria-checked="true" title="Backing vocals" data-i18n-title="sing.backingTitle"><span class="sing-knob" aria-hidden="true"></span><span data-i18n="sing.backing">Backing</span></button>
+              </div>
+              <div class="stage-transport-btns">
+                <button class="stage-btn" id="stageStopBtn" type="button" title="Stop" aria-label="Stop" data-i18n-title="transport.stop" data-i18n-aria-label="transport.stop">
+                  <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+                </button>
+                <button class="stage-play" id="stagePlayBtn" type="button" aria-label="Play / Pause" data-i18n-aria-label="transport.playPause" aria-pressed="false">
+                  <svg class="ic ic-fill stage-play-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>
+                  <svg class="ic ic-fill stage-pause-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></svg>
+                </button>
+                <button class="stage-btn" id="stageNextBtn" type="button" title="Play the next song in Up Next" aria-label="Play the next song in Up Next" data-i18n-title="upNext.nextTitle" data-i18n-aria-label="upNext.nextTitle" disabled>
+                  <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4v16"/><path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z"/></svg>
+                </button>
+              </div>
+              <div class="sing-up-next sing-only">
+                <button class="sing-chip" id="singUpNextBtn" type="button" aria-expanded="false" aria-controls="singPanel" title="Up Next" data-i18n-title="inspector.upNext" hidden>
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/></svg>
+                  <span class="num" id="singUpNextCount"></span>
+                  <span class="sing-chip-title" id="singUpNextTitle"></span>
+                </button>
+              </div>
             </div>
+            <aside class="sing-panel sing-only" id="singPanel" aria-label="Up next" data-i18n-aria-label="upNext.heading" hidden>
+              <div class="sing-panel-head">
+                <span class="inspector-label" data-i18n="upNext.heading">Up next</span>
+                <span class="upnext-actions">
+                  <span class="stage-borrow" data-borrow="upNextClear"></span>
+                  <button class="upnext-remove sing-panel-close" id="singPanelClose" type="button" title="Close" aria-label="Close" data-i18n-title="sing.closeQueue" data-i18n-aria-label="sing.closeQueue">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                  </button>
+                </span>
+              </div>
+              <span class="inspector-label" data-i18n="upNext.nowPlaying">Now playing</span>
+              <span class="stage-borrow" data-borrow="upNextNow"></span>
+              <span class="stage-borrow sing-panel-list" data-borrow="upNextList"></span>
+              <span class="stage-borrow" data-borrow="upNextEmpty"></span>
+              <div class="sing-panel-foot">
+                <span class="sing-keys"><kbd>Alt</kbd><kbd>↑</kbd><kbd>↓</kbd><span data-i18n="sing.move">Move</span></span>
+                <span class="stage-borrow" data-borrow="upNextSave"></span>
+              </div>
+            </aside>
             <aside class="stage-mixer" id="stageMixer" aria-label="Mix" data-i18n-aria-label="stage.mix">
               <span class="stage-mixer-label" data-i18n="stage.mix">Mix</span>
               <div class="stage-mixer-strips" id="stageMixerStrips"></div>
@@ -876,6 +956,10 @@
             <button class="inspector-tab" type="button" role="tab" id="inspectorTabDetails" data-tab="details" aria-controls="inspectorPaneDetails" aria-selected="false" tabindex="-1">
               <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
               <span data-i18n="inspector.details">Details</span>
+            </button>
+            <button class="inspector-tab" type="button" role="tab" id="inspectorTabEq" data-tab="eq" aria-controls="inspectorPaneEq" aria-selected="false" tabindex="-1">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg>
+              <span data-i18n="inspector.eq">EQ</span>
             </button>
           </div>
 
@@ -1158,6 +1242,90 @@
               <div id="trackSource"></div>
             </div>
           </section>
+
+          <section class="inspector-pane eq-pane" id="inspectorPaneEq" role="tabpanel" aria-labelledby="inspectorTabEq" data-pane="eq" hidden>
+            <svg class="eq-icons" aria-hidden="true">
+              <symbol id="eqIconPower" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></symbol>
+              <symbol id="eqIconSuggest" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/></symbol>
+              <symbol id="eqIconFlat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+            </svg>
+            <div class="tempo-mode eq-scope" role="radiogroup" aria-label="Lane or master EQ" data-i18n-aria-label="eq.scopeAria">
+              <button class="tempo-mode-btn" id="eqScopeLane" type="button" role="radio" aria-checked="true" tabindex="0"><span class="eq-dot" id="eqScopeDot"></span><span class="eq-scope-name" id="eqScopeName"></span></button>
+              <button class="tempo-mode-btn" id="eqScopeMaster" type="button" role="radio" aria-checked="false" tabindex="-1" data-i18n="eq.master">Master</button>
+            </div>
+
+            <div class="inspector-card eq-card" id="eqLaneView">
+              <div class="eq-head">
+                <span class="inspector-label" id="eqLaneTitle"></span>
+                <button class="eq-power" id="eqPowerLane" type="button" aria-pressed="true" title="EQ on" aria-label="EQ on" data-i18n-title="eq.power" data-i18n-aria-label="eq.power"><svg class="ic" aria-hidden="true"><use href="#eqIconPower"/></svg></button>
+              </div>
+              <div class="eq-suggest-bar" id="eqSuggestBar" hidden>
+                <span><svg class="ic" aria-hidden="true"><use href="#eqIconSuggest"/></svg><span data-i18n="eq.suggested">Suggested</span></span>
+                <button class="inspector-quiet-btn" id="eqSuggestUndo" type="button" data-i18n="eq.undo">Undo</button>
+                <button class="eq-apply" id="eqSuggestApply" type="button" data-i18n="eq.apply">Apply</button>
+              </div>
+              <div class="eq-graph" id="eqGraphLane"></div>
+              <div class="eq-legend" id="eqLegend" hidden>
+                <span id="eqLegendTarget"><i class="eq-legend-target"></i><span data-i18n="eq.target">Target</span></span>
+                <span><i class="eq-legend-before"></i><span data-i18n="eq.before">Before</span></span>
+              </div>
+              <div class="eq-readout" id="eqReadout"><span data-r="n"></span><span data-r="type"></span><span data-r="f"></span><span data-r="g"></span><span data-r="q"></span></div>
+              <div class="eq-knobs" id="eqKnobs" hidden></div>
+              <div class="eq-actions" id="eqLaneActions">
+                <button class="tempo-btn" id="eqSuggestLane" type="button"><svg class="ic" aria-hidden="true"><use href="#eqIconSuggest"/></svg><span data-i18n="eq.suggest">Suggest</span></button>
+                <button class="tempo-btn" id="eqFlatLane" type="button"><svg class="ic" aria-hidden="true"><use href="#eqIconFlat"/></svg><span data-i18n="eq.flat">Flat</span></button>
+              </div>
+              <div class="eq-hint eq-status" id="eqLaneStatus" role="status"></div>
+            </div>
+
+            <div class="eq-master" id="eqMasterView" hidden>
+              <div class="inspector-card eq-card">
+                <div class="eq-head">
+                  <span class="inspector-label" data-i18n="eq.masterEq">Master EQ</span>
+                  <button class="eq-power" id="eqPowerMaster" type="button" aria-pressed="true" title="EQ on" aria-label="EQ on" data-i18n-title="eq.power" data-i18n-aria-label="eq.power"><svg class="ic" aria-hidden="true"><use href="#eqIconPower"/></svg></button>
+                </div>
+                <div class="eq-graph eq-graph-sm" id="eqGraphMaster"></div>
+              </div>
+              <div class="inspector-card eq-card">
+                <div class="eq-row">
+                  <label class="tempo-row-label" for="eqGlue" data-i18n="eq.glue">Glue</label>
+                  <input class="eq-slider" id="eqGlue" type="range" min="0" max="100" step="1" value="0">
+                  <span class="tempo-value num eq-glue-value" id="eqGlueValue"></span>
+                </div>
+                <div class="eq-gr"><span data-i18n="eq.gainReduction">GR</span><span class="eq-gr-bar"><i id="eqGrBar"></i></span><span class="num" id="eqGrValue"></span></div>
+              </div>
+              <div class="inspector-card eq-card">
+                <span class="inspector-label" data-i18n="eq.exportLoudness">Export loudness</span>
+                <div class="tempo-mode" id="eqLoudness" role="radiogroup" aria-label="Loudness target" data-i18n-aria-label="eq.loudnessAria">
+                  <button class="tempo-mode-btn" type="button" role="radio" aria-checked="false" data-choice="streaming" data-i18n="eq.streaming">Streaming</button>
+                  <button class="tempo-mode-btn" type="button" role="radio" aria-checked="false" data-choice="loud" data-i18n="eq.loud">Loud</button>
+                  <button class="tempo-mode-btn" type="button" role="radio" aria-checked="true" data-choice="off" data-i18n="eq.off">Off</button>
+                </div>
+                <div class="eq-row">
+                  <span class="tempo-row-label" data-i18n="eq.target">Target</span>
+                  <span class="tempo-value num" id="eqTargetValue"></span>
+                  <span class="eq-hint eq-unit" data-i18n="meta.lufs">LUFS</span>
+                </div>
+                <div class="eq-row">
+                  <span class="tempo-row-label" data-i18n="eq.ceiling">Ceiling</span>
+                  <div class="tempo-bpm-edit">
+                    <button class="daw-iconbtn" id="eqCeilingDown" type="button" title="Lower ceiling" aria-label="Lower ceiling" data-i18n-title="eq.ceilingDown" data-i18n-aria-label="eq.ceilingDown"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+                    <span class="tempo-value num" id="eqCeilingValue"></span>
+                    <button class="daw-iconbtn" id="eqCeilingUp" type="button" title="Raise ceiling" aria-label="Raise ceiling" data-i18n-title="eq.ceilingUp" data-i18n-aria-label="eq.ceilingUp"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+                  </div>
+                  <span class="eq-hint eq-unit" data-i18n="eq.unitDbtp">dBTP</span>
+                </div>
+                <div class="eq-meter-row">
+                  <div class="eq-meter"><b class="num" id="eqNowLufs"></b><span data-i18n="eq.nowLufs">Now, LUFS</span></div>
+                  <div class="eq-meter"><b class="num" id="eqGainAtExport"></b><span data-i18n="eq.gainAtExport">Gain at export</span></div>
+                </div>
+                <div class="eq-hint" id="eqApproxHint" data-i18n="eq.approximate">Live preview is approximate</div>
+                <div class="eq-actions">
+                  <button class="tempo-btn" id="eqFlatMaster" type="button"><svg class="ic" aria-hidden="true"><use href="#eqIconFlat"/></svg><span data-i18n="eq.flat">Flat</span></button>
+                </div>
+              </div>
+            </div>
+          </section>
         </aside>
       </div><!-- /.daw-panes -->
 
@@ -1295,6 +1463,11 @@
                 <label class="export-click-opt" id="t-export-count-in-wrap" title="Prepend one bar of count-in click before the audio" data-i18n-title="export.addCountInTitle">
                   <input type="checkbox" id="t-export-count-in">
                   <span data-i18n="export.addCountIn">Add count-in (1 bar)</span>
+                </label>
+                <label class="export-click-opt master-export-opt" id="t-export-master-wrap" title="Master the exported mix to this loudness" data-i18n-title="export.masterTitle">
+                  <input type="checkbox" id="t-export-master">
+                  <span data-i18n="export.master">Master</span>
+                  <span class="master-export-preset num" id="t-export-master-preset"></span>
                 </label>
                 <button class="chip-panel-item export-item" id="t-export-mix" type="button" role="menuitem">
                   <span class="chip-item-icon" aria-hidden="true">
@@ -1524,5 +1697,6 @@
     <script type="module" src="/js/selectMenu.js"></script>
     <script type="module" src="/js/takes.js"></script>
     <script type="module" src="/js/film.js"></script>
+    <script type="module" src="/js/eq/eqTab.js"></script>
   </body>
 </html>
