@@ -3,10 +3,8 @@
 import { currentLineIndex, firstSungIndex } from "./lyricsLookup.js";
 
 const SING_STORE_PREFIX = "stemdeck:singalong:";
-export const VOCAL_STEM = "vocals";
-const FULL = 100;
+const VOCAL_STEM = "vocals";
 const MS_PER_SECOND = 1000;
-export const WORD_STATE = Object.freeze({ SUNG: "sung", SINGING: "singing", TODO: "todo" });
 
 /** The song's Sing along state, kept beside its mix and never in it. */
 export const singStoreKey = (jobId) => `${SING_STORE_PREFIX}${jobId}`;
@@ -19,22 +17,15 @@ export function vocalSplit(loadedNames, [lead, backing]) {
   return loaded.has(lead) && loaded.has(backing);
 }
 
-/** The vocal stems to keep quiet: without a split, Voice covers every vocal. */
-export function silencedVocals({ split, voiceOn, backingOn }, [lead, backing]) {
-  if (!split) return voiceOn ? [] : [VOCAL_STEM];
-  return [...(voiceOn ? [] : [lead]), ...(backingOn ? [] : [backing])];
-}
-
-function wordState(word, time) {
-  if (time >= word.end) return { state: WORD_STATE.SUNG, fill: FULL };
-  if (time <= word.start) return { state: WORD_STATE.TODO, fill: 0 };
-  const share = (time - word.start) / (word.end - word.start);
-  return { state: WORD_STATE.SINGING, fill: Math.round(share * FULL) };
-}
-
-/** How far each of a line's timed words is sung at `time`. */
-export function wordProgress(words, time) {
-  return words.map((word) => wordState(word, time));
+/**
+ * The vocal stems to keep quiet. With a full split, Voice is the lead and Backing the
+ * backing; without one, Voice covers every vocal stem the song loaded.
+ */
+export function silencedVocals({ split, voiceOn, backingOn }, loadedNames, [lead, backing]) {
+  if (split) return [...(voiceOn ? [] : [lead]), ...(backingOn ? [] : [backing])];
+  if (voiceOn) return [];
+  const loaded = new Set(loadedNames);
+  return [VOCAL_STEM, lead, backing].filter((name) => loaded.has(name));
 }
 
 /**

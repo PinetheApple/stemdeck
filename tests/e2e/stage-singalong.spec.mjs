@@ -1,80 +1,60 @@
 // Sing along in Stage: the look is remembered, the voice comes out of the song without
-// touching its saved mix, the lyrics fill word by word, and Up Next hands over at song end.
+// touching its saved mix, the lyrics fill word by word, and Up Next opens beside them.
 
 import { test, expect } from "@playwright/test";
-import { openStudio, JOB_ID, SIBLING_JOB_ID, SIBLING_TITLE } from "./helpers.mjs";
+import { openStudio, JOB_ID, SIBLING_JOB_ID } from "./helpers.mjs";
+import {
+  LYRICS,
+  SONG_OPEN_TIMEOUT_MS,
+  UP_NEXT_KEY,
+  call,
+  enterSingAlong,
+  openSongId,
+  rewriteJobState,
+  seedUpNext,
+  seekTo,
+  serveLyrics,
+  silenced,
+  stored,
+} from "./singAlongHelpers.mjs";
+import { singStoreKey } from "../../static/js/stageSingModel.js";
 
-const FIXTURE_SECONDS = 6;
-const LYRICS = {
-  v: 1, source: "lrclib", track: "Fixture Song", artist: "Fixture Band", album: "", duration: FIXTURE_SECONDS,
-  synced: "[00:02.00] Hold the line until the morning\n[00:04.00] Every word a little closer",
-  plain: "", instrumental: false, lrclib_id: 1, others: [],
-};
 const TRANSCRIBE_IDLE = { state: "idle", available: true, unavailable: null, device: "cuda" };
-const TRANSCRIBE_RUNNING = { state: "running", phase: "queued", progress: 0, available: true, unavailable: null, device: "cuda" };
-const FIRST_LINE ="Hold the line until the morning";
+const TRANSCRIBE_RUNNING = {
+  state: "running",
+  phase: "queued",
+  progress: 0,
+  available: true,
+  unavailable: null,
+  device: "cuda",
+};
+const UNTIMED_LYRICS = { ...LYRICS, synced: "", plain: "Hold the line\nEvery word" };
+const FIRST_LINE = "Hold the line until the morning";
 const NEXT_LINE = "Every word a little closer";
 const MID_FIRST_LINE_SEC = 2.9;
 const LOOK_KEY = "stemdeck.stage.look";
-const UP_NEXT_KEY = "stemdeck.upNext";
-const VOICE_KEY = `stemdeck:singalong:${JOB_ID}`;
 const MIX_KEY = `stemdeck:mix:${JOB_ID}`;
 const HEARD = "drums";
 const HEARD_LEVEL = 0.5;
 const SPLIT = ["lead_vocals", "backing_vocals"];
-const COUNTDOWN_SECONDS = "5";
-const COUNTDOWN_RUNS_OUT_MS = 8000;
-// Longer than the countdown, to see that nothing starts after Stay here.
-const PAST_COUNTDOWN_MS = 6000;
-const SONG_OPEN_TIMEOUT_MS = 20000;
+const LEAD_ONLY = ["lead_vocals"];
 const WINDOWS = [
   { width: 1024, height: 768 },
   { width: 1440, height: 900 },
 ];
 
-const call = (page, module, name, ...args) => page.evaluate(
-  async ([path, fn, callArgs]) => (await import(path))[fn](...callArgs),
-  [module, name, args],
-);
-const silenced = (page, stem) => call(page, "/js/mixer.js", "isLaneSilenced", stem);
-const openSongId = (page) => page.evaluate(async () => (await import("/js/catalog.js")).getCurrentTrackInfo()?.id);
-const stored = (page, key) => page.evaluate((k) => JSON.parse(localStorage.getItem(k)), key);
 const voice = (page) => page.locator("#singVoiceBtn");
 const backing = (page) => page.locator("#singBackingBtn");
 
-async function serveLyrics(page, lyrics = LYRICS) {
-  await page.route("**/api/jobs/*/lyrics", (route) => (lyrics
-    ? route.fulfill({ status: 200, json: lyrics })
-    : route.fulfill({ status: 404, json: { detail: "no lyrics" } })));
-  await page.route(/\/api\/jobs\/[a-f0-9]{12}\/lyrics\/lookup$/, (route) => route.fulfill({ status: 404, json: { detail: "no lyrics" } }));
-}
-
-async function queueSibling(page) {
-  await page.addInitScript(([key, id]) => localStorage.setItem(key, JSON.stringify([id])), [UP_NEXT_KEY, SIBLING_JOB_ID]);
-}
-
-async function enterSingAlong(page) {
-  await page.locator("#stageModeBtn").click();
-  await expect(page.locator("#stageView")).toBeVisible();
-  await page.locator("#stageLookSing").click();
-  await expect(page.locator("#stageView")).toHaveClass(/\bsing\b/);
-}
-
-async function seekTo(page, seconds) {
-  await page.evaluate(async (at) => (await import("/js/transport.js")).setPlayheadTime(at), seconds);
-}
-
-const endSong = (page) => page.evaluate((id) => document.dispatchEvent(new CustomEvent("trackended", { detail: { id } })), JOB_ID);
-
-/** The fixture's vocals served again as a lead/backing split. */
-function withSplit(state) {
+/** The fixture's vocals served again under `names`, so a split (or half of one) loads. */
+const withVocalsAs = (names) => (state) => {
   const vocals = state.stems.find((s) => s.name === "vocals");
   return {
     ...state,
-    selected_stems: [...(state.selected_stems ?? state.stems.map((s) => s.name)), ...SPLIT],
-    stems: [...state.stems, ...SPLIT.map((name) => ({ ...vocals, name }))],
+    selected_stems: [...(state.selected_stems ?? state.stems.map((s) => s.name)), ...names],
+    stems: [...state.stems, ...names.map((name) => ({ ...vocals, name }))],
   };
-}
+};
 
 test.describe("sing along", () => {
   test("the chosen look is remembered, and Sing along hides the mixer and the overview", async ({ page }) => {
@@ -96,7 +76,7 @@ test.describe("sing along", () => {
     await expect(page.locator("#stageOverview")).toBeVisible();
   });
 
-  test("voice is off on every song until turned on, remembered per song, and the saved mix never changes", async ({ page }) => {
+  test("voice is off per song until turned on, then remembered; the saved mix never changes", async ({ page }) => {
     await serveLyrics(page);
     await openStudio(page);
     await call(page, "/js/mixer.js", "setLaneVolume", HEARD, HEARD_LEVEL);
@@ -110,7 +90,7 @@ test.describe("sing along", () => {
     await voice(page).click();
     await expect(voice(page)).toHaveAttribute("aria-checked", "true");
     expect(await silenced(page, "vocals")).toBe(false);
-    expect(await stored(page, VOICE_KEY)).toEqual({ voice: true });
+    expect(await stored(page, singStoreKey(JOB_ID))).toEqual({ voice: true });
     await voice(page).click();
     await expect.poll(() => silenced(page, "vocals")).toBe(true);
     await voice(page).click();
@@ -129,12 +109,20 @@ test.describe("sing along", () => {
     expect(savedMix.vocals?.muted ?? false).toBe(false);
   });
 
+  test("a mix reloaded for the same song, as a version switch does, keeps the voice out", async ({ page }) => {
+    await serveLyrics(page);
+    await openStudio(page);
+    await enterSingAlong(page);
+    await expect.poll(() => silenced(page, "vocals")).toBe(true);
+    const loaded = await call(page, "/js/player.js", "getLoadedStemNames");
+    await call(page, "/js/mixer.js", "loadMixIntoState", JOB_ID, loaded);
+    await call(page, "/js/mixer.js", "refreshMixerVisuals");
+    expect(await silenced(page, "vocals")).toBe(true);
+  });
+
   test("with a vocal split, Backing starts on and only the lead goes quiet", async ({ page }) => {
     await serveLyrics(page);
-    await page.route(`**/api/jobs/${JOB_ID}`, async (route) => {
-      const response = await route.fetch();
-      await route.fulfill({ response, json: withSplit(await response.json()) });
-    });
+    await rewriteJobState(page, JOB_ID, withVocalsAs(SPLIT));
     await openStudio(page);
     await enterSingAlong(page);
     await expect(backing(page)).toBeEnabled();
@@ -143,6 +131,18 @@ test.describe("sing along", () => {
     expect(await silenced(page, "backing_vocals")).toBe(false);
     await backing(page).click();
     await expect.poll(() => silenced(page, "backing_vocals")).toBe(true);
+  });
+
+  test("with half a split on the server, Backing is off and Voice silences what loaded", async ({ page }) => {
+    await serveLyrics(page);
+    await rewriteJobState(page, JOB_ID, withVocalsAs(LEAD_ONLY));
+    await openStudio(page);
+    await enterSingAlong(page);
+    await expect(backing(page)).toBeDisabled();
+    const loaded = await call(page, "/js/player.js", "getLoadedStemNames");
+    const vocals = loaded.filter((name) => ["vocals", ...SPLIT].includes(name));
+    expect(vocals.length).toBeGreaterThan(0);
+    for (const name of vocals) await expect.poll(() => silenced(page, name)).toBe(true);
   });
 
   test("words fill as they are sung, after a countdown to the first line", async ({ page }) => {
@@ -156,52 +156,8 @@ test.describe("sing along", () => {
     await seekTo(page, MID_FIRST_LINE_SEC);
     await expect(page.locator("#singIntro")).toBeHidden();
     await expect(page.locator("#singLineNear")).toHaveText(NEXT_LINE);
-    await expect(page.locator("#singLineNow .sing-word.sung").first()).toBeVisible();
-    await expect(page.locator("#singLineNow .sing-word:not(.sung)").first()).toBeVisible();
-  });
-
-  test("song end in Sing along counts down to the next song, and Stay here keeps this one", async ({ page }) => {
-    await serveLyrics(page);
-    await queueSibling(page);
-    await openStudio(page);
-    await enterSingAlong(page);
-    await expect(page.locator("#singUpNextTitle")).toHaveText(SIBLING_TITLE);
-    await endSong(page);
-    await expect(page.locator("#singHandoff")).toBeVisible();
-    await expect(page.locator("#singHandoffTitle")).toHaveText(SIBLING_TITLE);
-    await expect(page.locator("#singRingNum")).toHaveText(COUNTDOWN_SECONDS);
-    await expect(page.locator("#singLyrics")).toBeHidden();
-    await page.locator("#singStayBtn").click();
-    await expect(page.locator("#singHandoff")).toBeHidden();
-    await page.waitForTimeout(PAST_COUNTDOWN_MS);
-    expect(await openSongId(page)).toBe(JOB_ID);
-  });
-
-  test("song end in Sing along: Play now starts the next song, and so does the countdown running out", async ({ page }) => {
-    await serveLyrics(page);
-    await queueSibling(page);
-    await openStudio(page);
-    await enterSingAlong(page);
-    await endSong(page);
-    await page.locator("#singPlayNowBtn").click();
-    await expect.poll(() => openSongId(page), { timeout: SONG_OPEN_TIMEOUT_MS }).toBe(SIBLING_JOB_ID);
-    await expect(page.locator("#singHandoff")).toBeHidden();
-
-    await call(page, "/js/upNext.js", "queueUpNext", JOB_ID);
-    await page.evaluate((id) => document.dispatchEvent(new CustomEvent("trackended", { detail: { id } })), SIBLING_JOB_ID);
-    await expect(page.locator("#singHandoff")).toBeVisible();
-    await expect.poll(() => openSongId(page), { timeout: COUNTDOWN_RUNS_OUT_MS }).toBe(JOB_ID);
-  });
-
-  test("song end in Play along goes straight to the next song", async ({ page }) => {
-    await serveLyrics(page);
-    await queueSibling(page);
-    await openStudio(page);
-    await page.locator("#stageModeBtn").click();
-    await expect(page.locator("#stageLookPlay")).toHaveAttribute("aria-checked", "true");
-    await endSong(page);
-    await expect.poll(() => openSongId(page), { timeout: SONG_OPEN_TIMEOUT_MS }).toBe(SIBLING_JOB_ID);
-    await expect(page.locator("#singHandoff")).toBeHidden();
+    await expect(page.locator("#singLineNow .lw.sung").first()).toBeVisible();
+    await expect(page.locator("#singLineNow .lw:not(.sung)").first()).toBeVisible();
   });
 
   test("a song with no lyrics says so, and Open lyrics leaves Stage for the Lyrics tab", async ({ page }) => {
@@ -213,6 +169,15 @@ test.describe("sing along", () => {
     await page.locator("#singOpenLyricsBtn").click();
     await expect(page.locator("#stageView")).toBeHidden();
     await expect(page.locator(".rail-lyrics")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("untimed lyrics say they are not timed, with Open lyrics and no Transcribe", async ({ page }) => {
+    await serveLyrics(page, UNTIMED_LYRICS);
+    await openStudio(page);
+    await enterSingAlong(page);
+    await expect(page.locator("#singEmptyText")).toHaveText("These lyrics aren't timed");
+    await expect(page.locator("#singOpenLyricsBtn")).toBeVisible();
+    await expect(page.locator("#singTranscribeBtn")).toBeHidden();
   });
 
   test("on a song with no lyrics, Transcribe starts the Lyrics tab's own transcription", async ({ page }) => {
@@ -231,21 +196,29 @@ test.describe("sing along", () => {
     await expect(page.locator("#stageView")).toBeVisible();
   });
 
-  test("the Up Next chip lends the studio's list to a side panel, Alt+Down reorders it, and it goes back", async ({ page }) => {
+  test("the Up Next chip lends the studio's list to a panel, Alt+Down reorders it, it goes back", async ({ page }) => {
     await serveLyrics(page);
-    await page.addInitScript(([key, ids]) => localStorage.setItem(key, JSON.stringify(ids)), [UP_NEXT_KEY, [SIBLING_JOB_ID, JOB_ID]]);
+    await seedUpNext(page, [SIBLING_JOB_ID, JOB_ID]);
     await openStudio(page);
     await enterSingAlong(page);
+    const chip = page.locator("#singUpNextBtn");
     await expect(page.locator("#singUpNextCount")).toHaveText("2");
-    await page.locator("#singUpNextBtn").click();
+    await chip.click();
     await expect(page.locator("#singPanel #upNextList .upnext-row")).toHaveCount(2);
-    await expect(page.locator("#singUpNextBtn")).toBeHidden();
+    await expect(chip).toBeVisible();
+    await expect(chip).toHaveAttribute("aria-expanded", "true");
     await page.locator(`#singPanel .upnext-row[data-id="${SIBLING_JOB_ID}"]`).focus();
     await page.keyboard.press("Alt+ArrowDown");
     await expect.poll(() => stored(page, UP_NEXT_KEY)).toEqual([JOB_ID, SIBLING_JOB_ID]);
     await page.keyboard.press("Escape");
     await expect(page.locator("#singPanel")).toBeHidden();
+    await expect(chip).toHaveAttribute("aria-expanded", "false");
     await expect(page.locator("#stageView")).toBeVisible();
+    await expect(page.locator("#inspectorPaneUpNext #upNextList")).toHaveCount(1);
+
+    await chip.click();
+    await page.locator("#stageExitBtn").click();
+    await expect(page.locator("#stageModeBtn")).toBeFocused();
     await expect(page.locator("#inspectorPaneUpNext #upNextList")).toHaveCount(1);
   });
 });
@@ -254,7 +227,7 @@ for (const size of WINDOWS) {
   test(`sing along fits ${size.width}x${size.height} with the lyrics and Up Next open`, async ({ page }) => {
     await page.setViewportSize(size);
     await serveLyrics(page);
-    await queueSibling(page);
+    await seedUpNext(page, [SIBLING_JOB_ID]);
     await openStudio(page);
     await enterSingAlong(page);
     await seekTo(page, MID_FIRST_LINE_SEC);
@@ -267,8 +240,7 @@ for (const size of WINDOWS) {
       const lyrics = rect("singLyrics");
       const panel = rect("singPanel");
       const header = ["stageUpNextBtn", "stageMoreBtn", "stageLook", "stageExitBtn"].map(rect);
-      const voice = rect("singBackingBtn");
-      const play = rect("stageStopBtn");
+      const chip = rect("singUpNextBtn");
       return {
         overflows: view.scrollHeight > view.clientHeight || view.scrollWidth > view.clientWidth,
         headerInOrder: header.every((r, i) => i === 0 || header[i - 1].right <= r.left),
@@ -277,7 +249,8 @@ for (const size of WINDOWS) {
         lyricsBesidePanel: lyrics.right <= panel.left,
         panelInside: panel.right <= viewRect.right && panel.bottom <= viewRect.bottom,
         transportInside: transport.bottom <= viewRect.bottom,
-        voiceClearOfButtons: voice.right <= play.left,
+        voiceClearOfButtons: rect("singBackingBtn").right <= rect("stageStopBtn").left,
+        chipClearOfButtons: rect("stageNextBtn").right <= chip.left && chip.right <= panel.left,
       };
     });
     expect(fit).toEqual({
@@ -289,6 +262,7 @@ for (const size of WINDOWS) {
       panelInside: true,
       transportInside: true,
       voiceClearOfButtons: true,
+      chipClearOfButtons: true,
     });
   });
 }

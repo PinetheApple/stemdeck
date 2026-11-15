@@ -1370,6 +1370,11 @@ function setCatalogView(view) {
   document.dispatchEvent(new CustomEvent("catalogviewchange", { detail: { view: catalogView } }));
 }
 
+/** Show the Lyrics view in the sidebar, as the rail's Lyrics button does. */
+export function showLyricsView() {
+  setCatalogView("lyrics");
+}
+
 /** Show the library list in the sidebar, as the rail's Library button does. */
 export function showLibraryView() {
   if (catalogView !== "library") setCatalogView("library");

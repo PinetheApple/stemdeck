@@ -1,64 +1,49 @@
-// Sing along on a song with no timed lyrics: say so, and offer the Lyrics tab's own
+// Sing along on a song without timed lyrics: say why, and offer the Lyrics tab's own
 // transcription and the tab itself.
 
+import { showLyricsView } from "./catalog.js";
+import { TRANSCRIBE_CHANGE_EVENT, startTranscription, transcribeStatus } from "./lyricsTranscribe.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $ } from "./utils.js";
 
-const TRANSCRIBE_START = ".lyrics-transcribe-open";
-const TRANSCRIBE_MESSAGE = "lyricsTranscribeMessage";
-const LYRICS_RAIL = ".rail-lyrics";
-const LYRICS_PANEL = "lyricsPanel";
+export const NO_LYRICS = Object.freeze({ NONE: "none", UNTIMED: "untimed" });
 
 let leave = () => {};
-
-const transcribeStart = () => document.querySelector(TRANSCRIBE_START);
+let shownKind = null;
 
 /** While a transcription runs or has just ended, its own message says more than "no lyrics". */
 function paintNoLyricsText() {
-  const start = transcribeStart();
-  const offered = Boolean(start) && !start.hidden;
-  const message = $(TRANSCRIBE_MESSAGE)?.textContent.trim();
+  const untimed = shownKind === NO_LYRICS.UNTIMED;
+  const { offered, message } = transcribeStatus();
   const text = $("singEmptyText");
-  if (text) text.textContent = !offered && message ? message : t("sing.noLyrics");
+  if (text) text.textContent = untimed ? t("sing.untimed") : !offered && message ? message : t("sing.noLyrics");
   const button = $("singTranscribeBtn");
-  if (button) button.hidden = !offered;
+  if (button) button.hidden = untimed || !offered;
 }
 
-export function paintSingNoLyrics(show) {
+/** Shows why there is nothing to sing (a NO_LYRICS kind), or hides it for null. */
+export function paintSingNoLyrics(kind) {
   const box = $("singEmpty");
-  if (!box || box.hidden === !show) return;
-  box.hidden = !show;
-  if (show) paintNoLyricsText();
+  if (!box || kind === shownKind) return;
+  shownKind = kind;
+  box.hidden = !kind;
+  if (kind) paintNoLyricsText();
 }
 
-function onTranscribeClick() {
-  transcribeStart()?.click();
+function onTranscribeChange() {
+  if (shownKind) paintNoLyricsText();
 }
 
 function onOpenLyricsClick() {
   leave();
-  document.querySelector(LYRICS_RAIL)?.click();
-}
-
-/** The Lyrics panel builds its toolbar when it first draws, so the panel itself is watched. */
-function watchTranscription() {
-  const panel = $(LYRICS_PANEL);
-  if (!panel) return;
-  new MutationObserver(onLyricsPanelMutation).observe(
-    panel,
-    { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["hidden"] },
-  );
-}
-
-function onLyricsPanelMutation() {
-  if ($("singEmpty")?.hidden === false) paintNoLyricsText();
+  showLyricsView();
 }
 
 /** `leaveStage()` closes Stage before the Lyrics tab opens. */
 export function initSingNoLyrics({ leaveStage }) {
   leave = leaveStage;
-  $("singTranscribeBtn")?.addEventListener("click", onTranscribeClick);
+  $("singTranscribeBtn")?.addEventListener("click", startTranscription);
   $("singOpenLyricsBtn")?.addEventListener("click", onOpenLyricsClick);
-  watchTranscription();
-  onLanguageChange(paintNoLyricsText);
+  document.addEventListener(TRANSCRIBE_CHANGE_EVENT, onTranscribeChange);
+  onLanguageChange(onTranscribeChange);
 }

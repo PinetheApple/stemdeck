@@ -9,12 +9,13 @@ import { playNextInUpNext } from "./upNext.js";
 import { shownBpm } from "./tempoTools.js";
 import { isBeatGridEditing, getBeats, barPositionIndex, barLengthAt } from "./beatgrid.js";
 import { buildBeatTable, beatAt } from "./stageBeats.js";
-import { ensureLyricsLoaded, getTimedLyricLines, tagLang } from "./lyrics.js";
+import { ensureLyricsLoaded, getTimedLyricLines } from "./lyrics.js";
 import { currentLineIndex } from "./lyricsLookup.js";
 import { refitFooter } from "./footerFit.js";
 import { initStageMixer, paintStageMixer, forgetStageMixer } from "./stageMixer.js";
 import { initStageOverview, paintStageOverview, paintStageSections, forgetStageOverview } from "./stageOverview.js";
-import { GAP_LINE, LYRIC_LEAD_SEC, setTextOnce } from "./stageModel.js";
+import { LYRIC_LEAD_SEC, setTextOnce } from "./stageModel.js";
+import { lineText, setLyric } from "./stageLyricLine.js";
 import { DURATION_EVENT } from "./player.js";
 import {
   forgetSingPainted,
@@ -24,7 +25,7 @@ import {
   singSongChange,
   singStageShown,
 } from "./stageSingAlong.js";
-import { closeSingPanel, singQueueSettles } from "./stageSingQueue.js";
+import { closeSingPanel, dismissSingHandoff, singPlayheadAt, singQueueSettles } from "./stageSingQueue.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $, fmtTime } from "./utils.js";
@@ -92,15 +93,6 @@ function paintBeat(time) {
   paintDots(at?.length ?? beatTable[0]?.length ?? 0, at ? at.beat - 1 : null);
 }
 
-function setLyric(el, key, text) {
-  if (!el || shown[key] === text) return;
-  setTextOnce(shown, key, el, text);
-  el.removeAttribute("lang");
-  tagLang(el, text);
-}
-
-const lineText = (line) => (line ? line.text || GAP_LINE : "");
-
 function paintLyrics(time) {
   const lines = getTimedLyricLines();
   const hasLyrics = lines.length > 0;
@@ -109,8 +101,8 @@ function paintLyrics(time) {
     $("stageLyrics").hidden = !hasLyrics;
   }
   const index = currentLineIndex(lines, time + LYRIC_LEAD_SEC);
-  setLyric($("stageLyric"), "lyric", lineText(lines[index]));
-  setLyric($("stageLyricNext"), "nextLyric", lineText(lines[index + 1]));
+  setLyric(shown, "lyric", $("stageLyric"), lineText(lines[index]));
+  setLyric(shown, "nextLyric", $("stageLyricNext"), lineText(lines[index + 1]));
 }
 
 function isPlaying() {
@@ -126,6 +118,7 @@ function paintFrame() {
   paintBeat(time);
   paintLyrics(time);
   if (isSingAlong()) paintSingFrame(time);
+  singPlayheadAt(time);
 
   const playing = isPlaying();
   if (shown.playing !== playing) {
@@ -248,8 +241,8 @@ function onStageKeydown(e) {
   if (e.code === "KeyF") {
     e.preventDefault();
     setStageMode(!isStageMode());
-  } else if (e.key === "Escape" && isStageMode() && !closeSingPanel()) {
-    setStageMode(false);
+  } else if (e.key === "Escape" && isStageMode()) {
+    if (!dismissSingHandoff() && !closeSingPanel()) setStageMode(false);
   }
 }
 

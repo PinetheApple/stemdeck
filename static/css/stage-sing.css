@@ -6,6 +6,12 @@
   --sing-lyric-far-size: clamp(16px, 1.6vw, 22px);
   --sing-lyric-now-width: 22ch;
   --sing-lyric-now-rows: 3;
+  --sing-lyric-near-rows: 2;
+  --sing-lyric-small-size: clamp(32px, 4vw, 56px);
+  --sing-line-height: 1.15;
+  --sing-tracking-tight: -0.02em;
+  --sing-tracking-caps: 0.14em;
+  --sing-ring-small-size: 96px;
   --sing-panel-w: clamp(300px, 26vw, 380px);
   --sing-dot-size: 10px;
   --sing-ring-size: 112px;
@@ -16,6 +22,7 @@
   --sing-grip-h: 18px;
   --sing-grip-dot: 1.5px;
   --sing-grip-step: 6px;
+  --sing-grip-edge: 0.5px;
   --sing-countdown-tick: 100ms;
 }
 .stage-view :is(.sing-intro, .sing-lyrics, .sing-handoff, .sing-empty, .sing-panel, .sing-chip, .sing-btn)[hidden] { display: none; }
@@ -80,8 +87,8 @@
   overflow: hidden;
   margin: 0;
   font-weight: var(--fw-bold);
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+  letter-spacing: var(--sing-tracking-tight);
+  line-height: var(--sing-line-height);
   overflow-wrap: anywhere;
   text-wrap: balance;
 }
@@ -91,9 +98,9 @@
 .sing-line.far { font-size: var(--sing-lyric-far-size); font-weight: var(--fw-medium); color: var(--text-4); }
 .sing-line.now { -webkit-line-clamp: var(--sing-lyric-now-rows); max-width: var(--sing-lyric-now-width); font-size: var(--sing-lyric-size); color: var(--text); }
 .sing-line.now.waiting { color: var(--text-2); }
-.sing-line.near { -webkit-line-clamp: 2; font-size: var(--sing-lyric-near-size); color: var(--text-3); }
-.sing-word.sung { color: var(--accent); }
-.sing-word.singing {
+.sing-line.near { -webkit-line-clamp: var(--sing-lyric-near-rows); font-size: var(--sing-lyric-near-size); color: var(--text-3); }
+.sing-line .lw.sung { color: var(--accent); }
+.sing-line .lw.singing {
   background: linear-gradient(90deg, var(--accent) var(--fill), var(--text) var(--fill));
   -webkit-background-clip: text;
   background-clip: text;
@@ -102,7 +109,13 @@
 
 /* Song end: the next song, and the seconds before it starts. */
 .sing-handoff { display: flex; flex-direction: column; align-items: center; gap: var(--s-4); }
-.sing-handoff-label { color: var(--text-3); font-size: var(--fs-sm); font-weight: var(--fw-bold); letter-spacing: 0.14em; text-transform: uppercase; }
+.sing-handoff-label {
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--sing-tracking-caps);
+  text-transform: uppercase;
+}
 .sing-handoff-title { font-size: var(--fs-2xl); font-weight: var(--fw-bold); }
 .sing-ring { position: relative; display: grid; place-items: center; width: var(--sing-ring-size); height: var(--sing-ring-size); }
 .sing-ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
@@ -131,7 +144,7 @@
 }
 .sing-btn:hover { background: var(--surface-3); }
 .sing-btn.primary { border-color: transparent; background: var(--accent); color: var(--accent-ink); }
-.sing-btn.primary:hover { filter: brightness(1.08); }
+.sing-btn.primary:hover { filter: brightness(var(--hover-brightness)); }
 .sing-empty { display: flex; flex-direction: column; align-items: center; gap: var(--s-3); color: var(--text-2); font-size: var(--fs-lg); }
 
 /* Transport row: the voice switches left, Up Next right. */
@@ -190,6 +203,7 @@
   cursor: pointer;
 }
 .sing-chip:hover { background: var(--surface-3); color: var(--text); }
+.sing-chip[aria-expanded="true"] { border-color: var(--accent-line); color: var(--text); }
 .sing-chip .num { color: var(--accent); }
 .sing-chip-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -219,7 +233,7 @@
   width: var(--sing-grip-w);
   height: var(--sing-grip-h);
   margin-left: var(--s-1);
-  background: radial-gradient(circle, var(--text-4) var(--sing-grip-dot), transparent calc(var(--sing-grip-dot) + 0.5px)) center / var(--sing-grip-step) var(--sing-grip-step);
+  background: radial-gradient(circle, var(--text-4) var(--sing-grip-dot), transparent calc(var(--sing-grip-dot) + var(--sing-grip-edge))) center / var(--sing-grip-step) var(--sing-grip-step);
 }
 .sing-keys { display: flex; align-items: center; gap: var(--s-1); color: var(--text-3); font-size: var(--fs-xs); }
 .sing-keys kbd {
@@ -231,5 +245,9 @@
 }
 
 @media (max-height: 820px) {
-  .stage-view { --sing-lyric-size: clamp(32px, 4vw, 56px); --sing-lyric-now-rows: 2; --sing-ring-size: 96px; }
+  .stage-view {
+    --sing-lyric-size: var(--sing-lyric-small-size);
+    --sing-lyric-now-rows: 2;
+    --sing-ring-size: var(--sing-ring-small-size);
+  }
 }

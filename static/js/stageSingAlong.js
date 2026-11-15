@@ -2,23 +2,16 @@
 // voice can be taken out of the song without touching its saved mix.
 
 import { getCurrentTrackInfo } from "./catalog.js";
-import { clearSilencedStems, setSilencedStems } from "./mixer.js";
+import { MIX_CHANGE_EVENT, clearSilencedStems, isLaneSilenced, setSilencedStems } from "./mixer.js";
 import { getLoadedStemNames } from "./player.js";
-import { getTimedLyricLines, tagLang, vocalEnvelope } from "./lyrics.js";
-import { wordTimings } from "./lyricsLookup.js";
+import { fillLine, getTimedLyricLines, hasUntimedLyrics, tagLang, vocalEnvelope } from "./lyrics.js";
+import { wordFill } from "./lyricsLookup.js";
 import { EXTRA_STEM_NAMES } from "./constants.js";
-import { GAP_LINE, LYRIC_LEAD_SEC } from "./stageModel.js";
-import {
-  WORD_STATE,
-  lyricWindow,
-  silencedVocals,
-  singStoreKey,
-  vocalSplit,
-  voiceOnFrom,
-  wordProgress,
-} from "./stageSingModel.js";
+import { LYRIC_LEAD_SEC, readChoice, saveChoice } from "./stageModel.js";
+import { lineText, setLyric } from "./stageLyricLine.js";
+import { lyricWindow, silencedVocals, singStoreKey, vocalSplit, voiceOnFrom } from "./stageSingModel.js";
 import { initSingQueue, singQueueLeaves, singQueueSettles } from "./stageSingQueue.js";
-import { initSingNoLyrics, paintSingNoLyrics } from "./stageSingNoLyrics.js";
+import { NO_LYRICS, initSingNoLyrics, paintSingNoLyrics } from "./stageSingNoLyrics.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $, fmtTickLabel, storeGet, storeSet } from "./utils.js";
 
@@ -29,7 +22,6 @@ const NO_LYRICS_CLASS = "no-lyrics";
 const INTRO_CLASS = "intro";
 const WAITING_CLASS = "waiting";
 const FILL_PROPERTY = "--fill";
-const WORD_CLASS = "sing-word";
 const LOOK_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
 const SIDE_LINES = Object.freeze({ singLinePast: -1, singLineNear: 1, singLineFar: 2 });
 
@@ -46,25 +38,9 @@ let nowLine = null;
 export const isSingAlong = () => sing;
 const singShown = () => sing && isShowing();
 
-function readLook() {
-  try {
-    return localStorage.getItem(LOOK_STORE_KEY) === LOOK_SING;
-  } catch (e) {
-    console.warn("[stage] could not read the chosen look:", e);
-    return false;
-  }
-}
-
-function saveLook(on) {
-  try {
-    if (on) localStorage.setItem(LOOK_STORE_KEY, LOOK_SING);
-    else localStorage.removeItem(LOOK_STORE_KEY);
-  } catch (e) {
-    console.warn("[stage] could not save the chosen look:", e);
-  }
-}
-
-const splitNow = () => vocalSplit(getLoadedStemNames(), EXTRA_STEM_NAMES);
+const loadedStems = () => getLoadedStemNames();
+const splitNow = () => vocalSplit(loadedStems(), EXTRA_STEM_NAMES);
+const wantedSilence = () => silencedVocals({ split: splitNow(), voiceOn, backingOn }, loadedStems(), EXTRA_STEM_NAMES);
 
 /** Keeps the chosen vocals quiet while Sing along is on screen, and gives them back after. */
 function applySilence() {
@@ -74,19 +50,20 @@ function applySilence() {
     return;
   }
   silencing = true;
-  setSilencedStems(silencedVocals({ split: splitNow(), voiceOn, backingOn }, EXTRA_STEM_NAMES));
+  setSilencedStems(wantedSilence());
 }
 
-function paintSwitch(button, on) {
-  button?.setAttribute("aria-checked", String(on));
+/** A mix load (a new version of the song, say) drops what was silenced: put it back. */
+function onMixChange() {
+  if (silencing && wantedSilence().some((name) => !isLaneSilenced(name))) applySilence();
 }
 
 function paintVoice() {
   const split = splitNow();
   const backing = $("singBackingBtn");
-  paintSwitch($("singVoiceBtn"), voiceOn);
-  paintSwitch(backing, split && backingOn);
+  $("singVoiceBtn")?.setAttribute("aria-checked", String(voiceOn));
   if (!backing) return;
+  backing.setAttribute("aria-checked", String(split && backingOn));
   backing.disabled = !split;
   backing.title = t(split ? "sing.backingTitle" : "sing.backingNoSplit");
 }
@@ -133,7 +110,7 @@ function paintLook() {
 function setLook(on) {
   if (on === sing) return;
   sing = on;
-  saveLook(on);
+  saveChoice(LOOK_STORE_KEY, on ? LOOK_SING : null);
   if (!on) singQueueLeaves();
   paintLook();
   forgetSingPainted();
@@ -153,31 +130,13 @@ function onLookKeydown(e) {
   $(sing ? "stageLookSing" : "stageLookPlay")?.focus();
 }
 
-function setLine(el, line) {
-  const text = line ? line.text || GAP_LINE : "";
-  if (!el || shownLines[el.id] === text) return;
-  shownLines[el.id] = text;
-  el.textContent = text;
-  el.removeAttribute("lang");
-  tagLang(el, text);
-}
-
+/** The line being sung as the Lyrics tab draws it: one span per timed word. */
 function buildNowLine(el, lines, index) {
   const line = lines[index];
   const envelope = vocalEnvelope(getCurrentTrackInfo()?.id);
-  const timed = wordTimings(line, lines[index + 1]?.time ?? null, envelope);
-  nowLine = { lines, index, envelope, words: timed };
-  el.replaceChildren(...timed.map((word) => wordSpan(word.text)));
-  if (!timed.length) el.textContent = line.text || GAP_LINE;
+  nowLine = { lines, index, envelope, words: fillLine(el, line, lines[index + 1]?.time ?? null) };
   el.removeAttribute("lang");
   tagLang(el, line.text);
-}
-
-function wordSpan(text) {
-  const span = document.createElement("span");
-  span.className = WORD_CLASS;
-  span.textContent = text;
-  return span;
 }
 
 function paintNowLine(lines, index, time) {
@@ -185,14 +144,12 @@ function paintNowLine(lines, index, time) {
   if (!el) return;
   const stale = !nowLine || nowLine.lines !== lines || nowLine.index !== index;
   if (stale || nowLine.envelope !== vocalEnvelope(getCurrentTrackInfo()?.id)) buildNowLine(el, lines, index);
-  const spans = el.children;
-  wordProgress(nowLine.words, time).forEach(({ state, fill }, i) => {
-    const span = spans[i];
-    if (!span) return;
-    span.classList.toggle(WORD_STATE.SUNG, state === WORD_STATE.SUNG);
-    span.classList.toggle(WORD_STATE.SINGING, state === WORD_STATE.SINGING);
-    if (state === WORD_STATE.SINGING) span.style.setProperty(FILL_PROPERTY, `${fill}%`);
-  });
+  for (const word of nowLine.words) {
+    const { sung, singing, fill } = wordFill(word, time);
+    word.el.classList.toggle("sung", sung);
+    word.el.classList.toggle("singing", singing);
+    if (singing) word.el.style.setProperty(FILL_PROPERTY, `${fill}%`);
+  }
 }
 
 function paintIntro(intro) {
@@ -207,7 +164,7 @@ function paintLyricWindow(lines, view) {
   paintIntro(view.intro);
   for (const [id, step] of Object.entries(SIDE_LINES)) {
     const shown = view.intro == null || step > 0;
-    setLine($(id), shown ? lines[view.now + step] : null);
+    setLyric(shownLines, id, $(id), lineText(shown ? lines[view.now + step] : null));
   }
 }
 
@@ -217,7 +174,7 @@ export function paintSingFrame(time) {
   const view = lyricWindow(lines, time + LYRIC_LEAD_SEC);
   $("stageView")?.classList.toggle(NO_LYRICS_CLASS, !view);
   $("singLyrics").hidden = !view;
-  paintSingNoLyrics(!view);
+  paintSingNoLyrics(view ? null : hasUntimedLyrics() ? NO_LYRICS.UNTIMED : NO_LYRICS.NONE);
   if (!view) {
     paintIntro(null);
     return;
@@ -231,7 +188,6 @@ export function forgetSingPainted() {
   nowLine = null;
 }
 
-/** Stage opened or closed. */
 export function singStageShown(on) {
   if (!on) singQueueLeaves();
   forgetSingPainted();
@@ -255,11 +211,11 @@ function onPlaybackReady() {
   applySilence();
 }
 
-/** `showing()` says whether Stage is on screen; `redraw()` paints its frame again. */
+/** `showing()`: whether Stage is on screen; `redraw()` paints it again; `leaveStage()` closes it. */
 export function initSingAlong({ showing, redraw, leaveStage }) {
   isShowing = showing;
   repaint = redraw;
-  sing = readLook();
+  sing = readChoice(LOOK_STORE_KEY) === LOOK_SING;
   paintLook();
   paintVoice();
   $("stageLook")?.addEventListener("click", onLookClick);
@@ -268,6 +224,7 @@ export function initSingAlong({ showing, redraw, leaveStage }) {
   $("singBackingBtn")?.addEventListener("click", onBackingClick);
   document.addEventListener("trackopen", onTrackOpen);
   document.addEventListener("playbackready", onPlaybackReady);
+  document.addEventListener(MIX_CHANGE_EVENT, onMixChange);
   onLanguageChange(paintVoice);
   initSingQueue({ active: singShown });
   initSingNoLyrics({ leaveStage });

@@ -9,8 +9,8 @@ import {
   singStoreKey,
   vocalSplit,
   voiceOnFrom,
-  wordProgress,
 } from '../../static/js/stageSingModel.js';
+import { wordFill } from '../../static/js/lyricsLookup.js';
 
 let passed = 0;
 let failed = 0;
@@ -43,26 +43,27 @@ const JOB = 'abc123';
   check('plain vocals is no split', vocalSplit(['vocals', 'drums'], SPLIT_PAIR), false);
 }
 {
+  const quiet = (state, loaded) => silencedVocals(state, loaded, SPLIT_PAIR);
   const plain = { split: false, backingOn: true };
-  check('no split, voice off silences all vocals', silencedVocals({ ...plain, voiceOn: false }, SPLIT_PAIR), ['vocals']);
-  check('no split, voice on silences nothing', silencedVocals({ ...plain, voiceOn: true }, SPLIT_PAIR), []);
-  const split = { split: true };
+  const plainLoad = ['vocals', 'drums'];
+  check('no split, voice off silences the vocals', quiet({ ...plain, voiceOn: false }, plainLoad), ['vocals']);
+  check('no split, voice on silences nothing', quiet({ ...plain, voiceOn: true }, plainLoad), []);
   check(
-    'split, voice off and backing on silences the lead only',
-    silencedVocals({ ...split, voiceOn: false, backingOn: true }, SPLIT_PAIR),
-    ['lead_vocals'],
+    'half a split, voice off silences every loaded vocal',
+    quiet({ ...plain, voiceOn: false }, ['vocals', 'lead_vocals', 'drums']),
+    ['vocals', 'lead_vocals'],
   );
   check(
-    'split, both off silences lead and backing',
-    silencedVocals({ ...split, voiceOn: false, backingOn: false }, SPLIT_PAIR),
-    SPLIT_PAIR,
-  );
-  check(
-    'split, voice on and backing off silences the backing only',
-    silencedVocals({ ...split, voiceOn: true, backingOn: false }, SPLIT_PAIR),
+    'half a split without plain vocals, voice off silences the half that is loaded',
+    quiet({ ...plain, voiceOn: false }, ['backing_vocals', 'drums']),
     ['backing_vocals'],
   );
-  check('split, both on silences nothing', silencedVocals({ ...split, voiceOn: true, backingOn: true }, SPLIT_PAIR), []);
+  const splitLoad = ['drums', ...SPLIT_PAIR];
+  const splitQuiet = (voiceOn, backingOn) => quiet({ split: true, voiceOn, backingOn }, splitLoad);
+  check('split, voice off and backing on silences the lead only', splitQuiet(false, true), ['lead_vocals']);
+  check('split, both off silences lead and backing', splitQuiet(false, false), SPLIT_PAIR);
+  check('split, voice on and backing off silences the backing', splitQuiet(true, false), ['backing_vocals']);
+  check('split, both on silences nothing', splitQuiet(true, true), []);
 }
 {
   const words = [
@@ -70,11 +71,14 @@ const JOB = 'abc123';
     { text: 'walked ', start: 2, end: 4 },
     { text: 'home', start: 4, end: 5 },
   ];
-  const states = (time) => wordProgress(words, time).map(({ state, fill }) => `${state}:${fill}`);
-  check('before the line nothing is sung', states(0.5), ['todo:0', 'todo:0', 'todo:0']);
-  check('mid-word fills that word part way', states(3), ['sung:100', 'singing:50', 'todo:0']);
-  check('a word is sung once its end is reached', states(4), ['sung:100', 'sung:100', 'todo:0']);
-  check('after the line every word is sung', states(9), ['sung:100', 'sung:100', 'sung:100']);
+  const fills = (time) => words.map((word) => {
+    const { sung, singing, fill } = wordFill(word, time);
+    return `${sung ? 'sung' : singing ? 'singing' : 'todo'}:${fill}`;
+  });
+  check('before the line nothing is sung', fills(0.5), ['todo:0', 'todo:0', 'todo:0']);
+  check('mid-word fills that word part way', fills(3), ['sung:100', 'singing:50', 'todo:0']);
+  check('a word is sung once its end is reached', fills(4), ['sung:100', 'sung:100', 'todo:0']);
+  check('after the line every word is sung', fills(9), ['sung:100', 'sung:100', 'sung:100']);
 }
 {
   const lines = [

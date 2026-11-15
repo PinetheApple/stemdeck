@@ -32,3 +32,23 @@ export function setTextOnce(painted, key, el, text) {
   painted[key] = text;
   el.textContent = text;
 }
+
+/** A choice this window keeps under `key`, or null when none was kept or storage is unreadable. */
+export function readChoice(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (e) {
+    console.warn(`[stage] could not read ${key}:`, e);
+    return null;
+  }
+}
+
+/** Keeps `value` under `key`; null forgets it. */
+export function saveChoice(key, value) {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch (e) {
+    console.warn(`[stage] could not save ${key}:`, e);
+  }
+}
