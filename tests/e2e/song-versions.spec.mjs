@@ -273,6 +273,40 @@ test("Extract more stems from Stage leaves Stage and opens the form in the song'
   await expectExtractFormFocused(page);
 });
 
+const SUBFOLDER_CATALOG = {
+  folders: [
+    { id: "f-unsorted", name: "Unsorted", items: [SIBLING_JOB_ID], color: null },
+    { id: "f-parent", name: "Parent", items: [], color: null, parentId: null },
+    { id: "f-sub", name: "Sub", items: [JOB_ID], color: null, parentId: "f-parent" },
+    { id: "trash", name: "Trash", items: [], color: null },
+  ],
+  tracks: TAGS_CHECKED_CATALOG.tracks,
+};
+
+const folderEl = (page, id) => page.locator(`#catalogList .folder[data-id="${id}"]`);
+
+async function collapseFolder(page, id) {
+  await folderEl(page, id).locator(":scope > .folder-head").click();
+  await expect(folderEl(page, id)).toHaveClass(/\bcollapsed\b/);
+}
+
+test("Extract more stems opens a collapsed subfolder and its collapsed parent to show the song", async ({ page, request }) => {
+  await createVersion(request, JOB_ID, { name: "Two lanes", stems: TWO_STEMS, open: true });
+  await openStudio(page, { catalog: SUBFOLDER_CATALOG });
+  await expect.poll(() => studioState(page)).toMatchObject({ lanes: [...TWO_STEMS].sort() });
+  await collapseFolder(page, "f-sub");
+  await collapseFolder(page, "f-parent");
+  await expect(songRow(page)).toBeHidden();
+
+  await page.locator("#songMoreBtn").click();
+  await page.getByRole("menuitem", { name: "Extract more stems…" }).click();
+
+  await expect(folderEl(page, "f-parent")).not.toHaveClass(/\bcollapsed\b/);
+  await expect(folderEl(page, "f-sub")).not.toHaveClass(/\bcollapsed\b/);
+  await expect(songRow(page)).toBeVisible();
+  await expectExtractFormFocused(page);
+});
+
 test("Extract more stems from the song head clears a search that hides the song's row", async ({ page, request }) => {
   await createVersion(request, JOB_ID, { name: "Two lanes", stems: TWO_STEMS, open: true });
   await openStudio(page);
