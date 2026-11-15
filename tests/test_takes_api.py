@@ -23,7 +23,6 @@ from app.core.takes_config import (
 from tests._takes_helpers import (
     CAPTURE_RATE,
     JOB,
-    OCTET,
     SONG_SEC,
     add_done_job,
     make_client,
@@ -37,6 +36,8 @@ from tests._takes_helpers import (
 from tests.ffmpeg_probe import skip_without_ffmpeg
 
 BASE = f"/api/jobs/{JOB}"
+# A quarter second in: a whole number of samples at both rates.
+IMPULSE = CAPTURE_RATE // 4
 
 
 @pytest.fixture(autouse=True)
@@ -53,7 +54,9 @@ def jobs_dir():
 
 @pytest.fixture
 def job(jobs_dir):
-    return add_done_job(jobs_dir)
+    job = add_done_job(jobs_dir)
+    job.title = "Song: A"
+    return job
 
 
 @pytest.fixture
@@ -75,7 +78,13 @@ def _take_folder(jobs_dir, take_id):
     return jobs_dir / JOB / TAKES_DIRNAME / take_id
 
 
-# --- preconditions -----------------------------------------------------------
+def _impulse_at(jobs_dir, take_id) -> int:
+    data, _ = sf.read(str(_take_folder(jobs_dir, take_id) / "audio.wav"), always_2d=True)
+    return int(np.argmax(np.abs(data[:, 0])))
+
+
+def _expected_sample(placement: float) -> int:
+    return round(placement * TAKE_RATE) + IMPULSE * TAKE_RATE // CAPTURE_RATE
 
 
 def test_unknown_job_is_404(client):
@@ -97,9 +106,6 @@ def test_writes_during_a_library_move_are_503(client, track, monkeypatch):
     r = client.post(f"{BASE}/takes", json=start_body(track))
     assert r.status_code == 503
     assert r.headers["retry-after"] == "2"
-
-
-# --- create ------------------------------------------------------------------
 
 
 def test_create_opens_a_take_listed_as_open(client, track):
@@ -132,9 +138,6 @@ def test_create_stops_at_the_per_song_limit(client, track, monkeypatch):
     assert client.post(f"{BASE}/takes", json=start_body(track)).status_code == 409
 
 
-# --- parts -------------------------------------------------------------------
-
-
 def test_parts_append_in_sequence(client, track, jobs_dir):
     take_id = new_take(client, track)
     assert put_part(client, take_id, 0, pcm(100)).json()["bytes"] == 400
@@ -142,7 +145,6 @@ def test_parts_append_in_sequence(client, track, jobs_dir):
     assert r.status_code == 200
     assert r.json() == {
         "take_id": take_id,
-        "kind": "audio",
         "seq": 1,
         "bytes": 600,
         "duplicate": False,
@@ -197,29 +199,18 @@ def test_a_take_longer_than_the_song_allows_is_413(client, track, monkeypatch):
     assert put_part(client, take_id, 0, too_long).status_code == 413
 
 
-def test_camera_parts_wait_for_video_takes(client, track):
-    take_id = new_take(client, track)
-    r = client.put(f"{BASE}/takes/{take_id}/parts/camera?seq=0", content=b"\0" * 4, headers=OCTET)
-    assert r.status_code == 404
-
-
-# --- finish ------------------------------------------------------------------
-
-
 @pytest.mark.usefixtures("needs_ffmpeg")
 def test_finish_places_the_take_on_the_song_timeline(client, track, jobs_dir):
-    impulse = CAPTURE_RATE // 4
-    take_id = new_take(client, track, frame0=1.0, round_trip_ms=25.0)
-    put_part(client, take_id, 0, pcm(impulse=impulse))
+    take_id = new_take(client, track, frame0=1.0, round_trip_ms=20.0)
+    put_part(client, take_id, 0, pcm(impulse=IMPULSE))
     r = client.post(f"{BASE}/takes/{take_id}/finish", json={"label": "Verse"})
     assert r.status_code == 200
     entry = r.json()
-    assert entry["placement_sec"] == pytest.approx(0.975)
+    assert entry["placement_sec"] == pytest.approx(0.98)
     assert entry["label"] == "Verse"
     data, rate = sf.read(str(_take_folder(jobs_dir, take_id) / "audio.wav"), always_2d=True)
     assert (rate, data.shape) == (TAKE_RATE, (TAKE_RATE * SONG_SEC, 2))
-    expected = round((0.975 + impulse / CAPTURE_RATE) * TAKE_RATE)
-    assert abs(int(np.argmax(np.abs(data[:, 0]))) - expected) <= 1
+    assert _impulse_at(jobs_dir, take_id) == _expected_sample(0.98)
 
 
 @pytest.mark.usefixtures("needs_ffmpeg")
@@ -248,19 +239,34 @@ def test_parts_after_finish_are_409(client, track):
     assert put_part(client, entry["id"], 1, pcm(10)).status_code == 409
 
 
-# --- edit --------------------------------------------------------------------
+@pytest.mark.usefixtures("needs_ffmpeg")
+def test_a_crash_between_the_sidecar_and_the_state_still_reads_finished(client, track, jobs_dir):
+    """take.json is written before parts.json says finished: a take caught in
+    between is finished, and stays closed to parts and a second finish."""
+    entry = recorded_take(client, track)
+    state_path = _take_folder(jobs_dir, entry["id"]) / PARTS_FILE
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state_path.write_text(json.dumps({**state, "finished": False}), encoding="utf-8")
+    assert put_part(client, entry["id"], 1, pcm(10)).status_code == 409
+    assert client.get(f"{BASE}/takes/{entry['id']}/parts").json()["finished"] is True
+    assert client.post(f"{BASE}/takes/{entry['id']}/finish", json={}).status_code == 409
+    assert client.get(f"{BASE}/takes").json()["open"] == []
 
 
 @pytest.mark.usefixtures("needs_ffmpeg")
 def test_a_timing_change_re_renders_the_take(client, track, jobs_dir):
-    entry = recorded_take(client, track, frame0=1.0, round_trip_ms=20.0)
-    peaks = _take_folder(jobs_dir, entry["id"]) / "peaks.json"
+    entry = recorded_take(client, track, impulse=IMPULSE, frame0=1.0, round_trip_ms=20.0)
+    take_id = entry["id"]
+    assert _impulse_at(jobs_dir, take_id) == _expected_sample(0.98)
+    peaks = _take_folder(jobs_dir, take_id) / "peaks.json"
     before = peaks.stat().st_mtime_ns
-    r = client.patch(f"{BASE}/takes/{entry['id']}", json={"round_trip_ms": 30.0})
+    r = client.patch(f"{BASE}/takes/{take_id}", json={"round_trip_ms": 30.0})
     assert r.status_code == 200
     assert r.json()["placement_sec"] == pytest.approx(0.97)
-    r = client.patch(f"{BASE}/takes/{entry['id']}", json={"user_nudge_ms": 10.0})
+    assert _impulse_at(jobs_dir, take_id) == _expected_sample(0.97)
+    r = client.patch(f"{BASE}/takes/{take_id}", json={"user_nudge_ms": 10.0})
     assert r.json()["placement_sec"] == pytest.approx(0.96)
+    assert _impulse_at(jobs_dir, take_id) == _expected_sample(0.96)
     assert peaks.stat().st_mtime_ns != before
 
 
@@ -283,9 +289,6 @@ def test_editing_an_open_take_is_409(client, track):
 def test_an_empty_edit_is_422(client, track):
     entry = recorded_take(client, track)
     assert client.patch(f"{BASE}/takes/{entry['id']}", json={}).status_code == 422
-
-
-# --- delete, serve -----------------------------------------------------------
 
 
 def test_delete_an_open_take(client, track, jobs_dir):
@@ -313,6 +316,7 @@ def test_audio_is_served_with_ranges_and_peaks_as_json(client, track):
     entry = recorded_take(client, track)
     r = client.get(entry["url"], headers={"Range": "bytes=0-43"})
     assert r.status_code == 206 and r.content[:4] == b"RIFF"
+    assert 'filename="Song_A_Take_1.wav"' in r.headers["content-disposition"]
     assert client.head(entry["url"]).status_code == 200
     peaks = client.get(entry["peaks_url"])
     assert peaks.status_code == 200 and list(peaks.json()) == [entry["id"]]
@@ -321,9 +325,6 @@ def test_audio_is_served_with_ranges_and_peaks_as_json(client, track):
 def test_audio_of_an_open_take_is_404(client, track):
     take_id = new_take(client, track)
     assert client.get(f"{BASE}/takes/{take_id}/audio.wav").status_code == 404
-
-
-# --- restart -----------------------------------------------------------------
 
 
 @pytest.mark.usefixtures("needs_ffmpeg")

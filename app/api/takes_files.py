@@ -1,9 +1,6 @@
 """The blocking file work behind the takes routes, run in a thread under the
-song's lock (app/api/takes_common.job_lock). Each step validates before it
-changes a file, so a refused request can be corrected and sent again, and
-writes atomically, so a crash at any point leaves a take that can be resumed
-or finished (docs/takes.md).
-"""
+song's lock. Each step validates before it changes a file, and take.json is
+written last, so a crash leaves a take that can be resumed or finished."""
 
 from __future__ import annotations
 
@@ -15,15 +12,24 @@ from typing import Any
 from fastapi import HTTPException
 
 from app.api.takes_models import CreateTakeBody, FinishBody
-from app.core.takes import new_id, placement_sec, read_json, write_json_atomic
+from app.core.song_folder import write_json_atomic
+from app.core.takes import (
+    is_finished,
+    new_id,
+    placement_sec,
+    read_json,
+    take_folders,
+    takes_on_track,
+)
 from app.core.takes_config import (
     AUDIO_PART_FILE,
     PARTS_FILE,
     RAW_WAV_FILE,
     SIDECAR_FILE,
     SIDECAR_VERSION,
+    STEMS_DIRNAME,
     TAKE_ID_PREFIX,
-    TAKE_ID_RE,
+    TAKE_LABEL_TEMPLATE,
     TAKE_PEAKS_FILE,
     TAKE_SAMPLE_BYTES,
     TAKE_WAV_FILE,
@@ -39,9 +45,24 @@ from app.pipeline.take_render import (
 )
 
 
+def capture_of(state: dict[str, Any]) -> dict[str, Any]:
+    """The capture block of an open take's start sidecar."""
+    return state["start"]["capture"]
+
+
 def frame_bytes(state: dict[str, Any]) -> int:
-    channels = int(((state.get("start") or {}).get("capture") or {}).get("channels") or 1)
-    return channels * TAKE_SAMPLE_BYTES
+    return int(capture_of(state)["channels"]) * TAKE_SAMPLE_BYTES
+
+
+def open_state(folder: Path) -> dict[str, Any]:
+    """parts.json of a take that can still change, or 404 / 409. A take.json
+    beside it means finished, whatever parts.json says: it is written first."""
+    state = read_json(folder / PARTS_FILE)
+    if not state:
+        raise HTTPException(status_code=404, detail="take not found")
+    if state.get("finished") or is_finished(folder):
+        raise HTTPException(status_code=409, detail="take already finished")
+    return state
 
 
 def open_take(job_dir: Path, body: CreateTakeBody, take_max: int) -> tuple[str, str]:
@@ -49,16 +70,11 @@ def open_take(job_dir: Path, body: CreateTakeBody, take_max: int) -> tuple[str, 
     an orphaned take can still be finished. Returns (take_id, label)."""
     root = job_dir / TAKES_DIRNAME
     root.mkdir(parents=True, exist_ok=True)
-    existing = {p.name for p in root.iterdir() if TAKE_ID_RE.match(p.name)}
+    existing = {p.name for p in take_folders(root)}
     if len(existing) >= take_max:
         raise HTTPException(status_code=409, detail="too many takes for this song")
-    on_track = sum(
-        1
-        for name in existing
-        if read_json(root / name / PARTS_FILE).get("track_id") == body.track_id
-    )
     take_id = new_id(TAKE_ID_PREFIX, existing)
-    label = body.label or f"Take {on_track + 1}"
+    label = body.label or TAKE_LABEL_TEMPLATE.format(n=len(takes_on_track(root, body.track_id)) + 1)
     now = time.time()
     (root / take_id).mkdir()
     state = {
@@ -77,16 +93,10 @@ def open_take(job_dir: Path, body: CreateTakeBody, take_max: int) -> tuple[str, 
 def append_part(folder: Path, seq: int, data: bytes, cap: int) -> dict[str, Any]:
     """Append part `seq`. Repeating the last part is a no-op; any other seq
     than the next is a 409. Returns {"seq", "bytes", "duplicate"}."""
-    state_path = folder / PARTS_FILE
-    state = read_json(state_path)
-    if not state:
-        raise HTTPException(status_code=404, detail="take not found")
-    if state.get("finished"):
-        raise HTTPException(status_code=409, detail="take already finished")
+    state = open_state(folder)
     if len(data) % frame_bytes(state):
         raise HTTPException(status_code=422, detail="part must hold whole sample frames")
-    slot = state["audio"]
-    next_seq, received = int(slot["next_seq"]), int(slot["bytes"])
+    next_seq, received = int(state["audio"]["next_seq"]), int(state["audio"]["bytes"])
     if next_seq > 0 and seq == next_seq - 1:
         return {"seq": seq, "bytes": received, "duplicate": True}
     if seq != next_seq:
@@ -101,7 +111,7 @@ def append_part(folder: Path, seq: int, data: bytes, cap: int) -> dict[str, Any]
         fh.write(data)
     state["audio"] = {"next_seq": seq + 1, "bytes": received + len(data)}
     state["updated_at"] = time.time()
-    write_json_atomic(state_path, state)
+    write_json_atomic(folder / PARTS_FILE, state)
     return {"seq": seq, "bytes": received + len(data), "duplicate": False}
 
 
@@ -116,13 +126,13 @@ def _check_audio(folder: Path, state: dict[str, Any]) -> None:
 
 def _build_sidecar(folder: Path, state: dict[str, Any], body: FinishBody) -> dict[str, Any]:
     start = state["start"]
-    capture = {**start["capture"]}
+    capture = {**capture_of(state)}
     if body.dropped_quanta is not None:
         capture["dropped_quanta"] = body.dropped_quanta
     timeline = {**start["timeline"]}
     if body.end_song_sec is not None:
         timeline["end_song_sec"] = body.end_song_sec
-    sidecar: dict[str, Any] = {
+    return {
         "v": SIDECAR_VERSION,
         "id": folder.name,
         "track_id": state["track_id"],
@@ -132,20 +142,18 @@ def _build_sidecar(folder: Path, state: dict[str, Any], body: FinishBody) -> dic
         "latency": {**start["latency"]},
         "capture": capture,
     }
-    sidecar["placement_sec"] = placement_sec(sidecar)
-    return sidecar
 
 
 def render_lane(job_dir: Path, folder: Path, sidecar: dict[str, Any]) -> None:
     """(Re)render audio.wav and peaks.json from audio.raw.wav at the
     sidecar's placement, and record the raw take's length."""
-    frames = song_frames(job_dir / "stems")
+    frames = song_frames(job_dir / STEMS_DIRNAME)
     if frames is None:
         raise HTTPException(status_code=404, detail="stems not found")
     raw = folder / RAW_WAV_FILE
-    capture = sidecar["capture"]
+    rate = int(sidecar["capture"]["rate"])
     sidecar["placement_sec"] = placement_sec(sidecar)
-    sidecar["duration_sec"] = wav_frames(raw) / int(capture["rate"])
+    sidecar["duration_sec"] = wav_frames(raw) / rate
     wav = folder / TAKE_WAV_FILE
     try:
         render_take_audio(
@@ -153,8 +161,8 @@ def render_lane(job_dir: Path, folder: Path, sidecar: dict[str, Any]) -> None:
             wav,
             sidecar["placement_sec"],
             frames,
-            int(capture["rate"]),
-            int(capture["channels"]),
+            rate,
+            int(sidecar["capture"]["channels"]),
         )
     except TakeRenderError:
         raise HTTPException(status_code=500, detail="take render failed") from None
@@ -162,25 +170,19 @@ def render_lane(job_dir: Path, folder: Path, sidecar: dict[str, Any]) -> None:
 
 
 def finish_take_files(job_dir: Path, folder: Path, body: FinishBody) -> dict[str, Any]:
-    """Close an open take: raw WAV, playable lane, peaks, then take.json.
-    take.json goes last, so a crash before it leaves an open take that a
-    second finish completes from audio.raw.wav. Returns the sidecar."""
-    state_path = folder / PARTS_FILE
-    state = read_json(state_path)
-    if not state:
-        raise HTTPException(status_code=404, detail="take not found")
-    if state.get("finished"):
-        raise HTTPException(status_code=409, detail="take already finished")
+    """Close an open take: raw WAV, playable lane, peaks, then take.json, then
+    parts.json. Returns the sidecar."""
+    state = open_state(folder)
     _check_audio(folder, state)
     sidecar = _build_sidecar(folder, state, body)
     part = folder / AUDIO_PART_FILE
     if part.is_file() and part.stat().st_size > 0:
-        capture = sidecar["capture"]
+        capture = capture_of(state)
         assemble_raw_wav(part, folder / RAW_WAV_FILE, capture["rate"], capture["channels"])
         part.unlink()
     render_lane(job_dir, folder, sidecar)
     write_json_atomic(folder / SIDECAR_FILE, sidecar)
-    write_json_atomic(state_path, {**state, "finished": True, "updated_at": time.time()})
+    write_json_atomic(folder / PARTS_FILE, {**state, "finished": True, "updated_at": time.time()})
     return sidecar
 
 

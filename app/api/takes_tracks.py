@@ -1,12 +1,5 @@
-"""Recording tracks (#98): a track is one mixer lane that owns takes and
-plays its active one. Stored in takes/tracks.json (app.core.takes).
-
-    POST   /api/jobs/{id}/tracks              {name?, kind?, input?}, 201
-    PATCH  /api/jobs/{id}/tracks/{track_id}   name, kind, input, active_take_id, order
-    DELETE /api/jobs/{id}/tracks/{track_id}   with every take on it, open or finished
-
-Included by app/api/takes.py's router.
-"""
+"""Routes for recording tracks: a track is one mixer lane that owns takes and
+plays its active one."""
 
 from __future__ import annotations
 
@@ -21,17 +14,16 @@ from fastapi import APIRouter, HTTPException
 from app.api.takes_common import commit_tracks, job_lock, known_job, ready_job, refuse_while_moving
 from app.api.takes_files import remove_take
 from app.api.takes_models import CreateTrackBody, PatchTrackBody
-from app.core.takes import make_track, new_id, read_json, read_tracks, scan_takes
+from app.core.takes import make_track, new_id, read_tracks, scan_takes, takes_on_track
 from app.core.takes_config import (
-    PARTS_FILE,
-    TAKE_ID_RE,
+    LOGGER_NAME,
     TAKES_DIRNAME,
     TRACK_ID_PREFIX,
-    TRACK_KIND_AUDIO,
     TRACK_MAX_PER_JOB,
+    TRACK_NAME_TEMPLATE,
 )
 
-logger = logging.getLogger("stemdeck.takes")
+logger = logging.getLogger(LOGGER_NAME)
 
 router = APIRouter()
 
@@ -46,9 +38,9 @@ def _track_or_404(tracks: list[dict[str, Any]], track_id: str) -> dict[str, Any]
 def _default_name(tracks: list[dict[str, Any]]) -> str:
     names = {t.get("name") for t in tracks}
     n = len(tracks) + 1
-    while f"Track {n}" in names:
+    while TRACK_NAME_TEMPLATE.format(n=n) in names:
         n += 1
-    return f"Track {n}"
+    return TRACK_NAME_TEMPLATE.format(n=n)
 
 
 def _add_track(job_dir: Path, body: CreateTrackBody, track_max: int) -> dict[str, Any]:
@@ -60,7 +52,6 @@ def _add_track(job_dir: Path, body: CreateTrackBody, track_max: int) -> dict[str
         body.name or _default_name(tracks),
         len(tracks),
         body.input.model_dump() if body.input else None,
-        body.kind or TRACK_KIND_AUDIO,
     )
     saved = commit_tracks(job_dir, [*tracks, track])
     return _track_or_404(saved, track["id"])
@@ -71,7 +62,12 @@ async def create_track(job_id: str, body: CreateTrackBody) -> dict[str, Any]:
     refuse_while_moving()
     _job, job_dir = ready_job(job_id)
     async with job_lock(job_id):
-        track = await asyncio.to_thread(_add_track, job_dir, body, TRACK_MAX_PER_JOB)
+        track = await asyncio.to_thread(
+            _add_track,
+            job_dir,
+            body,
+            TRACK_MAX_PER_JOB,
+        )
     logger.info("[%s] track %s created", job_id, track["id"])
     return track
 
@@ -93,8 +89,6 @@ def _apply_patch(job_dir: Path, track_id: str, body: PatchTrackBody) -> dict[str
         if body.name is None:
             raise HTTPException(status_code=422, detail="name cannot be empty")
         track["name"] = body.name
-    if "kind" in fields:
-        track["kind"] = body.kind or TRACK_KIND_AUDIO
     if "input" in fields:
         track["input"] = body.input.model_dump() if body.input else None
     if "active_take_id" in fields:
@@ -109,8 +103,8 @@ def _apply_patch(job_dir: Path, track_id: str, body: PatchTrackBody) -> dict[str
 
 @router.patch("/{job_id}/tracks/{track_id}")
 async def patch_track(job_id: str, track_id: str, body: PatchTrackBody) -> dict[str, Any]:
-    """Rename, set the kind or input (null clears it), switch the active take,
-    or move the track to another position."""
+    """Rename, set the input (null clears it), switch the active take, or move
+    the track to another position."""
     refuse_while_moving()
     _job, job_dir = ready_job(job_id)
     if not body.model_fields_set:
@@ -119,25 +113,12 @@ async def patch_track(job_id: str, track_id: str, body: PatchTrackBody) -> dict[
         return await asyncio.to_thread(_apply_patch, job_dir, track_id, body)
 
 
-def _owned_takes(job_dir: Path, track_id: str) -> list[Path]:
-    """Every take folder opened on the track, finished or not: parts.json
-    records the track from the moment the take is opened."""
-    root = job_dir / TAKES_DIRNAME
-    if not root.is_dir():
-        return []
-    return sorted(
-        p
-        for p in root.iterdir()
-        if TAKE_ID_RE.match(p.name) and read_json(p / PARTS_FILE).get("track_id") == track_id
-    )
-
-
 def _remove_track(job_dir: Path, track_id: str) -> list[str]:
     tracks = read_tracks(job_dir)
     _track_or_404(tracks, track_id)
     # The track goes first, so a take cut off below can never come back active.
     commit_tracks(job_dir, [t for t in tracks if t["id"] != track_id])
-    owned = _owned_takes(job_dir, track_id)
+    owned = takes_on_track(job_dir / TAKES_DIRNAME, track_id)
     for folder in owned:
         remove_take(folder)
     commit_tracks(job_dir, read_tracks(job_dir))

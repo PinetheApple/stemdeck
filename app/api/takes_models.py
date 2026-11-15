@@ -1,9 +1,5 @@
-"""Request bodies of the takes and tracks routes (docs/takes.md).
-
-Unknown fields are refused, so a client that drifts from the contract hears
-about it instead of having a field silently dropped. Labels lose control
-characters and surrounding space, and are cut to TAKE_LABEL_MAX.
-"""
+"""Request bodies of the takes and tracks routes. Unknown fields are refused,
+so a client that drifts hears about it instead of losing a field silently."""
 
 from __future__ import annotations
 
@@ -15,7 +11,9 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validat
 from app.core.takes_config import (
     CAPTURE_RATE_MAX,
     CAPTURE_RATE_MIN,
+    ID_MAX_CHARS,
     LATENCY_SOURCES,
+    TAKE_CHANNELS,
     TAKE_COUNT_IN_MAX_SEC,
     TAKE_FRAME0_MAX_SEC,
     TAKE_FRAME0_MIN_SEC,
@@ -26,13 +24,11 @@ from app.core.takes_config import (
     TRACK_INPUT_CHANNEL_MAX,
     TRACK_INPUT_ID_MAX,
     TRACK_INPUT_LABEL_MAX,
-    TRACK_KINDS,
 )
 
 _CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")
 # Room for a label that only fits after its control characters are removed.
 _RAW_LABEL_MAX = TAKE_LABEL_MAX * 4
-_STEREO = 2
 
 
 def clean_label(value: str | None) -> str | None:
@@ -41,22 +37,11 @@ def clean_label(value: str | None) -> str | None:
     return _CONTROL_CHARS.sub("", value).strip()[:TAKE_LABEL_MAX] or None
 
 
-def _one_of(choices: tuple[str, ...]):
-    def check(value: str) -> str:
-        if value not in choices:
-            raise ValueError(f"must be one of {', '.join(choices)}")
-        return value
-
-    return AfterValidator(check)
-
-
 Label = Annotated[
     str | None,
     Field(default=None, max_length=_RAW_LABEL_MAX),
     AfterValidator(clean_label),
 ]
-LatencySource = Annotated[str, _one_of(LATENCY_SOURCES)]
-TrackKind = Annotated[str, _one_of(TRACK_KINDS)]
 
 
 def _finite(lo: float, hi: float, default: float | None = None):
@@ -69,7 +54,9 @@ class _Strict(BaseModel):
 
 class TimelineModel(_Strict):
     frame0_song_sec: float = Field(
-        ge=TAKE_FRAME0_MIN_SEC, le=TAKE_FRAME0_MAX_SEC, allow_inf_nan=False
+        ge=TAKE_FRAME0_MIN_SEC,
+        le=TAKE_FRAME0_MAX_SEC,
+        allow_inf_nan=False,
     )
     tempo: float = TAKE_TEMPO
     count_in_sec: float | None = _finite(0, TAKE_COUNT_IN_MAX_SEC)
@@ -84,10 +71,17 @@ class TimelineModel(_Strict):
 
 class LatencyModel(_Strict):
     round_trip_ms: float = _finite(0, TAKE_ROUND_TRIP_MAX_MS)
-    source: LatencySource
+    source: str
     output_latency_ms: float | None = _finite(0, TAKE_ROUND_TRIP_MAX_MS)
     base_latency_ms: float | None = _finite(0, TAKE_ROUND_TRIP_MAX_MS)
     user_nudge_ms: float = _finite(-TAKE_NUDGE_MAX_MS, TAKE_NUDGE_MAX_MS, 0.0)
+
+    @field_validator("source")
+    @classmethod
+    def _known_source(cls, v: str) -> str:
+        if v not in LATENCY_SOURCES:
+            raise ValueError(f"must be one of {', '.join(LATENCY_SOURCES)}")
+        return v
 
 
 class CaptureModel(_Strict):
@@ -97,7 +91,7 @@ class CaptureModel(_Strict):
 
 
 class CreateTakeBody(_Strict):
-    track_id: str = Field(max_length=16)
+    track_id: str = Field(max_length=ID_MAX_CHARS)
     label: Label = None
     timeline: TimelineModel
     latency: LatencyModel
@@ -122,7 +116,7 @@ class TrackInput(_Strict):
 
     device_id: str | None = Field(default=None, max_length=TRACK_INPUT_ID_MAX)
     device_label: str | None = Field(default=None, max_length=TRACK_INPUT_LABEL_MAX)
-    channels: list[int] = Field(min_length=1, max_length=_STEREO)
+    channels: list[int] = Field(min_length=1, max_length=TAKE_CHANNELS)
 
     @field_validator("channels")
     @classmethod
@@ -136,10 +130,9 @@ class TrackInput(_Strict):
 
 class CreateTrackBody(_Strict):
     name: Label = None
-    kind: TrackKind | None = None
     input: TrackInput | None = None
 
 
 class PatchTrackBody(CreateTrackBody):
-    active_take_id: str | None = Field(default=None, max_length=16)
+    active_take_id: str | None = Field(default=None, max_length=ID_MAX_CHARS)
     order: int | None = Field(default=None, ge=0)

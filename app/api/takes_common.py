@@ -21,10 +21,6 @@ from app.core.takes_config import TAKE_RELOCATING_RETRY_SEC
 _job_locks: dict[str, asyncio.Lock] = {}
 
 
-def jobs_dir() -> Path:
-    return JOBS_DIR
-
-
 def job_lock(job_id: str) -> asyncio.Lock:
     return _job_locks.setdefault(job_id, asyncio.Lock())
 
@@ -34,7 +30,7 @@ def known_job(job_id: str) -> tuple[Job, Path]:
     job = registry_get(job_id) if JOB_ID_RE.match(job_id) else None
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
-    return job, jobs_dir() / job_id
+    return job, JOBS_DIR / job_id
 
 
 def ready_job(job_id: str) -> tuple[Job, Path]:
@@ -57,7 +53,7 @@ def refuse_while_moving() -> None:
 
 
 def take_folder_or_404(job_id: str, take_id: str) -> Path:
-    folder = take_dir(jobs_dir(), job_id, take_id)
+    folder = take_dir(JOBS_DIR, job_id, take_id)
     if folder is None or not folder.is_dir():
         raise HTTPException(status_code=404, detail="take not found")
     return folder

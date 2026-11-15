@@ -10,7 +10,7 @@ import pytest
 import app.core.config as cfg
 from app.api import takes_tracks
 from app.core.registry import _jobs
-from app.core.takes_config import TAKES_DIRNAME, TRACKS_FILE
+from app.core.takes_config import PARTS_FILE, TAKES_DIRNAME, TRACKS_FILE
 from tests._takes_helpers import JOB, add_done_job, make_client, new_take, new_track, recorded_take
 from tests.ffmpeg_probe import skip_without_ffmpeg
 
@@ -48,10 +48,10 @@ def test_create_names_tracks_in_turn(client):
     first = client.post(f"{BASE}/tracks", json={})
     assert first.status_code == 201
     assert first.json()["name"] == "Track 1"
-    assert first.json()["kind"] == "audio"
     assert first.json()["active_take_id"] is None
-    second = client.post(f"{BASE}/tracks", json={"name": "Bass DI", "kind": "video"}).json()
-    assert (second["name"], second["kind"], second["order"]) == ("Bass DI", "video", 1)
+    second = client.post(f"{BASE}/tracks", json={"name": "Bass DI"}).json()
+    assert (second["name"], second["order"]) == ("Bass DI", 1)
+    assert client.post(f"{BASE}/tracks", json={}).json()["name"] == "Track 3"
 
 
 def test_create_stores_the_input(client):
@@ -136,6 +136,17 @@ def test_delete_removes_the_track_and_all_its_takes(client, jobs_dir):
     assert [t["id"] for t in listed["tracks"]] == [b]
     assert [t["id"] for t in listed["takes"]] == [kept["id"]]
     assert listed["tracks"][0]["order"] == 0
+
+
+@pytest.mark.usefixtures("needs_ffmpeg")
+def test_delete_finds_a_finished_take_by_its_sidecar(client, jobs_dir):
+    track_id = new_track(client)
+    finished = recorded_take(client, track_id)
+    folder = jobs_dir / JOB / TAKES_DIRNAME / finished["id"]
+    (folder / PARTS_FILE).write_text("{broken", encoding="utf-8")
+    r = client.delete(f"{BASE}/tracks/{track_id}")
+    assert r.json()["takes_deleted"] == [finished["id"]]
+    assert not folder.exists()
 
 
 def test_delete_unknown_track_is_404(client):
