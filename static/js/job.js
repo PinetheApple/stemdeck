@@ -17,6 +17,7 @@ import { formatKey } from "./keyLabel.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 import { carrySplitChoice, choiceToStore, storeSplitChoice } from "./vocalSplit.js";
 import { onQueueChange, queueRowStates } from "./queue.js";
+import { finishTakeBeforeTeardown } from "./recorder.js";
 
 // Playful stage label rotation (Claude-Code-style flair). The backend
 // emits truthful stage strings; we surface them in the small #job-detail
@@ -796,6 +797,7 @@ export async function importFromUrl(url, { title, stems, replaces } = {}) {
   }
 
   // Only once the server has the job: a refused restore leaves playback alone.
+  await finishTakeBeforeTeardown();
   reset();
   setWaveformLoading(true, "");
   setCurrentJobId(jobId);

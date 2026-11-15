@@ -20,6 +20,13 @@ const MS_PER_SEC = 1000;
 // Short enough that the stems already sit at their minimum lane height.
 const SHORT_WINDOW = { width: 1440, height: 800 };
 const STEMS_PLUS_TWO_TRACKS = 8;
+const STEM_ROWS = 6;
+const IMPORT_JOB_ID = "e2eimport0001";
+const IMPORT_URL = "https://example.com/song";
+// player.js WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT: the row a song had before + Track.
+const STEM_FLOOR_PX = 72;
+// "A few px": six stems give up at most this much so + Track fits at 1440x800.
+const NO_TRACK_SHRINK_MAX_PX = 8;
 // Well under recorder.js's TEARDOWN_WAIT_MS (500), so a wait that ran would show.
 const FAST_PATH_MAX_MS = 100;
 
@@ -106,23 +113,31 @@ const headersFit = (page) =>
 const laneHeight = (page) =>
   page.evaluate(() => getComputedStyle(document.querySelector(".app")).getPropertyValue("--lane-h").trim());
 
-test("six stems and two recording tracks fit without scrolling; a song without tracks keeps its rows", async ({ page }) => {
+async function expectAddRowAboveFooter(page) {
+  const add = await page.locator(".rec-add-row").boundingBox();
+  const footer = await page.locator(".daw-footer").boundingBox();
+  expect(add.y + add.height).toBeLessThanOrEqual(footer.y);
+}
+
+test("a song with no tracks shows + Track without scrolling, its rows a few px under the stems' floor", async ({ page }) => {
   await page.setViewportSize(SHORT_WINDOW);
   await openStudio(page);
-  const withoutTracks = await laneHeight(page);
+  await expect.poll(() => headersFit(page)).toEqual({ rows: STEM_ROWS, problems: [], scrollTop: 0 });
+  await expectAddRowAboveFooter(page);
+  const rowPx = Number.parseFloat(await laneHeight(page));
+  expect(rowPx).toBeLessThanOrEqual(STEM_FLOOR_PX);
+  expect(rowPx).toBeGreaterThanOrEqual(STEM_FLOOR_PX - NO_TRACK_SHRINK_MAX_PX);
+});
+
+test("six stems and two recording tracks fit without scrolling", async ({ page }) => {
+  await page.setViewportSize(SHORT_WINDOW);
+  await openStudio(page);
   await addArmedTrack(page);
   await page.locator("#recAddTrack").click();
   await page.getByRole("menuitem", { name: "Audio track" }).click();
   await expect(page.locator(".rec-row")).toHaveCount(2);
   await expect.poll(() => headersFit(page)).toEqual({ rows: STEMS_PLUS_TWO_TRACKS, problems: [], scrollTop: 0 });
-  const add = await page.locator(".rec-add-row").boundingBox();
-  const footer = await page.locator(".daw-footer").boundingBox();
-  expect(add.y + add.height).toBeLessThanOrEqual(footer.y);
-
-  await removeTracks({ request: page.request });
-  await page.reload();
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
-  await expect.poll(() => laneHeight(page)).toBe(withoutTracks);
+  await expectAddRowAboveFooter(page);
 });
 
 test("Record waits for a recording track and says so", async ({ page }) => {
@@ -170,6 +185,27 @@ test("a song switch mid-take finishes the take on its own song", async ({ page, 
   expect(frames % WORKLET_BATCH_FRAMES).not.toBe(0);
   expect((await listing(request, SIBLING_JOB_ID)).takes).toHaveLength(0);
   await expect(page.locator(".rec-row")).toHaveCount(0);
+});
+
+async function acceptImport(route) {
+  if (route.request().method() !== "POST") return route.fallback();
+  return route.fulfill({ status: 200, json: { job_id: IMPORT_JOB_ID } });
+}
+
+test("an import started mid-take finishes the take first, tail included", async ({ page, request }) => {
+  await openStudio(page);
+  await addArmedTrack(page);
+  await recordBtn(page).click();
+  await expect(recordBtn(page)).toHaveClass(/\bis-recording\b/, { timeout: 15000 });
+  await page.waitForTimeout(RECORD_MS);
+  const rate = await sampleRate(page);
+
+  await page.route("**/api/jobs", acceptImport);
+  await page.evaluate(async (url) => (await import("/js/job.js")).importFromUrl(url), IMPORT_URL);
+  await expect.poll(async () => (await listing(request)).takes.length, { timeout: 15000 }).toBe(1);
+  expect((await listing(request)).open).toHaveLength(0);
+  const frames = Math.round((await listing(request)).takes[0].duration_sec * rate);
+  expect(frames % WORKLET_BATCH_FRAMES).not.toBe(0);
 });
 
 test("a reload brings the track and its take back", async ({ page, request }) => {
