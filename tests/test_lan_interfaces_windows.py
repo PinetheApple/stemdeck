@@ -108,7 +108,13 @@ async def test_a_hyper_v_external_switch_carries_the_real_lan(
 
 @pytest.mark.parametrize(
     "name",
-    ["vEthernet (nat)", "vEthernet (WSL (Hyper-V firewall))", "vEthernet (DockerNAT)"],
+    [
+        "vEthernet (nat)",
+        "vEthernet (WSL (Hyper-V firewall))",
+        "vEthernet (WSLCore)",
+        "vEthernet (DockerNAT)",
+        "vEthernet (default switch)",
+    ],
 )
 async def test_an_internal_hyper_v_switch_is_hidden(monkeypatch, name: str) -> None:
     internal = _adapter(name, "Hyper-V Virtual Ethernet Adapter #4", "172.30.0.1")

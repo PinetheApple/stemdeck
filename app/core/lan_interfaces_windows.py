@@ -66,7 +66,7 @@ _SOCKADDR_IN_ZERO_BYTES = 8
 _IPHLPAPI = "iphlpapi"
 
 _INTERNAL_HYPER_V_SWITCH = re.compile(
-    r"^vEthernet \((Default Switch|WSL\b.*|nat|DockerNAT)\)$",
+    r"^vEthernet \((Default Switch|WSL.*|nat|DockerNAT)\)$",
     re.IGNORECASE,
 )
 _HOST_ONLY_ADAPTER = re.compile(
