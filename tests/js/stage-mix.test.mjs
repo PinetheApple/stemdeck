@@ -1,7 +1,23 @@
-// Stage mode's song overview: where each section sits on the whole-song strip.
+// Stage mode's mixer column and song overview: which stems get a strip, which are silent,
+// the dB each shows, and where sections sit on the whole-song strip.
 // Run:  node tests/js/stage-mix.test.mjs
 
-import { sectionSpans } from '../../static/js/stageModel.js';
+const noElement = () => null;
+globalThis.window = { addEventListener() {}, matchMedia: () => ({ matches: false, addEventListener() {} }) };
+globalThis.document = {
+  getElementById: noElement,
+  querySelector: noElement,
+  querySelectorAll: () => [],
+  addEventListener() {},
+  documentElement: { getAttribute: () => null },
+  createElement: () => ({ style: {} }),
+};
+globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+globalThis.fetch = async () => ({ ok: false, json: async () => ({}) });
+
+const { sectionSpans, stripStems } = await import('../../static/js/stageModel.js');
+const { isLaneSilenced, laneGainDbText, loadedLaneNames } = await import('../../static/js/mixer.js');
+const { mixerState, setTrackIndex } = await import('../../static/js/state.js');
 
 let passed = 0;
 let failed = 0;
@@ -17,6 +33,42 @@ function check(name, actual, expected) {
     console.log(`FAIL  ${name}  -- got ${got}, want ${want}`);
   }
 }
+
+const lanes = (...names) => Object.fromEntries(names.map((name, i) => [name, i]));
+const entry = (muted = false, soloed = false) => ({ volume: 1, muted, soloed, pitch: 0 });
+function mixOf(entries) {
+  for (const key of Object.keys(mixerState)) delete mixerState[key];
+  Object.assign(mixerState, entries);
+}
+
+setTrackIndex(lanes('original', 'vocals', 'drums', 'guitar', 'piano'));
+check(
+  'a lane kept for a stem the song lacks gets no strip, and the original none',
+  stripStems(loadedLaneNames(), ['original', 'vocals', 'drums']),
+  ['vocals', 'drums'],
+);
+setTrackIndex(lanes('drums', 'lead_vocals', 'backing_vocals', 'bass'));
+check(
+  'a vocal split shows lead and backing in lane order, no plain vocals',
+  stripStems(loadedLaneNames(), ['vocals', 'bass', 'drums', 'lead_vocals', 'backing_vocals']),
+  ['drums', 'lead_vocals', 'backing_vocals', 'bass'],
+);
+
+setTrackIndex(lanes('original', 'drums', 'bass'));
+mixOf({ drums: entry(), bass: entry() });
+check('a plain lane is heard', isLaneSilenced('drums'), false);
+mixOf({ drums: entry(true), bass: entry() });
+check('a muted lane is silent', isLaneSilenced('drums'), true);
+mixOf({ drums: entry(), bass: entry(false, true) });
+check('another lane soloed silences this one', isLaneSilenced('drums'), true);
+check('the soloed lane is heard', isLaneSilenced('bass'), false);
+mixOf({ drums: entry(), bass: entry(), piano: entry(false, true) });
+check('a solo on a lane the song lacks silences nothing', isLaneSilenced('drums'), false);
+
+check('silence reads -∞', laneGainDbText(0), '-∞');
+check('half reads -6.0', laneGainDbText(0.5), '-6.0');
+check('unity reads 0.0', laneGainDbText(1), '0.0');
+check('double reads +6.0', laneGainDbText(2), '+6.0');
 
 check(
   'sections sit at their share of the song',

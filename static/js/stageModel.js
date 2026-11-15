@@ -1,6 +1,12 @@
-// Stage mode's shared helpers: section placement, kept apart from the DOM so node can test it.
+// Stage mode's helpers: which stems get a strip, where sections sit, and text written only on change.
 
 export const PERCENT = 100;
+
+/** The mixer's lanes, in lane order, that the song actually loaded: lanes kept for an absent stem get no strip. */
+export function stripStems(laneNames, loadedNames) {
+  const loaded = new Set(loadedNames);
+  return laneNames.filter((name) => loaded.has(name));
+}
 
 /** Each section's `left` and `width` as percentages of the song, its end clipped to the song's. */
 export function sectionSpans(sections, duration) {

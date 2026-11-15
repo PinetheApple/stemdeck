@@ -276,6 +276,7 @@ let visualAudioContext = null;
 let stemVuRafId = null;
 let _footerWavePeaks = null;
 export const WAVE_PEAKS_EVENT = "wavepeaks";
+export const DURATION_EVENT = "songduration";
 const announceWavePeaks = () => document.dispatchEvent(new CustomEvent(WAVE_PEAKS_EVENT));
 
 /** The open song's whole-song `[min, max]` peaks, or null until they load. Read-only. */
@@ -1417,6 +1418,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
     if (!totalDuration) setTotalDuration(mt.getDuration() || 0);
     timeEl.textContent = `00:00 / ${fmtTime(totalDuration)}`;
     buildRuler(totalDuration);
+    document.dispatchEvent(new CustomEvent(DURATION_EVENT));
     buildPresenceRuler(totalDuration);
     buildFooterWaveTicks(totalDuration);
     updateFooterTimes(0);

@@ -1,7 +1,7 @@
 // Stage mode: a full-window play-along view drawn over the lanes, so the studio keeps its size.
 // F toggles it, Esc leaves it.
 
-import { metronomeBeatsPerBar, npScrubFill, timeEl, totalDuration } from "./state.js";
+import { metronomeBeatsPerBar, npScrubFill, totalDuration } from "./state.js";
 import { togglePlayPause, stopTransport, transport } from "./transport.js";
 import { getSections, sectionDisplayName } from "./sections.js";
 import { getCurrentTrackInfo, isTextEditingTarget } from "./catalog.js";
@@ -15,6 +15,7 @@ import { refitFooter } from "./footerFit.js";
 import { initStageMixer, paintStageMixer, forgetStageMixer } from "./stageMixer.js";
 import { initStageOverview, paintStageOverview, paintStageSections, forgetStageOverview } from "./stageOverview.js";
 import { setTextOnce } from "./stageModel.js";
+import { DURATION_EVENT } from "./player.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $, fmtTime } from "./utils.js";
@@ -185,17 +186,19 @@ function onLyricsChange() {
   if (isStageMode()) paintFrame();
 }
 
+function onDurationKnown() {
+  if (isStageMode()) syncLoop();
+}
+
 /**
  * The footer's play button and scrub fill carry every play, pause and seek, whoever caused it.
- * Its time text stays put for a seek inside the same second, but it is the first to show a
- * duration that arrives after the song opened, which re-keys the sections while paused.
+ * Not its time text, which stays put for a seek inside the same second.
  */
 function watchPlayback() {
   playObserver ??= new MutationObserver(syncLoop);
   const play = $("t-play");
   if (play) playObserver.observe(play, { attributes: true, attributeFilter: ["class"] });
   if (npScrubFill) playObserver.observe(npScrubFill, { attributes: true, attributeFilter: ["style"] });
-  if (timeEl) playObserver.observe(timeEl, { childList: true, characterData: true, subtree: true });
 }
 
 export function setStageMode(on) {
@@ -275,5 +278,6 @@ export function initStageMode() {
   document.addEventListener("upnext:change", onUpNextChange);
   document.addEventListener("tempochange", onTempoChange);
   document.addEventListener("lyricschange", onLyricsChange);
+  document.addEventListener(DURATION_EVENT, onDurationKnown);
   onLanguageChange(onSongChangeInStage);
 }

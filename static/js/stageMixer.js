@@ -12,7 +12,7 @@ import {
 } from "./mixer.js";
 import { getLoadedStemNames } from "./player.js";
 import { LANE_VOLUME_MAX, STEM_COLORS, STEM_DISPLAY } from "./constants.js";
-import { PERCENT } from "./stageModel.js";
+import { PERCENT, stripStems } from "./stageModel.js";
 import { t } from "./i18n.js";
 import { $ } from "./utils.js";
 
@@ -123,8 +123,7 @@ function rebuildStrips(stems) {
 
 /** Rebuilds the strips when the loaded stems changed, then paints every strip from the mix. */
 export function paintStageMixer() {
-  const loaded = new Set(getLoadedStemNames());
-  const stems = loadedLaneNames().filter((name) => loaded.has(name));
+  const stems = stripStems(loadedLaneNames(), getLoadedStemNames());
   if (stems.join() !== shownStems) rebuildStrips(stems);
   $("stageMixerStrips")?.querySelectorAll(".stage-strip").forEach(paintStrip);
 }

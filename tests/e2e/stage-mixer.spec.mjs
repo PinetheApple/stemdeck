@@ -211,13 +211,13 @@ async function paintWithoutDuration(page) {
   await enterStage(page);
 }
 
+// The fixture's songs never take that path for real: without a stored duration they never learn one.
 /** What player.js does when the audio reports the duration after the song opened. */
-async function learnDurationLate(page, seconds, totalText) {
-  await page.evaluate(async ([sec, text]) => {
-    const state = await import("/js/state.js");
-    state.setTotalDuration(sec);
-    state.timeEl.textContent = `00:00 / ${text}`;
-  }, [seconds, totalText]);
+async function learnDurationLate(page, seconds) {
+  await page.evaluate(async (sec) => {
+    (await import("/js/state.js")).setTotalDuration(sec);
+    document.dispatchEvent(new CustomEvent((await import("/js/player.js")).DURATION_EVENT));
+  }, seconds);
 }
 
 test("a duration learnt after the song opened brings in its sections and total while paused", async ({ page }) => {
@@ -229,7 +229,7 @@ test("a duration learnt after the song opened brings in its sections and total w
   await expect(page.locator(".stage-sec")).toHaveCount(0);
   await expect(page.locator("#stageTotal")).toHaveText("00:00");
 
-  await learnDurationLate(page, FIXTURE_SECONDS, FIXTURE_TOTAL_TEXT);
+  await learnDurationLate(page, FIXTURE_SECONDS);
   await expect(page.locator("#stagePlayBtn")).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator(".stage-sec")).toHaveText(SECTIONS.map((s) => s.name));
   await expect(page.locator("#stageTotal")).toHaveText(FIXTURE_TOTAL_TEXT);
@@ -256,7 +256,7 @@ function overlaps(a, b) {
 }
 
 for (const size of SIX_STEM_WINDOWS) {
-  test(`stage fits ${size.width}x${size.height} with six strips and lyrics, every strip reachable`, async ({ page }) => {
+  test(`stage fits ${size.width}x${size.height} with six strips and lyrics, every strip in view without scrolling`, async ({ page }) => {
     await page.setViewportSize(size);
     await page.route("**/api/jobs/*/lyrics", (route) => route.fulfill({ status: 200, json: LYRICS }));
     await rewriteJobState(page, JOB_ID, borrowStems);
@@ -284,12 +284,10 @@ for (const size of SIX_STEM_WINDOWS) {
         expect(overlaps(rects[shown], rects[other]), `${shown} clear of ${other}`).toBe(false);
       }
     }
+    const mixerScrolls = await page.locator("#stageMixer").evaluate((el) => el.scrollHeight > el.clientHeight);
+    expect(mixerScrolls, "mixer panel scrolls").toBe(false);
     for (const stem of ALL_STEMS) {
-      const solo = strip(page, stem).locator(".stage-ms.solo");
-      await solo.scrollIntoViewIfNeeded();
-      await expect(solo).toBeInViewport();
-      await solo.click();
-      await expect(solo).toHaveAttribute("aria-pressed", "true");
+      await expect(strip(page, stem).locator(".stage-ms.solo")).toBeInViewport({ ratio: 1 });
     }
   });
 }
