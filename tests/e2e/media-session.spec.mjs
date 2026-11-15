@@ -56,12 +56,16 @@ function library() {
 async function recordMediaSession(page) {
   await page.addInitScript(() => {
     const session = navigator.mediaSession;
-    const record = { handlers: {}, positions: [], anchors: [] };
+    const record = { handlers: {}, positions: [], anchors: [], anchorPlays: 0 };
     window.__media = record;
+    const countAnchorPlay = () => { record.anchorPlays += 1; };
     const play = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function recordAnchor() {
       const isAnchor = this.getAttribute("src")?.startsWith("blob:");
-      if (isAnchor && !record.anchors.includes(this)) record.anchors.push(this);
+      if (isAnchor && !record.anchors.includes(this)) {
+        record.anchors.push(this);
+        this.addEventListener("playing", countAnchorPlay);
+      }
       return play.call(this);
     };
     const setActionHandler = session.setActionHandler.bind(session);
@@ -74,8 +78,23 @@ async function recordMediaSession(page) {
       record.positions.push(state ?? null);
       setPositionState(state);
     };
+    const playbackState = Object.getOwnPropertyDescriptor(MediaSession.prototype, "playbackState");
+    record.states = [];
+    Object.defineProperty(session, "playbackState", {
+      get: () => playbackState.get.call(session),
+      set: function recordPlaybackState(state) {
+        record.states.push(state);
+        playbackState.set.call(session, state);
+      },
+    });
   });
 }
+
+const anchorPlays = (page) => page.evaluate(() => window.__media.anchorPlays);
+
+const statesSent = (page) => page.evaluate(() => window.__media.states.length);
+
+const statesSince = (page, from) => page.evaluate((at) => window.__media.states.slice(at), from);
 
 async function openWithMediaSession(page) {
   await recordMediaSession(page);
@@ -353,13 +372,16 @@ test.describe("system media controls", () => {
     await openWithMediaSession(page);
     await openClickOptions(page);
     await page.locator("#t-metro-countin").selectOption("1");
+    const statesBefore = await statesSent(page);
 
     await runAction(page, "play");
+    await expect.poll(() => anchorPlays(page)).toBe(1);
     await page.waitForTimeout(LEAD_IN_SETTLE_MS);
     const sentBefore = await positionsSent(page);
     await page.waitForTimeout(LEAD_IN_WATCH_MS);
     expect(await positionsSent(page)).toBe(sentBefore);
     expect(await playbackState(page)).toBe("paused");
+    expect(await statesSince(page, statesBefore)).not.toContain("playing");
 
     await expectPlaying(page, true);
     await expect.poll(async () => (await lastPosition(page))?.position).toBeGreaterThan(0);

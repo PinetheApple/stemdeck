@@ -76,11 +76,13 @@ function reportPosition(moving) {
   reported = { state, playing: moving, atMs: now };
 }
 
+const motionPlaybackState = () => (motion.moving ? PLAYBACK.PLAYING : PLAYBACK.PAUSED);
+
 // Playing only once the playhead moves, so a count-in reads as paused at its start.
 function syncPlayback() {
   if (!openTrackId) return;
   motion = nextMotion(motion, isPlaying(), currentPosition());
-  const state = motion.moving ? PLAYBACK.PLAYING : PLAYBACK.PAUSED;
+  const state = motionPlaybackState();
   if (session.playbackState !== state) session.playbackState = state;
   reportPosition(motion.moving);
 }
@@ -144,7 +146,7 @@ function resendMediaState() {
   if (!openTrackId) return;
   reported = null;
   syncMetadata();
-  session.playbackState = isPlaying() ? PLAYBACK.PLAYING : PLAYBACK.PAUSED;
+  session.playbackState = motionPlaybackState();
   reportPosition(motion.moving);
 }
 
