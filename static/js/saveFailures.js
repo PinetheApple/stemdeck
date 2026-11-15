@@ -2,11 +2,13 @@
 import { t } from "./i18n.js";
 import { notifyFailure, dismissFailuresByJobId, getFailures } from "./notifications.js";
 import { CONNECTION_RESTORED_EVENT, checkConnectionNow } from "./connection.js";
+import { FOLDER_MOVING_KEY, refusedForFolderMove } from "./folderMoving.js";
 
 export const SAVE_KIND = { sections: "sections", beatgrid: "beatgrid", tempo: "tempo" };
 export const SAVE_REFUSED = "refused";
 export const SAVE_LOST = "lost";
 export const RESET_FAILED = "reset";
+export const SAVE_FOLDER_MOVING = "folderMoving";
 
 const MESSAGE_KEYS = {
   [SAVE_KIND.sections]: { [SAVE_REFUSED]: "notif.sectionsSaveFailed", [SAVE_LOST]: "notif.sectionsSavePending" },
@@ -18,11 +20,19 @@ const MESSAGE_KEYS = {
   [SAVE_KIND.tempo]: { [SAVE_REFUSED]: "notif.tempoSaveFailed", [SAVE_LOST]: "notif.tempoSavePending" },
 };
 
-/** The server answered a save with an error status. */
+const messageKey = (kind, how) => (how === SAVE_FOLDER_MOVING ? FOLDER_MOVING_KEY : MESSAGE_KEYS[kind][how]);
+
+/** How the save answered `res` failed: refused for the stems folder move, else `otherwise`. */
+export async function refusalOf(res, otherwise = SAVE_REFUSED) {
+  return (await refusedForFolderMove(res)) ? SAVE_FOLDER_MOVING : otherwise;
+}
+
+/** The server answered a save with an error status; `how` is what refusalOf made of it. */
 export class SaveRefusedError extends Error {
-  constructor(status) {
+  constructor(status, how = SAVE_REFUSED) {
     super(`save refused: ${status}`);
     this.status = status;
+    this.how = how;
   }
 }
 
@@ -32,7 +42,7 @@ export function notifySaveFailure(kind, how, jobId) {
   if (shown) return;
   notifyFailure({
     kind,
-    message: t(MESSAGE_KEYS[kind][how]),
+    message: t(messageKey(kind, how)),
     context: { jobId, how },
   });
 }
@@ -101,11 +111,11 @@ export class UnconfirmedSaves {
     forgetOwnResend(this.kind, id);
   }
 
-  /** The server refused `sent`. True when it was the newest, so the song goes back to what is saved. */
-  refuse(id, sent) {
+  /** The server refused `sent` (`how`). True when it was the newest, so the song goes back to what is saved. */
+  refuse(id, sent, how = SAVE_REFUSED) {
     const newest = this.#isNewest(id, sent);
     if (newest) this.#forget(id);
-    notifySaveFailure(this.kind, SAVE_REFUSED, id);
+    notifySaveFailure(this.kind, how, id);
     return newest;
   }
 

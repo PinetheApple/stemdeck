@@ -11,6 +11,7 @@ globalThis.localStorage = { getItem: () => null, setItem: () => {} };
 const { LANGUAGES, TRANSLATIONS } = await import("../../static/js/i18n.js");
 const { HTTP_CONFLICT } = await import("../../static/js/lyricsTranscribe.js");
 const {
+  EDIT_FOLDER_MOVING_DETAIL,
   FOLDER_MOVING_DETAIL,
   FOLDER_MOVING_KEY,
   SPLIT_FOLDER_MOVING_DETAIL,
@@ -36,6 +37,7 @@ const FALLBACK = { "pt-PT": "pt" };
 
 check("the move's refusal is told apart", isFolderMoving(HTTP_CONFLICT, MOVING));
 check("so is the split's", isFolderMoving(HTTP_CONFLICT, { detail: SPLIT_FOLDER_MOVING_DETAIL }));
+check("and an edit's", isFolderMoving(HTTP_CONFLICT, { detail: EDIT_FOLDER_MOVING_DETAIL }));
 check("another conflict is not it", !isFolderMoving(HTTP_CONFLICT, { detail: "already looking" }));
 check("the sentence on another status is not it", !isFolderMoving(SERVER_ERROR, MOVING));
 check("no body is not it", !isFolderMoving(HTTP_CONFLICT, null));
@@ -58,6 +60,7 @@ check("the user's own words: said in their language", problem.key === FOLDER_MOV
 const server = readFileSync(new URL("../../app/api/jobs.py", import.meta.url), "utf8");
 check("the server's lyrics sentence", server.includes(`STEMS_FOLDER_MOVING = "${FOLDER_MOVING_DETAIL}"`));
 check("the server's split sentence", server.includes(`"${SPLIT_FOLDER_MOVING_DETAIL}"`));
+check("the server's edit sentence", server.includes(`STEMS_FOLDER_MOVING_EDIT = "${EDIT_FOLDER_MOVING_DETAIL}"`));
 
 for (const { code } of LANGUAGES) {
   const table = { ...(TRANSLATIONS[FALLBACK[code]] ?? {}), ...TRANSLATIONS[code] };

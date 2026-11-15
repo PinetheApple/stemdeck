@@ -32,6 +32,7 @@ import { KEYBOARD_FOCUS, ON_ROW, OUT_OF_TAB_ORDER, ROW_KEY, ROW_PLAY_CLASS, isSh
 import { icon } from "./libraryIcons.js";
 import { HTTP_NOT_FOUND, fetchJson, isNotFound } from "./libraryControls.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
+import { FOLDER_MOVING_KEY, refusedForFolderMove } from "./folderMoving.js";
 import { lookupArtist } from "./artistLookup.js";
 import { HELD_DROP, HELD_SEND, HTTP_UNPROCESSABLE, heldBandAction, libraryArtist, mergedBand, sendHeldBand, uploadBands } from "./trackBand.js";
 import {
@@ -1259,6 +1260,9 @@ function resendUnconfirmedTrash() {
   return Promise.all(Object.entries(_unconfirmedTrashState).map(([id, trashed]) => sendTrashChange(id, trashed)));
 }
 
+// notifications.js KIND_KEYS.
+const FAVORITE_KIND = "favorite";
+
 /**
  * Tell the server a track was favourited or taken back out (#734).
  *
@@ -1275,6 +1279,7 @@ async function syncFavoriteToServer(trackId, favorite) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ favorite }),
     });
+    if (await refusedForFolderMove(res)) notifyFailure({ kind: FAVORITE_KIND, message: i18nT(FOLDER_MOVING_KEY) });
     return res.ok;
   } catch (e) {
     console.warn(`[catalog] could not save the favourite for ${trackId}`, e);
