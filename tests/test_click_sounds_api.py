@@ -32,13 +32,16 @@ from app.core.config import (
     CLICK_GAIN_DEFAULT,
     CLICK_MULT_DEFAULT,
     CLICK_STEM_NAME,
+    EXPORT_ENCODE_ARGS,
     EXTRA_STEM_NAMES,
     RENDERED_TRACK_NAMES,
+    STEM_FORMAT_MP3,
     STEM_NAMES,
     ffmpeg_executable,
 )
 from app.core.models import Job
 from app.core.registry import _jobs
+from app.core.stem_files import MP3_EXT, MP3_STEMS_MARKER
 from app.pipeline import click_sounds as cs
 from app.pipeline.click_render import ACCENT_AUTO, LEVEL_DOWNBEAT, beat_level, render_click_wav
 from tests.ffmpeg_probe import skip_without_ffmpeg
@@ -59,6 +62,7 @@ ONSET_THRESHOLD = 0.02
 LIVE_LEVEL_TOLERANCE_DB = 0.05
 INT16_LSB = 1 / 32767
 MP3_FRAME_SAMPLES = 1152
+SF_FORMAT_MP3 = "MP3"
 
 
 @pytest.fixture(autouse=True)
@@ -245,6 +249,48 @@ async def test_the_zip_click_is_in_the_zips_format_and_length(client, jobs_dir, 
         # Both went through the same encoder from the same frame count; lossy
         # decoded lengths can still differ by the codec's framing.
         assert abs(b.frames - a.frames) <= MP3_FRAME_SAMPLES
+
+
+def _store_stems_as_mp3(jobs_dir: Path) -> None:
+    """The job's stems as an MP3-stored song keeps them: MP3s and the marker, no WAVs."""
+    stems = jobs_dir / JOB / "stems"
+    for wav in stems.glob("*.wav"):
+        subprocess.run(
+            [
+                ffmpeg_executable(),
+                "-nostdin",
+                "-loglevel",
+                "error",
+                "-i",
+                str(wav),
+                *EXPORT_ENCODE_ARGS[STEM_FORMAT_MP3],
+                str(wav.with_suffix(MP3_EXT)),
+            ],
+            check=True,
+            timeout=60,
+        )
+        wav.unlink()
+    (stems / MP3_STEMS_MARKER).touch()
+
+
+async def test_the_zip_click_of_mp3_stored_stems_is_an_mp3_beside_them(client, jobs_dir):
+    """Stems stored as MP3 go into an MP3 zip as they are, and the click file
+    joins them as an MP3 with their rate, channels and length."""
+    skip_without_ffmpeg()
+    _make_job(jobs_dir)
+    _store_stems_as_mp3(jobs_dir)
+    stored = (jobs_dir / JOB / "stems" / f"drums{MP3_EXT}").read_bytes()
+    async with client as c:
+        r = await c.get(f"/api/jobs/{JOB}/stems/all.zip?format={STEM_FORMAT_MP3}&click=1")
+    assert r.status_code == 200
+    zf = _zip(r.content)
+    assert sorted(zf.namelist()) == ["Clicky_click.mp3", "Clicky_drums.mp3", "Clicky_vocals.mp3"]
+    assert zf.read("Clicky_drums.mp3") == stored, "a stored MP3 is zipped as it is"
+    stem = sf.info(io.BytesIO(zf.read("Clicky_drums.mp3")))
+    click = sf.info(io.BytesIO(zf.read("Clicky_click.mp3")))
+    assert click.format == stem.format == SF_FORMAT_MP3, "MP3 data, not just an .mp3 name"
+    assert (click.samplerate, click.channels) == (stem.samplerate, stem.channels)
+    assert abs(click.frames - stem.frames) <= MP3_FRAME_SAMPLES
 
 
 async def test_no_grid_means_no_click_file_not_an_error(client, jobs_dir):
