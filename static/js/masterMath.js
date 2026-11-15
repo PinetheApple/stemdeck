@@ -18,6 +18,12 @@ export const MASTER_LIMITS = Object.freeze({
 
 /** Lossy exports never go above this ceiling. */
 export const LOSSY_CEILING_DBTP = -1.5;
+/** Export formats the lossy ceiling applies to (mp4 for its AAC audio). */
+export const LOSSY_EXPORT_FORMATS = Object.freeze(["mp3", "ogg", "mp4"]);
+
+export function isLossyFormat(format) {
+  return LOSSY_EXPORT_FORMATS.includes(format);
+}
 /** The limiter sits this far under the ceiling. */
 export const LIMITER_MARGIN_DB = 0.1;
 
