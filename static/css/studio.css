@@ -270,7 +270,11 @@
 .daw-sections-header .daw-label-title { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
 
 /* ── Transport bar ── */
-.footer-row-controls { align-items: center; padding: var(--s-2) var(--s-3); }
+.footer-row-controls { align-items: center; padding: var(--s-2) var(--s-4); }
+/* Just wide enough for one row with Record: give back a spacing step so it fits with slack. */
+@media (min-width: 1240px) and (max-width: 1319px) {
+  .footer-row-controls { padding-inline: var(--s-3); }
+}
 /* The strip's overflow clips vertically, so this is the room focus rings need. */
 .footer-clusters { align-items: center; padding-block: var(--s-1); }
 .footer-clusters > .footer-group { flex-direction: row; align-items: center; gap: var(--s-2); }
