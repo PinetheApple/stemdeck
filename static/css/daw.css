@@ -891,9 +891,10 @@ input, textarea { font-family: inherit; }
 
 /* Reordering. Position in a serial queue is the difference between "ready now"
    and "ready in half an hour", so waiting rows drag. */
-.queue-row.queue-waiting { cursor: grab; }
-.queue-row.dragging { opacity: 0.4; cursor: grabbing; }
-.queue-row.drop-below { box-shadow: 0 2px 0 0 var(--accent); }
+.queue-row.queue-waiting,
+.upnext-row[draggable="true"] { cursor: grab; }
+:is(.queue-row, .upnext-row).dragging { opacity: 0.4; cursor: grabbing; }
+:is(.queue-row, .upnext-row).drop-below { box-shadow: 0 2px 0 0 var(--accent); }
 .queue-grip {
   display: flex; align-items: center; flex-shrink: 0;
   margin-right: -2px; color: var(--muted); opacity: 0;

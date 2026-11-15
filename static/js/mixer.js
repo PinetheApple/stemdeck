@@ -38,6 +38,20 @@ export function ensureMixerStateDefaults() {
 }
 
 let globalPitch = 0;
+// Never saved: a view's silence must not leak into the song's mix.
+const silencedStems = new Set();
+
+/** Silence `stemNames` on top of the mix, leaving the mix itself alone. */
+export function setSilencedStems(stemNames) {
+  silencedStems.clear();
+  for (const stemName of stemNames) silencedStems.add(stemName);
+  applyMix();
+}
+
+export function clearSilencedStems() {
+  silencedStems.clear();
+  applyMix();
+}
 
 export function mixGlobalPitch() {
   return globalPitch;
@@ -46,6 +60,7 @@ export function mixGlobalPitch() {
 const mixKey = (jobId) => `stemdeck:mix:${jobId}`;
 
 export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES) {
+  silencedStems.clear();
   let stored = {};
   try {
     // Write any pending save for this song before reading it.
@@ -65,6 +80,7 @@ export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES) {
 }
 
 export function resetMixerState() {
+  silencedStems.clear();
   for (const name of allTrackNames()) {
     Object.assign(mixerState[name], defaultMixerEntry());
   }
@@ -181,12 +197,14 @@ export function setLaneKeysAvailable(available) {
 
 export function applyMix() {
   if (!multitrack) return;
-  const anySolo = allTrackNames().some((name) => trackIndex[name] !== undefined && mixerState[name]?.soloed);
+  const anySolo = allTrackNames().some(
+    (name) => trackIndex[name] !== undefined && mixerState[name]?.soloed && !silencedStems.has(name),
+  );
   for (const name of allTrackNames()) {
     const s = mixerState[name];
     if (!s) continue;
     let effective = s.volume;
-    if (s.muted) effective = 0;
+    if (s.muted || silencedStems.has(name)) effective = 0;
     else if (anySolo && !s.soloed) effective = 0;
     const idx = trackIndex[name];
     if (idx === undefined) continue;
