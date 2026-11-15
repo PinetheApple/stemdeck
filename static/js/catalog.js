@@ -3013,6 +3013,18 @@ export function setVersionsExpanded(trackId, expanded) {
   render();
 }
 
+/** Open the folder holding a song, and every folder above it, so its row shows. */
+export function expandFoldersOf(trackId) {
+  let folder = folders.find((f) => f.id !== TRASH_ID && f.items.includes(trackId));
+  while (folder) {
+    folder.collapsed = false;
+    const { parentId } = folder;
+    folder = folders.find((f) => f.id === parentId);
+  }
+  saveState();
+  render();
+}
+
 /** Take the server's versions for a known song; whether anything changed. */
 function applyServerVersions(track, state) {
   if (!state.versions) return false;
