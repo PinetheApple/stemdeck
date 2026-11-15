@@ -1,13 +1,5 @@
-"""The decode-and-verify loop of mastered lossy exports (app/api/export_fx.py).
-
-- A render reaches the cache only once it is verified, with its decoded
-  measurement written beside it first; a cache hit without one is decoded and
-  measured again, and an entry over its ceiling is rendered again.
-- Every pass's temp file is removed: on success, failure, a client that left
-  (499) and a cancelled request. Notes are pruned with their cache entry.
-- A region corrects only its ceiling, keeping the whole song's gain, and its
-  Target-Reached follows the plan, as a lossless region's does.
-"""
+"""Mastered lossy exports: verified before they are cached, temp files never left
+behind, notes pruned with their entry, and a region held to the song's plan."""
 
 from __future__ import annotations
 
@@ -55,7 +47,11 @@ def _note(entry):
 
 
 async def test_a_lossy_render_is_published_only_once_verified(
-    jobs_dir, client, monkeypatch, renders, tmp_path
+    jobs_dir,
+    client,
+    monkeypatch,
+    renders,
+    tmp_path,
 ):
     _job(jobs_dir, seconds=0.5)
     _fake_plan(monkeypatch, [])
@@ -77,7 +73,10 @@ async def test_a_lossy_render_is_published_only_once_verified(
 
 
 async def test_a_cache_hit_without_its_note_is_measured_again(
-    jobs_dir, client, monkeypatch, renders
+    jobs_dir,
+    client,
+    monkeypatch,
+    renders,
 ):
     _job(jobs_dir, seconds=0.5)
     _fake_plan(monkeypatch, [])
@@ -94,7 +93,10 @@ async def test_a_cache_hit_without_its_note_is_measured_again(
 
 
 async def test_a_cache_hit_over_its_ceiling_is_rendered_again(
-    jobs_dir, client, monkeypatch, renders
+    jobs_dir,
+    client,
+    monkeypatch,
+    renders,
 ):
     _job(jobs_dir, seconds=0.5)
     _fake_plan(monkeypatch, [])
@@ -108,7 +110,11 @@ async def test_a_cache_hit_over_its_ceiling_is_rendered_again(
 
 
 async def test_a_failed_measurement_leaves_no_file(
-    jobs_dir, client, monkeypatch, renders, tmp_path
+    jobs_dir,
+    client,
+    monkeypatch,
+    renders,
+    tmp_path,
 ):
     _job(jobs_dir, seconds=0.5)
     _fake_plan(monkeypatch, [])
@@ -189,7 +195,12 @@ def test_notes_are_pruned_with_their_entry_and_never_counted(tmp_path, monkeypat
     ]
 
 
-async def test_a_lossy_region_corrects_only_its_ceiling(jobs_dir, client, monkeypatch, renders):
+async def test_a_lossy_region_corrects_only_its_ceiling(
+    jobs_dir,
+    client,
+    monkeypatch,
+    renders,
+):
     _job(jobs_dir, seconds=0.5)
     _fake_plan(monkeypatch, [])
     _decoded_sequence(monkeypatch, [Loudness(-16.0, -0.5, 5.0), Loudness(-16.2, -2.0, 5.0)])
@@ -202,3 +213,34 @@ async def test_a_lossy_region_corrects_only_its_ceiling(jobs_dir, client, monkey
     assert gains[0] == gains[1] and limits[1] < limits[0]
     assert r.headers["x-stemdeck-target-reached"] == "1"
     assert r.headers["x-stemdeck-loudness-post"] == PLAN_POST
+
+
+async def test_an_entry_pruned_while_it_is_measured_again_is_a_miss(
+    jobs_dir,
+    client,
+    monkeypatch,
+    renders,
+):
+    _job(jobs_dir, seconds=0.5)
+    _fake_plan(monkeypatch, [])
+    async with client as c:
+        assert (await c.get(MP3)).status_code == 200
+        [entry] = _entries()
+        _note(entry).unlink()
+
+        async def pruned_meanwhile(path, rate):
+            entry.unlink(missing_ok=True)
+            return UNDER
+
+        monkeypatch.setattr(export_fx, "measure_file", pruned_meanwhile)
+        r = await c.get(MP3)
+    assert r.status_code == 200 and len(renders) == 2
+    notes = stems_mod._MIXDOWN_CACHE_DIR.glob(f"*{export_fx.OUTPUT_NOTE_SUFFIX}")
+    assert [n.name for n in notes] == [_note(entry).name] and entry.is_file()
+
+
+def test_a_note_whose_entry_is_gone_is_pruned(tmp_path):
+    entry = tmp_path / "gone.mp3"
+    _note(entry).write_text("{}")
+    stems_mod._prune_mixdown_cache(tmp_path)
+    assert not _note(entry).exists()

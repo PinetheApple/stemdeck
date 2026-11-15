@@ -39,6 +39,8 @@ from tests.ffmpeg_probe import skip_without_ffmpeg
 
 SR = 44100
 STREAMING = MasterSettings(-14.0, -1.0)
+# One lane up to [pre], as app/api/export_fx.py measures a single stem.
+ONE_LANE_GRAPH = "[0:a]anull[a0];[a0]anull[pre]"
 INTEGRATION_TOLERANCE_LU = 0.5
 
 
@@ -156,14 +158,6 @@ def test_filter_strings_carry_only_numbers():
         for opt in opts.split(":"):
             value = opt.split("=")[-1]
             assert value in {"rms", "average", "disabled"} or float(value) == float(value)
-
-
-def test_plan_graph_sums_lanes_and_ends_in_pre():
-    assert m.plan_graph(["volume=0.5"], "") == "[0:a]volume=0.5[a0];[a0]anull[pre]"
-    assert m.plan_graph(["anull", "volume=2"], "biquad=b0=1.0,") == (
-        "[0:a]anull[a0];[1:a]volume=2[a1];"
-        "[a0][a1]amix=inputs=2:normalize=0,biquad=b0=1.0,anull[pre]"
-    )
 
 
 def test_meter_output_parser_takes_the_last_values():
@@ -446,7 +440,7 @@ def test_a_tone_is_mastered_to_the_target_under_the_ceiling(tmp_path, plan_dir):
     skip_without_ffmpeg()
     src = tmp_path / "tone.wav"
     sf.write(src, _tone_with_spikes(), SR, subtype="PCM_16")
-    graph = m.plan_graph(["anull"], "")
+    graph = ONE_LANE_GRAPH
     plan = asyncio.run(cache.cached_plan([src], graph, STREAMING, "wav", SR))
     x = _render(tmp_path, src, graph, m.plan_chain(plan, SR))
     lufs = pyloudnorm.Meter(SR).integrated_loudness(x)

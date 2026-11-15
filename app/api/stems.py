@@ -12,6 +12,8 @@ import threading
 import uuid
 import zipfile
 from collections import deque
+from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from typing import Annotated, NamedTuple
 
@@ -196,6 +198,36 @@ def _prune_mixdown_cache(cache_dir: Path, keep: Path | None = None) -> None:
             export_fx.note_path(oldest).unlink(missing_ok=True)
         except OSError:
             logger.debug("mixdown cache prune: could not remove %s", oldest, exc_info=True)
+    _prune_orphan_notes(cache_dir)
+
+
+def _prune_orphan_notes(cache_dir: Path) -> None:
+    """Drop the notes of verified renders whose entry is gone."""
+    suffix = export_fx.OUTPUT_NOTE_SUFFIX
+    try:
+        for note in cache_dir.glob(f"*{suffix}"):
+            if not note.with_name(note.name.removesuffix(suffix)).is_file():
+                note.unlink(missing_ok=True)
+    except OSError:
+        logger.debug("mixdown cache prune: could not clear notes in %s", cache_dir, exc_info=True)
+
+
+async def _measured_click(
+    names: list[str],
+    master: str,
+    click_lane: _ClickLane | None,
+    whole_song_click: Callable[[], _ClickLane | None],
+) -> export_fx.ClickInput | None:
+    """The click the master is measured with: the whole song's, and only when
+    a take's limiter sums it with the music (else the loudness is the music's)."""
+    if not master or click_lane is None or not takes_lanes.has_take_lane(names):
+        return None
+    if click_lane.count_in:
+        click_lane = await asyncio.to_thread(whole_song_click)
+        if click_lane is None:
+            return None
+    level = stems_click.click_level_filter(click_lane.gain)
+    return export_fx.ClickInput(click_lane.path, level)
 
 
 def _validate_stem_path(job_id: str, name: str):
@@ -1213,23 +1245,32 @@ async def get_mixdown(
     # stale cache entry from before the job was removed.
     render_lanes, unpitched = _expand_render_lanes(job_id, names, parsed_gains, parsed_pitches)
     paths = [lane.path for lane in render_lanes]
-    export = await export_fx.prepare_export(
-        render_lanes, fx, master, ext, _pitch_filter, region=start is not None
-    )
 
     media_type = AUDIO_MEDIA_TYPES[ext]
-    click_lane = await asyncio.to_thread(
+    whole_song_click = partial(
         _click_lane,
         job_id,
         click,
         click_mult,
         click_accent,
         click_gain,
+        groups=_parse_groups(click_groups, click_accent),
+        sound=click_sound,
+    )
+    click_lane = await asyncio.to_thread(
+        whole_song_click,
         count_in_bars=count_in,
         start=start,
         end=end,
-        groups=_parse_groups(click_groups, click_accent),
-        sound=click_sound,
+    )
+    export = await export_fx.prepare_export(
+        render_lanes,
+        fx,
+        master,
+        ext,
+        _pitch_filter,
+        region=start is not None,
+        click=await _measured_click(names, master, click_lane, whole_song_click),
     )
     cache_key = _mixdown_cache_key(
         job_id,
@@ -1400,17 +1441,10 @@ async def get_video_mixdown(
     # and rebuilds a transposed "original" lane from its parts.
     render_lanes, _unpitched = _expand_render_lanes(job_id, names, parsed_gains, parsed_pitches)
     paths = [lane.path for lane in render_lanes]
-    export = await export_fx.prepare_export(
-        render_lanes,
-        fx,
-        master,
-        EXPORT_AUDIO_CODEC_AAC,
-        _pitch_filter,
-    )
 
     # Click is one more audio input. It must be appended before the video input
     # so the audio indices the filter graph references stay contiguous from 0.
-    click_lane = await asyncio.to_thread(
+    whole_song_click = partial(
         _click_lane,
         job_id,
         click,
@@ -1418,6 +1452,15 @@ async def get_video_mixdown(
         click_accent,
         click_gain,
         sound=stems_click.check_click_sound(click_sound),
+    )
+    click_lane = await asyncio.to_thread(whole_song_click)
+    export = await export_fx.prepare_export(
+        render_lanes,
+        fx,
+        master,
+        EXPORT_AUDIO_CODEC_AAC,
+        _pitch_filter,
+        click=await _measured_click(names, master, click_lane, whole_song_click),
     )
     if click_lane is not None:
         paths = [*paths, click_lane[0]]

@@ -29,8 +29,8 @@ The plan is always made on the whole song, so a region export gets exactly the
 gain of the full master; app/pipeline/master_plan_cache.py keeps it on disk.
 
 The caller supplies the graph of the whole song up to the label ``[pre]``
-(``plan_graph`` builds one from per-lane chains); this module never builds the
-lanes itself. ``parse_master_param`` validates the ``master=`` export
+(app/api/export_fx.py builds it as the render sums the lanes); this module
+never builds the lanes itself. ``parse_master_param`` validates the ``master=`` export
 parameter: base64url JSON, size-capped, every field typed and range-checked,
 every refusal a ``MasterError`` whose message is safe to show as a 422.
 """
@@ -314,20 +314,6 @@ def plan_chain(
     )
 
 
-def plan_graph(lane_chains: list[str], master_eq: str) -> str:
-    """Input i through ``lane_chains[i]``, summed, then the master EQ (""
-    or a prefix ending in a comma), labelled [pre]. No click: the loudness is
-    set for the music, not the practice aid."""
-    filters = [f"[{i}:a]{chain}[a{i}]" for i, chain in enumerate(lane_chains)]
-    n = len(lane_chains)
-    if n > 1:
-        labels = "".join(f"[a{i}]" for i in range(n))
-        filters.append(f"{labels}amix=inputs={n}:normalize=0,{master_eq}anull[pre]")
-    else:
-        filters.append(f"[a0]{master_eq}anull[pre]")
-    return ";".join(filters)
-
-
 def meter_filter(rate: int) -> str:
     """One-second frames (a line a second, not ten), ebur128's cumulative
     values as printed metadata; the last values cover the whole signal."""
@@ -440,6 +426,35 @@ async def _comp_loudness(
     return (await measure(inputs, graph, comp_filter(comp, threshold), rate)).i
 
 
+async def _gain_under_ceiling(
+    target: float | None,
+    level: float | None,
+    ceiling_db: float,
+    run: Callable[..., Awaitable[Loudness]],
+) -> tuple[float, float, float, Loudness]:
+    """The gain toward ``target`` from ``level``, then the ceiling held (master_ceiling)."""
+    no_gain = target is None or level is None
+    gain = 0.0 if no_gain else clamp_gain(target - level)
+    post = await run(gain)
+    if not no_gain:
+        gain, post = await _settle_gain(gain, post, target, run)
+    return await hold_ceiling(gain, post, target, ceiling_db, run)
+
+
+async def _levels(
+    inputs: list[str],
+    graph: str,
+    settings: MasterSettings,
+    rate: int,
+    measure: Measurer,
+) -> tuple[Loudness, float | None, float | None]:
+    """The mix's loudness, the glue compressor's threshold and the loudness after it."""
+    pre = await measure(inputs, graph, "", rate)
+    threshold = comp_threshold_db(settings.comp, settings.target, pre.i)
+    comp_i = await _comp_loudness(inputs, graph, settings.comp, threshold, rate, measure)
+    return pre, threshold, comp_i
+
+
 async def run_plan(
     inputs: list[str],
     graph: str,
@@ -449,21 +464,14 @@ async def run_plan(
     measure: Measurer = measure_chain,
 ) -> MasterPlan:
     """Measure the mix and decide the gain and trim. ``graph`` ends in the label [pre]."""
-    pre = await measure(inputs, graph, "", rate)
-    threshold = comp_threshold_db(settings.comp, settings.target, pre.i)
-    comp_i = await _comp_loudness(inputs, graph, settings.comp, threshold, rate, measure)
+    pre, threshold, comp_i = await _levels(inputs, graph, settings, rate, measure)
     level = pre.i if threshold is None else comp_i
 
     async def run(gain: float, offset: float = 0.0, trim: float = 0.0) -> Loudness:
         chain = master_chain(settings.comp, threshold, gain, ceiling_db, rate, offset, trim)
         return await measure(inputs, graph, chain, rate)
 
-    no_gain = settings.target is None or level is None
-    gain = 0.0 if no_gain else clamp_gain(settings.target - level)
-    post = await run(gain)
-    if not no_gain:
-        gain, post = await _settle_gain(gain, post, settings.target, run)
-    gain, offset, trim, post = await hold_ceiling(gain, post, settings.target, ceiling_db, run)
+    gain, offset, trim, post = await _gain_under_ceiling(settings.target, level, ceiling_db, run)
     return MasterPlan(
         target=settings.target,
         ceiling=ceiling_db,

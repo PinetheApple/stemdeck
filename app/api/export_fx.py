@@ -1,13 +1,11 @@
 """The studio EQ and the master in the exports: the ``fx=`` and ``master=``
 parameters of GET mixdown.{ext} and video.mp4, turned into ffmpeg filters.
 
-Per input, the lane's EQ runs first (before the pitch shift, as the live
-engine's EQ slot sits between the lane gain and the pitch bus); after the sum,
-the master EQ and then the master chain (glue compressor, planned gain, true
-peak limiter, trim). The click joins the sum before the master chain, as it
-does live, but carries no lane EQ and is left out of the loudness measurement:
-the loudness is set for the music, not the practice aid. Each piece of an
-"original" lane rebuilt from its component stems gets the "original" EQ.
+Per input, the lane's EQ runs first (before the pitch shift, as live); after
+the sum, the master EQ and then the master chain (glue compressor, planned
+gain, true peak limiter, trim). The click joins the sum before the master
+chain, as it does live, with no lane EQ. The loudness is set for the music, so
+the click is measured only where a take's limiter has already summed the two.
 
 With no EQ that changes the sound and no master, the graph and the render
 cache key carry nothing of either, so such an export is bit-identical to one
@@ -16,13 +14,12 @@ app/pipeline/fx_filters.py and app/pipeline/mastering.py from validated
 numbers; every refusal is a 422 with a message safe to show.
 
 The master is measured on the whole song at the export rate (the plan is kept
-by app/pipeline/master_plan_cache.py), so a region export gets the full
-master's gain. A lossy encoder adds peak the graph cannot see, so a mastered
-mp3, ogg or video is decoded and measured, and rendered again with a lower
-limit while it is over its capped ceiling (a region keeps the song's gain and
-corrects only that). Only a verified render reaches the render cache, with its
-decoded measurement in a note beside it; an entry with no note is measured
-again. The response carries the final measurement as X-StemDeck-* headers.
+by app/pipeline/master_plan_cache.py), so a region gets the full master's
+gain. A lossy encoder adds peak the graph cannot see, so a mastered mp3, ogg or
+video is decoded, measured and rendered again with a lower limit while over
+its capped ceiling. Only a verified render reaches the render cache, its
+decoded measurement in a note beside it. The response carries the final
+measurement as X-StemDeck-* headers.
 """
 
 from __future__ import annotations
@@ -234,23 +231,46 @@ def lane_chain(eq: str, pitch: str, gain: float, delay: str = "") -> str:
     return f"{eq}{pitch}{delay}volume={gain:.6f}"
 
 
+class ClickInput(NamedTuple):
+    """The whole song's click as the render sums it: its file and level filter."""
+
+    path: Path
+    level: str
+
+
+def measurement_graph(
+    lane_chains: list[str],
+    names: list[str],
+    master_eq: str,
+    click_level: str | None = None,
+) -> str:
+    """Input i through ``lane_chains[i]`` and the click (when given) summed as
+    the render sums them, take limiter included, then the master EQ, to [pre]."""
+    filters = [f"[{i}:a]{chain}[a{i}]" for i, chain in enumerate(lane_chains)]
+    if click_level is not None:
+        filters.append(f"[{len(filters)}:a]{click_level}[a{len(filters)}]")
+    label = takes_lanes.sum_lanes(filters, len(filters), names)
+    return ";".join([*filters, f"{label}{master_eq}anull[pre]"])
+
+
 async def _measured_plan(
     lanes: Sequence[RenderLaneLike],
     render_fx: RenderFx,
     settings: MasterSettings,
     output_format: str,
     pitch_filter: Callable[[int], str],
+    click: ClickInput | None,
 ) -> tuple[MasterPlan, int]:
-    """The whole song's master for these music lanes, summed as the render
-    sums them (take limiter included), and the rate it runs at."""
+    """The whole song's master for these lanes (and ``click``), and the rate it runs at."""
     rate = get_export_sample_rate()
-    filters = [
-        f"[{i}:a]{lane_chain(render_fx.prefix(i), pitch_filter(lane.pitch), lane.gain)}[a{i}]"
+    chains = [
+        lane_chain(render_fx.prefix(i), pitch_filter(lane.pitch), lane.gain)
         for i, lane in enumerate(lanes)
     ]
-    label = takes_lanes.sum_lanes(filters, len(lanes), [lane.name for lane in lanes])
-    graph = ";".join([*filters, f"{label}{render_fx.master}anull[pre]"])
-    paths = [lane.path for lane in lanes]
+    names = [lane.name for lane in lanes]
+    level = None if click is None else click.level
+    graph = measurement_graph(chains, names, render_fx.master, level)
+    paths = [lane.path for lane in lanes] + ([] if click is None else [click.path])
     try:
         return await cached_plan(paths, graph, settings, output_format, rate), rate
     except MeasureError as exc:
@@ -266,15 +286,25 @@ async def prepare_export(
     pitch_filter: Callable[[int], str],
     master_required: bool = False,
     region: bool = False,
+    click: ClickInput | None = None,
 ) -> ExportFx:
-    """Validate ``fx`` and ``master`` (422), build the EQ and measure the master."""
+    """Validate ``fx`` and ``master`` (422), build the EQ and measure the master.
+    ``click`` is measured with the music only when the caller gives it: when a
+    take's limiter sums the two, the click cannot be taken back out."""
     fx_req = _as_422(parse_fx_param, fx)
     parse_master = require_master_param if master_required else parse_master_param
     settings = _as_422(parse_master, master)
     render_fx = await asyncio.to_thread(build_render_fx, lanes, fx_req)
     if settings is None:
         return ExportFx(render_fx, None, "", 0)
-    plan, rate = await _measured_plan(lanes, render_fx, settings, output_format, pitch_filter)
+    plan, rate = await _measured_plan(
+        lanes,
+        render_fx,
+        settings,
+        output_format,
+        pitch_filter,
+        click,
+    )
     return ExportFx(render_fx, plan, plan_chain(plan, rate), rate, region)
 
 
@@ -341,7 +371,7 @@ async def _remeasured(export: ExportFx, entry: Path) -> Loudness | None:
     except MeasureError as exc:
         mastering_logger.warning("%s [%s]: %s", MEASURE_FAILED_DETAIL, entry.name, exc)
         out = None
-    if out is None or overshoot_db(out.tp, export.plan.ceiling):
+    if out is None or overshoot_db(out.tp, export.plan.ceiling) or not entry.is_file():
         await asyncio.to_thread(_drop, entry)
         return None
     await asyncio.to_thread(_write_note, entry, out)
@@ -349,7 +379,9 @@ async def _remeasured(export: ExportFx, entry: Path) -> Loudness | None:
 
 
 async def cached_output(
-    export: ExportFx, output_format: str, entry: Path
+    export: ExportFx,
+    output_format: str,
+    entry: Path,
 ) -> tuple[bool, Loudness | None]:
     """Whether ``entry`` can be served, and a verified one's decoded measurement.
     A verified entry with no note is measured again; one over its ceiling is dropped."""
@@ -363,7 +395,12 @@ async def cached_output(
     return out is not None, out
 
 
-def publish(path: Path, out: Loudness, entry: Path, prune: Callable[..., None]) -> Path:
+def publish(
+    path: Path,
+    out: Loudness,
+    entry: Path,
+    prune: Callable[..., None],
+) -> Path:
     """Move a verified render into the cache as ``entry``, its note written first."""
     try:
         _write_note(entry, out)
@@ -377,9 +414,8 @@ def publish(path: Path, out: Loudness, entry: Path, prune: Callable[..., None]) 
 
 
 class VerifyJob(NamedTuple):
-    """One lossy export to verify: its ffmpeg command (no output path), the
-    output suffix, a log context, the renderer (to a temp file) and whether
-    the client has gone."""
+    """A lossy export to verify: ffmpeg command (no output path), suffix, log
+    context, renderer to a temp file, and whether the client has gone."""
 
     cmd: list[str]
     suffix: str
@@ -390,7 +426,8 @@ class VerifyJob(NamedTuple):
 
 @dataclass
 class _Correction:
-    """The decoded-file loop's settings, and the (gain, loudness) tries since the limit last moved."""
+    """The decoded-file loop's settings, and the (gain, loudness) tries since
+    the limit last moved."""
 
     export: ExportFx
     gain: float = 0.0
@@ -429,9 +466,12 @@ async def _decoded(path: Path, context: str) -> Loudness:
         raise HTTPException(status_code=500, detail=MEASURE_FAILED_DETAIL) from None
 
 
-async def _measured_pass(job: VerifyJob, chain: str, export: ExportFx) -> tuple[Path, Loudness]:
-    """One render to a temp file and its decoded measurement; the file is
-    removed when the measurement fails or the request is cancelled."""
+async def _measured_pass(
+    job: VerifyJob,
+    chain: str,
+    export: ExportFx,
+) -> tuple[Path, Loudness]:
+    """One render to a temp file, removed if its decoded measurement fails or is cancelled."""
     path = await job.render(with_chain(job.cmd, export.chain, chain), job.suffix, job.context)
     try:
         return path, await _decoded(path, job.context)
@@ -441,10 +481,9 @@ async def _measured_pass(job: VerifyJob, chain: str, export: ExportFx) -> tuple[
 
 
 async def render_verified(export: ExportFx, job: VerifyJob) -> tuple[Path, Loudness]:
-    """Render a mastered lossy export, decode it, and correct it as
-    app/pipeline/master_ceiling.py does in-graph: lower limit, gain following
-    the target, a trim as the last resort. Returns the final temp file, which
-    the caller publishes or removes, and its decoded measurement. 499 when the
+    """Render a mastered lossy export to temp files, decoded and corrected
+    (``_Correction``) until it is settled. Returns the last file, which the
+    caller publishes or removes, and its decoded measurement; 499 when the
     client leaves between passes."""
     fix = _Correction(export)
     for attempt in range(MASTER_CEILING_RETRIES + 2):
