@@ -609,6 +609,7 @@
   color: var(--text);
 }
 .cat-extract-more-hint { color: var(--text-3); font-size: var(--fs-2xs); }
+.cat-extract-more-error { margin: 0; color: var(--text-2); font-size: var(--fs-xs); line-height: 1.4; }
 .cat-extract-more-foot { display: flex; justify-content: flex-end; gap: var(--s-2); }
 .cat-extract-more-go,
 .cat-extract-more-cancel {

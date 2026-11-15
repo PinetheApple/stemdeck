@@ -3233,6 +3233,21 @@ function progressBarHtml() {
   return '<div class="cat-progress"><div class="cat-progress-fill"></div></div>';
 }
 
+// A row whose song is busy with a run of its own but still plays: a muted label, no bar.
+export const ROW_PENDING = "pending";
+// Songs decorated for a run of their own, kept through renders and queue frames.
+const runRowStates = new Map();
+
+/** Decorate a song's row for a run of its own, as an import's row is; null takes it off. */
+export function paintRunRow(trackId, rowState) {
+  if (rowState) {
+    runRowStates.set(trackId, rowState);
+    applyQueueDecorations();
+    return;
+  }
+  if (runRowStates.delete(trackId)) render();
+}
+
 function decorateRow(el, rowState) {
   const sub = el.querySelector(".cat-sub");
   if (!sub) return;
@@ -3240,7 +3255,7 @@ function decorateRow(el, rowState) {
   if (!rowState) {
     // Left the queue (finished, failed or cancelled). render() will have
     // rebuilt the row from the library entry, so just drop the decoration.
-    el.classList.remove("in-queue", "queue-waiting", "queue-running");
+    el.classList.remove("in-queue", "queue-waiting", "queue-running", "queue-pending");
     el.querySelector(".cat-progress")?.remove();
     if (el.dataset.subRestore) {
       sub.innerHTML = el.dataset.subRestore;
@@ -3250,9 +3265,11 @@ function decorateRow(el, rowState) {
   }
 
   const waiting = rowState.state === "waiting";
+  const pending = rowState.state === ROW_PENDING;
   el.classList.add("in-queue");
   el.classList.toggle("queue-waiting", waiting);
-  el.classList.toggle("queue-running", !waiting);
+  el.classList.toggle("queue-pending", pending);
+  el.classList.toggle("queue-running", !waiting && !pending);
 
   // Keep the original sub line so it can come back if this row is still on
   // screen when the job leaves the queue.
@@ -3261,7 +3278,7 @@ function decorateRow(el, rowState) {
   if (sub.innerHTML !== label) sub.innerHTML = label;
 
   let bar = el.querySelector(".cat-progress");
-  if (waiting) {
+  if (waiting || pending) {
     bar?.remove();
     return;
   }
@@ -3887,7 +3904,7 @@ function onQueueFrame(snap) {
 function applyQueueDecorations(snap = getQueueSnapshot()) {
   const states = queueRowStates(snap);
   for (const el of document.querySelectorAll(".cat-item[data-id]")) {
-    const state = states.get(el.dataset.id);
+    const state = states.get(el.dataset.id) ?? runRowStates.get(el.dataset.id);
     // Only touch rows that are, or just were, in the queue.
     if (!state && !el.classList.contains("in-queue")) continue;
     decorateRow(el, state);
