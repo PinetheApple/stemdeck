@@ -1096,8 +1096,17 @@ function _watchLaneFit(count) {
   _laneFitObs.observe(viewport);
 }
 
+// Pad the mixer by the waveforms' horizontal scrollbar so both columns scroll the
+// same distance; without it the last lane stops short of view on a short window.
+function _matchLaneScrollbar(viewport) {
+  const scrollbarH = viewport ? viewport.offsetHeight - viewport.clientHeight : 0;
+  mixerEl.style.paddingBottom = scrollbarH > 0 ? `${scrollbarH}px` : "";
+}
+
 function _applyLaneHeight(count) {
-  const panelH = document.getElementById(LANE_VIEWPORT_ID)?.clientHeight ?? 0;
+  const viewport = document.getElementById(LANE_VIEWPORT_ID);
+  _matchLaneScrollbar(viewport);
+  const panelH = viewport?.clientHeight ?? 0;
   // One row is a lane plus its separator, and BOTH columns have to agree on
   // that number or they drift apart down the stack. They did: every mixer row
   // draws its own 2px bottom border, so the mixer stack was count * (lane + 2),
