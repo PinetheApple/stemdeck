@@ -3,7 +3,7 @@
 
 import {
   TRASH_CHANGE_EVENT,
-  getCurrentTrackInfo,
+  getPlayingTrackInfo,
   getLibraryTrack,
   isInTrash,
   isPlayableTrack,
@@ -103,9 +103,9 @@ async function playFromUpNext(trackId) {
   await loadTrackIntoStudio(trackId);
 }
 
-/** The open song, when it can be played, then what is queued after it. */
+/** The song in the player, when it can be played, then what is queued after it. */
 export function getNowAndUpNextIds() {
-  const current = getCurrentTrackInfo()?.id;
+  const current = getPlayingTrackInfo()?.id;
   const now = isPlayableTrack(current) ? [current] : [];
   return [...new Set([...now, ...playableQueue()])];
 }
@@ -132,6 +132,16 @@ export function playNextInUpNext() {
 
 function onTrackEnded() {
   playNextInUpNext();
+}
+
+/** Start `trackId` as soon as it has loaded, as a song played from Up Next is. */
+export function playWhenLoaded(trackId) {
+  pendingAutoplay = trackId;
+}
+
+/** Whether the song that just ended hands the studio to Up Next. */
+export function upNextTakesOver() {
+  return pendingAutoplay !== null || playableQueue().length > 0;
 }
 
 function onPlaybackReady(e) {
@@ -218,7 +228,7 @@ function renderNowPlaying() {
   const box = $("upNextNow");
   if (!box) return;
   box.replaceChildren();
-  const info = getCurrentTrackInfo();
+  const info = getPlayingTrackInfo();
   const track = info && getLibraryTrack(info.id);
   if (!track) {
     const none = document.createElement("span");

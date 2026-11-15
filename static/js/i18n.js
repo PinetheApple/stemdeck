@@ -736,6 +736,8 @@ const en = {
   "export.currentRegion": "Export Current Region",
 
   "transport.group": "Transport",
+  "transport.playingGroup": "Playing",
+  "song.playOpen": "Play this song",
   "transport.stop": "Stop",
   "transport.playPause": "Play / Pause",
 
@@ -2034,6 +2036,8 @@ const pl = {
   "export.currentRegion": "Eksportuj bieżący fragment",
 
   "transport.group": "Transport",
+  "transport.playingGroup": "Odtwarzane",
+  "song.playOpen": "Odtwórz ten utwór",
   "transport.stop": "Stop",
   "transport.playPause": "Odtwórz / Wstrzymaj",
 
@@ -3340,6 +3344,8 @@ const ja = {
   "export.currentRegion": "現在の範囲をエクスポート",
 
   "transport.group": "トランスポート",
+  "transport.playingGroup": "再生中",
+  "song.playOpen": "この曲を再生",
   "transport.stop": "停止",
   "transport.playPause": "再生 / 一時停止",
 
@@ -4589,6 +4595,8 @@ const zhHans = {
   "export.currentRegion": "导出当前区域",
 
   "transport.group": "传输控制",
+  "transport.playingGroup": "正在播放",
+  "song.playOpen": "播放这首歌",
   "transport.stop": "停止",
   "transport.playPause": "播放/暂停",
 
@@ -5839,6 +5847,8 @@ const de = {
   "export.currentRegion": "Aktuellen Bereich exportieren",
 
   "transport.group": "Transport",
+  "transport.playingGroup": "Läuft",
+  "song.playOpen": "Diesen Song abspielen",
   "transport.stop": "Stopp",
   "transport.playPause": "Wiedergabe / Pause",
 
@@ -7115,6 +7125,8 @@ const pt = {
   "export.currentRegion": "Exportar região atual",
 
   "transport.group": "Transporte",
+  "transport.playingGroup": "Tocando",
+  "song.playOpen": "Tocar esta música",
   "transport.stop": "Parar",
   "transport.playPause": "Reproduzir / Pausar",
 
@@ -8392,6 +8404,8 @@ const id = {
   "export.currentRegion": "Ekspor Wilayah Saat Ini",
 
   "transport.group": "Transport",
+  "transport.playingGroup": "Diputar",
+  "song.playOpen": "Putar lagu ini",
   "transport.stop": "Berhenti",
   "transport.playPause": "Putar / Jeda",
 
@@ -9642,6 +9656,8 @@ const fr = {
   "export.currentRegion": "Exporter la région actuelle",
 
   "transport.group": "Transport",
+  "transport.playingGroup": "En lecture",
+  "song.playOpen": "Lire ce morceau",
   "transport.stop": "Arrêter",
   "transport.playPause": "Lecture / Pause",
 
@@ -10518,6 +10534,8 @@ const ptPT = {
   "topbar.uploadFile": "Carregar ficheiro de áudio",
   "library.importedFile": "Ficheiro importado",
   "track.nowPlaying": "A reproduzir",
+  "transport.playingGroup": "A reproduzir",
+  "song.playOpen": "Reproduzir esta música",
   "artist.loading": "A procurar “{name}” na Wikipédia…",
   "artist.checkingTrack": "A procurar o artista desta faixa…",
   "artist.offline": "Não foi possível aceder à Wikipédia. Verifique a sua ligação e tente novamente.",
@@ -11277,6 +11295,8 @@ const es = {
   "export.currentRegion": "Exportar la región actual",
 
   "transport.group": "Transporte",
+  "transport.playingGroup": "Reproduciendo",
+  "song.playOpen": "Reproducir esta canción",
   "transport.stop": "Detener",
   "transport.playPause": "Reproducir / Pausar",
 
@@ -12575,6 +12595,8 @@ const ko = {
   "export.currentRegion": "선택 구간 내보내기",
 
   "transport.group": "트랜스포트",
+  "transport.playingGroup": "재생 중",
+  "song.playOpen": "이 곡 재생",
   "transport.stop": "정지",
   "transport.playPause": "재생 / 일시정지",
 

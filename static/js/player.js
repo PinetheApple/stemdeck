@@ -366,7 +366,7 @@ const OVERVIEW_BAR_FRAC = 0.6; // bar width as a fraction of its slot (3/5)
 // How many bars fit across the current lane width. Falls back to a sane count
 // before layout settles. Returned bars are clamped so very narrow panels still
 // show a readable waveform.
-function overviewBarCount() {
+export function overviewBarCount() {
   const w = document.querySelector(".waves-column")?.clientWidth || 0;
   const t = w > 0 ? Math.round(w / OVERVIEW_BAR_SLOT_PX) : 220;
   return Math.max(40, t);
@@ -375,7 +375,7 @@ function overviewBarCount() {
 // Downsample signed [min,max] peaks to `barCount` mirrored bars and emit them as
 // <rect>s in a viewBox whose width == barCount (1 unit per slot). `norm` is the
 // shared cross-stem normalization so loudness relationships are preserved.
-function barsWaveformSvg(peaks, norm, barCount) {
+export function barsWaveformSvg(peaks, norm, barCount) {
   const n = peaks.length;
   if (!n) return "";
   const off = (1 - OVERVIEW_BAR_FRAC) / 2;
@@ -483,7 +483,7 @@ function addLaneDragNugget(row, stemName) {
 // otherwise just the stems. Rendering a row for every lane keeps the overlay
 // aligned even when only a subset of stems was extracted. Swaps "vocals" for
 // lead_vocals + backing_vocals when this job's on-demand split (#275) ran.
-function overviewLaneNames(stems) {
+export function overviewLaneNames(stems) {
   const present = new Set(stems.map((s) => s.name));
   const order = effectiveStemOrder(present);
   return present.has("original") ? ["original", ...order] : order;

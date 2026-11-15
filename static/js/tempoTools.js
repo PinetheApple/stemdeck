@@ -5,7 +5,7 @@ import { transport, updateMetronomeAvailability, setMetronomeAccentAuto, renderA
 import {
   flushBeatGrid, replaceBeatGrid, saveBeatGridTempo, loadBeatGrid, setBeatGridRate, getBars, getBeats,
 } from "./beatgrid.js";
-import { getCurrentTrackInfo } from "./catalog.js";
+import { getPlayingTrackInfo } from "./catalog.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { t, getLanguage, onLanguageChange } from "./i18n.js";
 import { $ } from "./utils.js";
@@ -85,7 +85,7 @@ export function effectiveBpm() {
 
 /** The tempo to show: the one being clicked, else the library's detected BPM. */
 export function shownBpm() {
-  const library = Number(getCurrentTrackInfo()?.bpm);
+  const library = Number(getPlayingTrackInfo()?.bpm);
   return effectiveBpm() ?? (library > 0 ? library : null);
 }
 

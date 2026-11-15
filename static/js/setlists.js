@@ -1,7 +1,7 @@
 // Setlists: named, ordered lists of library songs kept on the server
 // (/api/setlists), shown in the library pane's Setlists tab. Up Next stays client-side.
 
-import { TRASH_CHANGE_EVENT, getCurrentTrackInfo, getLibraryTrack, getTrackNames, isInTrash, isPlayableTrack, loadTrackIntoStudio, showLibraryView } from "./catalog.js";
+import { TRASH_CHANGE_EVENT, getPlayingTrackInfo, getLibraryTrack, getTrackNames, isInTrash, isPlayableTrack, loadTrackIntoStudio, showLibraryView } from "./catalog.js";
 import { getNowAndUpNextIds, playSongs } from "./upNext.js";
 import { t, plural, onLanguageChange } from "./i18n.js";
 import {
@@ -303,7 +303,7 @@ function songRow(setlist, trackId, index) {
   const li = document.createElement("li");
   li.className = "setlist-song";
   li.dataset.id = trackId;
-  li.classList.toggle(OPEN_SONG_CLASS, trackId === getCurrentTrackInfo()?.id);
+  li.classList.toggle(OPEN_SONG_CLASS, trackId === getPlayingTrackInfo()?.id);
   li.classList.toggle(TRASHED_SONG_CLASS, trashed);
   li.append(songBody(trackId, index, { names, title, trashed }), songActions(setlist, trackId, index, title));
   return li;

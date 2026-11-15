@@ -1,7 +1,7 @@
 // One Tab stop per list (roving tabindex). Up/Down/Home/End move between rows, Enter
 // opens one, Right/Left walk into and back out of the row's own buttons. In a list with
-// selectable rows, the row holding focus is the selected one: a click selects, and a
-// double-click or the row's Play button opens.
+// selectable rows, the row holding focus is the selected one: a click selects (and shows
+// the row, where the list asks for that), and a double-click or the row's Play button opens.
 
 export const ROW_KEY = Object.freeze({
   PREVIOUS: "ArrowUp",
@@ -92,7 +92,13 @@ function wireRowSelection({ selectableRow, rowOf, allRows, keyOf }) {
   return { select, paintSelection, selectableRowOf };
 }
 
-function wireRowOpening(container, { selectableRowOf, openRow, focusRow }) {
+function wireRowOpening(container, { selectableRowOf, openRow, showRow, focusRow }) {
+  function onRowSingleClick(e) {
+    if (!showRow || e.detail >= SECOND_CLICK || hasModifier(e)) return;
+    const row = selectableRowOf(e.target);
+    if (row && !e.target.closest(NOT_THE_ROW)) showRow(row);
+  }
+
   function onRowDoubleClick(e) {
     const row = selectableRowOf(e.target);
     if (row && !e.target.closest(NOT_THE_ROW)) openRow(row);
@@ -114,6 +120,7 @@ function wireRowOpening(container, { selectableRowOf, openRow, focusRow }) {
   container.addEventListener("dblclick", onRowDoubleClick);
   container.addEventListener("mousedown", onRowMousedown);
   container.addEventListener("click", onRowPlayClick);
+  container.addEventListener("click", onRowSingleClick);
 }
 
 /**
@@ -122,6 +129,7 @@ function wireRowOpening(container, { selectableRowOf, openRow, focusRow }) {
  * `preferredRow(rows)` picks the stop among `rows` when none was focused yet.
  * Rows matching `selectableRow` wear SELECTED_ROW_CLASS while they are the row
  * last focused, and open on a double-click or a click on their ROW_PLAY_CLASS button.
+ * `showRow(row)`, when given, is what a plain single click on a selectable row does.
  * Call `remember()` before a redraw and `restore(saved)` after it, or `refresh()`
  * when rows were shown or hidden without one. `isKeyboardFocus()` says whether the
  * focus in the list is the keyboard's rather than a click's or a tap's.
@@ -130,7 +138,7 @@ function wireRowOpening(container, { selectableRowOf, openRow, focusRow }) {
  */
 export function wireRovingRows(
   container,
-  { rowSelector, actionSelector, keyOf, openRow, preferredRow = () => null, selectableRow = null },
+  { rowSelector, actionSelector, keyOf, openRow, showRow = null, preferredRow = () => null, selectableRow = null },
 ) {
   if (wiredLists.has(container)) return wiredLists.get(container);
   // Read as focus arrives: a key pressed later can make a clicked row match too.
@@ -154,7 +162,7 @@ export function wireRovingRows(
   }
 
   const { select, paintSelection, selectableRowOf } = wireRowSelection({ selectableRow, rowOf, allRows, keyOf });
-  wireRowOpening(container, { selectableRowOf, openRow, focusRow });
+  wireRowOpening(container, { selectableRowOf, openRow, showRow, focusRow });
 
   function onRowFocus(e) {
     arrivedByKeyboard = e.target.matches(KEYBOARD_FOCUS);

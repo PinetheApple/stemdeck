@@ -2,6 +2,8 @@
 import { STEM_NAMES } from "./constants.js";
 import { STEM_EXT_MP3 } from "./playbackStems.js";
 import { wireUpAudio, updateFooterTrack } from "./player.js";
+import { clearOpenPreview, showOpenPreview } from "./openPreview.js";
+import { initOpenSong, openSong, playSong } from "./openSong.js";
 import { initSections } from "./sections.js";
 import {
   audioEngine, bpmChip, foregroundJobId, keyChip, multitrack, saveSelectedStems, selectedStems, titleEl,
@@ -84,6 +86,9 @@ const _refusedHeldBands = new Set();
 // The newest save per track, and the band to go back to if it fails.
 const _bandSaves = new Map();
 let _currentTrackId = null;
+// A song shown in the studio over _currentTrackId, which keeps playing (#211).
+let _openTrackId = null;
+let _loadingTrackId = null;
 // The open track's tags as the last render() saw them. See setCurrentTrack().
 let _renderedTagsKey = "";
 let _loadTrackToken = 0;
@@ -496,11 +501,23 @@ export function getTrackNames(trackId) {
   };
 }
 
+const openTrackId = () => _openTrackId ?? _currentTrackId;
+
+/** The song open in the studio: the one shown over the player while one is, else the loaded one. */
 export function getCurrentTrackInfo() {
-  const track = tracks[_currentTrackId];
+  return trackInfoOf(openTrackId());
+}
+
+/** The song in the player, which keeps playing while another is shown over it. */
+export function getPlayingTrackInfo() {
+  return trackInfoOf(_currentTrackId);
+}
+
+function trackInfoOf(trackId) {
+  const track = tracks[trackId];
   if (!track) return null;
   return {
-    id: _currentTrackId,
+    id: trackId,
     title: track.title || "",
     displayTitle: nowPlayingTitle(track),
     artist: nowPlayingArtist(track),
@@ -522,7 +539,16 @@ export function getCurrentTrackInfo() {
  * { id, name } with id a Wikidata item, or null when none has been saved.
  */
 export function getCurrentTrackArtist() {
-  const artist = tracks[_currentTrackId]?.artist;
+  return savedBandOf(openTrackId());
+}
+
+/** The band saved on the song in the player, as getCurrentTrackArtist. */
+export function getPlayingTrackArtist() {
+  return savedBandOf(_currentTrackId);
+}
+
+function savedBandOf(trackId) {
+  const artist = tracks[trackId]?.artist;
   if (!artist || !/^Q\d+$/.test(artist.id)) return null;
   return { id: artist.id, name: String(artist.name || ""), englishName: String(artist.englishName || "") };
 }
@@ -532,7 +558,7 @@ export function getCurrentTrackArtist() {
  * recording: { id, kind, name, englishName }, or null.
  */
 export function getCurrentTrackWork() {
-  return libraryWork(tracks[_currentTrackId]?.work);
+  return libraryWork(tracks[openTrackId()]?.work);
 }
 
 // Identities checked against a catalogue. "tags" only repeats what the file
@@ -553,7 +579,7 @@ const trimmed = (value) => String(value || "").trim();
  * identified album's first release, so only with that album, else 0.
  */
 export function getCurrentTrackSong() {
-  const track = tracks[_currentTrackId];
+  const track = tracks[openTrackId()];
   if (!track) return null;
   const identity = confidentIdentity(track);
   const tags = track.audioTags || {};
@@ -651,7 +677,7 @@ function rollBackBand(trackId, previous, title, err) {
 
 /** Save a band on the open track and on the server; resolves to whether it was saved. */
 export async function setCurrentTrackArtist(artist) {
-  const trackId = _currentTrackId;
+  const trackId = openTrackId();
   const track = tracks[trackId];
   const band = libraryArtist(artist);
   if (!track || !band) return false;
@@ -686,7 +712,7 @@ export async function setCurrentTrackArtist(artist) {
 
 /** Keep a band looked up from the open track's tags here only: it is a guess, not a save. */
 export function setFoundTrackArtist(artist) {
-  const track = tracks[_currentTrackId];
+  const track = tracks[openTrackId()];
   const band = libraryArtist(artist);
   if (!track || !band) return false;
   track.artist = band;
@@ -784,7 +810,7 @@ function settleTagsPending(trackId) {
 
 /** Whether the open track's tags are still being asked for. */
 export function isCurrentTrackTagsPending() {
-  return _tagsPending.has(_currentTrackId);
+  return _tagsPending.has(openTrackId());
 }
 
 // A track imported before the server looked for the work a soundtrack is
@@ -819,7 +845,7 @@ async function backfillAudioTags(trackId) {
     const namesChanged = await refreshServerNames(trackId);
     saveState();
     if (namesChanged) render();
-    if (_currentTrackId === trackId) paintNowPlayingNames(target);
+    if (openTrackId() === trackId) paintNowPlayingNames(target);
   } catch (err) {
     console.warn("[catalog] reading an older track's tags failed:", err);
   } finally {
@@ -847,7 +873,7 @@ function afterNamesChanged(trackId) {
   if (!track) return;
   saveState();
   render();
-  if (trackId === _currentTrackId) paintNowPlayingNames(track);
+  if (trackId === openTrackId()) paintNowPlayingNames(track);
   document.dispatchEvent(new CustomEvent("tracknames", { detail: { id: trackId } }));
 }
 
@@ -1103,7 +1129,7 @@ function paintNowPlayingNames(track) {
  */
 export function paintFinishedTrackNames(trackId) {
   const track = tracks[trackId];
-  if (track && trackId === _currentTrackId) paintNowPlayingNames(track);
+  if (track && trackId === openTrackId()) paintNowPlayingNames(track);
 }
 
 function applyTrackInfoToPanel(track) {
@@ -1139,7 +1165,7 @@ function applyTrackInfoToPanel(track) {
   if (favBtn) {
     paintFavButton(favBtn, Boolean(track.favorite));
     favBtn.onclick = () => {
-      if (_currentTrackId) toggleFavorite(_currentTrackId);
+      if (openTrackId()) toggleFavorite(openTrackId());
     };
   }
 
@@ -1497,7 +1523,59 @@ function importMixUrl(track) {
   return sameLanes(openVersionOf(track).stems, track.selectedStems || []) ? track.mixUrl ?? null : null;
 }
 
+// /peaks rather than stems/peaks.json: see get_peaks in app/api/stems.py.
+function fetchPeaks(trackId) {
+  return fetch(`/api/jobs/${trackId}/peaks`)
+    .then((r) => (r.ok ? r.json() : {}))
+    .catch(() => ({}));
+}
+
+/**
+ * The track with the server's fresh state (sections, analysis, stems), as stored
+ * when the server cannot be read; null when it is gone or a newer open overtook this one.
+ */
+async function fetchTrackState(trackId, token) {
+  let track = tracks[trackId];
+  try {
+    const res = await fetch(`/api/jobs/${trackId}`);
+    if (token !== _loadTrackToken) return null;
+    if (res.ok) {
+      const state = await res.json();
+      settleHeldBand(trackId, state);
+      track = stateMetadataToTrack(state, track);
+      tracks[trackId] = track;
+      saveState();
+      if (state.status === "unavailable") {
+        reimportUnavailableTrack(trackId, track);
+        return null;
+      }
+    } else if (res.status === 404) {
+      track = { ...track, status: "unavailable" };
+      tracks[trackId] = track;
+      saveState();
+      updateTrackStatus(trackId, "unavailable");
+      showError(i18nT("track.audioUnavailableError"));
+      return null;
+    }
+  } catch (e) { console.warn("[catalog] server sync failed, using stored track:", e); }
+  return token === _loadTrackToken ? track : null;
+}
+
 export async function loadTrackIntoStudio(trackId) {
+  _loadingTrackId = trackId;
+  try {
+    await loadIntoStudio(trackId);
+  } finally {
+    if (_loadingTrackId === trackId) _loadingTrackId = null;
+  }
+}
+
+/** Whether `trackId` is on its way into the studio. */
+export function isLoadingTrack(trackId) {
+  return trackId === _loadingTrackId;
+}
+
+async function loadIntoStudio(trackId) {
   let track = tracks[trackId];
   if (!track) return;
   if (track.status === "unavailable") {
@@ -1507,40 +1585,12 @@ export async function loadTrackIntoStudio(trackId) {
   const hadStoredAudio = Boolean(track.audioStems?.length);
   const token = ++_loadTrackToken;
 
-  // Start peaks fetch immediately — runs in parallel with job-data fetch so it
-  // resolves before wireUpAudio calls Multitrack.create. This prevents peaks.json
-  // from competing with stem WAV fetches for Safari's 6-connection-per-origin limit.
-  // /peaks rather than stems/peaks.json: see get_peaks in app/api/stems.py.
-  const peaksPromise = fetch(`/api/jobs/${trackId}/peaks`)
-    .then((r) => (r.ok ? r.json() : {}))
-    .catch(() => ({}));
-
-  // Always fetch fresh state so server-side changes (sections, analysis, stems)
-  // are reflected — cached localStorage data can be stale.
-  try {
-    const res = await fetch(`/api/jobs/${trackId}`);
-    if (token !== _loadTrackToken) return;
-    if (res.ok) {
-      const state = await res.json();
-      settleHeldBand(trackId, state);
-      track = stateMetadataToTrack(state, track);
-      tracks[trackId] = track;
-      saveState();
-      if (state.status === "unavailable") {
-        reimportUnavailableTrack(trackId, track);
-        return;
-      }
-    } else if (res.status === 404) {
-      track = { ...track, status: "unavailable" };
-      tracks[trackId] = track;
-      saveState();
-      updateTrackStatus(trackId, "unavailable");
-      showError(i18nT("track.audioUnavailableError"));
-      return;
-    }
-  } catch (e) { console.warn("[catalog] server sync failed, using stored track:", e); }
-
-  if (token !== _loadTrackToken) return;
+  // Started before the job-data fetch so it resolves before wireUpAudio calls
+  // Multitrack.create, rather than competing with stem WAV fetches for Safari's
+  // 6-connection-per-origin limit.
+  const peaksPromise = fetchPeaks(trackId);
+  track = await fetchTrackState(trackId, token);
+  if (!track) return;
   // The user has chosen to look at something else, so the running import gives
   // up the studio. It keeps running and keeps updating its own row; it just
   // stops repainting this view (and, at completion, replacing the audio that
@@ -1552,6 +1602,8 @@ export async function loadTrackIntoStudio(trackId) {
   if (PROCESSING_STATUSES.has(track.status)) return;
   if (!track.audioStems?.length) return;
   if (track.status !== "done" && !hadStoredAudio) return;
+  _openTrackId = null;
+  clearOpenPreview();
   applyStoredStemSelection(track);
   setCurrentTrack(trackId);
 
@@ -1583,6 +1635,45 @@ export async function loadTrackIntoStudio(trackId) {
   // For artistInfo.js, which finds the band from the file's tags. An event
   // rather than an import, since that module already imports this one.
   document.dispatchEvent(new CustomEvent("trackopen", { detail: { id: trackId } }));
+}
+
+// Head listeners follow a "trackopen" marked shownOnly; the player did not change.
+function announceShownTrack(trackId) {
+  document.dispatchEvent(new CustomEvent("trackopen", { detail: { id: trackId, shownOnly: true } }));
+}
+
+/** Show a song in the studio over the one in the player, which keeps playing (#211). */
+export async function showTrackOverPlayer(trackId) {
+  const token = ++_loadTrackToken;
+  const peaksPromise = fetchPeaks(trackId);
+  const track = await fetchTrackState(trackId, token);
+  if (!track?.audioStems?.length || PROCESSING_STATUSES.has(track.status)) return;
+  const peaks = await peaksPromise;
+  if (token !== _loadTrackToken) return;
+  _openTrackId = trackId;
+  applyTrackInfoToPanel(track);
+  showOpenPreview({
+    stems: track.audioStems,
+    peaks,
+    thumbnail: track.thumb,
+    playingTitle: getPlayingTrackInfo()?.displayTitle ?? "",
+  });
+  announceShownTrack(trackId);
+}
+
+/** The song shown over the player, or null. */
+export function shownTrackId() {
+  return _openTrackId;
+}
+
+/** Put the song in the player back on screen. */
+export function dropShownTrack() {
+  if (!_openTrackId) return;
+  _openTrackId = null;
+  clearOpenPreview();
+  const track = tracks[_currentTrackId];
+  if (track) applyTrackInfoToPanel(track);
+  announceShownTrack(_currentTrackId);
 }
 
 /**
@@ -2012,7 +2103,7 @@ function undoFavorite(trackId, favorite, failureKey) {
 }
 
 function paintFavoriteHearts(trackId) {
-  if (trackId === _currentTrackId) {
+  if (trackId === openTrackId()) {
     const favBtn = document.getElementById("fav-btn");
     if (favBtn) paintFavButton(favBtn, Boolean(tracks[trackId].favorite));
   }
@@ -2084,7 +2175,7 @@ function wireTrackDrag(el, trackId) {
 function wireStripTrack(el, trackId) {
   wireTrackDrag(el, trackId);
   el.addEventListener("click", function onOpenStripTrack() {
-    loadTrackIntoStudio(trackId);
+    openSong(trackId);
   });
 }
 
@@ -2365,7 +2456,12 @@ function openLibraryRow(row) {
   if (row.matches(TRASH_ROW_SELECTOR)) return;
   if (row.matches(FOLDER_ROW_SELECTOR)) toggleFolderCollapsed(row.parentElement);
   else if (row.dataset.version) openVersion(row.dataset.id, row.dataset.version);
-  else loadTrackIntoStudio(row.dataset.id);
+  else playSong(row.dataset.id);
+}
+
+// A click on a song opens it; a version row keeps to being selected.
+function showLibraryRow(row) {
+  if (!row.dataset.version) openSong(row.dataset.id);
 }
 
 function preferredLibraryRow(rows) {
@@ -2388,6 +2484,7 @@ function wireLibraryRows() {
       ].join(", "),
       keyOf: libraryRowKey,
       openRow: openLibraryRow,
+      showRow: showLibraryRow,
       preferredRow: preferredLibraryRow,
       selectableRow: `${SONG_ROW_SELECTOR}, ${VERSION_ROW_SELECTOR}`,
     },
@@ -4809,7 +4906,7 @@ function afterServerBackfill() {
   saveState();
   render();
   const favBtn = document.getElementById("fav-btn");
-  const current = tracks[_currentTrackId];
+  const current = tracks[openTrackId()];
   if (favBtn && current) paintFavButton(favBtn, Boolean(current.favorite));
   if (current) paintNowPlayingNames(current);
   document.dispatchEvent(new CustomEvent("tracknames", { detail: { id: null } }));
@@ -6674,6 +6771,7 @@ export async function initCatalog() {
   wireRailLibraryDrop();
   wireLibraryDeleteKeys();
   wireLibraryRows();
+  initOpenSong();
   initVersions();
   wireAboutDialog();
   wireReleaseDialog();

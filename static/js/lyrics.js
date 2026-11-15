@@ -40,7 +40,7 @@
 import { t, getLanguage } from "./i18n.js";
 import { storeGet, storeSet } from "./utils.js";
 import { notifyFailure } from "./notifications.js";
-import { getCurrentTrackInfo, getCurrentTrackArtist } from "./catalog.js";
+import { getPlayingTrackInfo, getPlayingTrackArtist } from "./catalog.js";
 import { transport, setPlayheadTime } from "./transport.js";
 import { totalDuration } from "./state.js";
 import {
@@ -1396,7 +1396,7 @@ async function keepOnServer(trackId, version, { picked = true, onRefused } = {})
 
 /** The user's pick: kept with the song on the server, and shown. */
 async function keep(match) {
-  const info = getCurrentTrackInfo();
+  const info = getPlayingTrackInfo();
   if (!info) return;
   // A load left behind by a switch: these lyrics are the shown track's, not the open one's.
   if (info.id !== shownTrackId) {
@@ -1412,7 +1412,7 @@ async function keep(match) {
     notifyLyricsFailure(refusalKey(refusal, "lyrics.keepFailed"), "Keeping lyrics", info.id);
     return;
   }
-  if (getCurrentTrackInfo()?.id === info.id) show(kept.entry, kept.others);
+  if (getPlayingTrackInfo()?.id === info.id) show(kept.entry, kept.others);
 }
 
 /** Keep on the server that the track's lyrics were removed: null when it
@@ -1425,7 +1425,7 @@ async function recordRemoval(trackId) {
 // Removing is remembered, not just cleared: the lookup runs by itself, and
 // would otherwise bring the same lyrics straight back. "Look up again" is the way back.
 async function removeLyrics() {
-  const info = getCurrentTrackInfo();
+  const info = getPlayingTrackInfo();
   if (!info) return;
   await flushSave();
   const notRemoved = await recordRemoval(info.id);
@@ -1516,14 +1516,14 @@ async function lookUp(info, { song, again = false }) {
   searchController = controller;
   setStatus(t("lyrics.loading", { song }), "loading");
   try {
-    const band = getCurrentTrackArtist();
+    const band = getPlayingTrackArtist();
     const res = await fetch(`/api/jobs/${encodeURIComponent(info.id)}/lyrics/lookup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...(band ? { band } : {}), ...(again ? { again: true } : {}) }),
       signal: controller.signal,
     });
-    if (controller.signal.aborted || getCurrentTrackInfo()?.id !== info.id) return;
+    if (controller.signal.aborted || getPlayingTrackInfo()?.id !== info.id) return;
     const refused = !res.ok && res.status !== 404;
     if (refused && res.status === LRCLIB_UNREACHABLE) throw new Error(`lyrics lookup -> ${res.status}`);
     if (refused) {
@@ -1624,7 +1624,7 @@ async function embeddedLyrics(trackId) {
 /** Show what the server keeps for the open track, or find it. `again` is
  * Look up again, which a removal does not hold back. */
 async function loadForCurrentTrack({ again = false } = {}) {
-  const info = getCurrentTrackInfo();
+  const info = getPlayingTrackInfo();
   // The Align panel stays open while the same track is shown again.
   const trackChanged = (info?.id ?? null) !== shownTrackId;
   if (trackChanged) {
@@ -1657,7 +1657,7 @@ async function loadForCurrentTrack({ again = false } = {}) {
 async function findLyrics(info, token, again) {
   // A file's own lyrics are this recording's: nothing to look up. The library
   // keeps only that there are some (libraryAudioTags); the text is the server's.
-  const known = knownSong(info, getCurrentTrackArtist());
+  const known = knownSong(info, getPlayingTrackArtist());
   const embedded = info.audioTags?.lyrics || (info.audioTags?.hasLyrics ? await embeddedLyrics(info.id) : "");
   if (token !== loadToken) return;
   if (embedded) {
@@ -1684,7 +1684,7 @@ async function findLyrics(info, token, again) {
  * A refused keep waits for `again`, Look up again, which keeps them as the user's pick. */
 async function keepEmbedded(info, embedded, { artist, song }, token, again = false) {
   // A load left behind by a switch keeps nothing, and runs again when the track is back.
-  if (getCurrentTrackInfo()?.id !== info.id) {
+  if (getPlayingTrackInfo()?.id !== info.id) {
     reloadsOwed.add(info.id);
     return;
   }
@@ -1755,7 +1755,7 @@ function onLyricsCarried(trackId) {
 function tick() {
   frame = 0;
   if (!visible) return;
-  const id = getCurrentTrackInfo()?.id ?? null;
+  const id = getPlayingTrackInfo()?.id ?? null;
   if (id !== shownTrackId) loadForCurrentTrack();
   if (lines.length) {
     // 50ms ahead: a click on a line seeks to its exact stamp, and the time read
@@ -1828,14 +1828,14 @@ function setVisible(on) {
 function onTrackLookup(e) {
   const id = e.detail?.id;
   answered.delete(id);
-  if (visible && id === getCurrentTrackInfo()?.id) loadForCurrentTrack();
+  if (visible && id === getPlayingTrackInfo()?.id) loadForCurrentTrack();
   else if (!visible) reloadsOwed.add(id);
 }
 
 /** Load the open track's lyrics for a view other than the tab, if they are not the ones held. */
 export function ensureLyricsLoaded() {
   if (!statusEl || !versionsEl || !bodyEl) return;
-  const id = getCurrentTrackInfo()?.id ?? null;
+  const id = getPlayingTrackInfo()?.id ?? null;
   const owed = reloadsOwed.delete(id);
   if (owed || id !== shownTrackId || (id && id === nothingKnownFor)) loadForCurrentTrack();
 }

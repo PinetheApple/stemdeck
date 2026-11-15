@@ -9,6 +9,7 @@ import {
   expandFoldersOf,
   folderChoices,
   getCurrentTrackInfo,
+  getPlayingTrackInfo,
   getLibraryTrack,
   isPlayableTrack,
   isSidebarCollapsed,
@@ -246,29 +247,30 @@ function onTrackMenuRequest(e) {
 
 const OPEN_SONG_UP_NEXT_IDS = ["songUpNextBtn", "stageUpNextBtn"];
 const OPEN_SONG_MORE_IDS = ["songMoreBtn", "stageMoreBtn"];
+// Stage shows the song in the player, which a song shown over it (#211) leaves playing.
+const STAGE_SONG_IDS = new Set(["stageUpNextBtn", "stageMoreBtn"]);
 
 function openSongButtons(ids = [...OPEN_SONG_UP_NEXT_IDS, ...OPEN_SONG_MORE_IDS]) {
   return ids.map((id) => document.getElementById(id)).filter(Boolean);
 }
 
 /** The library row's rule: a trashed or unfinished open song is offered to nothing. */
-function playableOpenSongId() {
-  const id = getCurrentTrackInfo()?.id;
-  return isPlayableTrack(id) ? id : null;
+function playableOpenSongId(button) {
+  const info = STAGE_SONG_IDS.has(button.id) ? getPlayingTrackInfo() : getCurrentTrackInfo();
+  return isPlayableTrack(info?.id) ? info.id : null;
 }
 
 function paintOpenSongButtons() {
-  const playable = Boolean(playableOpenSongId());
-  for (const button of openSongButtons()) button.disabled = !playable;
+  for (const button of openSongButtons()) button.disabled = !playableOpenSongId(button);
 }
 
-function onAddOpenSongToUpNext() {
-  const id = playableOpenSongId();
+function onAddOpenSongToUpNext(e) {
+  const id = playableOpenSongId(e.currentTarget);
   if (id) queueUpNext(id);
 }
 
 function onOpenSongMenuClick(e) {
-  toggleMenu(playableOpenSongId(), e.currentTarget, { rename: false });
+  toggleMenu(playableOpenSongId(e.currentTarget), e.currentTarget, { rename: false });
 }
 
 function wireOpenSongButtons() {
