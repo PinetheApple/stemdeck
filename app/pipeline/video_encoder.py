@@ -1,25 +1,16 @@
 """Which H.264 encoder makes a filmed-take export, and the CPU fallback.
 
-libx264 is the default and the answer to every doubt. A GPU encoder is used
-only when all of this holds:
-
-1. The policy allows it: the `video_encoder` setting ("auto", "cpu" or one
-   encoder), overridden by STEMDECK_VIDEO_ENCODER ("cpu" is the kill switch).
-2. The setting picks it, or Auto tries it on this OS (video_encoder_args.AUTO:
-   NVENC on Windows only until another encoder runs on real hardware), and it
-   has not failed VIDEO_ENCODER_MAX_FAILURES renders since this process began.
-   VAAPI counts per render node and is off only once every node is.
-3. A real test encode at the render's own geometry passed (video_probe).
-4. After the render, its file passes validate_output. Anything else: the file
-   is deleted and the render runs again on libx264 (encode()).
-
-QSV, AMF and VideoToolbox, and every Windows path, have only run against
-mocks: treat them as unverified until someone runs Settings > Test encoders.
+The policy is the `video_encoder` setting, overridden by STEMDECK_VIDEO_ENCODER
+("cpu" always means libx264). A GPU encoder is used only when the policy
+allows it, it passed a test encode at the render's geometry (video_probe) and
+it has not been switched off this session; a render it makes that fails or
+fails its check is redone on libx264.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from collections.abc import Callable
@@ -27,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.core.video_config import (
+    ENCODER_ENV,
     LOGGER_NAME,
     POLICY_AUTO,
     POLICY_CPU,
@@ -38,7 +30,6 @@ from app.core.video_config import (
     VIDEO_ENCODER_MAX_FAILURES,
     VIDEO_ENCODER_TEST_BUDGET_SEC,
     VIDEO_GPU_ENCODERS,
-    encoder_override,
     render_timeout_sec,
 )
 from app.pipeline.video_encoder_args import AUTO, CANDIDATES, FAMILY, os_key, render_nodes
@@ -47,20 +38,21 @@ from app.pipeline.video_probe import (
     REASON_NO_DEVICE,
     ProbeResult,
     blames_encoder,
-    drop_passes,
+    invalid_code,
     probe,
     run_probe,
 )
-from app.pipeline.video_validate import STOP_CANCELLED, OutputInvalid, never, validate_output
+from app.pipeline.video_probe_store import drop_passes
+from app.pipeline.video_process import STOP_CANCELLED, never
+from app.pipeline.video_validate import OutputInvalid, validate_output
 
 logger = logging.getLogger(LOGGER_NAME)
 
-SOURCE_ENV = "env"
-SOURCE_SETTING = "setting"
 REASON_POLICY = "policy"
 REASON_NONE = "none"
 REASON_DISABLED = "disabled"
 REASON_BUDGET = "budget"
+_CANCEL_CODES = (STOP_CANCELLED, INVALID_PREFIX + STOP_CANCELLED)
 
 _failures: dict[tuple[str, str], int] = {}
 _off: set[tuple[str, str]] = set()
@@ -111,12 +103,21 @@ class EncodeOutcome:
     fallback_reason: str | None = None
 
 
-def policy(setting: str = POLICY_AUTO) -> tuple[str, str]:
-    """(value, source): the env override when set, else the setting."""
+def encoder_override() -> str | None:
+    """STEMDECK_VIDEO_ENCODER when it names a choice, else None."""
+    raw = os.environ.get(ENCODER_ENV, "").strip().lower()
+    if raw and raw not in VIDEO_ENCODER_CHOICES:
+        logger.warning("%s=%r is not one of %s; ignored", ENCODER_ENV, raw, VIDEO_ENCODER_CHOICES)
+        return None
+    return raw or None
+
+
+def policy(setting: str = POLICY_AUTO) -> str:
+    """The env override when set, else the setting ("auto" when unknown)."""
     override = encoder_override()
     if override is not None:
-        return override, SOURCE_ENV
-    return (setting if setting in VIDEO_ENCODER_CHOICES else POLICY_AUTO), SOURCE_SETTING
+        return override
+    return setting if setting in VIDEO_ENCODER_CHOICES else POLICY_AUTO
 
 
 def _state_key(encoder: str, device: str) -> tuple[str, str]:
@@ -134,19 +135,9 @@ def record_failure(encoder: str, reason: str, device: str = "") -> bool:
             _off.add(key)
         off = key in _off
     drop_passes(encoder, key[1])
-    logger.warning(
-        "%s%s failed a render (%s)%s",
-        encoder,
-        f" on {device}" if key[1] else "",
-        reason,
-        ", off until restart" if off else "",
-    )
+    where = f" on {device}" if key[1] else ""
+    logger.warning("%s%s failed a render (%s)%s", encoder, where, reason, ", off" if off else "")
     return off
-
-
-def failure_count(encoder: str, device: str = "") -> int:
-    with _state_lock:
-        return _failures.get(_state_key(encoder, device), 0)
 
 
 def _node_off(device: str) -> bool:
@@ -155,10 +146,9 @@ def _node_off(device: str) -> bool:
 
 
 def disabled(platform: str | None = None) -> list[str]:
-    """Encoders off for this session; VAAPI once every node with a failure
-    count is off and no other node is left to try."""
+    """Encoders off for this session; VAAPI once no node is left to try."""
     with _state_lock:
-        whole = {e for e, d in _off if e != VAAPI}
+        whole = {e for e, _d in _off if e != VAAPI}
         vaapi_off = {d for e, d in _off if e == VAAPI}
     if vaapi_off and not [n for n in render_nodes(platform) if n not in vaapi_off]:
         whole.add(VAAPI)
@@ -171,6 +161,33 @@ def reset_state() -> None:
         _off.clear()
 
 
+def _probe_vaapi(
+    width: int,
+    height: int,
+    fps: int,
+    cancelled: Callable[[], bool],
+    force: bool,
+    platform: str | None,
+) -> ProbeResult:
+    result = ProbeResult(VAAPI, width, height, fps, ok=False, reason=REASON_NO_DEVICE)
+    for node in render_nodes(platform):
+        if _node_off(node):
+            result = ProbeResult(
+                VAAPI,
+                width,
+                height,
+                fps,
+                ok=False,
+                reason=REASON_DISABLED,
+                device=node,
+            )
+            continue
+        result = probe(VAAPI, width, height, fps, device=node, force=force, cancelled=cancelled)
+        if result.ok or result.reason == STOP_CANCELLED:
+            break
+    return result
+
+
 def _probe_encoder(
     encoder: str,
     width: int,
@@ -180,27 +197,11 @@ def _probe_encoder(
     force: bool,
     platform: str | None,
 ) -> ProbeResult:
-    if encoder != VAAPI:
-        if encoder in disabled(platform):
-            return ProbeResult(encoder, width, height, fps, ok=False, reason=REASON_DISABLED)
-        return probe(encoder, width, height, fps, force=force, cancelled=cancelled)
-    result = ProbeResult(encoder, width, height, fps, ok=False, reason=REASON_NO_DEVICE)
-    for node in render_nodes(platform):
-        if _node_off(node):
-            result = ProbeResult(
-                encoder,
-                width,
-                height,
-                fps,
-                ok=False,
-                reason=REASON_DISABLED,
-                device=node,
-            )
-            continue
-        result = probe(encoder, width, height, fps, device=node, force=force, cancelled=cancelled)
-        if result.ok or result.reason == STOP_CANCELLED:
-            break
-    return result
+    if encoder == VAAPI:
+        return _probe_vaapi(width, height, fps, cancelled, force, platform)
+    if encoder in disabled(platform):
+        return ProbeResult(encoder, width, height, fps, ok=False, reason=REASON_DISABLED)
+    return probe(encoder, width, height, fps, force=force, cancelled=cancelled)
 
 
 def choose(
@@ -212,7 +213,7 @@ def choose(
     platform: str | None = None,
 ) -> Choice:
     """The encoder for a render of this geometry. Blocking: may probe."""
-    value, _source = policy(setting)
+    value = policy(setting)
     if value == POLICY_CPU:
         return Choice(VIDEO_CPU_ENCODER, reason=REASON_POLICY)
     order = (value,) if value in VIDEO_GPU_ENCODERS else AUTO[os_key(platform)]
@@ -229,21 +230,37 @@ def choose(
     return Choice(VIDEO_CPU_ENCODER, reason=reason)
 
 
-def _try_gpu(job: EncodeJob, choice: Choice, cancelled: Callable[[], bool]) -> str | None:
-    """Render on the chosen GPU encoder and check the file. None when it is
-    good, else why it was given up (the file is deleted)."""
+def _gpu_attempt(
+    job: EncodeJob,
+    choice: Choice,
+    cancelled: Callable[[], bool],
+) -> tuple[str | None, str]:
+    """(None, "") when the GPU render made a good file, else (code, stderr)."""
     try:
         cmd = job.build(choice.encoder, choice.variant, choice.device)
         job.run(cmd, render_timeout_sec(job.duration_sec), TIMEOUT_VIDEO_GPU_STALL)
         validate_output(job.dest, job.width, job.height, job.fps, job.duration_sec, cancelled)
-        return None
     except EncodeError as exc:
-        code, stderr = exc.code, exc.stderr
+        return exc.code, exc.stderr
     except OutputInvalid as exc:
-        code, stderr = INVALID_PREFIX + exc.code, ""
-    if code in (STOP_CANCELLED, INVALID_PREFIX + STOP_CANCELLED):
+        return invalid_code(exc, job.dest), ""
+    return None, ""
+
+
+def _try_gpu(job: EncodeJob, choice: Choice, cancelled: Callable[[], bool]) -> str | None:
+    """Render on the chosen GPU encoder. None when its file is good, else why
+    it was given up; the file never outlives a failure or a cancel."""
+    code: str | None = STOP_CANCELLED
+    stderr = ""
+    try:
+        code, stderr = _gpu_attempt(job, choice, cancelled)
+    finally:
+        if code is not None:
+            job.dest.unlink(missing_ok=True)
+    if code is None:
+        return None
+    if code in _CANCEL_CODES:
         raise EncodeError(STOP_CANCELLED)
-    job.dest.unlink(missing_ok=True)
     if blames_encoder(choice.encoder, code, stderr):
         record_failure(choice.encoder, code, choice.device)
     logger.warning("GPU render with %s failed (%s), rendering on the CPU", choice.encoder, code)
@@ -265,12 +282,8 @@ def encode(
     if choice.encoder != VIDEO_CPU_ENCODER:
         fallback = _try_gpu(job, choice, cancelled)
         if fallback is None:
-            return EncodeOutcome(
-                choice.encoder,
-                FAMILY[choice.encoder],
-                choice.variant,
-                choice.device,
-            )
+            family = FAMILY[choice.encoder]
+            return EncodeOutcome(choice.encoder, family, choice.variant, choice.device)
     job.run(job.build(VIDEO_CPU_ENCODER, 0, ""), render_timeout_sec(job.duration_sec), None)
     return EncodeOutcome(VIDEO_CPU_ENCODER, FAMILY[VIDEO_CPU_ENCODER], fallback_reason=fallback)
 
@@ -304,8 +317,8 @@ def test_all(
             "family": FAMILY[encoder],
             "disabled": encoder in off,
             "results": {
-                name: _test_one(encoder, geo, deadline, platform)
-                for name, geo in TEST_GEOMETRIES.items()
+                name: _test_one(encoder, geometry, deadline, platform)
+                for name, geometry in TEST_GEOMETRIES.items()
             },
         }
         for encoder in (*CANDIDATES[os_key(platform)], VIDEO_CPU_ENCODER)

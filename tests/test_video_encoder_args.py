@@ -8,9 +8,8 @@ from app.core import video_config
 from app.core.video_config import (
     NVENC,
     VAAPI,
+    VAAPI_DEVICE_ENV,
     VIDEO_CPU_ENCODER,
-    VIDEO_RENDER_TIMEOUT_MAX_SEC,
-    VIDEO_RENDER_TIMEOUT_MIN_SEC,
     render_timeout_sec,
     validate_timeout_sec,
 )
@@ -70,18 +69,19 @@ def test_auto_tries_no_gpu_on_linux_until_one_is_verified():
 
 
 def test_render_timeout_scales_with_length_within_its_bounds(monkeypatch):
-    monkeypatch.delenv("STEMDECK_TIMEOUT_VIDEO_RENDER", raising=False)
-    monkeypatch.delenv("STEMDECK_TIMEOUT_VIDEO_RENDER_MAX", raising=False)
-    assert render_timeout_sec(10) == VIDEO_RENDER_TIMEOUT_MIN_SEC
+    monkeypatch.setattr(video_config, "TIMEOUT_VIDEO_RENDER_MIN", 300)
+    monkeypatch.setattr(video_config, "TIMEOUT_VIDEO_RENDER_MAX", 6 * 3600)
+    monkeypatch.setattr(video_config, "TIMEOUT_VIDEO_VALIDATE_MIN", 120)
+    assert render_timeout_sec(10) == 300
     assert render_timeout_sec(300) == 1800
-    assert render_timeout_sec(3 * 3600) == VIDEO_RENDER_TIMEOUT_MAX_SEC
+    assert render_timeout_sec(3 * 3600) == 6 * 3600
     assert validate_timeout_sec(10) == 120
     assert validate_timeout_sec(600) == 600
 
 
-def test_render_timeout_bounds_follow_the_env(monkeypatch):
-    monkeypatch.setenv("STEMDECK_TIMEOUT_VIDEO_RENDER", "60")
-    monkeypatch.setenv("STEMDECK_TIMEOUT_VIDEO_RENDER_MAX", "100")
+def test_render_timeout_bounds_are_the_configured_ones(monkeypatch):
+    monkeypatch.setattr(video_config, "TIMEOUT_VIDEO_RENDER_MIN", 60)
+    monkeypatch.setattr(video_config, "TIMEOUT_VIDEO_RENDER_MAX", 100)
     assert render_timeout_sec(5) == 60
     assert render_timeout_sec(300) == 100
 
@@ -100,7 +100,7 @@ def _fake_drm(tmp_path, nodes):
 
 
 def test_render_nodes_in_number_order_and_their_gpu(monkeypatch, tmp_path):
-    monkeypatch.delenv("STEMDECK_VAAPI_DEVICE", raising=False)
+    monkeypatch.delenv(VAAPI_DEVICE_ENV, raising=False)
     dri, sysfs = _fake_drm(
         tmp_path,
         [("renderD129", "1002", "1900"), ("renderD128", "10de", "2dd8"), ("card0", "0", "0")],
@@ -119,9 +119,9 @@ def test_vaapi_device_env_pins_one_node(monkeypatch, tmp_path):
         [("renderD128", "10de", "2dd8"), ("renderD129", "1002", "1900")],
     )
     monkeypatch.setattr(args, "DRI_DIR", dri)
-    monkeypatch.setenv("STEMDECK_VAAPI_DEVICE", "/dev/dri/renderD129")
+    monkeypatch.setenv(VAAPI_DEVICE_ENV, "/dev/dri/renderD129")
     assert args.render_nodes("linux") == [str(dri / "renderD129")]
-    monkeypatch.setenv("STEMDECK_VAAPI_DEVICE", "renderD200")
+    monkeypatch.setenv(VAAPI_DEVICE_ENV, "renderD200")
     assert args.render_nodes("linux") == []
-    monkeypatch.setenv("STEMDECK_VAAPI_DEVICE", "card0")
+    monkeypatch.setenv(VAAPI_DEVICE_ENV, "card0")
     assert len(args.render_nodes("linux")) == 2

@@ -1,19 +1,12 @@
-"""Tunable numbers and names for the filmed-take export's H.264 encoders
-(app/pipeline/video_encoder.py). libx264 on the CPU is the default and the
-answer to every doubt; a GPU encoder is a speed-up that has to prove itself.
-
-The two environment variables are read on every call, not at import, so a
-test or a restarted unit sees the value it was given.
-"""
+"""Names and tunable numbers of the filmed-take export's H.264 encoders
+(app/pipeline/video_encoder.py). libx264 on the CPU is the default; a GPU
+encoder is used only after it passes a real test encode."""
 
 from __future__ import annotations
 
-import logging
-import os
-import re
+from app.core.config import _env_int
 
 LOGGER_NAME = "stemdeck.video_encoder"
-logger = logging.getLogger(LOGGER_NAME)
 
 VIDEO_CPU_ENCODER = "libx264"
 NVENC = "h264_nvenc"
@@ -29,44 +22,42 @@ VIDEO_ENCODER_CHOICES = (POLICY_AUTO, POLICY_CPU, *VIDEO_GPU_ENCODERS)
 
 ENCODER_ENV = "STEMDECK_VIDEO_ENCODER"
 VAAPI_DEVICE_ENV = "STEMDECK_VAAPI_DEVICE"
-RENDER_TIMEOUT_MIN_ENV = "STEMDECK_TIMEOUT_VIDEO_RENDER"
-RENDER_TIMEOUT_MAX_ENV = "STEMDECK_TIMEOUT_VIDEO_RENDER_MAX"
 
-# A probe is a real encode of a moving test picture at the render's own size
-# and rate, written to an MP4 and put through the same check as a render.
+TIMEOUT_VIDEO_ENCODER_PROBE = _env_int("STEMDECK_TIMEOUT_VIDEO_ENCODER_PROBE", 20)
+# A GPU render whose progress stops this long is redone on the CPU.
+TIMEOUT_VIDEO_GPU_STALL = _env_int("STEMDECK_TIMEOUT_VIDEO_GPU_STALL", 60)
+# A render's limit grows with its length, within these bounds: a slow CPU
+# encodes 1080p60 well below realtime.
+TIMEOUT_VIDEO_RENDER_MIN = _env_int("STEMDECK_TIMEOUT_VIDEO_RENDER", 300)
+TIMEOUT_VIDEO_RENDER_MAX = _env_int("STEMDECK_TIMEOUT_VIDEO_RENDER_MAX", 6 * 3600)
+VIDEO_RENDER_SEC_PER_SEC = 6.0
+# The output check decodes the whole file, about realtime at worst.
+TIMEOUT_VIDEO_VALIDATE_MIN = _env_int("STEMDECK_TIMEOUT_VIDEO_VALIDATE", 120)
+VIDEO_VALIDATE_SEC_PER_SEC = 1.0
+
 VIDEO_ENCODER_PROBE_SEC = 2
-TIMEOUT_VIDEO_ENCODER_PROBE = 20.0
 VIDEO_ENCODER_PASS_TTL_SEC = 7 * 24 * 3600
 VIDEO_ENCODER_FAIL_TTL_SEC = 24 * 3600
 # A busy device or a timeout says little about tomorrow: asked again soon.
 VIDEO_ENCODER_RETRY_SEC = 600
-# Encoder-blamed render failures before the encoder is off until restart.
 VIDEO_ENCODER_MAX_FAILURES = 2
 VIDEO_ENCODER_TEST_BUDGET_SEC = 150.0
 VIDEO_ENCODER_CACHE_FILE = "video_encoders.json"
 VIDEO_ENCODER_CACHE_VERSION = 1
+PROBE_LOCK_POLL_SEC = 0.25
 
-# A GPU render whose progress has not moved this long is stopped and redone
-# on the CPU.
-TIMEOUT_VIDEO_GPU_STALL = 60.0
-
-# Render time limit: this many seconds per second of video, within the floor
-# and ceiling. A slow laptop CPU runs a 1080p60 libx264 encode well below
-# realtime, and a flat limit cut long takes short.
-VIDEO_RENDER_SEC_PER_SEC = 6.0
-VIDEO_RENDER_TIMEOUT_MIN_SEC = 300
-VIDEO_RENDER_TIMEOUT_MAX_SEC = 6 * 3600
-
-# The output check decodes the whole file: about realtime at worst.
-TIMEOUT_VIDEO_VALIDATE_MIN = 120.0
-VIDEO_VALIDATE_SEC_PER_SEC = 1.0
 VIDEO_VALIDATE_DURATION_TOL_SEC = 0.5
 VIDEO_VALIDATE_DURATION_TOL_FRAMES = 2
 VIDEO_VALIDATE_FPS_TOL = 0.01
 VIDEO_VALIDATE_MIN_BYTES = 4096
 VIDEO_VALIDATE_MIN_BYTES_PER_SEC = 1000
+# Under this much free space a short file is the disk's fault, not the encoder's.
+VIDEO_LOW_DISK_BYTES = 64 * 1024 * 1024
+# A moving test picture decodes to frames that differ; a broken encoder's
+# solid green or black output does not.
+VIDEO_PROBE_MIN_DISTINCT_FRAMES = 2
 
-# GPU rate control: a bitrate ceiling per pixel per frame, and the AAC and
+# GPU rate control: a bitrate ceiling per pixel per frame, and the audio and
 # container room the file-size cap allows on top of the H.264 level's rate.
 VIDEO_GPU_MAX_BITS_PER_PIXEL = 0.5
 VIDEO_AUDIO_ROOM_KBPS = 256
@@ -75,7 +66,27 @@ VIDEO_SIZE_CAP_SLACK_BYTES = 1_000_000
 
 VIDEO_X264_CRF = 20
 VIDEO_PIX_FMT = "yuv420p"
-VIDEO_TEST_AUDIO_RATE = 48000
+GPU_UPLOAD_PIX_FMT = "nv12"
+H264_PROFILE = "high"
+NVENC_PRESET = "p4"
+NVENC_TUNE = "hq"
+NVENC_PRESET_OLD_FFMPEG = "slow"
+NVENC_RATE_CONTROL = "vbr"
+NVENC_CQ = 19
+QSV_PRESET = "medium"
+QSV_GLOBAL_QUALITY = 21
+AMF_QUALITY = "quality"
+AMF_RATE_CONTROL = "cqp"
+AMF_QP_I = 20
+AMF_QP_P = 22
+AMF_QP_B = 24
+VAAPI_RATE_CONTROL = "CQP"
+VAAPI_GLOBAL_QUALITY = 21
+VIDEOTOOLBOX_QUALITY = 65
+
+AUDIO_CODEC = "aac"
+TEST_AUDIO_RATE = 48000
+TEST_AUDIO_LAYOUT = "stereo"
 
 # The Settings test runs the lightest and the heaviest geometry on offer.
 TEST_GEOMETRIES: dict[str, tuple[int, int, int]] = {
@@ -87,50 +98,11 @@ ERROR_LINE_MAX_CHARS = 160
 VERSION_LINE_MAX_CHARS = 200
 IDENTITY_HEX_CHARS = 16
 
-_RENDER_NODE_RE = re.compile(r"(?:/dev/dri/)?(renderD[0-9]+)")
-
-
-def _env_seconds(name: str, default: int) -> int:
-    raw = os.environ.get(name, "").strip()
-    try:
-        return int(raw) if raw else default
-    except ValueError:
-        logger.warning("%s=%r is not a number of seconds; ignored", name, raw)
-        return default
-
-
-def encoder_override() -> str | None:
-    """STEMDECK_VIDEO_ENCODER when it names a choice, else None. "cpu" is the
-    kill switch: it wins over the setting."""
-    raw = os.environ.get(ENCODER_ENV, "").strip().lower()
-    if not raw:
-        return None
-    if raw not in VIDEO_ENCODER_CHOICES:
-        logger.warning("%s=%r is not one of %s; ignored", ENCODER_ENV, raw, VIDEO_ENCODER_CHOICES)
-        return None
-    return raw
-
-
-def vaapi_device_override() -> str | None:
-    """The render node STEMDECK_VAAPI_DEVICE names ("renderD129" or its full
-    path) as a bare node name, else None."""
-    raw = os.environ.get(VAAPI_DEVICE_ENV, "").strip()
-    if not raw:
-        return None
-    match = _RENDER_NODE_RE.fullmatch(raw)
-    if match is None:
-        logger.warning(
-            "%s=%r is not a render node such as renderD128; ignored", VAAPI_DEVICE_ENV, raw
-        )
-        return None
-    return match.group(1)
-
 
 def render_timeout_sec(duration_sec: float) -> float:
     """The time limit of a render of this many seconds of video."""
-    floor = _env_seconds(RENDER_TIMEOUT_MIN_ENV, VIDEO_RENDER_TIMEOUT_MIN_SEC)
-    ceiling = _env_seconds(RENDER_TIMEOUT_MAX_ENV, VIDEO_RENDER_TIMEOUT_MAX_SEC)
-    return float(max(floor, min(ceiling, duration_sec * VIDEO_RENDER_SEC_PER_SEC)))
+    scaled = duration_sec * VIDEO_RENDER_SEC_PER_SEC
+    return float(max(TIMEOUT_VIDEO_RENDER_MIN, min(TIMEOUT_VIDEO_RENDER_MAX, scaled)))
 
 
 def validate_timeout_sec(duration_sec: float) -> float:

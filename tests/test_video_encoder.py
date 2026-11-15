@@ -1,6 +1,6 @@
 """Which encoder a render gets, the CPU fallback and the session switch-off.
-GPU paths are mocked: the sandbox the agents run in hides /dev/nvidia* and
-/dev/dri, so real NVENC and VAAPI runs are the owner's device check."""
+GPU paths are mocked; real NVENC and VAAPI runs need STEMDECK_TEST_GPU on a
+machine whose GPUs this process can open."""
 
 from __future__ import annotations
 
@@ -10,12 +10,14 @@ from pathlib import Path
 
 import pytest
 
-from app.core.video_config import NVENC, QSV, VAAPI, VIDEO_CPU_ENCODER
+from app.core.config import ffmpeg_executable
+from app.core.video_config import ENCODER_ENV, NVENC, QSV, VAAPI, VIDEO_CPU_ENCODER
 from app.pipeline import video_encoder
 from app.pipeline.video_encoder import Choice, EncodeError, EncodeJob, choose, encode
 from app.pipeline.video_encoder_args import libx264_args
 from app.pipeline.video_probe import ProbeResult
-from app.pipeline.video_validate import OutputInvalid
+from app.pipeline.video_process import STOP_CANCELLED, STOP_TIMEOUT
+from app.pipeline.video_validate import CHECK_DECODE, OutputInvalid
 from tests._video_helpers import TINY_FPS, TINY_H, TINY_SEC, TINY_W, fresh_encoders, needs_libx264
 
 __all__ = ["fresh_encoders"]
@@ -33,18 +35,16 @@ def _probes(monkeypatch, passing: set[tuple[str, str]]):
     def probe(encoder, width, height, fps, device="", force=False, cancelled=None):
         asked.append((encoder, device))
         ok = (encoder, device) in passing
-        return ProbeResult(
-            encoder,
-            width,
-            height,
-            fps,
-            ok=ok,
-            reason="" if ok else "failed",
-            device=device,
-        )
+        reason = "" if ok else "failed"
+        return ProbeResult(encoder, width, height, fps, ok=ok, reason=reason, device=device)
 
     monkeypatch.setattr(video_encoder, "probe", probe)
     return asked
+
+
+def _counted_once(encoder: str, device: str = "") -> bool:
+    """Whether exactly one failure was counted: one more switches it off."""
+    return video_encoder.record_failure(encoder, "probe-of-count", device)
 
 
 def test_cpu_setting_never_probes(monkeypatch):
@@ -55,18 +55,18 @@ def test_cpu_setting_never_probes(monkeypatch):
 
 def test_env_cpu_wins_over_a_picked_encoder(monkeypatch):
     asked = _probes(monkeypatch, {(NVENC, "")})
-    monkeypatch.setenv("STEMDECK_VIDEO_ENCODER", "cpu")
-    assert video_encoder.policy(NVENC) == ("cpu", "env")
+    monkeypatch.setenv(ENCODER_ENV, "cpu")
+    assert video_encoder.policy(NVENC) == "cpu"
     assert choose(1280, 720, 30, NVENC).encoder == VIDEO_CPU_ENCODER
     assert asked == []
 
 
 def test_env_can_pick_an_encoder_and_a_bad_value_is_ignored(monkeypatch):
-    monkeypatch.setenv("STEMDECK_VIDEO_ENCODER", "h264_nvenc")
-    assert video_encoder.policy("cpu") == (NVENC, "env")
-    monkeypatch.setenv("STEMDECK_VIDEO_ENCODER", "h264_vulkan")
-    assert video_encoder.policy("cpu") == ("cpu", "setting")
-    assert video_encoder.policy("bogus") == ("auto", "setting")
+    monkeypatch.setenv(ENCODER_ENV, "h264_nvenc")
+    assert video_encoder.policy("cpu") == NVENC
+    monkeypatch.setenv(ENCODER_ENV, "h264_vulkan")
+    assert video_encoder.policy("cpu") == "cpu"
+    assert video_encoder.policy("bogus") == "auto"
 
 
 def test_auto_on_linux_stays_on_the_cpu(monkeypatch):
@@ -175,16 +175,25 @@ def test_a_gpu_render_that_passes_its_check_is_kept(monkeypatch, tmp_path):
     outcome = encode(_job(runs))
     assert (outcome.encoder, outcome.family, outcome.fallback_reason) == (NVENC, "nvidia", None)
     assert runs.encoders == [NVENC] and runs.stalls[0] is not None
+    assert runs.dest.exists()
 
 
 def test_a_gpu_render_that_fails_its_check_is_redone_on_the_cpu(monkeypatch, tmp_path):
     _gpu_chosen(monkeypatch)
-    _checks(monkeypatch, OutputInvalid("decode"))
+    _checks(monkeypatch, OutputInvalid(CHECK_DECODE))
     runs = _FakeRuns(tmp_path / "out.mp4")
     outcome = encode(_job(runs))
     assert outcome.encoder == VIDEO_CPU_ENCODER and outcome.fallback_reason == "invalid-decode"
     assert runs.encoders == [NVENC, VIDEO_CPU_ENCODER] and runs.stalls[1] is None
-    assert video_encoder.failure_count(NVENC) == 1
+    assert _counted_once(NVENC)
+
+
+def test_a_check_that_runs_out_of_time_falls_back_without_counting(monkeypatch, tmp_path):
+    _gpu_chosen(monkeypatch)
+    _checks(monkeypatch, OutputInvalid(STOP_TIMEOUT))
+    outcome = encode(_job(_FakeRuns(tmp_path / "out.mp4")))
+    assert outcome.encoder == VIDEO_CPU_ENCODER and outcome.fallback_reason == "invalid-timeout"
+    assert not _counted_once(NVENC)
 
 
 def test_a_gpu_stall_falls_back_and_counts(monkeypatch, tmp_path):
@@ -192,14 +201,14 @@ def test_a_gpu_stall_falls_back_and_counts(monkeypatch, tmp_path):
     runs = _FakeRuns(tmp_path / "out.mp4", EncodeError("stall"))
     outcome = encode(_job(runs))
     assert outcome.encoder == VIDEO_CPU_ENCODER and outcome.fallback_reason == "stall"
-    assert video_encoder.failure_count(VAAPI, NODE_B) == 1
+    assert _counted_once(VAAPI, NODE_B)
 
 
 def test_a_full_disk_falls_back_without_counting(monkeypatch, tmp_path):
     _gpu_chosen(monkeypatch)
     runs = _FakeRuns(tmp_path / "out.mp4", EncodeError("exit", "Error: No space left on device"))
     assert encode(_job(runs)).fallback_reason == "exit"
-    assert video_encoder.failure_count(NVENC) == 0
+    assert not _counted_once(NVENC)
 
 
 def test_the_encoders_own_error_counts(monkeypatch, tmp_path):
@@ -210,12 +219,23 @@ def test_the_encoders_own_error_counts(monkeypatch, tmp_path):
     assert video_encoder.disabled() == [NVENC]
 
 
-def test_a_cancel_never_falls_back(monkeypatch, tmp_path):
+def test_a_cancel_never_falls_back_and_leaves_no_file(monkeypatch, tmp_path):
     _gpu_chosen(monkeypatch)
-    runs = _FakeRuns(tmp_path / "out.mp4", EncodeError("cancelled"))
+    runs = _FakeRuns(tmp_path / "out.mp4", EncodeError(STOP_CANCELLED))
     with pytest.raises(EncodeError):
         encode(_job(runs))
-    assert runs.encoders == [NVENC] and video_encoder.failure_count(NVENC) == 0
+    assert runs.encoders == [NVENC] and not runs.dest.exists()
+    assert not _counted_once(NVENC)
+
+
+def test_a_cancel_during_the_check_leaves_no_file(monkeypatch, tmp_path):
+    _gpu_chosen(monkeypatch)
+    _checks(monkeypatch, OutputInvalid(STOP_CANCELLED))
+    runs = _FakeRuns(tmp_path / "out.mp4")
+    with pytest.raises(EncodeError):
+        encode(_job(runs))
+    assert runs.encoders == [NVENC] and not runs.dest.exists()
+    assert not _counted_once(NVENC)
 
 
 def test_test_all_reports_every_candidate_and_the_cpu(monkeypatch):
@@ -246,18 +266,8 @@ def test_a_real_cpu_render_through_encode(tmp_path):
     def build(encoder: str, variant: int, device: str) -> list[str]:
         src = ["-f", "lavfi", "-i", f"testsrc2=s={TINY_W}x{TINY_H}:r={TINY_FPS}:d={TINY_SEC}"]
         src += ["-f", "lavfi", "-i", f"anullsrc=r=48000:cl=stereo:d={TINY_SEC}"]
-        return [
-            "ffmpeg",
-            "-nostdin",
-            "-v",
-            "error",
-            "-y",
-            *src,
-            *libx264_args(),
-            "-c:a",
-            "aac",
-            str(dest),
-        ]
+        out = [*libx264_args(), "-c:a", "aac", str(dest)]
+        return [ffmpeg_executable(), "-nostdin", "-v", "error", "-y", *src, *out]
 
     def run(cmd: list[str], timeout: float, stall: float | None) -> None:
         subprocess.run(cmd, check=True, timeout=timeout)
@@ -269,7 +279,7 @@ def test_a_real_cpu_render_through_encode(tmp_path):
 
 @pytest.mark.skipif(
     not os.environ.get("STEMDECK_TEST_GPU"),
-    reason="real NVENC/VAAPI: unverifiable in the agent sandbox, owner's device check",
+    reason="real NVENC/VAAPI: set STEMDECK_TEST_GPU where this process can open the GPU",
 )
 @pytest.mark.parametrize("encoder", [NVENC, VAAPI])
 def test_real_gpu_probe(encoder):

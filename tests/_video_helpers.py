@@ -9,8 +9,15 @@ from pathlib import Path
 
 import pytest
 
-from app.core.video_config import VIDEO_CPU_ENCODER
-from app.pipeline import video_encoder, video_probe
+from app.core.config import ffmpeg_executable, ffprobe_executable
+from app.core.video_config import (
+    ENCODER_ENV,
+    VAAPI_DEVICE_ENV,
+    VIDEO_CPU_ENCODER,
+    VIDEO_ENCODER_CACHE_FILE,
+    VIDEO_PIX_FMT,
+)
+from app.pipeline import video_encoder, video_probe_store
 
 TINY_W = 320
 TINY_H = 180
@@ -20,10 +27,10 @@ _MAKE_TIMEOUT_SEC = 60
 
 
 def _has_libx264() -> bool:
-    if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
+    if shutil.which(ffmpeg_executable()) is None or shutil.which(ffprobe_executable()) is None:
         return False
     out = subprocess.run(
-        ["ffmpeg", "-hide_banner", "-encoders"],
+        [ffmpeg_executable(), "-hide_banner", "-encoders"],
         capture_output=True,
         text=True,
         timeout=_MAKE_TIMEOUT_SEC,
@@ -43,13 +50,18 @@ def make_mp4(
     fps: int = TINY_FPS,
     seconds: float = TINY_SEC,
     audio: bool = True,
+    source: str = "testsrc2",
+    source_options: str = "",
 ) -> Path:
-    """A real H.264 (+ AAC) MP4 from test sources, made with libx264."""
-    cmd = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-f", "lavfi"]
-    cmd += ["-i", f"testsrc2=s={width}x{height}:r={fps}:d={seconds}"]
+    """A real H.264 (+ AAC) MP4 made with libx264 from a lavfi video source:
+    testsrc2 moves, color with source_options "c=green" is one solid colour."""
+    cmd = [ffmpeg_executable(), "-nostdin", "-v", "error", "-y", "-f", "lavfi"]
+    options = f"s={width}x{height}:r={fps}:d={seconds}"
+    options += f":{source_options}" if source_options else ""
+    cmd += ["-i", f"{source}={options}"]
     if audio:
         cmd += ["-f", "lavfi", "-i", f"sine=f=440:d={seconds}", "-c:a", "aac"]
-    cmd += ["-c:v", VIDEO_CPU_ENCODER, "-pix_fmt", "yuv420p", str(dest)]
+    cmd += ["-c:v", VIDEO_CPU_ENCODER, "-pix_fmt", VIDEO_PIX_FMT, str(dest)]
     subprocess.run(cmd, check=True, timeout=_MAKE_TIMEOUT_SEC)
     return dest
 
@@ -57,11 +69,11 @@ def make_mp4(
 @pytest.fixture
 def fresh_encoders(monkeypatch, tmp_path):
     """No env override, an empty probe cache in tmp, no failures counted."""
-    monkeypatch.delenv("STEMDECK_VIDEO_ENCODER", raising=False)
-    monkeypatch.delenv("STEMDECK_VAAPI_DEVICE", raising=False)
-    monkeypatch.setattr(video_probe, "CACHE_PATH", tmp_path / "video_encoders.json")
-    video_probe.reset_cache()
+    monkeypatch.delenv(ENCODER_ENV, raising=False)
+    monkeypatch.delenv(VAAPI_DEVICE_ENV, raising=False)
+    monkeypatch.setattr(video_probe_store, "CACHE_PATH", tmp_path / VIDEO_ENCODER_CACHE_FILE)
+    video_probe_store.reset_cache()
     video_encoder.reset_state()
     yield tmp_path
-    video_probe.reset_cache()
+    video_probe_store.reset_cache()
     video_encoder.reset_state()
