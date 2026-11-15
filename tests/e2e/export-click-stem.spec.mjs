@@ -1,4 +1,3 @@
-
 import { test, expect } from "@playwright/test";
 import { openStudio, exportUi, waitForClickTrack, TRACK_TITLE } from "./helpers.mjs";
 
