@@ -1,9 +1,8 @@
-// Extracting the stems a song has no file for: the server separates its audio
-// again, and this follows the run by polling, as vocalSplit.js does. No DOM, so
-// the node tests import it.
+// No DOM, so the node tests import it.
 
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 import { failureReasonKey } from "./importSource.js";
+import { UNREACHABLE_VIEW, pollUntilEnded } from "./vocalSplit.js";
 
 export const EXTRACT_STATE = Object.freeze({
   RUNNING: "running",
@@ -24,10 +23,7 @@ export const EXTRACT_OUTCOME = Object.freeze({
   SOURCE_GONE: "source-gone",
   REFUSED: "refused",
 });
-export const POLL_MS = 1000;
-// Polls in a row that got no answer before the run is given up for failed.
-export const MAX_FAILED_POLLS = 3;
-export const UNREACHABLE_VIEW = Object.freeze({ state: EXTRACT_STATE.FAILED, error: null });
+const LOST_VIEW = Object.freeze({ state: EXTRACT_STATE.FAILED, error: null });
 
 // app/api/versions.py SOURCE_GONE and EXTRACT_RUNNING.
 export const SOURCE_GONE_DETAIL = "this song's original audio is not kept; import it again to get these stems";
@@ -36,11 +32,14 @@ const HTTP_ACCEPTED = 202;
 const FULL = 1;
 const PERCENT = 100;
 
+const SOURCE_BLOCKED = "source-blocked";
+const SOURCE_UNAVAILABLE = "source-unavailable";
+const TOO_MANY_VERSIONS = "too-many-versions";
 // classify_failure causes whose import sentence also reads right for this run.
-const IMPORT_WORDED_CAUSES = new Set([
-  "out-of-memory", "disk-full", "unsupported-device", "source-blocked", "source-unavailable",
-]);
+const IMPORT_WORDED_CAUSES = new Set(["out-of-memory", "disk-full", "unsupported-device", SOURCE_BLOCKED]);
 const GENERIC_FAILURE_KEY = "versions.extractFailed";
+const LINK_DEAD_KEY = "versions.extractLinkDead";
+const TOO_MANY_KEY = "versions.tooMany";
 const LABEL_KEYS = {
   [EXTRACT_PHASE.QUEUED]: "versions.extractWaiting",
   [EXTRACT_PHASE.DOWNLOADING]: "versions.extractDownloading",
@@ -58,9 +57,12 @@ const following = new Set();
 
 const extractUrl = (jobId) => `/api/jobs/${encodeURIComponent(jobId)}/versions/extract`;
 
-/** The i18n key of the sentence that says why a run failed, from its cause. */
-export function failureKey(cause) {
-  return IMPORT_WORDED_CAUSES.has(cause) ? failureReasonKey(cause) : GENERIC_FAILURE_KEY;
+/** The i18n key of the sentence that says why a failed run's view failed. */
+export function failureKey({ error, phase }) {
+  if (error === TOO_MANY_VERSIONS) return TOO_MANY_KEY;
+  const downloadFailed = phase === EXTRACT_PHASE.DOWNLOADING && error !== SOURCE_BLOCKED;
+  if (downloadFailed || error === SOURCE_UNAVAILABLE) return LINK_DEAD_KEY;
+  return IMPORT_WORDED_CAUSES.has(error) ? failureReasonKey(error) : GENERIC_FAILURE_KEY;
 }
 
 /** What a running view shows: its words, whether a bar goes under them, and how full. */
@@ -72,10 +74,10 @@ export function runLabel(view, t) {
   return { text, bar: phase !== EXTRACT_PHASE.QUEUED, progress };
 }
 
-/** Of `stems`, those the song has no file for; none while its files are not known. */
-export function filelessStems(track, stems) {
-  const files = new Set((track?.audioStems ?? []).map((stem) => stem.name));
-  return files.size ? stems.filter((name) => !files.has(name)) : [];
+/** Of `stems`, those the song's versions payload says have no file. */
+export function filelessStems(versionsState, stems) {
+  const missing = new Set(versionsState?.missing_files ?? []);
+  return stems.filter((name) => missing.has(name));
 }
 
 export const isExtracting = (jobId) => following.has(jobId);
@@ -106,9 +108,8 @@ async function refusal(jobId, detail, io) {
 }
 
 /**
- * Ask for the version with `body.stems` added. OPENED with the answer when the
- * files were all there; STARTED with the run's view when they are being made
- * (or already were); SOURCE_GONE or REFUSED, with the server's detail, when not.
+ * Ask for the version with `body.stems` added: OPENED when the files were all there,
+ * STARTED when they are being made, else SOURCE_GONE or REFUSED with the server's detail.
  */
 export async function startExtract(jobId, body, io = DEFAULT_IO) {
   let res;
@@ -125,37 +126,30 @@ export async function startExtract(jobId, body, io = DEFAULT_IO) {
   return { outcome: EXTRACT_OUTCOME.REFUSED, detail: answer?.detail ?? null };
 }
 
-function ended(view) {
-  return view.state === EXTRACT_STATE.IDLE ? UNREACHABLE_VIEW : view;
-}
+const isExtractEnded = (view) => view.state !== EXTRACT_STATE.RUNNING;
 
-async function pollUntilEnded(jobId, onView, isCurrent, io) {
-  let failures = 0;
-  while (isCurrent()) {
-    const view = await fetchExtractView(jobId, io);
-    if (!isCurrent()) return null;
-    if (!view) {
-      failures += 1;
-      if (failures >= MAX_FAILED_POLLS) return UNREACHABLE_VIEW;
-    } else if (view.state !== EXTRACT_STATE.RUNNING) {
-      return ended(view);
-    } else {
-      failures = 0;
-      onView(view);
-    }
-    await io.wait(POLL_MS);
-  }
-  return null;
+function settled(view) {
+  return view === UNREACHABLE_VIEW || view.state === EXTRACT_STATE.IDLE ? LOST_VIEW : view;
 }
 
 /**
  * Poll until the run ends and answer its last view, or null once `isCurrent()`
  * says nobody waits for it. A run the server no longer knows ended in failure.
  */
-export async function followExtract(jobId, { onView = () => {}, isCurrent = () => true, io = DEFAULT_IO } = {}) {
+export async function followExtract(
+  jobId,
+  { onView = () => {}, isCurrent = () => true, io = DEFAULT_IO } = {},
+) {
   following.add(jobId);
   try {
-    return await pollUntilEnded(jobId, onView, isCurrent, io);
+    const final = await pollUntilEnded(jobId, {
+      onView,
+      isCurrent,
+      io,
+      fetchView: fetchExtractView,
+      ended: isExtractEnded,
+    });
+    return final && settled(final);
   } finally {
     following.delete(jobId);
   }

@@ -37,7 +37,7 @@ const SUBLINE_CLASS = "np-subline";
 const ROW_SELECTOR = ".cat-version";
 const SONG_ROW_SELECTOR = "#catalogList .cat-item.has-versions";
 
-function esc(text) {
+export function esc(text) {
   const span = document.createElement("span");
   span.textContent = String(text ?? "");
   return span.innerHTML.replace(/"/g, "&quot;");

@@ -1,7 +1,3 @@
-// Extract more stems: the form under a song's row, and a run that separates the
-// song again when it has no file for a chosen stem, shown on its row, in the
-// song head and on Stage until the new version opens.
-
 import {
   ROW_PENDING, applyVersionsState, getLibraryTrack, paintRunRow, redrawLibrary, setVersionsExpanded,
 } from "./catalog.js";
@@ -12,7 +8,7 @@ import { notifyFailure } from "./notifications.js";
 import { STEM_NAMES } from "./constants.js";
 import { storeSet } from "./utils.js";
 import { addedName, missingStems, mixStoreKey, openVersionOf } from "./versionModel.js";
-import { reportRefusal, showOpenedVersion, songSubline, versionMix, versionsUrl } from "./versions.js";
+import { esc, reportRefusal, showOpenedVersion, songSubline, versionMix, versionsUrl } from "./versions.js";
 import {
   EXTRACT_OUTCOME, EXTRACT_STATE, failureKey, filelessStems, followExtract, runLabel, startExtract,
 } from "./extractRun.js";
@@ -22,14 +18,8 @@ const HEAD_LABEL_ID = "npExtracting";
 const HEAD_LABEL_CLASS = "np-extracting";
 const STAGE_LABEL_ID = "stageExtracting";
 
-let extractFor = null; // { trackId, chosen: Set<string>, refused: boolean }
+let extractFor = null; // { trackId, chosen: Set<string>, refused: boolean, versionsState }
 const runs = new Map(); // trackId → { view, mix, knownIds: Set<string> }
-
-function esc(text) {
-  const span = document.createElement("span");
-  span.textContent = String(text ?? "");
-  return span.innerHTML;
-}
 
 // ─── The form ───
 
@@ -39,14 +29,14 @@ function chipHtml(stem, pressed) {
 }
 
 /** Saying it takes minutes only when a chosen stem has to be made. */
-function hintText(track, chosen) {
-  return t(filelessStems(track, [...chosen]).length ? "versions.extractSlowHint" : "versions.extractHint");
+function hintText(versionsState, chosen) {
+  return t(filelessStems(versionsState, [...chosen]).length ? "versions.extractSlowHint" : "versions.extractHint");
 }
 
 function choiceHtml(track) {
   const missing = missingStems(openVersionOf(track)?.stems ?? STEM_NAMES);
   return `<div class="cat-extract-more-chips">${missing.map((s) => chipHtml(s, extractFor.chosen.has(s))).join("")}</div>`
-    + `<span class="cat-extract-more-hint">${esc(hintText(track, extractFor.chosen))}</span>`
+    + `<span class="cat-extract-more-hint">${esc(hintText(extractFor.versionsState, extractFor.chosen))}</span>`
     + `<div class="cat-extract-more-foot"><button class="cat-extract-more-cancel" type="button">${esc(t("folderEditor.cancel"))}</button>`
     + `<button class="cat-extract-more-go" type="button">${esc(t("versions.extractGo"))}</button></div>`;
 }
@@ -89,7 +79,7 @@ function toggleChip(chip) {
   chip.setAttribute("aria-pressed", String(extractFor.chosen.has(stem)));
   const form = chip.closest(".cat-extract-more");
   form.querySelector(".cat-extract-more-go").disabled = extractFor.chosen.size === 0;
-  form.querySelector(".cat-extract-more-hint").textContent = hintText(getLibraryTrack(extractFor.trackId), extractFor.chosen);
+  form.querySelector(".cat-extract-more-hint").textContent = hintText(extractFor.versionsState, extractFor.chosen);
 }
 
 function showRefused() {
@@ -150,11 +140,22 @@ function onExtractFormKeydown(e) {
   closeExtractForm();
 }
 
-function onExtractRequest(e) {
+async function readVersionsState(trackId) {
+  try {
+    return await fetchJson(versionsUrl(trackId));
+  } catch (err) {
+    console.warn("[extractMore] the song's versions could not be read:", err);
+    return null;
+  }
+}
+
+async function onExtractRequest(e) {
   const trackId = e.detail?.id;
   const track = getLibraryTrack(trackId);
   if (!track) return;
-  extractFor = { trackId, chosen: new Set(missingStems(openVersionOf(track)?.stems ?? STEM_NAMES)), refused: false };
+  const versionsState = await readVersionsState(trackId);
+  const chosen = new Set(missingStems(openVersionOf(track)?.stems ?? STEM_NAMES));
+  extractFor = { trackId, chosen, refused: false, versionsState };
   redrawLibrary();
   document.querySelector("#catalogList .cat-extract-more-go")?.focus();
 }
@@ -200,13 +201,8 @@ function paintRun(trackId, view) {
 }
 
 async function openExtracted(trackId, run, view) {
-  let answer;
-  try {
-    answer = await fetchJson(versionsUrl(trackId));
-  } catch (err) {
-    console.warn("[extractMore] the song's versions could not be read:", err);
-    return;
-  }
+  const answer = await readVersionsState(trackId);
+  if (!answer) return;
   if (run.mix && !run.knownIds.has(view.version_id)) await storeSet(mixStoreKey(trackId, view.version_id), run.mix);
   setVersionsExpanded(trackId, true);
   if (trackId === currentJobId) await showOpenedVersion(trackId, answer);
@@ -216,7 +212,7 @@ async function openExtracted(trackId, run, view) {
 function reportFailed(trackId, view) {
   notifyFailure({
     kind: "extract",
-    message: t(failureKey(view.error)),
+    message: t(failureKey(view)),
     context: { jobId: trackId },
   });
 }

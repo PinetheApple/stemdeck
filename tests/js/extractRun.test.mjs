@@ -1,13 +1,9 @@
-// Extract more stems when the song has no file for one: starting the run,
-// following it to its end, stopping it, and the words its row and failure show.
-//
 // Run:  node tests/js/extractRun.test.mjs
 
 import {
   EXTRACT_OUTCOME,
   EXTRACT_PHASE,
   EXTRACT_STATE,
-  MAX_FAILED_POLLS,
   SOURCE_GONE_DETAIL,
   cancelExtract,
   failureKey,
@@ -18,6 +14,7 @@ import {
   runLabel,
   startExtract,
 } from "../../static/js/extractRun.js";
+import { MAX_FAILED_POLLS } from "../../static/js/vocalSplit.js";
 import { TRANSLATIONS } from "../../static/js/i18n.js";
 
 let pass = 0, fail = 0;
@@ -31,8 +28,9 @@ const EXTRACT_URL = `/api/jobs/${JOB}/versions/extract`;
 const EXTRACT_RUNNING_DETAIL = "more stems are already being extracted for this song";
 const BODY = { from: "main", stems: ["guitar"], name: "+ Guitar" };
 const FALLBACK_LOCALES = new Set(["pt-PT"]);
-const IMPORT_WORDED_CAUSES = ["out-of-memory", "disk-full", "unsupported-device", "source-blocked", "source-unavailable"];
-const GENERIC_KEY = failureKey(null);
+const IMPORT_WORDED_CAUSES = ["out-of-memory", "disk-full", "unsupported-device", "source-blocked"];
+const GENERIC_KEY = "versions.extractFailed";
+const LINK_DEAD_KEY = "versions.extractLinkDead";
 
 const reply = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
 
@@ -154,22 +152,29 @@ const ended = (state, extra = {}) => ({ state, phase: EXTRACT_PHASE.FINISHING, p
 }
 
 {
-  const keys = IMPORT_WORDED_CAUSES.map(failureKey);
+  const failedIn = (phase, error) => failureKey(ended(EXTRACT_STATE.FAILED, { phase, error }));
+  const keys = IMPORT_WORDED_CAUSES.map((cause) => failedIn(EXTRACT_PHASE.SEPARATING, cause));
   check("each cause the import words is worded as the import does", keys.every((k) => k.startsWith("importFail.reason.")), keys.join());
-  check("a link that no longer works says so", failureKey("source-unavailable") === "importFail.reason.sourceUnavailable");
-  check("unknown, no-output and too-many-versions read as the generic sentence",
-    ["unknown", "no-output", "too-many-versions", "bad-input"].every((c) => failureKey(c) === GENERIC_KEY));
+  check("a download that failed says the link no longer works",
+    ["unknown", "source-unavailable", "disk-full"].every((c) => failedIn(EXTRACT_PHASE.DOWNLOADING, c) === LINK_DEAD_KEY));
+  check("a removed video says the link no longer works", failedIn(EXTRACT_PHASE.SEPARATING, "source-unavailable") === LINK_DEAD_KEY);
+  check("a blocked download keeps the import's sentence",
+    failedIn(EXTRACT_PHASE.DOWNLOADING, "source-blocked") === "importFail.reason.sourceBlocked");
+  check("too many versions says so", failedIn(EXTRACT_PHASE.FINISHING, "too-many-versions") === "versions.tooMany");
+  check("unknown and no-output read as the generic sentence",
+    ["unknown", "no-output", "bad-input"].every((c) => failedIn(EXTRACT_PHASE.SEPARATING, c) === GENERIC_KEY));
+  check("a run the server stopped answering about is generic", failureKey({ state: EXTRACT_STATE.FAILED, error: null }) === GENERIC_KEY);
 }
 
 {
-  const track = { audioStems: [{ name: "vocals", url: "/v.wav" }, { name: "drums", url: "/d.wav" }] };
-  check("stems the song has no file for are named", filelessStems(track, ["drums", "guitar"]).join() === "guitar");
-  check("a song whose files are not known yet names none", filelessStems({ audioStems: [] }, ["guitar"]).length === 0);
+  const versions = { versions: [], missing_files: ["guitar", "piano"] };
+  check("stems the server has no file for are named", filelessStems(versions, ["bass", "guitar"]).join() === "guitar");
+  check("a payload without missing_files names none", filelessStems({ versions: [] }, ["guitar"]).length === 0);
 }
 
 {
   const keys = [
-    GENERIC_KEY, "versions.extractWaiting", "versions.extracting", "versions.extractDownloading",
+    GENERIC_KEY, LINK_DEAD_KEY, "versions.tooMany", "versions.extractWaiting", "versions.extracting", "versions.extractDownloading",
     "versions.extractFinishing", "versions.extractStop", "versions.extractSlowHint", "versions.sourceGone",
     "notifKind.extractFailed",
   ];

@@ -1,6 +1,3 @@
-// Extract more stems when the song has no file for one: the server separates
-// it again (stubbed here), the row, song head and Stage show the run, and the
-// new version opens when it is done; a failure or a stop leaves the song as it was.
 import { test, expect } from "@playwright/test";
 import { JOB_ID, failureMessages, openStudio } from "./helpers.mjs";
 import { DEFAULT_VERSION_ID as DEFAULT_ID } from "../../static/js/versionModel.js";
@@ -12,6 +9,8 @@ const V2_DRUMS = 0.25;
 const MIX_KEY = `stemdeck:mix:${JOB_ID}`;
 const EXTRACT_PATH = `**/api/jobs/${JOB_ID}/versions/extract`;
 const OOM_SENTENCE = "There wasn't enough memory to finish. Close other apps, then retry.";
+const LINK_DEAD_SENTENCE = "The link no longer works. The song is unchanged.";
+const FILELESS = ["guitar", "piano"];
 
 const versionsUrl = (id) => `/api/jobs/${id}/versions`;
 const versionKey = (vid) => `${MIX_KEY}:${vid}`;
@@ -30,6 +29,15 @@ test.afterEach(async ({ request }) => {
   const { versions } = await (await request.get(versionsUrl(JOB_ID))).json();
   for (const v of versions.filter((x) => x.id !== DEFAULT_ID)) await request.delete(`${versionsUrl(JOB_ID)}/${v.id}`);
 });
+
+/** Add `missing` to the song's versions payload, as the server names stems with no file. */
+async function stubMissingFiles(page, missing) {
+  await page.route(`**${versionsUrl(JOB_ID)}`, async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    const res = await route.fetch();
+    return route.fulfill({ response: res, json: { ...(await res.json()), missing_files: missing } });
+  });
+}
 
 /** Answer the extract routes from `run.view`, which the test moves along; record the stops. */
 async function stubExtractRun(page, request, first) {
@@ -94,6 +102,7 @@ async function expectStillPlays(page) {
 }
 
 test("the form says it takes minutes only when a chosen stem has no file", async ({ page, request }) => {
+  await stubMissingFiles(page, FILELESS);
   await openOnTwoLanes(page, request);
   const menu = await openRowMenu(page);
   await menu.getByRole("menuitem", { name: "Extract more stems…" }).click();
@@ -148,6 +157,19 @@ test("a failed run tells why in a notification and leaves the song as it was", a
   await expect(versionRows(page)).toHaveCount(2);
   await expect.poll(() => lanes(page)).toEqual([...TWO_STEMS].sort());
   await expectStillPlays(page);
+});
+
+test("a download that fails says the link no longer works and leaves the song as it was", async ({ page, request }) => {
+  await openOnTwoLanes(page, request);
+  const run = await stubExtractRun(page, request, running("downloading", 0.3));
+  await extractBass(page);
+  await expect(rowLabel(page)).toHaveText("Downloading 30%");
+
+  run.view = ended("failed", { phase: "downloading", error: "unknown" });
+  await expect(rowLabel(page)).toHaveCount(0);
+  await expect.poll(() => failureMessages(page)).toEqual([LINK_DEAD_SENTENCE]);
+  await expect(versionRows(page)).toHaveCount(2);
+  await expect.poll(() => lanes(page)).toEqual([...TWO_STEMS].sort());
 });
 
 test("Stop extracting takes Extract more's place in both menus and stops only the run", async ({ page, request }) => {
