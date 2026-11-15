@@ -2,7 +2,7 @@
 // the phone UI can both use it.
 
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
-import { FOLDER_MOVING_KEY } from "./lyricsFolderMoving.js";
+import { FOLDER_MOVING_KEY, refusedForFolderMove } from "./folderMoving.js";
 
 export const SPLIT_STATE = Object.freeze({
   NONE: "none",
@@ -21,9 +21,6 @@ export const JOB_DONE = "done";
 export const UNREACHABLE_VIEW = Object.freeze({ state: SPLIT_STATE.ERROR, error: null });
 
 const VOCALS_STEM = "vocals";
-// STEMS_FOLDER_MOVING_SPLIT in app/api/jobs.py: refused while StemData moves.
-export const SPLIT_FOLDER_MOVING_DETAIL =
-  "Restart StemDeck to finish moving your stems folder, then split the vocals.";
 export const FAILED_FOLDER_MOVING = "folder_moving";
 const JSON_HEADERS = { "Content-Type": "application/json" };
 // app/core/models.py VOCAL_SPLIT_FAILED_*
@@ -108,8 +105,7 @@ export async function startSplit(jobId, io = DEFAULT_IO) {
   const res = await io.fetch(splitUrl(jobId), { method: "POST" });
   if (res.ok) return res.json();
   if (res.status === HTTP_CONFLICT) {
-    const data = await res.json().catch(() => null);
-    if (data?.detail === SPLIT_FOLDER_MOVING_DETAIL) {
+    if (await refusedForFolderMove(res)) {
       return { state: SPLIT_STATE.ERROR, error: FAILED_FOLDER_MOVING };
     }
     const view = await fetchSplitView(jobId, io);

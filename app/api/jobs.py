@@ -1066,8 +1066,6 @@ async def resplit_job(job_id: str, body: ResplitBody) -> dict:
 
 
 def _refuse_while_relocating(detail: str = STEMS_FOLDER_MOVING) -> None:
-    """409 while the stems folder moves: a write now lands in the folder the
-    files are leaving."""
     if is_relocating():
         raise HTTPException(status_code=409, detail=detail)
 
@@ -1693,6 +1691,8 @@ async def lookup_lyrics_route(job_id: str, body: LyricsLookupBody | None = None)
         _LYRICS_LOOKUPS.discard(job_id)
     if registry_get(job_id) is not job:
         raise HTTPException(status_code=404, detail="job not found")
+    # The move may have begun while LRCLIB answered.
+    _refuse_while_relocating()
     if (
         answer is not None
         and job.user_names == names
@@ -1842,6 +1842,7 @@ async def align_lyrics_route(job_id: str, request: Request) -> dict:
     if shift is None or abs(shift) > LYRICS_OFFSET_MAX_SEC:
         return {"confident": False, "offset_sec": None}
     if kept_here:
+        _refuse_while_relocating()
         entry = await asyncio.to_thread(set_lyrics_offset, job, job_dir, shift)
         if entry is None:
             raise HTTPException(status_code=500, detail=LYRICS_NOT_SAVED)
@@ -1927,8 +1928,7 @@ async def start_lyrics_retime(job_id: str, request: Request) -> JSONResponse:
     await asyncio.to_thread(_retime_ready, job_dir, lyrics)
     if TRANSCRIBE_RUNS.running(job_id):
         raise HTTPException(status_code=409, detail=TRANSCRIPTION_RUNNING)
-    if is_relocating():
-        raise HTTPException(status_code=409, detail=STEMS_FOLDER_MOVING)
+    _refuse_while_relocating()
     run = RETIME_RUNS.claim(job_id)
     if run is None:
         raise HTTPException(status_code=409, detail=LYRICS_TIMING_RUNNING)

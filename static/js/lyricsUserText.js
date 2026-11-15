@@ -2,7 +2,7 @@
 // A problem is { text } when the server worded it, else { key, status? } for i18n.js.
 
 import { HTTP_NOT_FOUND } from "./libraryControls.js";
-import { FOLDER_MOVING_KEY, isFolderMoving } from "./lyricsFolderMoving.js";
+import { FOLDER_MOVING_KEY, isFolderMoving } from "./folderMoving.js";
 
 // _TEXT_MAX_CHARS in app/pipeline/lyrics_lookup.py.
 export const LYRICS_MAX_CHARS = 100_000;

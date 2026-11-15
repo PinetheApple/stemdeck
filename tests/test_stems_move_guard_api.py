@@ -1,6 +1,5 @@
-"""The vocal split and the lyrics edits while the stems folder moves: each is
-refused with the move's own message, writes nothing into the folder, and
-works again once the move is over (abandoned here; a restart in real life)."""
+"""Vocal split and lyrics writes while the stems folder moves: 409, nothing
+written, and working again once the move is over."""
 
 from __future__ import annotations
 
@@ -105,3 +104,35 @@ def test_a_track_that_has_lyrics_still_shows_them_while_the_folder_moves(client,
     r = client.post(f"/api/jobs/{job.id}/lyrics/lookup", json={})
     assert r.status_code == 200
     assert r.json()["synced"] == lrc(LINES)
+
+
+def _move_begins_then(answer):
+    def answer_once_the_move_began(*args, **kwargs):
+        stems_location.begin_relocation()
+        return answer(*args, **kwargs)
+
+    return answer_once_the_move_began
+
+
+def _assert_refused_unwritten(r, before):
+    assert r.status_code == 409
+    assert r.json()["detail"] == jobs_mod.STEMS_FOLDER_MOVING
+    assert _folder() == before
+
+
+def test_a_lookup_answered_after_the_move_began_keeps_nothing(client, monkeypatch):
+    job = _tagged_job()
+    before = _folder()
+    monkeypatch.setattr(stems_location, "_relocating", False)
+    with patch.object(ll, "_fetch_json", _move_begins_then(Lrclib(ROWS))):
+        r = client.post(f"/api/jobs/{job.id}/lyrics/lookup", json={})
+    _assert_refused_unwritten(r, before)
+
+
+def test_an_alignment_finished_after_the_move_began_keeps_nothing(client, monkeypatch):
+    job = _aligned_job()
+    before = _folder()
+    monkeypatch.setattr(stems_location, "_relocating", False)
+    monkeypatch.setattr(jobs_mod, "detect_offset", _move_begins_then(lambda *_: 2.0))
+    r = client.post(f"/api/jobs/{job.id}/lyrics/align", json={})
+    _assert_refused_unwritten(r, before)

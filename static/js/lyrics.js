@@ -81,7 +81,7 @@ import { editableRows, plainTexts, plainTimedLines, untimedRows } from "./lyrics
 import { toolButton, setToolLabel, keepOnePrimary, TOOL_QUIET } from "./lyricsToolbar.js";
 import { initLyricsTranscribe, checkTranscribe, resetTranscribe } from "./lyricsTranscribe.js";
 import { RUN_STATE } from "./lyricsRunState.js";
-import { FOLDER_MOVING_KEY, refusedForFolderMove } from "./lyricsFolderMoving.js";
+import { FOLDER_MOVING_KEY, refusalKey, refusedForFolderMove } from "./folderMoving.js";
 
 // Set once every lyrics entry this browser kept is on the server (lyricsCarryOver.js).
 const CARRIED_OVER_KEY = "stemdeck.lyrics_carried_over";
@@ -1382,7 +1382,7 @@ function notifyLyricsFailure(messageKey, stage, trackId) {
  * `onRefused` runs when the server answered with a refusal. */
 async function keepOnServer(trackId, version, { picked = true, onRefused } = {}) {
   const answer = await sendLyrics(trackId, "PUT", { body: toServerVersion(version), picked });
-  if (answer && !answer.ok) onRefused?.();
+  if (answer && !answer.ok) onRefused?.(answer);
   const found = answer?.ok ? fromServerLyrics(answer.data) : null;
   if (found?.entry) return found;
   console.warn("lyrics not kept", answer?.status);
@@ -1400,19 +1400,21 @@ async function keep(match) {
   }
   // An offset or timing still waiting belongs to the version being replaced.
   await flushSave();
-  const kept = await keepOnServer(info.id, match);
+  let refusal = null;
+  const kept = await keepOnServer(info.id, match, { onRefused: (answer) => { refusal = answer; } });
   answered.delete(info.id);
   if (!kept) {
-    notifyLyricsFailure("lyrics.keepFailed", "Keeping lyrics", info.id);
+    notifyLyricsFailure(refusalKey(refusal, "lyrics.keepFailed"), "Keeping lyrics", info.id);
     return;
   }
   if (getCurrentTrackInfo()?.id === info.id) show(kept.entry, kept.others);
 }
 
-/** Keep on the server that the track's lyrics were removed; whether it did. */
+/** Keep on the server that the track's lyrics were removed: null when it
+ * did, else the notice to show. */
 async function recordRemoval(trackId) {
   const answer = await sendLyrics(trackId, "DELETE");
-  return isRemovedAnswer(answer?.data);
+  return isRemovedAnswer(answer?.data) ? null : refusalKey(answer, "lyrics.removeFailed");
 }
 
 // Removing is remembered, not just cleared: the lookup runs by itself, and
@@ -1421,10 +1423,10 @@ async function removeLyrics() {
   const info = getCurrentTrackInfo();
   if (!info) return;
   await flushSave();
-  const removed = await recordRemoval(info.id);
+  const notRemoved = await recordRemoval(info.id);
   answered.delete(info.id);
-  if (!removed) {
-    notifyLyricsFailure("lyrics.removeFailed", "Removing lyrics", info.id);
+  if (notRemoved) {
+    notifyLyricsFailure(notRemoved, "Removing lyrics", info.id);
     return;
   }
   if (info.id === shownTrackId) showRemoved();
@@ -1460,9 +1462,8 @@ function onUserTextSaved(trackId, data) {
  * lyrics, which is kept so that a lookup does not bring lyrics back. */
 async function onUserTextRestored(trackId, nothingLeft) {
   answered.delete(trackId);
-  if (nothingLeft && !(await recordRemoval(trackId))) {
-    notifyLyricsFailure("lyrics.removeFailed", "Removing lyrics", trackId);
-  }
+  const notRemoved = nothingLeft ? await recordRemoval(trackId) : null;
+  if (notRemoved) notifyLyricsFailure(notRemoved, "Removing lyrics", trackId);
   if (trackId === shownTrackId) loadForCurrentTrack();
 }
 
@@ -1718,6 +1719,7 @@ async function carryOverBrowserLyrics() {
       drop: dropBrowserLyrics,
       send: sendCarryOver,
       carried: onLyricsCarried,
+      folderMoving: onCarryOverFolderMoving,
     });
     if (finished) await storeSet(CARRIED_OVER_KEY, true);
   } catch (err) {
@@ -1729,8 +1731,11 @@ const readBrowserLyrics = (trackId) => storeGet(lyricsStoreKey(trackId), null);
 const dropBrowserLyrics = (trackId) => storeSet(lyricsStoreKey(trackId), null);
 
 async function sendCarryOver(trackId, { method, body, picked }) {
-  const answer = await sendLyrics(trackId, method, { body, carryOver: true, picked });
-  return answer?.status ?? null;
+  return sendLyrics(trackId, method, { body, carryOver: true, picked });
+}
+
+function onCarryOverFolderMoving() {
+  notifyLyricsFailure(FOLDER_MOVING_KEY, "Carrying lyrics over", null);
 }
 
 function onLyricsCarried(trackId) {
