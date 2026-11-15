@@ -16,11 +16,13 @@ from app.api.setlists import router as setlists_router
 from app.api.stems import router as stems_router
 from app.api.takes import router as takes_router
 from app.api.transcribe import router as transcribe_router
+from app.api.versions import router as versions_router
 from app.api.video_encoders import router as video_encoders_router
 
 router = APIRouter()
 router.include_router(config_router, tags=["config"])
 router.include_router(jobs_router, prefix="/jobs", tags=["jobs"])
+router.include_router(versions_router, prefix="/jobs", tags=["jobs"])
 router.include_router(transcribe_router, prefix="/jobs", tags=["jobs"])
 router.include_router(takes_router, prefix="/jobs", tags=["takes"])
 router.include_router(events_router, tags=["events"])

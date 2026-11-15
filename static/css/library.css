@@ -403,3 +403,230 @@
 .setlist-song.in-trash:is(:hover, .is-selected) .row-play { display: none; }
 
 .daw-search.has-query .search-kbd { display: none; }
+
+/* ── A song's versions: rows under the song, its Extract more form ── */
+
+/* The song row's disclosure, in the duration's place, so the row keeps its height. */
+.cat-versions-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  margin: -2px 0;
+  padding: 2px var(--s-1) 2px 2px;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cat-versions-toggle .ic {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  transition: transform var(--t-fast);
+}
+.cat-versions-toggle[aria-expanded="false"] .ic { transform: rotate(-90deg); }
+.cat-versions-toggle:hover { background: var(--surface-3); color: var(--text); }
+.cat-versions-toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.cat-item.has-versions .cat-sub > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* While one of its versions is open and shown, the song row only colours its title. */
+.cat-item.has-open-version .cat-title { color: var(--accent); }
+
+.cat-versions {
+  --cat-thumb-size: 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0 0 var(--s-1) calc(var(--s-2) + var(--cat-thumb-size) / 2);
+  padding-left: var(--s-2);
+  border-left: 1px solid var(--line-strong);
+}
+.cat-versions[hidden] { display: none; }
+
+.cat-version {
+  --version-bg: var(--surface-1);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  min-height: var(--ctl-h-sm);
+  padding: 0 var(--s-2) 0 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-1);
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+.cat-version:hover { --version-bg: var(--surface-2); background: var(--version-bg); }
+.cat-version.is-selected { border-color: var(--text-3); }
+.cat-version.active {
+  --version-bg: color-mix(in srgb, var(--accent) 13%, var(--surface-1));
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+.cat-version.active .cat-version-name { color: var(--accent); }
+.cat-version:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+
+/* The play slot stands in for the cover a version row does not have. */
+.cat-version-lead {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: var(--target-min);
+  height: var(--target-min);
+  color: var(--text-4);
+}
+.cat-version-lead::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.cat-version .row-play {
+  border-radius: var(--r-1);
+  background: var(--surface-3);
+}
+.cat-version .row-play .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.cat-version:is(:hover, .is-selected):not(.active) .row-play { display: grid; }
+.cat-version.active .cat-version-lead { color: var(--accent); }
+
+.cat-version-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cat-version:is(:hover, .is-selected) .cat-version-name { color: var(--text); }
+
+/* The stems a version plays, as dots in the lane colours; named on hover. */
+.cat-version-stems {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+}
+.cat-version-stems i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--stem);
+}
+
+/* The ⋯ button floats over the row's end, as on a song row. */
+.cat-version .cat-actions {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  display: flex;
+  height: auto;
+  padding-left: var(--s-3);
+  transform: translateY(-50%);
+  background: linear-gradient(to right, transparent, var(--version-bg) var(--s-2));
+  opacity: 0;
+  pointer-events: none;
+}
+.cat-version:is(:hover, .is-selected, :focus-within) .cat-actions,
+.cat-version:has([data-armed="1"]) .cat-actions { opacity: 1; pointer-events: auto; }
+.cat-version .cat-actions .cat-more { width: var(--target-min); height: var(--target-min); }
+
+/* Delete, armed: the ⋯ slot asks once more, in the folder-delete look. */
+.cat-version-del:not([data-armed="1"]) .ic + .ic,
+.cat-version-del[data-armed="1"] .ic:first-child { display: none; }
+.cat-version .cat-actions .cat-version-del[data-armed="1"] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  width: auto;
+  padding: 0 var(--s-2);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+  font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-sans);
+  white-space: nowrap;
+}
+.cat-version:has([data-armed="1"]) { border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+
+/* Rename in place: the name becomes a field. */
+.cat-version.renaming-row {
+  padding: var(--s-1) var(--s-1) var(--s-1) 0;
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+  cursor: default;
+}
+.cat-version.renaming-row .rename-form { flex: 1; min-width: 0; }
+.cat-version.renaming-row .rename-input { height: var(--ctl-h-sm); font-size: var(--fs-sm); }
+
+/* "Extract more stems": the stems the version lacks, under the song's row. */
+.cat-extract-more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-2);
+  padding: var(--s-2) var(--s-3) var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+}
+.cat-extract-more-title { color: var(--text); font-size: var(--fs-xs); font-weight: var(--fw-semibold); }
+.cat-extract-more-chips { display: flex; flex-wrap: wrap; gap: var(--s-1); }
+.cat-extract-more-chip {
+  --chip-color: var(--text-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-2);
+  font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-sans);
+  cursor: pointer;
+}
+.cat-extract-more-chip::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--chip-color);
+}
+.cat-extract-more-chip[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--chip-color) 55%, transparent);
+  background: color-mix(in srgb, var(--chip-color) 14%, transparent);
+  color: var(--text);
+}
+.cat-extract-more-hint { color: var(--text-3); font-size: var(--fs-2xs); }
+.cat-extract-more-foot { display: flex; justify-content: flex-end; gap: var(--s-2); }
+.cat-extract-more-go,
+.cat-extract-more-cancel {
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-1);
+  font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-sans);
+  cursor: pointer;
+}
+.cat-extract-more-go { border: 0; background: var(--accent); color: var(--accent-ink); }
+.cat-extract-more-go:hover { background: var(--accent-hi); }
+.cat-extract-more-go:disabled { opacity: var(--disabled-opacity); cursor: default; background: var(--accent); }
+.cat-extract-more-cancel { border: 1px solid var(--line-strong); background: none; color: var(--text-2); }
+.cat-extract-more-cancel:hover { background: var(--surface-3); color: var(--text); }
+
+/* A menu item that destroys, the line between groups, and a radio item's check. */
+.lib-menu-item.is-danger,
+.lib-menu-item.is-danger .ic { color: var(--danger); }
+.lib-menu-sep { height: 1px; margin: var(--s-1) 0; background: var(--line); }
+.lib-menu-item[aria-checked="false"] .ic { visibility: hidden; }
+.lib-menu-item[aria-checked="true"] .ic { color: var(--accent); }

@@ -1130,6 +1130,11 @@ def ensure_runtime_dirs() -> None:
         path.mkdir(parents=True, exist_ok=True)
 
 
+# Song versions (app/core/versions.py): the longest name a version keeps,
+# and how many versions one song keeps; more is a script, not a person.
+VERSION_NAME_MAX_CHARS = 60
+MAX_VERSIONS_PER_SONG = 32
+
 # Export EQ and mastering. fx= stays inside the 16 KB request line, and 160
 # biquads stay under Windows' 32767-character command line.
 FX_PARAM_MAX_CHARS = 8192
