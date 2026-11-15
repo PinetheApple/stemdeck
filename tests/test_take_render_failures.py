@@ -136,3 +136,22 @@ def test_the_sweep_spares_a_running_render(client, take, monkeypatch):
     run.tmp = live
     takes_video_runs.sweep_stale_temps(cfg.JOBS_DIR)
     assert live.exists()
+
+
+def test_a_record_of_another_file_lends_it_no_settings(client, take, monkeypatch):
+    (take_folder(take) / RENDER_FILE).write_bytes(PREVIOUS)
+    real = os.replace
+
+    def replace(src, dst):
+        if str(dst).endswith(RENDER_FILE):
+            _no_space()
+        return real(src, dst)
+
+    monkeypatch.setattr(takes_video_runs.os, "replace", replace)
+    start_render(client, take)
+    assert wait_render(client, take)["error"] == DISK_FULL
+    _restart()
+    view = _view(client, take)
+    shown = {name: view[name] for name in ("size", "fps", "span", "encoder", "stale")}
+    assert view["status"] == "done"
+    assert shown == {"size": None, "fps": None, "span": None, "encoder": None, "stale": True}

@@ -87,10 +87,10 @@ def render_view(job_id: str, folder: Path) -> dict[str, Any]:
         state = (_run_status(run), run.progress, run.error, span_of(plan), False)
         settings = {"size": request["size"], "fps": plan.fps}
     elif path.is_file() and (record := read_json(folder / RENDER_SIDECAR)):
-        trusted = _describes(record, path)
-        state = (DONE, 1.0, None, record.get("span"), not trusted or _stale(folder, record))
+        # A record of another file says nothing true about this one.
+        record = record if _describes(record, path) else {}
+        state = (DONE, 1.0, None, record.get("span"), not record or _stale(folder, record))
         settings = {"size": record.get("size"), "fps": record.get("fps")}
-        record = record if trusted else {}
     else:
         state = (STATUS_NONE, 0.0, None, None, False)
         settings = {"size": None, "fps": None}
