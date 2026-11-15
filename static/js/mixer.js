@@ -38,18 +38,17 @@ export function ensureMixerStateDefaults() {
 }
 
 let globalPitch = 0;
-// Stems a view plays without, over the user's mix: never saved, and dropped
-// when a song's mix is loaded or reset.
+// Never saved: a view's silence must not leak into the song's mix.
 const silencedStems = new Set();
 
-/** Silence `laneIds` on top of the mix, leaving the mix and what is saved of it alone. */
-export function setStemOverride(laneIds) {
+/** Silence `stemNames` on top of the mix, leaving the mix itself alone. */
+export function setSilencedStems(stemNames) {
   silencedStems.clear();
-  for (const name of laneIds) silencedStems.add(name);
+  for (const stemName of stemNames) silencedStems.add(stemName);
   applyMix();
 }
 
-export function clearStemOverride() {
+export function clearSilencedStems() {
   silencedStems.clear();
   applyMix();
 }
@@ -198,7 +197,9 @@ export function setLaneKeysAvailable(available) {
 
 export function applyMix() {
   if (!multitrack) return;
-  const anySolo = allTrackNames().some((name) => trackIndex[name] !== undefined && mixerState[name]?.soloed);
+  const anySolo = allTrackNames().some(
+    (name) => trackIndex[name] !== undefined && mixerState[name]?.soloed && !silencedStems.has(name),
+  );
   for (const name of allTrackNames()) {
     const s = mixerState[name];
     if (!s) continue;
