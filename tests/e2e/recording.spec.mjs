@@ -17,6 +17,8 @@ const WORKLET_BATCH_FRAMES = 2048;
 const HTTP_CONFLICT = 409;
 const HTTP_NOT_FOUND = 404;
 const MS_PER_SEC = 1000;
+// Short enough that the stems already sit at their minimum lane height.
+const SHORT_WINDOW = { width: 1440, height: 800 };
 // Well under recorder.js's TEARDOWN_WAIT_MS (500), so a wait that ran would show.
 const FAST_PATH_MAX_MS = 100;
 
@@ -71,6 +73,18 @@ async function recordTake(page) {
   await page.waitForTimeout(RECORD_MS);
   await recordBtn(page).click();
 }
+
+test("+ Track stays above the footer on a short window", async ({ page }) => {
+  await page.setViewportSize(SHORT_WINDOW);
+  await openStudio(page);
+  await addArmedTrack(page);
+  await page.locator("#recAddTrack").click();
+  await page.getByRole("menuitem", { name: "Audio track" }).click();
+  await expect(page.locator(".rec-row")).toHaveCount(2);
+  const add = await page.locator("#recAddTrack").boundingBox();
+  const footer = await page.locator(".daw-footer").boundingBox();
+  expect(add.y + add.height).toBeLessThanOrEqual(footer.y);
+});
 
 test("Record waits for a recording track and says so", async ({ page }) => {
   await openStudio(page);

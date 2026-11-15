@@ -49,6 +49,12 @@
   background: var(--bg-2);
   box-sizing: border-box;
 }
+/* Lanes floor at their minimum height on short windows and the column scrolls; + Track stays in reach. */
+.mixer-column > .rec-add-row {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+}
 .rec-add-btn {
   display: inline-flex;
   align-items: center;
