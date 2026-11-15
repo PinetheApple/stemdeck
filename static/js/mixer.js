@@ -21,6 +21,11 @@ import { t } from "./i18n.js";
 import {
   GLOBAL_PITCH_FIELD, PITCH_MAX, PITCH_MIN, clampPitch, pitchBlockedKey, savedGlobalPitch,
 } from "./pitchBus.js";
+import { EQ_ID, normalizeEq } from "./eqMath.js";
+import { MASTER_ID, normalizeMaster } from "./masterMath.js";
+import {
+  MASTER_LANE, defaultMasterEntry, eqIsEmpty, findEffect, normalizeLaneFx, normalizeMasterEntry, withEffect,
+} from "./mixFx.js";
 
 function defaultMixerEntry() {
   // `pitch` is the key this lane is actually in, in semitones from the
@@ -28,13 +33,14 @@ function defaultMixerEntry() {
   // control, so the number on a lane never has to be added to another number to
   // know what you are hearing. It rides along in the same per-track store as
   // volume and mute, so a lane's key survives a reload.
-  return { volume: 1, muted: false, soloed: false, pitch: 0 };
+  return { volume: 1, muted: false, soloed: false, pitch: 0, fx: [] };
 }
 
 export function ensureMixerStateDefaults() {
   for (const name of allTrackNames()) {
     if (!mixerState[name]) mixerState[name] = defaultMixerEntry();
   }
+  if (!mixerState[MASTER_LANE]) mixerState[MASTER_LANE] = defaultMasterEntry();
 }
 
 let globalPitch = 0;
@@ -55,7 +61,9 @@ export async function loadMixIntoState(jobId, loadedStemNames = STEM_NAMES) {
   } catch (e) { console.warn("[mixer] failed to load mix state:", e); }
   for (const name of allTrackNames()) {
     Object.assign(mixerState[name], defaultMixerEntry(), stored[name] || {});
+    mixerState[name].fx = normalizeLaneFx(stored[name]?.fx);
   }
+  mixerState[MASTER_LANE] = normalizeMasterEntry(stored[MASTER_LANE]);
   // If all loaded stems are muted the session is unplayable -- unmute as recovery.
   const loadedStems = loadedStemNames.filter((n) => mixerState[n]);
   if (loadedStems.length > 0 && loadedStems.every((n) => mixerState[n].muted)) {
@@ -68,12 +76,84 @@ export function resetMixerState() {
   for (const name of allTrackNames()) {
     Object.assign(mixerState[name], defaultMixerEntry());
   }
+  mixerState[MASTER_LANE] = defaultMasterEntry();
   globalPitch = 0;
 }
 
 function saveMix() {
   if (!currentJobId) return;
   storeSetDebounced(mixKey(currentJobId), { ...mixerState, [GLOBAL_PITCH_FIELD]: globalPitch });
+}
+
+// ─── EQ and master, saved with the mix ───
+
+const fxListeners = new Set();
+
+function fxEntry(lane) {
+  if (lane === MASTER_LANE && !mixerState[MASTER_LANE]) mixerState[MASTER_LANE] = defaultMasterEntry();
+  return mixerState[lane] || null;
+}
+
+function emitFxChange(change) {
+  for (const listener of fxListeners) {
+    try { listener(change); } catch (e) { console.warn("[mixer] fx change listener failed:", e); }
+  }
+}
+
+/** Play an EQ on a lane (or MASTER_LANE) without storing it. */
+export function playLaneEq(lane, eq, opts) {
+  if (!audioEngine?.supportsEq) return;
+  try {
+    if (lane === MASTER_LANE) audioEngine.setMasterEq(eq, opts);
+    else audioEngine.setLaneEq(lane, eq, opts);
+  } catch (e) { console.warn("[mixer] could not apply the EQ to the engine:", e); }
+}
+
+/** A lane's EQ (the master EQ for MASTER_LANE), normalised; flat when none is saved. */
+export function getLaneEq(lane) {
+  return normalizeEq(findEffect(fxEntry(lane)?.fx, EQ_ID));
+}
+
+/** Set, play and save a lane's EQ. Returns it normalised, or null for an unknown lane. */
+export function setLaneEq(lane, descriptor, { save = true } = {}) {
+  const entry = fxEntry(lane);
+  if (!entry) return null;
+  const eq = normalizeEq(descriptor);
+  entry.fx = withEffect(entry.fx, EQ_ID, eqIsEmpty(eq) ? null : eq);
+  playLaneEq(lane, eq);
+  if (save) saveMix();
+  emitFxChange({ lane, eq });
+  return eq;
+}
+
+/** The song's master settings, normalised; off when none are saved. */
+export function getMaster() {
+  return normalizeMaster(findEffect(fxEntry(MASTER_LANE).fx, MASTER_ID));
+}
+
+/** Save the master settings; the live preview follows through onFxChange. */
+export function setMaster(descriptor, { save = true } = {}) {
+  const master = normalizeMaster(descriptor);
+  const entry = fxEntry(MASTER_LANE);
+  entry.fx = withEffect(entry.fx, MASTER_ID, master);
+  if (save) saveMix();
+  emitFxChange({ lane: MASTER_LANE, master });
+  return master;
+}
+
+/** cb({lane, eq}), cb({lane: MASTER_LANE, master}), or cb({lane: null}) after applyAllFx. */
+export function onFxChange(cb) {
+  fxListeners.add(cb);
+  return () => fxListeners.delete(cb);
+}
+
+/** Push every saved EQ into the engine at once; call when an engine is up. */
+export function applyAllFx() {
+  for (const name of allTrackNames()) {
+    if (mixerState[name]) playLaneEq(name, getLaneEq(name), { immediate: true });
+  }
+  playLaneEq(MASTER_LANE, getLaneEq(MASTER_LANE), { immediate: true });
+  emitFxChange({ lane: null });
 }
 
 /** Push one lane's transpose into whichever engine is playing. */
