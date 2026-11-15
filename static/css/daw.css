@@ -5730,7 +5730,7 @@ input, textarea { font-family: inherit; }
 .np-version:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .np-extracting {
   color: var(--accent);
-  font: var(--fw-medium) var(--fs-xs) / 1 var(--font-sans);
+  font: var(--fw-medium) var(--fs-xs) var(--font-sans);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   min-width: 0;
