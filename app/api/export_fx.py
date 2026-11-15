@@ -89,7 +89,6 @@ DECODED_GRAPH = "[0:a]anull[pre]"
 _OUTPUT_NOTE_PREFIX = "out-"
 _NO_VALUE = "none"
 _MIX_LABEL = "[mix]"
-_SINGLE_LABEL = "[a0]"
 
 T = TypeVar("T")
 Render = Callable[..., Awaitable[Path]]
@@ -271,17 +270,17 @@ async def prepare_export(
     return ExportFx(render_fx, plan, plan_chain(plan, rate), rate)
 
 
-def sum_filter(count: int, tail: str) -> tuple[str | None, str]:
-    """The filter summing inputs [a0]..[a{count-1}] through ``tail``, and the
-    label to map. With no tail: amix (normalize=0) for several inputs, a
-    single input mapped as it is."""
-    if count > 1:
-        labels = "".join(f"[a{i}]" for i in range(count))
-        chain = f",{tail}" if tail else ""
-        return f"{labels}amix=inputs={count}:normalize=0{chain}{_MIX_LABEL}", _MIX_LABEL
-    if tail:
-        return f"{_SINGLE_LABEL}{tail}{_MIX_LABEL}", _MIX_LABEL
-    return None, _SINGLE_LABEL
+def attach_tail(filters: list[str], out_label: str, tail: str) -> str:
+    """Run ``tail`` (master EQ, master chain) on the summed output labelled
+    ``out_label``, the last filter's output, and return the label to map. With
+    no tail, the graph is left exactly as it is."""
+    if not tail:
+        return out_label
+    if out_label == _MIX_LABEL:
+        filters[-1] = f"{filters[-1].removesuffix(_MIX_LABEL)},{tail}{_MIX_LABEL}"
+    else:
+        filters.append(f"{out_label}{tail}{_MIX_LABEL}")
+    return _MIX_LABEL
 
 
 async def measure_file(path: str, rate: int) -> Loudness:

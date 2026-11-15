@@ -26,6 +26,7 @@ import { createPlaybackContext } from "./audioContext.js";
 import { createTickLoop } from "./tickLoop.js";
 import { loadStretchWorklet, pipelineLatencySeconds as stretchLatency } from "./tempoStage.js";
 import { hasKnownLength, reachedEnd } from "./playbackEnd.js";
+import { EngineFx, engineFxApi } from "./fxChain.js";
 
 export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
   // Mobile/iOS only starts audio from a context resumed inside a user gesture.
@@ -45,7 +46,8 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
   // as a lane to transpose, so twelve pitch chains ran on silence for every
   // track at zero transpose (#576, #575).
   const busLanes = new Array(INPUT_COUNT).fill(0);
-  master.connect(ctx.destination);
+  const fx = new EngineFx(ctx, playbackTracksOf);
+  fx.attachMaster(master);
 
   let _playbackRate = 1.0;
 
@@ -92,6 +94,9 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
 
   /** @type {Map<string,{buffer:AudioBuffer,gain:GainNode,analyser:AnalyserNode,source:AudioBufferSourceNode|null,controlName:string,pitched:boolean,visualOnly:boolean}>} */
   const tracks = new Map();
+  function playbackTracksOf(name) {
+    return [...tracks.values()].filter((t) => !t.visualOnly && t.controlName === name);
+  }
   let duration = 0;
   let playing = false;
   let startCtxTime = 0; // ctx.currentTime at playback start
@@ -170,7 +175,6 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
           const gain = ctx.createGain();
           const analyser = ctx.createAnalyser();
           analyser.fftSize = 1024;
-          if (!visualOnly) gain.connect(analyser);
           const track = {
             buffer,
             gain,
@@ -186,6 +190,7 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
             visualOnly,
           };
           tracks.set(s.name, track);
+          if (!visualOnly) fx.attachLane(track);
           routeTrack(track, true);
           duration = Math.max(duration, buffer.duration);
         } catch (e) {
@@ -448,6 +453,7 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
     _pending = 0;
     tickLoop.dispose();
     ctx.removeEventListener("statechange", onCtxStateChange);
+    fx.dispose();
     tracks.clear();
     if (stNode) { try { stNode.disconnect(); } catch { /* noop */ } }
     if (ownsCtx) ctx.close().catch(() => {});
@@ -561,6 +567,7 @@ export function createAudioEngine(stems, { onTime, onEnded, context } = {}) {
     },
     destroy,
     audioContext: ctx,
+    ...engineFxApi(fx),
   };
 }
 

@@ -15,12 +15,15 @@ from app.api.queue import router as queue_router
 from app.api.search import router as search_router
 from app.api.setlists import router as setlists_router
 from app.api.stems import router as stems_router
+from app.api.takes import router as takes_router
 from app.api.transcribe import router as transcribe_router
+from app.api.video_encoders import router as video_encoders_router
 
 router = APIRouter()
 router.include_router(config_router, tags=["config"])
 router.include_router(jobs_router, prefix="/jobs", tags=["jobs"])
 router.include_router(transcribe_router, prefix="/jobs", tags=["jobs"])
+router.include_router(takes_router, prefix="/jobs", tags=["takes"])
 router.include_router(events_router, tags=["events"])
 router.include_router(stems_router, tags=["stems"])
 router.include_router(mixdown_loudness_router, tags=["stems"])
@@ -32,3 +35,4 @@ router.include_router(batch_import_router, prefix="/import", tags=["import"])
 router.include_router(search_router, prefix="/search", tags=["search"])
 router.include_router(discogs_router, prefix="/discogs", tags=["discogs"])
 router.include_router(setlists_router, prefix="/setlists", tags=["setlists"])
+router.include_router(video_encoders_router, prefix="/video-encoders", tags=["video"])

@@ -64,6 +64,17 @@ Open <http://localhost:8000>.
 
 On Linux with an NVIDIA Blackwell card (RTX 50 series, compute capability 10.x or higher), `setup` and `./run.sh gpu` replace the locked torch 2.6 wheels with the CUDA 12.8 torch 2.8.0 build, because torch 2.6 has no kernels for those cards and separation would otherwise run on the CPU. `uv sync` restores the locked wheels, so run `./run.sh gpu` again after it.
 
+**AMD GPU (ROCm, Linux only):** swap in the ROCm build of torch after `uv sync`. It drives an AMD GPU through the same `cuda` device, so nothing else changes, and it carries its own ROCm runtime: the host needs only the `amdgpu` kernel driver and read/write access to `/dev/kfd` (usually the `render` group). torch 2.8.0 on `rocm6.4` has kernels for RDNA4 (RX 9000), RDNA3 discrete cards (RX 7000), gfx1030 (RX 6800/6900) and Instinct cards; `torch.cuda.get_arch_list()` prints the full list.
+
+```sh
+uv pip install --no-deps --reinstall torch==2.8.0+rocm6.4 torchaudio==2.8.0+rocm6.4 torchvision==0.23.0+rocm6.4 \
+  --index-url https://download.pytorch.org/whl/rocm6.4
+uv run --no-sync python -c "import torch; print(torch.version.hip, torch.cuda.get_device_name(0))"
+uv run --no-sync uvicorn app.main:app --host 127.0.0.1 --port 8000 --timeout-graceful-shutdown 5
+```
+
+`--no-sync` matters: a plain `uv run` puts the locked torch back. With a second AMD GPU (a Ryzen's integrated one, for example), set `ROCR_VISIBLE_DEVICES` to the card's index so HIP sees only it; the desktop app does this for you.
+
 #### Windows (PowerShell)
 
 Install prerequisites:

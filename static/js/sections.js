@@ -3,7 +3,7 @@
 import { onLanguageChange, t } from "./i18n.js";
 import { PAGE_CLOSE_FETCH } from "./utils.js";
 import { isPageClosing, wasCutOffByPageClose } from "./pageClosing.js";
-import { SAVE_KIND, UnconfirmedSaves } from "./saveFailures.js";
+import { SAVE_KIND, UnconfirmedSaves, refusalNoticeKey, refusalOf } from "./saveFailures.js";
 
 const SECTION_COLORS = [
   "#4a7fff",
@@ -722,9 +722,10 @@ async function _sendSave(id, body, fetchOptions = {}) {
     return;
   }
   if (!res.ok) {
+    const how = await refusalOf(res);
     const detail = await res.text().catch(() => String(res.status));
     console.warn("[sections] save failed:", res.status, detail);
-    _onSaveRefused(id, body);
+    _onSaveRefused(id, body, how);
     return;
   }
   _onSaved(id, body);
@@ -737,11 +738,11 @@ function _onSaved(id, body) {
   if (body === _bodyOf(_sections) && _saveTimer === null) _showSaved();
 }
 
-function _onSaveRefused(id, body) {
-  const newest = _unconfirmed.refuse(id, body);
+function _onSaveRefused(id, body, how) {
+  const newest = _unconfirmed.refuse(id, body, how);
   if (id !== _trackId) return;
   if (newest && _saveTimer === null) _showConfirmed();
-  _showNotice(t("sections.notSaved"));
+  _showNotice(t(refusalNoticeKey(how, "sections.notSaved")));
 }
 
 function _onSaveLost(id, body) {
