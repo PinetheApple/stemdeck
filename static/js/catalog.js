@@ -41,6 +41,7 @@ import {
 } from "./librarySync.js";
 import { t as i18nT, plural as i18nPlural, LANGUAGES, getLanguage, setLanguage, onLanguageChange, applyTranslations } from "./i18n.js";
 import { applyNetworkSwitch, networkSwitchOn } from "./networkRestart.js";
+import { GPU_BACKEND_ROCM, gpuUnusedMessage } from "./gpuUnused.js";
 
 // Escape user-supplied strings before inserting into innerHTML.
 function esc(s) {
@@ -5181,7 +5182,6 @@ function wireDiscogsSetting(overlay) {
 }
 
 const DEVICE_CUDA = "cuda";
-const GPU_BACKEND_ROCM = "rocm";
 
 function deviceOptionLabel(opt, gpuBackend) {
   return opt.value === DEVICE_CUDA && gpuBackend === GPU_BACKEND_ROCM ? i18nT("settings.device.rocm") : opt.dataset.baseLabel;
@@ -5222,6 +5222,7 @@ async function wireGeneralSettings(overlay) {
   const portInput = overlay.querySelector(".set-port");
   const deviceSel = overlay.querySelector(".set-demucs-device");
   const deviceDesc = overlay.querySelector(".set-demucs-desc");
+  const gpuUnusedDesc = overlay.querySelector(".set-gpu-unused-desc");
   const qualitySel = overlay.querySelector(".set-separation-quality");
   const stemFormatSel = overlay.querySelector(".set-stem-format");
   const stemKbpsSel = overlay.querySelector(".set-stem-mp3-kbps");
@@ -5329,6 +5330,10 @@ async function wireGeneralSettings(overlay) {
         ? i18nT("settings.device.torchBroken")
         : i18nT("settings.device.desc");
       deviceDesc.classList.toggle("is-broken", !!d.torch_error);
+    }
+    if (gpuUnusedDesc) {
+      const unused = gpuUnusedMessage(d);
+      gpuUnusedDesc.textContent = unused ? i18nT(unused.key, unused.vars) : "";
     }
   };
 
@@ -6110,6 +6115,7 @@ function openLibraryEditor() {
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.device.title">Compute device</div>
               <div class="settings-row-desc set-demucs-desc">Device used for stem separation. Applies to the next track.</div>
+              <div class="settings-row-desc set-gpu-unused-desc"></div>
             </div>
             <select class="settings-select set-demucs-device" aria-label="Compute device" data-i18n-aria-label="settings.device.title">
               <option value="auto" data-i18n="settings.device.auto">Auto</option>
