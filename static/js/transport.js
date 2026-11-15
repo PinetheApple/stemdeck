@@ -549,15 +549,16 @@ function _armCountIn(eng, startPos) {
 // The button lights on the press, before a start that may wait for a fetch or
 // for the stems. One that never happens must not leave it lit over silence.
 function _unlightIfNotStarted(eng, start) {
+  const stillSilent = () => audioEngine === eng && !eng.isPlaying();
   start.then(
     function unlightUnlessPlaying(started) {
-      if (started || audioEngine !== eng || eng.isPlaying()) return;
+      if (started || !stillSilent()) return;
       playBtn.classList.remove("playing");
       pauseMediaAnchor();
     },
     function warnPlayFailed(err) {
       console.warn("[transport] play failed:", err);
-      pauseMediaAnchor();
+      if (stillSilent()) pauseMediaAnchor();
     },
   );
 }
