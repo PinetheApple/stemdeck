@@ -1171,3 +1171,44 @@ MASTER_PLAN_CONCURRENCY = 2
 # ebur128 logs a line per 100 ms frame at "info"; "verbose" drops them below
 # the default level. Not "quiet": ffmpeg 5.1 and 4.4 reject it and the whole graph.
 EBUR128_FRAMELOG = "verbose"
+
+# Suggest EQ (app/pipeline/eq_*.py). A lane must play this long (loud frames)
+# and this loud to be measured at all.
+SUGGEST_MIN_GATED_SECONDS = 3.0
+SUGGEST_MIN_LANE_LUFS = -50.0
+SUGGEST_MAX_BANDS_LANE = 5
+SUGGEST_MAX_BANDS_MASTER = 6
+SUGGEST_GAIN_MAX_DB = 6.0
+SUGGEST_MIN_GAIN_DB = 1.0
+SUGGEST_GAIN_STEP_DB = 0.5
+SUGGEST_OUT_MAX_DB = 12.0
+# Each band costs this much (per (gain/6 dB)^2), and must improve the fit by
+# at least the larger of the two thresholds to be added.
+SUGGEST_BAND_PENALTY = 0.15
+SUGGEST_MIN_IMPROVEMENT_ABS = 0.1
+SUGGEST_MIN_IMPROVEMENT_REL = 0.06
+SUGGEST_ERROR_CLIP_DB = 15.0
+SUGGEST_REFINE_ROUNDS = 2
+SUGGEST_CROWD_OCTAVES = 1.0
+# Two overlapping +6 dB bands would make +12: the whole curve stays inside this.
+SUGGEST_COMBINED_MAX_DB = 7.0
+# Less bass than the target is tolerated this much more below this frequency.
+SUGGEST_BASS_LOW_HZ = 125.0
+SUGGEST_BASS_SHORT_FACTOR = 2.0
+# A band this far under the target is missing content, not dull: boosts fade
+# out between the two (dB, level removed).
+SUGGEST_BOOST_DEFICIT_FULL_DB = 12.0
+SUGGEST_BOOST_DEFICIT_NONE_DB = 20.0
+# The master preset never asks the limiter for more than this on the peaks.
+SUGGEST_LIMIT_ALLOWANCE_DB = 4.0
+SUGGEST_DENSE_PLR_DB = 11.0
+SUGGEST_DENSE_LUFS = -11.0
+SUGGEST_LOUDER_LUFS = -9.0
+SUGGEST_LOUDER_COMP = 0.5
+SUGGEST_CEILING_DBTP = -1.0
+SUGGEST_DEFAULT_TARGET_LUFS = -14.0
+SUGGEST_CUSTOM_MIN_LUFS = -24.0
+SUGGEST_CACHE_DIR = CACHE_DIR / "suggest"
+SUGGEST_CACHE_MAX_FILES = 200
+SUGGEST_CONCURRENCY = 2
+SUGGEST_DISCONNECT_POLL_SEC = 0.5
