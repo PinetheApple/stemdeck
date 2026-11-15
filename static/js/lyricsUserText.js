@@ -2,6 +2,7 @@
 // A problem is { text } when the server worded it, else { key, status? } for i18n.js.
 
 import { HTTP_NOT_FOUND } from "./libraryControls.js";
+import { FOLDER_MOVING_KEY, isFolderMoving } from "./folderMoving.js";
 
 // _TEXT_MAX_CHARS in app/pipeline/lyrics_lookup.py.
 export const LYRICS_MAX_CHARS = 100_000;
@@ -57,6 +58,7 @@ export function decodedTextProblem(text) {
  * `detail` is one. FastAPI's validation errors make `detail` a list. */
 export function serverProblem(status, data) {
   if (status === STATUS_TOO_LONG) return { key: PROBLEM_TOO_LONG };
+  if (isFolderMoving(status, data)) return { key: FOLDER_MOVING_KEY };
   const detail = data?.detail;
   if (typeof detail === "string" && detail.trim()) return { text: detail };
   return { key: PROBLEM_REFUSED, status };

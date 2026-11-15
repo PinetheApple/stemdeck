@@ -113,6 +113,21 @@ STEM_NAMES: tuple[str, ...] = ("vocals", "drums", "bass", "guitar", "piano", "ot
 EXTRA_STEM_NAMES: tuple[str, ...] = ("lead_vocals", "backing_vocals")
 # Rendered beside the stems: the source re-encoded, and the picked stems mixed.
 RENDERED_TRACK_NAMES: tuple[str, ...] = ("original", "mix")
+CLICK_SOUNDS_TABLE = STATIC_DIR / "js" / "clickSounds.js"
+CLICK_SOUND_ID_MAX_CHARS = 32
+CLICK_STEM_NAME = "click"
+CLICK_MULT_DEFAULT = 1.0
+CLICK_GAIN_DEFAULT = 0.6
+CLICK_GAIN_MAX = 4.0
+CLICK_GROUPS_MAX_CHARS = 64
+# One table for the mix export and the stems zip, so a format encodes alike in both;
+# Vorbis q6 is the ~190 kbps tier that matches MP3 V2.
+EXPORT_ENCODE_ARGS: dict[str, list[str]] = {
+    "wav": ["-c:a", "pcm_s16le"],
+    "mp3": ["-q:a", "2"],
+    "flac": ["-c:a", "flac"],
+    "ogg": ["-c:a", "libvorbis", "-q:a", "6"],
+}
 # \Z, not $: $ also accepts a trailing newline.
 JOB_ID_RE = re.compile(r"^[a-f0-9]{12}\Z")
 # The file types an upload may be. A job keeps its upload as source<ext>.
@@ -237,6 +252,9 @@ SSL_KEYFILE = _env_path_opt("STEMDECK_SSL_KEY")
 # listener alongside the first; when it is not, there is only ever one server
 # and TLS (if configured at all) belongs to whoever launched uvicorn.
 HTTPS_PORT = _env_int("STEMDECK_HTTPS_PORT", 0) or None
+# The address the desktop shell told uvicorn to bind (127.0.0.1 while network
+# access is off); None when anything else started the server.
+BIND_HOST = os.environ.get("STEMDECK_BIND_HOST", "").strip() or None
 FFMPEG_BIN = _env_path(
     "STEMDECK_FFMPEG",
     FFMPEG_DIR / ("ffmpeg.exe" if sys.platform.startswith("win") else "ffmpeg"),
@@ -1116,3 +1134,45 @@ def ensure_runtime_dirs() -> None:
 # and how many versions one song keeps; more is a script, not a person.
 VERSION_NAME_MAX_CHARS = 60
 MAX_VERSIONS_PER_SONG = 32
+
+# Export EQ and mastering. fx= stays inside the 16 KB request line, and 160
+# biquads stay under Windows' 32767-character command line.
+FX_PARAM_MAX_CHARS = 8192
+FX_MAX_LANES = 32
+FX_MAX_BANDS = 12
+FX_MAX_SECTIONS = 160
+MASTER_PARAM_MAX_CHARS = 256
+# Lossy encoders add peak of their own (MP3 measured +0.7 dB, AAC more), so a
+# lossy master never asks for a true-peak ceiling above this.
+EXPORT_LIMIT_LOSSY_DBTP = -1.5
+EXPORT_FORMAT_OGG = "ogg"
+EXPORT_AUDIO_CODEC_AAC = "aac"
+# The limiter runs at 4x the rate so its ceiling holds the true peak; the way
+# back to the stem rate reads up to 0.07 dB higher, hence the margin under it.
+MASTER_LIMITER_OVERSAMPLE = 4
+MASTER_LIMITER_MARGIN_DB = 0.1
+MASTER_LIMITER_ATTACK_MS = 5
+MASTER_LIMITER_RELEASE_MS = 50
+MASTER_COMP_RATIO_PER_AMOUNT = 2.0
+MASTER_COMP_THRESHOLD_OFFSET_DB = 2.0
+MASTER_COMP_THRESHOLD_PER_AMOUNT_DB = 6.0
+MASTER_COMP_THRESHOLD_FLOOR_DB = -60.0
+MASTER_COMP_ATTACK_MS = 20
+MASTER_COMP_RELEASE_MS = 250
+MASTER_COMP_KNEE_DB = 6.0
+# A near-silent mix is not pushed 40 dB into the limiter: past the clamp the
+# target is reported as not reached.
+MASTER_GAIN_MIN_DB = -30.0
+MASTER_GAIN_MAX_DB = 20.0
+# Gain into a limiter that already works buys less and less loudness, so a
+# missed target gets a few bounded correction passes, not one big jump.
+MASTER_CORRECTION_TOL_LU = 0.1
+MASTER_CORRECTION_PASSES = 2
+MASTER_CORRECTION_MAX_DB = 3.0
+# Measured plans kept on disk, and songs measured at once on this server.
+MASTER_PLAN_CACHE_DIR = CACHE_DIR / "master"
+MASTER_PLAN_MAX_FILES = 200
+MASTER_PLAN_CONCURRENCY = 2
+# ebur128 logs a line per 100 ms frame at "info"; "verbose" drops them below
+# the default level. Not "quiet": ffmpeg 5.1 and 4.4 reject it and the whole graph.
+EBUR128_FRAMELOG = "verbose"

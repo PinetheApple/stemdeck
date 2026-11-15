@@ -15,8 +15,11 @@ address needs the VPN on. Tailscale's 100.64.0.0/10 range counts as VPN even
 where no interface could be read.
 
 Everything here is best-effort and standard-library only. Interfaces are read
-with the SIOCGIF* ioctls, which Linux and macOS both have; on Windows, or when
-a query fails, no interface is read and every address is kept as before.
+with the SIOCGIF* ioctls, which Linux and macOS both have. Windows has neither
+those nor sysfs, so lan_interfaces_windows reads its adapters through
+GetAdaptersAddresses and marks Hyper-V internal switches (Default Switch, WSL,
+Docker), VirtualBox and VMware host-only adapters as host_only and VPN adapters
+as vpn. When a query fails, no interface is read and every address is kept.
 """
 
 from __future__ import annotations
@@ -32,7 +35,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple, TypedDict
 
-_log = logging.getLogger("stemdeck.network")
+LOGGER_NAME = "stemdeck.network"
+_log = logging.getLogger(LOGGER_NAME)
 
 SYSFS_NET = Path("/sys/class/net")
 # lower_* hops followed below a bridge: bridge -> bond -> VLAN -> NIC is three.
@@ -58,6 +62,7 @@ _IFR_IPV4_SLICE = slice(20, 24)
 _IFF_UP = 0x1
 _IFF_RUNNING = 0x40
 _IFF_UP_AND_RUNNING = _IFF_UP | _IFF_RUNNING
+_WINDOWS_PLATFORM = "win32"
 
 _HOST_ONLY_NAME = re.compile(
     r"^(docker|br-|veth|virbr|cni|flannel|cali|podman|vboxnet|vmnet|bridge1\d\d)"
@@ -84,6 +89,8 @@ class NetInterface:
     running: bool
     unbacked_bridge: bool = False
     wireguard: bool = False
+    host_only: bool = False
+    vpn: bool = False
 
 
 def unreachable_ipv4s(interfaces: Iterable[NetInterface]) -> frozenset[str]:
@@ -92,9 +99,11 @@ def unreachable_ipv4s(interfaces: Iterable[NetInterface]) -> frozenset[str]:
 
 
 def vpn_ipv4s(interfaces: Iterable[NetInterface]) -> frozenset[str]:
-    """The addresses that sit on a VPN interface, judged by its name or sysfs type."""
+    """The addresses that sit on a VPN interface, judged by its name or its type."""
     return frozenset(
-        iface.ipv4 for iface in interfaces if iface.wireguard or _VPN_NAME.match(iface.name)
+        iface.ipv4
+        for iface in interfaces
+        if iface.vpn or iface.wireguard or _VPN_NAME.match(iface.name)
     )
 
 
@@ -107,12 +116,20 @@ def address_kind(ipv4: str, vpn_addresses: frozenset[str]) -> str:
 
 def _is_unreachable(iface: NetInterface) -> bool:
     return (
-        not iface.running or iface.unbacked_bridge or _HOST_ONLY_NAME.match(iface.name) is not None
+        not iface.running
+        or iface.unbacked_bridge
+        or iface.host_only
+        or _HOST_ONLY_NAME.match(iface.name) is not None
     )
 
 
 def read_interfaces() -> list[NetInterface]:
     """Every interface with an IPv4 address, or [] where the platform cannot say."""
+    if sys.platform == _WINDOWS_PLATFORM:
+        # Imported here: the Windows reader builds this module's NetInterface.
+        from app.core import lan_interfaces_windows
+
+        return lan_interfaces_windows.read_interfaces()
     requests = _IOCTL_REQUESTS.get(sys.platform)
     if requests is None:
         return []
