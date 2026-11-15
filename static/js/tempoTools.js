@@ -58,8 +58,7 @@ const queuedFieldsByJob = new Map();
 const savesInFlight = new Map();
 // Songs whose queued fields include a save that got no answer: sent again once the server answers.
 const lostFieldsJobs = new Set();
-// Per song, how its last refused save was refused (saveFailures.js refusalOf), for its card.
-const refusalByJob = new Map();
+const refusalHowByJob = new Map();
 let refreshSeq = 0;
 let taps = [];
 let tapTimer = null;
@@ -168,7 +167,7 @@ async function sendFields(forJob, entry) {
     if (wasCutOffByPageClose(e)) return CUT_OFF;
     sendingFieldsByJob.delete(forJob);
     if (e instanceof SaveRefusedError) {
-      refusalByJob.set(forJob, e.how);
+      refusalHowByJob.set(forJob, e.how);
       return SAVE_REFUSED;
     }
     queuedFieldsByJob.set(forJob, mergeUnconfirmedEntries(entry, queuedFieldsByJob.get(forJob)));
@@ -177,8 +176,8 @@ async function sendFields(forJob, entry) {
 }
 
 async function reportOutcome(forJob, outcome, refused) {
-  if (refused) notifySaveFailure(SAVE_KIND.tempo, refusalByJob.get(forJob), forJob);
-  refusalByJob.delete(forJob);
+  if (refused) notifySaveFailure(SAVE_KIND.tempo, refusalHowByJob.get(forJob), forJob);
+  refusalHowByJob.delete(forJob);
   if (outcome === SAVE_LOST) {
     lostFieldsJobs.add(forJob);
     notifySaveFailure(SAVE_KIND.tempo, SAVE_LOST, forJob);

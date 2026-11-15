@@ -32,7 +32,7 @@ import { KEYBOARD_FOCUS, ON_ROW, OUT_OF_TAB_ORDER, ROW_KEY, ROW_PLAY_CLASS, isSh
 import { icon } from "./libraryIcons.js";
 import { HTTP_NOT_FOUND, fetchJson, isNotFound } from "./libraryControls.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
-import { FOLDER_MOVING_KEY, refusedForFolderMove } from "./folderMoving.js";
+import { FOLDER_MOVING_KEY, isFolderMovingError, noticeKey, refusedForFolderMove } from "./folderMoving.js";
 import { lookupArtist } from "./artistLookup.js";
 import { HELD_DROP, HELD_SEND, HTTP_UNPROCESSABLE, heldBandAction, libraryArtist, mergedBand, sendHeldBand, uploadBands } from "./trackBand.js";
 import {
@@ -624,13 +624,13 @@ function settleHeldBand(trackId, state) {
   if (action === HELD_SEND && unsent) saveHeldBand(trackId, entry);
 }
 
-function rollBackBand(trackId, previous, title) {
+function rollBackBand(trackId, previous, title, err) {
   const track = tracks[trackId];
   if (track) track.artist = previous;
   afterNamesChanged(trackId);
   notifyFailure({
     kind: "band",
-    message: i18nT("artist.saveFailed", { title }),
+    message: isFolderMovingError(err) ? i18nT(FOLDER_MOVING_KEY) : i18nT("artist.saveFailed", { title }),
     context: { stage: "Saving a band" },
   });
 }
@@ -654,7 +654,7 @@ export async function setCurrentTrackArtist(artist) {
     console.warn("[catalog] saving a band failed:", err);
     if (_bandSaves.get(trackId) !== save) return false;
     _bandSaves.delete(trackId);
-    rollBackBand(trackId, save.before, title);
+    rollBackBand(trackId, save.before, title, err);
     return false;
   }
   const newest = _bandSaves.get(trackId);
@@ -1260,8 +1260,8 @@ function resendUnconfirmedTrash() {
   return Promise.all(Object.entries(_unconfirmedTrashState).map(([id, trashed]) => sendTrashChange(id, trashed)));
 }
 
-// notifications.js KIND_KEYS.
 const FAVORITE_KIND = "favorite";
+const FAVORITE_SAVE_FAILED_KEY = "notif.favoriteSaveFailed";
 
 /**
  * Tell the server a track was favourited or taken back out (#734).
@@ -1269,8 +1269,8 @@ const FAVORITE_KIND = "favorite";
  * The server holds the answer the phone reads, and the phone can change it, so
  * this side adopts the server's value on every sync (applyServerFavorite) and
  * only says something when the user presses a heart here. Not awaited, for the
- * same reason as the Trash: a heart must answer at once. Resolves to whether
- * the server saved it.
+ * same reason as the Trash: a heart must answer at once. Resolves to null when
+ * the server saved it, else to the key of the notice that says why not.
  */
 async function syncFavoriteToServer(trackId, favorite) {
   try {
@@ -1279,11 +1279,11 @@ async function syncFavoriteToServer(trackId, favorite) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ favorite }),
     });
-    if (await refusedForFolderMove(res)) notifyFailure({ kind: FAVORITE_KIND, message: i18nT(FOLDER_MOVING_KEY) });
-    return res.ok;
+    if (res.ok) return null;
+    return noticeKey(await refusedForFolderMove(res), FAVORITE_SAVE_FAILED_KEY);
   } catch (e) {
     console.warn(`[catalog] could not save the favourite for ${trackId}`, e);
-    return false;
+    return FAVORITE_SAVE_FAILED_KEY;
   }
 }
 
@@ -1891,21 +1891,21 @@ export function toggleFavorite(trackId) {
   if (!track) return;
   track.favorite = !track.favorite;
   const favorite = track.favorite;
-  syncFavoriteToServer(trackId, favorite).then((saved) => {
-    if (!saved) undoFavorite(trackId, favorite);
+  syncFavoriteToServer(trackId, favorite).then((failureKey) => {
+    if (failureKey) undoFavorite(trackId, favorite, failureKey);
   });
   saveState();
   paintFavoriteHearts(trackId);
 }
 
-/** The server refused a heart: take it back, unless it was pressed again since. */
-function undoFavorite(trackId, favorite) {
+/** The server refused a heart: take it back, unless it was pressed again since, and say why. */
+function undoFavorite(trackId, favorite, failureKey) {
   const track = tracks[trackId];
   if (!track || Boolean(track.favorite) !== favorite) return;
   track.favorite = !favorite;
   saveState();
   paintFavoriteHearts(trackId);
-  notifyFailure({ kind: "favorite", message: i18nT("notif.favoriteSaveFailed") });
+  notifyFailure({ kind: FAVORITE_KIND, message: i18nT(failureKey) });
 }
 
 function paintFavoriteHearts(trackId) {

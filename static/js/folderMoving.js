@@ -22,7 +22,17 @@ export async function refusedForFolderMove(res) {
   return isFolderMoving(res.status, data);
 }
 
+/** Whether a thrown HttpError-like `err` ({ status, detail }) is that refusal. */
+export function isFolderMovingError(err) {
+  return isFolderMoving(err?.status, { detail: err?.detail });
+}
+
+/** The notice for a failure: the move's when it was refused for the move, else `fallbackKey`. */
+export function noticeKey(movingRefusal, fallbackKey) {
+  return movingRefusal ? FOLDER_MOVING_KEY : fallbackKey;
+}
+
 /** The notice for a failed save answered `answer` ({ status, data } or null). */
 export function refusalKey(answer, fallbackKey) {
-  return isFolderMoving(answer?.status, answer?.data) ? FOLDER_MOVING_KEY : fallbackKey;
+  return noticeKey(isFolderMoving(answer?.status, answer?.data), fallbackKey);
 }

@@ -3,8 +3,7 @@
 import { onLanguageChange, t } from "./i18n.js";
 import { PAGE_CLOSE_FETCH } from "./utils.js";
 import { isPageClosing, wasCutOffByPageClose } from "./pageClosing.js";
-import { SAVE_FOLDER_MOVING, SAVE_KIND, UnconfirmedSaves, refusalOf } from "./saveFailures.js";
-import { FOLDER_MOVING_KEY } from "./folderMoving.js";
+import { SAVE_KIND, UnconfirmedSaves, refusalNoticeKey, refusalOf } from "./saveFailures.js";
 
 const SECTION_COLORS = [
   "#4a7fff",
@@ -743,7 +742,7 @@ function _onSaveRefused(id, body, how) {
   const newest = _unconfirmed.refuse(id, body, how);
   if (id !== _trackId) return;
   if (newest && _saveTimer === null) _showConfirmed();
-  _showNotice(t(how === SAVE_FOLDER_MOVING ? FOLDER_MOVING_KEY : "sections.notSaved"));
+  _showNotice(t(refusalNoticeKey(how, "sections.notSaved")));
 }
 
 function _onSaveLost(id, body) {

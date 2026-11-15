@@ -16,6 +16,8 @@ const {
   FOLDER_MOVING_KEY,
   SPLIT_FOLDER_MOVING_DETAIL,
   isFolderMoving,
+  isFolderMovingError,
+  noticeKey,
   refusalKey,
   refusedForFolderMove,
 } = await import("../../static/js/folderMoving.js");
@@ -49,7 +51,13 @@ const read = answer(HTTP_CONFLICT, MOVING);
 await refusedForFolderMove(read);
 check("its body is left for the caller", (await read.json()).detail === FOLDER_MOVING_DETAIL);
 
+check("a thrown refusal for the move", isFolderMovingError({ status: HTTP_CONFLICT, detail: EDIT_FOLDER_MOVING_DETAIL }));
+check("a thrown other conflict is not it", !isFolderMovingError({ status: HTTP_CONFLICT, detail: "stubbed" }));
+check("nothing thrown is not it", !isFolderMovingError(undefined));
+
 const KEEP_FAILED = "lyrics.keepFailed";
+check("the move's notice when refused for the move", noticeKey(true, KEEP_FAILED) === FOLDER_MOVING_KEY);
+check("its own notice otherwise", noticeKey(false, KEEP_FAILED) === KEEP_FAILED);
 check("a keep refused for the move says so", refusalKey({ status: HTTP_CONFLICT, data: MOVING }, KEEP_FAILED) === FOLDER_MOVING_KEY);
 check("any other failure keeps its own notice", refusalKey({ status: SERVER_ERROR, data: null }, KEEP_FAILED) === KEEP_FAILED);
 check("no answer keeps its own notice", refusalKey(null, KEEP_FAILED) === KEEP_FAILED);

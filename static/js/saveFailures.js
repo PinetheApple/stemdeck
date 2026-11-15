@@ -2,7 +2,7 @@
 import { t } from "./i18n.js";
 import { notifyFailure, dismissFailuresByJobId, getFailures } from "./notifications.js";
 import { CONNECTION_RESTORED_EVENT, checkConnectionNow } from "./connection.js";
-import { FOLDER_MOVING_KEY, refusedForFolderMove } from "./folderMoving.js";
+import { noticeKey, refusedForFolderMove } from "./folderMoving.js";
 
 export const SAVE_KIND = { sections: "sections", beatgrid: "beatgrid", tempo: "tempo" };
 export const SAVE_REFUSED = "refused";
@@ -20,7 +20,9 @@ const MESSAGE_KEYS = {
   [SAVE_KIND.tempo]: { [SAVE_REFUSED]: "notif.tempoSaveFailed", [SAVE_LOST]: "notif.tempoSavePending" },
 };
 
-const messageKey = (kind, how) => (how === SAVE_FOLDER_MOVING ? FOLDER_MOVING_KEY : MESSAGE_KEYS[kind][how]);
+/** The notice for a save that failed `how`: the move's, else `fallbackKey`. */
+export const refusalNoticeKey = (how, fallbackKey) => noticeKey(how === SAVE_FOLDER_MOVING, fallbackKey);
+const messageKey = (kind, how) => refusalNoticeKey(how, MESSAGE_KEYS[kind][how]);
 
 /** How the save answered `res` failed: refused for the stems folder move, else `otherwise`. */
 export async function refusalOf(res, otherwise = SAVE_REFUSED) {

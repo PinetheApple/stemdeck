@@ -4,16 +4,8 @@
 import { applyRenamedState, getCurrentTrackInfo, getTrackNames, relookupTrack } from "./catalog.js";
 import { t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
-import {
-  HttpError,
-  SONG_NAME_MAX_CHARS,
-  fetchJson,
-  iconButton,
-  isNotFound,
-  refusalReason,
-  textInput,
-} from "./libraryControls.js";
-import { FOLDER_MOVING_KEY, isFolderMoving } from "./folderMoving.js";
+import { SONG_NAME_MAX_CHARS, fetchJson, iconButton, isNotFound, refusalReason, textInput } from "./libraryControls.js";
+import { FOLDER_MOVING_KEY, isFolderMovingError } from "./folderMoving.js";
 import { $ } from "./utils.js";
 
 let editor = null; // { trackId, place: "head" | "row", close }
@@ -35,7 +27,7 @@ function restoreButton(names) {
 
 function failureMessage(err) {
   if (isNotFound(err)) return t("rename.gone");
-  if (err instanceof HttpError && isFolderMoving(err.status, err)) return t(FOLDER_MOVING_KEY);
+  if (isFolderMovingError(err)) return t(FOLDER_MOVING_KEY);
   const reason = refusalReason(err);
   return reason ? t("rename.rejected", { reason }) : t("rename.failed");
 }

@@ -1,11 +1,13 @@
-// A rename or a heart refused while StemData moves says to wait for the move (#177).
-// The server's side is tests/test_stems_move_guard_edits_api.py.
+// A rename, a band pick or a heart refused while StemData moves says to wait for the move.
 import { test, expect } from "@playwright/test";
 import { JOB_ID, SIBLING_JOB_ID, failureMessages, openStudio, stubAudioTags, uiText } from "./helpers.mjs";
 import { EDIT_FOLDER_MOVING_DETAIL, FOLDER_MOVING_KEY } from "../../static/js/folderMoving.js";
 import { HTTP_CONFLICT } from "../../static/js/lyricsTranscribe.js";
 
 test.use({ viewport: { width: 1600, height: 900 } });
+
+const CATALOG_MODULE = "/js/catalog.js";
+const PICKED_BAND = { id: "Q162586", name: "Dream Theater", englishName: "Dream Theater" };
 
 const refuse = (route) => route.fulfill({
   status: HTTP_CONFLICT,
@@ -30,7 +32,21 @@ test("a rename refused for the move says to wait for it", async ({ page }) => {
   await expect(page.locator("#songHead .rename-error")).toHaveText(moving);
 });
 
-test("a heart refused for the move is taken back and says to wait for it", async ({ page }) => {
+test("a band picked during the move is rolled back and says to wait for it", async ({ page }) => {
+  await openStudio(page);
+  await page.route(`**/api/jobs/${JOB_ID}`, refuseRenames);
+  const moving = await uiText(page, FOLDER_MOVING_KEY);
+
+  const saved = await page.evaluate(
+    async ([path, band]) => (await import(path)).setCurrentTrackArtist(band),
+    [CATALOG_MODULE, PICKED_BAND],
+  );
+
+  expect(saved).toBe(false);
+  await expect.poll(() => failureMessages(page)).toEqual([moving]);
+});
+
+test("a heart refused for the move is taken back with one card saying to wait for it", async ({ page }) => {
   await openStudio(page);
   await page.route("**/api/jobs/*/favorite", refuse);
   const moving = await uiText(page, FOLDER_MOVING_KEY);
@@ -39,6 +55,6 @@ test("a heart refused for the move is taken back and says to wait for it", async
   await row.hover();
   await row.locator(".cat-fav").click();
 
-  await expect.poll(() => failureMessages(page)).toContain(moving);
   await expect(row).not.toHaveClass(/\bis-fav\b/);
+  await expect.poll(() => failureMessages(page)).toEqual([moving]);
 });
