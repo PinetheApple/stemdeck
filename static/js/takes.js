@@ -23,6 +23,7 @@ import {
 } from "./recorder.js";
 import { paintCountIn, paintRecordButton, paintStageMark, showRecNotice, wireRecordButton } from "./recorderUi.js";
 
+export const TAKES_CHANGED_EVENT = "takes:changed";
 const EMPTY_LISTING = Object.freeze({ tracks: [], takes: [], open: [] });
 const LIVE_BARS_MAX = 200;
 const COUNT_IN_MIN_BARS = 1;
@@ -257,6 +258,7 @@ function init() {
   loadRecorderPrefs();
   document.addEventListener("trackopen", onTrackOpen);
   onRecorderEvent(onRecorder);
+  document.addEventListener(TAKES_CHANGED_EVENT, refresh);
   onArmChange(render);
   onLanguageChange(render);
   wireRecordButton(onRecordClick);

@@ -4,6 +4,8 @@
 export const ROW_TAKE = "take";
 export const ROW_UNFINISHED = "unfinished";
 export const ROW_ELSEWHERE = "elsewhere";
+export const TRACK_KIND_AUDIO = "audio";
+export const TRACK_KIND_VIDEO = "video";
 
 function byOrder(a, b) {
   return (a.order ?? 0) - (b.order ?? 0) || (a.created_at ?? 0) - (b.created_at ?? 0);
@@ -47,6 +49,7 @@ export function buildTrackViews(listing, ui = {}) {
     return {
       id: track.id,
       name: track.name,
+      kind: track.kind ?? TRACK_KIND_AUDIO,
       input: track.input ?? null,
       activeTake: finished.find((entry) => entry.id === track.active_take_id) ?? null,
       takeCount: finished.length,

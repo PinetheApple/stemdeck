@@ -5,13 +5,14 @@ import { t } from "./i18n.js";
 import { applyMix, updateLaneKnobVisual } from "./mixer.js";
 import { confirmDialog } from "./confirmDialog.js";
 import { openTakesMenu } from "./takesMenu.js";
-import { nextName } from "./takesState.js";
+import { TRACK_KIND_VIDEO, nextName } from "./takesState.js";
 import { setTakeVolume, takeMixEntry, toggleTakeMute, toggleTakeSolo } from "./takesMix.js";
 import { ARM_PROBLEM_SILENT, armTrack, armedTrack, disarm } from "./recorderArm.js";
 import { listInputs } from "./recorderCapture.js";
 import { setLatencyTestInput } from "./recorderSettings.js";
 import * as api from "./takesApi.js";
 
+export const FILM_OPEN_EVENT = "film:open";
 const STEREO_PAIR = [0, 1];
 const SECOND_INPUT = [1];
 const FIRST_INPUT = [0];
@@ -50,7 +51,22 @@ export function addTrack(session, anchor) {
         });
       },
     },
+    {
+      text: t("rec.videoTrack"),
+      icon: "camera",
+      onChoose: function onAddVideoTrack() {
+        act(session, function addVideoTrack() {
+          return createVideoTrack(session.jobId, session.listing.tracks);
+        });
+      },
+    },
   ]);
+}
+
+/** A new Video track named after the ones there, "Video 1" upward; `extra` adds fields such as i_play. */
+export function createVideoTrack(jobId, tracks, extra = {}) {
+  const name = nextName(tracks.map((track) => track.name), (n) => t("rec.videoTrackDefault", { n }));
+  return api.createTrack(jobId, { name, kind: TRACK_KIND_VIDEO, ...extra });
 }
 
 function inputEntry(session, trackId, device, channels, text) {
@@ -90,6 +106,10 @@ export async function chooseInput(session, trackId, anchor) {
 }
 
 export function toggleArm(session, trackId) {
+  if (trackOf(session, trackId)?.kind === TRACK_KIND_VIDEO) {
+    document.dispatchEvent(new CustomEvent(FILM_OPEN_EVENT, { detail: { trackId } }));
+    return;
+  }
   if (armedTrack()?.trackId === trackId) {
     disarm();
     return;

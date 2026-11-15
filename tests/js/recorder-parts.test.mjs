@@ -258,5 +258,30 @@ function within(ms, promise) {
   );
 }
 
+{
+  const sent = [];
+  const up = createPartUploader(
+    {
+      async send(seq, bytes) {
+        sent.push([seq, Array.from(bytes)]);
+        return { status: 200 };
+      },
+      async readState() {
+        return { next_seq: sent.length, finished: false };
+      },
+      wait: noWait,
+    },
+    { partSamples: 1, channels: 1 },
+  );
+  up.pushPart(Uint8Array.of(1, 2, 3));
+  up.pushPart(Uint8Array.of(4));
+  const result = await up.finish();
+  check(
+    "whole byte parts go out as they are, numbered in order",
+    result.ok && result.sent === 2 && JSON.stringify(sent) === JSON.stringify([[0, [1, 2, 3]], [1, [4]]]),
+    JSON.stringify({ result, sent }),
+  );
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

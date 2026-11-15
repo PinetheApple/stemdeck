@@ -65,8 +65,11 @@ export function recordBlock() {
   return null;
 }
 
-/** Start a take on the armed track, or stop the one running. */
-export async function toggleRecording({ label, countIn }) {
+/**
+ * Start a take on the armed track, or stop the one running. `camera`, for a
+ * filmed take, is filmCameraTake.js's attachment; every call to it is optional.
+ */
+export async function toggleRecording({ label, countIn, camera = null }) {
   if (take?.phase === REC_PHASE.finishing) return discardSaving(take);
   if (take) return stopTake(STOP_REASON.user);
   if (recordBlock()) return null;
@@ -74,12 +77,15 @@ export async function toggleRecording({ label, countIn }) {
   const arm = armedTrack();
   const t = newTake(eng, arm, label);
   take = t;
+  t.camera = camera;
+  camera?.start();
   if (!eng.isPlaying()) countIn();
   emit({ type: "change" });
   const capture = await openCapture(t, arm);
   if (!capture) return null;
   // Stop was pressed while the worklet was still loading.
   if (take !== t) {
+    t.camera?.discard();
     await capture.stop();
     return null;
   }
@@ -93,6 +99,7 @@ async function openCapture(t, arm) {
     return await startCapture(arm.input, arm.channels, { onStart: onCaptureStart, onAudio: onCaptureAudio });
   } catch (err) {
     console.warn("[recorder] capture could not start:", err);
+    t.camera?.discard();
     if (take === t) take = null;
     emit({ type: "change" });
     return null;
@@ -108,6 +115,7 @@ function discardSaving(t) {
   if (!canDiscard(t)) return null;
   t.discarded = true;
   t.uploader?.discard();
+  t.camera?.discard();
   if (take === t) take = null;
   emit({ type: "change" });
   emit({ type: "failed", jobId: t.jobId, trackId: t.trackId, takeId: t.takeId, error: UPLOAD_ERROR.discarded });
@@ -133,6 +141,7 @@ function newTake(eng, arm, label) {
     c0: null,
     takeId: null,
     created: null,
+    camera: null,
     uploader: null,
     epoch: null,
   };
@@ -199,9 +208,11 @@ async function createOnServer(t, frame0) {
     timeline: { frame0_song_sec: frame0, tempo: NORMAL_SPEED, count_in_sec: Math.max(0, t.startPos - frame0) },
     latency: takeLatency(t.engine.audioContext, t.info.latencySec, saved),
     capture: { rate: t.rate, channels: t.channels.length, device_label: t.info.label || null },
+    ...(t.camera && { camera: t.camera.createFields() }),
   });
   t.takeId = answer.take_id;
   t.uploader = createUploader(t);
+  t.camera?.upload(t.jobId, t.takeId);
   for (const samples of t.pending.splice(0)) t.uploader.push(samples);
   return t.takeId;
 }
@@ -210,6 +221,7 @@ async function createOnServer(t, frame0) {
 async function abandonTake(t, err) {
   console.warn("[recorder] take could not be started:", err);
   t.pending.length = 0;
+  t.camera?.discard();
   if (take === t) take = null;
   await t.capture?.stop();
   setArmProblem(t.trackId, ARM_PROBLEM_START_FAILED);
@@ -252,6 +264,8 @@ export async function stopTake(reason) {
   const endSec = endSongSec(t);
   emit({ type: "change" });
   t.captureStopped = t.capture?.stop() ?? Promise.resolve(0);
+  if (wasRecording) t.camera?.stop();
+  else t.camera?.discard();
   const dropped = await t.captureStopped;
   const outcome = wasRecording ? await finishOnServer(t, endSec, dropped ?? 0) : null;
   if (take === t) take = null;
@@ -278,13 +292,19 @@ async function finishOnServer(t, endSec, dropped) {
   if (!(await t.created)) return null;
   if (t.discarded) {
     t.uploader.discard();
+    t.camera?.discard();
     return { type: "failed", takeId: t.takeId, error: UPLOAD_ERROR.discarded };
   }
   try {
     const upload = await t.uploader.finish();
-    if (!upload.ok) return { type: "failed", takeId: t.takeId, error: upload.error };
+    if (!upload.ok) {
+      t.camera?.discard();
+      return { type: "failed", takeId: t.takeId, error: upload.error };
+    }
     const body = { dropped_quanta: dropped };
     if (endSec !== null) body.end_song_sec = endSec;
+    const camera = await t.camera?.finish(t.c0);
+    if (camera) body.camera = camera;
     const entry = await finishTake(t.jobId, t.takeId, body);
     return { type: "finished", takeId: t.takeId, entry };
   } catch (err) {

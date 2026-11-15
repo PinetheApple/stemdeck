@@ -173,6 +173,10 @@ export function createPartUploader(
     push(samples) {
       enqueue(chunker.push(samples));
     },
+    /** A part that is already whole, such as a camera chunk. */
+    pushPart(bytes) {
+      enqueue([bytes]);
+    },
     /** Send what is left and wait for the queue; resolves with the outcome. */
     async finish() {
       const rest = chunker.drain();

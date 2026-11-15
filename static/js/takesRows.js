@@ -5,7 +5,7 @@ import { t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
 import { LANE_VOLUME_MAX } from "./constants.js";
 import { updateLaneKnobVisual } from "./mixer.js";
-import { ROW_ELSEWHERE, ROW_TAKE, ROW_UNFINISHED } from "./takesState.js";
+import { ROW_ELSEWHERE, ROW_TAKE, ROW_UNFINISHED, TRACK_KIND_VIDEO } from "./takesState.js";
 import { fmtTickLabel } from "./utils.js";
 import { vuLevel } from "./vuScale.js";
 
@@ -69,6 +69,7 @@ function nameLine(view, on) {
   name.className = "mx-name";
   name.textContent = view.name;
   line.append(name);
+  if (view.kind === TRACK_KIND_VIDEO) line.insertAdjacentHTML("beforeend", icon("camera"));
   return line;
 }
 

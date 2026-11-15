@@ -112,5 +112,15 @@ const LISTING = {
   check("no peaks without a span", slicePeaks(points, null).length === 0);
 }
 
+{
+  const views = buildTrackViews({
+    tracks: [{ id: "a", name: "Voice" }, { id: "v", name: "Video 1", kind: "video" }],
+    takes: [],
+    open: [],
+  });
+  check("a track with no kind is audio", views[0].kind === "audio");
+  check("a video track says so", views[1].kind === "video");
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

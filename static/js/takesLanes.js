@@ -40,7 +40,7 @@ export function barsSvg(amps) {
     + `preserveAspectRatio="none" aria-hidden="true">${rects.join("")}</svg>`;
 }
 
-function peakAmps(points, bars) {
+export function peakAmps(points, bars) {
   if (!points.length) return [];
   let max = 0;
   for (const [mn, mx] of points) max = Math.max(max, -mn, mx);
