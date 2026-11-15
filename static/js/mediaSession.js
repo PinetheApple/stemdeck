@@ -8,10 +8,9 @@ import {
   positionStateFor,
   positionDrifted,
   nextMotion,
-  playKeyAction,
+  playKeyStarts,
   silentWav,
   STILL,
-  PLAY_KEY,
 } from "./mediaSessionModel.js";
 
 const ACTION = Object.freeze({
@@ -110,14 +109,13 @@ function seekTo(sec) {
   syncPlayback();
 }
 
-// The OS reads a count-in as paused, so its play key there cancels it, as the toggle does.
 function playFromMediaKey() {
-  const action = playKeyAction({
+  const starts = playKeyStarts({
     playing: isPlaying(),
     moving: motion.moving,
     clockReady: isClockReady(),
   });
-  if (action !== PLAY_KEY.IGNORE) togglePlayPause();
+  if (starts) togglePlayPause();
 }
 
 function pauseFromMediaKey() {
@@ -146,7 +144,7 @@ function resendMediaState() {
   if (!openTrackId) return;
   reported = null;
   syncMetadata();
-  session.playbackState = motion.moving ? PLAYBACK.PLAYING : PLAYBACK.PAUSED;
+  session.playbackState = isPlaying() ? PLAYBACK.PLAYING : PLAYBACK.PAUSED;
   reportPosition(motion.moving);
 }
 
@@ -186,7 +184,9 @@ export function releaseMediaAnchor() {
   anchor = null;
 }
 
+// Up Next can still fail to open its song, so the anchor never loops over a stopped engine.
 function onTrackEnded() {
+  pauseMediaAnchor();
   if (!upNextCount) releaseMediaAnchor();
 }
 
@@ -207,7 +207,7 @@ function onUpNextChange(e) {
   upNextCount = e.detail?.count ?? 0;
   setActionHandler(
     ACTION.NEXT_TRACK,
-    e.detail?.count ? playNextInUpNext : null,
+    upNextCount ? playNextInUpNext : null,
   );
 }
 

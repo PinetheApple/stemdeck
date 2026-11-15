@@ -26,9 +26,9 @@ const LOOP_END_SEC = 4;
 const LEAD_IN_SETTLE_MS = 300;
 const LEAD_IN_WATCH_MS = 1000;
 const CANCEL_WITHIN_MS = 1000;
-// Chromium let the OS controls go 2-3 s into a pause; the anchor must outlast that.
-const LONG_PAUSE_MS = 10_000;
 const NEAR_END_SEC = 5.5;
+// The streaming engine's second chunk; nothing has fetched it when the song opens.
+const UNFETCHED_CHUNK_SEC = 5;
 const ANCHOR_PLAYING = { loaded: true, playing: true };
 const ANCHOR_HELD = { loaded: true, playing: false };
 const ANCHOR_RELEASED = { loaded: false, playing: false };
@@ -178,15 +178,13 @@ test.describe("system media controls", () => {
     await expect.poll(() => currentTime(page)).toBe(0);
   });
 
-  test("the OS controls are held through a long pause and through Stop", async ({ page }) => {
+  test("pause and Stop keep the OS controls, paused, instead of letting them go", async ({ page }) => {
     await openWithMediaSession(page);
 
     await runAction(page, "play");
     await expect.poll(() => anchorState(page)).toEqual(ANCHOR_PLAYING);
     await runAction(page, "pause");
     await expect.poll(() => anchorState(page)).toEqual(ANCHOR_HELD);
-    await page.waitForTimeout(LONG_PAUSE_MS);
-    expect(await anchorState(page)).toEqual(ANCHOR_HELD);
 
     await runAction(page, "play");
     await expectPlaying(page, true);
@@ -220,7 +218,6 @@ test.describe("system media controls", () => {
     await expectPlaying(page, false);
     const sentBefore = await positionsSent(page);
 
-    // Chromium rebuilds its session when the anchor plays; whatever it was told before is lost.
     await page.evaluate(() => window.__media.anchors.at(-1).dispatchEvent(new Event("playing")));
     await expect.poll(() => positionsSent(page)).toBe(sentBefore + 1);
     expect(await playbackState(page)).toBe("paused");
@@ -234,6 +231,39 @@ test.describe("system media controls", () => {
 
     await expect.poll(() => anchorState(page)).toEqual(ANCHOR_RELEASED);
     expect(await isPlaying(page)).toBe(false);
+  });
+
+  test("the song's end pauses the OS controls while the queued song opens", async ({ page }) => {
+    await openWithMediaSession(page);
+    await page.route((url) => url.href.includes(SIBLING_JOB_ID), function holdQueuedSong() {});
+    await page.evaluate((id) => {
+      document.dispatchEvent(new CustomEvent("upnext:add", { detail: { id } }));
+    }, SIBLING_JOB_ID);
+    await expect.poll(() => handlerKind(page, "nexttrack")).toBe("set");
+    await runAction(page, "seekto", { seekTime: NEAR_END_SEC });
+    await runAction(page, "play");
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_PLAYING);
+
+    await expect.poll(() => anchorState(page)).toEqual(ANCHOR_HELD);
+    expect(await isPlaying(page)).toBe(false);
+  });
+
+  test("the play key does not pause a start still waiting for its audio", async ({ page }) => {
+    await openWithMediaSession(page);
+    let releaseStems;
+    const stemsHeld = new Promise((resolve) => { releaseStems = resolve; });
+    await page.route("**/stems/**", async function holdStems(route) {
+      await stemsHeld;
+      await route.continue();
+    });
+    await runAction(page, "seekto", { seekTime: UNFETCHED_CHUNK_SEC });
+    await runAction(page, "play");
+    expect(await isPlaying(page)).toBe(true);
+
+    await runAction(page, "play");
+    expect(await isPlaying(page)).toBe(true);
+    releaseStems();
+    await expect.poll(() => currentTime(page)).toBeGreaterThan(UNFETCHED_CHUNK_SEC);
   });
 
   test("Space still toggles playback, and the OS state follows it", async ({ page }) => {

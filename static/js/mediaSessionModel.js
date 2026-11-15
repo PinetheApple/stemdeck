@@ -56,29 +56,41 @@ export function nextMotion(motion, playing, position) {
   return { from: motion.from, moving: true };
 }
 
-export const PLAY_KEY = Object.freeze({
-  START: "start",
-  CANCEL_COUNT_IN: "cancel-count-in",
-  IGNORE: "ignore",
-});
-
 /**
- * What the OS play key does. A start still waiting on its first audio is left
- * to land; with the clock running and the playhead held, that is a count-in.
+ * Whether the OS play key toggles the transport. The OS reads a count-in as
+ * paused, so the key cancels it, as the toggle does; a start still waiting on
+ * its first audio is left to land.
  */
-export function playKeyAction({ playing, moving, clockReady }) {
-  if (!playing) return PLAY_KEY.START;
-  if (moving || !clockReady) return PLAY_KEY.IGNORE;
-  return PLAY_KEY.CANCEL_COUNT_IN;
+export function playKeyStarts({ playing, moving, clockReady }) {
+  return !playing || (!moving && clockReady);
 }
 
-const WAV_HEADER_BYTES = 44;
-const RIFF_SIZE_EXCLUDES = 8;
-const FMT_CHUNK_BYTES = 16;
-const PCM_FORMAT = 1;
-const MONO = 1;
-const BITS_PER_SAMPLE = 16;
-const BYTES_PER_SAMPLE = BITS_PER_SAMPLE / 8;
+export const WAV_CHUNK = Object.freeze({ RIFF: "RIFF", WAVE: "WAVE", FMT: "fmt ", DATA: "data" });
+
+/** Byte offsets of the canonical 44-byte PCM WAV header. */
+export const WAV_FIELD = Object.freeze({
+  RIFF_ID: 0,
+  RIFF_SIZE: 4,
+  WAVE_ID: 8,
+  FMT_ID: 12,
+  FMT_SIZE: 16,
+  FORMAT: 20,
+  CHANNELS: 22,
+  SAMPLE_RATE: 24,
+  BYTE_RATE: 28,
+  BLOCK_ALIGN: 32,
+  BITS_PER_SAMPLE: 34,
+  DATA_ID: 36,
+  DATA_SIZE: 40,
+});
+
+export const WAV_HEADER_BYTES = 44;
+export const PCM_FORMAT = 1;
+export const MONO = 1;
+export const BITS_PER_SAMPLE = 16;
+export const BYTES_PER_SAMPLE = BITS_PER_SAMPLE / 8;
+const RIFF_SIZE_EXCLUDES = WAV_FIELD.WAVE_ID;
+const FMT_CHUNK_BYTES = WAV_FIELD.DATA_ID - WAV_FIELD.FORMAT;
 
 function writeAscii(view, at, text) {
   [...text].forEach((char, i) => view.setUint8(at + i, char.charCodeAt(0)));
@@ -89,18 +101,18 @@ export function silentWav(seconds, sampleRate) {
   const dataBytes = Math.round(seconds * sampleRate) * BYTES_PER_SAMPLE;
   const bytes = new Uint8Array(WAV_HEADER_BYTES + dataBytes);
   const view = new DataView(bytes.buffer);
-  writeAscii(view, 0, "RIFF");
-  view.setUint32(4, bytes.length - RIFF_SIZE_EXCLUDES, true);
-  writeAscii(view, 8, "WAVE");
-  writeAscii(view, 12, "fmt ");
-  view.setUint32(16, FMT_CHUNK_BYTES, true);
-  view.setUint16(20, PCM_FORMAT, true);
-  view.setUint16(22, MONO, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * BYTES_PER_SAMPLE, true);
-  view.setUint16(32, BYTES_PER_SAMPLE, true);
-  view.setUint16(34, BITS_PER_SAMPLE, true);
-  writeAscii(view, 36, "data");
-  view.setUint32(40, dataBytes, true);
+  writeAscii(view, WAV_FIELD.RIFF_ID, WAV_CHUNK.RIFF);
+  view.setUint32(WAV_FIELD.RIFF_SIZE, bytes.length - RIFF_SIZE_EXCLUDES, true);
+  writeAscii(view, WAV_FIELD.WAVE_ID, WAV_CHUNK.WAVE);
+  writeAscii(view, WAV_FIELD.FMT_ID, WAV_CHUNK.FMT);
+  view.setUint32(WAV_FIELD.FMT_SIZE, FMT_CHUNK_BYTES, true);
+  view.setUint16(WAV_FIELD.FORMAT, PCM_FORMAT, true);
+  view.setUint16(WAV_FIELD.CHANNELS, MONO, true);
+  view.setUint32(WAV_FIELD.SAMPLE_RATE, sampleRate, true);
+  view.setUint32(WAV_FIELD.BYTE_RATE, sampleRate * BYTES_PER_SAMPLE, true);
+  view.setUint16(WAV_FIELD.BLOCK_ALIGN, BYTES_PER_SAMPLE, true);
+  view.setUint16(WAV_FIELD.BITS_PER_SAMPLE, BITS_PER_SAMPLE, true);
+  writeAscii(view, WAV_FIELD.DATA_ID, WAV_CHUNK.DATA);
+  view.setUint32(WAV_FIELD.DATA_SIZE, dataBytes, true);
   return bytes;
 }
