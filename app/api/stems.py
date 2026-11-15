@@ -645,6 +645,28 @@ def _expand_render_lanes(
     return lanes, unpitched
 
 
+class ExportMix(NamedTuple):
+    """An export's mix as requested and the lanes it renders."""
+
+    names: list[str]
+    gains: list[float]
+    pitches: list[int]
+    lanes: list[_RenderLane]
+    unpitched: list[str]
+
+
+async def parse_export_mix(job_id: str, stems: str, gains: str, pitches: str) -> ExportMix:
+    """Parse ``stems``/``gains``/``pitches`` as every mix export does (422), refuse
+    a transpose this ffmpeg cannot do, then resolve the lanes (404 per lane)."""
+    names, parsed_gains = _parse_lane_gains(stems, gains)
+    parsed_pitches = takes_lanes.zero_take_pitches(names, _parse_pitches(pitches, names))
+    # Refuse rather than export in the wrong key (#592).
+    if any(parsed_pitches) and not await asyncio.to_thread(_rubberband_available):
+        raise HTTPException(status_code=422, detail=NO_TRANSPOSE_DETAIL)
+    lanes, unpitched = _expand_render_lanes(job_id, names, parsed_gains, parsed_pitches)
+    return ExportMix(names, parsed_gains, parsed_pitches, lanes, unpitched)
+
+
 async def _drain_stderr(stream: asyncio.StreamReader, sink: deque[str]) -> None:
     """Collect ffmpeg stderr lines into a bounded deque. Draining is mandatory
     once stderr is a pipe -- an undrained full pipe would deadlock ffmpeg."""
@@ -1219,9 +1241,6 @@ async def get_mixdown(
     if ext not in ("wav", "mp3", "flac", "ogg"):
         raise HTTPException(status_code=404, detail="not found")
 
-    names, parsed_gains = _parse_lane_gains(stems, gains)
-    parsed_pitches = _parse_pitches(pitches, names)
-    parsed_pitches = takes_lanes.zero_take_pitches(names, parsed_pitches)
     stems_click.check_click_sound(click_sound)
     if (start is None) != (end is None) or (start is not None and start >= end):
         raise HTTPException(
@@ -1230,20 +1249,12 @@ async def get_mixdown(
         )
     _validate_trim_range(job_id, start, end)
 
-    # Refuse rather than export in the wrong key. A build without librubberband
-    # cannot pitch-shift at all, and quietly returning the original key would
-    # look like the bug this feature exists to fix (#592).
-    if any(parsed_pitches) and not await asyncio.to_thread(_rubberband_available):
-        raise HTTPException(
-            status_code=422,
-            detail=NO_TRANSPOSE_DETAIL,
-        )
-
     # Validates job_id (404), job done (404), and path traversal (404) per
     # stem -- deliberately before the cache lookup below, so a deleted or
     # not-yet-done job 404s the same way it always has instead of serving a
     # stale cache entry from before the job was removed.
-    render_lanes, unpitched = _expand_render_lanes(job_id, names, parsed_gains, parsed_pitches)
+    mix = await parse_export_mix(job_id, stems, gains, pitches)
+    names, parsed_gains, parsed_pitches, render_lanes, unpitched = mix
     paths = [lane.path for lane in render_lanes]
 
     media_type = AUDIO_MEDIA_TYPES[ext]
@@ -1427,19 +1438,10 @@ async def get_video_mixdown(
     if not video_path.is_file() or not video_path.is_relative_to(JOBS_DIR.resolve()):
         raise HTTPException(status_code=404, detail="no video track for this job")
 
-    names, parsed_gains = _parse_lane_gains(stems, gains)
-    parsed_pitches = _parse_pitches(pitches, names)
-    parsed_pitches = takes_lanes.zero_take_pitches(names, parsed_pitches)
-    # Same refusal as the audio export: a video whose audio came back in the
-    # original key would be the same complaint reported again (#592).
-    if any(parsed_pitches) and not await asyncio.to_thread(_rubberband_available):
-        raise HTTPException(
-            status_code=422,
-            detail=NO_TRANSPOSE_DETAIL,
-        )
     # Validates job_id (404), job done (404), and path traversal (404) per stem,
     # and rebuilds a transposed "original" lane from its parts.
-    render_lanes, _unpitched = _expand_render_lanes(job_id, names, parsed_gains, parsed_pitches)
+    mix = await parse_export_mix(job_id, stems, gains, pitches)
+    names, render_lanes = mix.names, mix.lanes
     paths = [lane.path for lane in render_lanes]
 
     # Click is one more audio input. It must be appended before the video input

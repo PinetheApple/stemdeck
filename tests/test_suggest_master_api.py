@@ -23,6 +23,7 @@ from fastapi.testclient import TestClient
 
 import app.core.config as cfg
 from app.api import suggest as suggest_mod
+from app.api.export_fx import MEASURE_FAILED_DETAIL
 from app.core.config import MASTER_PRESET_CEILING_DBTP, SUGGEST_MAX_BANDS_LANE
 from app.core.registry import _jobs
 from app.pipeline import eq_analysis as A
@@ -31,7 +32,7 @@ from app.pipeline import master_plan_cache
 from app.pipeline.eq_suggest import NOT_ENOUGH_SIGNAL, recommend_master
 from app.pipeline.eq_targets import get_target
 from app.pipeline.fx_filters import Band
-from app.pipeline.mastering import MasterSettings, encode_master_param
+from app.pipeline.mastering import Loudness, MasterSettings, encode_master_param
 from tests._takes_helpers import CAPTURE_RATE, SONG_SEC, add_done_job, new_take, new_track, put_part
 from tests._takes_helpers import JOB as TAKE_JOB
 from tests.ffmpeg_probe import skip_without_ffmpeg
@@ -137,6 +138,8 @@ async def test_bad_input_is_422_before_ffmpeg(client, no_ffmpeg, query):
         "/api/jobs/abcdef0f0fff/suggest/master?stems=bass&gains=1",
         "/api/jobs/..%2F..%2Fetc/suggest/master?stems=bass&gains=1",
         f"{BASE}?stems=guitar&gains=1",
+        "/api/jobs/not-a-job/suggest/master?stems=bass&gains=1&mode=sideways",
+        "/api/jobs/not-a-job/suggest/master?stems=bass&gains=1&target=nope",
     ],
 )
 async def test_unknown_jobs_and_lanes_are_404(client, no_ffmpeg, url):
@@ -205,6 +208,33 @@ async def test_no_boost_where_the_mix_has_no_content(client):
     curve = sum((A.band_response_db(b) for b in bands), np.zeros(A.N_BANDS))
     assert blocked.any()
     assert np.max(curve[blocked], initial=0.0) <= F.INAUDIBLE_DB, bands
+
+
+async def test_another_export_rate_is_measured_again(client, count_runs, monkeypatch):
+    skip_without_ffmpeg()
+    _job(cfg.JOBS_DIR, _mix())
+    query = f"{BASE}?stems=bass,other&gains=1,1"
+    other_rate = suggest_mod.get_export_sample_rate() * 2
+    async with client as c:
+        first = await c.get(query)
+        monkeypatch.setattr(suggest_mod, "get_export_sample_rate", lambda: other_rate)
+        again = await c.get(query)
+    assert first.status_code == again.status_code == 200, again.text
+    assert len(count_runs) == 2
+
+
+async def test_a_meter_that_does_not_parse_is_a_500(client, monkeypatch):
+    skip_without_ffmpeg()
+
+    async def unparsed(*args, **kwargs):
+        return Loudness(None, None)
+
+    monkeypatch.setattr(suggest_mod, "measure_chain", unparsed)
+    _job(cfg.JOBS_DIR, _mix())
+    async with client as c:
+        r = await c.get(f"{BASE}?stems=bass,other&gains=1,1")
+    assert r.status_code == 500
+    assert r.json()["detail"] == MEASURE_FAILED_DETAIL
 
 
 async def test_a_mix_too_quiet_is_not_enough_signal(client):

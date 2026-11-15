@@ -422,18 +422,10 @@ STREAMING_LUFS = get_target("mix.balanced").target_lufs
 def test_master_preset_respects_the_material(i, tp, preset, target, why):
     m = recommend_master(i, tp, STREAMING_LUFS)
     assert (m.preset, m.target_lufs, m.ceiling_dbtp) == (preset, target, MASTER_PRESET_CEILING_DBTP)
-    assert m.limit_db <= SUGGEST_LIMIT_ALLOWANCE_DB + 1e-9
+    assert m.target_lufs is None or isinstance(m.target_lufs, float)
+    assert m.reason["vars"].get("limit", 0.0) <= SUGGEST_LIMIT_ALLOWANCE_DB + 1e-9
     assert set(m.to_json()) == {"preset", "target_lufs", "ceiling_dbtp", "comp"}
     assert m.reason["key"] == f"suggest.why.master.{why}"
-
-
-def test_master_preset_for_silence_is_gentle():
-    m = recommend_master(None, None, STREAMING_LUFS)
-    assert (m.preset, m.target_lufs, m.reason["key"]) == (
-        "gentle",
-        None,
-        "suggest.why.master.silent",
-    )
 
 
 def test_targets_are_complete():

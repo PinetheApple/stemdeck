@@ -49,26 +49,21 @@ from typing import Annotated, TypeVar
 import numpy as np
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from app.api import takes_lanes
 from app.api.export_fx import (
     FILTER_COMPLEX,
+    MEASURE_FAILED_DETAIL,
     RenderLaneLike,
     build_render_fx,
     fx_query,
-    lane_chain,
-    measurement_graph,
 )
+from app.api.export_graph import PRE_LABEL, lanes_graph
 from app.api.stems import (
     _MIXDOWN_NAMES,
-    NO_TRANSPOSE_DETAIL,
     PITCHES_MAX_CHARS,
     _drain_stderr,
-    _expand_render_lanes,
-    _parse_lane_gains,
-    _parse_pitches,
     _pitch_filter,
-    _rubberband_available,
     _validate_stem_path,
+    parse_export_mix,
 )
 from app.core.config import (
     FX_PARAM_MAX_CHARS,
@@ -97,6 +92,7 @@ from app.pipeline.eq_suggest import (
     NOT_ENOUGH_SIGNAL,
     REPLACE,
     NotEnoughSignal,
+    is_quiet,
     make_suggestion,
     recommend_master,
 )
@@ -123,7 +119,6 @@ CACHE_VERSION = "1"
 ANALYSIS_FAILED = "analysis failed"
 MASTER_DEFAULT_TARGET = f"{MIX_USE}.{BALANCED_VARIANT}"
 _MASTER_KEY = "master"
-_PRE_LABEL = "[pre]"
 _NO_MASTER_EQ = ""
 GRAPH_PANEL = "graph"
 DRUM_PANEL = "drum"
@@ -162,7 +157,7 @@ def _file_source(path: Path) -> list[str]:
 
 
 def _graph_source(inputs: list[str], graph: str) -> list[str]:
-    return [*inputs, FILTER_COMPLEX, graph, "-map", _PRE_LABEL]
+    return [*inputs, FILTER_COMPLEX, graph, "-map", PRE_LABEL]
 
 
 async def _feed(stream: asyncio.StreamReader, acc: SpectrumAccumulator) -> None:
@@ -236,7 +231,8 @@ def _read(path: Path, from_json: Callable[[dict], T]) -> T | None:
 
 def _cache_path(parts: list[str], paths: Sequence[Path]) -> Path:
     """Keyed by ``parts`` and each file's path, size and mtime."""
-    files = [f"{p}@{p.stat().st_size}:{p.stat().st_mtime_ns}" for p in paths]
+    stats = [(p, p.stat()) for p in paths]
+    files = [f"{p}@{st.st_size}:{st.st_mtime_ns}" for p, st in stats]
     raw = "|".join([CACHE_VERSION, *parts, *files])
     key = hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()
     return SUGGEST_CACHE_DIR / f"{key}.json"
@@ -246,9 +242,12 @@ async def _measured(job_id: str, measure: Callable[[], Awaitable[T]]) -> T:
     async with _analysis_slots:
         try:
             return await measure()
-        except (AnalysisError, MeasureError) as exc:
+        except AnalysisError as exc:
             logger.warning("suggest analysis failed [job=%s]: %s", job_id, exc)
             raise HTTPException(status_code=500, detail=ANALYSIS_FAILED) from None
+        except MeasureError as exc:
+            logger.warning("suggest loudness failed [job=%s]: %s", job_id, exc)
+            raise HTTPException(status_code=500, detail=MEASURE_FAILED_DETAIL) from None
 
 
 async def _cached(
@@ -275,17 +274,23 @@ async def analysis(job_id: str, lane: str, path: Path) -> Spectrum:
     return await _cached(cache, job_id, measure, spectrum_from_json, spectrum_to_json)
 
 
-async def _measure_mix(inputs: list[str], graph: str) -> MixAnalysis:
+async def _measure_mix(inputs: list[str], graph: str, rate: int) -> MixAnalysis:
+    """Raises MeasureError when a mix loud enough to answer has no parsed loudness."""
     spectrum = await _run_analysis(_graph_source(inputs, graph))
-    loudness = await measure_chain(inputs, graph, "", get_export_sample_rate())
+    loudness = await measure_chain(inputs, graph, "", rate)
+    if (loudness.i is None or loudness.tp is None) and not is_quiet(spectrum):
+        raise MeasureError(f"no loudness parsed for a measurable mix: {loudness}")
     return MixAnalysis(spectrum, loudness)
 
 
 async def mix_analysis(job_id: str, paths: list[Path], graph: str) -> MixAnalysis:
-    """The cached spectrum and loudness of ``graph`` over ``paths`` (input i is paths[i])."""
-    cache = await asyncio.to_thread(_cache_path, [job_id, _MASTER_KEY, graph], paths)
+    """The cached spectrum and loudness of ``graph`` over ``paths`` (input i is
+    paths[i]), measured at the export rate."""
+    rate = get_export_sample_rate()
+    parts = [job_id, _MASTER_KEY, graph, str(rate)]
+    cache = await asyncio.to_thread(_cache_path, parts, paths)
     inputs = [arg for p in paths for arg in ("-i", str(p))]
-    measure = partial(_measure_mix, inputs, graph)
+    measure = partial(_measure_mix, inputs, graph, rate)
     return await _cached(cache, job_id, measure, MixAnalysis.from_json, MixAnalysis.to_json)
 
 
@@ -379,29 +384,14 @@ def _master_target(target: str) -> Target:
     return chosen
 
 
-async def _mix_lanes(job_id: str, stems: str, gains: str, pitches: str) -> list[RenderLaneLike]:
-    """The export's lanes for this mix: the same parsing, takes and refusals."""
-    if not JOB_ID_RE.match(job_id):
-        raise HTTPException(status_code=404, detail="job not found")
-    names, parsed_gains = _parse_lane_gains(stems, gains)
-    parsed_pitches = takes_lanes.zero_take_pitches(names, _parse_pitches(pitches, names))
-    if any(parsed_pitches) and not await asyncio.to_thread(_rubberband_available):
-        raise HTTPException(status_code=422, detail=NO_TRANSPOSE_DETAIL)
-    lanes, _unpitched = _expand_render_lanes(job_id, names, parsed_gains, parsed_pitches)
-    return lanes
-
-
 def _mix_graph(lanes: Sequence[RenderLaneLike], fx_req: FxRequest) -> str:
     """The export's measurement graph for ``lanes``, without the click or the master EQ."""
-    render_fx = build_render_fx(lanes, fx_req)
-    chains = [
-        lane_chain(render_fx.prefix(i), _pitch_filter(lane.pitch), lane.gain)
-        for i, lane in enumerate(lanes)
-    ]
-    return measurement_graph(chains, [lane.name for lane in lanes], _NO_MASTER_EQ)
+    return lanes_graph(lanes, build_render_fx(lanes, fx_req), _pitch_filter, _NO_MASTER_EQ)
 
 
 def _master_answer(mix: MixAnalysis, chosen: Target, mode: str, current: Eq | None) -> dict:
+    """The lane answer (a quiet mix is refused there, before its loudness is read)
+    plus the master preset."""
     body = _answer(mix.spectrum, chosen, PANEL_LAYOUTS[GRAPH_PANEL], mode, current)
     master = recommend_master(mix.loudness.i, mix.loudness.tp, chosen.target_lufs)
     body["reasons"].append(master.reason)
@@ -421,11 +411,13 @@ async def suggest_master(
 ) -> dict:
     """Measure the mix as the export sums it (before the master EQ) and suggest
     master EQ bands toward a mix target, plus the loudness preset it allows."""
+    if not JOB_ID_RE.match(job_id):
+        raise HTTPException(status_code=404, detail="job not found")
     chosen = _master_target(target)
     if mode not in MODES:
         raise HTTPException(status_code=422, detail="unknown mode")
     fx_req = _fx_request(fx)
-    lanes = await _mix_lanes(job_id, stems, gains, pitches)
+    lanes = (await parse_export_mix(job_id, stems, gains, pitches)).lanes
     graph = await asyncio.to_thread(_mix_graph, lanes, fx_req)
     paths = [lane.path for lane in lanes]
     mix = await _until_done(request, mix_analysis(job_id, paths, graph))
