@@ -1,26 +1,27 @@
-// Which recording tracks an export carries; pure, so it can be tested under node.
+// Which recording tracks an export carries.
 // A track lane plays its active take, so the export names the track, not the take.
 
-// The server never transposes a take either; the zero keeps the pitch list aligned.
+// Keeps the pitch list aligned with the names; the server never transposes a take.
 export const TAKE_PITCH = 0;
 
 /**
  * One row per track that has a take to play, ticked unless muted or the user said otherwise.
  * @param {object[]} views  buildTrackViews output
- * @param {(trackId:string) => {volume:number, muted:boolean}} mixOf
+ * @param {(trackId:string) => {volume:number, muted:boolean, soloed:boolean}} mixOf
  * @param {Map<string, boolean>} ticks  the user's own ticks, by track id
  */
 export function exportTakeRows(views, mixOf, ticks) {
   return views
     .filter((view) => view.activeTake)
     .map(function exportRow(view) {
-      const { volume, muted } = mixOf(view.id);
+      const { volume, muted, soloed } = mixOf(view.id);
       return {
         trackId: view.id,
         name: view.name,
         takeLabel: view.activeTake.label,
         volume,
         muted,
+        soloed,
         ticked: ticks.get(view.id) ?? !muted,
       };
     });
@@ -30,10 +31,13 @@ export function tickedTrackIds(rows) {
   return rows.filter((row) => row.ticked).map((row) => row.trackId);
 }
 
-/** The ticked tracks as mix lanes at their own volume; a silent one adds nothing. */
-export function takeLanes(rows) {
+/**
+ * The ticked tracks as mix lanes at their own volume, as the mixer hears them:
+ * while anything is soloed, only a soloed take; a silent one adds nothing.
+ */
+export function takeLanes(rows, anySolo) {
   return rows
-    .filter((row) => row.ticked && row.volume > 0)
+    .filter((row) => row.ticked && row.volume > 0 && (!anySolo || row.soloed))
     .map((row) => ({ id: row.trackId, gain: row.volume }));
 }
 
@@ -43,5 +47,18 @@ export function withTakeLanes(mix, lanes) {
     names: [...mix.names, ...lanes.map((lane) => lane.id)],
     gains: [...mix.gains, ...lanes.map((lane) => lane.gain)],
     pitches: [...mix.pitches, ...lanes.map(() => TAKE_PITCH)],
+  };
+}
+
+/** The user's ticks, by track id; another song starts from the mute defaults again. */
+export function createTickStore() {
+  let jobId = null;
+  const ticks = new Map();
+  return {
+    ticks,
+    forJob(id) {
+      if (id !== jobId) ticks.clear();
+      jobId = id;
+    },
   };
 }

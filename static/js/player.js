@@ -1940,7 +1940,7 @@ function _effectiveMixGains() {
     // this being the only thing standing between a snare and a resampler.
     pitches.push(effectivePitch(s.name, m.pitch ?? 0, undefined));
   }
-  return { names, gains, pitches };
+  return { names, gains, pitches, anySolo };
 }
 
 // Click-track export params. The click is synthesised in the browser during

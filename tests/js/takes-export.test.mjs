@@ -4,6 +4,7 @@
 
 import {
   TAKE_PITCH,
+  createTickStore,
   exportTakeRows,
   takeLanes,
   tickedTrackIds,
@@ -44,11 +45,11 @@ check("row names the track and its active take", rows[0].name === "Voice" && row
 const flipped = exportTakeRows(VIEWS, mixOf, new Map([[VOICE, false], [GUITAR, true]]));
 check("a tick overrides the mute default", flipped[0].ticked === false && flipped[1].ticked === true);
 
-const lanes = takeLanes(rows);
+const lanes = takeLanes(rows, false);
 check("only ticked tracks become lanes", lanes.length === 1 && lanes[0].id === VOICE);
 check("a lane plays at the track volume", lanes[0].gain === 0.8);
 
-const silent = takeLanes(exportTakeRows([view(VOICE, "Voice", "Take 2")], () => ({ volume: 0, muted: false }), new Map()));
+const silent = takeLanes(exportTakeRows([view(VOICE, "Voice", "Take 2")], () => ({ volume: 0, muted: false }), new Map()), false);
 check("a ticked track at zero volume adds no lane", silent.length === 0);
 
 const mix = withTakeLanes(STEMS, lanes);
@@ -60,6 +61,23 @@ check("the stems' lists are not mutated", STEMS.names.length === 2 && STEMS.gain
 
 check("zip carries only ticked tracks", tickedTrackIds(rows).join() === VOICE);
 check("zip carries a ticked muted track", tickedTrackIds(flipped).join() === GUITAR);
+
+const BOTH = new Map([[GUITAR, true]]);
+const SOLO_MIX = { ...MIX, [GUITAR]: { volume: 1, muted: false, soloed: true } };
+const soloRows = exportTakeRows(VIEWS, (id) => SOLO_MIX[id], BOTH);
+const soloLanes = takeLanes(soloRows, true);
+check("with a take soloed, only that take is a lane", soloLanes.map((l) => l.id).join() === GUITAR);
+check("with a stem soloed, no take is a lane", takeLanes(exportTakeRows(VIEWS, mixOf, BOTH), true).length === 0);
+check("with no solo, every ticked take is a lane", takeLanes(soloRows, false).length === 2);
+check("solo leaves the zip to the ticks", tickedTrackIds(soloRows).length === 2);
+
+const store = createTickStore();
+store.forJob("job-a");
+store.ticks.set(VOICE, false);
+store.forJob("job-a");
+check("a tick survives a re-render of the same song", store.ticks.get(VOICE) === false);
+store.forJob("job-b");
+check("a tick resets on a song switch", !store.ticks.has(VOICE));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

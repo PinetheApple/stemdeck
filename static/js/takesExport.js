@@ -3,7 +3,13 @@
 
 import { t } from "./i18n.js";
 import { takeMixEntry } from "./takesMix.js";
-import { exportTakeRows, takeLanes, tickedTrackIds, withTakeLanes } from "./takesExportModel.js";
+import {
+  createTickStore,
+  exportTakeRows,
+  takeLanes,
+  tickedTrackIds,
+  withTakeLanes,
+} from "./takesExportModel.js";
 
 const SECTION_ID = "t-export-takes";
 const MIX_ITEM_ID = "t-export-mix";
@@ -12,24 +18,22 @@ const ZIP_DESC_KEY = "export.allStemsDesc";
 const ZIP_TAKES_DESC_KEY = "rec.export.zipDesc";
 const PART_SEPARATOR = " · ";
 
-let jobId = null;
 let views = [];
-const ticks = new Map();
+const tickStore = createTickStore();
 
 /** The open song's tracks; a new song starts from the mute defaults again. */
 export function setExportTakes(id, trackViews) {
-  if (id !== jobId) ticks.clear();
-  jobId = id;
+  tickStore.forJob(id);
   views = trackViews;
 }
 
 function rows() {
-  return exportTakeRows(views, takeMixEntry, ticks);
+  return exportTakeRows(views, takeMixEntry, tickStore.ticks);
 }
 
-/** The stems' mix lists with the ticked tracks appended. */
+/** The stems' mix lists with the ticked tracks appended; `mix.anySolo` covers stems and tracks. */
 export function withExportTakes(mix) {
-  return withTakeLanes(mix, takeLanes(rows()));
+  return withTakeLanes(mix, takeLanes(rows(), mix.anySolo));
 }
 
 /** The tracks the stems zip carries next to the stems. */
@@ -52,7 +56,7 @@ function takeRow(row, panel) {
   box.type = "checkbox";
   box.checked = row.ticked;
   box.addEventListener("change", function onTakeTick() {
-    ticks.set(row.trackId, box.checked);
+    tickStore.ticks.set(row.trackId, box.checked);
     paintZipDesc(panel);
   });
   const text = document.createElement("span");

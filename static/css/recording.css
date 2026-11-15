@@ -457,7 +457,6 @@
 .rec-menu .lib-menu-sep { height: 1px; margin: var(--s-1) 0; background: var(--line); }
 .rec-menu .lib-menu-item[aria-checked="true"] { color: var(--accent); }
 
-/* Export menu: the takes an export carries, listed so a muted one is visibly left out. */
 .export-takes {
   display: flex;
   flex-direction: column;

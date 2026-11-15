@@ -321,6 +321,16 @@ test("a soloed take exports on its own", async ({ page, request }) => {
   expect(lanesOf(await exportFromMenu(page, "mix", queries))).toEqual([track.id]);
 });
 
+test("with one of two takes soloed, the mix carries only that one", async ({ page, request }) => {
+  await openStudio(page);
+  const queries = await captureExports(page);
+  await recordOnNewTrack(page, request, 1);
+  await recordOnNewTrack(page, request, 2);
+  await page.locator(".rec-row").last().locator(".solo").click();
+  const [, guitar] = (await listing(request)).tracks;
+  expect(lanesOf(await exportFromMenu(page, "mix", queries))).toEqual([guitar.id]);
+});
+
 test("the export carries the ticked takes, a muted track's unticked", async ({ page, request }) => {
   await openStudio(page);
   const queries = await captureExports(page);
