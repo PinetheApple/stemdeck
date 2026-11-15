@@ -23,6 +23,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.api.events import _MAX_SSE_SECONDS, SseSlot
+from app.api.jobs import STEMS_FOLDER_MOVING_EDIT, _refuse_while_relocating
 from app.core.config import JOB_ID_RE, JOBS_DIR, MAX_PENDING_UPLOAD_JOBS, MAX_PENDING_URL_JOBS
 from app.core.registry import get as registry_get
 from app.core.registry import pending_count as registry_pending_count
@@ -110,6 +111,7 @@ def reorder_queue(payload: ReorderRequest) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="job not found")
     if payload.job_id == payload.after:
         raise HTTPException(status_code=422, detail="a job cannot follow itself")
+    _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     if not jobqueue.reorder(payload.job_id, payload.after):
         # Already started or finished. Not an error the user can act on -- the
         # snapshot below tells the client what is true now.
