@@ -1110,3 +1110,48 @@ def ensure_runtime_dirs() -> None:
     )
     for path in paths:
         path.mkdir(parents=True, exist_ok=True)
+
+
+# Export EQ and mastering (#100; app/pipeline/fx_filters.py, mastering.py).
+# Wire limits: 12 bands on a dozen lanes fit in under 6 KB of fx=, so 8192
+# characters keeps the URL inside the server's 16 KB request line, and 160
+# biquad sections (about 150 characters each) stay under Windows' 32767-
+# character command line.
+FX_PARAM_MAX_CHARS = 8192
+FX_MAX_LANES = 32
+FX_MAX_BANDS = 12
+FX_MAX_SECTIONS = 160
+MASTER_PARAM_MAX_CHARS = 256
+# Lossy encoders add peak of their own (MP3 measured +0.7 dB, AAC more), so a
+# lossy master never asks for a true-peak ceiling above this.
+EXPORT_LIMIT_LOSSY_DBTP = -1.5
+# The limiter runs at 4x the rate so its ceiling holds the true peak; the way
+# back to the stem rate reads up to 0.07 dB higher, hence the margin under it.
+MASTER_LIMITER_OVERSAMPLE = 4
+MASTER_LIMITER_MARGIN_DB = 0.1
+MASTER_LIMITER_ATTACK_MS = 5
+MASTER_LIMITER_RELEASE_MS = 50
+# Glue compressor for amount a (0..1): ratio 1 + 2a, threshold at the measured
+# loudness + 2 - 6a dB, RMS detection, no makeup (the loudness gain is the makeup).
+MASTER_COMP_RATIO_PER_AMOUNT = 2.0
+MASTER_COMP_THRESHOLD_OFFSET_DB = 2.0
+MASTER_COMP_THRESHOLD_PER_AMOUNT_DB = 6.0
+MASTER_COMP_THRESHOLD_FLOOR_DB = -60.0
+MASTER_COMP_ATTACK_MS = 20
+MASTER_COMP_RELEASE_MS = 250
+MASTER_COMP_KNEE_DB = 6.0
+# A near-silent mix is not pushed 40 dB into the limiter: past the clamp the
+# target is reported as not reached.
+MASTER_GAIN_MIN_DB = -30.0
+MASTER_GAIN_MAX_DB = 20.0
+# Gain into a limiter that already works buys less and less loudness, so a
+# missed target gets a few bounded correction passes, not one big jump.
+MASTER_CORRECTION_TOL_LU = 0.1
+MASTER_CORRECTION_PASSES = 2
+MASTER_CORRECTION_MAX_DB = 3.0
+# Measured plans kept on disk, and songs measured at once on this server.
+MASTER_PLAN_MAX_FILES = 200
+MASTER_PLAN_CONCURRENCY = 2
+# ebur128 logs a line per 100 ms frame at "info"; "verbose" drops them below
+# the default level. Not "quiet": ffmpeg 5.1 and 4.4 reject it and the whole graph.
+EBUR128_FRAMELOG = "verbose"
