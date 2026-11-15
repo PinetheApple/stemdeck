@@ -7,6 +7,7 @@ import {
 import { STEM_NAMES, SEEK_STEP_SEC, syncStemNamesFromAPI } from "./constants.js";
 import { refreshStemChoiceVisuals } from "./stemChoice.js";
 import { renderEmptyShell, buildStripStems, downloadCurrentMix, downloadCurrentVideo, downloadAllStemsZip, downloadSongBundle, downloadRegionMix, drawFooterPlaceholder, regionDragPayload, stemRegionDragPayload, prewarmRegionMix } from "./player.js";
+import { renderExportTakes } from "./takesExport.js";
 import { wireJobForm, showError } from "./job.js";
 import { initSearch } from "./search.js";
 import { wireTransportButtons } from "./transport.js";
@@ -589,6 +590,7 @@ function wireFooterControls() {
     // A previous (video) job may have left MP4 selected; revert if unavailable now.
     if (format === "mp4" && !videoAvailable()) setFormat("wav");
     exportPanel?.classList.remove("hidden");
+    renderExportTakes(exportPanel);
     exportBtn?.setAttribute("aria-expanded", "true");
   }
   function closePanel() {

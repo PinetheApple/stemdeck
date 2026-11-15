@@ -12,6 +12,7 @@ import { renderTakeRows, paintTrackMeter } from "./takesRows.js";
 import { renderTakeLanes, paintLiveClip } from "./takesLanes.js";
 import { setTakeLaneSpace } from "./takesLayout.js";
 import { loadTakeMix, setMixTracks, takeMixEntry } from "./takesMix.js";
+import { setExportTakes } from "./takesExport.js";
 import { applyMix } from "./mixer.js";
 import { setTakeLanes } from "./takesPlayback.js";
 import { fetchTakePeaks, listTakes } from "./takesApi.js";
@@ -87,6 +88,7 @@ function render() {
   const own = new Set([recordingTake()?.takeId].filter(Boolean));
   session.views = buildTrackViews(session.listing, { ...session.ui, ownTakeIds: own });
   setMixTracks(session.views.map((view) => view.id));
+  setExportTakes(session.jobId, session.views);
   const ctx = renderContext();
   renderTakeRows(mixerEl, session.views, ctx);
   renderTakeLanes(session.views, ctx);

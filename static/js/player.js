@@ -64,6 +64,7 @@ import { noteMediaPosition, clearMediaSession } from "./mediaSession.js";
 import { trackPlayhead, resetFollowing } from "./autoScroll.js";
 import { laneRowFloor, takeLaneSpace, onTakeLayoutChange } from "./takesLayout.js";
 import { takeSoloActive } from "./takesMix.js";
+import { exportTakeTrackIds, withExportTakes } from "./takesExport.js";
 import { finishTakeBeforeTeardown } from "./recorder.js";
 import { DEFAULT_VERSION_ID } from "./versionModel.js";
 
@@ -1995,7 +1996,7 @@ export function setExportClickAvailable(on) {
 // when every lane is silenced; `region` appends the loop bounds.
 function _mixdownUrl(ext, region) {
   if (!currentJobId) return null;
-  const { names, gains, pitches } = _effectiveMixGains();
+  const { names, gains, pitches } = withExportTakes(_effectiveMixGains());
   if (!names.length) return null;
   const q = new URLSearchParams({
     stems: names.join(","),
@@ -2046,7 +2047,7 @@ export function downloadCurrentMix(ext = "wav", onTransferStart) {
 // there's no video track or every lane is muted.
 export function downloadCurrentVideo(onTransferStart) {
   if (!currentJobId || !_currentHasVideo) return false;
-  const { names, gains, pitches } = _effectiveMixGains();
+  const { names, gains, pitches } = withExportTakes(_effectiveMixGains());
   if (!names.length) return false;
   const q = new URLSearchParams({
     stems: names.join(","),
@@ -2070,7 +2071,7 @@ export function downloadCurrentVideo(onTransferStart) {
 export function downloadAllStemsZip(format = "wav", onTransferStart) {
   if (!currentJobId) return false;
   // Only the active (selected) stems loaded in the DAW — not all 6.
-  const names = _currentStems.filter((s) => s.name !== "original").map((s) => s.name);
+  const names = [..._currentStems.filter((s) => s.name !== "original").map((s) => s.name), ...exportTakeTrackIds()];
   if (!names.length) return false;
   const safe = _currentTitle
     .replace(/[^a-zA-Z0-9]+/g, "_")

@@ -1,6 +1,6 @@
 // Recording tracks and takes, on Chromium's fake microphone.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, openStudio } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, exportUi, openStudio } from "./helpers.mjs";
 import { openSong } from "./saveRaces.mjs";
 
 test.use({
@@ -33,6 +33,7 @@ const STEM_FLOOR_PX = 72;
 const NO_TRACK_SHRINK_MAX_PX = 8;
 // Well under recorder.js's TEARDOWN_WAIT_MS (500), so a wait that ran would show.
 const FAST_PATH_MAX_MS = 100;
+const EXPORT_ROUTE = /\/(mixdown\.wav|stems\/all\.zip)\?/;
 
 const recordBtn = (page) => page.locator("#t-rec");
 const trackRow = (page) => page.locator(".rec-row").first();
@@ -279,14 +280,88 @@ test("R starts and stops recording", async ({ page, request }) => {
   await expect.poll(async () => (await listing(request)).takes.length, { timeout: 15000 }).toBe(1);
 });
 
-test("a soloed take leaves no stems to export", async ({ page, request }) => {
-  await openStudio(page);
-  await addArmedTrack(page);
+// Answers every export with a stub file and keeps the query each one asked for.
+// After openStudio, so it wins over the helpers' own mixdown stub.
+async function captureExports(page) {
+  const queries = [];
+  await page.route(EXPORT_ROUTE, function stubExport(route) {
+    queries.push(new URL(route.request().url()).searchParams);
+    return route.fulfill({ status: 200, body: "x" });
+  });
+  return queries;
+}
+
+async function exportFromMenu(page, item, queries) {
+  const ui = exportUi(page);
+  const before = queries.length;
+  await ui.open();
+  await ui[item].click();
+  await expect.poll(() => queries.length).toBe(before + 1);
+  await expect(ui.label).toHaveText("Export Mix");
+  return queries.at(-1);
+}
+
+async function recordOnNewTrack(page, request, takes) {
+  await page.locator("#recAddTrack").click();
+  await page.getByRole("menuitem", { name: "Audio track" }).click();
+  await page.locator(".rec-row").last().locator(".rec-arm").click();
+  await expect(recordBtn(page)).toBeEnabled();
   await recordTake(page);
-  await expect.poll(async () => (await listing(request)).takes.length, { timeout: 15000 }).toBe(1);
+  await expect.poll(async () => (await listing(request)).takes.length, { timeout: 15000 }).toBe(takes);
+}
+
+const lanesOf = (query) => query.get("stems").split(",");
+
+test("a soloed take exports on its own", async ({ page, request }) => {
+  await openStudio(page);
+  const queries = await captureExports(page);
+  await recordOnNewTrack(page, request, 1);
   await trackRow(page).locator(".solo").click();
-  const exported = await page.evaluate(async () => (await import("/js/player.js")).downloadCurrentMix("wav"));
-  expect(exported).toBe(false);
+  const [track] = (await listing(request)).tracks;
+  expect(lanesOf(await exportFromMenu(page, "mix", queries))).toEqual([track.id]);
+});
+
+test("the export carries the ticked takes, a muted track's unticked", async ({ page, request }) => {
+  await openStudio(page);
+  const queries = await captureExports(page);
+  await recordOnNewTrack(page, request, 1);
+  await recordOnNewTrack(page, request, 2);
+  await page.locator(".rec-row").last().locator(".mute").click();
+  const [voice, guitar] = (await listing(request)).tracks;
+  await exportUi(page).open();
+  const boxes = page.locator(".export-takes input");
+  await expect(boxes).toHaveCount(2);
+  await expect(boxes.nth(0)).toBeChecked();
+  await expect(boxes.nth(1)).not.toBeChecked();
+  await expect(page.locator("#t-export-stems .chip-item-desc")).toHaveText("All stems and takes as a .zip");
+  await exportUi(page).button.click();
+
+  const mix = await exportFromMenu(page, "mix", queries);
+  expect(lanesOf(mix)).toContain(voice.id);
+  expect(lanesOf(mix)).not.toContain(guitar.id);
+  expect(lanesOf(await exportFromMenu(page, "stems", queries))).toContain(voice.id);
+
+  await exportUi(page).open();
+  await boxes.nth(0).uncheck();
+  await expect(page.locator("#t-export-stems .chip-item-desc")).toHaveText("All stems as a .zip");
+  await exportUi(page).button.click();
+  expect(lanesOf(await exportFromMenu(page, "mix", queries))).not.toContain(voice.id);
+  expect(lanesOf(await exportFromMenu(page, "stems", queries))).not.toContain(voice.id);
+});
+
+test("a song without takes exports exactly as before", async ({ page }) => {
+  await openStudio(page);
+  const queries = await captureExports(page);
+  const plain = (await exportFromMenu(page, "mix", queries)).toString();
+  const plainZip = (await exportFromMenu(page, "stems", queries)).toString();
+  await page.locator("#recAddTrack").click();
+  await page.getByRole("menuitem", { name: "Audio track" }).click();
+  await expect(trackRow(page)).toBeVisible();
+  await exportUi(page).open();
+  await expect(page.locator(".export-takes")).toBeHidden();
+  await exportUi(page).button.click();
+  expect((await exportFromMenu(page, "mix", queries)).toString()).toBe(plain);
+  expect((await exportFromMenu(page, "stems", queries)).toString()).toBe(plainZip);
 });
 
 // Leaves part uploads unanswered, like a server that hangs.
