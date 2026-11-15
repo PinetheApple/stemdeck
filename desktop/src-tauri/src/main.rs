@@ -4,6 +4,7 @@ mod certs;
 mod dragout;
 mod dropfolder;
 mod dropin;
+mod dropprobe;
 #[cfg(any(target_os = "linux", test))]
 mod rocm;
 mod store_file;
@@ -548,6 +549,8 @@ fn main() {
             native_file_drop,
             next_drop_signal,
             read_dropped_file,
+            dropped_file_duration,
+            release_dropped_files,
             pick_import_folder,
             save_audio_file,
             pick_export_destination,
@@ -3688,10 +3691,11 @@ async fn next_drop_signal(
     .map_err(|e| e.to_string())
 }
 
-/// The bytes of one file from the latest drop, by the id the drop reported.
+/// The bytes of one file from a drop the page has not released, by the id the
+/// drop reported.
 ///
 /// Takes an id, never a path: see "Paths stay on this side" in `dropin`. Each
-/// id can be read once, and only the latest drop's ids are readable at all.
+/// id can be read once, and only while its drop has not been released.
 /// The bytes go back raw rather than as JSON, so a 400 MB file is not also
 /// turned into a 1.4 GB array of numbers on the way.
 #[tauri::command]
@@ -3706,6 +3710,29 @@ async fn read_dropped_file(app: tauri::AppHandle, id: u64) -> Result<tauri::ipc:
     .await
     .map_err(|e| e.to_string())??;
     Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// How long one dropped file plays, in seconds, without reading it into the
+/// page; null when it cannot be told. See `dropprobe`.
+#[tauri::command]
+async fn dropped_file_duration(app: tauri::AppHandle, id: u64) -> Result<Option<f64>, String> {
+    let Some(path) = app.state::<dropin::DropInbox>().peek(id) else {
+        return Ok(None);
+    };
+    let Some((_, ffprobe)) = verified_ffmpeg_pair(&local_data_dir()?) else {
+        return Ok(None);
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        dropprobe::duration(&ffprobe, &path, dropprobe::PROBE_TIMEOUT)
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// The page is done with a drop: whatever of it was not read is forgotten.
+#[tauri::command]
+fn release_dropped_files(app: tauri::AppHandle, ticket: u64) {
+    app.state::<dropin::DropInbox>().release(ticket);
 }
 
 /// The native folder chooser behind Add a folder, which WebKitGTK cannot
