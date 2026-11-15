@@ -71,7 +71,8 @@ _NOT_ENCODER = (REASON_FILES, STOP_CANCELLED, INVALID_PREFIX + STOP_TIMEOUT)
 _MISSING_RE = re.compile(r"unknown encoder|encoder not found", re.IGNORECASE)
 _NO_DEVICE_RE = re.compile(
     r"no cuda-capable device|cuda_error_no_device|no va display|no device available|"
-    r"device creation failed|cannot load libcuda|cannot load nvcuda|no nvenc capable",
+    r"device creation failed|failed to open the drm device|cannot load libcuda|"
+    r"cannot load nvcuda|no nvenc capable",
     re.IGNORECASE,
 )
 # A device that is there but taken or short of memory right now.
@@ -110,13 +111,14 @@ def clean_error_line(stderr: str) -> str:
 
 
 def classify_failure(stderr: str) -> tuple[str, bool]:
-    """(reason, transient) for an encode that exited non-zero."""
-    if _FILES_RE.search(stderr):
-        return REASON_FILES, True
+    """(reason, transient) for an encode that exited non-zero. Device errors
+    come first: a render node that is missing or denied reads like a file error."""
     if _MISSING_RE.search(stderr):
         return REASON_MISSING, False
     if _NO_DEVICE_RE.search(stderr):
         return REASON_NO_DEVICE, False
+    if _FILES_RE.search(stderr):
+        return REASON_FILES, True
     if _TRANSIENT_RE.search(stderr):
         return REASON_BUSY, True
     return REASON_FAILED, False

@@ -34,6 +34,21 @@ NO_CUDA_STDERR = (
 )
 NO_VA_STDERR = "[VAAPI @ 0x5556937a49c0] No VA display found for device /dev/dri/renderD129.\n"
 DISK_FULL_STDERR = "[out#0/mp4 @ 0x1] Error writing trailer: No space left on device\n"
+DRM_DENIED_STDERR = (
+    "[AVHWDeviceContext @ 0x1] Failed to open the DRM device /dev/dri/renderD128: "
+    "Permission denied\nDevice creation failed: -13.\n"
+)
+DRM_MISSING_STDERR = (
+    "[AVHWDeviceContext @ 0x1] Failed to open the DRM device /dev/dri/renderD200: "
+    "No such file or directory\nDevice creation failed: -2.\n"
+)
+ENOSPC_STDERR = (
+    "[mp4 @ 0x1] Error writing packet: No space left on device\n"
+    "[out#0/mp4 @ 0x2] Error muxing a packet\n"
+)
+NO_OUTPUT_DIR_STDERR = (
+    "[out#0/mp4 @ 0x1] Error opening output /missing/dir/probe.mp4: No such file or directory\n"
+)
 
 
 def _fake_run(monkeypatch, rc=0, stderr="", calls=None):
@@ -88,6 +103,11 @@ def test_a_clean_file_of_one_colour_fails(monkeypatch):
         (NO_CUDA_STDERR, "no-device", False),
         (NO_VA_STDERR, "no-device", False),
         (DISK_FULL_STDERR, REASON_FILES, True),
+        (DRM_DENIED_STDERR, "no-device", False),
+        (DRM_MISSING_STDERR, "no-device", False),
+        ("[h264_nvenc @ 0x1] cuInit(0) failed -> CUDA_ERROR_NO_DEVICE", "no-device", False),
+        (ENOSPC_STDERR, REASON_FILES, True),
+        (NO_OUTPUT_DIR_STDERR, REASON_FILES, True),
         ("Unknown encoder 'h264_qsv'", "missing", False),
         ("[h264_nvenc @ 0x1] OpenEncodeSessionEx failed: out of memory", "busy", True),
         ("[h264_amf @ 0x1] something odd", "failed", False),
