@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import io
 import json
 import zipfile
@@ -55,6 +56,10 @@ def _write_stem(tmp_path, job_id: str, name: str, frames: int = FRAMES) -> None:
 def _write_json(path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def encode_wire(body: dict) -> str:
+    return base64.urlsafe_b64encode(json.dumps(body).encode()).decode().rstrip("=")
 
 
 def _bundle(client, job_id: str, params: dict | None = None) -> zipfile.ZipFile:
@@ -146,7 +151,14 @@ def test_bundle_mix_lanes_carry_only_the_frozen_fields(client, tmp_path):
     zf = _bundle(
         client,
         job_id,
-        {"stems": "vocals,bass", "volumes": "1,0.8", "muted": "0,1", "soloed": "0,0"},
+        {
+            "stems": "vocals,bass",
+            "volumes": "1,0.8",
+            "muted": "0,1",
+            "soloed": "0,0",
+            "fx": encode_wire({"v": 1, "lanes": {"bass": [{"id": "eq", "out": -2, "b": []}]}}),
+            "master": encode_wire({"v": 1, "target": -14, "ceiling": -1, "comp": 0.5}),
+        },
     )
     mix = json.loads(zf.read("mix.json"))
     assert set(mix) == {"stems"}
