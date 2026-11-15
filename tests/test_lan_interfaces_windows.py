@@ -12,18 +12,17 @@ from __future__ import annotations
 
 import ctypes
 import socket
+from collections.abc import Callable
 
 import pytest
 
 from app.core import lan_interfaces, lan_interfaces_windows
-from app.core.lan_interfaces_windows import WindowsAdapter
+from app.core.lan_interfaces_windows import _IF_OPER_STATUS_UP, _IF_TYPE_PPP, WindowsAdapter
 from tests.test_lan_interfaces import _settings
 
 IF_TYPE_ETHERNET = 6
 IF_TYPE_WIFI = 71
 IF_TYPE_PROP_VIRTUAL = 53
-IF_TYPE_PPP = 23
-IF_OPER_UP = 1
 IF_OPER_DOWN = 2
 POINTER_BYTES = 8
 
@@ -34,7 +33,7 @@ def _adapter(
     ipv4: str,
     *,
     if_type: int = IF_TYPE_ETHERNET,
-    oper_status: int = IF_OPER_UP,
+    oper_status: int = _IF_OPER_STATUS_UP,
     has_ipv4_gateway: bool = False,
 ) -> WindowsAdapter:
     return WindowsAdapter(
@@ -57,7 +56,10 @@ WIFI = _adapter(
 WINDOWS_HOST = [
     WIFI,
     _adapter(
-        "Ethernet", "Realtek PCIe GbE Family Controller", "10.0.0.5", oper_status=IF_OPER_DOWN
+        "Ethernet",
+        "Realtek PCIe GbE Family Controller",
+        "10.0.0.5",
+        oper_status=IF_OPER_DOWN,
     ),
     _adapter("vEthernet (WSL)", "Hyper-V Virtual Ethernet Adapter", "172.28.48.1"),
     _adapter("vEthernet (Default Switch)", "Hyper-V Virtual Ethernet Adapter #2", "172.20.80.1"),
@@ -68,17 +70,17 @@ WINDOWS_HOST = [
         "192.168.79.1",
     ),
     _adapter("Tailscale", "Tailscale Tunnel", "100.68.238.69", if_type=IF_TYPE_PROP_VIRTUAL),
-    _adapter("Office", "Office", "10.200.0.7", if_type=IF_TYPE_PPP),
+    _adapter("Office", "Office", "10.200.0.7", if_type=_IF_TYPE_PPP),
 ]
 
 
-def _on_windows(monkeypatch, adapters: list[WindowsAdapter]) -> None:
-    monkeypatch.setattr(lan_interfaces.sys, "platform", "win32")
-    monkeypatch.setattr(lan_interfaces_windows, "read_adapters", lambda: adapters)
+def _on_windows(monkeypatch, read_adapters: Callable[[], list[WindowsAdapter]]) -> None:
+    monkeypatch.setattr(lan_interfaces.sys, "platform", lan_interfaces._WINDOWS_PLATFORM)
+    monkeypatch.setattr(lan_interfaces_windows, "read_adapters", read_adapters)
 
 
 async def test_only_lan_reachable_adapters_are_listed_on_windows(monkeypatch) -> None:
-    _on_windows(monkeypatch, WINDOWS_HOST)
+    _on_windows(monkeypatch, lambda: WINDOWS_HOST)
     ips = {address for adapter in WINDOWS_HOST for address in adapter.ipv4s}
     settings = await _settings(monkeypatch, ips)
     assert settings["network_addresses"] == [
@@ -88,16 +90,31 @@ async def test_only_lan_reachable_adapters_are_listed_on_windows(monkeypatch) ->
     ]
 
 
-async def test_a_hyper_v_external_switch_carries_the_real_lan(monkeypatch) -> None:
+@pytest.mark.parametrize("has_ipv4_gateway", [True, False])
+async def test_a_hyper_v_external_switch_carries_the_real_lan(
+    monkeypatch,
+    has_ipv4_gateway: bool,
+) -> None:
     external = _adapter(
         "vEthernet (External)",
         "Hyper-V Virtual Ethernet Adapter #3",
         "192.168.1.30",
-        has_ipv4_gateway=True,
+        has_ipv4_gateway=has_ipv4_gateway,
     )
-    _on_windows(monkeypatch, [external])
+    _on_windows(monkeypatch, lambda: [external])
     settings = await _settings(monkeypatch, {"192.168.1.30"})
     assert settings["network_addresses"] == [{"url": "http://192.168.1.30:8000", "kind": "lan"}]
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["vEthernet (nat)", "vEthernet (WSL (Hyper-V firewall))", "vEthernet (DockerNAT)"],
+)
+async def test_an_internal_hyper_v_switch_is_hidden(monkeypatch, name: str) -> None:
+    internal = _adapter(name, "Hyper-V Virtual Ethernet Adapter #4", "172.30.0.1")
+    _on_windows(monkeypatch, lambda: [internal, WIFI])
+    settings = await _settings(monkeypatch, {"172.30.0.1", "192.168.1.20"})
+    assert settings["lan_addresses"] == ["http://192.168.1.20:8000"]
 
 
 @pytest.mark.parametrize(
@@ -118,7 +135,7 @@ async def test_a_vpn_adapter_is_marked_vpn_on_windows(
     if_type: int,
 ) -> None:
     vpn = _adapter(name, description, "10.8.0.2", if_type=if_type)
-    _on_windows(monkeypatch, [vpn, WIFI])
+    _on_windows(monkeypatch, lambda: [vpn, WIFI])
     settings = await _settings(monkeypatch, {"10.8.0.2", "192.168.1.20"})
     assert settings["network_addresses"] == [
         {"url": "http://10.8.0.2:8000", "kind": "vpn"},
@@ -130,8 +147,7 @@ async def test_a_failing_adapter_query_keeps_every_address(monkeypatch) -> None:
     def refuse() -> list[WindowsAdapter]:
         raise OSError("iphlpapi unavailable")
 
-    monkeypatch.setattr(lan_interfaces.sys, "platform", "win32")
-    monkeypatch.setattr(lan_interfaces_windows, "read_adapters", refuse)
+    _on_windows(monkeypatch, refuse)
     settings = await _settings(monkeypatch, {"172.28.48.1", "192.168.1.20"})
     assert settings["lan_addresses"] == ["http://172.28.48.1:8000", "http://192.168.1.20:8000"]
 
@@ -198,7 +214,7 @@ def test_adapters_are_parsed_from_a_hand_built_buffer() -> None:
         FriendlyName="vEthernet (WSL)",
         Description="Hyper-V Virtual Ethernet Adapter",
         IfType=IF_TYPE_ETHERNET,
-        OperStatus=IF_OPER_UP,
+        OperStatus=_IF_OPER_STATUS_UP,
         FirstUnicastAddress=address_list("172.28.48.1"),
     )
     first = lan_interfaces_windows._AdapterAddresses(
@@ -224,7 +240,7 @@ def test_adapters_are_parsed_from_a_hand_built_buffer() -> None:
             friendly_name="vEthernet (WSL)",
             description="Hyper-V Virtual Ethernet Adapter",
             if_type=IF_TYPE_ETHERNET,
-            oper_status=IF_OPER_UP,
+            oper_status=_IF_OPER_STATUS_UP,
             ipv4s=("172.28.48.1",),
             has_ipv4_gateway=False,
         ),

@@ -6,12 +6,13 @@ reports what both would: each adapter's friendly name ("Wi-Fi", "vEthernet
 interface type, whether it is up, and its IPv4 addresses and gateways.
 
 An adapter is host-only, and its addresses left out, when it is a virtual
-adapter only this machine reaches: Hyper-V's vEthernet adapters (the Default
-Switch, WSL, Docker's nat), VirtualBox's Host-Only adapter and VMware's
-VMnet1/VMnet8. A Hyper-V external switch is a vEthernet adapter too, but it
-carries the machine's real LAN connection, and unlike the others it has a
-default gateway; so a virtual adapter with an IPv4 gateway counts as LAN.
-Software loopback is host-only whatever it is called.
+adapter only this machine reaches: Hyper-V's internal switches (vEthernet
+(Default Switch), vEthernet (WSL...), and Docker's vEthernet (nat) and
+(DockerNAT)), VirtualBox's Host-Only adapter and VMware's VMnet1/VMnet8. Any
+other vEthernet adapter stays listed: a Hyper-V external switch is one too,
+and it carries the machine's real LAN connection, static address or not. A
+virtual adapter with an IPv4 gateway also counts as LAN, since something
+behind it routes onwards. Software loopback is host-only whatever it is called.
 
 An adapter is a VPN when its type is PPP, which is how Windows' own VPN
 connections (IKEv2, SSTP, L2TP) appear, or when its name or description names
@@ -34,13 +35,13 @@ import socket
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from app.core.lan_interfaces import NetInterface
+from app.core.lan_interfaces import LOGGER_NAME, NetInterface
 
-_log = logging.getLogger("stemdeck.network")
+_log = logging.getLogger(LOGGER_NAME)
 
-IF_TYPE_PPP = 23
-IF_TYPE_SOFTWARE_LOOPBACK = 24
-IF_OPER_STATUS_UP = 1
+_IF_TYPE_PPP = 23
+_IF_TYPE_SOFTWARE_LOOPBACK = 24
+_IF_OPER_STATUS_UP = 1
 
 _GAA_FLAG_SKIP_ANYCAST = 0x2
 _GAA_FLAG_SKIP_MULTICAST = 0x4
@@ -54,16 +55,22 @@ _GAA_FLAGS = (
 )
 _ERROR_SUCCESS = 0
 _ERROR_BUFFER_OVERFLOW = 111
-_INITIAL_BUFFER_BYTES = 15 * 1024  # the starting size Microsoft's documentation recommends
+# Big enough for a typical machine's adapters, so one call usually fills it.
+_INITIAL_BUFFER_BYTES = 15 * 1024
 # An adapter can appear between the call that sizes the buffer and the one that fills it.
 _MAX_BUFFER_ATTEMPTS = 3
 _MAX_ADAPTER_ADDRESS_LENGTH = 8
 _MAX_ZONE_INDICES = 16
+_IPV4_ADDRESS_BYTES = 4
+_SOCKADDR_IN_ZERO_BYTES = 8
 _IPHLPAPI = "iphlpapi"
 
+_INTERNAL_HYPER_V_SWITCH = re.compile(
+    r"^vEthernet \((Default Switch|WSL\b.*|nat|DockerNAT)\)$",
+    re.IGNORECASE,
+)
 _HOST_ONLY_ADAPTER = re.compile(
-    r"^vEthernet\b|Hyper-V Virtual Ethernet|VirtualBox Host-Only"
-    r"|VMware (Virtual Ethernet Adapter|Network Adapter VMnet)",
+    r"VirtualBox Host-Only|VMware (Virtual Ethernet Adapter|Network Adapter VMnet)",
     re.IGNORECASE,
 )
 _VPN_ADAPTER = re.compile(
@@ -86,8 +93,8 @@ class _SockaddrIn(ctypes.Structure):
     _fields_ = [
         ("sin_family", ctypes.c_uint16),
         ("sin_port", ctypes.c_uint16),
-        ("sin_addr", ctypes.c_ubyte * 4),
-        ("sin_zero", ctypes.c_ubyte * 8),
+        ("sin_addr", ctypes.c_ubyte * _IPV4_ADDRESS_BYTES),
+        ("sin_zero", ctypes.c_ubyte * _SOCKADDR_IN_ZERO_BYTES),
     ]
 
 
@@ -138,7 +145,7 @@ _AdapterAddresses._fields_ = [
     ("FirstGatewayAddress", ctypes.POINTER(_AddressNode)),
 ]
 
-GetAdaptersAddresses = Callable[..., int]
+GetAdaptersAddressesFn = Callable[..., int]
 
 
 def read_interfaces() -> list[NetInterface]:
@@ -159,7 +166,7 @@ def adapter_interfaces(adapter: WindowsAdapter) -> list[NetInterface]:
         NetInterface(
             name=adapter.friendly_name,
             ipv4=ipv4,
-            running=adapter.oper_status == IF_OPER_STATUS_UP,
+            running=adapter.oper_status == _IF_OPER_STATUS_UP,
             host_only=host_only,
             vpn=vpn,
         )
@@ -168,13 +175,15 @@ def adapter_interfaces(adapter: WindowsAdapter) -> list[NetInterface]:
 
 
 def _is_vpn(adapter: WindowsAdapter) -> bool:
-    return adapter.if_type == IF_TYPE_PPP or _names_match(_VPN_ADAPTER, adapter)
+    return adapter.if_type == _IF_TYPE_PPP or _names_match(_VPN_ADAPTER, adapter)
 
 
 def _is_host_only(adapter: WindowsAdapter) -> bool:
-    if adapter.if_type == IF_TYPE_SOFTWARE_LOOPBACK:
+    if adapter.if_type == _IF_TYPE_SOFTWARE_LOOPBACK:
         return True
-    return _names_match(_HOST_ONLY_ADAPTER, adapter) and not adapter.has_ipv4_gateway
+    internal_switch = _INTERNAL_HYPER_V_SWITCH.match(adapter.friendly_name) is not None
+    virtual = internal_switch or _names_match(_HOST_ONLY_ADAPTER, adapter)
+    return virtual and not adapter.has_ipv4_gateway
 
 
 def _names_match(pattern: re.Pattern[str], adapter: WindowsAdapter) -> bool:
@@ -186,7 +195,7 @@ def read_adapters() -> list[WindowsAdapter]:
     return adapters_in(fetch_adapter_buffer(_load_get_adapters_addresses()))
 
 
-def _load_get_adapters_addresses() -> GetAdaptersAddresses:
+def _load_get_adapters_addresses() -> GetAdaptersAddressesFn:
     win_dll = getattr(ctypes, "WinDLL", None)
     if win_dll is None:
         raise OSError(f"no {_IPHLPAPI} on this platform")
@@ -202,7 +211,7 @@ def _load_get_adapters_addresses() -> GetAdaptersAddresses:
     return function
 
 
-def fetch_adapter_buffer(get_adapters_addresses: GetAdaptersAddresses) -> ctypes.Array:
+def fetch_adapter_buffer(get_adapters_addresses: GetAdaptersAddressesFn) -> ctypes.Array:
     """The filled adapter buffer, grown to whatever size Windows asks for."""
     size = ctypes.c_uint32(_INITIAL_BUFFER_BYTES)
     for _ in range(_MAX_BUFFER_ATTEMPTS):

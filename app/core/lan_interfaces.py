@@ -17,9 +17,9 @@ where no interface could be read.
 Everything here is best-effort and standard-library only. Interfaces are read
 with the SIOCGIF* ioctls, which Linux and macOS both have. Windows has neither
 those nor sysfs, so lan_interfaces_windows reads its adapters through
-GetAdaptersAddresses and marks Hyper-V, WSL, VirtualBox and VMware host-only
-adapters as host_only and VPN adapters as vpn. When a query fails, no interface
-is read and every address is kept.
+GetAdaptersAddresses and marks Hyper-V internal switches (Default Switch, WSL,
+Docker), VirtualBox and VMware host-only adapters as host_only and VPN adapters
+as vpn. When a query fails, no interface is read and every address is kept.
 """
 
 from __future__ import annotations
@@ -35,7 +35,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple, TypedDict
 
-_log = logging.getLogger("stemdeck.network")
+LOGGER_NAME = "stemdeck.network"
+_log = logging.getLogger(LOGGER_NAME)
 
 SYSFS_NET = Path("/sys/class/net")
 # lower_* hops followed below a bridge: bridge -> bond -> VLAN -> NIC is three.
