@@ -31,6 +31,12 @@ let ui = null;
 let token = 0; // a redraw or another song makes every answer under way stale
 let shownFor = null; // the song the option and progress are for
 let pollTimer = 0;
+let status = { offered: false, message: "" };
+
+export const TRANSCRIBE_CHANGE_EVENT = "lyricstranscribechange";
+
+/** Whether a transcription can be started now, and what the last run said. */
+export const transcribeStatus = () => status;
 
 const jobUrl = (trackId) => `/api/jobs/${encodeURIComponent(trackId)}`;
 const transcribeUrl = (trackId) => `${jobUrl(trackId)}/lyrics/transcribe`;
@@ -86,6 +92,8 @@ function paint(state) {
   ui.message.textContent = offered ? messageFor(state) : "";
   ui.panel.hidden = !offered || (!running && !ui.message.textContent);
   if (running) paintProgress(state);
+  status = { offered: !ui.start.hidden, message: ui.message.textContent };
+  document.dispatchEvent(new CustomEvent(TRANSCRIBE_CHANGE_EVENT));
   const focusLost = document.activeElement === document.body || document.activeElement?.closest("[hidden], :disabled");
   if (focusWasOurs && focusLost) refocus(running);
 }
@@ -164,6 +172,11 @@ async function onStartClick() {
   }
   paint(state);
   if (state.state === RUN_STATE.RUNNING) schedulePoll(trackId, mine);
+}
+
+/** Starts a transcription for the song on offer, as the Lyrics toolbar's button does. */
+export function startTranscription() {
+  onStartClick();
 }
 
 /** The job's own cancel stops its lyrics runs; the next poll says cancelled. */

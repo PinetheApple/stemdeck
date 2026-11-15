@@ -1019,23 +1019,23 @@ input, textarea { font-family: inherit; }
   border-radius: 999px; background: var(--folder-color); cursor: pointer; padding: 0;
   box-shadow: inset 0 0 0 1px rgba(0,0,0,0.22);
 }
-.folder-head .f-del,
-.folder-head .f-subfolder {
+.folder-head .f-more {
   width: 18px; height: 18px; border: none; background: transparent;
   color: var(--muted); cursor: pointer; opacity: 0;
   display: flex; align-items: center; justify-content: center;
   border-radius: 4px; padding: 0; transition: opacity var(--t-fast), color var(--t-fast);
   flex-shrink: 0;
 }
-.folder-head:hover .f-del,
-.folder-head:hover .f-subfolder { opacity: 1; }
-.folder-head:focus-within :is(.f-del, .f-subfolder) { opacity: 1; }
-.folder-head > :is(.f-del, .f-subfolder) {
+.folder-head:hover .f-more,
+.folder-head:focus-within .f-more,
+.folder-head .f-more[aria-expanded="true"] { opacity: 1; }
+.folder-head > .f-more {
   width: var(--target-min); height: var(--target-min);
   margin-block: calc((var(--icon-lg) - var(--target-min)) / 2);
 }
-.folder-head .f-del:hover { background: color-mix(in srgb, var(--surface-2) 80%, transparent); color: var(--danger); }
-.folder-head .f-subfolder:hover { background: color-mix(in srgb, var(--surface-2) 80%, transparent); color: var(--fg-2); }
+.folder-head .f-more:hover,
+.folder-head .f-more[aria-expanded="true"] { background: color-mix(in srgb, var(--surface-2) 80%, transparent); color: var(--fg-2); }
+.folder-head .f-more .ic { width: var(--icon-sm); height: var(--icon-sm); }
 /* Drag grip */
 .f-grip {
   display: none; align-items: center; justify-content: center;

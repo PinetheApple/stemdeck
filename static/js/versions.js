@@ -8,6 +8,7 @@ import {
 import { audioEngine, currentJobId, currentVersionId, selectedStems, setCurrentVersionId } from "./state.js";
 import { applyAllLanePitches, applyMix, loadMixIntoState, mixGlobalPitch, refreshMixerVisuals } from "./mixer.js";
 import { resetPitch } from "./transport.js";
+import { applyAllFx } from "./mixFx.js";
 import { plural, t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
 import { fetchJson, iconButton, textInput } from "./libraryControls.js";
@@ -94,6 +95,7 @@ async function switchMix(jobId, versionId) {
   applyMix();
   if (audioEngine?.supportsPitchShift?.() === true) resetPitch(mixGlobalPitch());
   applyAllLanePitches();
+  applyAllFx();
 }
 
 /** Show the version the server now has open: the same lanes only swap the mix. */

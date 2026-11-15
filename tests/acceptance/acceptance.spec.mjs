@@ -930,7 +930,7 @@ test(title("V2"), async ({ app }, testInfo) => {
   await unsorted.hover();
   await page.waitForTimeout(400);
   await expect(unsorted.locator(".f-grip")).toHaveCount(0);
-  await expect(unsorted.locator(".f-subfolder")).toHaveCount(0);
+  await expect(unsorted.locator(".f-more")).toHaveCount(0);
   expect(await background(unsorted), "no hover highlight").toBe(before);
   await shot(page, testInfo, "unsorted-hover", { locator: page.locator("#catalogList") });
 
@@ -946,7 +946,7 @@ test(title("V2"), async ({ app }, testInfo) => {
   const mine = page.locator(`.folder[data-id="${mineId}"] > .folder-head`);
   await mine.hover();
   await expect(mine.locator(".f-grip")).toBeVisible();
-  await expect(mine.locator(".f-subfolder")).toHaveCount(1);
+  await expect(mine.locator(".f-more")).toHaveCount(1);
 
   const order = () => page.evaluate(() => [...document.querySelectorAll("#catalogList .folder")]
     .filter((f) => !f.parentElement.closest(".folder")).map((f) => f.dataset.id));
@@ -1004,7 +1004,7 @@ test(title("V2"), async ({ app }, testInfo) => {
   expect(now.indexOf(mineId), "it moved to just before Unsorted").toBe(now.indexOf("f-unsorted") - 1);
   await mine.hover();
   await expect(mine.locator(".f-grip"), "your own folder keeps its grip").toBeVisible();
-  await expect(mine.locator(".f-subfolder"), "and its New subfolder button").toHaveCount(1);
+  await expect(mine.locator(".f-more"), "and its … menu").toHaveCount(1);
   await shot(page, testInfo, "after-drop", { locator: page.locator("#catalogList") });
 });
 

@@ -10,7 +10,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.takes_video_iplay import Lane, without_played
-from app.core.take_video import camera_start_sec, export_span, take_span
+from app.core.take_video import camera_start_sec, export_span, take_span, video_entry_fields
 from app.pipeline.take_video_render import AudioLane, RenderPlan, camera_chain, render_cmd
 
 PLACED = {"placement_sec": 2.0, "duration_sec": 10.0}
@@ -40,6 +40,14 @@ def _plan(**over) -> RenderPlan:
 def test_camera_start_follows_placement_first_frame_and_offset():
     sidecar = {**PLACED, "camera": {"first_frame_offset_ms": -40.0, "offset_ms": 60.0}}
     assert camera_start_sec(sidecar) == pytest.approx(2.0 - 0.04 - 0.06)
+
+
+def test_entry_carries_the_picture_start_on_the_song_clock():
+    filmed = {**PLACED, "id": "t1", "camera": {"first_frame_offset_ms": 100.0, "offset_ms": 250.0}}
+    entry = video_entry_fields("job", filmed, 60.0)
+    assert entry["camera_start_sec"] == pytest.approx(2.0 + 0.1 - 0.25)
+    audio_only = video_entry_fields("job", {**PLACED, "id": "t2"}, 60.0)
+    assert audio_only["camera_start_sec"] is None
 
 
 def test_span_is_clamped_to_the_song_and_trimmed():
