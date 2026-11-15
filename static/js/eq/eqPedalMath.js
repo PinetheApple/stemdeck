@@ -99,11 +99,19 @@ export function normalizePedal(kind, raw) {
   const freq = (v, fallback, range) => round1(clamp(finiteOr(v, fallback), range.min, range.max));
   const shelf = (v) => round2(clamp(finiteOr(v, 0), -SHELF_GAIN, SHELF_GAIN));
   return {
-    lf: freq(c.lf, d.lf, p.low), lg: gain(c.lg), lq: q(c.lq),
-    mf: freq(c.mf, d.mf, p.mid), mg: gain(c.mg), mq: q(c.mq),
-    hf: freq(c.hf, d.hf, p.high), hg: gain(c.hg), hq: q(c.hq),
-    hpf: freq(c.hpf, d.hpf, p.hpf), lpf: freq(c.lpf, d.lpf, p.lpf),
-    ls: shelf(c.ls), hs: shelf(c.hs),
+    lf: freq(c.lf, d.lf, p.low),
+    lg: gain(c.lg),
+    lq: q(c.lq),
+    mf: freq(c.mf, d.mf, p.mid),
+    mg: gain(c.mg),
+    mq: q(c.mq),
+    hf: freq(c.hf, d.hf, p.high),
+    hg: gain(c.hg),
+    hq: q(c.hq),
+    hpf: freq(c.hpf, d.hpf, p.hpf),
+    lpf: freq(c.lpf, d.lpf, p.lpf),
+    ls: shelf(c.ls),
+    hs: shelf(c.hs),
     lvl: round2(clamp(finiteOr(c.lvl, 0), LEVEL_MIN, LEVEL_MAX)),
   };
 }

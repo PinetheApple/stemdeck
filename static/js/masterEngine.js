@@ -38,6 +38,7 @@ export const MASTER_EVENT = Object.freeze({ master: "master", listen: "listen", 
 const listeners = new Set();
 let listen = LISTEN.master;
 let match = true;
+let matchChosen = false;
 let mixSource = null;
 let warm = false;
 let inflight = null;
@@ -53,7 +54,10 @@ function freshLive() {
 storeGet(MATCH_KEY, true).then(adoptStoredMatch);
 
 function adoptStoredMatch(stored) {
+  if (matchChosen) return;
   match = stored !== false;
+  applyToEngine();
+  emit(MASTER_EVENT.listen);
 }
 
 function emit(what) {
@@ -96,6 +100,7 @@ export function setListen(which) {
 }
 
 export function setMatch(on) {
+  matchChosen = true;
   match = !!on;
   storeSet(MATCH_KEY, match);
   applyToEngine();

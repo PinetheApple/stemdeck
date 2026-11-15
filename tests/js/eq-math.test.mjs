@@ -5,7 +5,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  EQ_LIMITS, bandSections, encodeFxParam, eqIsFlat, eqResponseDb, eqToWire, flatEq, normalizeEq,
+  EQ_LIMITS,
+  bandSections,
+  encodeFxParam,
+  eqIsFlat,
+  eqResponseDb,
+  eqToWire,
+  flatEq,
+  normalizeEq,
 } from "../../static/js/eqMath.js";
 import { createChecker, near } from "./fakeWebAudio.mjs";
 
