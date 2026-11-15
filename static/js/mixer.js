@@ -37,6 +37,11 @@ export function ensureMixerStateDefaults() {
   }
 }
 
+// Fired on the document after any lane's volume, mute or solo changes, for views that mirror the mix.
+export const MIX_CHANGE_EVENT = "mixchange";
+
+const announceMixChange = () => document.dispatchEvent(new CustomEvent(MIX_CHANGE_EVENT));
+
 let globalPitch = 0;
 
 export function mixGlobalPitch() {
@@ -240,6 +245,7 @@ export function setLaneVolume(name, v) {
   if (knob) updateLaneKnobVisual(knob, state.volume);
   applyMix();
   saveMix();
+  announceMixChange();
 }
 
 export function refreshMixerVisuals() {
@@ -287,6 +293,7 @@ export function refreshMixerVisuals() {
       }
     }
   }
+  announceMixChange();
 }
 
 export function setLaneControlsEnabled(enabled) {

@@ -274,6 +274,14 @@ let visualRenderToken = 0;
 let visualAudioContext = null;
 let stemVuRafId = null;
 let _footerWavePeaks = null;
+// Fired on the document once the open song's whole-song peaks are in.
+export const WAVE_PEAKS_EVENT = "wavepeaks";
+const announceWavePeaks = () => document.dispatchEvent(new CustomEvent(WAVE_PEAKS_EVENT));
+
+/** The open song's whole-song `[min, max]` peaks, or null until they load. Read-only. */
+export function getWavePeaks() {
+  return _footerWavePeaks;
+}
 let _footerAccent = "";
 let _lastFooterProgress = 0;
 let _footerPlaceholderResizeObs = null;
@@ -991,6 +999,11 @@ function renderAllMiniWaves(mt, stems) {
 let _loadingShownAt = 0;
 const _LOADING_MIN_MS = 900;
 let _currentStems = [];
+
+/** The lanes the open song actually loaded, "original" included when it has one. */
+export function getLoadedStemNames() {
+  return _currentStems.map((s) => s.name);
+}
 let _mixUrl = null;
 let _currentTitle = "";
 // Whether the current job has a preserved video track (mp4 upload). Gates the
@@ -1345,6 +1358,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
     if (footerPeaks?.length) {
       const step = Math.ceil(footerPeaks.length / _FOOTER_BARS);
       _footerWavePeaks = footerPeaks.filter((_, i) => i % step === 0).slice(0, _FOOTER_BARS);
+      announceWavePeaks();
       setFooterWaveDrawFn(_drawFooterWave);
       _drawFooterWave(0);
     } else if (waveformUrl) {
@@ -1803,6 +1817,7 @@ async function initFooterWaveform(stemUrl) {
     if (!res.ok) return;
     const buf = await visualAudioContext.decodeAudioData(await res.arrayBuffer());
     _footerWavePeaks = bufferMinMaxPeaks(buf, _FOOTER_BARS);
+    announceWavePeaks();
     setFooterWaveDrawFn(_drawFooterWave);
     _drawFooterWave(0);
     // Redraw on resize so the canvas fills its container correctly
