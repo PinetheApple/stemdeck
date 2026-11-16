@@ -89,7 +89,7 @@ from app.pipeline.artist_lookup import tagged_artist_name
 from app.pipeline.audio_tags import is_control, probe_tags
 from app.pipeline.collect import remove_job_dir
 from app.pipeline.download import InvalidYouTubeURL, fetch_audio_tags, validate_youtube_url
-from app.pipeline.extract_stems import EXTRACT_RUNS, cancel_extract
+from app.pipeline.extract_stems import EXTRACT_RUNS, cancel_extract, link_of
 from app.pipeline.identify import (
     can_identify_title,
     fingerprint_key,
@@ -1021,7 +1021,7 @@ async def resplit_job(job_id: str, body: ResplitBody) -> dict:
     if job is None or job.status != "done":
         raise HTTPException(status_code=404, detail="job not found")
 
-    if not is_upload(job):
+    if link_of(job) is not None:
         # The new job's source would be a link, which the queue would try to
         # download instead of separating the kept file.
         raise HTTPException(status_code=409, detail=RESPLIT_LINK_SONG)

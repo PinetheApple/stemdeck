@@ -872,6 +872,16 @@ def test_resplit_refuses_a_link_song_that_kept_its_download(resplit_client, tmp_
     assert list(_jobs) == [job.id]
 
 
+def test_resplit_allows_a_song_with_no_source_url_that_kept_its_source(resplit_client, tmp_path):
+    job = _finished_upload(tmp_path, source="source.wav")
+    job.source_url = None
+
+    r = resplit_client.post(f"/api/jobs/{job.id}/resplit", json={"stems": []})
+
+    assert r.status_code == 200
+    assert r.json()["job_id"] in _jobs
+
+
 def test_resplit_keeps_the_lead_and_backing_choice(resplit_client, tmp_path):
     job = _finished_upload(tmp_path)
     job.vocal_split_choice = VOCAL_SPLIT_CHOICE_SPLIT
