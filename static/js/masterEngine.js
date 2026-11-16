@@ -87,7 +87,6 @@ export function isMasterOn() {
   return masterIsOn(getMaster());
 }
 
-// What plays and is measured: a previewed master, else the saved one.
 const heardMaster = () => previewed ?? getMaster();
 const heardOn = () => masterIsOn(heardMaster());
 

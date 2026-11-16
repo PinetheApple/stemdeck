@@ -123,17 +123,30 @@ for (const kind of ["bass", "guitar", "keys"]) {
 {
   const source = { jobId: "e2e0deadbeef", query: "stems=drums%2Cbass&gains=1.000%2C0.500&fx=abc" };
   const url = new URL(suggestMasterUrl(source), "http://x");
-  check("master suggest asks for the readout's mix", url.pathname === "/api/jobs/e2e0deadbeef/suggest/master"
-    && url.searchParams.get("stems") === "drums,bass" && url.searchParams.get("gains") === "1.000,0.500"
-    && url.searchParams.get("fx") === "abc");
-  check("master suggest replaces and never sends master=", url.searchParams.get("mode") === "replace"
-    && !url.searchParams.has("master"));
+  check(
+    "master suggest asks for the readout's mix",
+    url.pathname === "/api/jobs/e2e0deadbeef/suggest/master"
+      && url.searchParams.get("stems") === "drums,bass"
+      && url.searchParams.get("gains") === "1.000,0.500"
+      && url.searchParams.get("fx") === "abc",
+  );
+  check(
+    "master suggest replaces and never sends master=",
+    url.searchParams.get("mode") === "replace"
+      && !url.searchParams.has("master"),
+  );
   const m = masterFromSuggestion({ master: { preset: "louder", target_lufs: -9, ceiling_dbtp: -1, comp: 0.5 } });
   check("a suggested preset switches mastering on", m.bypass === false && m.id === "master" && m.v === 1);
-  check("a suggested preset keeps its numbers", m.params.preset === "louder" && m.params.target_lufs === -9
-    && m.params.comp === 0.5);
-  check("a suggested gentle preset is limiter only", masterFromSuggestion({ master: { preset: "gentle", comp: 0 } })
-    .params.target_lufs === null);
+  check(
+    "a suggested preset keeps its numbers",
+    m.params.preset === "louder"
+      && m.params.target_lufs === -9
+      && m.params.comp === 0.5,
+  );
+  check(
+    "a suggested gentle preset is limiter only",
+    masterFromSuggestion({ master: { preset: "gentle", comp: 0 } }).params.target_lufs === null,
+  );
 }
 
 {
