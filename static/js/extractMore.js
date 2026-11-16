@@ -1,5 +1,6 @@
 import {
-  ROW_PENDING, applyVersionsState, getLibraryTrack, paintRunRow, redrawLibrary, setVersionsExpanded,
+  ROW_PENDING, TRACK_SHOW_EVENT, applyVersionsState, getCurrentTrackInfo, getLibraryTrack, paintRunRow, redrawLibrary,
+  setVersionsExpanded,
 } from "./catalog.js";
 import { currentJobId } from "./state.js";
 import { t } from "./i18n.js";
@@ -189,19 +190,22 @@ function paintStageLabel(text) {
   label.hidden = !text;
 }
 
-/** The open song's run, after its version in the song head and under its artist on Stage. */
+function runText(trackId) {
+  const run = runs.get(trackId);
+  return run ? runLabel(run.view, t).text : "";
+}
+
+// The head shows the open song, which can be one shown over the player; Stage shows the player's.
 function paintOpenSongLabels() {
-  const run = runs.get(currentJobId);
-  const text = run ? runLabel(run.view, t).text : "";
-  paintSongHeadLabel(text);
-  paintStageLabel(text);
+  paintSongHeadLabel(runText(getCurrentTrackInfo()?.id));
+  paintStageLabel(runText(currentJobId));
 }
 
 function paintRun(trackId, view) {
   runs.get(trackId).view = view;
   const { text, bar, progress } = runLabel(view, t);
   paintRunRow(trackId, { state: bar ? ROW_RUNNING : ROW_PENDING, label: text, progress });
-  if (trackId === currentJobId) paintOpenSongLabels();
+  if (trackId === currentJobId || trackId === getCurrentTrackInfo()?.id) paintOpenSongLabels();
 }
 
 async function openExtracted(trackId, run, view) {
@@ -241,4 +245,5 @@ async function followRun(trackId, run) {
 export function initExtractMore() {
   document.addEventListener("versions:extract", onExtractRequest);
   document.addEventListener("trackopen", paintOpenSongLabels);
+  document.addEventListener(TRACK_SHOW_EVENT, paintOpenSongLabels);
 }
