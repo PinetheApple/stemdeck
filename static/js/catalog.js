@@ -1515,12 +1515,43 @@ function importMixUrl(track) {
   return sameLanes(openVersionOf(track).stems, track.selectedStems || []) ? track.mixUrl ?? null : null;
 }
 
+const MARK_HOLDS = "holds";
+const MARK_STALE = "stale";
+const MARK_UNCHECKED = "unchecked";
+
+/** Ask the server whether a song marked unavailable still is; a stale mark is cleared. */
+async function recheckUnavailableMark(trackId) {
+  try {
+    const res = await fetch(`/api/jobs/${trackId}`, { cache: "no-store" });
+    if (res.status === HTTP_NOT_FOUND) return MARK_HOLDS;
+    if (!res.ok) return MARK_UNCHECKED;
+    const { status } = await res.json();
+    if (status === "unavailable") return MARK_HOLDS;
+    updateTrackStatus(trackId, status);
+    return MARK_STALE;
+  } catch (e) {
+    console.warn("[catalog] could not recheck an unavailable song:", e);
+    return MARK_UNCHECKED;
+  }
+}
+
+/** True when the server has the song again; otherwise offers the re-import or says it can't be reached. */
+async function unavailableMarkWasStale(trackId, track) {
+  const verdict = await recheckUnavailableMark(trackId);
+  if (verdict === MARK_HOLDS) reimportUnavailableTrack(trackId, track);
+  else if (verdict === MARK_UNCHECKED) showError(i18nT("conn.offline"));
+  else render();
+  return verdict === MARK_STALE;
+}
+
 export async function loadTrackIntoStudio(trackId) {
   let track = tracks[trackId];
   if (!track) return;
   if (track.status === "unavailable") {
-    reimportUnavailableTrack(trackId, track);
-    return;
+    const askedAt = _loadTrackToken;
+    if (!(await unavailableMarkWasStale(trackId, track))) return;
+    track = tracks[trackId];
+    if (!track || askedAt !== _loadTrackToken) return;
   }
   const hadStoredAudio = Boolean(track.audioStems?.length);
   const token = ++_loadTrackToken;
@@ -6641,13 +6672,24 @@ async function waitForJobTerminal(jobId) {
   }
 }
 
+/** The unavailable link songs the server confirms are gone. Marks it disowns are cleared. */
+async function restorableTracks() {
+  const trashIds = new Set(getTrashFolder()?.items || []);
+  const marked = Object.entries(tracks)
+    .filter(([id, t]) => !trashIds.has(id) && t.status === "unavailable")
+    .filter(([, t]) => isReimportableSource(t.sourceUrl));
+  const verdicts = await Promise.all(marked.map(([id]) => recheckUnavailableMark(id)));
+  if (verdicts.includes(MARK_STALE)) render();
+  return marked.filter((_, i) => verdicts[i] === MARK_HOLDS);
+}
+
 // "Sync again": reconcile the library with the backend, then auto-restore the
 // tracks that fell out of sync.
 //   forward  — add server jobs missing locally (syncWithServer)
 //   reverse  — flag local "done" tracks the server no longer has as
 //              "unavailable"; restore ones that reappeared on the server.
-//   restore  — re-import every currently-unavailable URL-sourced track
-//              (re-download + re-separate). Local-file tracks can't be
+//   restore  — re-import every unavailable URL-sourced track the server
+//              confirms is gone (re-download + re-separate). Local-file tracks can't be
 //              auto-restored (the original file isn't kept) — they stay flagged.
 // Only done↔unavailable are reconciled, so in-progress imports are never
 // mis-flagged (they aren't on the server's done-list yet).
@@ -6662,13 +6704,8 @@ async function resyncLibrary() {
     if (!res.ok) throw new Error(`status ${res.status}`);
 
     await syncWithServer(); // pulls in new server jobs, reconciles done <-> unavailable
+    const restorable = await restorableTracks();
     if (libraryEditor) renderLibraryRows(libraryEditor.querySelector(".library-editor-body"));
-
-    // Collect what's still unavailable; auto-restore the ones with a URL source.
-    const trashIds = new Set(getTrashFolder()?.items || []);
-    const restorable = Object.entries(tracks)
-      .filter(([id, t]) => !trashIds.has(id) && t.status === "unavailable")
-      .filter(([, t]) => isReimportableSource(t.sourceUrl));
 
     if (restorable.length) {
       // Re-import each from its source. Close the editor so the studio overlay
