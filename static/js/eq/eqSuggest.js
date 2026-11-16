@@ -18,8 +18,10 @@ export async function fetchSuggestion(url, signal) {
   return res.json();
 }
 
-/** The i18n key for a failed Suggest: too little sound, a refusal for this lane, or anything else. */
-export function suggestErrorKey(err) {
+export const REFUSED_KEY = Object.freeze({ lane: "eq.suggestLaneFailed", mix: "eq.suggestMixFailed" });
+
+/** The i18n key for a failed Suggest: too little sound, a refusal (`refusedKey`), or anything else. */
+export function suggestErrorKey(err, refusedKey = REFUSED_KEY.lane) {
   if (!REFUSED_STATUSES.has(err?.status)) return "eq.suggestFailed";
-  return err.detail === NOT_ENOUGH_SIGNAL ? "eq.suggestNoSignal" : "eq.suggestLaneFailed";
+  return err.detail === NOT_ENOUGH_SIGNAL ? "eq.suggestNoSignal" : refusedKey;
 }

@@ -1,22 +1,27 @@
 import { $ } from "../utils.js";
 import { audioEngine, currentJobId } from "../state.js";
-import { MASTER_LANE, getLaneEq, onFxChange, resetLane } from "../eqEngine.js";
+import { MASTER_LANE, getLaneEq, onFxChange, previewLaneEq, resetLane, setLaneEq } from "../eqEngine.js";
 import {
   choosePreset,
+  currentMixSource,
   getMaster,
   getPlan,
   getPlanState,
-  isMasterOn,
   onChange as onMasterChange,
+  previewMaster,
   setMaster,
   setMasterOn,
   warmLive,
   watch,
 } from "../masterEngine.js";
+import { masterIsOn } from "../masterMath.js";
 import { EqGraph } from "./eqGraph.js";
-import { graphBands } from "./eqPanelModel.js";
+import { PANEL_KIND } from "./eqPanelKinds.js";
+import { eqFromSuggestion, graphBands, suggestMasterUrl } from "./eqPanelModel.js";
 import { fmtDb } from "./eqGraphMath.js";
 import { editLaneBands, renderPower, toggleLaneBypass } from "./eqPanelControls.js";
+import { REFUSED_KEY } from "./eqSuggest.js";
+import { SuggestFlow } from "./eqSuggestFlow.js";
 import {
   PERCENT,
   choosePresetFor,
@@ -24,14 +29,38 @@ import {
   grFraction,
   loudnessChoice,
   loudnessReadout,
+  masterFromSuggestion,
   stepCeiling,
 } from "./masterPanelModel.js";
 
 const GR_SCALE_DB = 12;
 
+function previewSuggested(_lane, suggested) {
+  previewLaneEq(MASTER_LANE, suggested?.eq ?? null);
+  previewMaster(suggested?.master ?? null);
+}
+
+function commitSuggested(_lane, { eq, master }) {
+  setLaneEq(MASTER_LANE, eq);
+  setMaster(master);
+  previewMaster(null);
+}
+
+function suggestionOf(body) {
+  return { eq: eqFromSuggestion(body, PANEL_KIND.graph), master: masterFromSuggestion(body) };
+}
+
 export class EqMasterView {
   #graph;
   #job = null;
+  #suggest = new SuggestFlow({
+    preview: previewSuggested,
+    commit: commitSuggested,
+    button: $("eqSuggestMaster"),
+    status: this.#status.bind(this),
+    render: this.render.bind(this),
+    refusedKey: REFUSED_KEY.mix,
+  });
 
   constructor() {
     this.#graph = new EqGraph($("eqGraphMaster"), { onEdit: this.#onGraphEdit.bind(this) });
@@ -42,6 +71,9 @@ export class EqMasterView {
     $("eqCeilingDown").addEventListener("click", this.#onCeilingDownClick.bind(this));
     $("eqCeilingUp").addEventListener("click", this.#onCeilingUpClick.bind(this));
     $("eqFlatMaster").addEventListener("click", this.#onFlatClick.bind(this));
+    $("eqSuggestMaster").addEventListener("click", this.#onSuggestClick.bind(this));
+    $("eqSuggestApplyMaster").addEventListener("click", this.#onApplyClick.bind(this));
+    $("eqSuggestUndoMaster").addEventListener("click", this.#onUndoClick.bind(this));
     onFxChange(this.#onFxChange.bind(this));
     onMasterChange(this.render.bind(this));
   }
@@ -55,15 +87,23 @@ export class EqMasterView {
     this.render();
   }
 
+  /** Leaving the view or the song: drop a Suggest still asked for, undo an unapplied one. */
   leave() {
     this.#graph.flush();
+    this.#suggest.leave();
     warmLive(false);
   }
 
   render() {
-    this.#renderEq();
-    this.#renderGlue();
-    this.#renderLoudness();
+    const suggesting = this.#suggest.active;
+    const master = suggesting ? this.#suggest.suggested.master : getMaster();
+    this.#renderEq(suggesting);
+    this.#renderGlue(master, suggesting);
+    this.#renderLoudness(master, suggesting);
+    $("eqSuggestBarMaster").hidden = !suggesting;
+    $("eqLegendMaster").hidden = !suggesting;
+    $("eqLegendTargetMaster").hidden = !this.#suggest.target;
+    $("eqMasterActions").hidden = suggesting;
   }
 
   /** One meter frame: the glue's gain reduction. */
@@ -73,26 +113,33 @@ export class EqMasterView {
     $("eqGrValue").textContent = fmtDb(Number.isFinite(db) ? db : 0);
   }
 
-  #renderEq() {
-    const eq = getLaneEq(MASTER_LANE);
-    renderPower($("eqPowerMaster"), eq);
-    this.#graph.show({ bands: graphBands(eq), out: eq.params.out, bypass: eq.bypass });
+  #renderEq(suggesting) {
+    const saved = getLaneEq(MASTER_LANE);
+    const eq = suggesting ? this.#suggest.suggested.eq : saved;
+    renderPower($("eqPowerMaster"), eq, { disabled: suggesting });
+    const layers = suggesting
+      ? { ghost: { bands: saved.params.bands, out: saved.params.out }, target: this.#suggest.target, fitted: true }
+      : {};
+    this.#graph.show(
+      { bands: graphBands(eq), out: eq.params.out, bypass: eq.bypass },
+      { ...layers, editable: !suggesting },
+    );
   }
 
-  #renderGlue() {
-    const { comp } = getMaster().params;
+  #renderGlue(master, suggesting) {
+    const { comp } = master.params;
     const glue = $("eqGlue");
     glue.value = String(Math.round(comp * PERCENT));
-    glue.disabled = !isMasterOn();
+    glue.disabled = suggesting || !masterIsOn(master);
     $("eqGlueValue").textContent = fmtPercent(comp);
   }
 
-  #renderLoudness() {
-    const master = getMaster();
-    const on = isMasterOn();
+  #renderLoudness(master, suggesting) {
+    const on = masterIsOn(master);
     const choice = loudnessChoice(master);
     for (const btn of $("eqLoudness").querySelectorAll("[data-choice]")) {
       btn.setAttribute("aria-checked", String(btn.dataset.choice === choice));
+      btn.disabled = suggesting;
     }
     const view = loudnessReadout(master, getPlan(), getPlanState());
     $("eqTargetValue").textContent = view.target;
@@ -100,8 +147,12 @@ export class EqMasterView {
     $("eqNowLufs").textContent = view.now;
     $("eqGainAtExport").textContent = view.gain;
     $("eqApproxHint").hidden = !on;
-    $("eqCeilingDown").disabled = !on;
-    $("eqCeilingUp").disabled = !on;
+    $("eqCeilingDown").disabled = suggesting || !on;
+    $("eqCeilingUp").disabled = suggesting || !on;
+  }
+
+  #status(text) {
+    $("eqMasterStatus").textContent = text;
   }
 
   #onGraphEdit(bands, opts) {
@@ -145,6 +196,26 @@ export class EqMasterView {
 
   #onFlatClick() {
     resetLane(MASTER_LANE);
+  }
+
+  #onSuggestClick() {
+    const src = currentMixSource();
+    if (!src) return;
+    const job = currentJobId;
+    this.#suggest.ask({
+      key: MASTER_LANE,
+      url: suggestMasterUrl(src),
+      current: () => job === currentJobId,
+      toSuggested: suggestionOf,
+    });
+  }
+
+  #onApplyClick() {
+    this.#suggest.apply();
+  }
+
+  #onUndoClick() {
+    this.#suggest.undo();
   }
 
   #onFxChange({ lane }) {

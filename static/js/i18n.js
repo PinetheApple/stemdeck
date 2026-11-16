@@ -1606,6 +1606,7 @@ const en = {
   "help.eqCeiling": "The highest peak an exported mix may reach.",
   "help.exportMaster": "Masters the exported mix and video to the loudness set in the EQ tab. Stems and bundles are never mastered.",
   "eq.suggestLaneFailed": "Couldn't suggest for this lane.",
+  "eq.suggestMixFailed": "Couldn't suggest for this mix.",
   "eq.unitDbtp": "dBTP",
 };
 
@@ -3003,6 +3004,7 @@ const pl = {
   "help.eqCeiling": "Najwyższy szczyt, jaki może mieć eksportowany miks.",
   "help.exportMaster": "Masteruje eksportowany miks i wideo do głośności ustawionej w karcie EQ. Stemy i paczki nigdy nie są masterowane.",
   "eq.suggestLaneFailed": "Nie można zaproponować EQ dla tej ścieżki.",
+  "eq.suggestMixFailed": "Nie można zaproponować EQ dla tego miksu.",
   "eq.unitDbtp": "dBTP",
 };
 
@@ -4342,6 +4344,7 @@ const ja = {
   "help.eqCeiling": "書き出すミックスのピークの上限です。",
   "help.exportMaster": "書き出すミックスと動画をEQタブで設定した音量にマスタリングします。ステムとバンドルはマスタリングされません。",
   "eq.suggestLaneFailed": "このレーンにはEQを提案できません。",
+  "eq.suggestMixFailed": "このミックスには提案できません。",
   "eq.unitDbtp": "dBTP",
 };
 
@@ -5681,6 +5684,7 @@ const zhHans = {
   "help.eqCeiling": "导出混音允许达到的最高峰值。",
   "help.exportMaster": "将导出的混音和视频处理到均衡器标签中设置的响度。分轨和打包文件从不处理。",
   "eq.suggestLaneFailed": "无法为此音轨提供建议。",
+  "eq.suggestMixFailed": "无法为此混音提供建议。",
   "eq.unitDbtp": "dBTP",
 };
 
@@ -7047,6 +7051,7 @@ const de = {
   "help.eqCeiling": "Die höchste Spitze, die ein exportierter Mix erreichen darf.",
   "help.exportMaster": "Mastert den exportierten Mix und das Video auf die im EQ-Tab eingestellte Lautheit. Stems und Pakete werden nie gemastert.",
   "eq.suggestLaneFailed": "Für diese Spur ist kein Vorschlag möglich.",
+  "eq.suggestMixFailed": "Für diesen Mix ist kein Vorschlag möglich.",
   "eq.unitDbtp": "dBTP",
 };
 
@@ -8415,6 +8420,7 @@ const pt = {
   "help.eqCeiling": "O pico mais alto que uma mixagem exportada pode atingir.",
   "help.exportMaster": "Masteriza a mixagem e o vídeo exportados no volume definido na aba EQ. Stems e pacotes nunca são masterizados.",
   "eq.suggestLaneFailed": "Não foi possível sugerir para esta faixa.",
+  "eq.suggestMixFailed": "Não foi possível sugerir para esta mixagem.",
   "eq.unitDbtp": "dBTP",
 };
 
@@ -9754,6 +9760,7 @@ const id = {
   "help.eqCeiling": "Puncak tertinggi yang boleh dicapai mix yang diekspor.",
   "help.exportMaster": "Melakukan mastering pada mix dan video yang diekspor ke kenyaringan di tab EQ. Stem dan bundel tidak pernah di-master.",
   "eq.suggestLaneFailed": "Tidak bisa menyarankan untuk jalur ini.",
+  "eq.suggestMixFailed": "Tidak bisa menyarankan untuk mix ini.",
   "eq.unitDbtp": "dBTP",
 };
 
@@ -11122,6 +11129,7 @@ const fr = {
   "help.eqCeiling": "La crête la plus haute qu'un mix exporté peut atteindre.",
   "help.exportMaster": "Masterise le mix et la vidéo exportés au volume réglé dans l'onglet EQ. Les stems et les paquets ne sont jamais masterisés.",
   "eq.suggestLaneFailed": "Impossible de suggérer pour cette piste.",
+  "eq.suggestMixFailed": "Impossible de suggérer pour ce mix.",
   "eq.unitDbtp": "dBTP",
 };
 
@@ -11489,6 +11497,7 @@ const ptPT = {
   "batch.overCapFiles.one": "No máximo {max} ficheiros de cada vez. {count} ficheiro a mais ficou de fora.",
   "batch.overCapFiles.other": "No máximo {max} ficheiros de cada vez. {count} ficheiros a mais ficaram de fora.",
   "eq.approximate": "A pré-visualização ao vivo é aproximada",
+  "eq.suggestMixFailed": "Não foi possível sugerir para esta mistura.",
   "eq.suggestNoSignal": "Há pouco som aqui para sugerir um EQ.",
   "export.masterTitle": "Masterizar a mistura exportada para este volume",
   "help.eqScopeMaster": "O master: o EQ, a coesão e o volume das misturas exportadas.",
@@ -12878,6 +12887,7 @@ const es = {
   "help.eqCeiling": "El pico más alto que puede alcanzar una mezcla exportada.",
   "help.exportMaster": "Masteriza la mezcla y el vídeo exportados al volumen fijado en la pestaña EQ. Los stems y los paquetes nunca se masterizan.",
   "eq.suggestLaneFailed": "No se pudo sugerir para esta pista.",
+  "eq.suggestMixFailed": "No se pudo sugerir para esta mezcla.",
   "eq.unitDbtp": "dBTP",
 };
 
@@ -14226,6 +14236,7 @@ const ko = {
   "help.eqCeiling": "내보내는 믹스가 넘지 않는 가장 높은 피크예요.",
   "help.exportMaster": "내보내는 믹스와 영상을 EQ 탭에서 정한 음량으로 마스터링해요. 스템과 번들은 마스터링하지 않아요.",
   "eq.suggestLaneFailed": "이 레인에는 추천할 수 없어요.",
+  "eq.suggestMixFailed": "이 믹스에는 추천할 수 없어요.",
   "eq.unitDbtp": "dBTP",
 };
 

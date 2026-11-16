@@ -95,4 +95,33 @@ const lastCall = (kind) => calls.filter((c) => c[0] === kind).at(-1);
     && master.getMatch() === false);
 }
 
+{
+  const urls = [];
+  globalThis.fetch = async (url) => {
+    urls.push(String(url));
+    return { ok: true, status: 200, json: async () => PLAN };
+  };
+  master.setMasterOn(false);
+  const saved = master.getMaster();
+  const louder = { ...master.applyPreset(saved, "louder"), bypass: false };
+  check("the readout's mix source is shared", master.currentMixSource()?.query === "stems=drums");
+  master.previewMaster(louder);
+  check("a previewed master plays at once", lastCall("fx")[1]?.comp === 0.5);
+  check(
+    "a previewed master is not saved",
+    JSON.stringify(master.getMaster()) === JSON.stringify(saved)
+      && !master.isMasterOn()
+      && master.exportMasterParam() === "",
+  );
+  await master.measure();
+  const asked = new URL(urls.at(-1), "http://x").searchParams.get("master");
+  check("a previewed master is measured as heard", decode(asked).target === -9);
+  master.previewMaster(null);
+  check(
+    "preview null goes back to the saved master",
+    lastCall("fx")[1] === null
+      && JSON.stringify(master.getMaster()) === JSON.stringify(saved),
+  );
+}
+
 finish();
