@@ -59,15 +59,18 @@ function showError(message = "") {
   el.hidden = !message;
 }
 
-/** Run a change against the server; a failure is said in the pane, not thrown. */
-async function attempt(change) {
+/**
+ * Run a change against the server; a failure is said in the pane, not thrown.
+ * When `creating`, no setlist existed yet, so a 404 is a failed save, not one gone.
+ */
+async function attempt(change, { creating = false } = {}) {
   try {
     const result = await change();
     showError();
     return result;
   } catch (err) {
     console.warn("[setlists] saving failed:", err);
-    if (isNotFound(err)) {
+    if (isNotFound(err) && !creating) {
       await loadSetlists();
       showError(t("setlists.gone"));
       return null;
@@ -140,7 +143,7 @@ async function postSetlist(name, songIds) {
 }
 
 function createSetlist(name, songIds = []) {
-  return attempt(() => postSetlist(name, songIds));
+  return attempt(() => postSetlist(name, songIds), { creating: true });
 }
 
 // ─── Used by the track menu and Up Next ───
@@ -188,17 +191,17 @@ export async function createSetlistFrom(trackIds) {
 
 /**
  * A setlist of a folder's songs, under the folder's name or a free one, shown focused.
- * The tab opens without reloading, so a failure stays said in the pane.
+ * The tab opens without reloading the list, since a reload would clear a failed save's message.
  */
 export async function createSetlistFromFolder(folderName, songIds) {
   const created = await attempt(async () => {
     await fetchSetlists();
     const name = uniqueName(folderName, setlists.map((setlist) => setlist.name), SETLIST_NAME_MAX_CHARS);
     return postSetlist(name, songIds);
-  });
+  }, { creating: true });
   focusSetlistId = created?.id ?? null;
   showLibraryView();
-  selectTab("setlists");
+  selectTabWithoutLoading("setlists");
   render();
 }
 
@@ -212,7 +215,7 @@ function flashSetlistsTab() {
 
 // ─── Tabs ───
 
-function selectTab(next) {
+function selectTabWithoutLoading(next) {
   tab = next === "setlists" ? "setlists" : "songs";
   $("catalogPanel")?.classList.toggle("setlists-view", tab === "setlists");
   for (const [id, name] of [["libTabSongs", "songs"], ["libTabSetlists", "setlists"]]) {
@@ -223,7 +226,7 @@ function selectTab(next) {
 }
 
 function showTab(next) {
-  selectTab(next);
+  selectTabWithoutLoading(next);
   if (tab === "setlists") loadSetlists();
 }
 
@@ -378,6 +381,7 @@ function makeFolderButton(setlist) {
   const el = iconButton("setlist-icon-btn setlist-make-folder", "folderPlus", {
     label: t("setlists.makeFolderTitle", { name: setlist.name }),
   });
+  el.disabled = !setlist.song_ids.length;
   el.addEventListener("click", function onMakeFolderFromSetlist() {
     showTab("songs");
     makeFolderFromSetlist(setlist.name, setlist.song_ids);

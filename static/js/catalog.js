@@ -2888,8 +2888,19 @@ function songsInFolderTree(folderId) {
   return [...own, ...childFoldersOf(folderId).flatMap((child) => songsInFolderTree(child.id))];
 }
 
-let tooManySongsFolderId = null;
+// The folder told it has too many songs, and how it stood then; any change to it clears the message.
+let tooManySongs = null;
 
+const folderLook = (folder) => `${folder.name}\n${songsInFolderTree(folder.id).join()}`;
+
+function stillTooManySongs(folder) {
+  if (tooManySongs?.folderId !== folder.id) return false;
+  if (tooManySongs.look === folderLook(folder)) return true;
+  tooManySongs = null;
+  return false;
+}
+
+// role="alert", as the folder editor's name error: it is said when it appears.
 function tooManySongsError() {
   const error = document.createElement("p");
   error.className = "folder-error";
@@ -2900,7 +2911,7 @@ function tooManySongsError() {
 
 // Removed in place: a redraw here would take away the … button the menu opens from.
 function clearTooManySongs() {
-  tooManySongsFolderId = null;
+  tooManySongs = null;
   document.querySelector("#catalogList .folder-error")?.remove();
 }
 
@@ -2910,7 +2921,7 @@ function makeSetlistFromFolder(folder) {
     createSetlistFromFolder(folder.name, songIds);
     return;
   }
-  tooManySongsFolderId = folder.id;
+  tooManySongs = { folderId: folder.id, look: folderLook(folder) };
   render();
   focusFolderRow(folder.id);
 }
@@ -3031,7 +3042,7 @@ function renderFolder(folder) {
   }
 
   el.append(head, body);
-  if (folder.id === tooManySongsFolderId) head.after(tooManySongsError());
+  if (stillTooManySongs(folder)) head.after(tooManySongsError());
 
   let folderClickTimer = null;
 
