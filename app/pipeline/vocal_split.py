@@ -66,7 +66,7 @@ from app.core.models import (
 from app.core.registry import persist as registry_persist
 from app.core.registry import set_proc
 from app.core.settings import get_demucs_device
-from app.core.stem_files import StemDecodeError, decoded_wav, stem_path, stem_url
+from app.core.stem_files import StemDecodeError, decoded_wav, point_urls_at_disk, stem_path
 from app.pipeline.collect import merge_stem_peaks, presence_for_split
 from app.pipeline.errors import (
     CAUSE_DISK_FULL,
@@ -455,22 +455,12 @@ def _keep(
     new_names: list[str],
     rms_values: dict[str, float],
 ) -> None:
-    _point_urls_at_disk(job, stems_dir, new_names)
+    point_urls_at_disk(job, stems_dir, new_names)
     extra_presence = presence_for_split(rms_values, job.stem_presence)
     if extra_presence:
         job.stem_presence = {**(job.stem_presence or {}), **extra_presence}
     (stems_dir / VOCAL_SPLIT_ERROR_FILE).unlink(missing_ok=True)
     _set(job, vocal_split=VOCAL_SPLIT_DONE, vocal_split_error=None, stage=_STAGE_DONE)
-
-
-def _point_urls_at_disk(job: Job, stems_dir: Path, names: list[str]) -> None:
-    """Each of `names` with the URL of the file it now has, a stem from an
-    earlier split included: its MP3 may have given way to a WAV kept."""
-    urls = {name: stem_url(job.id, stems_dir, name) for name in names}
-    stems = [{**s, "url": urls[s["name"]]} if s["name"] in urls else s for s in job.stems]
-    known = {s["name"] for s in stems}
-    added = [{"name": name, "url": url} for name, url in urls.items() if name not in known]
-    _set(job, stems=[*stems, *added])
 
 
 def _mark_cancelled(job: Job) -> None:

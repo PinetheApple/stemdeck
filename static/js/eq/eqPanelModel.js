@@ -150,6 +150,15 @@ export function suggestEqUrl(jobId, lane, kind) {
   return `/api/jobs/${jobId}/suggest/eq?${q}`;
 }
 
+const MODE_PARAM = "mode";
+
+/** The master Suggest for a mix source {jobId, query}: the loudness readout's own mix query. */
+export function suggestMasterUrl({ jobId, query }) {
+  const q = new URLSearchParams(query);
+  q.set(MODE_PARAM, SUGGEST_MODE);
+  return `/api/jobs/${jobId}/suggest/master?${q}`;
+}
+
 const suggestedBands = (body) => (Array.isArray(body?.bands) ? body.bands : []);
 
 /** A pedal's controls from a suggested answer: each band sets the controls of its slot. */

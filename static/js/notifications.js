@@ -47,6 +47,7 @@ const KIND_KEYS = {
   beatgrid: "notifKind.beatGridSaveFailed",
   tempo: "notifKind.tempoSaveFailed",
   vocalSplit: "notifKind.vocalSplitFailed",
+  extract: "notifKind.extractFailed",
 };
 // Stored for a kind with no label of its own, which reads as "Something failed".
 const UNLABELLED_KIND = "other";

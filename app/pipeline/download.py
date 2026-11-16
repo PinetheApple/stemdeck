@@ -581,7 +581,9 @@ def _download_video_track(job: Job, url: str, job_dir: Path, *, use_cookies: boo
             f.unlink(missing_ok=True)
 
 
-def download(job: Job, url: str, job_dir: Path) -> Path:
+def download(job: Job, url: str, job_dir: Path, *, video: bool = True) -> Path:
+    """The link's audio in `job_dir`, and for YouTube its video track too
+    unless `video` is false."""
     url = normalize_youtube_url(url)
     logger.info("[%s] download starting: %s", job.id, url)
     _set(job, status="downloading", progress=0.0, stage="Processing...")
@@ -668,7 +670,7 @@ def download(job: Job, url: str, job_dir: Path) -> Path:
 
     # Best-effort: fetch the real video stream for the MP4 export.
     # Non-fatal -- on any failure the job proceeds audio-only.
-    if is_youtube:
+    if is_youtube and video:
         _download_video_track(job, url, job_dir, use_cookies=needs_cookies)
 
     candidates = sorted(job_dir.glob("source.*"))

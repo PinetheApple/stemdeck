@@ -22,6 +22,7 @@ import { queueUpNext } from "./upNext.js";
 import { t } from "./i18n.js";
 import { iconButton } from "./libraryControls.js";
 import { missingStems, openVersionOf } from "./versionModel.js";
+import { cancelExtract, isExtracting } from "./extractRun.js";
 
 const MENU_GAP_PX = 4;
 const VIEWPORT_MARGIN_PX = 8;
@@ -117,7 +118,14 @@ function extractMoreItem(trackId, anchor) {
   });
 }
 
+function stopExtractItem(trackId) {
+  return menuItem(t("versions.extractStop"), "x", function onStopExtracting() {
+    cancelExtract(trackId);
+  });
+}
+
 function extractItems(trackId, anchor) {
+  if (isExtracting(trackId)) return [stopExtractItem(trackId)];
   return canExtractMore(trackId) ? [extractMoreItem(trackId, anchor)] : [];
 }
 
