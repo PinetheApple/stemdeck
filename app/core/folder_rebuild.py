@@ -70,25 +70,33 @@ def _upload_source(job_dir: Path) -> Path | None:
 
 
 def stopped_from_source(job_dir: Path) -> Job | None:
-    """A song stopped before it was separated, rebuilt from the source it kept
-    (upstream PR 889): without stems it stayed out of reach of Extract."""
+    """A song with a source but no stems, rebuilt as stopped (upstream PR 889):
+    without stems it stayed out of reach of Extract. An upload unless its
+    metadata.json names the link it came from, as a link song's kept download
+    does; Extract then fetches that link again."""
     source = _upload_source(job_dir)
     if source is None:
         return None
     title = recovered_title(job_dir.name)
     logger.warning("%s holds a source that was never separated; kept as stopped", job_dir.name)
     meta = read_metadata(job_dir / "metadata.json")
-    added = saved_from_meta(meta, ("created_at",)) if isinstance(meta, dict) else {}
-    return Job(
+    saved = saved_from_meta(meta, ("created_at", "source_url")) if isinstance(meta, dict) else {}
+    job = Job(
         id=job_dir.name,
         status="stopped",
         stage_message="Stopped",
         title=title,
-        source_url=f"local:{title}",
-        source_format=source.suffix[1:].lower(),
+        source_url=saved.get("source_url"),
         selected_stems=list(STEM_NAMES),
-        created_at=added.get("created_at", job_dir.stat().st_mtime),
+        created_at=saved.get("created_at", job_dir.stat().st_mtime),
     )
+    # Imported here: app.core.registry imports this module.
+    from app.core.registry import is_upload
+
+    if not job.source_url or is_upload(job):
+        job.source_url = f"local:{title}"
+        job.source_format = source.suffix[1:].lower()
+    return job
 
 
 def _disk_stems(job_dir: Path) -> list[dict[str, str]]:
