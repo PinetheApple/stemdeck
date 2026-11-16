@@ -1517,30 +1517,36 @@ function importMixUrl(track) {
 
 const MARK_HOLDS = "holds";
 const MARK_STALE = "stale";
-const MARK_UNCHECKED = "unchecked";
+const MARK_UNREACHABLE = "unreachable";
+const MARK_UNREADABLE = "unreadable";
+const MARK_UNCHECKED_ERRORS = {
+  [MARK_UNREACHABLE]: "conn.offline",
+  [MARK_UNREADABLE]: "player.audioCouldNotLoad",
+};
 
 /** Ask the server whether a song marked unavailable still is; a stale mark is cleared. */
-async function recheckUnavailableMark(trackId) {
+async function markVerdict(trackId) {
+  let res;
   try {
-    const res = await fetch(`/api/jobs/${trackId}`, { cache: "no-store" });
-    if (res.status === HTTP_NOT_FOUND) return MARK_HOLDS;
-    if (!res.ok) return MARK_UNCHECKED;
-    const { status } = await res.json();
-    if (status === "unavailable") return MARK_HOLDS;
-    updateTrackStatus(trackId, status);
-    return MARK_STALE;
+    res = await fetch(`/api/jobs/${trackId}`, { cache: "no-store" });
   } catch (e) {
-    console.warn("[catalog] could not recheck an unavailable song:", e);
-    return MARK_UNCHECKED;
+    console.warn("[catalog] could not reach the server about an unavailable song:", e);
+    return MARK_UNREACHABLE;
   }
+  if (res.status === HTTP_NOT_FOUND) return MARK_HOLDS;
+  const status = res.ok ? (await res.json().catch(() => null))?.status : null;
+  if (!status) return MARK_UNREADABLE;
+  if (status === "unavailable") return MARK_HOLDS;
+  updateTrackStatus(trackId, status);
+  return MARK_STALE;
 }
 
-/** True when the server has the song again; otherwise offers the re-import or says it can't be reached. */
-async function unavailableMarkWasStale(trackId, track) {
-  const verdict = await recheckUnavailableMark(trackId);
+/** Re-check an unavailable song: true when it can play; else offer the re-import or show the error. */
+async function recheckUnavailable(trackId, track) {
+  const verdict = await markVerdict(trackId);
   if (verdict === MARK_HOLDS) reimportUnavailableTrack(trackId, track);
-  else if (verdict === MARK_UNCHECKED) showError(i18nT("conn.offline"));
-  else render();
+  else if (verdict === MARK_STALE) render();
+  else showError(i18nT(MARK_UNCHECKED_ERRORS[verdict]));
   return verdict === MARK_STALE;
 }
 
@@ -1549,7 +1555,7 @@ export async function loadTrackIntoStudio(trackId) {
   if (!track) return;
   if (track.status === "unavailable") {
     const askedAt = _loadTrackToken;
-    if (!(await unavailableMarkWasStale(trackId, track))) return;
+    if (!(await recheckUnavailable(trackId, track))) return;
     track = tracks[trackId];
     if (!track || askedAt !== _loadTrackToken) return;
   }
@@ -6678,21 +6684,13 @@ async function restorableTracks() {
   const marked = Object.entries(tracks)
     .filter(([id, t]) => !trashIds.has(id) && t.status === "unavailable")
     .filter(([, t]) => isReimportableSource(t.sourceUrl));
-  const verdicts = await Promise.all(marked.map(([id]) => recheckUnavailableMark(id)));
+  const verdicts = await Promise.all(marked.map(([id]) => markVerdict(id)));
   if (verdicts.includes(MARK_STALE)) render();
   return marked.filter((_, i) => verdicts[i] === MARK_HOLDS);
 }
 
-// "Sync again": reconcile the library with the backend, then auto-restore the
-// tracks that fell out of sync.
-//   forward  — add server jobs missing locally (syncWithServer)
-//   reverse  — flag local "done" tracks the server no longer has as
-//              "unavailable"; restore ones that reappeared on the server.
-//   restore  — re-import every unavailable URL-sourced track the server
-//              confirms is gone (re-download + re-separate). Local-file tracks can't be
-//              auto-restored (the original file isn't kept) — they stay flagged.
-// Only done↔unavailable are reconciled, so in-progress imports are never
-// mis-flagged (they aren't on the server's done-list yet).
+// Only songs the server itself calls gone are downloaded again: a mark left by
+// another server, or one that did not answer, must not cost a re-download.
 async function resyncLibrary() {
   const statusEl = libraryEditor?.querySelector(".library-editor-status");
   const syncBtn = libraryEditor?.querySelector(".library-editor-sync");
