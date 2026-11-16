@@ -2,8 +2,9 @@
 // handles, a playhead on both. Clicking the song seeks; dragging a handle trims.
 
 import { t } from "./i18n.js";
-import { fmtTickLabel } from "./utils.js";
+import { $, fmtTickLabel } from "./utils.js";
 import { tickStepAt } from "./rulerTicks.js";
+import { PERCENT } from "./stageModel.js";
 import { barsSvg, peakAmps } from "./takesLanes.js";
 import { TRIM_IN, TRIM_OUT, dragTrim, secAtFraction, songFraction } from "./filmTiming.js";
 
@@ -12,8 +13,7 @@ const TAKE_BARS_PER_SHARE = 160;
 const MIN_TAKE_BARS = 12;
 const WHOLE_ZOOM = 1;
 
-const pct = (fraction) => `${(fraction * 100).toFixed(3)}%`;
-const $ = (id) => document.getElementById(id);
+const pct = (fraction) => `${(fraction * PERCENT).toFixed(3)}%`;
 
 let view = null;
 

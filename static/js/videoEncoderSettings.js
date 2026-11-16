@@ -1,30 +1,21 @@
-// Settings > Export: the Video encoder choice and the Test encoders table, in
-// the empty section catalog.js leaves after "MP4 video quality".
-
 import { t } from "./i18n.js";
-import { HttpError, fetchJson } from "./libraryControls.js";
+import { HttpError } from "./libraryControls.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
-import { settingsButton, settingsRow } from "./recorderSettings.js";
-import { readEncoders, testEncoders } from "./filmApi.js";
+import { el, settingsButton, settingsRow } from "./recorderSettings.js";
+import { readEncoders, saveVideoEncoder, testEncoders } from "./filmApi.js";
 import { POLICY_AUTO, POLICY_CPU, ROW_STATE, encoderChoices, testRows } from "./videoEncoderModel.js";
 
 const SECTION_SELECTOR = ".vid-enc-section";
 const SOURCE_ENV = "env";
 const SPEED_DECIMALS = 1;
 const CHOICE_KEYS = { [POLICY_AUTO]: "settings.export.encoder.auto", [POLICY_CPU]: "settings.export.encoder.cpu" };
+const LOG = "[video-encoders]";
 const ROW_TEXT = {
   [ROW_STATE.idle]: ["vid-enc-wait", "settings.export.test.notRun"],
   [ROW_STATE.testing]: ["vid-enc-wait", "settings.export.test.testing"],
   [ROW_STATE.works]: ["vid-enc-ok", "settings.export.test.works"],
   [ROW_STATE.failed]: ["vid-enc-bad", "settings.export.test.failed"],
 };
-
-function el(tag, className, text = "") {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text) node.textContent = text;
-  return node;
-}
 
 function choiceText(choice, names) {
   if (choice.pick) return t("settings.export.encoder.autoWith", { name: names.get(choice.pick) ?? choice.pick });
@@ -52,10 +43,10 @@ function encoderSelect(panel) {
 
 async function saveEncoder(panel, value) {
   try {
-    await fetchJson("/api/settings", { method: "POST", body: { video_encoder: value } });
+    await saveVideoEncoder(value);
     panel.status = await readEncoders();
   } catch (err) {
-    console.warn("[film] the video encoder could not be saved:", err);
+    console.warn(`${LOG} the video encoder could not be saved:`, err);
   }
   paint(panel);
 }
@@ -99,7 +90,7 @@ async function runTest(panel) {
     await testEncoders();
   } catch (err) {
     const busy = err instanceof HttpError && err.status === HTTP_CONFLICT;
-    if (!busy) console.warn("[film] the encoder test failed:", err);
+    if (!busy) console.warn(`${LOG} the encoder test failed:`, err);
     panel.note = t(busy ? "settings.export.test.busy" : "settings.export.test.error");
   }
   panel.status = await readEncoders().catch(() => panel.status);
@@ -132,7 +123,7 @@ export async function wireVideoEncoderSettings(overlay) {
   try {
     status = await readEncoders();
   } catch (err) {
-    console.warn("[film] could not read the video encoders:", err);
+    console.warn(`${LOG} could not read the video encoders:`, err);
     return;
   }
   section.hidden = false;

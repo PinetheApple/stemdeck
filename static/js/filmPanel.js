@@ -2,12 +2,12 @@
 // its one action, the devices in use, the input level and the badges.
 
 import { t } from "./i18n.js";
-import { fmtTime } from "./utils.js";
+import { $, fmtTime } from "./utils.js";
 import { vuLevel } from "./vuScale.js";
+import { PERCENT } from "./stageModel.js";
 import { CAMERA_PROBLEM, installCommand } from "./filmSupport.js";
 
 const COPIED_MS = 1500;
-const PERCENT = 100;
 const PROBLEM_TEXT = {
   [CAMERA_PROBLEM.noCamera]: "film.problem.noCamera",
   [CAMERA_PROBLEM.denied]: "film.problem.denied",
@@ -16,8 +16,6 @@ const PROBLEM_TEXT = {
 };
 // A browser without an encoder has nothing to retry or copy.
 const NO_ACTION = new Set([CAMERA_PROBLEM.noEncoder]);
-
-const $ = (id) => document.getElementById(id);
 
 let onRetry = null;
 

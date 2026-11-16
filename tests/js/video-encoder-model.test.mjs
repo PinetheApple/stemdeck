@@ -3,7 +3,7 @@
 //
 // Run:  node tests/js/video-encoder-model.test.mjs
 
-import { ROW_STATE, encoderChoices, testRows } from "../../static/js/videoEncoderModel.js";
+import { ROW_STATE, encoderChoices, encoderName, testRows } from "../../static/js/videoEncoderModel.js";
 
 let pass = 0;
 let fail = 0;
@@ -101,6 +101,10 @@ check("while testing every row says so", testRows(STATUS, { testing: true }).eve
   );
   check("nothing cached: plain Auto", of({ ...STATUS, auto_pick: null }, "auto").pick === null);
 }
+
+check("encoder names", encoderName("h264_vaapi") === "VAAPI" && encoderName("h264_videotoolbox") === "VideoToolbox");
+check("an unknown encoder shows as it is", encoderName("h264_foo") === "h264_foo");
+check("libx264 is the CPU", encoderName("libx264") === "CPU");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

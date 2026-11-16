@@ -2,11 +2,10 @@
 // silenced on top of the mix while Film is open; the song's mix is never written.
 
 import { t } from "./i18n.js";
+import { $ } from "./utils.js";
 import { STEM_DISPLAY } from "./constants.js";
 import { clearSilencedStems, setSilencedStems } from "./mixer.js";
 import { pickableStems, silencedLanes } from "./filmIPlayModel.js";
-
-const $ = (id) => document.getElementById(id);
 
 // The mixer greys and hides the lanes this song has no audio for.
 const LOADED_LANE_SELECTOR = ".mixer-column .lane-header[data-stem]:not(.unavailable):not(.hidden)";

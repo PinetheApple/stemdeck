@@ -1,7 +1,5 @@
-// The camera half of a filmed take: one MediaRecorder carrying the picture
-// alone (sound has one clock, the recorder worklet), its chunks sent as camera
-// parts, and when its first frame was taken. recorder.js drives it through
-// start, createFields, upload, stop, finish(c0) and discard.
+// The recorder carries the picture alone: sound keeps one clock, the recorder
+// worklet's, and the first frame's time ties the two together.
 
 import { createPartUploader, TAKE_PART_SEC } from "./recorderParts.js";
 import { cameraTiming } from "./filmTiming.js";

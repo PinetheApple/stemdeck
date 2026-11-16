@@ -19,6 +19,13 @@ export function setLatencyTestInput(deviceId) {
   nextTestInput = deviceId;
 }
 
+export function el(tag, className, text = "") {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text) node.textContent = text;
+  return node;
+}
+
 export function settingsRow(title, desc, controls) {
   const row = document.createElement("div");
   row.className = "settings-row";
@@ -39,19 +46,16 @@ export function settingsRow(title, desc, controls) {
 }
 
 function section(...children) {
-  const el = document.createElement("div");
-  el.className = "settings-section";
-  el.append(...children);
-  return el;
+  const node = el("div", "settings-section");
+  node.append(...children);
+  return node;
 }
 
 export function settingsButton(text, primary, onClick) {
-  const el = document.createElement("button");
-  el.type = "button";
-  el.className = `settings-btn${primary ? " is-primary" : ""}`;
-  el.textContent = text;
-  el.addEventListener("click", onClick);
-  return el;
+  const button = el("button", `settings-btn${primary ? " is-primary" : ""}`, text);
+  button.type = "button";
+  button.addEventListener("click", onClick);
+  return button;
 }
 
 async function inputSelect() {

@@ -1,6 +1,3 @@
-// Settings > Export, pure: the Video encoder choices and the Test encoders rows,
-// from GET /api/video-encoders (and the last test it reports).
-
 export const POLICY_AUTO = "auto";
 export const POLICY_CPU = "cpu";
 export const CPU_ENCODER = "libx264";
@@ -18,6 +15,11 @@ const ENCODER_NAMES = {
 const INVALID_PREFIX = "invalid-";
 const REASON_INVALID = "invalid";
 const ALWAYS_ON = new Set([POLICY_AUTO, POLICY_CPU]);
+
+/** The short name an encoder goes by, such as NVENC; an unknown one as it is. */
+export function encoderName(encoder) {
+  return ENCODER_NAMES[encoder]?.[0] ?? encoder;
+}
 
 function testedRow(status, encoder) {
   return status?.last_test?.rows?.find((row) => row.encoder === encoder) ?? null;

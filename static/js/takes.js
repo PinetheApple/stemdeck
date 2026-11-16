@@ -24,7 +24,7 @@ import {
 import { paintCountIn, paintRecordButton, paintStageMark, showRecNotice, wireRecordButton } from "./recorderUi.js";
 
 export const TAKES_CHANGED_EVENT = "takes:changed";
-const EMPTY_LISTING = Object.freeze({ tracks: [], takes: [], open: [] });
+export const EMPTY_LISTING = Object.freeze({ tracks: [], takes: [], open: [] });
 const LIVE_BARS_MAX = 200;
 const COUNT_IN_MIN_BARS = 1;
 
@@ -168,7 +168,7 @@ function startRename(trackId) {
   field.select();
 }
 
-function countIn() {
+export function countIn() {
   const bars = Math.max(COUNT_IN_MIN_BARS, metronomeCountInBars);
   session.countInClicks = playWithCountIn(bars).clicks;
 }
@@ -230,16 +230,20 @@ function paintFooter() {
   paintStageMark(take ? elapsed : null);
 }
 
+/** A recording take's peaks, thinned to at most LIVE_BARS_MAX bars. */
+export function livePeaks(take) {
+  const step = Math.max(1, Math.ceil(take.peaks.length / LIVE_BARS_MAX));
+  return take.peaks.filter((_, i) => i % step === 0);
+}
+
 function paintLive(take) {
   const eng = audioEngine;
   if (!eng || take.jobId !== session.jobId) return;
-  const step = Math.max(1, Math.ceil(take.peaks.length / LIVE_BARS_MAX));
-  const peaks = take.peaks.filter((_, i) => i % step === 0);
   paintLiveClip(take.trackId, {
     startSec: take.startSec,
     nowSec: eng.getCurrentTime(),
     songSec: totalDuration,
-    peaks,
+    peaks: livePeaks(take),
     label: take.phase === REC_PHASE.finishing ? t("rec.saving") : takeLabel(take.trackId),
   });
 }

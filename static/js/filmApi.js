@@ -1,9 +1,8 @@
-// The filmed-take and video encoder routes, one function each (docs/takes.md).
-
 import { fetchJson } from "./libraryControls.js";
 
 const takeUrl = (jobId, takeId) => `/api/jobs/${encodeURIComponent(jobId)}/takes/${encodeURIComponent(takeId)}`;
 const ENCODERS_URL = "/api/video-encoders";
+const SETTINGS_URL = "/api/settings";
 
 /** Resolves with the answer's status; a network failure or an abort through `signal` rejects. */
 export function sendCameraPart(jobId, takeId, seq, bytes, signal) {
@@ -34,3 +33,6 @@ export const cancelRender = (jobId, takeId) =>
 export const readEncoders = () => fetchJson(ENCODERS_URL);
 
 export const testEncoders = () => fetchJson(`${ENCODERS_URL}/test`, { method: "POST" });
+
+export const saveVideoEncoder = (value) =>
+  fetchJson(SETTINGS_URL, { method: "POST", body: { video_encoder: value } });
