@@ -18,10 +18,10 @@ import { notifyFailure } from "./notifications.js";
 import { OUT_OF_TAB_ORDER, ROW_PLAY_CLASS } from "./rovingRows.js";
 import { STEM_NAMES } from "./constants.js";
 import { RESTORE_FIRST_DETAIL } from "./importSource.js";
+import { extractFormFor, initExtractMore } from "./extractMore.js";
 import { storeFlushPending, storeGet, storeSet } from "./utils.js";
 import {
-  DEFAULT_VERSION_ID, addedName, hasVersionRows, missingStems, mixStoreKey, nextVersionName, openVersionOf,
-  sameLanes, versionLabel,
+  DEFAULT_VERSION_ID, hasVersionRows, mixStoreKey, nextVersionName, openVersionOf, sameLanes, versionLabel,
 } from "./versionModel.js";
 
 // Mirrors VERSION_NAME_MAX_CHARS in app/core/config.py.
@@ -29,7 +29,6 @@ const VERSION_NAME_MAX_CHARS = 60;
 const LAST_VERSION_KEPT_DETAIL = "a song keeps at least one version; move it to the Trash instead";
 const FAILURE_KEYS = {
   "this song has too many versions": "versions.tooMany",
-  "this song is missing stem files; import it again": "versions.missingFiles",
   "the song is not ready": "versions.notReady",
   [LAST_VERSION_KEPT_DETAIL]: "versions.lastVersion",
   [RESTORE_FIRST_DETAIL]: "importFail.restoreFirst",
@@ -39,16 +38,19 @@ const SUBLINE_CLASS = "np-subline";
 const ROW_SELECTOR = ".cat-version";
 const SONG_ROW_SELECTOR = "#catalogList .cat-item.has-versions";
 
-let extractFor = null; // { trackId, chosen: Set<string> }
-
-function esc(text) {
+export function esc(text) {
   const span = document.createElement("span");
   span.textContent = String(text ?? "");
   return span.innerHTML.replace(/"/g, "&quot;");
 }
 
-function versionsUrl(jobId, ...parts) {
+export function versionsUrl(jobId, ...parts) {
   return [`/api/jobs/${encodeURIComponent(jobId)}/versions`, ...parts.map(encodeURIComponent)].join("/");
+}
+
+/** Tell of a change the server refused, in its words for `detail` where it has them. */
+export function reportRefusal(detail) {
+  notifyFailure({ kind: "storage", message: t(FAILURE_KEYS[detail] ?? "versions.failed") });
 }
 
 /** The request's answer, or null once its failure is reported; `onRefused` then hears the server's detail. */
@@ -57,7 +59,7 @@ async function request(url, options, onRefused = null) {
     return await fetchJson(url, options);
   } catch (err) {
     console.warn("[versions] request failed:", err);
-    notifyFailure({ kind: "storage", message: t(FAILURE_KEYS[err?.detail] ?? "versions.failed") });
+    reportRefusal(err?.detail);
     await onRefused?.(err?.detail);
     return null;
   }
@@ -77,7 +79,7 @@ function findVersion(track, versionId) {
 }
 
 /** The version's saved mix, with any save still pending written first. */
-async function versionMix(jobId, versionId) {
+export async function versionMix(jobId, versionId) {
   const key = mixStoreKey(jobId, versionId);
   await storeFlushPending(key);
   return storeGet(key, null);
@@ -97,7 +99,7 @@ async function switchMix(jobId, versionId) {
 }
 
 /** Show the version the server now has open: the same lanes only swap the mix. */
-async function showOpenedVersion(jobId, state) {
+export async function showOpenedVersion(jobId, state) {
   const shownStems = [...selectedStems];
   applyVersionsState(jobId, state);
   const opened = openVersionOf(getLibraryTrack(jobId));
@@ -133,25 +135,6 @@ async function saveAsNew(jobId, source) {
   setVersionsExpanded(jobId, true);
   applyVersionsState(jobId, answer);
   startVersionRename(jobId, answer.version.id);
-}
-
-/** The source's mix with the added lanes left out, so they start at the defaults. */
-async function extractedMix(jobId, from, added) {
-  const mix = await versionMix(jobId, from.id);
-  if (!mix) return null;
-  for (const name of added) delete mix[name];
-  return mix;
-}
-
-async function extractMore(jobId, from, added) {
-  const body = { from: from.id, stems: added, name: addedName(added, t) };
-  const mix = await extractedMix(jobId, from, added);
-  const answer = await request(versionsUrl(jobId, "extract"), { method: "POST", body });
-  if (!answer) return false;
-  if (answer.created && mix) await storeSet(mixStoreKey(jobId, answer.version.id), mix);
-  setVersionsExpanded(jobId, true);
-  await showOpenedVersion(jobId, answer);
-  return true;
 }
 
 async function deleteVersion(jobId, versionId) {
@@ -239,7 +222,8 @@ export function versionExtras(trackId) {
   const track = getLibraryTrack(trackId);
   if (!track) return [];
   const extras = [];
-  if (extractFor?.trackId === trackId) extras.push(extractForm(trackId, track));
+  const form = extractFormFor(trackId, track);
+  if (form) extras.push(form);
   if (hasVersionRows(track)) extras.push(versionGroup(trackId, track));
   return extras;
 }
@@ -367,80 +351,6 @@ function startVersionRename(jobId, versionId) {
   input.select();
 }
 
-// ─── Extract more stems ───
-
-function chipHtml(stem, pressed) {
-  return `<button class="cat-extract-more-chip" type="button" data-stem="${stem}" style="--chip-color: var(--${stem})"`
-    + ` aria-pressed="${pressed}">${esc(t(`stem.${stem}`))}</button>`;
-}
-
-function extractForm(trackId, track) {
-  const missing = missingStems(openVersionOf(track)?.stems ?? STEM_NAMES);
-  const form = document.createElement("div");
-  form.className = "cat-extract-more";
-  form.setAttribute("role", "group");
-  form.setAttribute("aria-label", t("versions.extractTitle"));
-  form.innerHTML = `<div class="cat-extract-more-title">${esc(t("versions.extractTitle"))}</div>`
-    + `<div class="cat-extract-more-chips">${missing.map((s) => chipHtml(s, extractFor.chosen.has(s))).join("")}</div>`
-    + `<span class="cat-extract-more-hint">${esc(t("versions.extractHint"))}</span>`
-    + `<div class="cat-extract-more-foot"><button class="cat-extract-more-cancel" type="button">${esc(t("folderEditor.cancel"))}</button>`
-    + `<button class="cat-extract-more-go" type="button">${esc(t("versions.extractGo"))}</button></div>`;
-  form.querySelector(".cat-extract-more-go").disabled = extractFor.chosen.size === 0;
-  form.addEventListener("click", onExtractFormClick);
-  form.addEventListener("keydown", onExtractFormKeydown);
-  return form;
-}
-
-function closeExtractForm() {
-  const trackId = extractFor?.trackId;
-  extractFor = null;
-  redrawLibrary();
-  document.querySelector(`#catalogList .cat-item[data-id="${CSS.escape(trackId ?? "")}"]`)?.focus();
-}
-
-function toggleChip(chip) {
-  const stem = chip.dataset.stem;
-  if (extractFor.chosen.has(stem)) extractFor.chosen.delete(stem);
-  else extractFor.chosen.add(stem);
-  chip.setAttribute("aria-pressed", String(extractFor.chosen.has(stem)));
-  chip.closest(".cat-extract-more").querySelector(".cat-extract-more-go").disabled = extractFor.chosen.size === 0;
-}
-
-async function submitExtract(button) {
-  const { trackId, chosen } = extractFor;
-  const from = openVersionOf(getLibraryTrack(trackId));
-  if (!from || !chosen.size) return;
-  button.disabled = true;
-  const added = STEM_NAMES.filter((stem) => chosen.has(stem));
-  if (await extractMore(trackId, from, added)) closeExtractForm();
-  else button.disabled = false;
-}
-
-function onExtractFormClick(e) {
-  e.stopPropagation();
-  const target = e.target.closest("button");
-  if (!target || !extractFor) return;
-  if (target.matches(".cat-extract-more-chip")) toggleChip(target);
-  else if (target.matches(".cat-extract-more-cancel")) closeExtractForm();
-  else if (target.matches(".cat-extract-more-go")) submitExtract(target);
-}
-
-function onExtractFormKeydown(e) {
-  e.stopPropagation();
-  if (e.key !== "Escape") return;
-  e.preventDefault();
-  closeExtractForm();
-}
-
-function onExtractRequest(e) {
-  const trackId = e.detail?.id;
-  const track = getLibraryTrack(trackId);
-  if (!track) return;
-  extractFor = { trackId, chosen: new Set(missingStems(openVersionOf(track)?.stems ?? STEM_NAMES)) };
-  redrawLibrary();
-  document.querySelector("#catalogList .cat-extract-more-go")?.focus();
-}
-
 // ─── The studio pill ───
 
 function pillMenuItems(jobId, track) {
@@ -475,11 +385,19 @@ function ensurePill(artist) {
   pill.setAttribute("aria-haspopup", "menu");
   pill.prepend(document.createElement("span"));
   pill.addEventListener("click", onPillClick);
+  songSubline(artist);
+  artist.after(pill);
+  return pill;
+}
+
+/** The line holding the artist, then what follows it: the version pill, an extraction. */
+export function songSubline(artist) {
+  if (artist.parentElement?.classList.contains(SUBLINE_CLASS)) return artist.parentElement;
   const subline = document.createElement("div");
   subline.className = SUBLINE_CLASS;
   artist.before(subline);
-  subline.append(artist, pill);
-  return pill;
+  subline.append(artist);
+  return subline;
 }
 
 /** The open song's version, after its artist; shown only for a song with two or more. */
@@ -500,5 +418,5 @@ export function paintVersionPill(track) {
 }
 
 export function initVersions() {
-  document.addEventListener("versions:extract", onExtractRequest);
+  initExtractMore();
 }

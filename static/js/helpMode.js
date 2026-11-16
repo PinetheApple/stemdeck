@@ -111,7 +111,7 @@ const HELP = [
   [".eq-power", "help.eqPower"],
   [".eq-graph", "help.eqGraph", null, "eq.title"],
   [".eq-knob", "help.eqKnob"],
-  ["#eqSuggestLane", "help.eqSuggest"],
+  ["#eqSuggestLane, #eqSuggestMaster", "help.eqSuggest"],
   ["#eqFlatLane, #eqFlatMaster", "help.eqFlat"],
   ["#eqGlue", "help.eqGlue", null, "eq.glue"],
   ["#eqLoudness", "help.eqLoudness", null, "eq.exportLoudness"],

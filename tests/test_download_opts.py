@@ -124,3 +124,14 @@ def test_per_call_options_do_not_clobber_the_base(tmp_path):
             dl_mod._ALLOWED_EXTRACTORS,
             dl_mod._ALLOWED_PLAYLIST_EXTRACTORS,
         )
+
+
+def test_video_false_fetches_the_audio_alone(tmp_path):
+    job = Job(id="abcdefabc435")
+    (tmp_path / "source.webm").write_bytes(b"x")
+
+    dl_mod.download(job, "https://www.youtube.com/watch?v=dQw4w9WgXcQ", tmp_path, video=False)
+
+    templates = [o.get("outtmpl", "") for o in _FakeYDL.captured]
+    assert not any(Path(t).name.startswith("video.") for t in templates)
+    assert any(Path(t).name.startswith("source.") for t in templates)

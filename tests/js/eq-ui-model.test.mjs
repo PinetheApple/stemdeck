@@ -18,6 +18,7 @@ import {
   pedalKnobs,
   readoutParts,
   suggestEqUrl,
+  suggestMasterUrl,
   targetCurvePoints,
 } from "../../static/js/eq/eqPanelModel.js";
 import {
@@ -29,11 +30,12 @@ import {
   grFraction,
   loudnessChoice,
   loudnessReadout,
+  masterFromSuggestion,
   stepCeiling,
 } from "../../static/js/eq/masterPanelModel.js";
 import { eqIsFlat, eqResponseDb, flatEq, normalizeEq } from "../../static/js/eqMath.js";
 import { applyPreset, normalizeMaster } from "../../static/js/masterMath.js";
-import { suggestErrorKey } from "../../static/js/eq/eqSuggest.js";
+import { REFUSED_KEY, suggestErrorKey } from "../../static/js/eq/eqSuggest.js";
 import { createChecker, near } from "./fakeWebAudio.mjs";
 
 const { check, finish } = createChecker();
@@ -116,6 +118,35 @@ for (const kind of ["bass", "guitar", "keys"]) {
     && new URL(url, "http://x").searchParams.get("lane") === "drums"
     && new URL(url, "http://x").searchParams.get("layout") === "drum");
   check("lane suggest replaces the EQ", new URL(url, "http://x").searchParams.get("mode") === "replace");
+}
+
+{
+  const source = { jobId: "e2e0deadbeef", query: "stems=drums%2Cbass&gains=1.000%2C0.500&fx=abc" };
+  const url = new URL(suggestMasterUrl(source), "http://x");
+  check(
+    "master suggest asks for the readout's mix",
+    url.pathname === "/api/jobs/e2e0deadbeef/suggest/master"
+      && url.searchParams.get("stems") === "drums,bass"
+      && url.searchParams.get("gains") === "1.000,0.500"
+      && url.searchParams.get("fx") === "abc",
+  );
+  check(
+    "master suggest replaces and never sends master=",
+    url.searchParams.get("mode") === "replace"
+      && !url.searchParams.has("master"),
+  );
+  const m = masterFromSuggestion({ master: { preset: "louder", target_lufs: -9, ceiling_dbtp: -1, comp: 0.5 } });
+  check("a suggested preset switches mastering on", m.bypass === false && m.id === "master" && m.v === 1);
+  check(
+    "a suggested preset keeps its numbers",
+    m.params.preset === "louder"
+      && m.params.target_lufs === -9
+      && m.params.comp === 0.5,
+  );
+  check(
+    "a suggested gentle preset is limiter only",
+    masterFromSuggestion({ master: { preset: "gentle", comp: 0 } }).params.target_lufs === null,
+  );
 }
 
 {
@@ -217,6 +248,9 @@ const on = (preset) => ({ ...applyPreset(null, preset), bypass: false });
   check("a missing lane file is about the lane", suggestErrorKey({ status: 404, detail: "lane not found" }) === "eq.suggestLaneFailed");
   check("a server failure says try again", suggestErrorKey({ status: 500, detail: "" }) === "eq.suggestFailed");
   check("a network failure says try again", suggestErrorKey(new TypeError("Failed to fetch")) === "eq.suggestFailed");
+  const mixKey = (detail) => suggestErrorKey({ status: 422, detail }, REFUSED_KEY.mix);
+  check("a refused mix is about the mix", mixKey("fx: malformed") === "eq.suggestMixFailed");
+  check("too little sound in the mix says so", mixKey("not enough signal") === "eq.suggestNoSignal");
 }
 
 {

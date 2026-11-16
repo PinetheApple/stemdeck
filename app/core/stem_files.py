@@ -34,6 +34,7 @@ from app.core.config import (
     TIMEOUT_FFMPEG,
     ffmpeg_executable,
 )
+from app.core.models import Job, _set
 
 WAV_EXT = f".{STEM_FORMAT_WAV}"
 MP3_EXT = f".{STEM_FORMAT_MP3}"
@@ -78,6 +79,16 @@ def stem_url(job_id: str, stems_dir: Path, name: str) -> str:
     """The URL the page loads stem `name` from, ending in the file's own
     extension so the browser and a download both get the right type."""
     return f"/api/jobs/{job_id}/stems/{name}.{stem_ext(stem_path(stems_dir, name))}"
+
+
+def point_urls_at_disk(job: Job, stems_dir: Path, names: list[str]) -> None:
+    """Each of `names` with the URL of the file it now has, a stem from an
+    earlier split included: its MP3 may have given way to a WAV kept."""
+    urls = {name: stem_url(job.id, stems_dir, name) for name in names}
+    stems = [{**s, "url": urls[s["name"]]} if s["name"] in urls else s for s in job.stems]
+    known = {s["name"] for s in stems}
+    added = [{"name": name, "url": url} for name, url in urls.items() if name not in known]
+    _set(job, stems=[*stems, *added])
 
 
 def is_stem_audio(path: Path) -> bool:
