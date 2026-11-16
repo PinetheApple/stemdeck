@@ -55,10 +55,15 @@ export async function openTempo(page) {
 export async function openSongTempo(page, id) {
   await openSong(page, id);
   await waitForClickTrack(page, { revealOptions: false });
-  await page.waitForFunction(async ([sibling, lengthSec]) => {
-    const beats = (await import("/js/beatgrid.js")).getBeats();
-    return beats.length > 0 && (beats.at(-1) < lengthSec) === sibling;
-  }, [id === SIBLING_JOB_ID, SIBLING_LENGTH_SEC]);
+  await expect.poll(
+    () => page.evaluate(
+      async ([sibling, lengthSec]) => {
+        const beats = (await import("/js/beatgrid.js")).getBeats();
+        return beats.length > 0 && (beats.at(-1) <= lengthSec) === sibling;
+      },
+      [id === SIBLING_JOB_ID, SIBLING_LENGTH_SEC],
+    ),
+  ).toBe(true);
   await expect(page.locator("#tempoModeConstant")).toBeEnabled();
 }
 
