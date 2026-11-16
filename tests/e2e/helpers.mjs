@@ -12,6 +12,8 @@
 //    window.__TAURI__ so the desktop branch runs, and so the test decides when
 //    an export finishes rather than racing a real one.
 
+import { DEFAULT_VERSION_ID } from "../../static/js/versionModel.js";
+
 export const JOB_ID = "e2e0deadbeef";
 export const TRACK_TITLE = "E2E Fixture Track";
 
@@ -314,6 +316,17 @@ export async function stubFavorites(page, serverFavorites = {}) {
 const TRASH_ACTION = /\/api\/jobs\/([^/]+)\/(trash|restore)$/;
 /** The job list the library sync reads, Trash included. */
 export const JOB_LIST_URL = /\/api\/jobs\?trashed=include$/;
+
+export const versionsUrl = (id) => `/api/jobs/${id}/versions`;
+
+/** Leave a song with the Original only, open: the e2e server lives for the whole run. */
+export async function resetVersions(request, id = JOB_ID) {
+  await request.post(`${versionsUrl(id)}/${DEFAULT_VERSION_ID}/open`);
+  const { versions } = await (await request.get(versionsUrl(id))).json();
+  for (const v of versions.filter((x) => x.id !== DEFAULT_VERSION_ID)) {
+    await request.delete(`${versionsUrl(id)}/${v.id}`);
+  }
+}
 
 /**
  * Stand in for the server's Trash, which the desktop follows on every sync, so a

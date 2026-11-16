@@ -8,11 +8,9 @@ use std::process::Command;
 
 use crate::{append_to_setup_log, DetectedGpu, ROCM_TAG, ROCM_VERSION};
 
-/// What GpuSetup.backend says for an AMD GPU.
-pub const BACKEND: &str = "rocm";
-/// A card no ROCm build StemDeck installs has kernels for. Settled by the
-/// setup screen: nothing on offer changes until an update brings another build.
-pub const REASON_UNSUPPORTED: &str = "rocm-unsupported-gpu";
+pub const BACKEND: &str = crate::GPU_BACKEND_ROCM;
+/// A card no ROCm build StemDeck installs has kernels for.
+pub const REASON_UNSUPPORTED: &str = crate::REASON_ROCM_UNSUPPORTED;
 /// The card is supported but this user cannot open /dev/kfd or its render
 /// node. Not settled: fixing the groups gets the GPU on the next launch.
 pub const REASON_NO_KFD_ACCESS: &str = "rocm-no-kfd-access";

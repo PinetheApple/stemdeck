@@ -28,6 +28,7 @@ import {
   waveZoom, setWaveZoom, overviewRerenderFn,
 } from "./state.js";
 import { applyMix, nudgeAllLanePitches, resetAllLanePitches } from "./mixer.js";
+import { applyToEngine as applyMasterToEngine } from "./masterEngine.js";
 import { isDownbeatIndex, barPositionIndex, getBeats as getGridBeats, getBars as getGridBars } from "./beatgrid.js";
 import {
   accentOverride,
@@ -1008,11 +1009,13 @@ export function wireTransportButtons() {
   masterFader?.addEventListener("input", () => {
     setMasterVolume(parseFloat(masterFader.value));
     applyMix();
+    applyMasterToEngine();
   });
   masterFader?.addEventListener("dblclick", () => {
     masterFader.value = "0.5";
     setMasterVolume(0.5);
     applyMix();
+    applyMasterToEngine();
   });
   wireSpeedControl();
   wireMetronomeControl();

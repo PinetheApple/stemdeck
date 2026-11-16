@@ -74,6 +74,13 @@ function readInspectorHidden() {
   }
 }
 
+/** Show a tab from elsewhere in the app, unhiding the inspector. */
+export function openInspectorTab(name) {
+  setInspectorHidden(false);
+  saveInspectorHidden(false);
+  chooseInspectorTab(name);
+}
+
 function onInspectorToggleClick(e) {
   const hidden = e.currentTarget.getAttribute("aria-expanded") === "true";
   setInspectorHidden(hidden);
