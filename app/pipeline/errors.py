@@ -32,6 +32,7 @@ class SeparationError(RuntimeError):
 CAUSE_OUT_OF_MEMORY = "out-of-memory"
 CAUSE_UNSUPPORTED_DEVICE = "unsupported-device"
 CAUSE_DISK_FULL = "disk-full"
+CAUSE_SOURCE_BLOCKED = "source-blocked"
 CAUSE_SOURCE_UNAVAILABLE = "source-unavailable"
 CAUSE_UNKNOWN = "unknown"
 # Not classified from text: restore() sets it on a job the process died during twice.
@@ -81,7 +82,7 @@ _CAUSE_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
     # and before "bad-input" so yt-dlp's wording wins over the generic
     # file-read patterns there.
     (
-        "source-blocked",
+        CAUSE_SOURCE_BLOCKED,
         (
             # Apostrophe-insensitive: yt-dlp's wording is "Sign in to confirm
             # you're not a bot", and the quoting has changed between releases.

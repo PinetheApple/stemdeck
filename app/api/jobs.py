@@ -89,6 +89,7 @@ from app.pipeline.artist_lookup import tagged_artist_name
 from app.pipeline.audio_tags import is_control, probe_tags
 from app.pipeline.collect import remove_job_dir
 from app.pipeline.download import InvalidYouTubeURL, fetch_audio_tags, validate_youtube_url
+from app.pipeline.extract_stems import EXTRACT_RUNS, cancel_extract
 from app.pipeline.identify import (
     can_identify_title,
     fingerprint_key,
@@ -873,7 +874,8 @@ def cancel_job(job_id: str) -> dict:
         lyrics_run = _cancel_lyrics_runs(job_id)
         # A vocal split only ever runs on a done job, so it is stopped here too:
         # it holds _pipeline_lock and would stall the import queue.
-        if cancel_split(job) or lyrics_run:
+        splitting = cancel_split(job)
+        if cancel_extract(job) or splitting or lyrics_run:
             _terminate_worker(job_id)
         return job.to_state()
     _cancel_pipeline(job)
@@ -2473,16 +2475,20 @@ def _stop_runs(job: Job, *, with_lyrics: bool) -> None:
     job_id = job.id
     lyrics_run = with_lyrics and _cancel_lyrics_runs(job_id)
     splitting = cancel_split(job)
-    if lyrics_run or splitting:
+    extracting = cancel_extract(job)
+    if lyrics_run or splitting or extracting:
         _terminate_worker(job_id)
         deadline = time.monotonic() + RETIME_DELETE_WAIT_SEC
         if with_lyrics:
             _wait_lyrics_runs_ended(job_id, deadline)
         _wait_vocal_split_ended(job_id, deadline)
+        if not EXTRACT_RUNS.wait_ended(job_id, _seconds_left(deadline)):
+            logger.warning("[%s] stem extraction still stopping; carrying on", job_id)
     if with_lyrics:
         RETIME_RUNS.forget(job_id)
         TRANSCRIBE_RUNS.forget(job_id)
     VOCAL_SPLIT_RUNS.forget(job_id)
+    EXTRACT_RUNS.forget(job_id)
     cancel_job_renders(job_id)
 
 
