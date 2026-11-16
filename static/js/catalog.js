@@ -47,6 +47,8 @@ import {
   CANCELLED_STATUS, REINSTATE_REPLACED, RELEASE_REPLACED, isServerTrashed, migrationTrashIds, replacedJobIds,
   replacementOutcome, serverTrashMoves, soleSourceMatch,
 } from "./librarySync.js";
+import { wireRecordingSettings } from "./recorderSettings.js";
+import { finishTakeBeforeTeardown } from "./recorder.js";
 import { t as i18nT, plural as i18nPlural, LANGUAGES, getLanguage, setLanguage, onLanguageChange, applyTranslations } from "./i18n.js";
 import { applyNetworkSwitch, networkSwitchOn } from "./networkRestart.js";
 import { GPU_BACKEND_ROCM, gpuUnusedMessage } from "./gpuUnused.js";
@@ -1607,6 +1609,8 @@ export async function loadTrackIntoStudio(trackId) {
   if (PROCESSING_STATUSES.has(track.status)) return;
   if (!track.audioStems?.length) return;
   if (track.status !== "done" && !hadStoredAudio) return;
+  await finishTakeBeforeTeardown();
+  if (token !== _loadTrackToken) return;
   applyStoredStemSelection(track);
   setCurrentTrack(trackId);
 
@@ -6302,6 +6306,7 @@ function openLibraryEditor() {
         <button class="settings-tab" type="button" data-tab="details" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.songDetails">Song details</button>
         <button class="settings-tab" type="button" data-tab="network" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.network">Network</button>
         <button class="settings-tab" type="button" data-tab="export" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.export">Export</button>
+        <button class="settings-tab" type="button" data-tab="recording" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.recording">Recording</button>
         <button class="settings-tab" type="button" data-tab="logs" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.logs">Logs</button>
         <button class="settings-tab" type="button" data-tab="registry" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.library">Library</button>
       </div>
@@ -6531,6 +6536,7 @@ function openLibraryEditor() {
           </div>
         </div>
       </div>
+      <div class="settings-pane hidden" data-pane="recording"></div>
       <div class="settings-pane hidden" data-pane="logs">
         <div class="settings-subtabs" role="tablist">
           <button class="settings-subtab" type="button" data-sub="location" role="tab" aria-selected="true" data-i18n="settings.logs.locationTab">Location</button>
@@ -6655,6 +6661,7 @@ function openLibraryEditor() {
   wireDiscogsSetting(overlay);
   wireStemsLocation(overlay);
   wireExportsLocation(overlay);
+  wireRecordingSettings(overlay);
   wireNetworkSetting(overlay);
   if (!isDesktop) {
     overlay.querySelector(".net-access-input")?.setAttribute("disabled", "");

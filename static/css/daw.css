@@ -3104,6 +3104,7 @@ input, textarea { font-family: inherit; }
   border-color: color-mix(in srgb, var(--danger) 55%, transparent);
   color: var(--danger);
 }
+.footer-group-transport .footer-group-body { gap: 6px; }
 /* Loop sits in the Position group and reads as a modifier on the readout next
    to it, so it is a short labelled pill rather than a full-height control. */
 .footer-group-position .daw-iconbtn.btn-transport.loop {

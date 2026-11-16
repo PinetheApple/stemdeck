@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="/css/inspector.css" />
     <link rel="stylesheet" href="/css/library.css" />
     <link rel="stylesheet" href="/css/stage-mode.css" />
+    <link rel="stylesheet" href="/css/recording.css" />
     <link rel="stylesheet" href="/css/stage-sing.css" />
 <link rel="stylesheet" href="/css/eq.css" />
 <link rel="stylesheet" href="/css/mastering.css" />
@@ -726,6 +727,7 @@
                 <div class="stage-title" id="stageTitle">—</div>
                 <div class="stage-artist" id="stageArtist"></div>
                 <div class="stage-artist np-extracting" id="stageExtracting" hidden></div>
+                <span class="rec-stage-mark" id="stageRecMark" role="status" hidden></span>
               </div>
               <div class="stage-song-actions">
                 <button class="stage-exit" id="stageMixBtn" type="button" aria-pressed="true" aria-controls="stageMixer" title="Show or hide the mixer" data-i18n-title="stage.mixTitle">
@@ -1296,6 +1298,9 @@
               <button class="daw-iconbtn btn-transport" id="t-next" type="button" title="Play the next song in Up Next" aria-label="Play the next song in Up Next" data-i18n-title="upNext.nextTitle" data-i18n-aria-label="upNext.nextTitle" disabled>
                 <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4v16"/><path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z"/></svg>
               </button>
+              <button class="daw-iconbtn btn-transport rec-btn" id="t-rec" type="button" title="Add a recording track" aria-label="Add a recording track" aria-pressed="false" data-i18n-title="rec.hint.addTrack" data-i18n-aria-label="rec.hint.addTrack" disabled>
+                <span class="rec-btn-dot" aria-hidden="true"></span><span class="rec-btn-time"></span>
+              </button>
             </div>
           </div>
 
@@ -1634,6 +1639,7 @@
     <script type="module" src="/js/ui-chrome.js"></script>
     <script type="module" src="/js/vocalSplitPanel.js"></script>
     <script type="module" src="/js/selectMenu.js"></script>
+    <script type="module" src="/js/takes.js"></script>
     <script type="module" src="/js/eq/eqTab.js"></script>
   </body>
 </html>
