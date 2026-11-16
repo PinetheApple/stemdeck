@@ -1070,17 +1070,13 @@ export function buildStripStems() {
 // panels collapsed.
 let _laneCount = 0;
 let _laneFitObs = null;
-// The lanes' viewport, not the panel around it: the panel also holds the
-// waveforms' horizontal scrollbar, which the mixer column has no match for (#206).
-const LANE_VIEWPORT_ID = "wave-scroll";
 
 function _watchLaneFit(count) {
   _laneCount = count;
   _laneFitObs?.disconnect();
-  const viewport = document.getElementById(LANE_VIEWPORT_ID);
-  if (!viewport) return;
-  // Its height comes from the panel, never the lanes, so refits cannot loop; its
-  // content box also changes when zoom adds or drops the horizontal scrollbar.
+  if (!waveScroll) return;
+  // A refit only changes what scrolls inside waveScroll, never its box, so it does not
+  // re-fire this; zoom adding or dropping the horizontal scrollbar does.
   _laneFitObs = new ResizeObserver(() => {
     // Only where the SVG overlay is the visible waveform. On the streaming path
     // the lanes are WaveSurfer canvases sized when the tracks are created, and
@@ -1093,20 +1089,14 @@ function _watchLaneFit(count) {
     if (!document.querySelector(".app")?.classList.contains("engine-waveforms")) return;
     if (_laneCount > 0) _applyLaneHeight(_laneCount);
   });
-  _laneFitObs.observe(viewport);
-}
-
-// Pad the mixer by the waveforms' horizontal scrollbar so both columns scroll the
-// same distance; without it the last lane stops short of view on a short window.
-function _matchLaneScrollbar(viewport) {
-  const scrollbarH = viewport ? viewport.offsetHeight - viewport.clientHeight : 0;
-  mixerEl.style.paddingBottom = scrollbarH > 0 ? `${scrollbarH}px` : "";
+  _laneFitObs.observe(waveScroll);
 }
 
 function _applyLaneHeight(count) {
-  const viewport = document.getElementById(LANE_VIEWPORT_ID);
-  _matchLaneScrollbar(viewport);
-  const panelH = viewport?.clientHeight ?? 0;
+  // Measured inside the waveforms' horizontal scrollbar, which the mixer pads for
+  // (--lane-scrollbar-h) so both columns scroll the same distance.
+  const panelH = waveScroll?.clientHeight ?? 0;
+  const scrollbarH = waveScroll ? waveScroll.offsetHeight - waveScroll.clientHeight : 0;
   // One row is a lane plus its separator, and BOTH columns have to agree on
   // that number or they drift apart down the stack. They did: every mixer row
   // draws its own 2px bottom border, so the mixer stack was count * (lane + 2),
@@ -1121,6 +1111,7 @@ function _applyLaneHeight(count) {
     : WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT;
   const appEl = document.querySelector(".app");
   appEl?.style.setProperty("--lane-h", `${rowH}px`);
+  appEl?.style.setProperty("--lane-scrollbar-h", `${scrollbarH}px`);
   appEl?.style.setProperty("--wave-widget-track-stack-h", `${count * rowH}px`);
   // The drawable height inside a row, which is what the multitrack is given.
   return rowH - WAVEFORM_SEPARATOR_HEIGHT;
