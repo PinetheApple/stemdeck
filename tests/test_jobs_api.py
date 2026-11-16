@@ -856,6 +856,32 @@ def test_resplit_starts_a_new_job_from_the_retained_source(resplit_client, tmp_p
     assert (tmp_path / job.id / "stems").is_dir()
 
 
+def _finished_link_song(tmp_path):
+    """A done link song with its download kept beside it as source.opus."""
+    job = _finished_upload(tmp_path, source="source.opus")
+    job.source_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    return job
+
+
+def test_resplit_refuses_a_link_song_that_kept_its_download(resplit_client, tmp_path):
+    job = _finished_link_song(tmp_path)
+
+    r = resplit_client.post(f"/api/jobs/{job.id}/resplit", json={"stems": []})
+
+    assert r.status_code == 409
+    assert list(_jobs) == [job.id]
+
+
+def test_resplit_allows_a_song_with_no_source_url_that_kept_its_source(resplit_client, tmp_path):
+    job = _finished_upload(tmp_path, source="source.wav")
+    job.source_url = None
+
+    r = resplit_client.post(f"/api/jobs/{job.id}/resplit", json={"stems": []})
+
+    assert r.status_code == 200
+    assert r.json()["job_id"] in _jobs
+
+
 def test_resplit_keeps_the_lead_and_backing_choice(resplit_client, tmp_path):
     job = _finished_upload(tmp_path)
     job.vocal_split_choice = VOCAL_SPLIT_CHOICE_SPLIT

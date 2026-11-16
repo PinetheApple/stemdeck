@@ -2336,6 +2336,8 @@ input, textarea { font-family: inherit; }
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  /* Matches the waveforms' horizontal scrollbar, so both columns scroll as far. */
+  padding-bottom: var(--lane-scrollbar-h, 0px);
 }
 
 /* Each mixer row height is driven by --lane-h (set dynamically in JS to fill available space) */
