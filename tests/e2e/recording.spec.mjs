@@ -163,10 +163,12 @@ async function keyArrowHits(page, stem) {
   );
 }
 
-const shownStemNames = (page) =>
+// Shown lanes, and of those the ones a user can reach: an unavailable lane takes no pointer at all.
+const shownStems = (page) =>
   page.locator(".lane-key[data-stem]").evaluateAll((keys) => keys
-    .filter((key) => key.closest(".lane-header").offsetHeight)
-    .map((key) => key.dataset.stem));
+    .map((key) => key.closest(".lane-header"))
+    .filter((row) => row.offsetHeight)
+    .map((row) => ({ stem: row.querySelector(".lane-key").dataset.stem, usable: !row.classList.contains("unavailable") })));
 
 test("a song with no tracks keeps the stems' lane height, + Track at the end of the lanes", async ({ page }) => {
   await page.setViewportSize(SHORT_WINDOW);
@@ -187,9 +189,11 @@ test("six stems and two recording tracks keep the lane floor and every K arrow's
   await expect.poll(() => headersFit(page)).toEqual({ rows: STEMS_PLUS_TWO_TRACKS, clipped: 0 });
   expect(await laneHeight(page)).toBeGreaterThanOrEqual(STEM_FLOOR_PX);
   await expectAddRowAboveFooter(page);
-  const stems = await shownStemNames(page);
+  const stems = await shownStems(page);
   expect(stems).toHaveLength(STEM_ROWS);
-  for (const stem of stems) expect(await keyArrowHits(page, stem), stem).toEqual(ALL_ARROW_HITS);
+  const usable = stems.filter((lane) => lane.usable).map((lane) => lane.stem);
+  expect(usable.length).toBeGreaterThan(0);
+  for (const stem of usable) expect(await keyArrowHits(page, stem), stem).toEqual(ALL_ARROW_HITS);
 });
 
 test("Record waits for a recording track and says so", async ({ page }) => {
