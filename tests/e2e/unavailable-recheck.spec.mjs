@@ -19,7 +19,9 @@ const LINK = "https://www.youtube.com/watch?v=e2e0f00dfac";
 const NEW_ID = "e2e0feedf00d";
 const LIST_PATH = "/api/jobs";
 const HTTP_NOT_FOUND = 404;
+const HTTP_SERVER_ERROR = 500;
 const OFFLINE_TEXT = "Can't reach StemDeck";
+const LOAD_FAILED_TEXT = "This track's audio could not be loaded.";
 // A negative assertion needs the reconcile and its render to have had their turn.
 const SETTLE_MS = 500;
 const PLAY_TIMEOUT_MS = 20000;
@@ -63,6 +65,14 @@ async function recordImports(page) {
   return posts;
 }
 
+/** Answer the song's own state request with an HTTP error. */
+async function answerJobWith(page, id, status) {
+  await page.route(jobUrl(id), (route) => route.fulfill({
+    status,
+    json: { detail: "stubbed" },
+  }));
+}
+
 /** The fixture song marked unavailable, with the startup sync's list leaving it out so the mark survives. */
 async function openWithStaleMark(page) {
   await seed(page, { [JOB_ID]: marked(JOB_ID, TRACK_TITLE) });
@@ -87,8 +97,7 @@ test.describe("opening a song marked unavailable", () => {
 
   test("offers the re-import when the server says it is gone", async ({ page }) => {
     await seed(page, { [GONE_ID]: marked(GONE_ID, "Gone") });
-    await page.route(jobUrl(GONE_ID), (route) =>
-      route.fulfill({ status: HTTP_NOT_FOUND, json: { detail: "not found" } }));
+    await answerJobWith(page, GONE_ID, HTTP_NOT_FOUND);
     await open(page);
 
     await row(page, GONE_ID).dblclick();
@@ -104,6 +113,19 @@ test.describe("opening a song marked unavailable", () => {
     await row(page, JOB_ID).dblclick();
 
     await expect(page.locator("#error")).toContainText(OFFLINE_TEXT);
+    await page.waitForTimeout(SETTLE_MS);
+    await expect(prompt(page)).toHaveCount(0);
+    expect(await storedStatus(page, JOB_ID)).toBe("unavailable");
+  });
+
+  test("says the song could not be loaded, and keeps the mark, when the server fails", async ({ page }) => {
+    await openWithStaleMark(page);
+    await answerJobWith(page, JOB_ID, HTTP_SERVER_ERROR);
+
+    await row(page, JOB_ID).dblclick();
+
+    await expect(page.locator("#error")).toContainText(LOAD_FAILED_TEXT);
+    await expect(page.locator("#error")).not.toContainText(OFFLINE_TEXT);
     await page.waitForTimeout(SETTLE_MS);
     await expect(prompt(page)).toHaveCount(0);
     expect(await storedStatus(page, JOB_ID)).toBe("unavailable");
@@ -143,8 +165,7 @@ test.describe("Sync again", () => {
     const posts = await recordImports(page);
     await seed(page, { [JOB_ID]: marked(JOB_ID, TRACK_TITLE), [GONE_ID]: marked(GONE_ID, "Gone") });
     await stubServerTrash(page, { hidden: [JOB_ID] });
-    await page.route(jobUrl(GONE_ID), (route) =>
-      route.fulfill({ status: HTTP_NOT_FOUND, json: { detail: "not found" } }));
+    await answerJobWith(page, GONE_ID, HTTP_NOT_FOUND);
     await open(page);
 
     await syncAgain(page);
