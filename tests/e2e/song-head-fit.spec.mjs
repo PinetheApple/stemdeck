@@ -1,5 +1,14 @@
 import { test, expect } from "@playwright/test";
-import { JOB_ID, TRACK_TITLE, openStudio, resetVersions, versionsUrl, waitForPanesSettled } from "./helpers.mjs";
+import {
+  JOB_ID,
+  SIBLING_JOB_ID,
+  SIBLING_TITLE,
+  TRACK_TITLE,
+  openStudio,
+  resetVersions,
+  versionsUrl,
+  waitForPanesSettled,
+} from "./helpers.mjs";
 
 const NARROW_WINDOW = { width: 1024, height: 768 };
 // Either side of where the head folds Stage mode to an icon.
@@ -75,6 +84,17 @@ test.describe("song head with the library and the inspector open", () => {
     expect(res.status()).toBe(201);
     await openBothPanes(page, NARROW_WINDOW);
     await expect(page.locator("#npVersionBtn")).toBeVisible();
+
+    await expect.poll(() => shownTitleWidth(page)).toBeGreaterThanOrEqual(MIN_TITLE_WIDTH);
+    expect(await misfitButtons(page)).toEqual([]);
+  });
+
+  test(`at ${NARROW_WINDOW.width} a song shown over the playing one keeps its title and its Play fits`, async ({ page }) => {
+    await openBothPanes(page, NARROW_WINDOW);
+    await page.locator("#t-play").click();
+    await page.evaluate(async (id) => (await import("/js/openSong.js")).openSong(id), SIBLING_JOB_ID);
+    await expect(page.locator("#title")).toHaveText(SIBLING_TITLE);
+    await expect(page.locator("#songPlayBtn")).toBeVisible();
 
     await expect.poll(() => shownTitleWidth(page)).toBeGreaterThanOrEqual(MIN_TITLE_WIDTH);
     expect(await misfitButtons(page)).toEqual([]);
