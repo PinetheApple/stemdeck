@@ -187,6 +187,8 @@ test.describe("track view in a narrow window", () => {
 
   test("the Stage mode button looks the same at 1024 and 1440", async ({ page }) => {
     await openAt(page, NARROW_WINDOW);
+    await expect(app(page)).toHaveClass(/cat-collapsed/);
+    await waitForPanesSettled(page);
     const narrow = await stageButtonLook(page);
 
     await page.setViewportSize(WIDE_WINDOW);
