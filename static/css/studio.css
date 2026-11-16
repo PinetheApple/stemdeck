@@ -487,9 +487,19 @@
   #songHead #nowPlayingPanel .track-panel-title { font-size: var(--fs-md); }
 }
 
-/* Only reached when the library is reopened beside the inspector in a narrow window. */
-@container song-head (max-width: 560px) {
+/* 660px: the lanes beside library and inspector at their minimums up to a ~1220px window; past it
+   the unfolded head still leaves the title 80px. Lanes, not the head, so the head's own gap can shrink. */
+@container lanes (max-width: 660px) {
+  #songHead { gap: var(--s-2); padding-inline: var(--s-3); }
   #songHead .daw-panel-toggles-label { display: none; }
+  #songHead .stage-mode-btn { width: var(--ctl-h-sm); height: var(--ctl-h-sm); padding: 0; justify-content: center; }
+  #songHead .stage-mode-btn > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
 }
 
 /* Keeps the title's room beside Auto-scroll, Up Next and More. */

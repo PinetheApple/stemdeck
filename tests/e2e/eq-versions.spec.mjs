@@ -1,7 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { JOB_ID, openStudio } from "./helpers.mjs";
+import { JOB_ID, openStudio, resetVersions, versionsUrl } from "./helpers.mjs";
 import { STEM_NAMES } from "../../static/js/constants.js";
-import { DEFAULT_VERSION_ID } from "../../static/js/versionModel.js";
 import { EQ_ID, EQ_VERSION } from "../../static/js/eqMath.js";
 
 const MIX_KEY = `stemdeck:mix:${JOB_ID}`;
@@ -17,7 +16,6 @@ const CUT_EQ = {
   params: { out: 0, bands: [{ on: true, type: "bell", f: CUT_HZ, g: CUT_DB, q: 1.4, slope: 12 }] },
 };
 
-const versionsUrl = (id) => `/api/jobs/${id}/versions`;
 const drumsMix = (fx) => ({ drums: { volume: 1, muted: false, soloed: false, pitch: 0, fx } });
 const storedMix = (page, key) => page.evaluate((k) => window.localStorage.getItem(k), key);
 const drumsMark = (page) => page.locator('.eq-lane-mark[data-lane="drums"]');
@@ -38,11 +36,7 @@ async function seedMixes(page, mixes) {
 }
 
 test.afterEach(async ({ request }) => {
-  await request.post(`${versionsUrl(JOB_ID)}/${DEFAULT_VERSION_ID}/open`);
-  const { versions } = await (await request.get(versionsUrl(JOB_ID))).json();
-  for (const v of versions.filter((x) => x.id !== DEFAULT_VERSION_ID)) {
-    await request.delete(`${versionsUrl(JOB_ID)}/${v.id}`);
-  }
+  await resetVersions(request, JOB_ID);
 });
 
 test("a version with the same lanes plays and marks its own EQ", async ({ page, request }) => {
