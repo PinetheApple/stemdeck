@@ -93,7 +93,7 @@ def stopped_from_source(job_dir: Path) -> Job | None:
     # Imported here: app.core.registry imports this module.
     from app.core.registry import is_upload
 
-    if job.source_url is None or is_upload(job):
+    if not job.source_url or is_upload(job):
         job.source_url = f"local:{title}"
         job.source_format = source.suffix[1:].lower()
     return job

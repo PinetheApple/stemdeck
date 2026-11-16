@@ -55,6 +55,18 @@ def test_a_stopped_upload_comes_back_as_a_stopped_song(tmp_path: Path):
     assert [r["id"] for r in saved] == [JOB]
 
 
+def test_a_stopped_song_with_an_empty_link_comes_back_as_an_upload(tmp_path: Path):
+    job_dir = _folder(tmp_path, "source.flac")
+    meta = {"source_url": "", "created_at": 1.0}
+    (job_dir / "metadata.json").write_text(json.dumps(meta), encoding="utf-8")
+
+    _registry.restore(tmp_path)
+
+    job = _registry.get(JOB)
+    assert job.source_url == f"local:{job.title}"
+    assert job.source_format == "flac"
+
+
 def test_extract_finds_the_source_it_kept(tmp_path: Path):
     from app.pipeline.jobqueue import _find_local_source
 
