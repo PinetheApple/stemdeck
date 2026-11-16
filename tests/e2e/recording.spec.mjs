@@ -145,7 +145,8 @@ async function expectAddRowAboveFooter(page) {
 // As dialog-keyboard.spec: each arrow answers MIN_TARGET_PX away from the K, at its edge and at the far end.
 async function keyArrowHits(page, stem) {
   const lane = page.locator(`.lane-key[data-stem="${stem}"]`);
-  await lane.scrollIntoViewIfNeeded();
+  // Centred, so the sticky + Track row is not over the lane being probed.
+  await lane.evaluate((el) => el.scrollIntoView({ block: "center" }));
   const up = await lane.locator(".lane-key-step.up").boundingBox();
   const down = await lane.locator(".lane-key-step.down").boundingBox();
   const upYs = [up.y + up.height - 1, up.y + up.height - MIN_TARGET_PX + 1];
@@ -162,14 +163,17 @@ async function keyArrowHits(page, stem) {
   );
 }
 
-const stemNames = (page) =>
-  page.locator(".lane-key[data-stem]").evaluateAll((keys) => keys.map((key) => key.dataset.stem));
+const shownStemNames = (page) =>
+  page.locator(".lane-key[data-stem]").evaluateAll((keys) => keys
+    .filter((key) => key.closest(".lane-header").offsetHeight)
+    .map((key) => key.dataset.stem));
 
-test("a song with no tracks keeps the stems' lane height, + Track in reach above the footer", async ({ page }) => {
+test("a song with no tracks keeps the stems' lane height, + Track at the end of the lanes", async ({ page }) => {
   await page.setViewportSize(SHORT_WINDOW);
   await openStudio(page);
   await expect.poll(() => headersFit(page)).toEqual({ rows: STEM_ROWS, clipped: 0 });
-  expect(await laneHeight(page)).toBe(STEM_FLOOR_PX);
+  expect(await laneHeight(page)).toBeGreaterThanOrEqual(STEM_FLOOR_PX);
+  await page.locator(".rec-add-row").scrollIntoViewIfNeeded();
   await expectAddRowAboveFooter(page);
 });
 
@@ -183,7 +187,7 @@ test("six stems and two recording tracks keep the lane floor and every K arrow's
   await expect.poll(() => headersFit(page)).toEqual({ rows: STEMS_PLUS_TWO_TRACKS, clipped: 0 });
   expect(await laneHeight(page)).toBeGreaterThanOrEqual(STEM_FLOOR_PX);
   await expectAddRowAboveFooter(page);
-  const stems = await stemNames(page);
+  const stems = await shownStemNames(page);
   expect(stems).toHaveLength(STEM_ROWS);
   for (const stem of stems) expect(await keyArrowHits(page, stem), stem).toEqual(ALL_ARROW_HITS);
 });

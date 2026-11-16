@@ -49,8 +49,8 @@
   background: var(--bg-2);
   box-sizing: border-box;
 }
-/* Lanes never go under their floor, so the mixer may scroll; + Track stays in reach above the footer. */
-.mixer-column > .rec-add-row {
+/* With recording rows, + Track stays in reach if the lanes still overflow; a song without them scrolls as before. */
+.mixer-column:has(> .rec-row) > .rec-add-row {
   position: sticky;
   bottom: 0;
   z-index: 1;
