@@ -163,7 +163,7 @@ function startRename(trackId) {
     if (field.isConnected) actions.renameTrack(session, trackId, field.value);
   });
   name.replaceWith(field);
-  field.focus();
+  field.focus({ preventScroll: true });
   field.select();
 }
 

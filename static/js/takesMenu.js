@@ -52,14 +52,14 @@ function onMenuKeydown(e) {
     e.preventDefault();
     const anchor = anchorEl;
     closeTakesMenu();
-    anchor?.focus();
+    anchor?.focus({ preventScroll: true });
     return;
   }
   if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
   e.preventDefault();
   const list = items();
   const at = list.indexOf(document.activeElement);
-  list[(at + (e.key === "ArrowDown" ? 1 : -1) + list.length) % list.length]?.focus();
+  list[(at + (e.key === "ArrowDown" ? 1 : -1) + list.length) % list.length]?.focus({ preventScroll: true });
 }
 
 function onOutsidePointerDown(e) {
@@ -91,7 +91,7 @@ export function openTakesMenu(anchor, label, entries, { alignRight = false } = {
   anchor.setAttribute("aria-expanded", "true");
   document.body.append(menu);
   place(menu, anchor, alignRight);
-  items()[0]?.focus();
+  items()[0]?.focus({ preventScroll: true });
   document.addEventListener("pointerdown", onOutsidePointerDown, true);
   window.addEventListener("resize", closeTakesMenu);
 }

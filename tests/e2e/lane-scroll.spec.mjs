@@ -122,8 +122,10 @@ test.describe("lanes beside a waveform pane with a horizontal scrollbar", () => 
   test("with no horizontal scrollbar the lanes divide the whole panel", async ({ page }) => {
     await openAlignedSixStemStudio(page, TALL_WIDE_WINDOW);
     const g = await laneGeometry(page);
+    // The + Track row shares the panel with the lanes when it is shown.
+    const addRowHeight = await page.evaluate(() => document.querySelector(".rec-add-row")?.getBoundingClientRect().height ?? 0);
     expect(g.wavesScrollX).toBe(false);
-    expect(g.laneHeight).toBe(Math.floor(g.panelHeight / STEM_COUNT));
+    expect(g.laneHeight).toBe(Math.floor((g.panelHeight - addRowHeight) / STEM_COUNT));
   });
 
   test("zooming in on a tall window keeps every lane in view and in line", async ({ page }) => {

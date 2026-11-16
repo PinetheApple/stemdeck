@@ -108,10 +108,12 @@ async function recordTake(page) {
 test("+ Track stays above the footer on a short window", async ({ page }) => {
   await page.setViewportSize(SHORT_WINDOW);
   await openStudio(page);
+  const mixerTop = (await page.locator("#mixer").boundingBox()).y;
   await addArmedTrack(page);
   await page.locator("#recAddTrack").click();
   await page.getByRole("menuitem", { name: "Audio track" }).click();
   await expect(page.locator(".rec-row")).toHaveCount(2);
+  expect((await page.locator("#mixer").boundingBox()).y).toBe(mixerTop);
   const add = await page.locator("#recAddTrack").boundingBox();
   const footer = await page.locator(".daw-footer").boundingBox();
   expect(add.y + add.height).toBeLessThanOrEqual(footer.y);
