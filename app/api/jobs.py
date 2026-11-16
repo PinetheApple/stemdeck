@@ -942,9 +942,8 @@ def _retained_source(job_id: str) -> Path | None:
     """The source kept beside a finished job, if there is one: an upload's
     source.wav, or a link's download (see keep_link_source).
 
-    Link songs finished before their download was kept have none, and so do
-    uploads finished before theirs was, which is why absence is an ordinary
-    answer here rather than an error.
+    A song may have none, so absence is an ordinary answer here rather than
+    an error.
     """
     return _source_file_in(JOBS_DIR / job_id)
 
@@ -1021,7 +1020,8 @@ async def resplit_job(job_id: str, body: ResplitBody) -> dict:
         raise HTTPException(status_code=404, detail="job not found")
 
     if not is_upload(job):
-        # A new job with a changed link would download that link (_dispatch).
+        # The new job's source would be a link, which the queue would try to
+        # download instead of separating the kept file.
         raise HTTPException(status_code=409, detail=RESPLIT_LINK_SONG)
     source = _retained_source(job_id)
     if source is None:
@@ -1493,9 +1493,8 @@ def _wants_work(job: Job, identity: dict[str, object] | None, tags: dict[str, st
 
 def _fingerprint_audio(job: Job) -> list[Path]:
     """Blocking: what to fingerprint a finished job from. The source kept
-    beside it; else its stems, which add back up to the mix (a song finished
-    before its source was kept). Only whitelisted stem names, each resolved
-    inside the job's directory."""
+    beside it; else its stems, which add back up to the mix. Only whitelisted
+    stem names, each resolved inside the job's directory."""
     source = _retained_source(job.id)
     if source is not None:
         return [source]

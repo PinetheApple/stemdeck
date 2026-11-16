@@ -81,22 +81,22 @@ def stopped_from_source(job_dir: Path) -> Job | None:
     logger.warning("%s holds a source that was never separated; kept as stopped", job_dir.name)
     meta = read_metadata(job_dir / "metadata.json")
     saved = saved_from_meta(meta, ("created_at", "source_url")) if isinstance(meta, dict) else {}
-    link = _saved_link(saved.get("source_url"))
-    return Job(
+    job = Job(
         id=job_dir.name,
         status="stopped",
         stage_message="Stopped",
         title=title,
-        source_url=link or f"local:{title}",
-        source_format=None if link else source.suffix[1:].lower(),
+        source_url=saved.get("source_url"),
         selected_stems=list(STEM_NAMES),
         created_at=saved.get("created_at", job_dir.stat().st_mtime),
     )
+    # Imported here: app.core.registry imports this module.
+    from app.core.registry import is_upload
 
-
-def _saved_link(source_url: str | None) -> str | None:
-    """The link a song's metadata.json names, None for an upload or none."""
-    return source_url if source_url and not source_url.startswith("local:") else None
+    if job.source_url is None or is_upload(job):
+        job.source_url = f"local:{title}"
+        job.source_format = source.suffix[1:].lower()
+    return job
 
 
 def _disk_stems(job_dir: Path) -> list[dict[str, str]]:

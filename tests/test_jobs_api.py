@@ -856,9 +856,15 @@ def test_resplit_starts_a_new_job_from_the_retained_source(resplit_client, tmp_p
     assert (tmp_path / job.id / "stems").is_dir()
 
 
-def test_resplit_refuses_a_link_song_that_kept_its_download(resplit_client, tmp_path):
+def _finished_link_song(tmp_path):
+    """A done link song with its download kept beside it as source.opus."""
     job = _finished_upload(tmp_path, source="source.opus")
     job.source_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    return job
+
+
+def test_resplit_refuses_a_link_song_that_kept_its_download(resplit_client, tmp_path):
+    job = _finished_link_song(tmp_path)
 
     r = resplit_client.post(f"/api/jobs/{job.id}/resplit", json={"stems": []})
 

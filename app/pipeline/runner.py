@@ -202,9 +202,8 @@ def _run_common(job: Job, source: Path, job_dir: Path) -> None:
     mark = _lap(job, "separate", mark)
     found = collect(job, stems_root, job_dir)
     stems_dir = job_dir / "stems"
-    # Every song keeps its source, so it can be separated again -- with another
-    # model, other stems -- without fetching it. An upload already kept its
-    # source.wav; a link keeps its download as it came (a .webm remuxed).
+    # Kept so Extract more stems can use the audio the song was separated from
+    # instead of its link; an upload's source.wav is already kept.
     if not is_upload(job):
         # A fingerprint still reading the source would make the remux's delete
         # fail on Windows. It finished long ago, so this is nearly always a no-op.

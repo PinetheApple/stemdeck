@@ -84,11 +84,6 @@ def _run_ffmpeg(job: Job, cmd: list[str]) -> bool:
         set_proc(job.id, None)
 
 
-def _write_wav(job: Job, cmd: list[str], out: Path) -> Path | None:
-    """Run `cmd` with a WAV output at `out`, through _write_atomic."""
-    return _write_atomic(job, cmd, out, "wav")
-
-
 def _write_atomic(job: Job, cmd: list[str], out: Path, muxer: str) -> Path | None:
     """Run `cmd` with a `muxer` output at the dot temp name `.<name>.<hex>.tmp`
     beside `out`, renamed to `out` only once ffmpeg succeeded. A kill mid-write
@@ -152,13 +147,13 @@ def collect(job: Job, stems_root: Path, job_dir: Path) -> list[str]:
 
 
 def keep_link_source(job: Job, job_dir: Path) -> None:
-    """Keep a link's download in place as the song's source, so it can be
-    separated again without fetching it. Never copied: a .webm is remuxed to
-    the container of the same codec (LINK_SOURCE_REMUX, packets untouched) and
-    the .webm removed; any other download the app reads as a source
-    (UPLOAD_EXTS) stays as it is. One the app could not read again is deleted,
-    and so is a .webm whose remux failed: the song then keeps nothing, as a
-    link song made before sources were kept.
+    """Keep a link's download in place as the song's source: the audio it was
+    separated from, which Extract more stems can use instead of the link.
+    Never copied: a .webm is remuxed to the container of the same codec
+    (LINK_SOURCE_REMUX, packets untouched) and the .webm removed; any other
+    download the app reads as a source (UPLOAD_EXTS) stays as it is. One the
+    app could not read is deleted, and so is a .webm whose remux failed: the
+    song then keeps no source.
 
     Not called for uploads, whose source.wav the runner already keeps."""
     for source in sorted(job_dir.glob("source.*")):
@@ -170,7 +165,7 @@ def keep_link_source(job: Job, job_dir: Path) -> None:
             source.unlink(missing_ok=True)
 
 
-def _remux_audio(job: Job, source: Path, out: Path) -> Path | None:
+def _remux_audio(job: Job, source: Path, out: Path) -> None:
     """`source`'s audio in `out`'s container, stream-copied, never re-encoded."""
     cmd = [
         ffmpeg_executable(),
@@ -184,7 +179,7 @@ def _remux_audio(job: Job, source: Path, out: Path) -> Path | None:
         "-c:a",
         "copy",
     ]
-    return _write_atomic(job, cmd, out, out.suffix.removeprefix("."))
+    _write_atomic(job, cmd, out, out.suffix.removeprefix("."))
 
 
 def make_original_track(job: Job, job_dir: Path, stems_dir: Path) -> Path | None:
@@ -225,7 +220,7 @@ def make_original_track(job: Job, job_dir: Path, stems_dir: Path) -> Path | None
             "-c:a",
             "pcm_s16le",
         ]
-    return _write_wav(job, cmd, out)
+    return _write_atomic(job, cmd, out, "wav")
 
 
 def make_selected_mix(job: Job, stems_dir: Path, found: list[str]) -> Path | None:
@@ -265,7 +260,7 @@ def make_selected_mix(job: Job, stems_dir: Path, found: list[str]) -> Path | Non
         "-c:a",
         "pcm_s16le",
     ]
-    return _write_wav(job, cmd, out)
+    return _write_atomic(job, cmd, out, "wav")
 
 
 # Enough points to back the deepest zoom, not the 1x bar count: a full-width
