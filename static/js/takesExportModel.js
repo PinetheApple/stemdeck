@@ -1,4 +1,3 @@
-// Which recording tracks an export carries.
 // A track lane plays its active take, so the export names the track, not the take.
 
 // Keeps the pitch list aligned with the names; the server never transposes a take.
@@ -31,10 +30,7 @@ export function tickedTrackIds(rows) {
   return rows.filter((row) => row.ticked).map((row) => row.trackId);
 }
 
-/**
- * The ticked tracks as mix lanes at their own volume, as the mixer hears them:
- * while anything is soloed, only a soloed take; a silent one adds nothing.
- */
+/** While anything is soloed, the mixer plays only soloed takes, so the export does too. */
 export function takeLanes(rows, anySolo) {
   return rows
     .filter((row) => row.ticked && row.volume > 0 && (!anySolo || row.soloed))

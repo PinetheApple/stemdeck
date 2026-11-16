@@ -31,7 +31,7 @@ function rows() {
   return exportTakeRows(views, takeMixEntry, tickStore.ticks);
 }
 
-/** The stems' mix lists with the ticked tracks appended; `mix.anySolo` covers stems and tracks. */
+/** The stems' mix lists with the ticked tracks appended. */
 export function withExportTakes(mix) {
   return withTakeLanes(mix, takeLanes(rows(), mix.anySolo));
 }

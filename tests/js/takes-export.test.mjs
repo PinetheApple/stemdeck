@@ -62,12 +62,12 @@ check("the stems' lists are not mutated", STEMS.names.length === 2 && STEMS.gain
 check("zip carries only ticked tracks", tickedTrackIds(rows).join() === VOICE);
 check("zip carries a ticked muted track", tickedTrackIds(flipped).join() === GUITAR);
 
-const BOTH = new Map([[GUITAR, true]]);
+const GUITAR_TICKED = new Map([[GUITAR, true]]);
 const SOLO_MIX = { ...MIX, [GUITAR]: { volume: 1, muted: false, soloed: true } };
-const soloRows = exportTakeRows(VIEWS, (id) => SOLO_MIX[id], BOTH);
+const soloRows = exportTakeRows(VIEWS, (id) => SOLO_MIX[id], GUITAR_TICKED);
 const soloLanes = takeLanes(soloRows, true);
 check("with a take soloed, only that take is a lane", soloLanes.map((l) => l.id).join() === GUITAR);
-check("with a stem soloed, no take is a lane", takeLanes(exportTakeRows(VIEWS, mixOf, BOTH), true).length === 0);
+check("with a stem soloed, no take is a lane", takeLanes(exportTakeRows(VIEWS, mixOf, GUITAR_TICKED), true).length === 0);
 check("with no solo, every ticked take is a lane", takeLanes(soloRows, false).length === 2);
 check("solo leaves the zip to the ticks", tickedTrackIds(soloRows).length === 2);
 

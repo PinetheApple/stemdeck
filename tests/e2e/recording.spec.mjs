@@ -32,7 +32,8 @@ const STEM_FLOOR_PX = 72;
 const NO_TRACK_SHRINK_MAX_PX = 8;
 // Well under recorder.js's TEARDOWN_WAIT_MS (500), so a wait that ran would show.
 const FAST_PATH_MAX_MS = 100;
-const EXPORT_ROUTE = /\/(mixdown\.wav|stems\/all\.zip)\?/;
+const EXPORT_ROUTE = /\/(mixdown\.wav|stems\/all\.zip|video\.mp4)\?/;
+const JOB_STATE_URL = new RegExp(`/api/jobs/${JOB_ID}$`);
 
 const recordBtn = (page) => page.locator("#t-rec");
 const trackRow = (page) => page.locator(".rec-row").first();
@@ -309,6 +310,23 @@ async function captureExports(page) {
   return queries;
 }
 
+// The fixture song has no picture; its state answers as if it had one, so MP4 is offered.
+async function offerVideo(page) {
+  await page.route(JOB_STATE_URL, async function withVideo(route) {
+    if (route.request().method() !== "GET") return route.fallback();
+    const response = await route.fetch();
+    return route.fulfill({ response, json: { ...(await response.json()), has_video: true } });
+  });
+}
+
+async function chooseFormat(page, format) {
+  const ui = exportUi(page);
+  await ui.open();
+  await ui.fmt(format).click();
+  await expect(ui.fmt(format)).toHaveAttribute("aria-checked", "true");
+  await ui.button.click();
+}
+
 async function exportFromMenu(page, item, queries) {
   const ui = exportUi(page);
   const before = queries.length;
@@ -358,6 +376,7 @@ test("a solo on a silenced stem does not silence the export", async ({ page }) =
 });
 
 test("the export carries the ticked takes, a muted track's unticked", async ({ page, request }) => {
+  await offerVideo(page);
   await openStudio(page);
   const queries = await captureExports(page);
   await recordOnNewTrack(page, request, 1);
@@ -376,6 +395,12 @@ test("the export carries the ticked takes, a muted track's unticked", async ({ p
   expect(lanesOf(mix)).toContain(voice.id);
   expect(lanesOf(mix)).not.toContain(guitar.id);
   expect(lanesOf(await exportFromMenu(page, "stems", queries))).toContain(voice.id);
+
+  await chooseFormat(page, "mp4");
+  const video = await exportFromMenu(page, "mix", queries);
+  expect(lanesOf(video)).toContain(voice.id);
+  expect(lanesOf(video)).not.toContain(guitar.id);
+  await chooseFormat(page, "wav");
 
   await exportUi(page).open();
   await boxes.nth(0).uncheck();
