@@ -3,7 +3,7 @@
 import { test, expect } from "@playwright/test";
 import {
   JOB_ID, KEY, SIBLING_JOB_ID, SIBLING_TITLE, TRACK_TITLE, failureMessages, fixtureTrack, openStudio, readCatalogState,
-  seedLibrary, stubServerTrash,
+  resetVersions, seedLibrary, stubServerTrash, versionsUrl,
 } from "./helpers.mjs";
 import { STEM_NAMES as ALL_STEMS } from "../../static/js/constants.js";
 import { DEFAULT_VERSION_ID as DEFAULT_ID } from "../../static/js/versionModel.js";
@@ -31,17 +31,12 @@ const TAGS_CHECKED_CATALOG = {
   },
 };
 
-const versionsUrl = (id) => `/api/jobs/${id}/versions`;
 const laneMix = (drums) => ({ drums: { volume: drums, muted: false, soloed: false, pitch: 0 } });
 const versionKey = (vid) => `${MIX_KEY}:${vid}`;
 
 // The e2e server lives for the whole run, so each test leaves both songs with the Original only.
 test.afterEach(async ({ request }) => {
-  for (const id of [JOB_ID, SIBLING_JOB_ID]) {
-    await request.post(`${versionsUrl(id)}/${DEFAULT_ID}/open`);
-    const { versions } = await (await request.get(versionsUrl(id))).json();
-    for (const v of versions.filter((x) => x.id !== DEFAULT_ID)) await request.delete(`${versionsUrl(id)}/${v.id}`);
-  }
+  for (const id of [JOB_ID, SIBLING_JOB_ID]) await resetVersions(request, id);
 });
 
 async function createVersion(request, id, { name, stems, open = false }) {
