@@ -33,7 +33,7 @@ for (const { code } of LANGUAGES) {
 }
 
 const used = new Set();
-for (const file of ["eqLaneView.js", "eqMasterView.js", "eqGraph.js", "eqLaneMark.js", "eqPanelModel.js", "eqSuggest.js", "eqPanelControls.js"]) {
+for (const file of ["eqLaneView.js", "eqMasterView.js", "eqGraph.js", "eqLaneMark.js", "eqPanelModel.js", "eqSuggest.js", "eqSuggestFlow.js", "eqPanelControls.js"]) {
   const src = readFileSync(new URL(`../../static/js/eq/${file}`, import.meta.url), "utf8");
   for (const m of src.matchAll(/"((?:eq|help)\.[a-zA-Z.]+)"/g)) used.add(m[1]);
 }

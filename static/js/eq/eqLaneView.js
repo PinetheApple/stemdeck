@@ -9,16 +9,15 @@ import { EqKnobs } from "./eqKnobs.js";
 import { editLaneBands, renderPower, toggleLaneBypass } from "./eqPanelControls.js";
 import {
   PEDAL_PANEL_KINDS,
-  createSuggestSession,
   eqFromSuggestion,
   eqWithKnob,
   graphBands,
   panelTitleKey,
   readoutParts,
   suggestEqUrl,
-  targetCurvePoints,
 } from "./eqPanelModel.js";
-import { fetchSuggestion, suggestErrorKey } from "./eqSuggest.js";
+import { REFUSED_KEY } from "./eqSuggest.js";
+import { SuggestFlow } from "./eqSuggestFlow.js";
 
 const SMALL_GRAPH_CLASS = "eq-graph-sm";
 const EQ_COLOR_VAR = "--eq-c";
@@ -28,11 +27,16 @@ export class EqLaneView {
   #lane = null;
   #job = null;
   #kind = null;
-  #request = null;
-  #target = null;
   #graph;
   #knobs;
-  #session = createSuggestSession({ preview: previewLaneEq, commit: setLaneEq });
+  #suggest = new SuggestFlow({
+    preview: previewLaneEq,
+    commit: setLaneEq,
+    button: $("eqSuggestLane"),
+    status: this.#status.bind(this),
+    render: this.render.bind(this),
+    refusedKey: REFUSED_KEY.lane,
+  });
 
   constructor() {
     this.#graph = new EqGraph($("eqGraphLane"), {
@@ -65,17 +69,13 @@ export class EqLaneView {
   /** Leaving the lane or the song: drop a Suggest still asked for, undo an unapplied one. */
   leave() {
     this.#graph.flush();
-    this.#request?.abort();
-    this.#request = null;
-    this.#session.undo();
-    this.#target = null;
-    this.#status("");
+    this.#suggest.leave();
   }
 
   render() {
     if (!this.#lane) return;
-    const suggesting = this.#session.active;
-    const eq = suggesting ? this.#session.suggested : getLaneEq(this.#lane);
+    const suggesting = this.#suggest.active;
+    const eq = suggesting ? this.#suggest.suggested : getLaneEq(this.#lane);
     const pedal = PEDAL_PANEL_KINDS.has(this.#kind);
     $("eqLaneTitle").textContent = t(panelTitleKey(this.#kind));
     renderPower($("eqPowerLane"), eq, { disabled: suggesting });
@@ -88,7 +88,7 @@ export class EqLaneView {
     if (pedal) this.#knobs.show(this.#kind, eq, { enabled: !suggesting });
     $("eqSuggestBar").hidden = !suggesting;
     $("eqLegend").hidden = !suggesting;
-    $("eqLegendTarget").hidden = !this.#target;
+    $("eqLegendTarget").hidden = !this.#suggest.target;
     $("eqLaneActions").hidden = suggesting;
     $("eqReadout").hidden = pedal || suggesting;
     this.#renderReadout();
@@ -97,7 +97,7 @@ export class EqLaneView {
   #suggestLayers(suggesting) {
     if (!suggesting) return { ghost: null, target: null };
     const saved = getLaneEq(this.#lane);
-    return { ghost: { bands: saved.params.bands, out: saved.params.out }, target: this.#target };
+    return { ghost: { bands: saved.params.bands, out: saved.params.out }, target: this.#suggest.target };
   }
 
   #renderReadout() {
@@ -133,45 +133,25 @@ export class EqLaneView {
     resetLane(this.#lane);
   }
 
-  async #onSuggestClick() {
-    if (this.#request || !currentJobId) return;
-    const ask = { lane: this.#lane, kind: this.#kind, job: currentJobId, ctl: new AbortController() };
-    this.#request = ask.ctl;
-    $("eqSuggestLane").disabled = true;
-    this.#status("");
-    try {
-      const body = await fetchSuggestion(suggestEqUrl(ask.job, ask.lane, ask.kind), ask.ctl.signal);
-      if (this.#isCurrent(ask)) this.#showSuggestion(ask, body);
-    } catch (err) {
-      if (!this.#isCurrent(ask)) return;
-      console.warn("[eq] suggest failed:", err);
-      this.#status(t(suggestErrorKey(err)));
-    } finally {
-      if (this.#request === ask.ctl) this.#request = null;
-      $("eqSuggestLane").disabled = false;
-      this.render();
-    }
-  }
-
-  #isCurrent(ask) {
-    return !ask.ctl.signal.aborted && ask.job === currentJobId && ask.lane === this.#lane;
-  }
-
-  #showSuggestion(ask, body) {
-    this.#target = targetCurvePoints(body);
-    this.#session.show(ask.lane, eqFromSuggestion(body, ask.kind));
+  #onSuggestClick() {
+    if (!currentJobId) return;
+    const lane = this.#lane;
+    const kind = this.#kind;
+    const job = currentJobId;
+    this.#suggest.ask({
+      key: lane,
+      url: suggestEqUrl(job, lane, kind),
+      current: () => job === currentJobId && lane === this.#lane,
+      toSuggested: (body) => eqFromSuggestion(body, kind),
+    });
   }
 
   #onApplyClick() {
-    this.#session.apply();
-    this.#target = null;
-    this.render();
+    this.#suggest.apply();
   }
 
   #onUndoClick() {
-    this.#session.undo();
-    this.#target = null;
-    this.render();
+    this.#suggest.undo();
   }
 
   #onFxChange({ lane }) {

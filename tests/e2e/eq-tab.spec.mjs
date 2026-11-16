@@ -92,7 +92,7 @@ test.describe("EQ tab", () => {
     await expect(page.locator("#eqGlue")).toBeVisible();
     await expect(page.locator("#eqLoudness [role=radio]")).toHaveCount(3);
     await expect(page.locator('#eqLoudness [data-choice="off"]')).toHaveAttribute("aria-checked", "true");
-    await expect(page.locator("#eqMasterView .eq-actions button")).toHaveCount(1);
+    await expect(page.locator("#eqMasterView .eq-actions button")).toHaveCount(2);
   });
 
   test("a lane's mark opens its EQ: drums get the graph, bass the pedal", async ({ page }) => {

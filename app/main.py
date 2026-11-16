@@ -128,6 +128,7 @@ from app.core.stems_location import (
 )
 from app.core.video_config import encoder_choices
 from app.pipeline.collect import sweep_crash_leftovers, sweep_failed_jobs, sweep_old_jobs
+from app.pipeline.extract_stems import EXTRACT_RUNS
 from app.pipeline.sections import sweep_orphaned_workspaces as sweep_orphaned_section_workspaces
 from app.pipeline.video_encoder import encoder_override
 
@@ -1330,17 +1331,17 @@ def _secure_origin_required() -> bool:
 def _refuse_while_busy() -> None:
     """Raise JobBusy while a finished song is being worked on (upstream PR
     878): the queue statuses the move and the reset check do not show it."""
-    if any(j.post_hoc_running() for j in registry_all_jobs().values()):
+    if EXTRACT_RUNS.any_running() or any(
+        j.post_hoc_running() for j in registry_all_jobs().values()
+    ):
         raise JobBusy()
 
 
-_JOB_BUSY_DETAIL = (
-    "A song is still being separated (Lead + Backing). Try again when it has finished."
-)
+_JOB_BUSY_DETAIL = "A song is still being separated. Try again when it has finished."
 
 
-# A library move or a reset refused while a Lead + Backing split runs. Its own
-# code, so a client can tell it from any other 409 and translate it.
+# A library move or a reset refused while a finished song is being worked on. Its
+# own code, so a client can tell it from any other 409 and translate it.
 @app.exception_handler(JobBusy)
 async def refuse_while_busy(_request: Request, _exc: JobBusy) -> JSONResponse:
     return JSONResponse({"detail": _JOB_BUSY_DETAIL, "code": "job_busy"}, status_code=409)
