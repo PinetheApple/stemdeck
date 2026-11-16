@@ -4,6 +4,7 @@
 import { test, expect } from "@playwright/test";
 import {
   JOB_ID,
+  LOAD_TIMEOUT_MS,
   SIBLING_JOB_ID,
   fixtureTrack,
   seedCatalogState,
@@ -78,6 +79,7 @@ async function openTrack(page, id) {
   await dblclickFrozen(page, `.cat-item[data-id="${id}"]`);
   await expect.poll(
     () => page.evaluate(async (track) => (await import("/js/catalog.js")).getCurrentTrackInfo()?.id === track, id),
+    { timeout: LOAD_TIMEOUT_MS },
   ).toBe(true);
 }
 
@@ -97,6 +99,7 @@ test.afterEach(async ({ page }) => {
 async function waitForGrid(page) {
   await expect.poll(
     () => page.evaluate(async () => (await import("/js/beatgrid.js")).getBeats().length > 0),
+    { timeout: LOAD_TIMEOUT_MS },
   ).toBe(true);
 }
 

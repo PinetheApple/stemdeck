@@ -1,7 +1,7 @@
 // Shared by the specs that race a save against a song switch or a page close: they
 // hold a save open with a route, or freeze the page's timers so no debounce fires first.
 import { expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, openStudio, waitForClickTrack } from "./helpers.mjs";
+import { JOB_ID, LOAD_TIMEOUT_MS, SIBLING_JOB_ID, openStudio, waitForClickTrack } from "./helpers.mjs";
 
 const RESET_TEMPO = { mode: null, bpm: null, anchor: null, beats_per_bar: null };
 export const STALE_BPM = 97;
@@ -63,6 +63,7 @@ export async function openSongTempo(page, id) {
       },
       [id === SIBLING_JOB_ID, SIBLING_LENGTH_SEC],
     ),
+    { timeout: LOAD_TIMEOUT_MS },
   ).toBe(true);
   await expect(page.locator("#tempoModeConstant")).toBeEnabled();
 }
