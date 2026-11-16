@@ -24,26 +24,24 @@ async function holdStems(page, jobId) {
 }
 
 async function rememberPlayingEngine(page) {
-  await page.waitForFunction(
-    async () => {
+  await expect.poll(
+    () => state(page, async () => {
       const st = await import("/js/state.js");
       if (!st.audioEngine || (await st.audioEngine.ready) !== true) return false;
       window.__previousEngine = st.audioEngine;
       return true;
-    },
-    null,
+    }),
     { timeout: LOAD_TIMEOUT_MS },
-  );
+  ).toBe(true);
   await page.locator("#t-play").click();
   await expect.poll(() => state(page, () => window.__previousEngine.isPlaying())).toBe(true);
 }
 
 async function waitForEngine(page) {
-  await page.waitForFunction(
-    async () => Boolean((await import("/js/state.js")).audioEngine),
-    null,
+  await expect.poll(
+    () => state(page, async () => Boolean((await import("/js/state.js")).audioEngine)),
     { timeout: LOAD_TIMEOUT_MS },
-  );
+  ).toBe(true);
 }
 
 async function openStreamingSibling(page) {
@@ -54,11 +52,10 @@ async function openStreamingSibling(page) {
 
 async function waitForStreamingAudio(page) {
   await expect(page.locator(".app")).not.toHaveClass(/engine-waveforms/);
-  await page.waitForFunction(
-    async () => ((await import("/js/state.js")).multitrack?.audios?.length ?? 0) > 0,
-    null,
+  await expect.poll(
+    () => state(page, async () => ((await import("/js/state.js")).multitrack?.audios?.length ?? 0) > 0),
     { timeout: LOAD_TIMEOUT_MS },
-  );
+  ).toBe(true);
 }
 
 async function countTrackEnds(page) {

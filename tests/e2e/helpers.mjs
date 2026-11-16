@@ -25,6 +25,7 @@ export const SOURCE_URL = "local:e2e-fixture";
 
 // libraryResize.js keeps at least this much waveform beside the stem labels.
 export const MIN_TIMELINE_WIDTH = 360;
+export const LOAD_TIMEOUT_MS = 20000;
 
 const STORAGE_KEY = "stemdeck.folders";
 const STORAGE_VERSION = 2;
@@ -412,7 +413,7 @@ export async function openStudio(
   await page.waitForFunction(
     () => !/\/\s*00:00\s*$/.test(document.querySelector("#t-time")?.textContent || "00:00 / 00:00"),
     null,
-    { timeout: 20000 },
+    { timeout: LOAD_TIMEOUT_MS },
   );
   return { favoriteWrites };
 }
@@ -451,7 +452,7 @@ export async function waitForClickTrack(page, { revealOptions = true } = {}) {
   await page.waitForFunction(
     () => document.querySelector("#t-metro") && !document.querySelector("#t-metro").disabled,
     null,
-    { timeout: 20000 },
+    { timeout: LOAD_TIMEOUT_MS },
   );
   if (revealOptions) await openClickOptions(page);
 }

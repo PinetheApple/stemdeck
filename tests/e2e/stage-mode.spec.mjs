@@ -4,6 +4,7 @@
 import { test, expect } from "@playwright/test";
 import {
   JOB_ID,
+  LOAD_TIMEOUT_MS,
   SIBLING_JOB_ID,
   fixtureTrack,
   seedCatalogState,
@@ -76,10 +77,10 @@ const seekLights = (page, seconds, index) => seekUntil(page, seconds, () => expe
 
 async function openTrack(page, id) {
   await dblclickFrozen(page, `.cat-item[data-id="${id}"]`);
-  await page.waitForFunction(
-    async (track) => (await import("/js/catalog.js")).getCurrentTrackInfo()?.id === track,
-    id,
-  );
+  await expect.poll(
+    () => page.evaluate(async (track) => (await import("/js/catalog.js")).getCurrentTrackInfo()?.id === track, id),
+    { timeout: LOAD_TIMEOUT_MS },
+  ).toBe(true);
 }
 
 const enterStage = (page) => page.locator("#stageModeBtn").click();
@@ -96,7 +97,10 @@ test.afterEach(async ({ page }) => {
 });
 
 async function waitForGrid(page) {
-  await page.waitForFunction(async () => (await import("/js/beatgrid.js")).getBeats().length > 0);
+  await expect.poll(
+    () => page.evaluate(async () => (await import("/js/beatgrid.js")).getBeats().length > 0),
+    { timeout: LOAD_TIMEOUT_MS },
+  ).toBe(true);
 }
 
 /**
