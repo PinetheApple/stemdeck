@@ -108,10 +108,11 @@ async function recordTake(page) {
 test("+ Track stays above the footer on a short window", async ({ page }) => {
   await page.setViewportSize(SHORT_WINDOW);
   await openStudio(page);
-  const mixerTop = (await page.locator("#mixer").boundingBox()).y;
   await addArmedTrack(page);
-  await page.locator("#recAddTrack").click();
-  await page.getByRole("menuitem", { name: "Audio track" }).click();
+  const mixerTop = (await page.locator("#mixer").boundingBox()).y;
+  // Plain DOM clicks: Playwright's own scroll-into-view before a click would move the lanes itself.
+  await page.evaluate(() => document.querySelector("#recAddTrack").click());
+  await page.getByRole("menuitem", { name: "Audio track" }).evaluate((item) => item.click());
   await expect(page.locator(".rec-row")).toHaveCount(2);
   expect((await page.locator("#mixer").boundingBox()).y).toBe(mixerTop);
   const add = await page.locator("#recAddTrack").boundingBox();
