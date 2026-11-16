@@ -153,6 +153,17 @@ test.describe("opening and playing", () => {
     expect(outcomes).toEqual([false, true]);
   });
 
+  test("a load the server refuses resolves false and leaves the playing song", async ({ page }) => {
+    await openStudio(page);
+    await page.route(`**/api/jobs/${SIBLING_JOB_ID}`, (route) => route.fulfill({ status: 404, json: { detail: "gone" } }));
+    const loaded = await page.evaluate(
+      async (id) => (await import("/js/catalog.js")).loadTrackIntoStudio(id),
+      SIBLING_JOB_ID,
+    );
+    expect(loaded).toBe(false);
+    expect(await playingId(page)).toBe(JOB_ID);
+  });
+
   test("with nothing playing, a click opens the song paused", async ({ page }) => {
     await openStudio(page);
     await songRow(page, SIBLING_JOB_ID).click();
