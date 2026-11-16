@@ -33,6 +33,12 @@ async function removeTracks({ request }) {
 
 test.afterEach(removeTracks);
 
+async function recordedPast(sec) {
+  const { recordingTake, REC_PHASE } = await import("/js/recorder.js");
+  const { transport } = await import("/js/transport.js");
+  return recordingTake()?.phase === REC_PHASE.recording && transport().getCurrentTime() > sec;
+}
+
 async function openFilm(page) {
   await page.locator("#filmBtn").click();
   await expect(film(page)).toBeVisible();
@@ -173,11 +179,13 @@ test("a filmed take keeps camera and sound, then reviews and trims", async ({ pa
   await expect(page.locator("#filmRecBtn")).toBeEnabled();
   await page.locator("#filmRecBtn").click();
   await expect(page.locator("#filmRecBadge")).toBeVisible({ timeout: SAVE_TIMEOUT_MS });
-  await page.waitForFunction(
-    async (sec) => (await import("/js/transport.js")).transport().getCurrentTime() > sec,
-    RECORD_SEC,
+  // Past the count-in: a Stop while the take is still counting saves nothing.
+  // page.evaluate awaits the module imports; waitForFunction would take the
+  // returned promise itself as truthy.
+  await expect.poll(
+    () => page.evaluate(recordedPast, RECORD_SEC),
     { timeout: SAVE_TIMEOUT_MS },
-  );
+  ).toBe(true);
   await page.locator("#filmRecBtn").click();
   await expect(page.locator("#filmTakeBadge")).toHaveText("Take 1", { timeout: SAVE_TIMEOUT_MS });
 
