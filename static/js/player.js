@@ -1074,12 +1074,11 @@ let _laneFitObs = null;
 function _watchLaneFit(count) {
   _laneCount = count;
   _laneFitObs?.disconnect();
-  const panel = document.querySelector(".daw-wave-panel");
-  if (!panel) return;
-  // The panel is flex: 1 inside a fixed-height column, so its own height comes
-  // from its parent and never from the lanes. Writing lane heights from here
-  // cannot feed the observer its own output.
+  if (!waveScroll) return;
+  // A refit only changes what scrolls inside waveScroll, never its box, so it cannot
+  // re-fire this; resizes, collapsed panels and the scrollbar coming or going do.
   _laneFitObs = new ResizeObserver(() => {
+    _matchLaneScrollbar();
     // Only where the SVG overlay is the visible waveform. On the streaming path
     // the lanes are WaveSurfer canvases sized when the tracks are created, and
     // setOptions only re-renders the ones that have audio: a lane for a stem
@@ -1091,12 +1090,19 @@ function _watchLaneFit(count) {
     if (!document.querySelector(".app")?.classList.contains("engine-waveforms")) return;
     if (_laneCount > 0) _applyLaneHeight(_laneCount);
   });
-  _laneFitObs.observe(panel);
+  _laneFitObs.observe(waveScroll);
+}
+
+// The mixer pads for the waveforms' horizontal scrollbar (--lane-scrollbar-h) so
+// both columns scroll the same distance, on either playback path.
+function _matchLaneScrollbar() {
+  const scrollbarH = waveScroll ? waveScroll.offsetHeight - waveScroll.clientHeight : 0;
+  document.querySelector(".app")?.style.setProperty("--lane-scrollbar-h", `${scrollbarH}px`);
 }
 
 function _applyLaneHeight(count) {
-  const wavePanel = document.querySelector(".daw-wave-panel");
-  const panelH = wavePanel?.clientHeight ?? 0;
+  _matchLaneScrollbar();
+  const panelH = waveScroll?.clientHeight ?? 0;
   // One row is a lane plus its separator, and BOTH columns have to agree on
   // that number or they drift apart down the stack. They did: every mixer row
   // draws its own 2px bottom border, so the mixer stack was count * (lane + 2),
