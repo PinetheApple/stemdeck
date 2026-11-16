@@ -1,6 +1,5 @@
-// Film (#102): filming yourself playing along, on Chromium's fake camera and
-// microphone. The filmed-take export and Settings > Export (#99) are in
-// film-export.spec.mjs.
+// Filming yourself playing along, on Chromium's fake camera and microphone.
+// The export and Settings > Export are in film-export.spec.mjs.
 import { test, expect } from "@playwright/test";
 import { JOB_ID, openStudio } from "./helpers.mjs";
 
@@ -166,6 +165,41 @@ test("the + Track menu adds a Video track whose arm button opens Film", async ({
   await expect(row.locator(".mx-name")).toHaveText("Video 1");
   await row.locator(".rec-arm").click();
   await expect(film(page)).toBeVisible();
+});
+
+async function addArmedAudioTrack(page) {
+  await page.locator("#recAddTrack").click();
+  await page.getByRole("menuitem", { name: "Audio track" }).click();
+  await page.locator(".rec-row").first().locator(".rec-arm").click();
+  await expect(page.locator("#t-rec")).toBeEnabled();
+  return page.evaluate(async () => (await import("/js/recorderArm.js")).armedTrack()?.trackId);
+}
+
+const armedTrackId = (page) => page.evaluate(async () => (await import("/js/recorderArm.js")).armedTrack()?.trackId ?? null);
+
+test("closing Film arms the studio's track again", async ({ page }) => {
+  await openStudio(page);
+  const trackId = await addArmedAudioTrack(page);
+  expect(trackId).toBeTruthy();
+  await openFilm(page);
+  await expect.poll(() => armedTrackId(page)).not.toBe(trackId);
+  await page.keyboard.press("Escape");
+  await expect(film(page)).toBeHidden();
+  await expect.poll(() => armedTrackId(page)).toBe(trackId);
+});
+
+test("Film stays shut while a studio take records, so it can't stop it", async ({ page }) => {
+  await openStudio(page);
+  await addArmedAudioTrack(page);
+  await page.locator("#t-rec").click();
+  await expect(page.locator("#t-rec")).toHaveClass(/\bis-recording\b/, { timeout: SAVE_TIMEOUT_MS });
+  await expect(page.locator("#filmBtn")).toBeDisabled();
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent("film:open", { detail: {} })));
+  await page.keyboard.press("Escape");
+  await expect(film(page)).toBeHidden();
+  await expect(page.locator("#t-rec")).toHaveClass(/\bis-recording\b/);
+  await page.locator("#t-rec").click();
+  await expect(page.locator("#filmBtn")).toBeEnabled({ timeout: SAVE_TIMEOUT_MS });
 });
 
 test("a filmed take keeps camera and sound, then reviews and trims", async ({ page }) => {

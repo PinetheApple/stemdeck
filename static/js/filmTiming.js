@@ -1,5 +1,5 @@
-// Film view timing, pure so node can test it: the camera's first frame against
-// the first audio frame (docs/takes.md "Filmed takes"), and the trim handles.
+// Pure, so node can test it: the camera's first frame against the first audio
+// frame, and the trim handles.
 
 export const CLOCK_CAPTURE = "capture";
 export const CLOCK_RECORDER_START = "recorder-start";
@@ -58,21 +58,4 @@ export function dragTrim({ span, trim, edge, sec }) {
   else outSec = Math.max(Math.min(end, sec), inSec + TRIM_MIN_SEC);
   if (inSec <= start && outSec >= end) return null;
   return { in_sec: inSec, out_sec: outSec };
-}
-
-const ORIGINAL = "original";
-
-/** The song's waveform for the timeline: the original's peaks, else the loudest stem at each point. */
-export function mergePeaks(peaksByStem) {
-  if (!peaksByStem || typeof peaksByStem !== "object") return [];
-  if (Array.isArray(peaksByStem[ORIGINAL])) return peaksByStem[ORIGINAL];
-  const merged = [];
-  for (const points of Object.values(peaksByStem)) {
-    if (!Array.isArray(points)) continue;
-    points.forEach(function mergePoint([low, high], i) {
-      const amp = Math.max(Math.abs(low), Math.abs(high), merged[i]?.[1] ?? 0);
-      merged[i] = [-amp, amp];
-    });
-  }
-  return merged;
 }

@@ -1,6 +1,5 @@
-// #99: the filmed-take MP4 export dialog and Settings > Export's video encoder.
-// The render and the encoder test are answered by stubs: their real runs are
-// covered by pytest, and the GPU ones need the device.
+// The filmed-take MP4 export and Settings > Export's video encoder, on stubs:
+// pytest covers the real render and test runs, and the GPU ones need the device.
 import { test, expect } from "@playwright/test";
 import { JOB_ID, openStudio } from "./helpers.mjs";
 
@@ -127,6 +126,47 @@ test("an export redone on the CPU and a failed one say so", async ({ page }) => 
   await dialog.getByRole("button", { name: "Export" }).click();
   await expect(dialog).toContainText("The video couldn't be made.", { timeout: 15000 });
   await expect(dialog.getByRole("button", { name: "Open Settings" })).toBeVisible();
+});
+
+test("the export plays what review plays: I play changed in Film goes with it", async ({ page }) => {
+  await stubFilmedTake(page);
+  await stubEncoders(page);
+  const done = { status: "done", progress: 1, url: `${TAKES_URL}/${TAKE_ID}/render.mp4`, encoder: "h264_nvenc", family: "nvidia", fallback_reason: null };
+  const posted = await stubRender(page, done);
+  await openStudio(page);
+  await openReview(page);
+  await page.locator('.film-stem[data-stem="bass"]').click();
+  await expect(page.locator('.film-stem[data-stem="bass"]')).toHaveAttribute("aria-pressed", "true");
+  await page.locator("#filmExportBtn").click();
+  await page.getByRole("dialog", { name: "Export video" }).getByRole("button", { name: "Export" }).click();
+  await expect.poll(() => posted.length).toBe(1);
+  expect([...posted[0].i_play].sort()).toEqual(["bass", "drums"]);
+});
+
+test("a server that can't render MP4 says so in review", async ({ page }) => {
+  await stubFilmedTake(page);
+  await stubEncoders(page, { ...ENCODERS, render_available: false });
+  await openStudio(page);
+  await page.locator("#filmBtn").click();
+  await page.locator("#filmTakeRow .film-take").click();
+  await expect(page.locator("#filmNote")).toHaveText("Export MP4 isn't available: the FFmpeg StemDeck uses can't make H.264 video.");
+  await expect(page.locator("#filmExportBtn")).toBeDisabled();
+});
+
+test("an export the server stops answering about can be closed", async ({ page }) => {
+  await stubFilmedTake(page);
+  await stubEncoders(page);
+  await page.route(`**${RENDER_URL}`, (route) => (route.request().method() === "POST"
+    ? route.fulfill({ status: 202, json: { status: "running", progress: 0.1 } })
+    : route.fulfill({ status: 500, json: { detail: "down" } })));
+  await openStudio(page);
+  await openReview(page);
+  await page.locator("#filmExportBtn").click();
+  const dialog = page.getByRole("dialog", { name: "Export video" });
+  await dialog.getByRole("button", { name: "Export" }).click();
+  await expect(dialog).toContainText("StemDeck stopped answering.", { timeout: 15000 });
+  await dialog.getByRole("button", { name: "Close", exact: true }).first().click();
+  await expect(dialog).toBeHidden();
 });
 
 test("Settings > Export picks the encoder and tests them", async ({ page }) => {

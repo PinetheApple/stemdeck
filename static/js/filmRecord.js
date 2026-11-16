@@ -2,17 +2,15 @@
 // input armed, and a take that carries the camera beside the sound.
 
 import { t } from "./i18n.js";
-import { audioEngine, currentJobId, metronomeCountInBars } from "./state.js";
-import { playWithCountIn } from "./transport.js";
+import { audioEngine, currentJobId } from "./state.js";
 import { armTrack, armedTrack, disarm } from "./recorderArm.js";
 import { recordBlock, recordingTake, toggleRecording } from "./recorder.js";
 import { createVideoTrack } from "./takesActions.js";
 import { patchTrack } from "./takesApi.js";
 import { nextName } from "./takesState.js";
-import { TAKES_CHANGED_EVENT } from "./takes.js";
+import { TAKES_CHANGED_EVENT, countIn } from "./takes.js";
 import { createCameraTake } from "./filmCameraTake.js";
 
-const COUNT_IN_MIN_BARS = 1;
 // Armed before the Video track exists, so the meter runs from the start.
 const NO_TRACK_YET = Object.freeze({ id: null, input: null });
 
@@ -28,8 +26,18 @@ export function armForFilm(jobId, track) {
   return armTrack(jobId, track ?? NO_TRACK_YET);
 }
 
-export function disarmFilm() {
-  if (!recordingTake()) disarm();
+/** The studio's arm before Film took the input, to give back on close. */
+export function rememberArm() {
+  const arm = armedTrack();
+  return arm?.trackId ? { jobId: arm.jobId, trackId: arm.trackId } : null;
+}
+
+/** Arm the studio's track again, if it is still on the open song; else leave nothing armed. */
+export function restoreArm(previous, listing) {
+  if (recordingTake()) return;
+  const track = previous?.jobId === currentJobId ? listing.tracks.find((entry) => entry.id === previous.trackId) : null;
+  if (track) armForFilm(previous.jobId, track);
+  else disarm();
 }
 
 /** The Video track to record on, made now when the song has none. */
@@ -54,10 +62,6 @@ export async function saveIPlay(film) {
 function takeLabel(film) {
   const own = film.listing.takes.filter((entry) => entry.track_id === film.track.id).map((entry) => entry.label);
   return nextName(own, (n) => t("rec.takeDefault", { n }));
-}
-
-function countIn() {
-  playWithCountIn(Math.max(COUNT_IN_MIN_BARS, metronomeCountInBars));
 }
 
 function cameraFor(film) {

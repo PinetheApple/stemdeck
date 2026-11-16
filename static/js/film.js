@@ -1,18 +1,19 @@
-// Film: a Stage variant over the lanes to film yourself playing along. Opening
-// it puts the studio's panes away (film.css) and closing it brings them back
-// untouched; only one of Film and Stage is ever open.
+// Film puts the studio's panes away (film.css) and gives them back untouched,
+// its arm included; it never opens over a take the studio is recording.
 
 import { t, onLanguageChange } from "./i18n.js";
 import { currentJobId, totalDuration } from "./state.js";
+import { $ } from "./utils.js";
 import { togglePlayPause, stopTransport, transport, setPlayheadTime } from "./transport.js";
 import { isModalOpen, isStageMode, setStageMode } from "./stageMode.js";
 import { getCurrentTrackInfo, isTextEditingTarget } from "./catalog.js";
+import { WAVE_PEAKS_EVENT, getWavePeaks } from "./player.js";
 import { refitFooter } from "./footerFit.js";
 import { HTTP_NOT_FOUND, HttpError } from "./libraryControls.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { listTakes, fetchTakePeaks } from "./takesApi.js";
 import { FILM_OPEN_EVENT, openRecordingSettings } from "./takesActions.js";
-import { TAKES_CHANGED_EVENT } from "./takes.js";
+import { EMPTY_LISTING, TAKES_CHANGED_EVENT, livePeaks } from "./takes.js";
 import { TRACK_KIND_VIDEO } from "./takesState.js";
 import { armedLevel, armedTrack } from "./recorderArm.js";
 import {
@@ -21,19 +22,14 @@ import {
 import { closeCamera, cameraLabel, filmSupportHere, openCamera } from "./filmCamera.js";
 import { filmPrefs, loadFilmPrefs } from "./filmPrefs.js";
 import { readEncoders, patchTake } from "./filmApi.js";
-import { mergePeaks } from "./filmTiming.js";
 import { applyIPlay, releaseIPlay, renderIPlay, toggledIPlay } from "./filmIPlay.js";
-import { armForFilm, disarmFilm, saveIPlay, toggleFilmRecording } from "./filmRecord.js";
+import { armForFilm, rememberArm, restoreArm, saveIPlay, toggleFilmRecording } from "./filmRecord.js";
 import { paintTimeline, renderTimeline } from "./filmTimeline.js";
 import { loadReview, syncReview } from "./filmReview.js";
 import { paintBadges, paintDevices, paintMeter, paintNote, paintProblem, wireFilmPanel } from "./filmPanel.js";
 import { openVideoExport } from "./videoExport.js";
 
 const MODE_CLASS = "film-mode";
-const LIVE_BARS_MAX = 200;
-const EMPTY_LISTING = Object.freeze({ tracks: [], takes: [], open: [] });
-
-const $ = (id) => document.getElementById(id);
 
 const film = {
   open: false,
@@ -42,7 +38,7 @@ const film = {
   track: null,
   iPlay: [],
   reviewId: null,
-  songPeaks: [],
+  previousArm: null,
   takePeaks: new Map(),
   stream: null,
   cameraLabel: "",
@@ -82,16 +78,6 @@ async function readListing(jobId) {
   }
 }
 
-async function readSongPeaks(jobId) {
-  try {
-    const res = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/peaks`);
-    return res.ok ? mergePeaks(await res.json()) : [];
-  } catch (err) {
-    console.warn("[film] song peaks could not load:", err);
-    return [];
-  }
-}
-
 async function loadTakePeaks() {
   const missing = trackTakes().filter((entry) => !film.takePeaks.has(entry.id));
   await Promise.all(missing.map(async function peaksFor(entry) {
@@ -105,10 +91,6 @@ async function loadSong(trackId) {
   film.listing = await readListing(jobId);
   film.track = videoTrackOf(film.listing, trackId ?? film.track?.id);
   film.iPlay = film.track?.i_play ?? film.iPlay;
-  if (!film.songPeaks.length || film.peaksJob !== jobId) {
-    film.songPeaks = await readSongPeaks(jobId);
-    film.peaksJob = jobId;
-  }
   await loadTakePeaks();
 }
 
@@ -124,7 +106,7 @@ function render() {
   renderIPlay(film.iPlay, onStemToggle);
   renderTimeline({
     songSec: totalDuration,
-    songPeaks: film.songPeaks,
+    songPeaks: getWavePeaks() ?? [],
     take: take ?? trackTakes().at(-1) ?? null,
     takePeaks: film.takePeaks.get((take ?? trackTakes().at(-1))?.id) ?? [],
     trim: take?.trim ?? null,
@@ -135,8 +117,14 @@ function render() {
   });
   paintProblem(film.problem, film.encoders?.os ?? null);
   paintDevices({ cameraName: film.stream ? film.cameraLabel : "", micName: armedTrack()?.info?.label ?? "" });
-  paintNote(take?.camera_dropped ? t("film.pictureDropped") : "");
+  paintNote(noteFor(take));
   paintSong();
+}
+
+function noteFor(take) {
+  if (take?.camera_dropped) return t("film.pictureDropped");
+  if (take?.has_camera && film.encoders?.render_available === false) return t("film.renderUnavailable");
+  return "";
 }
 
 async function startCamera() {
@@ -164,9 +152,10 @@ async function startCamera() {
 }
 
 async function openFilm(trackId = null) {
-  if (film.open || !currentJobId) return;
+  if (film.open || !currentJobId || recordingTake()) return;
   if (isStageMode()) setStageMode(false);
   film.open = true;
+  film.previousArm = rememberArm();
   film.preview = $("filmCameraVideo");
   document.querySelector(".app")?.classList.add(MODE_CLASS);
   $("filmView").hidden = false;
@@ -194,11 +183,11 @@ async function closeFilm() {
   if (!film.open) return;
   film.open = false;
   cancelAnimationFrame(film.frameId);
+  // Film never opens over a studio take, so a take running now is Film's own.
   const stopping = recordingTake() ? stopTake(STOP_REASON.user) : null;
   releaseIPlay();
-  disarmFilm();
-  stopping?.then(function disarmAfterTake() {
-    if (!film.open) disarmFilm();
+  Promise.resolve(stopping).then(function giveArmBack() {
+    if (!film.open) restoreArm(film.previousArm, film.listing);
   });
   closeCamera(film.stream);
   film.stream = null;
@@ -239,11 +228,6 @@ function paintPreviewMode(take, review) {
   return reviewing;
 }
 
-function liveClip(take, nowSec) {
-  const step = Math.max(1, Math.ceil(take.peaks.length / LIVE_BARS_MAX));
-  return { startSec: take.startSec, nowSec, peaks: take.peaks.filter((_, i) => i % step === 0) };
-}
-
 function frame() {
   if (!film.open) return;
   film.frameId = requestAnimationFrame(frame);
@@ -257,7 +241,7 @@ function frame() {
   }
   paintMeter(armedTrack() ? armedLevel() : 0);
   paintBadges({ recSec: take ? takeElapsedSec() : null, takeLabel: review?.label, nowSec, songSec: totalDuration });
-  paintTimeline({ nowSec, songSec: totalDuration, live: take ? liveClip(take, nowSec) : null });
+  paintTimeline({ nowSec, songSec: totalDuration, live: take ? { startSec: take.startSec, nowSec, peaks: livePeaks(take) } : null });
   paintRecord(take);
   $("filmPlayBtn")?.classList.toggle("playing", playing());
   $("filmExportBtn").disabled = Boolean(take) || !review?.has_camera || film.encoders?.render_available === false;
@@ -298,7 +282,13 @@ async function onFilmRecordClick() {
 function onFilmExportClick() {
   const take = reviewTake();
   if (!take) return;
-  openVideoExport({ jobId: film.jobId, trackId: film.track.id, take, title: getCurrentTrackInfo()?.displayTitle ?? "" });
+  openVideoExport({
+    jobId: film.jobId,
+    trackId: film.track.id,
+    take,
+    iPlay: film.iPlay,
+    title: getCurrentTrackInfo()?.displayTitle ?? "",
+  });
 }
 
 async function refreshFilm(reviewId = film.reviewId) {
@@ -309,6 +299,7 @@ async function refreshFilm(reviewId = film.reviewId) {
 }
 
 function onFilmRecorderEvent(event) {
+  if (!film.open) $("filmBtn").disabled = Boolean(recordingTake());
   if (!film.open || event.type === "change" || event.jobId !== film.jobId) return;
   refreshFilm(event.type === "finished" ? event.takeId : null);
 }
@@ -365,6 +356,7 @@ function init() {
     refreshFilm();
   });
   onRecorderEvent(onFilmRecorderEvent);
+  document.addEventListener(WAVE_PEAKS_EVENT, render);
   onLanguageChange(render);
 }
 

@@ -10,7 +10,6 @@ import {
   TRIM_MIN_SEC,
   cameraTiming,
   dragTrim,
-  mergePeaks,
   perfToCtxSec,
   secAtFraction,
   songFraction,
@@ -87,13 +86,6 @@ check(
   "a span shorter than the minimum cannot be trimmed",
   dragTrim({ span: { start_sec: 10, end_sec: 10.5 }, trim: null, edge: "in", sec: 10.2 }) === null,
 );
-
-{
-  const merged = mergePeaks({ drums: [[-0.2, 0.5], [-0.1, 0.1]], bass: [[-0.6, 0.3]] });
-  check("the song's peaks are the loudest stem at each point", JSON.stringify(merged) === JSON.stringify([[-0.6, 0.6], [-0.1, 0.1]]), JSON.stringify(merged));
-  check("the original stands for the song when there is one", mergePeaks({ original: [[-1, 1]], drums: [[0, 0]] })[0][1] === 1);
-  check("no peaks", mergePeaks(null).length === 0);
-}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

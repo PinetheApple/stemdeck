@@ -6,9 +6,10 @@
 import {
   DEFAULT_EXPORT_PREFS,
   EXPORT_PHASE,
-  encoderLabel,
+  RENDER_ERROR,
   exportPrefs,
   exportState,
+  failedView,
   minutesLeft,
   renderBody,
   videoFilename,
@@ -34,14 +35,15 @@ check("nothing stored", same(exportPrefs(null), DEFAULT_EXPORT_PREFS));
 
 {
   const lanes = { names: ["vocals", "drums", "trk_video"], gains: [1, 0.5, 1], pitches: [0, 0, 0] };
-  const body = renderBody({ lanes, takeTrackId: "trk_video", prefs: { size: "720", fps: 24 } });
+  const body = renderBody({ lanes, takeTrackId: "trk_video", prefs: { size: "720", fps: 24 }, iPlay: ["drums"] });
   check("the take's own track is left out of the backing", same(body.stems, ["vocals", "drums"]) && same(body.gains, [1, 0.5]), JSON.stringify(body));
   check("size and fps go as asked", body.size === "720" && body.fps === 24);
   check("no pitch list when nothing is transposed", !("pitches" in body));
+  check("the stems the player plays go with it", same(body.i_play, ["drums"]));
 }
 {
   const lanes = { names: ["bass"], gains: [1], pitches: [2] };
-  check("a transposed lane sends its pitch", same(renderBody({ lanes, takeTrackId: "x", prefs: DEFAULT_EXPORT_PREFS }).pitches, [2]));
+  check("a transposed lane sends its pitch", same(renderBody({ lanes, takeTrackId: "x", prefs: DEFAULT_EXPORT_PREFS, iPlay: [] }).pitches, [2]));
 }
 
 check("idle before any render", exportState({ status: "none" }).phase === EXPORT_PHASE.options);
@@ -62,9 +64,11 @@ check("a full disk has its own words", exportState({ status: "error", error: "di
 check("any other error fails", exportState({ status: "error", error: "timeout" }).phase === EXPORT_PHASE.failed);
 check("a cancelled render goes back to the options", exportState({ status: "cancelled" }).phase === EXPORT_PHASE.options);
 
-check("encoder labels", encoderLabel("h264_vaapi") === "VAAPI" && encoderLabel("h264_videotoolbox") === "VideoToolbox");
-check("an unknown encoder shows as it is", encoderLabel("h264_foo") === "h264_foo");
-check("libx264 is the CPU", encoderLabel("libx264") === "CPU");
+{
+  const state = exportState(failedView(RENDER_ERROR.noAnswer));
+  check("a server that stopped answering fails with its own words", state.phase === EXPORT_PHASE.failed && state.noAnswer && !state.diskFull);
+}
+check("a render that could not start fails plainly", !exportState(failedView(RENDER_ERROR.failed)).noAnswer);
 
 check("no estimate before any progress", minutesLeft(0, 5000) === null);
 check("about one minute left at 50% after a minute", minutesLeft(0.5, 60_000) === 1);

@@ -1,5 +1,5 @@
-// The filmed-take export, pure: the render request, the dialog state for each
-// render view (docs/takes.md "Video export"), and the names it shows.
+import { PERCENT } from "./stageModel.js";
+import { CPU_ENCODER, encoderName } from "./videoEncoderModel.js";
 
 export const RENDER_SIZES = ["720", "1080"];
 export const RENDER_FPS = [24, 30, 60];
@@ -13,27 +13,37 @@ export const EXPORT_PHASE = {
   failed: "failed",
 };
 
+export const RENDER_STATUS = {
+  none: "none",
+  cancelled: "cancelled",
+  queued: "queued",
+  running: "running",
+  done: "done",
+  error: "error",
+};
+
+export const RENDER_ERROR = {
+  diskFull: "disk-full",
+  failed: "failed",
+  // The dialog's own: the server stopped answering the progress reads.
+  noAnswer: "no-answer",
+};
+
 const STATUS_PHASE = {
-  none: EXPORT_PHASE.options,
-  cancelled: EXPORT_PHASE.options,
-  queued: EXPORT_PHASE.waiting,
-  running: EXPORT_PHASE.running,
-  done: EXPORT_PHASE.done,
-  error: EXPORT_PHASE.failed,
+  [RENDER_STATUS.none]: EXPORT_PHASE.options,
+  [RENDER_STATUS.cancelled]: EXPORT_PHASE.options,
+  [RENDER_STATUS.queued]: EXPORT_PHASE.waiting,
+  [RENDER_STATUS.running]: EXPORT_PHASE.running,
+  [RENDER_STATUS.done]: EXPORT_PHASE.done,
+  [RENDER_STATUS.error]: EXPORT_PHASE.failed,
 };
-const ERROR_DISK_FULL = "disk-full";
-const CPU_ENCODER = "libx264";
-const ENCODER_LABELS = {
-  h264_nvenc: "NVENC",
-  h264_vaapi: "VAAPI",
-  h264_qsv: "QSV",
-  h264_amf: "AMF",
-  h264_videotoolbox: "VideoToolbox",
-  [CPU_ENCODER]: "CPU",
-};
-const PERCENT = 100;
 const MS_PER_MIN = 60_000;
 const FILE_NAME_MAX = 80;
+
+/** A render view that failed with `error`, one of RENDER_ERROR. */
+export function failedView(error) {
+  return { status: RENDER_STATUS.error, error };
+}
 
 /** Stored size and fps, each falling back on its own when the server would refuse it. */
 export function exportPrefs(stored) {
@@ -42,12 +52,13 @@ export function exportPrefs(stored) {
   return { size, fps };
 }
 
-/** RenderBody from the export mix's lanes, without the filmed take's own track. */
-export function renderBody({ lanes, takeTrackId, prefs }) {
+/** RenderBody from the export mix's lanes, without the filmed take's own track, and the stems the player plays. */
+export function renderBody({ lanes, takeTrackId, prefs, iPlay }) {
   const keep = lanes.names.map((name, i) => i).filter((i) => lanes.names[i] !== takeTrackId);
   const body = {
     stems: keep.map((i) => lanes.names[i]),
     gains: keep.map((i) => lanes.gains[i]),
+    i_play: [...iPlay],
     size: prefs.size,
     fps: prefs.fps,
   };
@@ -56,19 +67,19 @@ export function renderBody({ lanes, takeTrackId, prefs }) {
   return body;
 }
 
-export function encoderLabel(encoder) {
-  return ENCODER_LABELS[encoder] ?? encoder;
-}
-
 /** What the dialog shows for a render view. */
 export function exportState(view) {
   const phase = STATUS_PHASE[view?.status] ?? EXPORT_PHASE.options;
+  const progress = view?.progress ?? 0;
+  const failedWith = (error) => phase === EXPORT_PHASE.failed && view?.error === error;
   return {
     phase,
-    percent: Math.round((view?.progress ?? 0) * PERCENT),
-    encoder: view?.encoder ? encoderLabel(view.encoder) : null,
+    progress,
+    percent: Math.round(progress * PERCENT),
+    encoder: view?.encoder ? encoderName(view.encoder) : null,
     cpuFallback: view?.encoder === CPU_ENCODER && Boolean(view?.fallback_reason),
-    diskFull: phase === EXPORT_PHASE.failed && view?.error === ERROR_DISK_FULL,
+    diskFull: failedWith(RENDER_ERROR.diskFull),
+    noAnswer: failedWith(RENDER_ERROR.noAnswer),
   };
 }
 
