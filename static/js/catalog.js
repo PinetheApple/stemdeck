@@ -38,7 +38,9 @@ import { KEYBOARD_FOCUS, ON_ROW, OUT_OF_TAB_ORDER, ROW_KEY, ROW_PLAY_CLASS, isSh
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
 import { openFolderMenu } from "./folderMenu.js";
-import { HTTP_NOT_FOUND, fetchJson, isNotFound } from "./libraryControls.js";
+import { HTTP_NOT_FOUND, SETLIST_MAX_SONGS, SHOWN_FOCUS, fetchJson, isNotFound } from "./libraryControls.js";
+import { MAX_FOLDER_NAME_LEN, folderNameFrom, isValidFolderName, uniqueName } from "./listNames.js";
+import { createSetlistFromFolder } from "./setlists.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 import { FOLDER_MOVING_KEY, isFolderMovingError, noticeKey, refusedForFolderMove } from "./folderMoving.js";
 import { lookupArtist } from "./artistLookup.js";
@@ -1796,13 +1798,6 @@ function folderHeadEl(folderId) {
   return folderId ? document.querySelector(`#catalogList .folder[data-id="${CSS.escape(folderId)}"] > ${FOLDER_ROW_SELECTOR}`) : null;
 }
 
-// Folder names accept letters (any language), digits, spaces, and a small safe
-// punctuation set — markup/symbols are rejected so names like the XSS probe or
-// "±!@£$%^&*" can't be created (#170 follow-up).
-const FOLDER_NAME_RE = /^[\p{L}\p{M}\p{N} '’&().,_-]+$/u;
-const MAX_FOLDER_NAME_LEN = 100;
-const isValidFolderName = (s) => FOLDER_NAME_RE.test(s);
-
 /** Why `name` can't be a folder name, or "" when it can. */
 function folderNameError(name) {
   if (!name) return i18nT("folderEditor.emptyError");
@@ -2887,6 +2882,58 @@ function armFolderDelete(button, folderId) {
   });
 }
 
+/** The folder's songs, then each subfolder's, in the order the tree shows them. */
+function songsInFolderTree(folderId) {
+  const own = (folders.find((f) => f.id === folderId)?.items ?? []).filter((id) => tracks[id]);
+  return [...own, ...childFoldersOf(folderId).flatMap((child) => songsInFolderTree(child.id))];
+}
+
+let tooManySongsFolderId = null;
+
+function tooManySongsError() {
+  const error = document.createElement("p");
+  error.className = "folder-error";
+  error.setAttribute("role", "alert");
+  error.textContent = i18nT("folder.tooManyForSetlist", { max: SETLIST_MAX_SONGS });
+  return error;
+}
+
+// Removed in place: a redraw here would take away the … button the menu opens from.
+function clearTooManySongs() {
+  tooManySongsFolderId = null;
+  document.querySelector("#catalogList .folder-error")?.remove();
+}
+
+function makeSetlistFromFolder(folder) {
+  const songIds = songsInFolderTree(folder.id);
+  if (songIds.length <= SETLIST_MAX_SONGS) {
+    createSetlistFromFolder(folder.name, songIds);
+    return;
+  }
+  tooManySongsFolderId = folder.id;
+  render();
+  focusFolderRow(folder.id);
+}
+
+function focusFolderRow(folderId) {
+  const head = folderHeadEl(folderId);
+  if (head) libraryRows?.focusRow(head, ON_ROW, SHOWN_FOCUS);
+}
+
+/** A new folder named after a setlist, holding its songs that are out of the Trash, focused. */
+export function makeFolderFromSetlist(setlistName, songIds) {
+  const taken = folders.filter((f) => f.id !== TRASH_ID).map(folderDisplayName);
+  const base = folderNameFrom(setlistName, i18nT(NEW_FOLDER_TITLE_KEY));
+  const folder = makeFolder({ name: uniqueName(base, taken, MAX_FOLDER_NAME_LEN) });
+  folders.push(folder);
+  for (const id of songIds) {
+    if (tracks[id] && !isInTrash(id)) placeTrackInFolder(folder.id, id);
+  }
+  saveState();
+  render();
+  focusFolderRow(folder.id);
+}
+
 const RENAME_FOLDER_KEY = "F2";
 
 /** A user folder's F2 rename and its … menu; Delete in the menu arms the … button. */
@@ -2900,18 +2947,25 @@ function wireFolderControls(head, folderEl, folder) {
   head.querySelector(".f-more").addEventListener("click", function onFolderMoreClick(e) {
     e.stopPropagation();
     const button = e.currentTarget;
+    clearTooManySongs();
     if (isArmed(button)) {
       armFolderDelete(button, folder.id);
       return;
     }
-    openFolderMenu(button, folderDisplayName(folder), {
-      rename: renameFolder,
-      addSubfolder: function onAddSubfolderFromMenu() { addSubfolder(folder, folderEl); },
-      remove: function onArmDeleteFromMenu() {
-        armFolderDelete(button, folder.id);
-        button.focus();
+    openFolderMenu(
+      button,
+      folderDisplayName(folder),
+      {
+        rename: renameFolder,
+        addSubfolder: function onAddSubfolderFromMenu() { addSubfolder(folder, folderEl); },
+        makeSetlist: function onMakeSetlistFromMenu() { makeSetlistFromFolder(folder); },
+        remove: function onArmDeleteFromMenu() {
+          armFolderDelete(button, folder.id);
+          button.focus();
+        },
       },
-    });
+      { canMakeSetlist: songsInFolderTree(folder.id).length > 0 },
+    );
   });
 }
 
@@ -2977,6 +3031,7 @@ function renderFolder(folder) {
   }
 
   el.append(head, body);
+  if (folder.id === tooManySongsFolderId) head.after(tooManySongsError());
 
   let folderClickTimer = null;
 

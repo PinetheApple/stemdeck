@@ -1,13 +1,24 @@
 // Setlists: named, ordered lists of library songs kept on the server
 // (/api/setlists), shown in the library pane's Setlists tab. Up Next stays client-side.
 
-import { TRASH_CHANGE_EVENT, getCurrentTrackInfo, getLibraryTrack, getTrackNames, isInTrash, isPlayableTrack, loadTrackIntoStudio, showLibraryView } from "./catalog.js";
+import {
+  TRASH_CHANGE_EVENT,
+  getCurrentTrackInfo,
+  getLibraryTrack,
+  getTrackNames,
+  isInTrash,
+  isPlayableTrack,
+  loadTrackIntoStudio,
+  makeFolderFromSetlist,
+  showLibraryView,
+} from "./catalog.js";
 import { getNowAndUpNextIds, playSongs } from "./upNext.js";
 import { t, plural, onLanguageChange } from "./i18n.js";
 import {
   HTTP_NOT_FOUND,
   HttpError,
   SETLIST_NAME_MAX_CHARS,
+  SHOWN_FOCUS,
   fetchJson,
   iconButton,
   isNotFound,
@@ -17,7 +28,8 @@ import {
 import { $ } from "./utils.js";
 import { FOLDER_MOVING_KEY, isFolderMovingError } from "./folderMoving.js";
 import { ARM_MS } from "./armConfirm.js";
-import { OUT_OF_TAB_ORDER, ROW_PLAY_CLASS, wireRovingRows } from "./rovingRows.js";
+import { ON_ROW, OUT_OF_TAB_ORDER, ROW_PLAY_CLASS, wireRovingRows } from "./rovingRows.js";
+import { uniqueName } from "./listNames.js";
 
 const SETLISTS_URL = "/api/setlists";
 const SETLIST_SELECTOR = ".setlist";
@@ -34,6 +46,7 @@ let renamingSetlistId = null;
 let armedDeleteId = null;
 let armTimer = 0;
 let setlistRows = null;
+let focusSetlistId = null;
 
 // ─── Server ───
 
@@ -120,12 +133,14 @@ function deleteSetlist(id) {
   });
 }
 
+async function postSetlist(name, songIds) {
+  const created = await fetchJson(SETLISTS_URL, { method: "POST", body: { name, song_ids: songIds } });
+  setlists = [...setlists, created];
+  return created;
+}
+
 function createSetlist(name, songIds = []) {
-  return attempt(async () => {
-    const created = await fetchJson(SETLISTS_URL, { method: "POST", body: { name, song_ids: songIds } });
-    setlists = [...setlists, created];
-    return created;
-  });
+  return attempt(() => postSetlist(name, songIds));
 }
 
 // ─── Used by the track menu and Up Next ───
@@ -171,6 +186,22 @@ export async function createSetlistFrom(trackIds) {
   showTab("setlists");
 }
 
+/**
+ * A setlist of a folder's songs, under the folder's name or a free one, shown focused.
+ * The tab opens without reloading, so a failure stays said in the pane.
+ */
+export async function createSetlistFromFolder(folderName, songIds) {
+  const created = await attempt(async () => {
+    await fetchSetlists();
+    const name = uniqueName(folderName, setlists.map((setlist) => setlist.name), SETLIST_NAME_MAX_CHARS);
+    return postSetlist(name, songIds);
+  });
+  focusSetlistId = created?.id ?? null;
+  showLibraryView();
+  selectTab("setlists");
+  render();
+}
+
 function flashSetlistsTab() {
   const tabEl = $("libTabSetlists");
   if (!tabEl) return;
@@ -181,7 +212,7 @@ function flashSetlistsTab() {
 
 // ─── Tabs ───
 
-function showTab(next) {
+function selectTab(next) {
   tab = next === "setlists" ? "setlists" : "songs";
   $("catalogPanel")?.classList.toggle("setlists-view", tab === "setlists");
   for (const [id, name] of [["libTabSongs", "songs"], ["libTabSetlists", "setlists"]]) {
@@ -189,6 +220,10 @@ function showTab(next) {
     el?.setAttribute("aria-selected", String(tab === name));
     if (el) el.tabIndex = tab === name ? 0 : -1;
   }
+}
+
+function showTab(next) {
+  selectTab(next);
   if (tab === "setlists") loadSetlists();
 }
 
@@ -339,6 +374,17 @@ function deleteButton(setlist) {
   return el;
 }
 
+function makeFolderButton(setlist) {
+  const el = iconButton("setlist-icon-btn setlist-make-folder", "folderPlus", {
+    label: t("setlists.makeFolderTitle", { name: setlist.name }),
+  });
+  el.addEventListener("click", function onMakeFolderFromSetlist() {
+    showTab("songs");
+    makeFolderFromSetlist(setlist.name, setlist.song_ids);
+  });
+  return el;
+}
+
 function setlistHead(setlist) {
   const head = document.createElement("div");
   head.className = "setlist-head";
@@ -386,7 +432,7 @@ function setlistHead(setlist) {
   });
   const tools = document.createElement("span");
   tools.className = "setlist-tools";
-  tools.append(rename, deleteButton(setlist));
+  tools.append(rename, makeFolderButton(setlist), deleteButton(setlist));
   head.append(name, play, count, tools);
   return head;
 }
@@ -453,6 +499,13 @@ function firstSetlistSong(rows) {
   return rows.find((row) => row.matches(SETLIST_SONG));
 }
 
+function focusMadeSetlist(list) {
+  if (!focusSetlistId) return;
+  const head = list.querySelector(`${SETLIST_SELECTOR}[data-id="${CSS.escape(focusSetlistId)}"] > ${SETLIST_HEAD}`);
+  focusSetlistId = null;
+  if (head) setlistRows?.focusRow(head, ON_ROW, SHOWN_FOCUS);
+}
+
 function render() {
   const count = $("setlistsCount");
   if (count) count.textContent = String(setlists.length);
@@ -463,6 +516,7 @@ function render() {
   const saved = setlistRows?.remember();
   list.replaceChildren(...groups);
   setlistRows?.restore(saved);
+  focusMadeSetlist(list);
   const empty = $("setlistsEmpty");
   if (empty) empty.hidden = Boolean(setlists.length) || creating;
   const newBtn = $("setlistNewBtn");
