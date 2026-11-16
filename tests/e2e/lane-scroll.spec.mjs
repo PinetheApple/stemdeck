@@ -15,6 +15,8 @@ const WHEEL_STEPS = 6;
 const ZOOM_IN_DELTA = -240;
 const ZOOM_IN_STEPS = 4;
 const ALIGN_TOLERANCE_PX = 2;
+const ENGINE_PREF_KEY = "stemdeck.audioEngine";
+const STREAMING_ENGINE = "0";
 
 // Headless Chromium hides scrollbars by default; the bar this is about must exist.
 test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
@@ -81,6 +83,10 @@ async function openSixStemStudio(page, viewport) {
   await openStudio(page);
   const playableRows = page.locator(".mixer-column .lane-header:not(.hidden):not(.unavailable)");
   await expect(playableRows).toHaveCount(STEM_COUNT);
+}
+
+async function openAlignedSixStemStudio(page, viewport) {
+  await openSixStemStudio(page, viewport);
   await expect.poll(async () => aligned(await laneGeometry(page))).toBe(true);
 }
 
@@ -98,7 +104,7 @@ async function zoomInOnWaves(page) {
 
 test.describe("lanes beside a waveform pane with a horizontal scrollbar", () => {
   test("on a short window the last lane scrolls fully into view beside its mixer row", async ({ page }) => {
-    await openSixStemStudio(page, SHORT_WINDOW);
+    await openAlignedSixStemStudio(page, SHORT_WINDOW);
     expect((await laneGeometry(page)).wavesScrollX).toBe(true);
 
     await wheelMixerToBottom(page);
@@ -107,26 +113,42 @@ test.describe("lanes beside a waveform pane with a horizontal scrollbar", () => 
   });
 
   test("a window tall enough for every lane scrolls neither column", async ({ page }) => {
-    await openSixStemStudio(page, TALL_WIDE_WINDOW);
+    await openAlignedSixStemStudio(page, TALL_WIDE_WINDOW);
     const g = await laneGeometry(page);
     expect(g.wavesScrollX).toBe(false);
     expect(g.overflow).toEqual([0, 0]);
   });
 
   test("with no horizontal scrollbar the lanes divide the whole panel", async ({ page }) => {
-    await openSixStemStudio(page, TALL_WIDE_WINDOW);
+    await openAlignedSixStemStudio(page, TALL_WIDE_WINDOW);
     const g = await laneGeometry(page);
     expect(g.wavesScrollX).toBe(false);
     expect(g.laneHeight).toBe(Math.floor(g.panelHeight / STEM_COUNT));
   });
 
   test("zooming in on a tall window keeps every lane in view and in line", async ({ page }) => {
-    await openSixStemStudio(page, TALL_WIDE_WINDOW);
+    await openAlignedSixStemStudio(page, TALL_WIDE_WINDOW);
 
     await zoomInOnWaves(page);
     await expect.poll(async () => {
       const g = await laneGeometry(page);
       return { scrollX: g.wavesScrollX, overflow: g.overflow, aligned: aligned(g) };
     }).toEqual({ scrollX: true, overflow: [0, 0], aligned: true });
+  });
+
+  test("on the streaming path, zooming in pads the mixer for the new scrollbar", async ({ page }) => {
+    await page.addInitScript(
+      ([key, value]) => window.localStorage.setItem(key, value),
+      [ENGINE_PREF_KEY, STREAMING_ENGINE],
+    );
+    await openSixStemStudio(page, TALL_WIDE_WINDOW);
+
+    await zoomInOnWaves(page);
+    // Streaming lanes keep their load-time height, so the bar makes the waveforms
+    // scroll; the mixer has to scroll exactly as far.
+    await expect.poll(async () => {
+      const g = await laneGeometry(page);
+      return { scrollX: g.wavesScrollX, sameReach: g.overflow[0] === g.overflow[1] };
+    }).toEqual({ scrollX: true, sameReach: true });
   });
 });
