@@ -18,6 +18,7 @@ from app.core.config import (
     STEM_NAMES,
     TEMP_MIN_AGE_SECONDS,
     TIMEOUT_FFMPEG,
+    UPLOAD_EXTS,
     ffmpeg_executable,
 )
 from app.core.models import FINISHED_STATUSES, STATUS_STOPPED, VOCAL_SPLIT_RUNNING, Job
@@ -34,6 +35,10 @@ from app.pipeline.lyrics_retime import RETIME_RUNS
 from app.pipeline.transcribe_on_demand import TRANSCRIBE_RUNS
 
 logger = logging.getLogger("stemdeck.collect")
+
+# A link download's container -> the one its audio is kept in as the song's
+# source. YouTube's webm carries Opus, which an .opus file holds as is.
+LINK_SOURCE_REMUX = {".webm": ".opus"}
 
 
 def _rmtree(path: Path) -> None:
@@ -79,14 +84,14 @@ def _run_ffmpeg(job: Job, cmd: list[str]) -> bool:
         set_proc(job.id, None)
 
 
-def _write_wav(job: Job, cmd: list[str], out: Path) -> Path | None:
-    """Run `cmd` with a WAV output at the dot temp name `.<name>.<hex>.tmp`
+def _write_atomic(job: Job, cmd: list[str], out: Path, muxer: str) -> Path | None:
+    """Run `cmd` with a `muxer` output at the dot temp name `.<name>.<hex>.tmp`
     beside `out`, renamed to `out` only once ffmpeg succeeded. A kill mid-write
     then leaves a temp file, never an `out` that a rebuild takes for a whole
-    stem (upstream PR 898)."""
+    stem or source (upstream PR 898)."""
     tmp = out.with_name(f".{out.name}.{uuid.uuid4().hex}.tmp")
     try:
-        if not _run_ffmpeg(job, [*cmd, "-f", "wav", str(tmp)]):
+        if not _run_ffmpeg(job, [*cmd, "-f", muxer, str(tmp)]):
             return None
         os.replace(tmp, out)
         return out
@@ -124,10 +129,9 @@ _TERMINAL = FINISHED_STATUSES
 
 def collect(job: Job, stems_root: Path, job_dir: Path) -> list[str]:
     """Move Demucs-emitted stems into the job's stems/ dir and clean up
-    the demucs intermediate dir. Does NOT delete the source download --
-    cleanup_source() is called by the runner, for the jobs whose source
-    can be fetched again, after any post-processing that needs to
-    re-encode it (e.g. building original.wav)."""
+    the demucs intermediate dir. Leaves the source download alone:
+    keep_link_source() is called by the runner, for link jobs, to keep
+    it as the song's source."""
     target_dir = job_dir / "stems"
     target_dir.mkdir(exist_ok=True)
     found: list[str] = []
@@ -142,17 +146,40 @@ def collect(job: Job, stems_root: Path, job_dir: Path) -> list[str]:
     return found
 
 
-def cleanup_source(job_dir: Path) -> None:
-    """Delete the source audio file. Called after collect AND after any
-    post-processing that re-encodes the source (make_original_track).
-    The source is 100-300 MB, so getting rid of it is the bulk of disk
-    reclaim per job; only the stems remain.
+def keep_link_source(job: Job, job_dir: Path) -> None:
+    """Keep a link's download in place as the song's source: the audio it was
+    separated from, which Extract more stems can use instead of the link.
+    Never copied: a .webm is remuxed to the container of the same codec
+    (LINK_SOURCE_REMUX, packets untouched) and the .webm removed; any other
+    download the app reads as a source (UPLOAD_EXTS) stays as it is. One the
+    app could not read is deleted, and so is a .webm whose remux failed: the
+    song then keeps no source.
 
-    Not called for uploads. The runner decides: a link can be fetched
-    again, an upload cannot, and deleting an upload's source destroys
-    the only copy StemDeck has of it."""
-    for f in job_dir.glob("source.*"):
-        f.unlink(missing_ok=True)
+    Not called for uploads, whose source.wav the runner already keeps."""
+    for source in sorted(job_dir.glob("source.*")):
+        remux_to = LINK_SOURCE_REMUX.get(source.suffix.lower())
+        if remux_to is not None:
+            _remux_audio(job, source, source.with_suffix(remux_to))
+            source.unlink(missing_ok=True)
+        elif source.suffix.lower() not in UPLOAD_EXTS:
+            source.unlink(missing_ok=True)
+
+
+def _remux_audio(job: Job, source: Path, out: Path) -> None:
+    """`source`'s audio in `out`'s container, stream-copied, never re-encoded."""
+    cmd = [
+        ffmpeg_executable(),
+        "-y",
+        "-nostdin",
+        "-loglevel",
+        "error",
+        "-i",
+        str(source),
+        "-vn",
+        "-c:a",
+        "copy",
+    ]
+    _write_atomic(job, cmd, out, out.suffix.removeprefix("."))
 
 
 def make_original_track(job: Job, job_dir: Path, stems_dir: Path) -> Path | None:
@@ -193,7 +220,7 @@ def make_original_track(job: Job, job_dir: Path, stems_dir: Path) -> Path | None
             "-c:a",
             "pcm_s16le",
         ]
-    return _write_wav(job, cmd, out)
+    return _write_atomic(job, cmd, out, "wav")
 
 
 def make_selected_mix(job: Job, stems_dir: Path, found: list[str]) -> Path | None:
@@ -233,7 +260,7 @@ def make_selected_mix(job: Job, stems_dir: Path, found: list[str]) -> Path | Non
         "-c:a",
         "pcm_s16le",
     ]
-    return _write_wav(job, cmd, out)
+    return _write_atomic(job, cmd, out, "wav")
 
 
 # Enough points to back the deepest zoom, not the 1x bar count: a full-width
