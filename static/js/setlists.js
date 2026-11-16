@@ -194,11 +194,14 @@ export async function createSetlistFrom(trackIds) {
  * The tab opens without reloading the list, since a reload would clear a failed save's message.
  */
 export async function createSetlistFromFolder(folderName, songIds) {
-  const created = await attempt(async () => {
-    await fetchSetlists();
-    const name = uniqueName(folderName, setlists.map((setlist) => setlist.name), SETLIST_NAME_MAX_CHARS);
-    return postSetlist(name, songIds);
-  }, { creating: true });
+  const created = await attempt(
+    async function postUnderFreeName() {
+      await fetchSetlists();
+      const name = uniqueName(folderName, setlists.map((setlist) => setlist.name), SETLIST_NAME_MAX_CHARS);
+      return postSetlist(name, songIds);
+    },
+    { creating: true },
+  );
   focusSetlistId = created?.id ?? null;
   showLibraryView();
   selectTabWithoutLoading("setlists");

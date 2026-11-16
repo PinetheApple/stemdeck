@@ -30,8 +30,11 @@ const NOTHING_VALID = "#!?";
 const RENAMED = "Gig night";
 const MORE = ".f-more";
 const MENU = ".lib-menu";
+const ANNOUNCE = "#libraryAnnounce";
 const SETLISTS_PATH = "/api/setlists";
 const HTTP_NOT_FOUND = 404;
+const NOT_FOUND_DETAIL = "Not Found";
+const TAKEN_ID = "f-taken";
 // Job-id shaped (12 characters), and apart from the fixture jobs' "e2e0" ids.
 const FAKE_SONG_PREFIX = "e2e1";
 const FAKE_SONG_DIGITS = 8;
@@ -146,7 +149,7 @@ test("a name taken in another letter case counts as taken, for setlists and fold
   await openLibrary(page, [
     { ...UNSORTED, items: [], color: null },
     { ...REHEARSAL, items: [JOB_ID], color: null },
-    { id: "f-taken", name: RENAMED.toUpperCase(), items: [SIBLING_JOB_ID], color: null },
+    { id: TAKEN_ID, name: RENAMED.toUpperCase(), items: [SIBLING_JOB_ID], color: null },
     { ...TRASH, items: [], color: null },
   ]);
 
@@ -160,7 +163,7 @@ test("a name taken in another letter case counts as taken, for setlists and fold
 test("a failed create says the save failed and makes nothing", async ({ page, request }) => {
   await page.route(`**${SETLISTS_PATH}`, function refuseCreate(route) {
     if (route.request().method() !== "POST") return route.fallback();
-    return route.fulfill({ status: HTTP_NOT_FOUND, json: { detail: "Not Found" } });
+    return route.fulfill({ status: HTTP_NOT_FOUND, json: { detail: NOT_FOUND_DETAIL } });
   });
   await openLibrary(page, [
     { ...UNSORTED, items: [], color: null },
@@ -203,8 +206,9 @@ test("a folder with too many songs says so under its row, makes nothing, and the
 
   await (await makeSetlistItem(page, REHEARSAL.id)).click();
   const error = page.locator(`#catalogList .folder[data-id="${REHEARSAL.id}"] > .folder-error`);
-  await expect(error).toHaveText(await uiText(page, "folder.tooManyForSetlist", { max: SETLIST_MAX_SONGS }));
-  await expect(error).toHaveAttribute("role", "alert");
+  const message = await uiText(page, "folder.tooManyForSetlist", { max: SETLIST_MAX_SONGS });
+  await expect(error).toHaveText(message);
+  await expect(page.locator(ANNOUNCE)).toHaveText(message);
   await expect(headOf(page, REHEARSAL.id)).toBeFocused();
   await expect(page.locator("#libTabSongs")).toHaveAttribute("aria-selected", "true");
   expect(await serverSetlists(request)).toEqual([]);
@@ -214,6 +218,7 @@ test("a folder with too many songs says so under its row, makes nothing, and the
   await page.keyboard.press("Enter");
   await expect(headNamed(page, RENAMED)).toBeVisible();
   await expect(error).toHaveCount(0);
+  await expect(page.locator(ANNOUNCE)).toHaveText("");
 });
 
 test("a setlist becomes a folder: its songs move in setlist order, and the setlist stays", async ({ page, request }) => {
@@ -247,7 +252,7 @@ test("a trashed song stays in the Trash, a taken folder name gets a number, and 
     { ...TRASH, items: [JOB_ID], color: null },
   ], { trashed: [JOB_ID] });
   await page.locator("#libTabSetlists").click();
-  await expect(page.locator(`.setlist-song[data-id="${JOB_ID}"]`).first()).toHaveClass(/in-trash/);
+  await expect(page.locator(`.setlist-song[data-id="${JOB_ID}"]`)).toHaveClass(/in-trash/);
   await makeFolderButton(page, REHEARSAL.name).click();
 
   const renamed = `${REHEARSAL.name}${copySuffix(2)}`;

@@ -220,6 +220,8 @@
   color: var(--text-3);
 }
 .setlists-error { margin: 0; font-size: var(--fs-sm); color: var(--danger); }
+/* Heard, not seen: the library's messages are already shown where they apply. */
+.lib-announce { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); }
 .setlist-new-btn {
   display: inline-flex;
   align-items: center;

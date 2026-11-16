@@ -2888,30 +2888,38 @@ function songsInFolderTree(folderId) {
   return [...own, ...childFoldersOf(folderId).flatMap((child) => songsInFolderTree(child.id))];
 }
 
-// The folder told it has too many songs, and how it stood then; any change to it clears the message.
+// Which folder shows the "too many songs" message, with its name and songs at that moment.
+// The message goes once either of those changes.
 let tooManySongs = null;
 
+const tooManySongsText = () => i18nT("folder.tooManyForSetlist", { max: SETLIST_MAX_SONGS });
 const folderLook = (folder) => `${folder.name}\n${songsInFolderTree(folder.id).join()}`;
+
+// Said once through a live region outside the list, which every redraw rebuilds.
+function announceInLibrary(text) {
+  const region = document.getElementById("libraryAnnounce");
+  if (region) region.textContent = text;
+}
 
 function stillTooManySongs(folder) {
   if (tooManySongs?.folderId !== folder.id) return false;
   if (tooManySongs.look === folderLook(folder)) return true;
   tooManySongs = null;
+  announceInLibrary("");
   return false;
 }
 
-// role="alert", as the folder editor's name error: it is said when it appears.
 function tooManySongsError() {
   const error = document.createElement("p");
   error.className = "folder-error";
-  error.setAttribute("role", "alert");
-  error.textContent = i18nT("folder.tooManyForSetlist", { max: SETLIST_MAX_SONGS });
+  error.textContent = tooManySongsText();
   return error;
 }
 
 // Removed in place: a redraw here would take away the … button the menu opens from.
 function clearTooManySongs() {
   tooManySongs = null;
+  announceInLibrary("");
   document.querySelector("#catalogList .folder-error")?.remove();
 }
 
@@ -2922,6 +2930,7 @@ function makeSetlistFromFolder(folder) {
     return;
   }
   tooManySongs = { folderId: folder.id, look: folderLook(folder) };
+  announceInLibrary(tooManySongsText());
   render();
   focusFolderRow(folder.id);
 }
