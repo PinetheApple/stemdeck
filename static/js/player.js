@@ -63,7 +63,7 @@ import { t, plural, onLanguageChange } from "./i18n.js";
 import { paintNowPlayingArt } from "./formatIcon.js";
 import { noteMediaPosition, clearMediaSession } from "./mediaSession.js";
 import { trackPlayhead, resetFollowing } from "./autoScroll.js";
-import { laneRowFloor, takeLaneSpace, onTakeLayoutChange } from "./takesLayout.js";
+import { takeLaneSpace, onTakeLayoutChange } from "./takesLayout.js";
 import { takeSoloActive } from "./takesMix.js";
 import { finishTakeBeforeTeardown } from "./recorder.js";
 import { DEFAULT_VERSION_ID } from "./versionModel.js";
@@ -1111,7 +1111,7 @@ function _applyLaneHeight(count) {
   // mixer and the waveform column exactly the same total.
   const rec = takeLaneSpace();
   const rowH = panelH > 0 && count > 0
-    ? Math.max(laneRowFloor(WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT), Math.floor((panelH - rec.fixedPx) / (count + rec.lanes)))
+    ? Math.max(WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT, Math.floor((panelH - rec.fixedPx) / (count + rec.lanes)))
     : WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT;
   const appEl = document.querySelector(".app");
   appEl?.style.setProperty("--lane-h", `${rowH}px`);

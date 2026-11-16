@@ -16,7 +16,7 @@ const MONO_FLOAT_BYTES = 4;
 const HTTP_CONFLICT = 409;
 const HTTP_NOT_FOUND = 404;
 const MS_PER_SEC = 1000;
-// Short enough that the stems already sit at their minimum lane height.
+// Short enough that the lanes sit at their floor and the mixer scrolls.
 const SHORT_WINDOW = { width: 1440, height: 800 };
 const STEMS_PLUS_TWO_TRACKS = 8;
 const STEM_ROWS = 6;
@@ -26,10 +26,11 @@ const DISCARD_TEST_TIMEOUT_MS = 60000;
 const RELEASE_WITHIN_MS = 1000;
 const IMPORT_JOB_ID = "e2eimport0001";
 const IMPORT_URL = "https://example.com/song";
-// player.js WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT: the row a song had before + Track.
+// player.js WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT: the floor no lane goes under.
 const STEM_FLOOR_PX = 72;
-// "A few px": six stems give up at most this much so + Track fits at 1440x800.
-const NO_TRACK_SHRINK_MAX_PX = 8;
+// The 24 px minimum target, as dialog-keyboard.spec checks it.
+const MIN_TARGET_PX = 24;
+const ALL_ARROW_HITS = [true, true, true, true];
 // Well under recorder.js's TEARDOWN_WAIT_MS (500), so a wait that ran would show.
 const FAST_PATH_MAX_MS = 100;
 const EXPORT_ROUTE = /\/(mixdown\.wav|stems\/all\.zip)\?/;
@@ -116,24 +117,24 @@ test("+ Track stays above the footer on a short window", async ({ page }) => {
   expect(add.y + add.height).toBeLessThanOrEqual(footer.y);
 });
 
-// Every mixer row inside the visible column, with its name, M, S and fader inside the row.
+// Every mixer row with its name, M, S and fader inside the row.
 const headersFit = (page) =>
   page.evaluate(() => {
-    const column = document.querySelector(".mixer-column");
-    const view = column.getBoundingClientRect();
     const inside = (r, box) => r.top >= box.top - 0.5 && r.bottom <= box.bottom + 0.5;
-    const rows = [...column.querySelectorAll(".lane-header.mx-row:not(.rec-take-row)")].filter((row) => row.offsetHeight);
-    const problems = rows.flatMap(function rowProblems(row) {
+    const rows = [...document.querySelectorAll(".mixer-column .lane-header.mx-row:not(.rec-take-row)")]
+      .filter((row) => row.offsetHeight);
+    const clipped = rows.filter(function partClipped(row) {
       const box = row.getBoundingClientRect();
       const parts = [".mx-name", ".mute", ".solo", ".mx-fader"].map((sel) => row.querySelector(sel));
-      const clipped = parts.filter((el) => !el || !inside(el.getBoundingClientRect(), box)).length;
-      return [inside(box, view) ? null : "row hidden", clipped ? "part clipped" : null].filter(Boolean);
+      return parts.some((el) => !el || !inside(el.getBoundingClientRect(), box));
     });
-    return { rows: rows.length, problems, scrollTop: column.scrollTop };
+    return { rows: rows.length, clipped: clipped.length };
   });
 
-const laneHeight = (page) =>
-  page.evaluate(() => getComputedStyle(document.querySelector(".app")).getPropertyValue("--lane-h").trim());
+const laneHeight = async (page) =>
+  Number.parseFloat(
+    await page.evaluate(() => getComputedStyle(document.querySelector(".app")).getPropertyValue("--lane-h")),
+  );
 
 async function expectAddRowAboveFooter(page) {
   const add = await page.locator(".rec-add-row").boundingBox();
@@ -141,25 +142,50 @@ async function expectAddRowAboveFooter(page) {
   expect(add.y + add.height).toBeLessThanOrEqual(footer.y);
 }
 
-test("a song with no tracks shows + Track without scrolling, its rows a few px under the stems' floor", async ({ page }) => {
+// As dialog-keyboard.spec: each arrow answers MIN_TARGET_PX away from the K, at its edge and at the far end.
+async function keyArrowHits(page, stem) {
+  const lane = page.locator(`.lane-key[data-stem="${stem}"]`);
+  await lane.scrollIntoViewIfNeeded();
+  const up = await lane.locator(".lane-key-step.up").boundingBox();
+  const down = await lane.locator(".lane-key-step.down").boundingBox();
+  const upYs = [up.y + up.height - 1, up.y + up.height - MIN_TARGET_PX + 1];
+  const downYs = [down.y + 1, down.y + MIN_TARGET_PX - 1];
+  return page.evaluate(
+    ({ upX, upYs, downX, downYs }) => {
+      const hit = (x, y, sel) => Boolean(document.elementFromPoint(x, y)?.closest(sel));
+      return [
+        ...upYs.map((y) => hit(upX, y, ".lane-key-step.up")),
+        ...downYs.map((y) => hit(downX, y, ".lane-key-step.down")),
+      ];
+    },
+    { upX: up.x + up.width / 2, upYs, downX: down.x + down.width / 2, downYs },
+  );
+}
+
+const stemNames = (page) =>
+  page.locator(".lane-key[data-stem]").evaluateAll((keys) => keys.map((key) => key.dataset.stem));
+
+test("a song with no tracks keeps the stems' lane height, + Track in reach above the footer", async ({ page }) => {
   await page.setViewportSize(SHORT_WINDOW);
   await openStudio(page);
-  await expect.poll(() => headersFit(page)).toEqual({ rows: STEM_ROWS, problems: [], scrollTop: 0 });
+  await expect.poll(() => headersFit(page)).toEqual({ rows: STEM_ROWS, clipped: 0 });
+  expect(await laneHeight(page)).toBe(STEM_FLOOR_PX);
   await expectAddRowAboveFooter(page);
-  const rowPx = Number.parseFloat(await laneHeight(page));
-  expect(rowPx).toBeLessThanOrEqual(STEM_FLOOR_PX);
-  expect(rowPx).toBeGreaterThanOrEqual(STEM_FLOOR_PX - NO_TRACK_SHRINK_MAX_PX);
 });
 
-test("six stems and two recording tracks fit without scrolling", async ({ page }) => {
+test("six stems and two recording tracks keep the lane floor and every K arrow's full target", async ({ page }) => {
   await page.setViewportSize(SHORT_WINDOW);
   await openStudio(page);
   await addArmedTrack(page);
   await page.locator("#recAddTrack").click();
   await page.getByRole("menuitem", { name: "Audio track" }).click();
   await expect(page.locator(".rec-row")).toHaveCount(2);
-  await expect.poll(() => headersFit(page)).toEqual({ rows: STEMS_PLUS_TWO_TRACKS, problems: [], scrollTop: 0 });
+  await expect.poll(() => headersFit(page)).toEqual({ rows: STEMS_PLUS_TWO_TRACKS, clipped: 0 });
+  expect(await laneHeight(page)).toBeGreaterThanOrEqual(STEM_FLOOR_PX);
   await expectAddRowAboveFooter(page);
+  const stems = await stemNames(page);
+  expect(stems).toHaveLength(STEM_ROWS);
+  for (const stem of stems) expect(await keyArrowHits(page, stem), stem).toEqual(ALL_ARROW_HITS);
 });
 
 test("Record waits for a recording track and says so", async ({ page }) => {

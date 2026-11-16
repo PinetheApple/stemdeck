@@ -49,14 +49,12 @@
   background: var(--bg-2);
   box-sizing: border-box;
 }
-/* With recording rows, + Track stays in reach if the lanes still overflow; a song without them scrolls as before. */
-.mixer-column:has(> .rec-row) > .rec-add-row {
+/* Lanes never go under their floor, so the mixer may scroll; + Track stays in reach above the footer. */
+.mixer-column > .rec-add-row {
   position: sticky;
   bottom: 0;
   z-index: 1;
 }
-/* With + Track in the fit, lanes may go below the stems' 72px floor; rows follow --lane-h, floored in takesLayout.js. */
-.mixer-column:has(> .rec-add-row) > .lane-header.mx-row { min-height: 0; }
 .rec-add-btn {
   display: inline-flex;
   align-items: center;
