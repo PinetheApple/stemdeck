@@ -201,6 +201,7 @@ function noticeAfterSwitch(event) {
 
 function onRecorder(event) {
   if (event.type === "change") {
+    if (!recordingTake()) session.countInClicks = [];
     render();
     return;
   }

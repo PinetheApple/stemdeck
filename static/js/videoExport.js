@@ -10,7 +10,6 @@ import {
 } from "./videoExportModel.js";
 
 const POLL_MS = 500;
-// Ten reads in a row, about five seconds, before the dialog stops waiting.
 const POLL_FAILURES_MAX = 10;
 const SIZE_SUFFIX = "p";
 
@@ -97,7 +96,8 @@ function resultBox(ok, line, sub) {
   box.setAttribute("role", "status");
   box.innerHTML = icon(ok ? "check" : "alert");
   const text = el("div");
-  text.append(el("p", "", line), el("p", "vid-sub", sub));
+  text.append(el("p", "", line));
+  if (sub) text.append(el("p", "vid-sub", sub));
   box.append(text);
   return box;
 }

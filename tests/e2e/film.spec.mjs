@@ -13,6 +13,8 @@ const TAKES_URL = `/api/jobs/${JOB_ID}/takes`;
 const RECORD_SEC = 3;
 const SAVE_TIMEOUT_MS = 20000;
 const RECORD_TEST_TIMEOUT_MS = 60000;
+// Holds the take in "Saving…" long enough to close Film during it.
+const SLOW_FINISH_MS = 2000;
 const VIEWPORTS = [
   { width: 1024, height: 768 },
   { width: 1440, height: 900 },
@@ -194,12 +196,32 @@ test("Film stays shut while a studio take records, so it can't stop it", async (
   await page.locator("#t-rec").click();
   await expect(page.locator("#t-rec")).toHaveClass(/\bis-recording\b/, { timeout: SAVE_TIMEOUT_MS });
   await expect(page.locator("#filmBtn")).toBeDisabled();
+  await expect(page.locator("#filmBtn")).toHaveAttribute("title", "Stop recording to film");
   await page.evaluate(() => document.dispatchEvent(new CustomEvent("film:open", { detail: {} })));
   await page.keyboard.press("Escape");
   await expect(film(page)).toBeHidden();
   await expect(page.locator("#t-rec")).toHaveClass(/\bis-recording\b/);
   await page.locator("#t-rec").click();
   await expect(page.locator("#filmBtn")).toBeEnabled({ timeout: SAVE_TIMEOUT_MS });
+  await expect(page.locator("#filmBtn")).toHaveAttribute("title", "Film yourself playing along");
+});
+
+test("closing Film while its take saves still arms the studio's track again", async ({ page }) => {
+  test.setTimeout(RECORD_TEST_TIMEOUT_MS);
+  await page.route("**/finish", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, SLOW_FINISH_MS));
+    await route.continue();
+  });
+  await openStudio(page);
+  const trackId = await addArmedAudioTrack(page);
+  await openFilm(page);
+  await expect(page.locator("#filmRecBtn")).toBeEnabled();
+  await page.locator("#filmRecBtn").click();
+  await expect.poll(() => page.evaluate(recordedPast, 0), { timeout: SAVE_TIMEOUT_MS }).toBe(true);
+  await page.locator("#filmRecBtn").click();
+  await page.keyboard.press("Escape");
+  await expect(film(page)).toBeHidden();
+  await expect.poll(() => armedTrackId(page), { timeout: SAVE_TIMEOUT_MS }).toBe(trackId);
 });
 
 test("a filmed take keeps camera and sound, then reviews and trims", async ({ page }) => {

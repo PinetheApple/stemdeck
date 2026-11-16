@@ -25,7 +25,6 @@ export const RENDER_STATUS = {
 export const RENDER_ERROR = {
   diskFull: "disk-full",
   failed: "failed",
-  // The dialog's own: the server stopped answering the progress reads.
   noAnswer: "no-answer",
 };
 

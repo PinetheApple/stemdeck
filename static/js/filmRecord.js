@@ -4,7 +4,7 @@
 import { t } from "./i18n.js";
 import { audioEngine, currentJobId } from "./state.js";
 import { armTrack, armedTrack, disarm } from "./recorderArm.js";
-import { recordBlock, recordingTake, toggleRecording } from "./recorder.js";
+import { onRecorderEvent, recordBlock, recordingTake, toggleRecording } from "./recorder.js";
 import { createVideoTrack } from "./takesActions.js";
 import { patchTrack } from "./takesApi.js";
 import { nextName } from "./takesState.js";
@@ -13,6 +13,25 @@ import { createCameraTake } from "./filmCameraTake.js";
 
 // Armed before the Video track exists, so the meter runs from the start.
 const NO_TRACK_YET = Object.freeze({ id: null, input: null });
+// Past the recorder's offer to discard a save stuck behind a silent server.
+const TAKE_SETTLE_MAX_MS = 30_000;
+
+const settleWaiters = new Set();
+
+onRecorderEvent(function onTakeSettled() {
+  if (recordingTake()) return;
+  for (const resolve of settleWaiters) resolve();
+  settleWaiters.clear();
+});
+
+/** Resolves once no take is recording or saving, or after TAKE_SETTLE_MAX_MS. */
+export function takeSettled() {
+  if (!recordingTake()) return Promise.resolve();
+  return new Promise(function waitForNoTake(resolve) {
+    settleWaiters.add(resolve);
+    setTimeout(resolve, TAKE_SETTLE_MAX_MS);
+  });
+}
 
 function tellStudio() {
   document.dispatchEvent(new CustomEvent(TAKES_CHANGED_EVENT));

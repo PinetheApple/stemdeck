@@ -23,7 +23,9 @@ import { closeCamera, cameraLabel, filmSupportHere, openCamera } from "./filmCam
 import { filmPrefs, loadFilmPrefs } from "./filmPrefs.js";
 import { readEncoders, patchTake } from "./filmApi.js";
 import { applyIPlay, releaseIPlay, renderIPlay, toggledIPlay } from "./filmIPlay.js";
-import { armForFilm, rememberArm, restoreArm, saveIPlay, toggleFilmRecording } from "./filmRecord.js";
+import {
+  armForFilm, rememberArm, restoreArm, saveIPlay, takeSettled, toggleFilmRecording,
+} from "./filmRecord.js";
 import { paintTimeline, renderTimeline } from "./filmTimeline.js";
 import { loadReview, syncReview } from "./filmReview.js";
 import { paintBadges, paintDevices, paintMeter, paintNote, paintProblem, wireFilmPanel } from "./filmPanel.js";
@@ -184,9 +186,9 @@ async function closeFilm() {
   film.open = false;
   cancelAnimationFrame(film.frameId);
   // Film never opens over a studio take, so a take running now is Film's own.
-  const stopping = recordingTake() ? stopTake(STOP_REASON.user) : null;
+  if (recordingTake()) stopTake(STOP_REASON.user);
   releaseIPlay();
-  Promise.resolve(stopping).then(function giveArmBack() {
+  takeSettled().then(function giveArmBack() {
     if (!film.open) restoreArm(film.previousArm, film.listing);
   });
   closeCamera(film.stream);
@@ -196,6 +198,7 @@ async function closeFilm() {
   document.querySelector(".app")?.classList.remove(MODE_CLASS);
   $("filmView").hidden = true;
   $("filmBtn")?.setAttribute("aria-pressed", "false");
+  paintFilmButton();
   refitFooter();
   $("filmBtn")?.focus();
 }
@@ -228,6 +231,10 @@ function paintPreviewMode(take, review) {
   return reviewing;
 }
 
+function liveClip(take, nowSec) {
+  return { startSec: take.startSec, nowSec, peaks: livePeaks(take) };
+}
+
 function frame() {
   if (!film.open) return;
   film.frameId = requestAnimationFrame(frame);
@@ -241,7 +248,7 @@ function frame() {
   }
   paintMeter(armedTrack() ? armedLevel() : 0);
   paintBadges({ recSec: take ? takeElapsedSec() : null, takeLabel: review?.label, nowSec, songSec: totalDuration });
-  paintTimeline({ nowSec, songSec: totalDuration, live: take ? { startSec: take.startSec, nowSec, peaks: livePeaks(take) } : null });
+  paintTimeline({ nowSec, songSec: totalDuration, live: take ? liveClip(take, nowSec) : null });
   paintRecord(take);
   $("filmPlayBtn")?.classList.toggle("playing", playing());
   $("filmExportBtn").disabled = Boolean(take) || !review?.has_camera || film.encoders?.render_available === false;
@@ -298,8 +305,20 @@ async function refreshFilm(reviewId = film.reviewId) {
   render();
 }
 
+/** Shut, with the reason, while the studio records: Film never opens over its take. */
+function paintFilmButton() {
+  const btn = $("filmBtn");
+  if (!btn || film.open) return;
+  const busy = Boolean(recordingTake());
+  const title = t(busy ? "film.busyRecording" : "film.enterTitle");
+  btn.disabled = busy;
+  btn.title = title;
+  if (busy) btn.setAttribute("aria-description", title);
+  else btn.removeAttribute("aria-description");
+}
+
 function onFilmRecorderEvent(event) {
-  if (!film.open) $("filmBtn").disabled = Boolean(recordingTake());
+  paintFilmButton();
   if (!film.open || event.type === "change" || event.jobId !== film.jobId) return;
   refreshFilm(event.type === "finished" ? event.takeId : null);
 }
@@ -358,6 +377,7 @@ function init() {
   onRecorderEvent(onFilmRecorderEvent);
   document.addEventListener(WAVE_PEAKS_EVENT, render);
   onLanguageChange(render);
+  onLanguageChange(paintFilmButton);
 }
 
 init();
