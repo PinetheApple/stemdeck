@@ -161,7 +161,8 @@
   clip-path: none;
   container-type: normal;
 }
-#songHead #nowPlayingPanel .np-legend {
+#songHead #nowPlayingPanel .np-legend,
+.lib-announce {
   position: absolute;
   width: 1px;
   height: 1px;
