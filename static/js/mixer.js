@@ -22,6 +22,7 @@ import { t } from "./i18n.js";
 import {
   GLOBAL_PITCH_FIELD, PITCH_MAX, PITCH_MIN, clampPitch, pitchBlockedKey, savedGlobalPitch,
 } from "./pitchBus.js";
+import { applyTakeGains, takeSoloActive } from "./takesMix.js";
 import {
   bindFxStore,
   ensureFxDefaults,
@@ -212,17 +213,21 @@ export function setLaneKeysAvailable(available) {
 }
 
 /**
- * True when this lane is not heard: muted or silenced, or another loaded lane soloed while this one is not.
+ * True when this lane is not heard: muted or silenced, or another loaded lane or a take soloed while this one is not.
  * A silenced lane's solo does not count.
  */
 export function isLaneSilenced(name) {
   const s = mixerState[name];
   if (!s) return false;
   if (s.muted || silencedStems.has(name)) return true;
-  const anySolo = allTrackNames().some(
+  return anySoloActive() && !s.soloed;
+}
+
+/** True when a take or a loaded, unsilenced lane is soloed. */
+export function anySoloActive() {
+  return takeSoloActive() || allTrackNames().some(
     (lane) => trackIndex[lane] !== undefined && mixerState[lane]?.soloed && !silencedStems.has(lane),
   );
-  return anySolo && !s.soloed;
 }
 
 /** The lanes this song has mounted, in lane order, without the original. */
@@ -270,6 +275,7 @@ export function applyMix() {
       multitrack.setTrackVolume(idx, targetGain);
     }
   }
+  applyTakeGains(anySoloActive());
 }
 
 export function updateLaneKnobVisual(knobEl, v) {

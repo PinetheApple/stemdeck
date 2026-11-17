@@ -1,0 +1,456 @@
+/* Recording tracks and takes. A take is the text colour, so it reads as "you"
+   beside the stems; red means "now", as the playhead already does. */
+:root {
+  --rec-color: var(--text);
+  --rec-live: var(--danger);
+  --rec-live-soft: color-mix(in srgb, var(--danger) 10%, transparent);
+  --rec-take-h: calc(var(--ctl-h) + var(--s-1));
+  --rec-left-w: calc(2 * var(--s-7) + var(--s-3));
+  --rec-dot: calc(var(--icon-sm) - var(--s-1));
+}
+
+/* The stem overlay stops where the stems stop; the take lanes sit under it. */
+.daw.engine-waveforms .stem-waveform-layer { bottom: auto; height: var(--stem-stack-h, 100%); }
+.rec-wave-layer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--stem-stack-h, 100%);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+.rec-lane {
+  flex: 0 0 var(--lane-h);
+  height: var(--lane-h);
+  position: relative;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--line);
+}
+.app .rec-wave-layer .rec-take-wave,
+.app .rec-wave-layer .rec-add-wave { flex-basis: var(--rec-take-h); height: var(--rec-take-h); }
+.app .rec-wave-layer .rec-add-wave { border-bottom: 0; }
+
+/* The stem rows are ordered by index (player.js); the recording rows follow them all. */
+.mixer-column .rec-row,
+.mixer-column .rec-take-row,
+.mixer-column .rec-add-row { order: 100; }
+
+/* The add row under the last lane: same height as a take row, dashed like a drop target. */
+.rec-add-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-shrink: 0;
+  height: var(--rec-take-h);
+  padding: 0 10px;
+  border-bottom: 2px solid var(--border);
+  background: var(--bg-2);
+  box-sizing: border-box;
+}
+/* With recording rows, + Track stays in reach if the lanes still overflow; a song without them scrolls as before. */
+.mixer-column:has(> .rec-row) > .rec-add-row {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+}
+.rec-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-3);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-2);
+  font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-sans);
+  cursor: pointer;
+}
+.rec-add-btn:hover, .rec-add-btn[aria-expanded="true"] { border-color: var(--accent-line); color: var(--text); }
+.rec-add-btn .ic { width: var(--icon-sm); height: var(--icon-sm); }
+
+/* A recording track's row: the stem row's layout, the name block widened for the input picker. */
+.lane-header.mx-row.rec-row { gap: var(--s-1); }
+.rec-row .rec-left {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  width: var(--rec-left-w);
+  flex-shrink: 0;
+  min-width: 0;
+}
+.rec-name-line { display: flex; align-items: center; gap: 3px; min-width: 0; }
+.rec-row .mx-name { color: var(--rec-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-rename {
+  min-width: 0;
+  width: 100%;
+  height: 20px;
+  padding: 0 var(--s-1);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-1);
+  background: var(--surface-2);
+  color: var(--text);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
+}
+.rec-folder-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon);
+  height: var(--icon);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.rec-folder-btn:hover { color: var(--text); background: var(--surface-3); }
+.rec-folder-btn .ic { width: var(--s-3); height: var(--s-3); transform: rotate(-90deg); transition: transform var(--t-fast); }
+.rec-folder-btn[aria-expanded="true"] .ic { transform: none; }
+.rec-input-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  height: 20px;
+  padding: 0 var(--s-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-1);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font: var(--fw-medium) var(--fs-2xs) / 1 var(--font-sans);
+  cursor: pointer;
+}
+.rec-input-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-input-btn .ic { width: var(--rec-dot); height: var(--rec-dot); flex-shrink: 0; color: var(--text-3); }
+.rec-input-btn .ic:last-child { margin-left: auto; }
+.rec-input-btn[aria-expanded="true"] { border-color: var(--accent); }
+/* On short rows the input picker gives up height first, so the name and meter stay inside the row. */
+.rec-row .rec-left { align-self: stretch; }
+.rec-row .rec-input-btn { flex: 0 1 auto; min-height: calc(var(--fs-2xs) + var(--s-1)); }
+.rec-row .lane-vu.mx-meter { height: 6px; }
+
+/* Arm: a red dot, outlined until armed. Same box as M and S. */
+.rec-arm.mx-btn {
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.rec-arm.mx-btn::before {
+  content: "";
+  width: var(--rec-dot);
+  height: var(--rec-dot);
+  border-radius: 50%;
+  border: 1.5px solid var(--rec-live);
+  box-sizing: border-box;
+}
+.rec-arm.mx-btn[aria-pressed="true"] { border-color: color-mix(in srgb, var(--danger) 45%, transparent); background: var(--rec-live-soft); }
+.rec-arm.mx-btn[aria-pressed="true"]::before { background: var(--rec-live); }
+.rec-row.is-recording { background: color-mix(in srgb, var(--danger) 7%, var(--bg-2)); }
+.rec-track-more.mx-btn { cursor: pointer; }
+.rec-track-more.mx-btn .ic { width: var(--icon-sm); height: var(--icon-sm); }
+
+/* A take inside the open folder: indented, shorter, no fader of its own. */
+.lane-header.mx-row.rec-take-row {
+  height: var(--rec-take-h);
+  min-height: var(--rec-take-h);
+  padding-left: calc(10px + var(--s-4));
+  gap: var(--s-2);
+  border-bottom-width: 1px;
+  background: var(--bg);
+}
+.rec-take-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: 1;
+  min-width: 0;
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-1);
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-2);
+  font: var(--fw-medium) var(--fs-xs) / 1 var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+.rec-take-pick:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+.rec-take-pick:disabled { cursor: default; }
+.rec-take-pick::before {
+  content: "";
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  border-radius: 50%;
+  border: 1.5px solid var(--text-3);
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+.rec-take-pick[aria-checked="true"] { color: var(--text); }
+.rec-take-pick[aria-checked="true"]::before {
+  border-color: var(--text);
+  background: var(--text);
+  box-shadow: inset 0 0 0 3px var(--bg);
+}
+.rec-take-pick:disabled::before { border-style: dashed; }
+.rec-take-len { margin-left: auto; font: var(--fw-medium) var(--fs-2xs) / 1 var(--font-mono); color: var(--text-3); }
+.rec-take-flag { margin-left: auto; font: var(--fw-semibold) var(--fs-2xs) / 1 var(--font-sans); color: var(--warn); }
+.rec-take-del.mx-btn { border-color: transparent; color: var(--text-3); cursor: pointer; }
+.rec-take-del.mx-btn:hover { color: var(--danger); border-color: var(--border); }
+.rec-take-del.mx-btn .ic { width: var(--icon-sm); height: var(--icon-sm); }
+
+/* The take just recorded, or one left unfinished, asks once: keep or delete. */
+.rec-review { display: inline-flex; gap: var(--s-1); flex-shrink: 0; }
+.rec-chip {
+  height: 22px;
+  padding: 0 var(--s-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font: var(--fw-semibold) var(--fs-2xs) / 1 var(--font-sans);
+  cursor: pointer;
+}
+.rec-chip:hover { color: var(--text); background: var(--surface-3); }
+.rec-chip.is-primary { border-color: var(--accent-line); color: var(--accent); background: var(--accent-soft); }
+
+/* Lanes: a take is a clip from where recording began to where it stopped. */
+.rec-wave { --stem-color: var(--rec-color); }
+.rec-take-wave { --stem-color: var(--rec-color); background: var(--bg); }
+.rec-clip {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border: 1px solid color-mix(in srgb, var(--rec-color) 22%, transparent);
+  border-radius: var(--r-1);
+  background: color-mix(in srgb, var(--rec-color) 5%, transparent);
+  overflow: hidden;
+}
+.app .rec-clip .stem-waveform-svg { inset: 16px 0 auto; height: calc(100% - 18px); }
+.rec-clip-name {
+  position: absolute;
+  top: 3px;
+  left: var(--s-1);
+  font: var(--fw-semibold) var(--fs-2xs) / 1 var(--font-sans);
+  color: var(--text-2);
+}
+.rec-take-wave .rec-clip-name { display: none; }
+.app .rec-take-wave .rec-clip .stem-waveform-svg { top: 2px; height: calc(100% - 4px); }
+.rec-take-wave .rec-clip { top: 3px; bottom: 3px; }
+.rec-take-wave.is-inactive .rec-clip { --stem-color: var(--text-4); border-color: var(--line-strong); }
+.rec-clip.is-live {
+  --stem-color: var(--rec-live);
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+  border-right-width: 2px;
+  background: var(--rec-live-soft);
+}
+.rec-clip.is-live .rec-clip-name { color: var(--rec-live); }
+.rec-wave.is-muted .rec-clip { opacity: 0.45; }
+.rec-empty-hint {
+  position: absolute;
+  top: 50%;
+  left: var(--s-3);
+  transform: translateY(-50%);
+  font: var(--fw-medium) var(--fs-xs) / 1 var(--font-sans);
+  color: var(--text-3);
+}
+
+/* Count-in: the beat number, big, over the middle of the lanes. */
+.rec-countin {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.rec-countin b {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 112px;
+  height: 112px;
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-panel);
+  font: var(--fw-heavy) var(--fs-3xl) / 1 var(--font-mono);
+  color: var(--rec-live);
+}
+
+/* A take placed with the estimated latency: one line offering the test. */
+.rec-latency-hint {
+  position: absolute;
+  right: var(--s-2);
+  bottom: var(--s-1);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font: var(--fw-medium) var(--fs-xs) / 1 var(--font-sans);
+  color: var(--text-3);
+  pointer-events: auto;
+}
+.rec-latency-hint-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.rec-latency-hint-btn:hover { color: var(--accent-hi); }
+
+/* A plain-words problem in place of the lane: what happened, what to do. */
+.rec-problem {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: var(--s-2);
+  max-width: min(calc(100% - 2 * var(--s-2)), 400px);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 0 var(--s-3);
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  border-radius: var(--r-1);
+  background: color-mix(in srgb, var(--warn) 8%, var(--surface-1));
+  pointer-events: auto;
+}
+.rec-problem .ic { width: var(--icon); height: var(--icon); color: var(--warn); flex-shrink: 0; }
+.rec-problem p { margin: 0; flex: 1; min-width: 0; font: var(--fw-medium) var(--fs-xs) / 1.35 var(--font-sans); color: var(--text); }
+.rec-problem .settings-btn { flex-shrink: 0; cursor: pointer; }
+
+/* Footer: Record sits in Transport after Next. Red dot idle; red pill with the time while recording. */
+.rec-btn.daw-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-1);
+  cursor: pointer;
+}
+.rec-btn.daw-iconbtn:disabled { cursor: not-allowed; }
+.rec-btn.is-saving .rec-btn-dot { animation: rec-saving-pulse var(--t-flash) ease-in-out infinite alternate; }
+@keyframes rec-saving-pulse { to { opacity: 0.35; } }
+.rec-btn .rec-btn-dot {
+  width: var(--s-3);
+  height: var(--s-3);
+  border-radius: 50%;
+  background: var(--rec-live);
+  flex-shrink: 0;
+}
+.rec-btn:disabled .rec-btn-dot { background: var(--text-4); }
+.rec-btn-time:empty { display: none; }
+.footer-group-transport .daw-iconbtn.btn-transport.rec-btn.is-recording,
+.footer-group-transport .daw-iconbtn.btn-transport.rec-btn.is-counting {
+  width: auto;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--rec-live);
+  color: var(--accent-ink);
+}
+.rec-btn.is-recording .rec-btn-dot,
+.rec-btn.is-counting .rec-btn-dot { width: var(--rec-dot); height: var(--rec-dot); border-radius: 2px; background: var(--accent-ink); }
+.rec-btn-time { font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* After a song switch mid-take: a notice over the bottom of the lanes, so nothing moves. */
+.rec-notice {
+  position: absolute;
+  left: 50%;
+  bottom: var(--s-4);
+  z-index: 30;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 2 * var(--s-4));
+  box-shadow: var(--shadow-panel);
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  font: var(--fw-medium) var(--fs-sm) / 1.3 var(--font-sans);
+  color: var(--text);
+}
+.rec-notice .ic { width: var(--icon); height: var(--icon); color: var(--success); flex-shrink: 0; }
+.rec-notice p { margin: 0; flex: 1; }
+.rec-notice .settings-btn { flex-shrink: 0; cursor: pointer; }
+.rec-notice-close {
+  display: inline-flex;
+  padding: var(--s-1);
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.rec-notice-close:hover { color: var(--text); background: var(--surface-3); }
+.rec-notice-close .ic { width: var(--icon-sm); height: var(--icon-sm); color: inherit; }
+
+/* Settings > Recording: the latency test runs inline, under its row. */
+.rec-cal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-3);
+  padding: var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  font: var(--fw-medium) var(--fs-sm) / 1.4 var(--font-sans);
+  color: var(--text);
+}
+.rec-cal p { margin: 0; }
+.rec-cal-actions { display: flex; gap: var(--s-2); }
+.rec-cal-clicks { display: flex; gap: var(--s-2); }
+.rec-cal-clicks i {
+  width: var(--rec-dot);
+  height: var(--rec-dot);
+  border-radius: 50%;
+  border: 1.5px solid var(--text-3);
+  box-sizing: border-box;
+}
+.rec-cal-clicks i.is-heard { border-color: var(--success); background: var(--success); }
+.rec-cal.is-failed { border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.rec-latency-value { font: var(--fw-medium) var(--fs-sm) / 1 var(--font-mono); color: var(--text-2); white-space: nowrap; }
+[data-pane="recording"] .settings-btn.is-primary { background: var(--accent); color: var(--accent-ink); }
+[data-pane="recording"] .settings-btn.is-primary:hover:not(:disabled) { background: var(--accent-hi); color: var(--accent-ink); }
+
+/* Stage mode: only a small REC mark while a take is recording. */
+.rec-stage-mark {
+  display: inline-flex;
+  margin-top: var(--s-2);
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--rec-live);
+  color: var(--accent-ink);
+  font: var(--fw-bold) var(--fs-sm) / 1 var(--font-mono);
+}
+.rec-stage-mark[hidden] { display: none; }
+.rec-stage-mark::before { content: ""; width: var(--s-2); height: var(--s-2); border-radius: 2px; background: var(--accent-ink); }
+
+/* The track menus. */
+.rec-menu .lib-menu-item.is-danger,
+.rec-menu .lib-menu-item.is-danger .ic { color: var(--danger); }
+.rec-menu .lib-menu-item:disabled .ic { color: var(--text-3); }
+.rec-menu .lib-menu-sep { height: 1px; margin: var(--s-1) 0; background: var(--line); }
+.rec-menu .lib-menu-item[aria-checked="true"] { color: var(--accent); }

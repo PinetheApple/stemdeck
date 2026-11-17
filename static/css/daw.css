@@ -1056,6 +1056,7 @@ input, textarea { font-family: inherit; }
 .folder-body { display: flex; flex-direction: column; gap: 3px; padding: 3px 0 3px 14px; margin-left: 7px; border-left: 1px solid color-mix(in srgb, var(--text-2) 10%, transparent); }
 .folder.collapsed .folder-body { display: none; }
 .folder-empty { color: var(--muted); font-size: 11px; padding: 5px 8px; font-style: italic; }
+.folder-error { margin: 0; padding: var(--s-1) var(--s-2) var(--s-1) var(--s-6); font-size: var(--fs-xs); color: var(--danger); }
 
 /* Folder editor modal */
 .folder-editor-backdrop {
@@ -2336,6 +2337,8 @@ input, textarea { font-family: inherit; }
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  /* Matches the waveforms' horizontal scrollbar, so both columns scroll as far. */
+  padding-bottom: var(--lane-scrollbar-h, 0px);
 }
 
 /* Each mixer row height is driven by --lane-h (set dynamically in JS to fill available space) */
@@ -3102,6 +3105,7 @@ input, textarea { font-family: inherit; }
   border-color: color-mix(in srgb, var(--danger) 55%, transparent);
   color: var(--danger);
 }
+.footer-group-transport .footer-group-body { gap: 6px; }
 /* Loop sits in the Position group and reads as a modifier on the readout next
    to it, so it is a short labelled pill rather than a full-height control. */
 .footer-group-position .daw-iconbtn.btn-transport.loop {

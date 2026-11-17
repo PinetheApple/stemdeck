@@ -40,7 +40,9 @@ import { KEYBOARD_FOCUS, ON_ROW, OUT_OF_TAB_ORDER, ROW_KEY, ROW_PLAY_CLASS, isSh
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
 import { openFolderMenu } from "./folderMenu.js";
-import { HTTP_NOT_FOUND, fetchJson, isNotFound } from "./libraryControls.js";
+import { HTTP_NOT_FOUND, SETLIST_MAX_SONGS, SHOWN_FOCUS, fetchJson, isNotFound } from "./libraryControls.js";
+import { MAX_FOLDER_NAME_LEN, folderNameFrom, isValidFolderName, uniqueName } from "./listNames.js";
+import { createSetlistFromFolder } from "./setlists.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 import { FOLDER_MOVING_KEY, isFolderMovingError, noticeKey, refusedForFolderMove } from "./folderMoving.js";
 import { lookupArtist } from "./artistLookup.js";
@@ -49,6 +51,8 @@ import {
   CANCELLED_STATUS, REINSTATE_REPLACED, RELEASE_REPLACED, isServerTrashed, migrationTrashIds, replacedJobIds,
   replacementOutcome, serverTrashMoves, soleSourceMatch,
 } from "./librarySync.js";
+import { wireRecordingSettings } from "./recorderSettings.js";
+import { finishTakeBeforeTeardown } from "./recorder.js";
 import { t as i18nT, plural as i18nPlural, LANGUAGES, getLanguage, setLanguage, onLanguageChange, applyTranslations } from "./i18n.js";
 import { applyNetworkSwitch, networkSwitchOn } from "./networkRestart.js";
 import { GPU_BACKEND_ROCM, gpuUnusedMessage } from "./gpuUnused.js";
@@ -1586,6 +1590,41 @@ async function fetchTrackState(trackId, token) {
   return token === _loadTrackToken ? track : null;
 }
 
+const MARK_HOLDS = "holds";
+const MARK_STALE = "stale";
+const MARK_UNREACHABLE = "unreachable";
+const MARK_UNREADABLE = "unreadable";
+const MARK_UNCHECKED_ERRORS = {
+  [MARK_UNREACHABLE]: "conn.offline",
+  [MARK_UNREADABLE]: "player.audioCouldNotLoad",
+};
+
+/** Ask the server whether a song marked unavailable still is; a stale mark is cleared. */
+async function markVerdict(trackId) {
+  let res;
+  try {
+    res = await fetch(`/api/jobs/${trackId}`, { cache: "no-store" });
+  } catch (e) {
+    console.warn("[catalog] could not reach the server about an unavailable song:", e);
+    return MARK_UNREACHABLE;
+  }
+  if (res.status === HTTP_NOT_FOUND) return MARK_HOLDS;
+  const status = res.ok ? (await res.json().catch(() => null))?.status : null;
+  if (!status) return MARK_UNREADABLE;
+  if (status === "unavailable") return MARK_HOLDS;
+  updateTrackStatus(trackId, status);
+  return MARK_STALE;
+}
+
+/** Re-check an unavailable song: true when it can play; else offer the re-import or show the error. */
+async function recheckUnavailable(trackId, track) {
+  const verdict = await markVerdict(trackId);
+  if (verdict === MARK_HOLDS) reimportUnavailableTrack(trackId, track);
+  else if (verdict === MARK_STALE) render();
+  else showError(i18nT(MARK_UNCHECKED_ERRORS[verdict]));
+  return verdict === MARK_STALE;
+}
+
 /** Load a song into the studio; resolves to whether it reached the player. */
 export async function loadTrackIntoStudio(trackId) {
   _loadingTrackId = trackId;
@@ -1605,8 +1644,10 @@ async function loadIntoStudio(trackId) {
   let track = tracks[trackId];
   if (!track) return;
   if (track.status === "unavailable") {
-    reimportUnavailableTrack(trackId, track);
-    return;
+    const askedAt = _loadTrackToken;
+    if (!(await recheckUnavailable(trackId, track))) return;
+    track = tracks[trackId];
+    if (!track || askedAt !== _loadTrackToken) return;
   }
   const hadStoredAudio = Boolean(track.audioStems?.length);
   const token = ++_loadTrackToken;
@@ -1628,6 +1669,8 @@ async function loadIntoStudio(trackId) {
   if (PROCESSING_STATUSES.has(track.status)) return;
   if (!track.audioStems?.length) return;
   if (track.status !== "done" && !hadStoredAudio) return;
+  await finishTakeBeforeTeardown();
+  if (token !== _loadTrackToken) return;
   _shownTrackId = null;
   _showToken++;
   clearOpenPreview();
@@ -1897,13 +1940,6 @@ function closeFolderEditor() {
 function folderHeadEl(folderId) {
   return folderId ? document.querySelector(`#catalogList .folder[data-id="${CSS.escape(folderId)}"] > ${FOLDER_ROW_SELECTOR}`) : null;
 }
-
-// Folder names accept letters (any language), digits, spaces, and a small safe
-// punctuation set — markup/symbols are rejected so names like the XSS probe or
-// "±!@£$%^&*" can't be created (#170 follow-up).
-const FOLDER_NAME_RE = /^[\p{L}\p{M}\p{N} '’&().,_-]+$/u;
-const MAX_FOLDER_NAME_LEN = 100;
-const isValidFolderName = (s) => FOLDER_NAME_RE.test(s);
 
 /** Why `name` can't be a folder name, or "" when it can. */
 function folderNameError(name) {
@@ -2995,6 +3031,78 @@ function armFolderDelete(button, folderId) {
   });
 }
 
+/** The folder's songs, then each subfolder's, in the order the tree shows them. */
+function songsInFolderTree(folderId) {
+  const own = (folders.find((f) => f.id === folderId)?.items ?? []).filter((id) => tracks[id]);
+  return [...own, ...childFoldersOf(folderId).flatMap((child) => songsInFolderTree(child.id))];
+}
+
+// Which folder shows the "too many songs" message, with its name and songs at that moment.
+// The message goes once either of those changes.
+let tooManySongs = null;
+
+const tooManySongsText = () => i18nT("folder.tooManyForSetlist", { max: SETLIST_MAX_SONGS });
+const folderLook = (folder) => `${folder.name}\n${songsInFolderTree(folder.id).join()}`;
+
+// Said once through a live region outside the list, which every redraw rebuilds.
+function announceInLibrary(text) {
+  const region = document.getElementById("libraryAnnounce");
+  if (region) region.textContent = text;
+}
+
+function stillTooManySongs(folder) {
+  if (tooManySongs?.folderId !== folder.id) return false;
+  if (tooManySongs.look === folderLook(folder)) return true;
+  tooManySongs = null;
+  announceInLibrary("");
+  return false;
+}
+
+function tooManySongsError() {
+  const error = document.createElement("p");
+  error.className = "folder-error";
+  error.textContent = tooManySongsText();
+  return error;
+}
+
+// Removed in place: a redraw here would take away the … button the menu opens from.
+function clearTooManySongs() {
+  tooManySongs = null;
+  announceInLibrary("");
+  document.querySelector("#catalogList .folder-error")?.remove();
+}
+
+function makeSetlistFromFolder(folder) {
+  const songIds = songsInFolderTree(folder.id);
+  if (songIds.length <= SETLIST_MAX_SONGS) {
+    createSetlistFromFolder(folder.name, songIds);
+    return;
+  }
+  tooManySongs = { folderId: folder.id, look: folderLook(folder) };
+  announceInLibrary(tooManySongsText());
+  render();
+  focusFolderRow(folder.id);
+}
+
+function focusFolderRow(folderId) {
+  const head = folderHeadEl(folderId);
+  if (head) libraryRows?.focusRow(head, ON_ROW, SHOWN_FOCUS);
+}
+
+/** A new folder named after a setlist, holding its songs that are out of the Trash, focused. */
+export function makeFolderFromSetlist(setlistName, songIds) {
+  const taken = folders.filter((f) => f.id !== TRASH_ID).map(folderDisplayName);
+  const base = folderNameFrom(setlistName, i18nT(NEW_FOLDER_TITLE_KEY));
+  const folder = makeFolder({ name: uniqueName(base, taken, MAX_FOLDER_NAME_LEN) });
+  folders.push(folder);
+  for (const id of songIds) {
+    if (tracks[id] && !isInTrash(id)) placeTrackInFolder(folder.id, id);
+  }
+  saveState();
+  render();
+  focusFolderRow(folder.id);
+}
+
 const RENAME_FOLDER_KEY = "F2";
 
 /** A user folder's F2 rename and its … menu; Delete in the menu arms the … button. */
@@ -3008,18 +3116,25 @@ function wireFolderControls(head, folderEl, folder) {
   head.querySelector(".f-more").addEventListener("click", function onFolderMoreClick(e) {
     e.stopPropagation();
     const button = e.currentTarget;
+    clearTooManySongs();
     if (isArmed(button)) {
       armFolderDelete(button, folder.id);
       return;
     }
-    openFolderMenu(button, folderDisplayName(folder), {
-      rename: renameFolder,
-      addSubfolder: function onAddSubfolderFromMenu() { addSubfolder(folder, folderEl); },
-      remove: function onArmDeleteFromMenu() {
-        armFolderDelete(button, folder.id);
-        button.focus();
+    openFolderMenu(
+      button,
+      folderDisplayName(folder),
+      {
+        rename: renameFolder,
+        addSubfolder: function onAddSubfolderFromMenu() { addSubfolder(folder, folderEl); },
+        makeSetlist: function onMakeSetlistFromMenu() { makeSetlistFromFolder(folder); },
+        remove: function onArmDeleteFromMenu() {
+          armFolderDelete(button, folder.id);
+          button.focus();
+        },
       },
-    });
+      { canMakeSetlist: songsInFolderTree(folder.id).length > 0 },
+    );
   });
 }
 
@@ -3085,6 +3200,7 @@ function renderFolder(folder) {
   }
 
   el.append(head, body);
+  if (stillTooManySongs(folder)) head.after(tooManySongsError());
 
   let folderClickTimer = null;
 
@@ -6373,6 +6489,7 @@ function openLibraryEditor() {
         <button class="settings-tab" type="button" data-tab="details" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.songDetails">Song details</button>
         <button class="settings-tab" type="button" data-tab="network" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.network">Network</button>
         <button class="settings-tab" type="button" data-tab="export" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.export">Export</button>
+        <button class="settings-tab" type="button" data-tab="recording" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.recording">Recording</button>
         <button class="settings-tab" type="button" data-tab="logs" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.logs">Logs</button>
         <button class="settings-tab" type="button" data-tab="registry" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.library">Library</button>
       </div>
@@ -6602,6 +6719,7 @@ function openLibraryEditor() {
           </div>
         </div>
       </div>
+      <div class="settings-pane hidden" data-pane="recording"></div>
       <div class="settings-pane hidden" data-pane="logs">
         <div class="settings-subtabs" role="tablist">
           <button class="settings-subtab" type="button" data-sub="location" role="tab" aria-selected="true" data-i18n="settings.logs.locationTab">Location</button>
@@ -6726,6 +6844,7 @@ function openLibraryEditor() {
   wireDiscogsSetting(overlay);
   wireStemsLocation(overlay);
   wireExportsLocation(overlay);
+  wireRecordingSettings(overlay);
   wireNetworkSetting(overlay);
   if (!isDesktop) {
     overlay.querySelector(".net-access-input")?.setAttribute("disabled", "");
@@ -6765,16 +6884,19 @@ async function waitForJobTerminal(jobId) {
   }
 }
 
-// "Sync again": reconcile the library with the backend, then auto-restore the
-// tracks that fell out of sync.
-//   forward  — add server jobs missing locally (syncWithServer)
-//   reverse  — flag local "done" tracks the server no longer has as
-//              "unavailable"; restore ones that reappeared on the server.
-//   restore  — re-import every currently-unavailable URL-sourced track
-//              (re-download + re-separate). Local-file tracks can't be
-//              auto-restored (the original file isn't kept) — they stay flagged.
-// Only done↔unavailable are reconciled, so in-progress imports are never
-// mis-flagged (they aren't on the server's done-list yet).
+/** The unavailable link songs the server confirms are gone. Marks it disowns are cleared. */
+async function restorableTracks() {
+  const trashIds = new Set(getTrashFolder()?.items || []);
+  const marked = Object.entries(tracks)
+    .filter(([id, t]) => !trashIds.has(id) && t.status === "unavailable")
+    .filter(([, t]) => isReimportableSource(t.sourceUrl));
+  const verdicts = await Promise.all(marked.map(([id]) => markVerdict(id)));
+  if (verdicts.includes(MARK_STALE)) render();
+  return marked.filter((_, i) => verdicts[i] === MARK_HOLDS);
+}
+
+// Only songs the server itself calls gone are downloaded again: a mark left by
+// another server, or one that did not answer, must not cost a re-download.
 async function resyncLibrary() {
   const statusEl = libraryEditor?.querySelector(".library-editor-status");
   const syncBtn = libraryEditor?.querySelector(".library-editor-sync");
@@ -6786,13 +6908,8 @@ async function resyncLibrary() {
     if (!res.ok) throw new Error(`status ${res.status}`);
 
     await syncWithServer(); // pulls in new server jobs, reconciles done <-> unavailable
+    const restorable = await restorableTracks();
     if (libraryEditor) renderLibraryRows(libraryEditor.querySelector(".library-editor-body"));
-
-    // Collect what's still unavailable; auto-restore the ones with a URL source.
-    const trashIds = new Set(getTrashFolder()?.items || []);
-    const restorable = Object.entries(tracks)
-      .filter(([id, t]) => !trashIds.has(id) && t.status === "unavailable")
-      .filter(([, t]) => isReimportableSource(t.sourceUrl));
 
     if (restorable.length) {
       // Re-import each from its source. Close the editor so the studio overlay

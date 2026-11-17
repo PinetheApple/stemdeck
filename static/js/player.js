@@ -48,7 +48,7 @@ import {
   loadMixIntoState, resetMixerState, refreshMixerVisuals,
   setLaneControlsEnabled, ensureMixerStateDefaults, applyMix,
   renderRealMiniWave, renderRealMiniWaveFromPeaks, renderMixerRow,
-  applyAllLanePitches, setLaneKeysAvailable, mixGlobalPitch,
+  applyAllLanePitches, setLaneKeysAvailable, mixGlobalPitch, anySoloActive,
 } from "./mixer.js";
 import {
   buildRuler, updatePlayheadMarker, updateLoopRegionVisual,
@@ -63,6 +63,9 @@ import { t, plural, onLanguageChange } from "./i18n.js";
 import { paintNowPlayingArt } from "./formatIcon.js";
 import { noteMediaPosition, clearMediaSession } from "./mediaSession.js";
 import { trackPlayhead, resetFollowing } from "./autoScroll.js";
+import { takeLaneSpace, onTakeLayoutChange } from "./takesLayout.js";
+import { takeSoloActive } from "./takesMix.js";
+import { finishTakeBeforeTeardown } from "./recorder.js";
 import { DEFAULT_VERSION_ID } from "./versionModel.js";
 import { applyAllFx } from "./mixFx.js";
 import { setMixSource } from "./masterEngine.js";
@@ -669,7 +672,7 @@ function stemVuGain(stemName) {
   // Derived from trackIndex (the lanes actually mounted for THIS job) rather
   // than the fixed TRACK_NAMES, so a solo on a lead_vocals/backing_vocals
   // lane (#275) is honored the same as any of the base 6.
-  const anySolo = Object.keys(trackIndex).some((name) => mixerState[name]?.soloed);
+  const anySolo = takeSoloActive() || Object.keys(trackIndex).some((name) => mixerState[name]?.soloed);
   if (state.muted || (anySolo && !state.soloed)) return 0;
   return Math.max(0, state.volume);
 }
@@ -1076,12 +1079,11 @@ let _laneFitObs = null;
 function _watchLaneFit(count) {
   _laneCount = count;
   _laneFitObs?.disconnect();
-  const panel = document.querySelector(".daw-wave-panel");
-  if (!panel) return;
-  // The panel is flex: 1 inside a fixed-height column, so its own height comes
-  // from its parent and never from the lanes. Writing lane heights from here
-  // cannot feed the observer its own output.
+  if (!waveScroll) return;
+  // A refit only changes what scrolls inside waveScroll, never its box, so it cannot
+  // re-fire this; resizes, collapsed panels and the scrollbar coming or going do.
   _laneFitObs = new ResizeObserver(() => {
+    _matchLaneScrollbar();
     // Only where the SVG overlay is the visible waveform. On the streaming path
     // the lanes are WaveSurfer canvases sized when the tracks are created, and
     // setOptions only re-renders the ones that have audio: a lane for a stem
@@ -1093,12 +1095,19 @@ function _watchLaneFit(count) {
     if (!document.querySelector(".app")?.classList.contains("engine-waveforms")) return;
     if (_laneCount > 0) _applyLaneHeight(_laneCount);
   });
-  _laneFitObs.observe(panel);
+  _laneFitObs.observe(waveScroll);
+}
+
+// The mixer pads for the waveforms' horizontal scrollbar (--lane-scrollbar-h) so
+// both columns scroll the same distance, on either playback path.
+function _matchLaneScrollbar() {
+  const scrollbarH = waveScroll ? waveScroll.offsetHeight - waveScroll.clientHeight : 0;
+  document.querySelector(".app")?.style.setProperty("--lane-scrollbar-h", `${scrollbarH}px`);
 }
 
 function _applyLaneHeight(count) {
-  const wavePanel = document.querySelector(".daw-wave-panel");
-  const panelH = wavePanel?.clientHeight ?? 0;
+  _matchLaneScrollbar();
+  const panelH = waveScroll?.clientHeight ?? 0;
   // One row is a lane plus its separator, and BOTH columns have to agree on
   // that number or they drift apart down the stack. They did: every mixer row
   // draws its own 2px bottom border, so the mixer stack was count * (lane + 2),
@@ -1108,15 +1117,21 @@ function _applyLaneHeight(count) {
   //
   // So the row is the unit. Divide the panel by the row count, and give the
   // mixer and the waveform column exactly the same total.
+  const rec = takeLaneSpace();
   const rowH = panelH > 0 && count > 0
-    ? Math.max(WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT, Math.floor(panelH / count))
+    ? Math.max(WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT, Math.floor((panelH - rec.fixedPx) / (count + rec.lanes)))
     : WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT;
   const appEl = document.querySelector(".app");
   appEl?.style.setProperty("--lane-h", `${rowH}px`);
-  appEl?.style.setProperty("--wave-widget-track-stack-h", `${count * rowH}px`);
+  appEl?.style.setProperty("--stem-stack-h", `${count * rowH}px`);
+  appEl?.style.setProperty("--wave-widget-track-stack-h", `${(count + rec.lanes) * rowH + rec.fixedPx}px`);
   // The drawable height inside a row, which is what the multitrack is given.
   return rowH - WAVEFORM_SEPARATOR_HEIGHT;
 }
+
+onTakeLayoutChange(function refitForTakes() {
+  if (_laneCount > 0) _applyLaneHeight(_laneCount);
+});
 
 const BEATS_FETCH_TIMEOUT_MS = 5000;
 
@@ -1669,10 +1684,13 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
                 // audio and accept placeholder waveforms).
                 if (estimateDecodedBytes(totalDuration, engineStemCount) <= MAX_ENGINE_DECODED_BYTES) {
                   console.warn("[player] no peaks.json; using full-decode engine for visuals");
-                  teardownMetronome();
-                  eng.destroy();
-                  if (audioEngine === eng) setAudioEngine(null);
-                  startEngine("fulldecode");
+                  finishTakeBeforeTeardown().then(function swapToFullDecode() {
+                    if (token !== visualRenderToken || audioEngine !== eng) return;
+                    teardownMetronome();
+                    eng.destroy();
+                    setAudioEngine(null);
+                    startEngine("fulldecode");
+                  });
                 } else {
                   console.warn("[player] no peaks.json and track too large to decode; waveforms unavailable");
                 }
@@ -1921,7 +1939,7 @@ async function _errorDetail(res) {
 // is heard. _currentStems already includes "original" when the user picked a
 // subset, so summing these lanes reconstructs the adjusted full song.
 function _effectiveMixGains() {
-  const anySolo = _currentStems.some((s) => mixerState[s.name]?.soloed);
+  const anySolo = anySoloActive();
   const names = [];
   const gains = [];
   const pitches = [];

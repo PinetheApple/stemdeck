@@ -2,14 +2,15 @@
 .../versions/extract.
 
 The song's kept audio is separated again behind the pipeline lock, as a run of
-its own kind (EXTRACT_RUNS). A link song keeps no audio, so its audio is
-fetched again from the link by the import's downloader, into the run's temp
-folder, and goes with it. Only stems the song has no file for are moved in,
-so no file the player is using is replaced. The separator gets a scratch Job
-with the song's id, never registered, so the song stays "done". Nothing of the
-song changes unless the whole run succeeds, and nothing about a run is
-persisted. The separator writes into a dot temp folder in stems/, which the
-startup sweep removes after a crash.
+its own kind (EXTRACT_RUNS). A link song keeps the audio it was separated
+from; one imported before that keeps none, so its audio is fetched again from
+the link by the import's downloader, into the run's temp folder, and goes with
+it. Only stems the song has no file for are moved in, so no file the player
+is using is replaced. The separator gets a scratch Job with the song's id,
+never registered, so the song stays "done". Nothing of the song changes unless
+the whole run succeeds, and nothing about a run is persisted. The separator
+writes into a dot temp folder in stems/, which the startup sweep removes after
+a crash.
 """
 
 from __future__ import annotations

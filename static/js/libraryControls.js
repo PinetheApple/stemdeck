@@ -2,9 +2,13 @@
 
 import { icon } from "./libraryIcons.js";
 
-// Mirror the server's limits (SETLIST_NAME_MAX_CHARS, SONG_NAME_MAX_CHARS in app/core/config.py).
+// Mirror the server's limits (SETLIST_NAME_MAX_CHARS, SETLIST_MAX_SONGS, SONG_NAME_MAX_CHARS in app/core/config.py).
 export const SETLIST_NAME_MAX_CHARS = 100;
+export const SETLIST_MAX_SONGS = 1000;
 export const SONG_NAME_MAX_CHARS = 300;
+
+// Focus set by code after an action, drawn as the keyboard's focus would be.
+export const SHOWN_FOCUS = Object.freeze({ focusVisible: true });
 
 export const HTTP_NOT_FOUND = 404;
 const HTTP_UNPROCESSABLE = 422;

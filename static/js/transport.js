@@ -503,6 +503,10 @@ function _currentGrid() {
 // Bumped by every pause and stop, so a count-in still waiting for its start
 // to be scheduled knows it has been overtaken and does not sound afterwards.
 let _countInGeneration = 0;
+// The clicks of the last count-in armed, in source time, and the bar count a
+// take asked for (playWithCountIn) in place of the Tempo tab's.
+let _countInClicks = [];
+let _recordCountInBars = null;
 
 function _dropCountIn() {
   _countInGeneration++;
@@ -513,12 +517,13 @@ function _dropCountIn() {
 // Starts the audio late (engine.play(leadIn)) and schedules the count clicks in
 // the gap, whether or not the running click is on. Returns the start's promise
 // when it took over starting playback, so the caller does not also start it.
-function _armCountIn(eng, startPos) {
-  if (metronomeCountInBars < 1 || !eng?.supportsCountIn || !metronome) return false;
+function _armCountIn(eng, startPos, countBars) {
+  _countInClicks = [];
+  if (countBars < 1 || !eng?.supportsCountIn || !metronome) return false;
   const grid = _currentGrid();
   if (!grid) return false;
   const { leadIn, clicks } = computeCountIn(grid.beats, grid.bars, {
-    countBars: metronomeCountInBars,
+    countBars,
     multiplier: metronome.getMultiplier?.() ?? 1,
     accentMode: metronomeBeatsPerBar,
     groups: metronomeGrouping,
@@ -528,6 +533,7 @@ function _armCountIn(eng, startPos) {
   // Clicks sit in source time, leading into the start position: the last lands
   // one beat before the audio, so the song enters on the next downbeat.
   const sourceClicks = clicks.map((c) => ({ time: startPos - leadIn + c.offset, accent: c.accent }));
+  _countInClicks = sourceClicks;
   // The clicks can only be placed once the engine's clock describes this
   // start, and on the streaming engine that can be after a fetch. Scheduling
   // them as soon as play() returned used the previous start's clock and put
@@ -609,12 +615,24 @@ export function togglePlayPause() {
     // same position playback will actually start from.
     let startPos = eng.getCurrentTime?.() ?? 0;
     if (totalDuration > 0 && startPos >= totalDuration) startPos = 0;
-    _unlightIfNotStarted(eng, _armCountIn(eng, startPos) || eng.play());
+    const countBars = _recordCountInBars ?? metronomeCountInBars;
+    _unlightIfNotStarted(eng, _armCountIn(eng, startPos, countBars) || eng.play());
     playBtn.classList.add("playing");
     stopBtn.classList.remove("stopped");
   } else {
     _playWhenReady();
   }
+}
+
+/** Start playback for a take, counting in `bars` even when the Tempo tab's count-in is off. */
+export function playWithCountIn(bars) {
+  _recordCountInBars = bars;
+  try {
+    togglePlayPause();
+  } finally {
+    _recordCountInBars = null;
+  }
+  return { clicks: _countInClicks };
 }
 
 export function stopTransport() {

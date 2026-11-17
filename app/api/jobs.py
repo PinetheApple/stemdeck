@@ -89,7 +89,7 @@ from app.pipeline.artist_lookup import tagged_artist_name
 from app.pipeline.audio_tags import is_control, probe_tags
 from app.pipeline.collect import remove_job_dir
 from app.pipeline.download import InvalidYouTubeURL, fetch_audio_tags, validate_youtube_url
-from app.pipeline.extract_stems import EXTRACT_RUNS, cancel_extract
+from app.pipeline.extract_stems import EXTRACT_RUNS, cancel_extract, link_of
 from app.pipeline.identify import (
     can_identify_title,
     fingerprint_key,
@@ -173,6 +173,7 @@ JOB_NOT_FAILED = "job has not failed"
 SOURCE_FILE_GONE = "source file is gone"
 RESTORE_FROM_TRASH_FIRST = "restore it from the Trash first"
 RETRY_NOT_STARTED = "could not start the retry"
+RESPLIT_LINK_SONG = "re-import the link to separate it again"
 SOURCE_KIND_LINK = "link"
 SOURCE_KIND_FILE = "file"
 
@@ -940,12 +941,11 @@ class ResplitBody(BaseModel):
 
 
 def _retained_source(job_id: str) -> Path | None:
-    """The upload kept beside a finished job, if there is one.
+    """The source kept beside a finished job, if there is one: an upload's
+    source.wav, or a link's download (see keep_link_source).
 
-    Only uploads have this. A link's source is deleted once its stems exist,
-    because it can be fetched again; an upload's cannot, so the runner keeps
-    it (see cleanup_source). Jobs finished before that change kept nothing,
-    which is why absence is an ordinary answer here rather than an error.
+    A song may have none, so absence is an ordinary answer here rather than
+    an error.
     """
     return _source_file_in(JOBS_DIR / job_id)
 
@@ -1021,6 +1021,10 @@ async def resplit_job(job_id: str, body: ResplitBody) -> dict:
     if job is None or job.status != "done":
         raise HTTPException(status_code=404, detail="job not found")
 
+    if link_of(job) is not None:
+        # The new job's source would be a link, which the queue would try to
+        # download instead of separating the kept file.
+        raise HTTPException(status_code=409, detail=RESPLIT_LINK_SONG)
     source = _retained_source(job_id)
     if source is None:
         # Not a failure of this request: the track simply has nothing to
@@ -1490,10 +1494,9 @@ def _wants_work(job: Job, identity: dict[str, object] | None, tags: dict[str, st
 
 
 def _fingerprint_audio(job: Job) -> list[Path]:
-    """Blocking: what to fingerprint a finished job from. The upload kept
-    beside it; else its stems, which add back up to the mix (a link's
-    download is deleted once they exist). Only whitelisted stem names, each
-    resolved inside the job's directory."""
+    """Blocking: what to fingerprint a finished job from. The source kept
+    beside it; else its stems, which add back up to the mix. Only whitelisted
+    stem names, each resolved inside the job's directory."""
     source = _retained_source(job.id)
     if source is not None:
         return [source]
