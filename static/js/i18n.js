@@ -737,6 +737,7 @@ const en = {
 
   "transport.group": "Transport",
   "transport.playingGroup": "Playing",
+  "transport.showPlaying": "Show the playing song",
   "song.playOpen": "Play this song",
   "transport.stop": "Stop",
   "transport.playPause": "Play / Pause",
@@ -2202,6 +2203,7 @@ const pl = {
 
   "transport.group": "Transport",
   "transport.playingGroup": "Odtwarzane",
+  "transport.showPlaying": "Pokaż odtwarzany utwór",
   "song.playOpen": "Odtwórz ten utwór",
   "transport.stop": "Stop",
   "transport.playPause": "Odtwórz / Wstrzymaj",
@@ -3675,6 +3677,7 @@ const ja = {
 
   "transport.group": "トランスポート",
   "transport.playingGroup": "再生中",
+  "transport.showPlaying": "再生中の曲を表示",
   "song.playOpen": "この曲を再生",
   "transport.stop": "停止",
   "transport.playPause": "再生 / 一時停止",
@@ -5091,6 +5094,7 @@ const zhHans = {
 
   "transport.group": "传输控制",
   "transport.playingGroup": "正在播放",
+  "transport.showPlaying": "显示正在播放的歌曲",
   "song.playOpen": "播放这首歌",
   "transport.stop": "停止",
   "transport.playPause": "播放/暂停",
@@ -6508,6 +6512,7 @@ const de = {
 
   "transport.group": "Transport",
   "transport.playingGroup": "Läuft",
+  "transport.showPlaying": "Laufenden Song anzeigen",
   "song.playOpen": "Diesen Song abspielen",
   "transport.stop": "Stopp",
   "transport.playPause": "Wiedergabe / Pause",
@@ -7951,6 +7956,7 @@ const pt = {
 
   "transport.group": "Transporte",
   "transport.playingGroup": "Tocando",
+  "transport.showPlaying": "Mostrar la canción en reproducción",
   "song.playOpen": "Tocar esta música",
   "transport.stop": "Parar",
   "transport.playPause": "Reproduzir / Pausar",
@@ -9395,6 +9401,7 @@ const id = {
 
   "transport.group": "Transport",
   "transport.playingGroup": "Diputar",
+  "transport.showPlaying": "Tampilkan lagu yang diputar",
   "song.playOpen": "Putar lagu ini",
   "transport.stop": "Berhenti",
   "transport.playPause": "Putar / Jeda",
@@ -10812,6 +10819,7 @@ const fr = {
 
   "transport.group": "Transport",
   "transport.playingGroup": "En lecture",
+  "transport.showPlaying": "Afficher le morceau en lecture",
   "song.playOpen": "Lire ce morceau",
   "transport.stop": "Arrêter",
   "transport.playPause": "Lecture / Pause",
@@ -11855,6 +11863,7 @@ const ptPT = {
   "library.importedFile": "Ficheiro importado",
   "track.nowPlaying": "A reproduzir",
   "transport.playingGroup": "A reproduzir",
+  "transport.showPlaying": "Mostrar a música em reprodução",
   "song.playOpen": "Reproduzir esta música",
   "artist.loading": "A procurar “{name}” na Wikipédia…",
   "artist.checkingTrack": "A procurar o artista desta faixa…",
@@ -12655,6 +12664,7 @@ const es = {
 
   "transport.group": "Transporte",
   "transport.playingGroup": "Reproduciendo",
+  "transport.showPlaying": "Mostrar la canción en reproducción",
   "song.playOpen": "Reproducir esta canción",
   "transport.stop": "Detener",
   "transport.playPause": "Reproducir / Pausar",
@@ -14120,6 +14130,7 @@ const ko = {
 
   "transport.group": "트랜스포트",
   "transport.playingGroup": "재생 중",
+  "transport.showPlaying": "재생 중인 곡 표시",
   "song.playOpen": "이 곡 재생",
   "transport.stop": "정지",
   "transport.playPause": "재생 / 일시정지",

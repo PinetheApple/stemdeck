@@ -87,7 +87,15 @@ function onTrackNames() {
   if (shownTrackId()) setPlayingTitle(getPlayingTrackInfo()?.displayTitle ?? "");
 }
 
+function onPlayingTitleClick() {
+  const id = playingTrackId();
+  if (!id) return;
+  dropShownTrack();
+  $("catalogList")?.querySelector(`.cat-item[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest" });
+}
+
 export function initOpenSong() {
+  $("footerPlayingTitle")?.addEventListener("click", onPlayingTitleClick);
   setPlayRedirect(playShownSongInstead);
   $("songPlayBtn")?.addEventListener("click", onSongHeadPlayClick);
   document.addEventListener("trackended", onPlayingSongEnded);
