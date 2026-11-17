@@ -12,6 +12,7 @@ from app.pipeline.download import (
     _ALLOWED_PLAYLIST_EXTRACTORS,
     InvalidPlaylistURL,
     expand_playlist,
+    is_playlist_url,
     validate_playlist_url,
 )
 
@@ -89,6 +90,14 @@ def test_accepts_a_watch_url_carrying_a_list():
 def test_accepts_a_soundcloud_set():
     url = "https://soundcloud.com/someuser/sets/my-set"
     assert validate_playlist_url(url) == url
+
+
+def test_a_song_link_that_names_its_playlist_is_not_a_playlist():
+    assert not is_playlist_url("https://www.youtube.com/watch?v=abc12345678&list=PLxyz987")
+
+
+def test_a_pure_playlist_link_is_a_playlist():
+    assert is_playlist_url("https://www.youtube.com/playlist?list=PLabcdef123")
 
 
 @pytest.mark.parametrize(
