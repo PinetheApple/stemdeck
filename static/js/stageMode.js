@@ -4,7 +4,7 @@
 import { metronomeBeatsPerBar, npScrubFill, totalDuration } from "./state.js";
 import { togglePlayPause, stopTransport, transport } from "./transport.js";
 import { getSections, sectionDisplayName } from "./sections.js";
-import { getCurrentTrackInfo, isTextEditingTarget } from "./catalog.js";
+import { getPlayingTrackInfo, isTextEditingTarget } from "./catalog.js";
 import { playNextInUpNext } from "./upNext.js";
 import { shownBpm } from "./tempoTools.js";
 import { isBeatGridEditing, getBeats, barPositionIndex, barLengthAt } from "./beatgrid.js";
@@ -154,7 +154,7 @@ function syncLoop() {
 }
 
 function paintSong() {
-  const info = getCurrentTrackInfo();
+  const info = getPlayingTrackInfo();
   $("stageTitle").textContent = info?.displayTitle || EMPTY_VALUE;
   $("stageArtist").textContent = info?.artist ?? "";
   paintTempo();

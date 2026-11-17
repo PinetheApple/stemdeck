@@ -3,7 +3,7 @@
 
 import {
   TRASH_CHANGE_EVENT,
-  getCurrentTrackInfo,
+  getPlayingTrackInfo,
   getLibraryTrack,
   getTrackNames,
   isInTrash,
@@ -344,7 +344,7 @@ function songRow(setlist, trackId, index) {
   const li = document.createElement("li");
   li.className = "setlist-song";
   li.dataset.id = trackId;
-  li.classList.toggle(OPEN_SONG_CLASS, trackId === getCurrentTrackInfo()?.id);
+  li.classList.toggle(OPEN_SONG_CLASS, trackId === getPlayingTrackInfo()?.id);
   li.classList.toggle(TRASHED_SONG_CLASS, trashed);
   li.append(songBody(trackId, index, { names, title, trashed }), songActions(setlist, trackId, index, title));
   return li;

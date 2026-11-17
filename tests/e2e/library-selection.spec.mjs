@@ -1,5 +1,5 @@
-// A single click on a song selects it and leaves playback alone; a double-click,
-// Enter or the row's Play button switches to it.
+// A single click on a song selects and opens it, leaving the song that plays alone;
+// a double-click, Enter or the row's Play button opens it and plays it.
 
 import { test, expect } from "@playwright/test";
 import { ROW_KEY, ROW_PLAY_CLASS, SELECTED_ROW_CLASS } from "../../static/js/rovingRows.js";
@@ -38,7 +38,8 @@ test.afterEach(async ({ request }) => {
 const songRow = (page, id) => page.locator(`${SONG_ROW}[data-id="${id}"]`).first();
 const setlistSong = (page, id) => page.locator(`${SETLIST_SONG}[data-id="${id}"]`);
 const openId = (page) => page.evaluate(async () => (await import("/js/catalog.js")).getCurrentTrackInfo()?.id ?? null);
-const isPlaying = (page) => page.evaluate(async () => (await import("/js/state.js")).audioEngine.isPlaying());
+const playingId = (page) => page.evaluate(async () => (await import("/js/state.js")).currentJobId);
+const isPlaying = (page) => page.evaluate(async () => (await import("/js/state.js")).audioEngine?.isPlaying() === true);
 
 /** How many times the page starts opening a song: every open asks for its peaks first, once. */
 function countOpens(page, id) {
@@ -75,12 +76,16 @@ async function startPlayback(page) {
   await expect.poll(() => isPlaying(page)).toBe(true);
 }
 
-async function expectSelectedNotOpened(page, row, opens) {
+async function expectSelectedAndOpened(page, row, id) {
   await expect(row).toHaveClass(SELECTED);
   await expect(row).toBeFocused();
-  await page.waitForTimeout(SETTLE_MS);
-  await expect(row).not.toHaveClass(ACTIVE);
-  expect(opens.count).toBe(0);
+  await expect(row).toHaveClass(ACTIVE, { timeout: OPEN_TIMEOUT_MS });
+  expect(await openId(page)).toBe(id);
+}
+
+async function expectPlaying(page, id) {
+  await expect.poll(() => playingId(page), { timeout: OPEN_TIMEOUT_MS }).toBe(id);
+  await expect.poll(() => isPlaying(page), { timeout: OPEN_TIMEOUT_MS }).toBe(true);
 }
 
 /** Delete on the focused row bins nothing: `key` then moves on by keyboard, whose Delete bins `binnedId`. */
@@ -97,25 +102,28 @@ const opacityOf = (locator) => locator.evaluate((el) => getComputedStyle(el).opa
 const styleOf = (locator, property) => locator.evaluate((el, name) => getComputedStyle(el)[name], property);
 
 test.describe("song rows", () => {
-  test("a click selects a song and the one playing keeps playing", async ({ page }) => {
+  test("a click selects and opens a song while the one playing keeps playing", async ({ page }) => {
     await openStudio(page);
     await startPlayback(page);
-    const opens = countOpens(page, SIBLING_JOB_ID);
 
     await songRow(page, SIBLING_JOB_ID).click();
-    await expectSelectedNotOpened(page, songRow(page, SIBLING_JOB_ID), opens);
-    expect(await openId(page)).toBe(JOB_ID);
+    await expect(songRow(page, SIBLING_JOB_ID)).toHaveClass(SELECTED);
+    await expect.poll(() => openId(page)).toBe(SIBLING_JOB_ID);
+    await expect(songRow(page, SIBLING_JOB_ID)).not.toHaveClass(ACTIVE);
     await expect(songRow(page, JOB_ID)).toHaveClass(ACTIVE);
     await expect(songRow(page, JOB_ID)).not.toHaveClass(SELECTED);
+    expect(await playingId(page)).toBe(JOB_ID);
     expect(await isPlaying(page)).toBe(true);
   });
 
-  test("a click with nothing open opens nothing", async ({ page }) => {
+  test("a click with nothing open opens the song, once and paused", async ({ page }) => {
     await openLibrary(page);
     const opens = countOpens(page, SIBLING_JOB_ID);
     await songRow(page, SIBLING_JOB_ID).click();
-    await expectSelectedNotOpened(page, songRow(page, SIBLING_JOB_ID), opens);
-    expect(await openId(page)).toBeNull();
+    await expectSelectedAndOpened(page, songRow(page, SIBLING_JOB_ID), SIBLING_JOB_ID);
+    await page.waitForTimeout(SETTLE_MS);
+    expect(opens.count).toBe(ONE_OPEN);
+    expect(await isPlaying(page)).toBe(false);
   });
 
   test("a click selects a song without arming Delete", async ({ page }) => {
@@ -126,31 +134,33 @@ test.describe("song rows", () => {
     await expectDeleteUnarmed(page, trash, ROW_KEY.PREVIOUS, JOB_ID);
   });
 
-  test("a double-click opens the song once", async ({ page }) => {
+  test("a double-click opens the song once and plays it", async ({ page }) => {
     await openStudio(page);
     const opens = countOpens(page, SIBLING_JOB_ID);
     await songRow(page, SIBLING_JOB_ID).dblclick();
     await expect(songRow(page, SIBLING_JOB_ID)).toHaveClass(ACTIVE, { timeout: OPEN_TIMEOUT_MS });
-    await page.waitForTimeout(SETTLE_MS);
+    await expectPlaying(page, SIBLING_JOB_ID);
     expect(opens.count).toBe(ONE_OPEN);
   });
 
-  test("Enter on the selected song opens it", async ({ page }) => {
+  test("Enter on the selected song opens it and plays it", async ({ page }) => {
     await openStudio(page);
-    const opens = countOpens(page, SIBLING_JOB_ID);
-    await songRow(page, SIBLING_JOB_ID).click();
-    await expectSelectedNotOpened(page, songRow(page, SIBLING_JOB_ID), opens);
+    await songRow(page, JOB_ID).click();
+    await page.keyboard.press(ROW_KEY.NEXT);
+    await expect(songRow(page, SIBLING_JOB_ID)).toHaveClass(SELECTED);
     await page.keyboard.press(ROW_KEY.OPEN);
     await expect(songRow(page, SIBLING_JOB_ID)).toHaveClass(ACTIVE, { timeout: OPEN_TIMEOUT_MS });
+    await expectPlaying(page, SIBLING_JOB_ID);
   });
 
-  test("the Play button on the cover opens the song", async ({ page }) => {
+  test("the Play button on the cover opens the song and plays it", async ({ page }) => {
     await openStudio(page);
     const row = songRow(page, SIBLING_JOB_ID);
     await row.hover();
     await row.locator(PLAY).click();
     await expect(row).toHaveClass(ACTIVE, { timeout: OPEN_TIMEOUT_MS });
     await expect(row).toBeFocused();
+    await expectPlaying(page, SIBLING_JOB_ID);
   });
 
   test("opening with the Play button leaves Delete unarmed", async ({ page }) => {
@@ -179,11 +189,13 @@ test.describe("song rows", () => {
 test.describe("selected and open look different", () => {
   test.use({ viewport: { width: 1600, height: 900 } });
 
-  test("a frame marks the selection, a coral fill the open song, Play only off the open row", async ({ page }) => {
+  test("a frame marks the open song, a coral fill the playing one, Play only off the playing row", async ({ page }) => {
     await openStudio(page);
+    await startPlayback(page);
     const open = songRow(page, JOB_ID);
     const selected = songRow(page, SIBLING_JOB_ID);
     await selected.click();
+    await expect.poll(() => openId(page)).toBe(SIBLING_JOB_ID);
     await page.locator("#catalogSearch").focus();
     await page.mouse.move(0, 0);
 
@@ -202,26 +214,24 @@ test.describe("selected and open look different", () => {
 });
 
 test.describe("other song lists", () => {
-  test("Favourites: a click selects, a double-click opens", async ({ page }) => {
+  test("Favourites: a click opens, a double-click plays", async ({ page }) => {
     await openLibrary(page, { favorite: true });
     await page.locator(".rail-favorites").click();
-    const opens = countOpens(page, SIBLING_JOB_ID);
     const row = songRow(page, SIBLING_JOB_ID);
     await row.click();
-    await expectSelectedNotOpened(page, row, opens);
+    await expectSelectedAndOpened(page, row, SIBLING_JOB_ID);
     await row.dblclick();
-    await expect(row).toHaveClass(ACTIVE, { timeout: OPEN_TIMEOUT_MS });
+    await expectPlaying(page, SIBLING_JOB_ID);
   });
 
-  test("search results: a click selects, Play opens", async ({ page }) => {
+  test("search results: a click opens, Enter plays", async ({ page }) => {
     await openLibrary(page);
     await page.locator("#catalogSearch").fill(SIBLING_TITLE);
-    const opens = countOpens(page, SIBLING_JOB_ID);
     const row = songRow(page, SIBLING_JOB_ID);
     await row.click();
-    await expectSelectedNotOpened(page, row, opens);
-    await row.locator(PLAY).click();
-    await expect(row).toHaveClass(ACTIVE, { timeout: OPEN_TIMEOUT_MS });
+    await expectSelectedAndOpened(page, row, SIBLING_JOB_ID);
+    await page.keyboard.press(ROW_KEY.OPEN);
+    await expectPlaying(page, SIBLING_JOB_ID);
   });
 
   test("Setlists: a click selects, the open song is marked, double-click and Play open", async ({ page, request }) => {

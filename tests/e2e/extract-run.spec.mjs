@@ -270,3 +270,19 @@ test("a song whose audio was not kept is refused in the form, with nothing start
   await expect(rowLabel(page)).toHaveCount(0);
   expect(await failureMessages(page)).toEqual([]);
 });
+
+test("with another song shown over the playing one, the head shows that song's run and Stage the playing one's", async ({ page, request }) => {
+  await openOnTwoLanes(page, request);
+  const run = await stubExtractRun(page, request, running("separating", 0.3));
+  await extractBass(page);
+  await expect(page.locator("#npExtracting")).toHaveText("Extracting 30%");
+
+  await page.locator("#t-play").click();
+  await page.evaluate(async (id) => (await import("/js/openSong.js")).openSong(id), SIBLING_JOB_ID);
+  await expect(page.locator("#openPreview")).toBeVisible();
+  await expect(page.locator("#npExtracting")).toHaveCount(0);
+  await page.locator("#stageModeBtn").click();
+  await expect(page.locator("#stageView #stageExtracting")).toHaveText("Extracting 30%");
+  run.view = ended("cancelled");
+  await expect(page.locator("#stageExtracting")).toBeHidden();
+});

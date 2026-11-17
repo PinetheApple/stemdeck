@@ -1,4 +1,4 @@
-import { getCurrentTrackInfo, getLibraryTrack, displayTitle, libraryTitle } from "./catalog.js";
+import { getPlayingTrackInfo, getLibraryTrack, displayTitle, libraryTitle } from "./catalog.js";
 import { togglePlayPause, stopTransport, setPlayheadTime, transport } from "./transport.js";
 import { playNextInUpNext } from "./upNext.js";
 import { totalDuration, playbackSpeed, playBtn, loopEnabled, loopStart } from "./state.js";
@@ -89,7 +89,7 @@ function syncPlayback() {
 
 function openSongMetadata() {
   const track = getLibraryTrack(openTrackId);
-  const info = getCurrentTrackInfo();
+  const info = getPlayingTrackInfo();
   const named = info?.id === openTrackId ? info : null;
   return metadataInit({
     title: named?.displayTitle || (track ? displayTitle(libraryTitle(track)) : ""),

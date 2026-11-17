@@ -45,6 +45,7 @@ import {
 } from "./artistLookup.js";
 import { discogsCandidatesFromJson, discogsExtraFromJson, needsDiscogs, withDiscogs } from "./artistDiscogs.js";
 import {
+  TRACK_SHOW_EVENT,
   getCurrentTrackArtist,
   getCurrentTrackInfo,
   getCurrentTrackSong,
@@ -1008,6 +1009,11 @@ function onTrackTags(trackId) {
   settle();
 }
 
+function onSongOpenedOrShown(e) {
+  findBandFromTags(e.detail?.id ?? null);
+  settle();
+}
+
 export function initArtistInfo() {
   dialog = document.getElementById("artistDialog");
   body = document.getElementById("artistBody");
@@ -1043,11 +1049,9 @@ export function initArtistInfo() {
     else search(lastQuery, { id: lastId });
   });
 
-  // catalog.js says when a track has been opened, after its load is under way,
+  // catalog.js says when a track has been opened or shown, after its load is under way,
   // and when an older track's tags have been read.
-  document.addEventListener("trackopen", (e) => {
-    findBandFromTags(e.detail?.id ?? null);
-    settle();
-  });
+  document.addEventListener("trackopen", onSongOpenedOrShown);
+  document.addEventListener(TRACK_SHOW_EVENT, onSongOpenedOrShown);
   document.addEventListener("tracktags", (e) => onTrackTags(e.detail?.id ?? null));
 }

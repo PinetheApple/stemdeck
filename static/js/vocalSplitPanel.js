@@ -2,7 +2,7 @@
 // demand and follows the split, with Cancel, and a failure says why with Try again.
 
 import { t, getLanguage, onLanguageChange } from "./i18n.js";
-import { loadTrackIntoStudio } from "./catalog.js";
+import { TRACK_SHOW_EVENT, loadTrackIntoStudio } from "./catalog.js";
 import {
   JOB_DONE,
   SPLIT_STATE,
@@ -174,6 +174,7 @@ function initVocalSplitPanel() {
   ui.start.addEventListener("click", onStartClick);
   ui.cancel.addEventListener("click", onCancelClick);
   document.addEventListener("trackopen", onTrackOpen);
+  document.addEventListener(TRACK_SHOW_EVENT, onTrackOpen);
   document.addEventListener("playbackready", onPlaybackReady);
   onLanguageChange(onLanguageChanged);
 }

@@ -2,7 +2,7 @@
 // Extract more stems, and the version pill in the studio head.
 
 import {
-  applyVersionsState, displayTitle, getLibraryTrack, libraryTitle, loadTrackIntoStudio, redrawLibrary,
+  applyVersionsState, displayTitle, getCurrentTrackInfo, getLibraryTrack, libraryTitle, loadTrackIntoStudio, redrawLibrary,
   setVersionsExpanded,
 } from "./catalog.js";
 import { audioEngine, currentJobId, currentVersionId, selectedStems, setCurrentVersionId } from "./state.js";
@@ -103,20 +103,21 @@ export async function showOpenedVersion(jobId, state) {
   const shownStems = [...selectedStems];
   applyVersionsState(jobId, state);
   const opened = openVersionOf(getLibraryTrack(jobId));
-  if (!opened) return;
-  if (jobId === currentJobId && sameLanes(opened.stems, shownStems)) await switchMix(jobId, opened.id);
-  else await loadTrackIntoStudio(jobId);
+  if (!opened) return false;
+  if (jobId === currentJobId && sameLanes(opened.stems, shownStems)) {
+    await switchMix(jobId, opened.id);
+    return false;
+  }
+  return loadTrackIntoStudio(jobId);
 }
 
+/** Open a version; resolves to whether that loaded the song into the player anew. */
 export async function openVersion(jobId, versionId) {
   const track = getLibraryTrack(jobId);
-  if (!track) return;
-  if (openVersionOf(track)?.id === versionId) {
-    if (jobId !== currentJobId) await loadTrackIntoStudio(jobId);
-    return;
-  }
+  if (!track) return false;
+  if (openVersionOf(track)?.id === versionId) return jobId !== currentJobId && loadTrackIntoStudio(jobId);
   const state = await request(versionsUrl(jobId, versionId, "open"), { method: "POST" });
-  if (state) await showOpenedVersion(jobId, state);
+  return state ? showOpenedVersion(jobId, state) : false;
 }
 
 // ─── Save as new, extract, delete, rename ───
@@ -364,12 +365,14 @@ function pillMenuItems(jobId, track) {
   return [...items, menuSeparator(), saveItem];
 }
 
+// The pill is the open song's, which is not the one in the player while another plays.
 function onPillClick(e) {
-  const track = getLibraryTrack(currentJobId);
+  const jobId = getCurrentTrackInfo()?.id;
+  const track = getLibraryTrack(jobId);
   if (!track) return;
   openMenu(
     e.currentTarget,
-    pillMenuItems(currentJobId, track),
+    pillMenuItems(jobId, track),
     { label: e.currentTarget.getAttribute("aria-label"), place: placeBelow },
   );
 }

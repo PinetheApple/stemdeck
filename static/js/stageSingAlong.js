@@ -1,7 +1,7 @@
 // Sing along, Stage's second look: the lyrics fill the view word by word, and the
 // voice can be taken out of the song without touching its saved mix.
 
-import { getCurrentTrackInfo } from "./catalog.js";
+import { getPlayingTrackInfo } from "./catalog.js";
 import { MIX_CHANGE_EVENT, clearSilencedStems, isLaneSilenced, setSilencedStems } from "./mixer.js";
 import { getLoadedStemNames } from "./player.js";
 import { fillLine, getTimedLyricLines, hasUntimedLyrics, tagLang, vocalEnvelope } from "./lyrics.js";
@@ -44,7 +44,7 @@ const wantedSilence = () => silencedVocals({ split: splitNow(), voiceOn, backing
 
 /** Keeps the chosen vocals quiet while Sing along is on screen, and gives them back after. */
 function applySilence() {
-  if (!singShown() || !getCurrentTrackInfo()) {
+  if (!singShown() || !getPlayingTrackInfo()) {
     if (silencing) clearSilencedStems();
     silencing = false;
     return;
@@ -69,7 +69,7 @@ function paintVoice() {
 }
 
 async function readVoice() {
-  const id = getCurrentTrackInfo()?.id;
+  const id = getPlayingTrackInfo()?.id;
   const mine = ++voiceRead;
   voiceOn = false;
   backingOn = true;
@@ -84,7 +84,7 @@ async function readVoice() {
 }
 
 function onVoiceClick() {
-  const id = getCurrentTrackInfo()?.id;
+  const id = getPlayingTrackInfo()?.id;
   if (!id) return;
   voiceOn = !voiceOn;
   storeSet(singStoreKey(id), { voice: voiceOn });
@@ -133,7 +133,7 @@ function onLookKeydown(e) {
 /** The line being sung as the Lyrics tab draws it: one span per timed word. */
 function buildNowLine(el, lines, index) {
   const line = lines[index];
-  const envelope = vocalEnvelope(getCurrentTrackInfo()?.id);
+  const envelope = vocalEnvelope(getPlayingTrackInfo()?.id);
   nowLine = { lines, index, envelope, words: fillLine(el, line, lines[index + 1]?.time ?? null) };
   el.removeAttribute("lang");
   tagLang(el, line.text);
@@ -143,7 +143,7 @@ function paintNowLine(lines, index, time) {
   const el = $("singLineNow");
   if (!el) return;
   const stale = !nowLine || nowLine.lines !== lines || nowLine.index !== index;
-  if (stale || nowLine.envelope !== vocalEnvelope(getCurrentTrackInfo()?.id)) buildNowLine(el, lines, index);
+  if (stale || nowLine.envelope !== vocalEnvelope(getPlayingTrackInfo()?.id)) buildNowLine(el, lines, index);
   for (const word of nowLine.words) {
     const { sung, singing, fill } = wordFill(word, time);
     word.el.classList.toggle("sung", sung);

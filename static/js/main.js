@@ -11,7 +11,7 @@ import { wireJobForm, showError } from "./job.js";
 import { initSearch } from "./search.js";
 import { wireTransportButtons } from "./transport.js";
 import { wireBeatGridUi } from "./beatgridUi.js";
-import { togglePlayPause, updateLoopRegionVisual, toggleMetronome, transport, setPlayheadTime, setLoopRange } from "./transport.js";
+import { togglePlayPauseFromTransport, updateLoopRegionVisual, toggleMetronome, transport, setPlayheadTime, setLoopRange } from "./transport.js";
 import { setSectionsLoopBridge, saveSectionsOnPageClose } from "./sections.js";
 import { saveBeatGridOnPageClose } from "./beatgrid.js";
 import { wireStemListControls, wireMixerToolbar, laneDragIcon } from "./mixer.js";
@@ -1221,7 +1221,7 @@ document.addEventListener("keydown", function onStudioShortcutKey(e) {
   if (e.code === "Space") {
     if (isNativeSpaceTarget(e.target)) return;
     e.preventDefault();
-    togglePlayPause();
+    togglePlayPauseFromTransport();
   } else if (e.code === "BracketLeft") {
     e.preventDefault();
     // setPlayheadTime clamps to [0, totalDuration] itself, so the Math.max /

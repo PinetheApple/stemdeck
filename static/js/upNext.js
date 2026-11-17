@@ -3,7 +3,7 @@
 
 import {
   TRASH_CHANGE_EVENT,
-  getCurrentTrackInfo,
+  getPlayingTrackInfo,
   getLibraryTrack,
   isInTrash,
   isPlayableTrack,
@@ -99,13 +99,12 @@ async function playFromUpNext(trackId) {
   queue = queue.slice(at + 1);
   persist();
   renderUpNext();
-  pendingAutoplay = trackId;
-  await loadTrackIntoStudio(trackId);
+  await loadAndPlay(trackId);
 }
 
-/** The open song, when it can be played, then what is queued after it. */
+/** The song in the player, when it can be played, then what is queued after it. */
 export function getNowAndUpNextIds() {
-  const current = getCurrentTrackInfo()?.id;
+  const current = getPlayingTrackInfo()?.id;
   const now = isPlayableTrack(current) ? [current] : [];
   return [...new Set([...now, ...playableQueue()])];
 }
@@ -118,8 +117,7 @@ export async function playSongs(trackIds) {
   persist();
   renderUpNext();
   if (transport()?.isPlaying()) stopTransport();
-  pendingAutoplay = first;
-  await loadTrackIntoStudio(first);
+  await loadAndPlay(first);
   return true;
 }
 
@@ -140,6 +138,28 @@ export function setTrackEndOverride(override) {
 function onTrackEnded() {
   if (trackEndOverride?.(playableQueue()[0] ?? null)) return;
   playNextInUpNext();
+}
+
+/** Start `trackId` as soon as it has loaded, as a song played from Up Next is. */
+export function playWhenLoaded(trackId) {
+  pendingAutoplay = trackId;
+}
+
+/** Nothing starts by itself on its next load. */
+export function cancelPlayWhenLoaded() {
+  pendingAutoplay = null;
+}
+
+/** Load a song and start it; a song that cannot load leaves nothing waiting to start. */
+export async function loadAndPlay(trackId) {
+  pendingAutoplay = trackId;
+  const loaded = await loadTrackIntoStudio(trackId);
+  if (!loaded && pendingAutoplay === trackId) pendingAutoplay = null;
+}
+
+/** Whether the song that just ended hands the studio to Up Next. */
+export function upNextTakesOver() {
+  return pendingAutoplay !== null || playableQueue().length > 0;
 }
 
 function onPlaybackReady(e) {
@@ -226,7 +246,7 @@ function renderNowPlaying() {
   const box = $("upNextNow");
   if (!box) return;
   box.replaceChildren();
-  const info = getCurrentTrackInfo();
+  const info = getPlayingTrackInfo();
   const track = info && getLibraryTrack(info.id);
   if (!track) {
     const none = document.createElement("span");

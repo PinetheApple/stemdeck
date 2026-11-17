@@ -168,7 +168,7 @@ async function setUp(page, {
     },
   });
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
   await page.waitForFunction(
     () => !/\/\s*00:00\s*$/.test(document.querySelector("#t-time")?.textContent || "00:00 / 00:00"),
     null,
