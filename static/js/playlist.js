@@ -16,6 +16,8 @@ export function looksLikePlaylist(url) {
   const host = parsed.hostname.toLowerCase().replace(/^(www|m|music)\./, "");
   if (host === "soundcloud.com") return /^\/[^/]+\/sets\/[^/]+\/?$/.test(parsed.pathname);
   if (!/^(youtube\.com|youtube-nocookie\.com)$/.test(host)) return false;
+  // A song link that also names its playlist imports just the song.
+  if (parsed.searchParams.has("v")) return false;
   const list = parsed.searchParams.get("list");
   // RD* is algorithmic radio: endless and per-viewer, so there is no set to
   // import. Let it fall through to the single-track path instead.

@@ -191,6 +191,16 @@ function getTrashFolder() {
   return folders.find((f) => f.id === TRASH_ID);
 }
 
+/** Where a song lands when nobody chose a folder for it, whatever order the folders are in. */
+function getUnsortedFolder() {
+  let unsorted = folders.find((f) => f.id === UNSORTED_ID);
+  if (!unsorted) {
+    unsorted = makeFolder({ id: UNSORTED_ID, name: i18nT(UNSORTED_NAME_KEY) });
+    folders.unshift(unsorted);
+  }
+  return unsorted;
+}
+
 function removeTrackFromFolders(trackId) {
   for (const folder of folders) {
     folder.items = folder.items.filter((id) => id !== trackId);
@@ -323,6 +333,21 @@ let _saveFailureShown = false;
 function saveState() {
   ensureTrash();
   storeSet(STORAGE_KEY, { v: STORAGE_VERSION, folders, tracks }).then(onStoreSaved);
+}
+
+/** Another tab saved the library: take its copy, so a stale one here never writes back what it deleted. */
+function onLibraryStoredElsewhere(event) {
+  if (event.key !== STORAGE_KEY || event.newValue === null) return;
+  try {
+    const data = JSON.parse(event.newValue);
+    folders = data.folders ?? [];
+    tracks = data.tracks ?? {};
+  } catch (e) {
+    console.warn("[catalog] could not read the library another tab saved:", e);
+    return;
+  }
+  ensureTrash();
+  render();
 }
 
 function onStoreSaved(saved) {
@@ -464,13 +489,7 @@ export function addTrackToLibrary({ replaces, ...track }) {
   };
   const alreadyPlaced = folders.some((folder) => folder.items.includes(track.id));
   if (!alreadyPlaced) {
-    // Put into first non-trash folder or create an "Unsorted" folder.
-    let target = folders.find((folder) => folder.id !== TRASH_ID);
-    if (!target) {
-      target = makeFolder({ id: UNSORTED_ID, name: i18nT(UNSORTED_NAME_KEY) });
-      folders.unshift(target);
-    }
-    target.items.unshift(track.id);
+    getUnsortedFolder().items.unshift(track.id);
   }
   settleReplacement(track.id);
   saveState();
@@ -1819,7 +1838,7 @@ export function addPlaylistToLibrary(playlistTitle, jobs) {
   let folder = folders.find((f) => f.id !== TRASH_ID && !f.parentId && f.name === name);
   if (!folder) {
     folder = makeFolder({ name });
-    folders.unshift(folder);
+    folders.push(folder);
   }
 
   for (const job of jobs) {
@@ -2312,15 +2331,11 @@ function restoreTracksFromTrash(trackIds) {
   render();
 }
 
-/** Move tracks out of the Trash here only, into the first folder. */
+/** Move tracks out of the Trash here only, into Unsorted. */
 function takeOutOfTrash(ids) {
   const trash = getTrashFolder();
   trash.items = trash.items.filter((id) => !ids.includes(id));
-  let target = folders.find((f) => f.id !== TRASH_ID);
-  if (!target) {
-    target = makeFolder({ id: UNSORTED_ID, name: i18nT(UNSORTED_NAME_KEY) });
-    folders.unshift(target);
-  }
+  const target = getUnsortedFolder();
   for (const id of ids) {
     _trashSelection.delete(id);
     if (!target.items.includes(id)) target.items.push(id);
@@ -6948,6 +6963,7 @@ function wireSettingsMenu() {
 
 export async function initCatalog() {
   await loadState();
+  window.addEventListener("storage", onLibraryStoredElsewhere);
   wireCatalogToggle();
   wireCatalogRailViews();
   wireCatalogSearch();
