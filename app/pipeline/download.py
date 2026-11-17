@@ -411,8 +411,22 @@ def validate_playlist_url(url: str) -> str:
     return f"https://www.youtube.com/playlist?list={list_id}"
 
 
+def _has_video_id(url: str) -> bool:
+    try:
+        query = urllib.parse.urlparse(url.strip()).query
+    except (AttributeError, ValueError):
+        return False
+    return bool(urllib.parse.parse_qs(query).get("v", [""])[0])
+
+
 def is_playlist_url(url: str) -> bool:
-    """Cheap check for the UI: would validate_playlist_url accept this?"""
+    """Cheap check for the UI: would validate_playlist_url accept this?
+
+    A link that names a song (`v=`) is always that one song, even when it also
+    carries a `list=`, so only a pure playlist link counts.
+    """
+    if _has_video_id(url):
+        return False
     try:
         validate_playlist_url(url)
     except InvalidPlaylistURL:
