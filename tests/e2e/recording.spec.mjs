@@ -1,6 +1,7 @@
 // Recording tracks and takes, on Chromium's fake microphone.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, exportUi, openStudio } from "./helpers.mjs";
+import { SELECTED_ROW_CLASS } from "../../static/js/rovingRows.js";
+import { JOB_ID, SIBLING_JOB_ID, TRACK_TITLE, exportUi, openStudio } from "./helpers.mjs";
 import { openSong } from "./saveRaces.mjs";
 
 test.use({
@@ -34,6 +35,9 @@ const ALL_ARROW_HITS = [true, true, true, true];
 // Well under recorder.js's TEARDOWN_WAIT_MS (500), so a wait that ran would show.
 const FAST_PATH_MAX_MS = 100;
 const EXPORT_ROUTE = /\/(mixdown\.wav|stems\/all\.zip)\?/;
+
+// Long enough for a click's show to have reached the studio, had it started one.
+const SETTLE_MS = 600;
 
 const recordBtn = (page) => page.locator("#t-rec");
 const trackRow = (page) => page.locator(".rec-row").first();
@@ -244,6 +248,22 @@ test("a song switch mid-take finishes the take on its own song", async ({ page, 
   expect(frames).toBe(await capturedFrames(page));
   expect((await listing(request, SIBLING_JOB_ID)).takes).toHaveLength(0);
   await expect(page.locator(".rec-row")).toHaveCount(0);
+});
+
+test("a click on another song mid-take only selects its row", async ({ page }) => {
+  await openStudio(page);
+  await addArmedTrack(page);
+  await recordBtn(page).click();
+  await expect(recordBtn(page)).toHaveClass(/\bis-recording\b/, { timeout: 15000 });
+
+  const sibling = page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`).first();
+  await sibling.click();
+  await expect(sibling).toHaveClass(new RegExp(`\\b${SELECTED_ROW_CLASS}\\b`));
+  await page.waitForTimeout(SETTLE_MS);
+  await expect(page.locator("#title")).toHaveText(TRACK_TITLE);
+  await expect(page.locator("#openPreview")).toBeHidden();
+  await expect(recordBtn(page)).toHaveClass(/\bis-recording\b/);
+  await recordBtn(page).click();
 });
 
 async function acceptImport(route) {

@@ -10,6 +10,7 @@ import {
   shownTrackId,
 } from "./catalog.js";
 import { setPlayingTitle } from "./openPreview.js";
+import { REC_PHASE, recordingTake } from "./recorder.js";
 import { openVersion } from "./versions.js";
 import { cancelPlayWhenLoaded, loadAndPlay, playWhenLoaded, upNextTakesOver } from "./upNext.js";
 import { setPlayRedirect, togglePlayPause, transport } from "./transport.js";
@@ -20,9 +21,12 @@ let readyTrackId = null;
 
 const playingTrackId = () => getPlayingTrackInfo()?.id ?? null;
 const isPlaying = () => transport()?.isPlaying() === true;
+const isTakeRecording = () => [REC_PHASE.counting, REC_PHASE.recording].includes(recordingTake()?.phase);
 
 /** A single click: show the song over the one playing, or load it when none plays. */
 export function openSong(trackId) {
+  // The take's lanes stay in view while it records; the click only selects the row.
+  if (isTakeRecording()) return;
   cancelPlayWhenLoaded();
   if (trackId === playingTrackId()) {
     dropShownTrack();
