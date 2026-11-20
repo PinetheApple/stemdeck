@@ -7,6 +7,7 @@ cd "$(dirname "$0")"
 
 HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8000}"
+HTTPS_PORT="${HTTPS_PORT:-8444}"
 RELOAD="${RELOAD:-0}"
 # Treat the self-hosted server as a persistent, user-managed library (like the
 # desktop app): opt out of the 24h job TTL sweep so processed tracks are not
@@ -16,11 +17,60 @@ FOREGROUND="${FOREGROUND:-0}"
 PID_FILE=".run/uvicorn.pid"
 LOG_FILE=".run/uvicorn.log"
 UVICORN=".venv/bin/uvicorn"
+CERT_DIR=".run/certs"
 
 mkdir -p .run
 
 is_running() {
     [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+}
+
+# hostname -I is not installed everywhere; ip(8) covers those Linux hosts.
+lan_ips() {
+    hostname -I 2>/dev/null && return 0
+    ip -4 -o addr show scope global 2>/dev/null | awk '{sub(/\/.*/, "", $4); print $4}' || true
+}
+
+# A phone needs https (docs/configuration.md). The certificate is made once and
+# then reused as is: phones pin it, so it is never regenerated for a new IP.
+ensure_cert() {
+    [[ -f "$CERT_DIR/cert.pem" && -f "$CERT_DIR/key.pem" ]] && return 0
+    if ! command -v openssl >/dev/null 2>&1; then
+        echo "https: openssl not found, serving http only" >&2
+        return 1
+    fi
+    local san="DNS:localhost,IP:127.0.0.1" name ip
+    name=$(uname -n 2>/dev/null || true)
+    if [[ -n "$name" ]]; then
+        san+=",DNS:$name"
+    fi
+    for ip in $(lan_ips); do
+        if [[ "$ip" =~ ^[0-9]+(\.[0-9]+){3}$ ]]; then
+            san+=",IP:$ip"
+        fi
+    done
+    mkdir -p "$CERT_DIR"
+    chmod 700 "$CERT_DIR"
+    if ! openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj "/CN=stemdeck" \
+        -addext "subjectAltName=$san" \
+        -keyout "$CERT_DIR/key.pem" -out "$CERT_DIR/cert.pem" >/dev/null 2>&1; then
+        rm -f "$CERT_DIR/key.pem" "$CERT_DIR/cert.pem"
+        echo "https: certificate generation failed, serving http only" >&2
+        return 1
+    fi
+    chmod 600 "$CERT_DIR/key.pem"
+    echo "https: generated a self-signed certificate in $CERT_DIR"
+}
+
+# Sets the env the app reads (app/core/config.py) unless the caller set it.
+enable_https() {
+    [[ "$HTTPS_PORT" != "0" ]] || return 1
+    if [[ -z "${STEMDECK_SSL_CERT:-}" || -z "${STEMDECK_SSL_KEY:-}" ]]; then
+        ensure_cert || return 1
+        export STEMDECK_SSL_CERT="${STEMDECK_SSL_CERT:-$PWD/$CERT_DIR/cert.pem}"
+        export STEMDECK_SSL_KEY="${STEMDECK_SSL_KEY:-$PWD/$CERT_DIR/key.pem}"
+    fi
+    export STEMDECK_HTTPS_PORT="${STEMDECK_HTTPS_PORT:-$HTTPS_PORT}"
 }
 
 start() {
@@ -33,7 +83,12 @@ start() {
         exit 1
     fi
     gpu_torch || echo "gpu: torch swap failed, separation will run on CPU" >&2
-    echo "starting on http://$HOST:$PORT"
+    if enable_https; then
+        echo "starting on http://$HOST:$PORT and https://$HOST:$STEMDECK_HTTPS_PORT"
+        echo "phones show a certificate warning once; accept it to continue"
+    else
+        echo "starting on http://$HOST:$PORT"
+    fi
     # A long-lived SSE stream (the import queue view) keeps a connection open
     # for as long as a browser tab is open, and uvicorn waits for open
     # connections before it exits. Without a bound, Ctrl-C appears to hang.

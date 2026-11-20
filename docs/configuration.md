@@ -34,10 +34,10 @@
 | `STEMDECK_IDLE_UNLOAD_MINUTES` | `10` | Minutes with no separation or analysis running before the separation worker and the beat model are unloaded from memory, at most `1440`; `0` keeps them loaded. The next track loads them again and starts a few seconds later. Unloading frees the graphics card's memory, and another program may take it meanwhile, so the next separation on the GPU can fall back to the CPU. A value saved through `POST /api/settings` (`idle_unload_minutes`) wins over this. |
 | `STEMDECK_SSL_CERT` | (none) | PEM certificate; set with the key below to serve https directly. |
 | `STEMDECK_SSL_KEY` | (none) | PEM private key for the certificate above. |
-| `STEMDECK_HTTPS_PORT` | (none) | Serve https on this port *in addition* to the main listener. Set by the desktop app; see below. |
+| `STEMDECK_HTTPS_PORT` | (none) | Serve https on this port *in addition* to the main listener. Set by the desktop app and by `run.sh`; see below. |
 | `STEMDECK_PUBLIC_URL` | (none) | The `http(s)://` address Settings > Network shows and turns into a QR code, in place of the detected LAN addresses. Set it when other devices reach StemDeck through an address the server cannot see: a container on a bridge network, a reverse proxy, or a tunnel. Anything other than an http(s) URL with a host is ignored with a warning in the log. |
 
-`run.sh` also reads: `HOST` (default `0.0.0.0`), `PORT` (default `8000`), `RELOAD=1` (enable uvicorn auto-reload for development), `FOREGROUND=1` (run in foreground instead of backgrounding).
+`run.sh` also reads: `HOST` (default `0.0.0.0`), `PORT` (default `8000`), `HTTPS_PORT` (default `8444`, `0` turns https off), `RELOAD=1` (enable uvicorn auto-reload for development), `FOREGROUND=1` (run in foreground instead of backgrounding).
 
 ### Who can reach StemDeck
 
@@ -72,7 +72,13 @@ So a server that other devices will use terminates TLS, one of three ways:
    over a plain-http upstream hop is recognised as secure and served normally.
 2. **StemDeck itself**, by pointing `STEMDECK_SSL_CERT` and `STEMDECK_SSL_KEY`
    at a certificate and key. uvicorn serves them directly; no extra package is
-   installed for this.
+   installed for this. `./run.sh start` does it for you: it serves https on
+   `HTTPS_PORT` (8444) next to the http listener, with a self-signed
+   certificate it creates once in `.run/certs/` (10 years, covering localhost,
+   the hostname and the LAN IPv4s at that moment) and then reuses. It never
+   regenerates it, so a phone that accepted it once keeps working; delete the
+   two files to issue a new one, for example after the IP changes. Without
+   `openssl` it starts http only.
 3. **A private overlay network** such as Tailscale, whose addresses are already
    https.
 

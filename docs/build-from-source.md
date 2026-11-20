@@ -150,7 +150,7 @@ The library is persistent by default (`STEMDECK_PERSIST_LIBRARY=1`), so tracks a
 ```sh
 ./run.sh setup      # one-shot: install ffmpeg + uv, then uv sync
 ./run.sh gpu        # Linux + Blackwell GPU: install the CUDA 12.8 torch build
-./run.sh start      # boots uvicorn in the background
+./run.sh start      # boots uvicorn in the background; also https on :8444 (HTTPS_PORT=0 to skip)
 ./run.sh stop       # graceful shutdown
 ./run.sh restart    # stop + start
 ./run.sh status     # is it running?
