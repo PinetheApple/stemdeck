@@ -146,10 +146,8 @@ def quarantine_dirs(jobs_dir: Path) -> list[Path]:
     return [d for d in job_dirs(failed_root) if (d / "error.txt").is_file()]
 
 
-# The files reset removes beside the job folders: the registry, its temp and
-# set-aside copies (persist, keep_bad_records), the setlists, My order and the desktop
-# shell's store with the copies its save keeps, each with the temp name of an
-# atomic write. A copy left behind would bring the old library back.
+# Every record reset removes beside the job folders, with its copies and temp
+# names: a copy left behind would bring the old library back.
 OWN_FILE_RE = re.compile(
     r"(registry\.json(\.bad-[\w-]+)?|user-data\.json(\.(bak|tmp|corrupt-[0-9]+))?"
     r"|setlists\.json|library_order\.json)\Z"

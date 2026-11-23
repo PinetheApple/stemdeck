@@ -1,5 +1,5 @@
-"""My order (#235): the user's drag order of library songs, kept on the server
-so the desktop and the phone share it."""
+"""My order: the user's drag order of library songs, kept on the server so the
+desktop and the phone share it."""
 
 from __future__ import annotations
 
