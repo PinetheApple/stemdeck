@@ -103,7 +103,6 @@ function position() {
   panel.style.left = `${Math.round(r.left)}px`;
   panel.style.top = `${Math.round(r.bottom + 6)}px`;
   panel.style.width = `${Math.round(width)}px`;
-  clampIntoWindow(panel);
 }
 
 function open() {

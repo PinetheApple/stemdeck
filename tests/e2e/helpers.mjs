@@ -89,13 +89,14 @@ export async function readCatalogState(page) {
  *
  * Both, not just one. syncWithServer imports any server job the store does not
  * already know, so leaving one out would add it as a row of its own on every
- * page load in the suite.
+ * page load in the suite. `trashed` lists the fixture ids to seed in the Trash instead.
  */
-export async function seedLibrary(page) {
+export async function seedLibrary(page, { trashed = [] } = {}) {
+  const ids = [JOB_ID, SIBLING_JOB_ID];
   await seedCatalogState(page, {
     folders: [
-      { id: "f-unsorted", name: "Unsorted", items: [JOB_ID, SIBLING_JOB_ID], color: null },
-      { id: "trash", name: "Trash", items: [], color: null },
+      { id: "f-unsorted", name: "Unsorted", items: ids.filter((id) => !trashed.includes(id)), color: null },
+      { id: "trash", name: "Trash", items: ids.filter((id) => trashed.includes(id)), color: null },
     ],
     tracks: {
       [JOB_ID]: fixtureTrack(JOB_ID, TRACK_TITLE),
@@ -402,11 +403,12 @@ export async function openStudio(
     updateAvailable = false,
     serverFavorites = {},
     catalog = null,
+    trashed = [],
     waitForDuration = true,
   } = {},
 ) {
   if (catalog) await seedCatalogState(page, catalog);
-  else await seedLibrary(page);
+  else await seedLibrary(page, { trashed });
   const favoriteWrites = await stubFavorites(page, serverFavorites);
   if (tauri) await stubTauri(page);
   await stubExportEndpoints(page);

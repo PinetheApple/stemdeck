@@ -11,6 +11,8 @@ const MIN_WAVES = MIN_WAVES_PX;
 const FAR = 2000;
 // Too narrow for the widest sidebar, stem column and song tools; wide enough for the first two.
 const STEP_ASIDE_WINDOW = { width: 1400, height: 900 };
+// Less than the song tools can give up from their default, so they narrow rather than hide.
+const TOOLS_SHORT_PX = 10;
 const EDGES = [
   { name: "sidebar", handle: "#libraryResizer", pane: "#catalogPanel", ...PANE_LIMITS.sidebar, grows: 1, key: "stemdeck.library.width" },
   { name: "stem controls", handle: "#stemsResizer", pane: ".daw-stems-panel", ...PANE_LIMITS.stems, grows: 1, key: "stemdeck.stems.width" },
@@ -75,6 +77,23 @@ test("the song tools step aside before the stem column narrows", async ({ page }
   await expect(page.locator("#inspectorToggleBtn")).toHaveAttribute("aria-pressed", "false");
   await expect.poll(() => widthOf(page, stems.pane)).toBe(stems.max);
   expect(await widthOf(page, ".daw-wave-panel")).toBeGreaterThanOrEqual(MIN_WAVES);
+});
+
+test("a default narrowed for a smaller window comes back, tools shown, when it grows", async ({ page }) => {
+  const [sidebar, stems, tools] = EDGES;
+  await drag(page, sidebar.handle, FAR);
+  await drag(page, stems.handle, FAR);
+  const toolsDefault = await widthOf(page, tools.pane);
+  const room = (await widthOf(page, ".daw-wave-panel")) - MIN_WAVES;
+  await page.setViewportSize({ width: Math.floor(WIDE_WINDOW.width - room - TOOLS_SHORT_PX), height: WIDE_WINDOW.height });
+  await expect.poll(() => widthOf(page, tools.pane)).toBeLessThan(toolsDefault);
+  await expect(page.locator("#inspector")).toBeVisible();
+
+  await page.setViewportSize(WIDE_WINDOW);
+  await expect.poll(() => widthOf(page, tools.pane)).toBe(toolsDefault);
+  await expect(page.locator("#inspector")).toBeVisible();
+  expect(await widthOf(page, sidebar.pane)).toBe(sidebar.max);
+  expect(await widthOf(page, stems.pane)).toBe(stems.max);
 });
 
 test("all three at their widest still leave the waveforms 320px", async ({ page }) => {

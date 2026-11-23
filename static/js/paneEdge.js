@@ -39,10 +39,13 @@ export class PaneEdge {
     if (this.preferred !== null) return this.preferred;
     const shown = this.host.style.getPropertyValue(this.cssVar);
     if (!shown) return Math.round(this.measure());
-    // Only a default narrowed earlier is unknown, so only then is it laid out bare.
+    // Only a default narrowed earlier is unknown, so only then is it laid out bare, with transitions off.
+    this.host.classList.add(SIZING_CLASS);
     this.host.style.removeProperty(this.cssVar);
     const natural = Math.round(this.measure());
     this.host.style.setProperty(this.cssVar, shown);
+    void this.host.offsetWidth;
+    this.host.classList.remove(SIZING_CLASS);
     return natural;
   }
 
