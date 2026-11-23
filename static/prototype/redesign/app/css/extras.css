@@ -1,0 +1,6 @@
+/* PROTOTYPE - throwaway. Imports the stylesheet of every optional view file. */
+@import url('panels.css');
+@import url('dialogs.css');
+@import url('addsong.css');
+@import url('studio-tools.css');
+@import url('stage.css');

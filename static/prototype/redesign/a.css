@@ -1,0 +1,22 @@
+/* PROTOTYPE - throwaway layout mockup. */
+.app--a { grid-template-columns: 272px minmax(0, 1fr) 340px; grid-template-rows: 52px minmax(0, 1fr) 84px; }
+.main-a { position: relative; display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; min-height: 0; overflow: hidden; }
+.main-a > *:not(.wash) { position: relative; }
+.main-a .head { z-index: 4; }
+.pads { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 12px; }
+.pad { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 8px; padding: 16px 18px; border-radius: var(--r-3); background: var(--surface-1); border: 1px solid var(--line); cursor: pointer; user-select: none; min-height: 0; transition: transform var(--t-fast), border-color var(--t-fast); }
+.pad:hover { border-color: color-mix(in srgb, var(--c) 55%, transparent); }
+.pad:active { transform: scale(0.985); }
+.pad > *:not(.pad__lvl) { position: relative; }
+.pad__top { display: flex; align-items: center; gap: 10px; }
+.pad__name { font-size: 22px; font-weight: 800; color: var(--c); letter-spacing: -0.01em; }
+.pad__badge { display: none; white-space: nowrap; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 700; align-items: center; gap: 4px; background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text-2); }
+.pad.is-mine .pad__badge--mine, .pad.is-off .pad__badge--off { display: inline-flex; }
+.pad__solo { margin-left: auto; height: 34px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line-strong); font-size: 12.5px; font-weight: 700; color: var(--text-2); background: var(--surface-2); }
+.pad__solo:hover { background: var(--surface-4); color: var(--text); }
+.pad.is-solo .pad__solo { background: var(--c); color: #141414; border-color: transparent; }
+.pad__wave { flex: 1; min-height: 20px; pointer-events: none; }
+.pad__bottom { display: flex; align-items: center; gap: 10px; color: var(--text-3); cursor: default; height: 24px; }
+.pad.is-off { background: transparent; border-style: dashed; }
+.pad.is-off .pad__name { color: var(--text-3); }
+.pad.is-off .pad__wave { opacity: 0.25; filter: grayscale(1); }

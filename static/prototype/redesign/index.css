@@ -1,0 +1,12 @@
+/* PROTOTYPE - throwaway layout mockup. */
+body { overflow: auto; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 48px 32px 80px; }
+h1 { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 8px; }
+h2 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin: 40px 0 14px; }
+p, li { color: var(--text-2); font-size: 15px; line-height: 1.55; }
+ul { padding-left: 20px; margin: 0; }
+.cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.c { display: block; padding: 22px; border-radius: var(--r-3); background: var(--surface-1); border: 1px solid var(--line); text-decoration: none; }
+.c:hover { border-color: var(--accent-line); }
+.c h3 { margin: 0 0 6px; font-size: 20px; font-weight: 800; }
+.c p { margin: 0 0 10px; }
