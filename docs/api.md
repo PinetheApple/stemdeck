@@ -37,6 +37,8 @@ The endpoints the web app itself uses. They are not a stable public interface an
 | POST | `/api/setlists` | `{name, song_ids?}` → the created setlist (201) |
 | PATCH | `/api/setlists/{id}` | `{name?, song_ids?}` → the updated setlist |
 | DELETE | `/api/setlists/{id}` | Delete a setlist → `{id, status: "deleted"}` |
+| GET | `/api/library/order` | My order, the drag order of the library → `{song_ids}`; see [My order](#my-order) |
+| PUT | `/api/library/order` | `{song_ids}` replaces My order → `{song_ids}` |
 
 ### Song names
 
@@ -76,3 +78,7 @@ Save as new needs at least one known stem (else a 422) and room for one more ver
 ### Setlists
 
 A setlist's `name` is trimmed, 1 to 100 characters. `song_ids` is an ordered list of job ids, at most 1000, each a job the server knows and each once. Anything else is a 422; an unknown setlist id is a 404. `updated_at` is Unix seconds. Deleting a song takes it out of every setlist, and the retention sweep never removes a song that is in one (nor a favourite); a song gone any other way (its folder removed by hand) is left out of what `GET` returns.
+
+### My order
+
+My order is one ordered list of job ids, `{"song_ids": [...]}`, shared by every device. `PUT` replaces it whole: each id must be a job the server knows (else a 422 `unknown song ids: ...`), at most 10000, and a repeated id keeps its first place. It is refused with a 409 while the stems folder moves. `GET` leaves out ids the server no longer knows; a trashed song keeps its place. Deleting a song takes it out, and a re-import puts the new copy in the old one's place. The server never sorts: songs not in the list are for the client to place (newest first).

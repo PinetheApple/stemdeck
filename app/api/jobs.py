@@ -57,6 +57,8 @@ from app.core.models import (
     clean_user_name,
     settle_cancelled,
 )
+from app.core.library_order import remove_songs as library_order_remove_songs
+from app.core.library_order import replace_song as library_order_replace_song
 from app.core.registry import all_jobs as registry_all_jobs
 from app.core.registry import get as registry_get
 from app.core.registry import get_proc as registry_get_proc
@@ -2468,6 +2470,7 @@ def _remove_job(job: Job) -> bool:
     registry_remove(job_id)
     registry_persist(JOBS_DIR)
     setlists_remove_songs(JOBS_DIR, [job_id])
+    library_order_remove_songs(JOBS_DIR, [job_id])
     return removed
 
 
@@ -2534,6 +2537,7 @@ def _settle_old_copy(job: Job) -> None:
         return
     # Before the delete below, which would take the old copy out of its setlists.
     setlists_replace_song(JOBS_DIR, old.id, job.id)
+    library_order_replace_song(JOBS_DIR, old.id, job.id)
     if job_files_missing(old):
         logger.info("[%s] replaces %s, whose files are gone: deleting it", job.id, old.id)
         if not _remove_job(old):
