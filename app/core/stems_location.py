@@ -25,7 +25,7 @@ import stat
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.core.config import SETLISTS_FILE
+from app.core.config import LIBRARY_ORDER_FILE, SETLISTS_FILE
 from app.core.settings import fsync_dir, fsync_file
 from app.core.song_folder import FAILED_DIR_NAME, OWN_FILE_RE, is_real_entry
 
@@ -139,7 +139,7 @@ def validate_target(target: Path, current: Path) -> Path:
 
 # move_library never writes over a file at the target, so with one of these in
 # both folders ours would stay behind, and its favourites, tags or setlists with it.
-_LIBRARY_RECORDS = ("registry.json", "user-data.json", SETLISTS_FILE)
+_LIBRARY_RECORDS = ("registry.json", "user-data.json", SETLISTS_FILE, LIBRARY_ORDER_FILE)
 
 # What the desktop shell's save keeps beside user-data.json: the previous file,
 # a save that stopped partway, and damaged files it set aside.

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from app.core.config import SETLISTS_FILE
+from app.core.config import LIBRARY_ORDER_FILE, SETLISTS_FILE
 from app.core.models import Job
 from app.core.stems_location import StemsLocationError, move_library, validate_target
 from tests.test_stems_location import _isolate_registry, _job_dir, client  # noqa: F401
@@ -84,7 +84,7 @@ def test_moving_into_another_stemdeck_library_keeps_both_registries_records(tmp_
     assert restored.favorite is True, "our favourite must still be where it was"
 
 
-@pytest.mark.parametrize("records", ["user-data.json", SETLISTS_FILE])
+@pytest.mark.parametrize("records", ["user-data.json", SETLISTS_FILE, LIBRARY_ORDER_FILE])
 def test_another_librarys_other_records_are_refused_too(tmp_path, records):
     current = tmp_path / "old"
     _job_dir(current, "aaaaaaaaaaaa")
@@ -210,7 +210,15 @@ _SET_ASIDE = "registry.json.bad-20261111-120000-abc123"
 _REGISTRY_TEMP = f".registry.json.{'0' * 32}.tmp"
 
 
-@pytest.mark.parametrize("name", [_SET_ASIDE, _REGISTRY_TEMP, f".{SETLISTS_FILE}.{'f' * 32}.tmp"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        _SET_ASIDE,
+        _REGISTRY_TEMP,
+        f".{SETLISTS_FILE}.{'f' * 32}.tmp",
+        f".{LIBRARY_ORDER_FILE}.{'f' * 32}.tmp",
+    ],
+)
 def test_a_folder_holding_stemdecks_own_leftovers_is_accepted(tmp_path, name):
     current = tmp_path / "old"
     current.mkdir()

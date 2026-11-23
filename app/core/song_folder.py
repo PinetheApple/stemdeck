@@ -152,8 +152,8 @@ def quarantine_dirs(jobs_dir: Path) -> list[Path]:
 # atomic write. A copy left behind would bring the old library back.
 OWN_FILE_RE = re.compile(
     r"(registry\.json(\.bad-[\w-]+)?|user-data\.json(\.(bak|tmp|corrupt-[0-9]+))?"
-    r"|setlists\.json)\Z"
-    r"|\.(registry|registry\.json|setlists\.json)\.[0-9a-f]{32}\.tmp\Z"
+    r"|setlists\.json|library_order\.json)\Z"
+    r"|\.(registry|registry\.json|setlists\.json|library_order\.json)\.[0-9a-f]{32}\.tmp\Z"
 )
 
 
