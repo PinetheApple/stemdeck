@@ -321,7 +321,7 @@ test.describe("tags for tracks imported before they were read", () => {
     await stubAudioTags(page, TAGS, { hold });
     await openStudio(page);
     await openTrack(page);
-    await page.locator(".rail-lyrics").click();
+    await page.locator("#songToolsLyricsBtn").click();
     await expect(page.locator("#lyricsStatus")).toContainText("no artist or song tags");
     expect(lrclib).toEqual([]);
 

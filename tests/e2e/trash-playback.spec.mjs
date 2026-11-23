@@ -74,7 +74,7 @@ async function openSetlistsTab(page) {
 
 /** Hold the song's Trash row until it is restored, then go back to the library. */
 async function restoreFromTrash(page, id) {
-  await page.locator(".rail-trash").click();
+  await page.locator(".lib-nav-trash").click();
   const row = page.locator(`#catalogList .cat-item.in-trash[data-id="${id}"]`);
   const box = await row.boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -82,7 +82,7 @@ async function restoreFromTrash(page, id) {
   await page.waitForTimeout((await trashHoldMs(page)) * HOLD_PAST_RESTORE_FACTOR);
   await page.mouse.up();
   await expect(row).toHaveCount(0);
-  await page.locator(".rail-library").click();
+  await page.locator(".lib-nav-library").click();
   await expect(libraryRow(page, id)).toBeVisible();
 }
 
@@ -244,11 +244,11 @@ test.describe("a setlist", () => {
     await openSetlistsTab(page);
     await expect(setlistRow(page, SIBLING_JOB_ID)).toBeVisible();
 
-    await page.locator(".rail-trash").click();
+    await page.locator(".lib-nav-trash").click();
     await page.locator("#clearBinBtn").click();
     await page.locator("#clearBinBtn").click();
     await expect.poll(() => [...deleted]).toEqual([SIBLING_JOB_ID]);
-    await page.locator(".rail-library").click();
+    await page.locator(".lib-nav-library").click();
     await openSetlistsTab(page);
     await expect(setlistRow(page, JOB_ID)).toBeVisible();
     await expect(setlistRow(page, SIBLING_JOB_ID)).toHaveCount(0);

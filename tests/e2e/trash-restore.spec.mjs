@@ -40,7 +40,7 @@ async function seedFullTrash(page) {
 
 async function openTrash(page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator(".rail-trash").click();
+  await page.locator(".lib-nav-trash").click();
   await expect(page.locator("#catalogPanel")).toHaveClass(/trash-view/);
   for (const id of TRASHED) await expect(trashRow(page, id)).toBeVisible();
 }
@@ -64,7 +64,7 @@ test.describe("the Trash icon", () => {
     const badge = page.locator("#trashBadge");
     await expect(badge).toBeVisible();
     await expect(badge).toHaveText("3");
-    await expect(page.locator(".rail-trash")).toHaveAttribute("aria-label", "Trash (3)");
+    await expect(page.locator(".lib-nav-trash")).toHaveAttribute("aria-label", "Trash (3)");
   });
 
   test("shows no count when the Trash is empty", async ({ page }) => {
@@ -82,7 +82,7 @@ test.describe("the Trash icon", () => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await expect(page.locator(".cat-item").first()).toBeVisible();
     await expect(page.locator("#trashBadge")).toBeHidden();
-    await expect(page.locator(".rail-trash")).toHaveAttribute("aria-label", "Trash");
+    await expect(page.locator(".lib-nav-trash")).toHaveAttribute("aria-label", "Trash");
   });
 });
 

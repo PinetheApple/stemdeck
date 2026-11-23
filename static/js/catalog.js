@@ -118,6 +118,14 @@ let _trashAnchor = null;
 // --hold-ms, so the fill and the timer cannot drift apart.
 export const TRASH_HOLD_MS = 1000;
 const ESCAPE_KEY = "Escape";
+// The buttons that switch the sidebar's view; Lyrics sits in the song tools.
+const VIEW_BUTTONS = Object.freeze({
+  library: ".lib-nav-library",
+  favorites: ".lib-nav-favorites",
+  queue: ".lib-nav-queue",
+  trash: ".lib-nav-trash",
+  lyrics: "#songToolsLyricsBtn",
+});
 
 // ─── Persistence ───
 
@@ -1500,12 +1508,17 @@ function setCatalogView(view) {
   document.dispatchEvent(new CustomEvent("catalogviewchange", { detail: { view: catalogView } }));
 }
 
-/** Show the Lyrics view in the sidebar, as the rail's Lyrics button does. */
+/** Show the Lyrics view in the sidebar, as the song tools' Lyrics button does. */
 export function showLyricsView() {
   setCatalogView("lyrics");
 }
 
-/** Show the library list in the sidebar, as the rail's Library button does. */
+/** Show the import queue in the sidebar, as the top bar's Importing button does. */
+export function showQueueView() {
+  setCatalogView("queue");
+}
+
+/** Show the library list in the sidebar, as the sidebar's Library button does. */
 export function showLibraryView() {
   if (catalogView !== "library") setCatalogView("library");
 }
@@ -2094,7 +2107,7 @@ function endDrag(itemEl) {
   dragId = null;
   itemEl.classList.remove("dragging");
   for (const el of document.querySelectorAll(".folder.drop-target")) el.classList.remove("drop-target");
-  document.querySelector(".rail-trash")?.classList.remove("drop-target");
+  document.querySelector(VIEW_BUTTONS.trash)?.classList.remove("drop-target");
   document.getElementById("lanes")?.classList.remove("library-drop-target");
 }
 
@@ -2294,8 +2307,8 @@ function wireMainPanelDrop() {
   });
 }
 
-function wireRailTrashDrop() {
-  const trash = document.querySelector(".rail-trash");
+function wireTrashButtonDrop() {
+  const trash = document.querySelector(VIEW_BUTTONS.trash);
   if (!trash || trash.dataset.dropReady === "1") return;
   trash.dataset.dropReady = "1";
 
@@ -2449,7 +2462,7 @@ function wireTrashRow(el, trackId) {
 /** The Trash shows how full it is (#749): the reporter never noticed it was
  *  there, so nothing told them their deleted songs were still on disk. */
 function updateTrashBadge(count = getTrashFolder()?.items.length ?? 0) {
-  const btn = document.querySelector(".rail-trash");
+  const btn = document.querySelector(VIEW_BUTTONS.trash);
   const badge = document.getElementById("trashBadge");
   if (!btn || !badge) return;
   badge.textContent = count > 99 ? "99+" : String(count);
@@ -2459,8 +2472,8 @@ function updateTrashBadge(count = getTrashFolder()?.items.length ?? 0) {
   btn.setAttribute("aria-label", label);
 }
 
-function wireRailLibraryDrop() {
-  const btn = document.querySelector(".rail-library");
+function wireLibraryButtonDrop() {
+  const btn = document.querySelector(VIEW_BUTTONS.library);
   if (!btn || btn.dataset.dropReady === "1") return;
   btn.dataset.dropReady = "1";
 
@@ -2769,20 +2782,12 @@ function thumbHtml(track) {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>`;
 }
 
-function folderThumbHtml(isTrash = false) {
-  if (isTrash) {
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>';
-  }
-  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>';
-}
-
-function makeStripItem({ className = "", id, title, html, color, trackId }) {
+function makeStripItem({ className = "", id, title, html, trackId }) {
   const item = document.createElement("div");
   item.className = className ? `strip-thumb ${className}` : "strip-thumb";
   item.dataset.id = id;
   item.title = title;
   item.innerHTML = html;
-  if (color) item.style.setProperty("--folder-color", color);
   if (trackId) wireStripTrack(item, trackId);
   return item;
 }
@@ -3308,27 +3313,20 @@ function folderDropZone(e, head, noNesting) {
   return "into";
 }
 
-function renderStrip(strip, nonTrash) {
+/** What a collapsed sidebar shows: a cover per song, newest first, the open one marked. */
+function renderStrip(strip) {
   if (!strip) return;
-  const folderTrackIds = new Set(folders.flatMap((folder) => folder.items));
-  for (const [trackId, track] of Object.entries(tracks)) {
-    if (folderTrackIds.has(trackId)) continue;
+  const trashIds = new Set(getTrashFolder()?.items || []);
+  const songs = Object.entries(tracks)
+    .filter(([id]) => !trashIds.has(id))
+    .sort(([, a], [, b]) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  for (const [trackId, track] of songs) {
     strip.appendChild(makeStripItem({
       className: trackId === _currentTrackId ? "active" : "",
       id: trackId,
       title: track.title,
       html: thumbHtml(track),
       trackId,
-    }));
-  }
-  for (const folder of nonTrash) {
-    const folderColor = normalizeFolderColor(folder.color);
-    strip.appendChild(makeStripItem({
-      className: "folder-thumb",
-      id: folder.id,
-      title: `${folderDisplayName(folder)} (${folder.items.length})`,
-      html: folderThumbHtml(false),
-      color: folderColor,
     }));
   }
 }
@@ -3388,6 +3386,15 @@ function takeVersions(track, state) {
   track.openVersion = state.open_version;
 }
 
+/** The sidebar's view buttons, and the song tools' Lyrics button, show which view is on. */
+function paintViewButtons(shown) {
+  for (const [view, on] of Object.entries(shown)) {
+    const btn = document.querySelector(VIEW_BUTTONS[view]);
+    btn?.classList.toggle("active", on);
+    btn?.setAttribute("aria-pressed", String(on));
+  }
+}
+
 function drawCatalog() {
   const list = document.getElementById("catalogList");
   const strip = document.getElementById("catalogStrip");
@@ -3418,17 +3425,7 @@ function drawCatalog() {
   // The lyrics panel replaces the list rather than being rendered into it;
   // daw.css swaps which of the two is shown.
   catalog?.classList.toggle("lyrics-view", isLyricsView);
-  document.querySelector(".rail-lyrics")?.classList.toggle("active", isLyricsView);
-  document.querySelector(".rail-lyrics")?.setAttribute("aria-pressed", String(isLyricsView));
-
-  document.querySelector(".rail-library")?.classList.toggle("active", isLibraryView);
-  document.querySelector(".rail-library")?.setAttribute("aria-pressed", String(isLibraryView));
-  document.querySelector(".rail-favorites")?.classList.toggle("active", isFavoritesView);
-  document.querySelector(".rail-favorites")?.setAttribute("aria-pressed", String(isFavoritesView));
-  document.querySelector(".rail-trash")?.classList.toggle("active", isTrashView);
-  document.querySelector(".rail-trash")?.setAttribute("aria-pressed", String(isTrashView));
-  document.querySelector(".rail-queue")?.classList.toggle("active", isQueueView);
-  document.querySelector(".rail-queue")?.setAttribute("aria-pressed", String(isQueueView));
+  paintViewButtons({ lyrics: isLyricsView, library: isLibraryView, favorites: isFavoritesView, trash: isTrashView, queue: isQueueView });
 
   if (searchInput) {
     searchInput.placeholder = isTrashView
@@ -3443,7 +3440,7 @@ function drawCatalog() {
   // backend is actually working on, in the order it will work on it.
   if (isQueueView) {
     renderQueueList(list);
-    renderStrip(strip, topLevelFolders());
+    renderStrip(strip);
     updateQueueBadge();
     return;
   }
@@ -3482,7 +3479,7 @@ function drawCatalog() {
         if (item) list.append(item, ...versionExtras(id));
       }
     }
-    renderStrip(strip, nonTrash);
+    renderStrip(strip);
     return;
   }
 
@@ -3559,7 +3556,7 @@ function drawCatalog() {
     list.appendChild(section);
   }
 
-  renderStrip(strip, nonTrash);
+  renderStrip(strip);
   updateQueueBadge();
   applyQueueDecorations();
 }
@@ -4213,10 +4210,10 @@ function updateQueueRows(snap = getQueueSnapshot()) {
   });
 }
 
-/** The rail button only exists while there is something to look at, and carries
+/** The Queue button only exists while there is something to look at, and carries
  *  the count so the queue is legible without opening it. */
 function updateQueueBadge(snap = getQueueSnapshot()) {
-  const btn = document.querySelector(".rail-queue");
+  const btn = document.querySelector(VIEW_BUTTONS.queue);
   const badge = document.getElementById("queueBadge");
   if (!btn) return;
   const count = queueCount(snap);
@@ -4268,7 +4265,7 @@ export function setSidebarCollapsed(isCollapsed) {
   app.classList.toggle("cat-collapsed", isCollapsed);
   document
     .getElementById("sidebarCollapseBtn")
-    ?.setAttribute("aria-expanded", String(!isCollapsed));
+    ?.setAttribute("aria-pressed", String(!isCollapsed));
   try {
     localStorage.setItem("stemdeck.catalog.collapsed", isCollapsed ? "1" : "0");
   } catch (e) {
@@ -4289,7 +4286,7 @@ function wireCatalogToggle() {
   const collapsed = localStorage.getItem("stemdeck.catalog.collapsed") === "1";
   if (collapsed) {
     app.classList.add("cat-collapsed");
-    collapseBtn?.setAttribute("aria-expanded", "false");
+    collapseBtn?.setAttribute("aria-pressed", "false");
   }
 
   collapseBtn?.addEventListener("click", () => {
@@ -4309,12 +4306,12 @@ function wireCatalogToggle() {
   }
 }
 
-function wireCatalogRailViews() {
-  document.querySelector(".rail-library")?.addEventListener("click", () => setCatalogView("library"));
-  document.querySelector(".rail-favorites")?.addEventListener("click", () => setCatalogView("favorites"));
-  document.querySelector(".rail-trash")?.addEventListener("click", () => setCatalogView("trash"));
-  document.querySelector(".rail-lyrics")?.addEventListener("click", () => setCatalogView("lyrics"));
-  document.querySelector(".rail-queue")?.addEventListener("click", () => setCatalogView("queue"));
+function wireCatalogViewButtons() {
+  for (const [view, selector] of Object.entries(VIEW_BUTTONS)) {
+    document.querySelector(selector)?.addEventListener("click", function onViewButtonClick() {
+      setCatalogView(view);
+    });
+  }
   document.getElementById("clearBinBtn")?.addEventListener("click", onEmptyTrashClick);
 }
 
@@ -6965,12 +6962,12 @@ export async function initCatalog() {
   await loadState();
   window.addEventListener("storage", onLibraryStoredElsewhere);
   wireCatalogToggle();
-  wireCatalogRailViews();
+  wireCatalogViewButtons();
   wireCatalogSearch();
   wireWidgets();
   wireMainPanelDrop();
-  wireRailTrashDrop();
-  wireRailLibraryDrop();
+  wireTrashButtonDrop();
+  wireLibraryButtonDrop();
   wireLibraryDeleteKeys();
   wireLibraryRows();
   initOpenSong();

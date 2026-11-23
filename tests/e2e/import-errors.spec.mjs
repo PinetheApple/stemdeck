@@ -2,7 +2,7 @@
 // batch of files the server takes only some of, a playlist that skips tracks,
 // and a lost connection. Each names what was left out and why, in words.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, failureMessages, fixtureTrack, openStudio, uiText } from "./helpers.mjs";
+import { JOB_ID, failureMessages, fixtureTrack, openStudio, uiText, openComposer } from "./helpers.mjs";
 
 const PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLe2eskips";
 const PLAYLIST_TITLE = "Skips";
@@ -66,6 +66,7 @@ test("a lost connection reads as words, not as the browser's message", async ({ 
   await openStudio(page);
   await page.route("**/api/jobs", (route) =>
     route.request().method() === "POST" ? route.abort("connectionrefused") : route.fallback());
+  await openComposer(page);
   await page.locator("#url").fill(YOUTUBE_URL);
   await page.locator("#submit").click();
 
@@ -109,6 +110,7 @@ test("a playlist's review names each track it would leave out, and why", async (
   await openStudio(page);
   await stubPlaylistReview(page, [["Old Song", "in_library"], ["Long Song", "too_long"], ["New Song", "ok"]]);
 
+  await openComposer(page);
   await page.locator("#url").fill(PLAYLIST_URL);
   await page.locator("#submit").click();
   const row = (title) => page.locator("#batchReview .batch-item", { hasText: title });
@@ -121,6 +123,7 @@ test("a playlist already in the library offers nothing to queue", async ({ page 
   await openStudio(page);
   await stubPlaylistReview(page, [["Old Song", "in_library"], ["Older Song", "in_library"]]);
 
+  await openComposer(page);
   await page.locator("#url").fill(PLAYLIST_URL);
   await page.locator("#submit").click();
   await expect(page.locator("#batchReview .batch-item-check:checked")).toHaveCount(0);
@@ -134,7 +137,7 @@ test("a queue that will not start says so, and Start comes back", async ({ page 
   await page.route("**/api/queue/start", (route) => route.fulfill({ status: 500, json: { detail: "no" } }));
   await openStudio(page);
 
-  await page.locator(".rail-queue").click();
+  await page.locator(".lib-nav-queue").click();
   const start = page.locator(".queue-start-btn");
   await start.click();
 

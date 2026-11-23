@@ -24,7 +24,7 @@ export const SIBLING_TITLE = "E2E Fixture Track (again)";
 export const SOURCE_URL = "local:e2e-fixture";
 
 // libraryResize.js keeps at least this much waveform beside the stem labels.
-export const MIN_TIMELINE_WIDTH = 360;
+export const MIN_TIMELINE_WIDTH = 320;
 export const LOAD_TIMEOUT_MS = 20000;
 
 const STORAGE_KEY = "stemdeck.folders";
@@ -386,6 +386,13 @@ export async function stubServerTrash(
     }
   });
   return server;
+}
+
+/** Open the import bar under the top bar, which Add song folds away; a no-op when it is open. */
+export async function openComposer(page) {
+  const field = page.locator("#url");
+  if (!(await field.isVisible())) await page.locator("#addSongBtn").click();
+  await field.waitFor({ state: "visible" });
 }
 
 export async function openStudio(

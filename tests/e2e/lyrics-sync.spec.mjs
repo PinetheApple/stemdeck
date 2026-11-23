@@ -134,7 +134,7 @@ async function openLyrics(page) {
   await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
-  await page.locator(".rail-lyrics").click();
+  await page.locator("#songToolsLyricsBtn").click();
   await expect(page.locator(".lyrics-line, .lyrics-text").first()).toBeVisible();
 }
 
@@ -454,7 +454,7 @@ test.describe("syncing lyrics line by line", () => {
   test("leaving the Lyrics tab leaves Sync lines, and hides the lane", async ({ page }) => {
     await setUp(page);
     await openSync(page);
-    await page.locator(".rail-library").click();
+    await page.locator(".lib-nav-library").click();
     await expect(lane(page)).toBeHidden();
   });
 

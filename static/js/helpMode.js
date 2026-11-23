@@ -1,4 +1,4 @@
-// Help mode: Guide in the rail, below Trash, turns the studio into its own manual.
+// Help mode: Guide in the top bar turns the studio into its own manual.
 // Pointing at any control listed in HELP, or clicking it, outlines it and shows
 // what it does; a pill at the bottom says help mode is on. Clicks are taken by help mode while it is on,
 // so exploring never starts an extraction or deletes a song. Esc or Guide
@@ -8,6 +8,7 @@
 // already translates, and its text comes from the help.* keys in i18n.js.
 
 import { t } from "./i18n.js";
+import { LAYER, escapeIsFor } from "./shellEscape.js";
 import {
   BIG_AREA_SHARE,
   TRACK_AREA,
@@ -29,7 +30,14 @@ const presenceName = (el) => t(`stem.${el.dataset.stem}`);
 // Order matters only where selectors overlap: the first match wins.
 const HELP = [
   ["#helpModeBtn", "help.helpMode"],
-  [".daw-brand a", "help.website"],
+  [".topbar-brand", "help.website"],
+  ["#sidebarCollapseBtn", "shell.help.sidebar"],
+  ["#connStatus", "shell.help.offline"],
+  ["#importingBtn", "shell.help.importing"],
+  ["#addSongBtn", "shell.help.addSong"],
+  ["#inspectorToggleBtn", "shell.help.tools"],
+  ["#libraryResizer, #stemsResizer, #inspectorResizer", "shell.help.edge"],
+  ["#songToolsLyricsBtn", "help.lyrics"],
   ["#uploadFileBtn", "help.upload"],
   ["#url", "help.search"],
   ["#stemAllBtn", "help.stemAll"],
@@ -44,14 +52,12 @@ const HELP = [
   ["#np-details-btn", "help.songDetails"],
   ["#songUpNextBtn", "help.addToUpNext"],
   ["#songMoreBtn", "help.openSongMenu"],
-  ["#sidebarCollapseBtn", "help.toggleLibrary"],
-  [".rail-favorites", "help.favorites"],
-  [".rail-library", "help.library"],
-  [".rail-lyrics", "help.lyrics"],
+  [".lib-nav-favorites", "help.favorites"],
+  [".lib-nav-library", "help.library"],
   [".lyrics-edit-open", "help.lyricsEdit"],
   [".lyrics-supply-open", "help.lyricsSupply"],
-  [".rail-trash", "help.trash"],
-  [".rail-queue", "help.queue"],
+  [".lib-nav-trash", "help.trash"],
+  [".lib-nav-queue", "help.queue"],
   ["#notifBtn", "help.notifications"],
   ["#settingsBtn", "settings"],
   ["#aboutBtn", "help.about"],
@@ -411,7 +417,7 @@ function onFocus(e) {
 }
 
 function onKey(e) {
-  if (e.key === "Escape") {
+  if (e.key === "Escape" && escapeIsFor(LAYER.GUIDE)) {
     e.preventDefault();
     e.stopPropagation();
     setHelpMode(false);

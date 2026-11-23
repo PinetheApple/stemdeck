@@ -14,7 +14,7 @@
 // A track from a link puts nothing in the box either: the box is for new
 // imports (tests/e2e/import-reimport.spec.mjs).
 import { expect, test } from "@playwright/test";
-import { openStudio, JOB_ID, TRACK_TITLE } from "./helpers.mjs";
+import { openStudio, JOB_ID, TRACK_TITLE, openComposer } from "./helpers.mjs";
 
 const YOUTUBE_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
 
@@ -26,6 +26,7 @@ test.describe("composer arming", () => {
     // the case that broke.
     await openStudio(page);
 
+    await openComposer(page);
     const url = page.locator("#url");
     await expect(url).toHaveValue("");
     // The button acts on the track instead, so the box must NOT be required:
@@ -123,6 +124,7 @@ test.describe("composer arming", () => {
       });
     });
 
+    await openComposer(page);
     await page.locator("#url").fill(YOUTUBE_URL);
     await page.locator("#submit").click();
 
@@ -141,6 +143,7 @@ test.describe("composer arming", () => {
     await page.route("**/api/jobs", (route) =>
       route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ detail: "nope" }) }),
     );
+    await openComposer(page);
     await page.locator("#url").fill(YOUTUBE_URL);
     await page.locator("#submit").click();
 

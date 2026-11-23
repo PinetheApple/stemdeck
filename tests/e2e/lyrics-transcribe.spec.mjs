@@ -89,9 +89,9 @@ async function setUp(page, { transcribe = {}, started = running("queued", 0) } =
 }
 
 async function openTrack(page, id) {
-  await page.locator(".rail-library").click();
+  await page.locator(".lib-nav-library").click();
   await page.locator(`.cat-item[data-id="${id}"]`).first().dblclick();
-  await page.locator(".rail-lyrics").click();
+  await page.locator("#songToolsLyricsBtn").click();
 }
 
 const startButton = (page) => page.locator(".lyrics-transcribe-open");

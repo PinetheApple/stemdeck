@@ -50,7 +50,7 @@ async function queueWithFailure(page, { retryStatus = 200 } = {}) {
 
   const refresh = () => page.evaluate(async () => (await import("/js/queue.js")).refreshQueue());
   await refresh();
-  await page.locator(".rail-queue").click();
+  await page.locator(".lib-nav-queue").click();
   queue.queued = [WAITING_ID];
   await refresh();
   return { queue, refresh, retries };
@@ -163,7 +163,7 @@ test("Retry failed in the queue sends again what the queue did not take", async 
   await expect(review(page).locator(".batch-item-retry").first()).toBeVisible();
   await page.keyboard.press("Escape");
   await page.evaluate(async () => (await import("/js/queue.js")).refreshQueue());
-  await page.locator(".rail-queue").click();
+  await page.locator(".lib-nav-queue").click();
 
   const head = page.locator(".batch-head");
   await expect(head).toContainText(await uiText(page, "batch.notQueuedCount.other", { count: TICKED_BY_DEFAULT - 1 }));

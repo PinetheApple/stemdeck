@@ -74,7 +74,7 @@ test.describe("library search shortcut", () => {
 
   test("Ctrl+K leaves the Lyrics view for the library and focuses the search", async ({ page }) => {
     await openTrackView(page);
-    await page.locator(".rail-lyrics").click();
+    await page.locator("#songToolsLyricsBtn").click();
     await expect(page.locator(".sidebar")).toHaveClass(/lyrics-view/);
     await blurFocus(page);
 

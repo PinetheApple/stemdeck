@@ -127,10 +127,10 @@ test("Trash, Favorites and a search with no match share one empty state", async 
   await expectEmptyState(page, "library.noSearchMatch", "search.noMatchHint");
 
   await search(page, "");
-  await page.locator(".rail-trash").click();
+  await page.locator(".lib-nav-trash").click();
   await expectEmptyState(page, "trash.isEmptyState", "trash.emptyHint");
 
-  await page.locator(".rail-favorites").click();
+  await page.locator(".lib-nav-favorites").click();
   await expectEmptyState(page, "favorites.emptyTitle", "favorites.emptyHint");
   await search(page, NO_MATCH_QUERY);
   await expectEmptyState(page, "favorites.noSearchMatch", "search.noMatchHint");
@@ -138,9 +138,9 @@ test("Trash, Favorites and a search with no match share one empty state", async 
 
 test("the empty states look like the Setlists one", async ({ page }) => {
   await openLibrary(page);
-  await page.locator(".rail-trash").click();
+  await page.locator(".lib-nav-trash").click();
   const trashLook = await lookOf(page.locator("#catalogList .lib-empty"));
-  await page.locator(".rail-library").click();
+  await page.locator(".lib-nav-library").click();
   await page.locator("#libTabSetlists").click();
   expect(trashLook).toEqual(await lookOf(page.locator("#setlistsEmpty")));
 });
@@ -151,15 +151,15 @@ test("an empty folder says so in the app's language", async ({ page }) => {
   await expect(folder.locator(".folder-empty")).toHaveText(await uiText(page, "library.emptyFolder"));
 });
 
-test("every rail label fits its button, in every language", async ({ page }) => {
+test("every library view label fits its button, in every language", async ({ page }) => {
   await openLibrary(page);
   for (const code of LANGUAGES) {
     await setLanguage(page, code);
-    const cut = await page.evaluate(() => [...document.querySelectorAll(".sidebar-rail .rail-btn > span[data-i18n]")]
+    const cut = await page.evaluate(() => [...document.querySelectorAll(".lib-nav .lib-nav-btn > span[data-i18n]")]
       .filter((label) => label.offsetParent)
       .filter((label) => {
         const box = label.getBoundingClientRect();
-        const button = label.closest(".rail-btn").getBoundingClientRect();
+        const button = label.closest(".lib-nav-btn").getBoundingClientRect();
         return label.scrollWidth > label.clientWidth || box.left < button.left || box.right > button.right;
       })
       .map((label) => label.textContent));
@@ -167,28 +167,27 @@ test("every rail label fits its button, in every language", async ({ page }) => 
   }
 });
 
-const RAIL_BUTTONS_NAMED_BY_LABEL = ["#helpModeBtn", "#notifBtn", "#settingsBtn", "#aboutBtn"];
+const TOP_BAR_ICON_BUTTONS = ["#helpModeBtn", "#notifBtn", "#settingsBtn", "#aboutBtn"];
 
-test("a rail button's name starts with the word it shows, in every language", async ({ page }) => {
+test("a top-bar icon button is named and has a tooltip, in every language", async ({ page }) => {
   await openLibrary(page);
   for (const code of LANGUAGES) {
     await setLanguage(page, code);
-    for (const selector of RAIL_BUTTONS_NAMED_BY_LABEL) {
+    for (const selector of TOP_BAR_ICON_BUTTONS) {
       const button = page.locator(selector);
-      const label = (await button.locator("span[data-i18n]").textContent()).trim();
-      await expect(button, `${selector} in ${code}`).toHaveAccessibleName(startsWithText(label));
+      await expect(button, `${selector} in ${code}`).toHaveAccessibleName(/\S/);
+      await expect(button, `${selector} in ${code}`).toHaveAttribute("title", /\S/);
     }
   }
 });
 
-test("Guide and About are told apart by label and tooltip, and do different things", async ({ page }) => {
+test("Guide and About are told apart by name and tooltip, and do different things", async ({ page }) => {
   await openLibrary(page);
   const guide = page.locator("#helpModeBtn");
   const about = page.locator("#aboutBtn");
-  await expect(about.locator("span")).toHaveText(await uiText(page, "nav.about"));
   await expect(about).toHaveAttribute("title", await uiText(page, "nav.aboutTitle"));
   await expect(about).toHaveAccessibleName(await uiText(page, "nav.about"));
-  expect(await guide.locator("span").textContent()).not.toBe(await about.locator("span").textContent());
+  expect(await guide.getAttribute("aria-label")).not.toBe(await about.getAttribute("aria-label"));
   expect(await guide.getAttribute("title")).not.toBe(await about.getAttribute("title"));
 
   await about.click();

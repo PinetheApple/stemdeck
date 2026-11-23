@@ -131,7 +131,7 @@ test("version rows open, close and follow the library keyboard", async ({ page, 
   await expect(versionRow(page, v2.id)).toBeFocused();
   await page.keyboard.press(KEY.DELETE);
   await expect(songRow(page)).toBeVisible();
-  await expect(page.locator(".rail-trash")).toHaveAttribute("aria-label", "Trash");
+  await expect(page.locator(".lib-nav-trash")).toHaveAttribute("aria-label", "Trash");
 
   await page.keyboard.press(KEY.ENTER);
   await expect.poll(() => studioState(page)).toMatchObject({ versionId: v2.id, lanes: [...TWO_STEMS].sort() });
@@ -371,9 +371,9 @@ test("emptying the Trash forgets the mixes of the song's other versions", async 
   await seedMixes(page, { [key]: laneMix(V2_DRUMS) });
   await seedLibrary(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".rail-trash")).toHaveAttribute("aria-label", "Trash (1)");
+  await expect(page.locator(".lib-nav-trash")).toHaveAttribute("aria-label", "Trash (1)");
 
-  await page.locator(".rail-trash").click();
+  await page.locator(".lib-nav-trash").click();
   await page.locator("#clearBinBtn").click();
   await page.locator("#clearBinBtn").click();
   await expect.poll(() => storedMix(page, key)).toBeNull();
@@ -384,7 +384,7 @@ test("Trash shows no version rows", async ({ page, request }) => {
   await stubServerTrash(page, { trashed: [SIBLING_JOB_ID] });
   await seedLibrary(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator(".rail-trash").click();
+  await page.locator(".lib-nav-trash").click();
   await expect(page.locator(`#catalogList .cat-item.in-trash[data-id="${SIBLING_JOB_ID}"]`)).toBeVisible();
   await expect(page.locator("#catalogList .cat-versions-toggle, #catalogList .cat-version")).toHaveCount(0);
 });

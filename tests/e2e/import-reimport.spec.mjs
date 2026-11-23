@@ -5,7 +5,7 @@
 // first, and only the confirm button downloads it again. The restore then shows
 // its stage and a Cancel, so a wait in the queue does not look stuck.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, SIBLING_TITLE, TRACK_TITLE, fixtureTrack, openStudio } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, SIBLING_TITLE, TRACK_TITLE, fixtureTrack, openStudio, openComposer } from "./helpers.mjs";
 
 const GONE_ID = "e2e0f00dface";
 const GONE_TITLE = "Gone Song";
@@ -186,6 +186,7 @@ test("a playlist re-import takes a gone song's row instead of adding one", async
   const { posts } = await stubRestore(page);
   await stubGonePlaylist(page);
 
+  await openComposer(page);
   await page.locator("#url").fill(PLAYLIST_URL);
   await page.locator("#submit").click();
   await page.locator("#batchReview .batch-queue").click();
@@ -226,6 +227,7 @@ test.describe("the import box", () => {
 
   test("keeps what the user typed when a song is opened", async ({ page }) => {
     await openStudio(page, { catalog: CATALOG });
+    await openComposer(page);
     await page.locator("#url").fill(GONE_URL);
     await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().dblclick();
     await expect(page.locator("#title")).toHaveText(SIBLING_TITLE, { timeout: 15000 });

@@ -14,7 +14,7 @@ test.describe("the logo links to the site", () => {
   test("it is an external anchor, not a decoration", async ({ page }) => {
     await openStudio(page, { tauri: true });
 
-    const link = page.locator(".daw-brand a");
+    const link = page.locator(".topbar-brand");
     await expect(link).toHaveAttribute("href", "https://stemdeck.app");
     await expect(link).toHaveAttribute("target", "_blank");
     // Without noopener the opened page gets a handle on this one.
@@ -31,7 +31,7 @@ test.describe("the logo links to the site", () => {
         seen.push({ cmd, url: args?.url });
         return original(cmd, args);
       };
-      document.querySelector(".daw-brand a").click();
+      document.querySelector(".topbar-brand").click();
       await new Promise((r) => setTimeout(r, 200));
       window.__TAURI__.core.invoke = original;
       return { seen, path: location.pathname };
@@ -43,34 +43,25 @@ test.describe("the logo links to the site", () => {
   });
 
   test("its tooltip is translated like every other label", async ({ page }) => {
-    // An icon with no text is only labelled by its title and aria-label, so a
-    // hardcoded English string here would be the one part of the bar that does
-    // not follow the language setting.
+    // A hardcoded English tooltip would be the one part of the bar that does not
+    // follow the language setting.
     await page.addInitScript(() =>
       localStorage.setItem("stemdeck.language", JSON.stringify("de")),
     );
     await openStudio(page, { tauri: true });
 
-    const link = page.locator(".daw-brand a");
+    const link = page.locator(".topbar-brand");
     await expect(link).toHaveAttribute("title", "stemdeck.app öffnen");
-    await expect(link).toHaveAttribute("aria-label", "stemdeck.app öffnen");
   });
 
-  test("the link does not change the shape of the logo cell", async ({ page }) => {
-    // The anchor is a flex item inside a cell that centres it. Left inline it
-    // would carry a line box and push the logo off the rail's centre line.
+  test("the logo sits centred in the top bar", async ({ page }) => {
     await openStudio(page, { tauri: true });
 
     const box = await page.evaluate(() => {
-      const cell = document.querySelector(".daw-brand").getBoundingClientRect();
-      const img = document.querySelector(".daw-brand img").getBoundingClientRect();
-      return {
-        above: Math.round(img.top - cell.top),
-        below: Math.round(cell.bottom - img.bottom),
-        height: Math.round(img.height),
-      };
+      const bar = document.querySelector("#topbar").getBoundingClientRect();
+      const img = document.querySelector(".topbar-brand img").getBoundingClientRect();
+      return { above: Math.round(img.top - bar.top), below: Math.round(bar.bottom - img.bottom) };
     });
-    expect(box.height).toBe(52);
     expect(Math.abs(box.above - box.below)).toBeLessThanOrEqual(1);
   });
 });

@@ -168,7 +168,7 @@ test.describe("sing along", () => {
     await expect(page.locator("#singLyrics")).toBeHidden();
     await page.locator("#singOpenLyricsBtn").click();
     await expect(page.locator("#stageView")).toBeHidden();
-    await expect(page.locator(".rail-lyrics")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#songToolsLyricsBtn")).toHaveAttribute("aria-pressed", "true");
   });
 
   test("untimed lyrics say they are not timed, with Open lyrics and no Transcribe", async ({ page }) => {

@@ -191,7 +191,7 @@ test.describe("inspector hide and show", () => {
         grid: t("click.grid"),
         nudge: t("tempo.nudgeAmount", { ms: 10 }),
         nudgeTitle: t("tempo.nudgeEarlierTitle", { ms: 10 }),
-        toggle: t("inspector.toggle"),
+        toggle: t("shell.toggleTools"),
       };
     });
     expect(strings.beatOne).not.toBe("Beat 1 here");

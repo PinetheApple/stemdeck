@@ -19,7 +19,7 @@
 
 import { expect, test } from "@playwright/test";
 
-import { seedLibrary } from "./helpers.mjs";
+import { seedLibrary, openComposer } from "./helpers.mjs";
 
 const RESULTS = [
   { title: "Tina Turner - The Best", duration: 250, uploader: "Tina Turner", thumbnail: null, too_long: false, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
@@ -59,7 +59,7 @@ async function stubPreview(page) {
 async function openApp(page) {
   await seedLibrary(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator("#url").waitFor({ state: "visible" });
+  await openComposer(page);
 }
 
 const panel = (page) => page.locator(".search-panel");
@@ -70,6 +70,7 @@ test.describe("topbar search", () => {
     const calls = await stubSearch(page);
     await openApp(page);
 
+    await openComposer(page);
     await page.locator("#url").type("simply the best ", { delay: 25 });
     await expect(rows(page).first()).toBeVisible();
 
@@ -81,6 +82,7 @@ test.describe("topbar search", () => {
   test("the dropdown is actually visible, not merely rendered", async ({ page }) => {
     await stubSearch(page);
     await openApp(page);
+    await openComposer(page);
     await page.locator("#url").type("best ", { delay: 25 });
 
     // toBeVisible, not a DOM count: the panel once rendered correctly inside an
@@ -99,6 +101,7 @@ test.describe("topbar search", () => {
     const calls = await stubSearch(page);
     await openApp(page);
 
+    await openComposer(page);
     await page.locator("#url").fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
     await page.waitForTimeout(900);
 
@@ -109,6 +112,7 @@ test.describe("topbar search", () => {
   test("a query shorter than the minimum asks nothing", async ({ page }) => {
     const calls = await stubSearch(page);
     await openApp(page);
+    await openComposer(page);
     await page.locator("#url").type("a", { delay: 25 });
     await page.waitForTimeout(900);
     expect(calls).toHaveLength(0);
@@ -117,6 +121,7 @@ test.describe("topbar search", () => {
   test("switching tab re-asks the same question of a different service", async ({ page }) => {
     const calls = await stubSearch(page);
     await openApp(page);
+    await openComposer(page);
     await page.locator("#url").type("best ", { delay: 25 });
     await expect(rows(page).first()).toBeVisible();
 
@@ -144,6 +149,7 @@ test.describe("topbar search", () => {
     });
     await openApp(page);
 
+    await openComposer(page);
     await page.locator("#url").type("best ", { delay: 25 });
     await expect(rows(page).first()).toBeVisible();
     await page.locator(".search-row:not(.too-long)").first().click();
@@ -162,6 +168,7 @@ test.describe("topbar search", () => {
       await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
     });
     await openApp(page);
+    await openComposer(page);
     await page.locator("#url").type("best ", { delay: 25 });
     await expect(rows(page).first()).toBeVisible();
 
@@ -180,6 +187,7 @@ test.describe("topbar search", () => {
     // #443: three places held the ceiling and the client's copy went stale.
     await stubSearch(page, { maxDuration: 3600 });
     await openApp(page);
+    await openComposer(page);
     await page.locator("#url").type("best ", { delay: 25 });
     await expect(rows(page).first()).toBeVisible();
     await expect(page.locator(".search-row.too-long .search-warn").first()).toHaveText("Over 60 min");
@@ -188,6 +196,7 @@ test.describe("topbar search", () => {
   test("a failed search says so and can be retried", async ({ page }) => {
     await stubSearch(page, { fail: true });
     await openApp(page);
+    await openComposer(page);
     await page.locator("#url").type("best ", { delay: 25 });
     await expect(page.locator(".search-status")).toBeVisible();
     await expect(page.locator(".search-status")).toHaveText(/failed/i);
@@ -196,8 +205,10 @@ test.describe("topbar search", () => {
   test("Escape closes it", async ({ page }) => {
     await stubSearch(page);
     await openApp(page);
+    await openComposer(page);
     await page.locator("#url").type("best ", { delay: 25 });
     await expect(panel(page)).toBeVisible();
+    await openComposer(page);
     await page.locator("#url").press("Escape");
     await expect(panel(page)).toBeHidden();
   });
@@ -205,9 +216,11 @@ test.describe("topbar search", () => {
   test("arrow keys move a selection and name it for assistive tech", async ({ page }) => {
     await stubSearch(page);
     await openApp(page);
+    await openComposer(page);
     await page.locator("#url").type("best ", { delay: 25 });
     await expect(rows(page).first()).toBeVisible();
 
+    await openComposer(page);
     await page.locator("#url").press("ArrowDown");
     await expect(page.locator(".search-row.active")).toHaveCount(1);
     await expect(page.locator("#url")).toHaveAttribute("aria-activedescendant", /search-row-/);
@@ -218,6 +231,7 @@ test.describe("preview", () => {
   test("every result offers a labelled preview, not a bare glyph", async ({ page }) => {
     await stubSearch(page);
     await openApp(page);
+    await openComposer(page);
     await page.locator("#url").type("best ", { delay: 25 });
     await expect(rows(page).first()).toBeVisible();
 
@@ -238,6 +252,7 @@ test.describe("preview", () => {
     });
     await openApp(page);
 
+    await openComposer(page);
     await page.locator("#url").type("best ", { delay: 25 });
     await expect(rows(page).first()).toBeVisible();
     await page.locator(".search-row:not(.too-long)").first().locator(".search-preview-btn").click();
@@ -256,6 +271,7 @@ test.describe("preview", () => {
     await stubSearch(page);
     await stubPreview(page);
     await openApp(page);
+    await openComposer(page);
     await page.locator("#url").type("best ", { delay: 25 });
     await expect(rows(page).first()).toBeVisible();
 
@@ -269,11 +285,13 @@ test.describe("preview", () => {
     await stubSearch(page);
     await stubPreview(page);
     await openApp(page);
+    await openComposer(page);
     await page.locator("#url").type("best ", { delay: 25 });
     await expect(rows(page).first()).toBeVisible();
     await page.locator(".search-preview-btn").first().click();
     await expect(page.locator(".search-player")).toBeVisible();
 
+    await openComposer(page);
     await page.locator("#url").press("Escape");
     // Nothing is more jarring than a dropdown that vanishes and keeps playing.
     await expect(page.locator(".search-player")).toHaveCount(0);
@@ -286,6 +304,7 @@ test.describe("preview", () => {
       ],
     });
     await openApp(page);
+    await openComposer(page);
     await page.locator("#url").type("best ", { delay: 25 });
     await expect(rows(page).first()).toBeVisible();
 

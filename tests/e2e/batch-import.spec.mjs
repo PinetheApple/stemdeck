@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { test, expect } from "@playwright/test";
-import { uiText } from "./helpers.mjs";
+import { uiText, openComposer } from "./helpers.mjs";
 import {
   GONE_COPY, HTTP_FULL, LINE, MAX_DURATION_SEC, PASTE, PLAYLIST_SONGS, PLAYLIST_TITLE, ROWS, TICKED_BY_DEFAULT,
   openBar, paste, pasteList, preview, queueButton, review, row, stubImports, stubPreview,
@@ -14,6 +14,7 @@ test.describe("batch import", () => {
   test("a single link skips the review and queues as before", async ({ page }) => {
     await openBar(page);
     const posts = await stubImports(page);
+    await openComposer(page);
     await page.locator("#url").fill(LINE.ok);
     await expect(page.locator("#submit")).toHaveText(await uiText(page, "process.extractStems"));
     await page.locator("#submit").click();
@@ -217,7 +218,9 @@ test("a single playlist link opens the review and files its songs under its name
     playlists: answer.playlists.map((p) => ({ ...p, line: 1, unavailable: 2, truncated: true })),
   });
   const posts = await stubImports(page);
+  await openComposer(page);
   await page.locator("#url").fill(LINE.playlist);
+  await openComposer(page);
   await page.locator("#url").press("Enter");
 
   const group = review(page).locator(".batch-group");

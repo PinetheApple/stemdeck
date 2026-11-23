@@ -81,7 +81,7 @@ test("a queue row cancels with an X, apart from the library's trash can", async 
   });
   await page.goto("/", { waitUntil: "domcontentloaded" });
 
-  await page.locator(".rail-queue").click();
+  await page.locator(".lib-nav-queue").click();
   const cancel = page.locator(`.queue-row[data-id="${RUNNING_ID}"] .queue-cancel`);
   await expect(cancel).toBeVisible();
   // Cancelling deletes the import's files and binning keeps them: the same
@@ -99,9 +99,9 @@ test("trashing an import that is still running refreshes the queue at once", asy
 
   // The first read has to have landed, or the page does not yet know the
   // track is in the queue and has no reason to refresh it.
-  await page.locator(".rail-queue").click();
+  await page.locator(".lib-nav-queue").click();
   await expect(page.locator(`.queue-row[data-id="${RUNNING_ID}"]`)).toBeVisible();
-  await page.locator(".rail-library").click();
+  await page.locator(".lib-nav-library").click();
 
   // The row's actions only take the pointer on hover (#724).
   const row = page.locator(`.cat-item[data-id="${RUNNING_ID}"]`);
@@ -111,18 +111,18 @@ test("trashing an import that is still running refreshes the queue at once", asy
   await expect.poll(() => seen.queueReadsAfterTrash).toBeGreaterThan(0);
   // The stream is aborted, so only the refresh the trash asked for can have
   // told the page the queue is empty, which hides the queue button.
-  await expect(page.locator(".rail-queue")).toHaveClass(/(^| )hidden( |$)/);
+  await expect(page.locator(".lib-nav-queue")).toHaveClass(/(^| )hidden( |$)/);
 });
 
 test("the queue button is named by the label it shows, in every language", async ({ page }) => {
   await seedRunningImport(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".rail-queue")).toBeVisible();
+  await expect(page.locator(".lib-nav-queue")).toBeVisible();
 
   // Speech-input users say the label they see; the name has to start with it.
   const mismatches = await page.evaluate(async () => {
     const { LANGUAGES, setLanguage } = await import("/js/i18n.js");
-    const btn = document.querySelector(".rail-queue");
+    const btn = document.querySelector(".lib-nav-queue");
     const found = [];
     for (const { code } of LANGUAGES) {
       await setLanguage(code);

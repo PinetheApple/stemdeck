@@ -12,6 +12,7 @@ import { addTrackToLibrary, replaceableTrackId, setCurrentTrack, updateTrackStat
 import { FAILED_STATUS, LOCAL_PREFIX, SOURCE_KIND, failureReasonKey, retryErrorText } from "./importSource.js";
 import { initSections } from "./sections.js";
 import { t } from "./i18n.js";
+import { openComposer } from "./composerDrawer.js";
 import { formatKey } from "./keyLabel.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 import { carrySplitChoice, choiceToStore, storeSplitChoice } from "./vocalSplit.js";
@@ -209,6 +210,7 @@ export function showError(message, detail, { onRetry = returnToUrlField, retry =
 }
 
 function returnToUrlField() {
+  openComposer();
   urlInput.focus();
   urlInput.select();
 }

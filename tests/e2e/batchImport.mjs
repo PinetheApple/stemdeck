@@ -1,7 +1,7 @@
 // Stubs and steps the batch import specs share: the review's preview answer,
 // the imports, and opening the bar with a pasted list.
 import { expect } from "@playwright/test";
-import { seedLibrary, stubUpdateCheck } from "./helpers.mjs";
+import { openComposer, seedLibrary, stubUpdateCheck } from "./helpers.mjs";
 
 export const YT = "https://www.youtube.com/watch?v=";
 export const LINE = {
@@ -101,7 +101,7 @@ export async function openBar(page) {
   await seedLibrary(page);
   await stubUpdateCheck(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.waitForSelector(".url-wrap");
+  await openComposer(page);
 }
 
 export async function paste(page, text) {

@@ -28,7 +28,7 @@ async function openQueue(page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.locator(`.cat-item[data-id="${JOB_ID}"]`)).toBeVisible();
   await page.evaluate(() => import("/js/queue.js").then((m) => m.refreshQueue()));
-  await page.locator(".rail-queue").click();
+  await page.locator(".lib-nav-queue").click();
   await expect(page.locator(EXTRACT_NEXT).first()).toBeAttached();
   return queue;
 }

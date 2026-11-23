@@ -36,7 +36,7 @@ test.describe("favourites at a narrow window", () => {
     await row(page, SIBLING_JOB_ID).hover();
     await rowHeart(page, SIBLING_JOB_ID).click();
 
-    await page.locator(".rail-favorites").click();
+    await page.locator(".lib-nav-favorites").click();
     await expect(row(page, SIBLING_JOB_ID)).toBeVisible();
     await row(page, SIBLING_JOB_ID).hover();
     await rowHeart(page, SIBLING_JOB_ID).click();

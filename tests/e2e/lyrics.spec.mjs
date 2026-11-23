@@ -106,7 +106,7 @@ async function openTrack(page) {
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
 }
 
-const showLyricsTab = (page) => page.locator(".rail-lyrics").click();
+const showLyricsTab = (page) => page.locator("#songToolsLyricsBtn").click();
 
 /** A tagged track, opened, with the tab showing its lyrics found. */
 async function lyricsShown(page) {
@@ -130,10 +130,10 @@ test.describe("lyrics tab", () => {
     await showLyricsTab(page);
     await expect(page.locator("#lyricsPanel")).toBeVisible();
     await expect(page.locator("#catalogList")).toBeHidden();
-    await expect(page.locator(".rail-lyrics")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#songToolsLyricsBtn")).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator("#lyricsPanel input, #lyricsPanel form")).toHaveCount(0);
 
-    await page.locator(".rail-library").click();
+    await page.locator(".lib-nav-library").click();
     await expect(page.locator("#lyricsPanel")).toBeHidden();
     await expect(page.locator("#catalogList")).toBeVisible();
   });
@@ -190,7 +190,7 @@ test.describe("lyrics tab", () => {
     expect(asked[0].body.band).toEqual({ id: "Q162586", name: "Dream Theater", englishName: "Dream Theater" });
 
     // Kept, so coming back to the tab asks nothing more.
-    await page.locator(".rail-library").click();
+    await page.locator(".lib-nav-library").click();
     await showLyricsTab(page);
     await expect(page.locator(".lyrics-line")).toHaveCount(3);
     expect(asked).toHaveLength(1);
@@ -254,7 +254,7 @@ test.describe("lyrics tab", () => {
     expect(await stored(page)).toBeNull();
 
     // The same offer again on coming back, without asking again.
-    await page.locator(".rail-library").click();
+    await page.locator(".lib-nav-library").click();
     await showLyricsTab(page);
     await expect(page.locator(".lyrics-version")).toHaveCount(1);
     expect(asked).toHaveLength(1);
@@ -399,7 +399,7 @@ test.describe("lyrics tab", () => {
 
     await page.unroute(LRCLIB);
     await stubLrclib(page);
-    await page.locator(".rail-library").click();
+    await page.locator(".lib-nav-library").click();
     await showLyricsTab(page);
     await expect(page.locator(".lyrics-line")).toHaveCount(3);
     expect(asked).toHaveLength(1);

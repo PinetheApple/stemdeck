@@ -51,7 +51,7 @@ async function waitForSiblingImport(page) {
 
 /** Switch to the Trash view, where the list is only the trashed tracks. */
 async function openTrash(page) {
-  await page.locator(".rail-trash").click();
+  await page.locator(".lib-nav-trash").click();
   await expect(page.locator("#catalogPanel")).toHaveClass(/trash-view/);
 }
 

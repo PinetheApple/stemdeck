@@ -112,7 +112,7 @@ async function open(page, options) {
 async function showLyrics(page) {
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
-  await page.locator(".rail-lyrics").click();
+  await page.locator("#songToolsLyricsBtn").click();
 }
 
 /** Reload with nothing of this browser's lyrics left, as another device would open the song. */
@@ -190,8 +190,8 @@ test.describe("the user's lyrics choice is kept with the song", () => {
     await page.route(new RegExp(`/api/jobs/${JOB_ID}/lyrics$`), (route) => (route.request().method() === "GET"
       ? route.fulfill({ status: 404, json: { detail: "no lyrics" } })
       : route.fallback()), { times: 1 });
-    await page.locator(".rail-library").click();
-    await page.locator(".rail-lyrics").click();
+    await page.locator(".lib-nav-library").click();
+    await page.locator("#songToolsLyricsBtn").click();
     await expect.poll(() => asked.length).toBe(2);
     expect(asked[1].body).toEqual({});
     await expect(page.locator("#lyricsStatus")).toHaveText(REMOVED);

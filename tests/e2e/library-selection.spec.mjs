@@ -216,7 +216,7 @@ test.describe("selected and open look different", () => {
 test.describe("other song lists", () => {
   test("Favourites: a click opens, a double-click plays", async ({ page }) => {
     await openLibrary(page, { favorite: true });
-    await page.locator(".rail-favorites").click();
+    await page.locator(".lib-nav-favorites").click();
     const row = songRow(page, SIBLING_JOB_ID);
     await row.click();
     await expectSelectedAndOpened(page, row, SIBLING_JOB_ID);

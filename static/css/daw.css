@@ -11,10 +11,6 @@ input, textarea { font-family: inherit; }
 
 /* ── Root ── */
 .daw {
-  /* The rail's width, as a variable: the topbar's logo cell is sized from the
-     same number, so the divider under the logo is the one the rail already
-     draws, and the bar proper starts where the library does. */
-  --rail-w: 66px;
   width: 100vw;
   height: 100vh;
   background: var(--bg);
@@ -69,49 +65,6 @@ input, textarea { font-family: inherit; }
   gap: 14px;
 }
 .daw-topbar > .daw-composer-stack { padding: 10px 0; }
-
-/* Logo cell.
- *
- * The top-left corner, exactly as wide as the rail below it and closed by the
- * same border, so the bar proper begins where the library does. It was the
- * full 390px of the library at first, which put 330px of empty bar beside the
- * logo and cost the composer the width it was short of. The rail's width is
- * the part that has something in it, and it does not move when the library
- * collapses, so the cell needs no transition of its own. */
-.daw-brand {
-  align-self: stretch;
-  box-sizing: border-box;
-  width: var(--rail-w);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  border-right: 1px solid var(--border);
-  overflow: hidden;
-}
-/* Lined up with the rail buttons below it, which means lined up by the bars,
-   not by the file. The symbol's artboard is not centred on its own artwork:
-   the bars run x110-x452 of a 512 box, so their middle sits 25 units right of
-   the middle of the image. Centring the image would therefore push the bars
-   2.5px right of the rail's centre line, which is exactly what it looked like.
-   4px is what puts the bars' middle on 32.5px, the centre of the 65px cell.
-   52px, not the 40px of a rail button: that same padding means the bars
-   themselves land at about 35px. */
-/* The logo is the link, so the anchor has to be the flex item the cell
-   centres, not an inline box that would add a line box's worth of height
-   around a 52px image. */
-.daw-brand a {
-  display: flex;
-  align-items: center;
-  text-decoration: none;
-}
-.daw-brand img {
-  width: 52px;
-  height: 52px;
-  margin-left: 4px;
-  margin-right: auto;
-  display: block;
-  flex-shrink: 0;
-}
 
 /* ── Composer pill ── */
 .daw-composer {
@@ -420,13 +373,8 @@ input, textarea { font-family: inherit; }
 .daw-iconbtn:active { transform: scale(0.96); }
 
 /* Notification panel */
-/* The wrapper is still the badge's anchor; the panel is not anchored to it.
-   .sidebar is overflow:hidden and narrows to the rail's 66px when the library
-   is collapsed, so an absolutely positioned panel would be clipped to nothing
-   in that state. Fixed escapes the clip, and placeNotifPanel in ui-chrome.js
-   sets left/top from the bell's rect, the same way the search dropdown and the
-   metronome popover are placed. No coordinates here on purpose: the only code
-   that shows this panel is the code that positions it. */
+/* Fixed, and placed by keepInWindow (shellFloat.js) from the bell's rect, so it
+   stays inside the window. No coordinates here: the code that shows it places it. */
 .daw-notif-wrap { position: relative; }
 .daw-notif-panel {
   display: none;
@@ -537,64 +485,6 @@ input, textarea { font-family: inherit; }
   overflow: hidden;
   transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
-/* Rail */
-.sidebar-rail {
-  width: var(--rail-w);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px 0;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.rail-btn {
-  width: 40px; height: 40px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  border-radius: 8px;
-  color: var(--muted);
-  font-size: 9px;
-  font-family: var(--font-sans);
-  cursor: pointer;
-  transition: background var(--t-fast), color var(--t-fast);
-  border: none;
-  background: none;
-  /* remove old pseudo-element strip */
-}
-.rail-btn::before { display: none !important; }
-.rail-btn:hover { background: var(--panel); color: var(--fg-2); }
-.rail-btn.active { color: var(--accent); background: var(--panel); }
-.rail-btn svg { flex-shrink: 0; }
-/* max-width + ellipsis: a translated label (e.g. Polish "Ustawienia") can run
-   longer than English at this 9px size inside the fixed 40px button. The
-   full text is still reachable via the button's title/aria-label; this just
-   guarantees the label itself can never visually overflow the rail column. */
-.rail-btn > span { white-space: nowrap; max-width: 56px; overflow: hidden; text-overflow: ellipsis; }
-
-/* Queue rail button. Only present while something is importing, so the rail
-   stays as it is today for anyone not using the queue. The Trash button wears
-   the same badge, with how many songs are in it (#749). */
-.rail-queue, .rail-trash { position: relative; }
-.rail-badge {
-  position: absolute; top: 2px; right: 2px;
-  min-width: 15px; height: 15px; padding: 0 4px;
-  border-radius: 8px;
-  background: var(--accent); color: #1a1a1a;
-  font-size: 9px; font-weight: 700; line-height: 15px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  pointer-events: none;
-}
-
-/* The offline mark: a rail item in looks only, so no hover and no pointer. */
-.rail-btn.rail-conn,
-.rail-btn.rail-conn:hover { cursor: default; background: none; color: var(--danger); }
 
 /* Sidebar body */
 .sidebar-body {
@@ -1438,9 +1328,6 @@ input, textarea { font-family: inherit; }
 
 /* Collapsed sidebar strip */
 .cat-collapsed-strip { display: none; }
-.daw.cat-collapsed .sidebar { width: var(--rail-w); }
-.daw.cat-collapsed .sidebar-body { opacity: 0; pointer-events: none; visibility: hidden; }
-.daw.cat-collapsed .cat-collapsed-strip { display: flex; flex-direction: column; gap: 8px; align-items: center; padding: 8px 0; overflow-y: auto; }
 
 /* ═══════════════════════════════════
    MAIN AREA (#lanes)
@@ -5597,11 +5484,10 @@ input, textarea { font-family: inherit; }
 }
 .stem-overflow.open { display: flex; }
 
-/* Help mode. The Guide button in the rail, below Trash; while it is pressed,
+/* Help mode. The Guide button in the top bar; while it is pressed,
    a ring is drawn around what can be seen of the control being explained,
    and its box sits beside it. The ring is a layer of its own, so nothing in
    the page moves and no panel clips it. */
-.rail-guide[aria-pressed="true"] { color: var(--accent); background: var(--panel); }
 /* Only the control being explained is marked, so the screen stays calm; the
    pill at the bottom says help mode is on. */
 /* With no song open, the studio turns several controls off for the pointer

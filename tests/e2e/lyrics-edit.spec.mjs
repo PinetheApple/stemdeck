@@ -109,13 +109,13 @@ async function openLyrics(page) {
   await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
-  await page.locator(".rail-lyrics").click();
+  await page.locator("#songToolsLyricsBtn").click();
 }
 
 async function openTrackFromLibrary(page, id) {
-  await page.locator(".rail-library").click();
+  await page.locator(".lib-nav-library").click();
   await page.locator(`.cat-item[data-id="${id}"]`).first().dblclick();
-  await page.locator(".rail-lyrics").click();
+  await page.locator("#songToolsLyricsBtn").click();
 }
 
 const editLink = (page) => page.locator(".lyrics-edit-open");
@@ -316,9 +316,9 @@ test.describe("the app's keys while editing", () => {
     await cancel(page).focus();
     await page.keyboard.press("Backspace");
     await expect(editor(page)).toBeVisible();
-    await page.locator(".rail-library").click();
+    await page.locator(".lib-nav-library").click();
     await expect(page.locator(`.cat-item[data-id="${JOB_ID}"]`).first()).toBeVisible();
-    await page.locator(".rail-lyrics").click();
+    await page.locator("#songToolsLyricsBtn").click();
     await rowAction(page, 0, "Delete this line").focus();
     await page.keyboard.press("Space");
     await expect(page.locator(".lyrics-edit-input")).toHaveCount(2);
@@ -494,7 +494,7 @@ test.describe("the user's lyrics come first", () => {
     await expect(shownText(page)).toHaveText(["Mine one", "Mine two"]);
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
-    await page.locator(".rail-lyrics").click();
+    await page.locator("#songToolsLyricsBtn").click();
     await expect(shownText(page)).toHaveText(["Mine one", "Mine two"]);
     expect(await stored(page)).toBeNull();
   });

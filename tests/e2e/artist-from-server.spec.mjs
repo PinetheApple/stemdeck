@@ -16,8 +16,7 @@ import {
   stubAudioTags,
   stubExportEndpoints,
   stubImportQueue,
-  stubUpdateCheck,
-} from "./helpers.mjs";
+  stubUpdateCheck, openComposer } from "./helpers.mjs";
 
 // Wide enough for the now-playing card, which the bar hides below 1460px.
 test.use({ viewport: { width: 1600, height: 900 } });
@@ -119,6 +118,7 @@ test.describe("band found by the server during the import", () => {
     // import opens itself.
     await openPage(page, { [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, "E2E Fixture Track (again)") });
 
+    await openComposer(page);
     await page.locator("#url").fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
     await page.locator("#submit").click();
     await queue.run();
