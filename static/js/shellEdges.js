@@ -45,11 +45,16 @@ function setToolsAutoHidden(hidden) {
   app()?.classList.toggle(TOOLS_AUTO_HIDDEN_CLASS, hidden);
 }
 
-// Shown song tools at their minimum and still no room: they step aside until there is.
+/** Room the waveforms would have with every pane after the song tools at its target width. */
+function spareAfterTools() {
+  return waveSpare() + edges.filter(({ order }) => order > FIT_ORDER.TOOLS).reduce((sum, { edge }) => sum + edge.slack(), 0);
+}
+
+// Song tools at their minimum and still no room: they step aside before the panes after them narrow.
 function fitToolsToRoom() {
   const root = app();
   if (!root || !watchingRoom || root.classList.contains(STAGE_CLASS)) return;
-  const spare = waveSpare();
+  const spare = spareAfterTools();
   if (isToolsAutoHidden()) {
     if (spare >= PANE_LIMITS.tools.min) setToolsAutoHidden(false);
     return;
@@ -59,9 +64,11 @@ function fitToolsToRoom() {
 }
 
 export function fitShellEdges() {
-  for (const { edge } of edges) edge.fit();
+  for (const { order, edge } of edges) {
+    edge.fit();
+    if (order === FIT_ORDER.TOOLS) fitToolsToRoom();
+  }
   for (const { afterFit } of edges) afterFit?.();
-  fitToolsToRoom();
 }
 
 export function queueShellFit() {

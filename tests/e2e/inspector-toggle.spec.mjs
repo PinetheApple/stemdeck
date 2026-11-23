@@ -37,13 +37,13 @@ async function openWide(page) {
 
 async function expectShown(page) {
   await expect(inspectorOf(page)).toBeVisible();
-  await expect(toggleOf(page)).toHaveAttribute("aria-expanded", "true");
+  await expect(toggleOf(page)).toHaveAttribute("aria-pressed", "true");
 }
 
 async function expectHidden(page) {
   await expect(inspectorOf(page)).toBeHidden();
   await expect(toggleOf(page)).toBeVisible();
-  await expect(toggleOf(page)).toHaveAttribute("aria-expanded", "false");
+  await expect(toggleOf(page)).toHaveAttribute("aria-pressed", "false");
 }
 
 async function stageRoundTrip(page) {

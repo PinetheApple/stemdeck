@@ -14,7 +14,9 @@ const GUIDE_CONTROLS = [
   ".lib-nav-library", ".lib-nav-favorites", ".lib-nav-queue", ".lib-nav-trash", "#songToolsLyricsBtn",
   "#importingBtn", "#connStatus",
 ];
-const COLLAPSED_GUIDE_CONTROLS = [".strip-nav-library", ".strip-nav-favorites", ".strip-nav-trash", "#catalogStrip .strip-thumb"];
+const COLLAPSED_GUIDE_CONTROLS = [
+  ".strip-nav-library", ".strip-nav-favorites", ".strip-nav-queue", ".strip-nav-trash", "#catalogStrip .strip-thumb",
+];
 
 const guideOn = (page) => page.locator("body").evaluate((el) => el.classList.contains("help-mode"));
 const stageOn = (page) => page.locator(".app").evaluate((el) => el.classList.contains("stage-mode"));
@@ -87,6 +89,14 @@ test.describe("Esc closes the topmost thing only", () => {
     await page.keyboard.press("Escape");
     await expect(listbox(page)).toHaveCount(0);
     await expect(settingsDialog(page)).toBeVisible();
+  });
+
+  test("with nothing open, Esc in a search field still clears it", async ({ page }) => {
+    await openStudio(page);
+    const search = page.locator("#catalogSearch");
+    await search.fill("zzzz");
+    await search.press("Escape");
+    await expect(search).toHaveValue("");
   });
 
   test("a popover before Guide, and Alerts closes on Esc", async ({ page }) => {
@@ -164,8 +174,9 @@ test.describe("Guide and the shell", () => {
     await explainsEach(page, GUIDE_CONTROLS);
   });
 
-  test("explains the collapsed sidebar", async ({ page }) => {
+  test("explains the collapsed sidebar, imports running", async ({ page }) => {
     await openStudio(page);
+    await stubQueue(page);
     await page.locator("#sidebarCollapseBtn").click();
     await page.locator("#helpModeBtn").click();
     await explainsEach(page, COLLAPSED_GUIDE_CONTROLS);

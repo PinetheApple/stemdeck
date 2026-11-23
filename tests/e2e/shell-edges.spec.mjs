@@ -9,6 +9,8 @@ const WIDE_WINDOW = { width: 1920, height: 1080 };
 const KEY_STEP = 16;
 const MIN_WAVES = MIN_WAVES_PX;
 const FAR = 2000;
+// Too narrow for the widest sidebar, stem column and song tools; wide enough for the first two.
+const STEP_ASIDE_WINDOW = { width: 1400, height: 900 };
 const EDGES = [
   { name: "sidebar", handle: "#libraryResizer", pane: "#catalogPanel", ...PANE_LIMITS.sidebar, grows: 1, key: "stemdeck.library.width" },
   { name: "stem controls", handle: "#stemsResizer", pane: ".daw-stems-panel", ...PANE_LIMITS.stems, grows: 1, key: "stemdeck.stems.width" },
@@ -63,6 +65,17 @@ for (const edge of EDGES) {
     });
   });
 }
+
+test("the song tools step aside before the stem column narrows", async ({ page }) => {
+  const [sidebar, stems] = EDGES;
+  await drag(page, stems.handle, FAR);
+  await drag(page, sidebar.handle, FAR);
+  await page.setViewportSize(STEP_ASIDE_WINDOW);
+  await expect(page.locator("#inspector")).toBeHidden();
+  await expect(page.locator("#inspectorToggleBtn")).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(() => widthOf(page, stems.pane)).toBe(stems.max);
+  expect(await widthOf(page, ".daw-wave-panel")).toBeGreaterThanOrEqual(MIN_WAVES);
+});
 
 test("all three at their widest still leave the waveforms 320px", async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });

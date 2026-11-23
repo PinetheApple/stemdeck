@@ -2,7 +2,17 @@
 // covers with its views, song tools that hide, and every library view reachable.
 
 import { test, expect } from "@playwright/test";
-import { JOB_ID, MIN_TIMELINE_WIDTH, openStudio, uiText, waitForPanesSettled } from "./helpers.mjs";
+import {
+  JOB_ID,
+  MIN_TIMELINE_WIDTH,
+  SIBLING_JOB_ID,
+  SIBLING_TITLE,
+  TRACK_TITLE,
+  fixtureTrack,
+  openStudio,
+  uiText,
+  waitForPanesSettled,
+} from "./helpers.mjs";
 
 const TOP_BAR_HEIGHT = 52;
 const STRIP_WIDTH = 64;
@@ -17,6 +27,16 @@ const TOP_BAR_ORDER = [
   "#inspectorToggleBtn",
 ];
 const QUEUED_ID = "e2e0q0000001";
+// variables.css gives the stem column this width at 1500px wide and under.
+const STEMS_DEFAULT_NARROW = 328;
+const UNSORTED_ID = "f-unsorted";
+const ONE_TRASHED = {
+  folders: [
+    { id: UNSORTED_ID, name: "Unsorted", items: [JOB_ID], color: null },
+    { id: "trash", name: "Trash", items: [SIBLING_JOB_ID], color: null },
+  ],
+  tracks: { [JOB_ID]: fixtureTrack(JOB_ID, TRACK_TITLE), [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, SIBLING_TITLE) },
+};
 const SMALL_WINDOWS = [
   { name: "1366x768", size: { width: 1366, height: 768 }, collapsed: false },
   { name: "1024x768 with the sidebar collapsed", size: { width: 1024, height: 768 }, collapsed: true },
@@ -163,6 +183,16 @@ test.describe("the rail's views are still reachable", () => {
     await expect(page.locator("#songToolsLyricsBtn")).toHaveAttribute("aria-pressed", "true");
   });
 
+  test("Trash keeps its count in its name after a language change", async ({ page }) => {
+    await openStudio(page, { catalog: ONE_TRASHED });
+    const trash = page.locator(".lib-nav-trash");
+    await expect(trash).toHaveAttribute("title", await uiText(page, "nav.trashWithCount", { count: 1 }));
+    await page.evaluate(async () => (await import("/js/i18n.js")).setLanguage("de"));
+    const german = await uiText(page, "nav.trashWithCount", { count: 1 });
+    await expect(trash).toHaveAttribute("title", german);
+    await expect(trash).toHaveAttribute("aria-label", german);
+  });
+
   test("About from the top bar", async ({ page }) => {
     await openStudio(page);
     await page.locator("#topbar #aboutBtn").click();
@@ -195,6 +225,7 @@ test.describe("small windows", () => {
       expect(footer.y + footer.height).toBeLessThanOrEqual(size.height);
       await waitForPanesSettled(page);
       await expect.poll(async () => (await boxOf(page, ".daw-wave-panel")).width).toBeGreaterThanOrEqual(MIN_TIMELINE_WIDTH);
+      if (collapsed) expect((await boxOf(page, ".daw-stems-panel")).width).toBe(STEMS_DEFAULT_NARROW);
     });
   }
 });

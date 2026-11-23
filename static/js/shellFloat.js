@@ -1,35 +1,43 @@
-// Keeps menus and popovers inside the window. shell.css caps their height so
-// they scroll; this moves them back in from any edge they cross.
+// Keeps menus and popovers inside the window: marked with FLOAT_CLASS, which
+// shell.css caps in height so they scroll, and moved back in from any edge they cross.
 
-const WINDOW_EDGE_PX = 8;
 const ANCHOR_GAP_PX = 6;
+const FLOAT_CLASS = "shell-float";
+const EDGE_TOKEN = "--float-edge";
 // Popovers placed by their own modules; a translate nudges them without fighting that placement.
 const CLAMPED_FLOATS = ".lib-menu, #stemOverflow, #t-export-panel, #search-panel";
 const STATIC_FLOATS = ["stemOverflow", "t-export-panel"];
 
+const windowEdge = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(EDGE_TOKEN));
+
 /** Under its anchor, right edges level, inside the window, scrolling when taller than it. */
 export function keepInWindow(el, anchor) {
-  const room = window.innerHeight - 2 * WINDOW_EDGE_PX;
-  el.style.maxHeight = `${room}px`;
-  el.style.overflowY = "auto";
+  const edge = windowEdge();
+  const room = window.innerHeight - 2 * edge;
+  el.classList.add(FLOAT_CLASS);
   const a = anchor.getBoundingClientRect();
   const { width, height } = el.getBoundingClientRect();
-  const left = Math.min(Math.max(WINDOW_EDGE_PX, a.right - width), window.innerWidth - WINDOW_EDGE_PX - width);
-  const top = Math.min(a.bottom + ANCHOR_GAP_PX, window.innerHeight - WINDOW_EDGE_PX - Math.min(height, room));
+  const left = Math.min(Math.max(edge, a.right - width), window.innerWidth - edge - width);
+  const top = Math.min(a.bottom + ANCHOR_GAP_PX, window.innerHeight - edge - Math.min(height, room));
   el.style.left = `${Math.round(left)}px`;
-  el.style.top = `${Math.round(Math.max(WINDOW_EDGE_PX, top))}px`;
+  el.style.top = `${Math.round(Math.max(edge, top))}px`;
 }
 
-const shift = (start, end, limit) =>
-  start < WINDOW_EDGE_PX ? WINDOW_EDGE_PX - start : end > limit - WINDOW_EDGE_PX ? Math.max(WINDOW_EDGE_PX - start, limit - WINDOW_EDGE_PX - end) : 0;
+function shift(start, end, limit, edge) {
+  if (start < edge) return edge - start;
+  if (end > limit - edge) return Math.max(edge - start, limit - edge - end);
+  return 0;
+}
 
 /** Move a shown popover back inside the window, wherever its own code put it. */
 export function clampIntoWindow(el) {
+  el.classList.add(FLOAT_CLASS);
   el.style.translate = "";
   if (!el.getClientRects().length) return;
+  const edge = windowEdge();
   const r = el.getBoundingClientRect();
-  const dx = shift(r.left, r.right, window.innerWidth);
-  const dy = shift(r.top, r.bottom, window.innerHeight);
+  const dx = shift(r.left, r.right, window.innerWidth, edge);
+  const dy = shift(r.top, r.bottom, window.innerHeight, edge);
   if (dx || dy) el.style.translate = `${Math.round(dx)}px ${Math.round(dy)}px`;
 }
 
@@ -55,4 +63,6 @@ export function watchFloats() {
     if (el) opened.observe(el, { attributes: true, attributeFilter: ["class"] });
   }
   window.addEventListener("resize", queueClamp);
+  // A scroll moves the anchors the popovers were placed from.
+  window.addEventListener("scroll", queueClamp, { capture: true, passive: true });
 }

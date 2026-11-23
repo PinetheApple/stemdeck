@@ -253,7 +253,7 @@
 .tools-lyrics-btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
 
 /* ── Menus and popovers never run past the window; taller ones scroll ── */
-:is(.lib-menu, #stemOverflow, #t-export-panel, #search-panel) {
+.shell-float {
   max-height: calc(100vh - 2 * var(--float-edge));
   overflow-y: auto;
 }

@@ -34,13 +34,30 @@ export class PaneEdge {
     return this.handle.getClientRects().length > 0;
   }
 
-  /** The chosen width, or the default when none is chosen, narrowed to what the waveforms can spare. */
+  /** The width it is sized from before the waveforms are weighed: the chosen one, else the default. */
+  target() {
+    if (this.preferred !== null) return this.preferred;
+    const shown = this.host.style.getPropertyValue(this.cssVar);
+    if (!shown) return Math.round(this.measure());
+    // Only a default narrowed earlier is unknown, so only then is it laid out bare.
+    this.host.style.removeProperty(this.cssVar);
+    const natural = Math.round(this.measure());
+    this.host.style.setProperty(this.cssVar, shown);
+    return natural;
+  }
+
+  /** How much more room the waveforms would have with this pane at its target width. */
+  slack() {
+    return this.shown() ? Math.round(this.measure()) - this.target() : 0;
+  }
+
   render() {
+    const target = this.target();
+    const width = this.clampTo(target);
+    const next = this.preferred === null && width === target ? "" : `${width}px`;
+    if (this.host.style.getPropertyValue(this.cssVar) === next) return;
     this.host.classList.add(SIZING_CLASS);
-    if (this.preferred === null) this.host.style.removeProperty(this.cssVar);
-    const target = this.preferred ?? Math.round(this.measure());
-    const next = this.clampTo(target);
-    if (this.preferred !== null || next !== target) this.host.style.setProperty(this.cssVar, `${next}px`);
+    this.host.style.setProperty(this.cssVar, next);
     // Lays out now, while transitions are off, so the pane tracks the pointer.
     void this.host.offsetWidth;
     this.host.classList.remove(SIZING_CLASS);

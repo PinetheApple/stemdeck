@@ -465,7 +465,6 @@ export async function waitForClickTrack(page, { revealOptions = true } = {}) {
   if (revealOptions) await openClickOptions(page);
 }
 
-/** Show one of the inspector's tabs: "tempo", "upnext" or "details". */
 /** Bring the song tools back where a narrow window put them aside. */
 export async function showSongTools(page) {
   const tools = page.locator("#inspector");
@@ -473,6 +472,7 @@ export async function showSongTools(page) {
   await tools.waitFor({ state: "visible" });
 }
 
+/** Show one of the inspector's tabs: "tempo", "upnext" or "details". */
 export async function openInspectorTab(page, name) {
   await showSongTools(page);
   const tab = page.locator(`.inspector-tab[data-tab="${name}"]`);

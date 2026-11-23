@@ -109,6 +109,7 @@ function position() {
 function open() {
   position();
   panel.classList.remove("hidden");
+  clampIntoWindow(panel);
   input.setAttribute("aria-expanded", "true");
 }
 

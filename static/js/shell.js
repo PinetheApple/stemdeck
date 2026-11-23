@@ -26,9 +26,7 @@ function onImportingClick() {
 // Shown means neither hidden by the user (inspector.js) nor stepped aside for the waveforms.
 function paintToolsToggle() {
   const shown = !document.querySelector(".app")?.classList.contains(TOOLS_HIDDEN_CLASS) && !isToolsAutoHidden();
-  const toggle = document.getElementById("inspectorToggleBtn");
-  toggle?.setAttribute("aria-pressed", String(shown));
-  toggle?.setAttribute("aria-expanded", String(shown));
+  document.getElementById("inspectorToggleBtn")?.setAttribute("aria-pressed", String(shown));
 }
 
 function watchToolsToggle() {
