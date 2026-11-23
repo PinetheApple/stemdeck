@@ -34,6 +34,7 @@ import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind, getFailures, restoreFailures } from "./notifications.js";
 import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
 import { isModalOpen } from "./stageMode.js";
+import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
 import { queueUpNext } from "./upNext.js";
 import { KEYBOARD_FOCUS, ON_ROW, OUT_OF_TAB_ORDER, ROW_KEY, ROW_PLAY_CLASS, isShown, wireRovingRows } from "./rovingRows.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
@@ -117,7 +118,6 @@ let _trashAnchor = null;
 // How long a Trash row has to be held to restore it. daw.css reads it through
 // --hold-ms, so the fill and the timer cannot drift apart.
 export const TRASH_HOLD_MS = 1000;
-const ESCAPE_KEY = "Escape";
 // The buttons that switch the sidebar's view; Lyrics sits in the song tools.
 const VIEW_BUTTONS = Object.freeze({
   library: ".lib-nav-library",
@@ -125,6 +125,13 @@ const VIEW_BUTTONS = Object.freeze({
   queue: ".lib-nav-queue",
   trash: ".lib-nav-trash",
   lyrics: "#songToolsLyricsBtn",
+});
+// The same views from a collapsed sidebar, which they open.
+const STRIP_VIEW_BUTTONS = Object.freeze({
+  library: ".strip-nav-library",
+  favorites: ".strip-nav-favorites",
+  queue: ".strip-nav-queue",
+  trash: ".strip-nav-trash",
 });
 
 // ─── Persistence ───
@@ -1496,10 +1503,7 @@ function putInTrash(ids) {
 
 function setCatalogView(view) {
   catalogView = ["trash", "favorites", "queue", "lyrics"].includes(view) ? view : "library";
-  // Switching to Trash, Favourites, Queue or Lyrics is a request to look at
-  // the sidebar, so a collapsed one comes back. Through the shared helper, or
-  // the collapse button's aria-expanded is left claiming the sidebar is still
-  // shut.
+  // Any view but the library asks to see the sidebar; the shared helper keeps the toggle's aria-pressed true.
   if (catalogView !== "library") setSidebarCollapsed(false);
   if (catalogView !== "trash") clearTrashSelection();
   render();
@@ -2063,8 +2067,8 @@ function openFolderEditor(folderId, requestedTitleKey = EDIT_FOLDER_TITLE_KEY) {
     render();
     closeFolderEditor();
   });
-  overlay.addEventListener("keydown", (e) => {
-    if (e.code === "Escape") closeFolderEditor();
+  overlay.addEventListener("keydown", function onFolderEditorKeydown(e) {
+    if (e.key === ESCAPE_KEY && escapeIsFor(LAYER.DIALOG)) closeFolderEditor();
   });
 
   document.body.appendChild(overlay);
@@ -4217,7 +4221,9 @@ function updateQueueBadge(snap = getQueueSnapshot()) {
   const badge = document.getElementById("queueBadge");
   if (!btn) return;
   const count = queueCount(snap);
-  btn.classList.toggle("hidden", count === 0 && catalogView !== "queue" && !queueBatchProgress(snap));
+  const idle = count === 0 && catalogView !== "queue" && !queueBatchProgress(snap);
+  btn.classList.toggle("hidden", idle);
+  document.querySelector(STRIP_VIEW_BUTTONS.queue)?.classList.toggle("hidden", idle);
   if (badge) {
     badge.textContent = count > 99 ? "99+" : String(count);
     badge.classList.toggle("hidden", count === 0);
@@ -4310,6 +4316,13 @@ function wireCatalogViewButtons() {
   for (const [view, selector] of Object.entries(VIEW_BUTTONS)) {
     document.querySelector(selector)?.addEventListener("click", function onViewButtonClick() {
       setCatalogView(view);
+    });
+  }
+  for (const [view, selector] of Object.entries(STRIP_VIEW_BUTTONS)) {
+    document.querySelector(selector)?.addEventListener("click", function onStripViewClick() {
+      setSidebarCollapsed(false);
+      setCatalogView(view);
+      document.querySelector(VIEW_BUTTONS[view])?.focus();
     });
   }
   document.getElementById("clearBinBtn")?.addEventListener("click", onEmptyTrashClick);
@@ -5003,7 +5016,7 @@ function wireBackdropDialog(dialog, closeButton) {
     if (e.target === dialog) hideDialog();
   }
   function onDialogKeydown(e) {
-    if (e.key === ESCAPE_KEY) hideDialog();
+    if (e.key === ESCAPE_KEY && escapeIsFor(LAYER.DIALOG)) hideDialog();
   }
   closeButton?.addEventListener("click", hideDialog);
   dialog.addEventListener("mousedown", onBackdropMousedown);
@@ -6842,7 +6855,9 @@ function openLibraryEditor() {
   overlay.querySelector(".settings-done")?.addEventListener("click", closeLibraryEditor);
   overlay.querySelector(".library-editor-sync")?.addEventListener("click", () => resyncLibrary());
   // Escape closes from anywhere (the overlay isn't focused, so listen on document).
-  libraryEditorOnKey = (e) => { if (e.code === "Escape") closeLibraryEditor(); };
+  libraryEditorOnKey = function onSettingsKeydown(e) {
+    if (e.key === ESCAPE_KEY && escapeIsFor(LAYER.DIALOG)) closeLibraryEditor();
+  };
   document.addEventListener("keydown", libraryEditorOnKey);
 
   document.body.appendChild(overlay);

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openStudio, waitForClickTrack } from "./helpers.mjs";
+import { openStudio, showSongTools, waitForClickTrack } from "./helpers.mjs";
 
 const STORE_KEY = "stemdeck.inspector.hidden";
 const WIDE_WINDOW = { width: 1600, height: 900 };
@@ -149,6 +149,7 @@ test.describe("inspector hide and show", () => {
         await page.setViewportSize(size);
         await openStudio(page);
         await waitForClickTrack(page);
+        await showSongTools(page);
 
         const cutOff = await page.evaluate(async ({ language, labels }) => {
           const { setLanguage } = await import("/js/i18n.js");

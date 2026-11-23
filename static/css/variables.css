@@ -28,6 +28,7 @@
   --danger:  #ff5d5d;
   --fav:     var(--accent);
   --scrim:   rgba(0, 0, 0, 0.55);
+  --warn-soft: color-mix(in srgb, var(--warn) 14%, transparent);
 
   /* Stem colours */
   --vocals: #ff8fab;
@@ -94,11 +95,12 @@
   --strip-cover:  44px;
   --badge-h:      15px;
   --scrollbar-w:  8px;
+  --s-0:          2px;
+  --line-w-strong: 2px;
+  --float-edge:   8px;
   --library-w:    clamp(232px, 15vw, 300px);
   --pane-handle-w:    8px;
   --pane-handle-line: 2px;
-  /* Narrow enough that the lanes clear transport.js's 720px floor (WAVE_MIN_WIDTH)
-     from a 1600px window up, so a song opens fitted rather than scrolled. */
   --inspector-w:  340px;
     --header-w:     300px;
   /* The studio's left column, the label cell above it and the footer gutter share
@@ -109,6 +111,11 @@
   --composer-action-w: 140px;
   /* Two rows of tag chips and a glimpse of a third under the fade, so more tags read as more. */
   --lib-tags-max-h: 86px;
+
+  /* Stacking: pane edges over their panes, the stem edge over the lanes, the overlay layer over the app */
+  --z-pane-edge:       4;
+  --z-pane-edge-lanes: 20;
+  --z-overlay-root:    300;
 
   /* Motion */
   --t-fast: 120ms;

@@ -1,9 +1,8 @@
-// The desktop shell (#233): one 52px top bar, no icon rail, a sidebar that
-// collapses to a strip of covers, song tools that hide, and every view the rail
-// used to open still reachable.
+// The desktop shell: one 52px top bar, a sidebar that collapses to a strip of
+// covers with its views, song tools that hide, and every library view reachable.
 
 import { test, expect } from "@playwright/test";
-import { JOB_ID, openStudio, uiText } from "./helpers.mjs";
+import { JOB_ID, MIN_TIMELINE_WIDTH, openStudio, uiText, waitForPanesSettled } from "./helpers.mjs";
 
 const TOP_BAR_HEIGHT = 52;
 const STRIP_WIDTH = 64;
@@ -95,6 +94,9 @@ test.describe("sidebar and song tools toggles", () => {
     await expect(toggle).toHaveAttribute("aria-pressed", "false");
     await expect.poll(async () => (await boxOf(page, "#catalogPanel")).width).toBe(STRIP_WIDTH);
     await expect(page.locator(`#catalogStrip .strip-thumb[data-id="${JOB_ID}"]`).first()).toBeVisible();
+    for (const view of ["library", "favorites", "trash"]) {
+      await expect(page.locator(`.strip-nav-${view}`)).toHaveAttribute("aria-label", /\S/);
+    }
     await reload(page);
     await expect(page.locator("#sidebarCollapseBtn")).toHaveAttribute("aria-pressed", "false");
     await expect.poll(async () => (await boxOf(page, "#catalogPanel")).width).toBe(STRIP_WIDTH);
@@ -126,6 +128,22 @@ test.describe("the rail's views are still reachable", () => {
     await expect(panel).toHaveClass(/trash-view/);
     await page.locator(".lib-nav-library").click();
     await expect(panel).not.toHaveClass(/trash-view|favorites-view/);
+  });
+
+  test("Favorites, Trash and the queue from a collapsed sidebar, which opens on that view", async ({ page }) => {
+    await openStudio(page);
+    await page.locator("#sidebarCollapseBtn").click();
+    await expect(page.locator(".strip-nav-queue")).toBeHidden();
+    await page.locator(".strip-nav-favorites").click();
+    await expect(page.locator("#catalogPanel")).toHaveClass(/favorites-view/);
+    await expect(page.locator("#sidebarCollapseBtn")).toHaveAttribute("aria-pressed", "true");
+    await page.locator("#sidebarCollapseBtn").click();
+    await page.locator(".strip-nav-trash").click();
+    await expect(page.locator("#catalogPanel")).toHaveClass(/trash-view/);
+    await page.locator("#sidebarCollapseBtn").click();
+    await stubQueue(page, [QUEUED_ID]);
+    await page.locator(".strip-nav-queue").click();
+    await expect(page.locator("#catalogPanel")).toHaveClass(/queue-view/);
   });
 
   test("the import queue from the sidebar while imports run", async ({ page }) => {
@@ -175,6 +193,8 @@ test.describe("small windows", () => {
       expect(scroll.h).toBeLessThanOrEqual(size.height);
       const footer = await boxOf(page, "#footer");
       expect(footer.y + footer.height).toBeLessThanOrEqual(size.height);
+      await waitForPanesSettled(page);
+      await expect.poll(async () => (await boxOf(page, ".daw-wave-panel")).width).toBeGreaterThanOrEqual(MIN_TIMELINE_WIDTH);
     });
   }
 });

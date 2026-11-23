@@ -8,7 +8,7 @@
 // already translates, and its text comes from the help.* keys in i18n.js.
 
 import { t } from "./i18n.js";
-import { LAYER, escapeIsFor } from "./shellEscape.js";
+import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
 import {
   BIG_AREA_SHARE,
   TRACK_AREA,
@@ -52,12 +52,13 @@ const HELP = [
   ["#np-details-btn", "help.songDetails"],
   ["#songUpNextBtn", "help.addToUpNext"],
   ["#songMoreBtn", "help.openSongMenu"],
-  [".lib-nav-favorites", "help.favorites"],
-  [".lib-nav-library", "help.library"],
+  [".lib-nav-favorites, .strip-nav-favorites", "help.favorites"],
+  [".lib-nav-library, .strip-nav-library", "help.library"],
+  ["#catalogStrip .strip-thumb, #catalogStrip", "shell.help.strip"],
   [".lyrics-edit-open", "help.lyricsEdit"],
   [".lyrics-supply-open", "help.lyricsSupply"],
-  [".lib-nav-trash", "help.trash"],
-  [".lib-nav-queue", "help.queue"],
+  [".lib-nav-trash, .strip-nav-trash", "help.trash"],
+  [".lib-nav-queue, .strip-nav-queue", "help.queue"],
   ["#notifBtn", "help.notifications"],
   ["#settingsBtn", "settings"],
   ["#aboutBtn", "help.about"],
@@ -417,7 +418,7 @@ function onFocus(e) {
 }
 
 function onKey(e) {
-  if (e.key === "Escape" && escapeIsFor(LAYER.GUIDE)) {
+  if (e.key === ESCAPE_KEY && escapeIsFor(LAYER.GUIDE)) {
     e.preventDefault();
     e.stopPropagation();
     setHelpMode(false);

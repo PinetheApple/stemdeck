@@ -1,5 +1,5 @@
-/* The desktop shell (#233): top bar, sidebar, pane edges, scrim and scrollbars.
-   Loaded last; overrides what the old rail layout set in daw.css and studio.css. */
+/* The desktop shell: top bar, sidebar, pane edges, scrim and scrollbars.
+   Loaded last, so it wins over the older layout rules in daw.css and studio.css. */
 
 /* ── Top bar: one row ── */
 .daw .topbar {
@@ -70,7 +70,7 @@
   padding: 0 var(--s-3);
   border-radius: var(--r-pill);
   color: var(--warn);
-  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  background: var(--warn-soft);
   font-size: var(--fs-xs);
   font-weight: var(--fw-bold);
 }
@@ -101,6 +101,31 @@
   padding: var(--s-3) 0;
   overflow-y: auto;
 }
+.strip-nav { display: none; }
+.daw.cat-collapsed .strip-nav {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+.strip-nav-btn {
+  display: grid;
+  place-items: center;
+  width: var(--ctl-h);
+  height: var(--ctl-h);
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.strip-nav-btn:hover { background: var(--surface-2); color: var(--text); }
+.strip-nav-btn.hidden { display: none; }
+.strip-nav-btn .ic { width: var(--icon-lg); height: var(--icon-lg); }
+
 .cat-collapsed-strip .strip-thumb {
   flex: none;
   width: var(--strip-cover);
@@ -108,7 +133,7 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  border: 2px solid transparent;
+  border: var(--line-w-strong) solid transparent;
   border-radius: var(--r-1);
   background: var(--surface-2);
   color: var(--text-3);
@@ -133,8 +158,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: var(--s-1) 2px;
+  gap: var(--s-0);
+  padding: var(--s-1) var(--s-0);
   border: 0;
   border-radius: var(--r-1);
   background: none;
@@ -148,7 +173,7 @@
 .lib-nav-btn:hover { background: var(--surface-2); color: var(--text); }
 .lib-nav-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 .lib-nav-btn.hidden { display: none; }
-.lib-nav-btn.drop-target { outline: 2px dashed var(--accent); }
+.lib-nav-btn.drop-target { outline: var(--line-w-strong) dashed var(--accent); }
 .lib-nav-count {
   position: absolute;
   top: 0;
@@ -169,7 +194,7 @@
 /* ── Pane edges: the stem controls column and the song tools ── */
 .daw-content { position: relative; }
 .pane-edge {
-  z-index: 4;
+  z-index: var(--z-pane-edge);
   width: var(--pane-handle-w);
   cursor: col-resize;
   touch-action: none;
@@ -190,7 +215,7 @@
 .pane-edge:focus-visible { outline: none; }
 /* Above the lane headers and waveforms it sits between. */
 .stems-resizer {
-  z-index: 20;
+  z-index: var(--z-pane-edge-lanes);
   position: absolute;
   inset-block: 0;
   left: calc(var(--daw-col-w) - var(--pane-handle-w) / 2);
@@ -201,12 +226,13 @@
   margin-right: calc(-1 * var(--pane-handle-w));
 }
 .daw.inspector-hidden .inspector-resizer,
+.daw.tools-auto-hidden :is(.inspector, .inspector-resizer),
 .daw.stage-mode .pane-edge,
 .daw.no-track .stems-resizer { display: none; }
 .app.is-sizing .sidebar,
 .app.is-sizing .inspector { transition: none; }
 
-/* ── Song tools: Lyrics, until it becomes a tab ── */
+/* ── Song tools: the Lyrics button ── */
 .tools-lyrics-btn {
   display: inline-flex;
   align-items: center;
@@ -226,6 +252,12 @@
 .tools-lyrics-btn:hover { background: var(--surface-2); color: var(--text); }
 .tools-lyrics-btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
 
+/* ── Menus and popovers never run past the window; taller ones scroll ── */
+:is(.lib-menu, #stemOverflow, #t-export-panel, #search-panel) {
+  max-height: calc(100vh - 2 * var(--float-edge));
+  overflow-y: auto;
+}
+
 /* ── Every dialog dims the page the same way ── */
 .about-backdrop,
 .library-editor-backdrop,
@@ -234,7 +266,7 @@
 .batch-scrim { background: var(--scrim); }
 
 /* ── The layer for new menus, popovers and dialogs ── */
-.overlay-root { position: fixed; inset: 0; z-index: 300; pointer-events: none; }
+.overlay-root { position: fixed; inset: 0; z-index: var(--z-overlay-root); pointer-events: none; }
 .overlay-root > * { pointer-events: auto; }
 
 /* ── Thin scrollbars without a track ── */

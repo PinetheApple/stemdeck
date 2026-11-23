@@ -5,8 +5,9 @@ import { t, onLanguageChange } from "./i18n.js";
 import { getQueueSnapshot, onQueueChange, queueCount } from "./queue.js";
 import { showQueueView } from "./catalog.js";
 import { wireComposerDrawer } from "./composerDrawer.js";
+import { TOOLS_HIDDEN_CLASS, isToolsAutoHidden } from "./shellEdges.js";
+import { watchFloats } from "./shellFloat.js";
 
-const TOOLS_HIDDEN_CLASS = "inspector-hidden";
 const HIDDEN_CLASS = "hidden";
 
 function paintImporting(snap = getQueueSnapshot()) {
@@ -22,10 +23,12 @@ function onImportingClick() {
   showQueueView();
 }
 
-// inspector.js owns the panel; this shows its state on the top-bar toggle.
+// Shown means neither hidden by the user (inspector.js) nor stepped aside for the waveforms.
 function paintToolsToggle() {
-  const shown = !document.querySelector(".app")?.classList.contains(TOOLS_HIDDEN_CLASS);
-  document.getElementById("inspectorToggleBtn")?.setAttribute("aria-pressed", String(shown));
+  const shown = !document.querySelector(".app")?.classList.contains(TOOLS_HIDDEN_CLASS) && !isToolsAutoHidden();
+  const toggle = document.getElementById("inspectorToggleBtn");
+  toggle?.setAttribute("aria-pressed", String(shown));
+  toggle?.setAttribute("aria-expanded", String(shown));
 }
 
 function watchToolsToggle() {
@@ -42,4 +45,5 @@ export function initShell() {
   onLanguageChange(() => paintImporting());
   paintImporting();
   watchToolsToggle();
+  watchFloats();
 }

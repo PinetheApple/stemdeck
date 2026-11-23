@@ -150,8 +150,8 @@ test(title("S1"), async ({ app }, testInfo) => {
   const { page } = app;
   test.skip(!desktop(), "Server target: there is no desktop build to start.");
   await wideWindow(page);
-  await expect(page.locator("#url")).toBeVisible();
-  await expect(page.locator("#submit")).toBeVisible();
+  await expect(page.locator("#addSongBtn")).toBeVisible();
+  await expect(page.locator("#topbar")).toBeVisible();
   const state = readState();
   // The backend is the package's own python, not a checkout's or an installed app's.
   const pythons = (state.tree || []).filter((p) => /python/i.test(p.exe || ""));
@@ -1506,7 +1506,7 @@ test(title("L8"), async ({ app }, testInfo) => {
 async function freshStudio(page) {
   await waitForIdleQueue();
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.locator("#url")).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator("#addSongBtn")).toBeVisible({ timeout: 60_000 });
   await expect(page.locator(".app")).toHaveClass(/no-track/, { timeout: 30_000 });
   await wideWindow(page);
 }
@@ -1625,7 +1625,7 @@ test(title("E5"), async ({ app }, testInfo) => {
   const first = await importLink(page, "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
   const second = await importLink(page, "https://www.youtube.com/watch?v=fJ9rUzIMcZQ");
   await expect.poll(async () => (await job(first)).status, { timeout: 60_000 }).not.toBe("queued");
-  const queue = page.locator(".rail-queue");
+  const queue = page.locator(".lib-nav-queue");
   await expect(queue).toBeVisible();
   await queue.click();
   const cancel = page.locator(`.queue-row[data-id="${first}"] .queue-cancel`);
@@ -1663,7 +1663,7 @@ test(title("E6"), async ({ app }, testInfo) => {
   const { browser, page } = await connect(chromium, { timeout: 5 * 60_000 });
   watchNetwork(page);
   try {
-    await expect(page.locator("#url")).toBeVisible({ timeout: 120_000 });
+    await expect(page.locator("#addSongBtn")).toBeVisible({ timeout: 120_000 });
     await wideWindow(page);
     await showLibrary(page);
     const online = readState().jobs?.localMp3;

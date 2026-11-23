@@ -1,5 +1,4 @@
-// Today's import bar, folded under the top bar and opened by Add song, until the
-// Add song popover replaces it.
+// The import bar, folded under the top bar; Add song opens and closes it.
 
 const DRAWER_ID = "composerDrawer";
 const ADD_SONG_ID = "addSongBtn";

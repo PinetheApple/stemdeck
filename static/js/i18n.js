@@ -1698,6 +1698,7 @@ const en = {
   "shell.help.addSong": "Opens the bar where you paste links, search, or add files and folders.",
   "shell.help.tools": "Hides the song tools on the right, or shows them again.",
   "shell.help.edge": "Drag to change the width. Double-click or Enter resets it; the arrow keys move it in steps.",
+  "shell.help.strip": "A cover for each song. Click one to open it; the buttons above open the sidebar on a view.",
 };
 
 const pl = {
@@ -3186,6 +3187,7 @@ const pl = {
   "shell.help.addSong": "Otwiera pasek, w którym wklejasz linki, wyszukujesz lub dodajesz pliki i foldery.",
   "shell.help.tools": "Ukrywa narzędzia utworu po prawej albo pokazuje je ponownie.",
   "shell.help.edge": "Przeciągnij, aby zmienić szerokość. Dwuklik lub Enter przywraca ją; strzałki przesuwają ją skokowo.",
+  "shell.help.strip": "Okładka każdego utworu. Kliknij, aby go otworzyć; przyciski powyżej otwierają pasek boczny na danym widoku.",
 };
 
 const ja = {
@@ -4616,6 +4618,7 @@ const ja = {
   "shell.help.addSong": "リンクの貼り付け、検索、ファイルやフォルダーの追加を行うバーを開きます。",
   "shell.help.tools": "右側の曲のツールを隠すか、もう一度表示します。",
   "shell.help.edge": "ドラッグで幅を変更します。ダブルクリックまたは Enter で元に戻し、矢印キーで少しずつ動かします。",
+  "shell.help.strip": "曲ごとのジャケットです。クリックで開きます。上のボタンはサイドバーをその表示で開きます。",
 };
 
 const zhHans = {
@@ -6046,6 +6049,7 @@ const zhHans = {
   "shell.help.addSong": "打开用于粘贴链接、搜索或添加文件和文件夹的栏。",
   "shell.help.tools": "隐藏右侧的歌曲工具，或再次显示。",
   "shell.help.edge": "拖动以改变宽度。双击或按 Enter 恢复默认；方向键可逐步移动。",
+  "shell.help.strip": "每首歌的封面。点击即可打开；上方的按钮会打开侧边栏并切换到对应视图。",
 };
 
 const de = {
@@ -7503,6 +7507,7 @@ const de = {
   "shell.help.addSong": "Öffnet die Leiste, in der du Links einfügst, suchst oder Dateien und Ordner hinzufügst.",
   "shell.help.tools": "Blendet die Song-Werkzeuge rechts aus oder wieder ein.",
   "shell.help.edge": "Ziehen ändert die Breite. Doppelklick oder Enter setzt sie zurück; die Pfeiltasten verschieben sie schrittweise.",
+  "shell.help.strip": "Ein Cover pro Song. Ein Klick öffnet ihn; die Knöpfe darüber öffnen die Seitenleiste mit dieser Ansicht.",
 };
 
 const pt = {
@@ -8962,6 +8967,7 @@ const pt = {
   "shell.help.addSong": "Abre a barra onde você cola links, pesquisa ou adiciona arquivos e pastas.",
   "shell.help.tools": "Oculta as ferramentas da música à direita, ou mostra de novo.",
   "shell.help.edge": "Arraste para mudar a largura. Clique duas vezes ou Enter para restaurar; as setas a movem aos poucos.",
+  "shell.help.strip": "Uma capa por música. Clique numa para abri-la; os botões acima abrem a barra lateral nessa vista.",
 };
 
 const id = {
@@ -10392,6 +10398,7 @@ const id = {
   "shell.help.addSong": "Membuka bilah untuk menempel tautan, mencari, atau menambahkan file dan folder.",
   "shell.help.tools": "Menyembunyikan alat lagu di kanan, atau menampilkannya lagi.",
   "shell.help.edge": "Seret untuk mengubah lebar. Klik dua kali atau Enter untuk mengatur ulang; tombol panah menggesernya bertahap.",
+  "shell.help.strip": "Sampul untuk setiap lagu. Klik untuk membukanya; tombol di atas membuka bilah samping pada tampilan itu.",
 };
 
 const fr = {
@@ -11851,6 +11858,7 @@ const fr = {
   "shell.help.addSong": "Ouvre la barre où coller des liens, chercher, ou ajouter des fichiers et des dossiers.",
   "shell.help.tools": "Masque les outils du morceau à droite, ou les affiche de nouveau.",
   "shell.help.edge": "Faites glisser pour changer la largeur. Double-clic ou Entrée la rétablit ; les flèches la déplacent par pas.",
+  "shell.help.strip": "Une pochette par morceau. Un clic l'ouvre ; les boutons au-dessus ouvrent la barre latérale sur cette vue.",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -13731,6 +13739,7 @@ const es = {
   "shell.help.addSong": "Abre la barra donde pegas enlaces, buscas o añades archivos y carpetas.",
   "shell.help.tools": "Oculta las herramientas de la canción a la derecha, o las vuelve a mostrar.",
   "shell.help.edge": "Arrastra para cambiar el ancho. Doble clic o Intro lo restablece; las flechas lo mueven por pasos.",
+  "shell.help.strip": "Una portada por canción. Haz clic en una para abrirla; los botones de arriba abren la barra lateral en esa vista.",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -15170,6 +15179,7 @@ const ko = {
   "shell.help.addSong": "링크를 붙여넣거나 검색하거나 파일과 폴더를 추가하는 막대를 엽니다.",
   "shell.help.tools": "오른쪽의 곡 도구를 숨기거나 다시 표시합니다.",
   "shell.help.edge": "드래그하여 너비를 바꿉니다. 두 번 클릭하거나 Enter로 초기화하고, 화살표 키로 조금씩 움직입니다.",
+  "shell.help.strip": "곡마다 커버가 하나씩 있습니다. 클릭하면 열리고, 위의 버튼은 사이드바를 해당 보기로 엽니다.",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };

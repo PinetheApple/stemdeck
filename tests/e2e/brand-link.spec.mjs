@@ -52,6 +52,7 @@ test.describe("the logo links to the site", () => {
 
     const link = page.locator(".topbar-brand");
     await expect(link).toHaveAttribute("title", "stemdeck.app öffnen");
+    await expect(link).toHaveAttribute("aria-label", "stemdeck.app öffnen");
   });
 
   test("the logo sits centred in the top bar", async ({ page }) => {

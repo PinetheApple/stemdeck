@@ -1,13 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { openStudio, waitForPanesSettled } from "./helpers.mjs";
+import { MIN_WAVES_PX, PANE_LIMITS } from "../../static/js/paneEdgeMath.js";
 
 const STORE_KEY = "stemdeck.library.width";
 const INSPECTOR_HIDDEN_KEY = "stemdeck.inspector.hidden";
 const INSPECTOR_HIDDEN = "1";
-const MIN_WIDTH = 232;
-const MAX_WIDTH = 380;
+const { min: MIN_WIDTH, max: MAX_WIDTH } = PANE_LIMITS.sidebar;
 const STRIP_WIDTH = 64;
-const MIN_WAVES = 320;
+const MIN_WAVES = MIN_WAVES_PX;
 const KEYBOARD_STEP = 16;
 const CUSTOM_WIDTH = 300;
 const DRAG_WIDER = 100;
@@ -16,7 +16,8 @@ const DRAG_PAST_MIN = -280;
 const DRAG_PAST_MAX = 1000;
 const WIDE_WINDOW = { width: 1600, height: 900 };
 const SMALL_WINDOW = { width: 1280, height: 720 };
-const SMALL_WINDOW_INSPECTOR = 340;
+// The song tools give way first, down to their minimum.
+const SMALL_WINDOW_INSPECTOR = PANE_LIMITS.tools.min;
 const NO_ROOM_WINDOW = { width: 1024, height: 800 };
 const TAB_LIMIT = 100;
 const PAST_ARROW_KEY_SAVE_MS = 500;
@@ -34,10 +35,9 @@ const waveWidth = (page) => widthOf(page, ".daw-wave-panel");
 /** In SMALL_WINDOW a MAX_WIDTH library would squeeze the waveforms, so it stops where they reach their floor. */
 async function squeezedWidth(page) {
   await waitForPanesSettled(page);
-  await expect.poll(() => waveWidth(page)).toBeGreaterThanOrEqual(MIN_WAVES);
+  await expect.poll(async () => Math.floor(await waveWidth(page))).toBe(MIN_WAVES);
   const width = await libraryWidth(page);
   expect(width).toBeLessThan(MAX_WIDTH);
-  expect(await waveWidth(page)).toBeLessThan(MIN_WAVES + KEYBOARD_STEP);
   return width;
 }
 
@@ -66,6 +66,8 @@ async function openWithNoRoom(page) {
   await openStudio(page);
   await expect(page.locator(".app")).toHaveClass(/cat-collapsed/);
   await collapseButton(page).click();
+  // The song tools stepped aside too; bringing them back leaves no room again.
+  if (!(await page.locator("#inspector").isVisible())) await page.locator("#inspectorToggleBtn").click();
   await expect(handleOf(page)).toBeVisible();
   await expect.poll(() => libraryWidth(page)).toBe(MIN_WIDTH);
 }

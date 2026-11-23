@@ -1,18 +1,18 @@
-// Three draggable edges (#233): sidebar, stem controls column and song tools.
-// Each stays inside its limits, never squeezes the waveforms under 320px,
-// resets on double-click or Enter, moves 16px per arrow key, and is remembered.
+// Three draggable edges, each inside its limits and never squeezing the waveforms
+// under their minimum; reset by double-click or Enter, moved by arrows, remembered.
 
 import { test, expect } from "@playwright/test";
 import { openStudio } from "./helpers.mjs";
+import { MIN_WAVES_PX, PANE_LIMITS } from "../../static/js/paneEdgeMath.js";
 
 const WIDE_WINDOW = { width: 1920, height: 1080 };
 const KEY_STEP = 16;
-const MIN_WAVES = 320;
+const MIN_WAVES = MIN_WAVES_PX;
 const FAR = 2000;
 const EDGES = [
-  { name: "sidebar", handle: "#libraryResizer", pane: "#catalogPanel", min: 232, max: 380, grows: 1, key: "stemdeck.library.width" },
-  { name: "stem controls", handle: "#stemsResizer", pane: ".daw-stems-panel", min: 328, max: 480, grows: 1, key: "stemdeck.stems.width" },
-  { name: "song tools", handle: "#inspectorResizer", pane: "#inspector", min: 320, max: 520, grows: -1, key: "stemdeck.inspector.width" },
+  { name: "sidebar", handle: "#libraryResizer", pane: "#catalogPanel", ...PANE_LIMITS.sidebar, grows: 1, key: "stemdeck.library.width" },
+  { name: "stem controls", handle: "#stemsResizer", pane: ".daw-stems-panel", ...PANE_LIMITS.stems, grows: 1, key: "stemdeck.stems.width" },
+  { name: "song tools", handle: "#inspectorResizer", pane: "#inspector", ...PANE_LIMITS.tools, grows: -1, key: "stemdeck.inspector.width" },
 ];
 
 const widthOf = async (page, selector) => (await page.locator(selector).first().boundingBox()).width;

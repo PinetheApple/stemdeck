@@ -19,6 +19,7 @@
 // backspacing does constantly) mostly does not hit the network at all.
 
 import { t, applyTranslations, onLanguageChange } from "./i18n.js";
+import { clampIntoWindow } from "./shellFloat.js";
 
 // A pause long enough to mean "stopped typing".
 const IDLE_MS = 450;
@@ -102,6 +103,7 @@ function position() {
   panel.style.left = `${Math.round(r.left)}px`;
   panel.style.top = `${Math.round(r.bottom + 6)}px`;
   panel.style.width = `${Math.round(width)}px`;
+  clampIntoWindow(panel);
 }
 
 function open() {

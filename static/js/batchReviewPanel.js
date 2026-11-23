@@ -1,6 +1,8 @@
 // batchReviewPanel.js — the review list's frame: hung under the bar over a scrim,
 // and modal, so focus stays inside until it closes and then goes back.
 
+import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
+
 const PANEL_GAP_PX = 8;
 const FOCUSABLE = "button:not(:disabled), input:not(:disabled)";
 
@@ -92,7 +94,7 @@ export function restoreFocus(focus) {
 
 /** Tab wraps inside the panel; Escape closes it. */
 function onPanelKeydown(e) {
-  if (e.key === "Escape") {
+  if (e.key === ESCAPE_KEY && escapeIsFor(LAYER.DIALOG)) {
     e.preventDefault();
     e.stopPropagation();
     closePanel();

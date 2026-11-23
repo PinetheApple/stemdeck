@@ -2,8 +2,8 @@
 
 import { $ } from "./utils.js";
 import { isSidebarCollapsed, setSidebarCollapsed } from "./catalog.js";
-import { PaneEdge } from "./paneEdge.js";
-import { queueShellFit, registerShellEdge, waveSpare } from "./shellEdges.js";
+import { PANE_LIMITS } from "./paneEdgeMath.js";
+import { FIT_ORDER, createShellEdge, queueShellFit, waveSpare } from "./shellEdges.js";
 
 const WIDTH_STORE_KEY = "stemdeck.library.width";
 // localStorage like the catalog's collapsed flag: both are read synchronously at startup,
@@ -12,8 +12,6 @@ const AUTO_COLLAPSED_KEY = "stemdeck.library.autoCollapsed";
 const AUTO_COLLAPSED_STORED = "1";
 const COLLAPSED_CLASS = "cat-collapsed";
 const WIDTH_VAR = "--library-w";
-const MIN_WIDTH_PX = 232;
-const MAX_WIDTH_PX = 380;
 
 let sidebar = null;
 let app = null;
@@ -25,7 +23,7 @@ let autoCollapsed = false;
 let userKeptOpen = false;
 
 function hasRoomForLibrary() {
-  return sidebar.offsetWidth + waveSpare() >= MIN_WIDTH_PX;
+  return sidebar.offsetWidth + waveSpare() >= PANE_LIMITS.sidebar.min;
 }
 
 function readAutoCollapsed() {
@@ -84,16 +82,13 @@ export function initLibraryResize() {
   sidebar = $("catalogPanel");
   app = document.querySelector(".app");
   if (!handle || !sidebar || !app) return;
-  const edge = new PaneEdge({
-    handle, host: app, cssVar: WIDTH_VAR, min: MIN_WIDTH_PX, max: MAX_WIDTH_PX, storeKey: WIDTH_STORE_KEY,
-    measure: () => sidebar.offsetWidth, spare: waveSpare,
+  createShellEdge({
+    order: FIT_ORDER.SIDEBAR, afterFit: fitLibraryToRoom, handle, cssVar: WIDTH_VAR, ...PANE_LIMITS.sidebar,
+    storeKey: WIDTH_STORE_KEY, measure: () => sidebar.offsetWidth,
   });
-  registerShellEdge(edge, fitLibraryToRoom);
   document.addEventListener("trackopen", onFirstTrackOpen, { once: true });
   autoCollapsed = readAutoCollapsed();
   collapseWatcher = new MutationObserver(onCollapseChange);
   collapseWatcher.observe(app, { attributes: true, attributeFilter: ["class"], attributeOldValue: true });
   new ResizeObserver(queueShellFit).observe(sidebar);
-  window.addEventListener("resize", queueShellFit);
-  edge.restore().catch(console.error);
 }

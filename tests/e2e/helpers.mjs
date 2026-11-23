@@ -13,6 +13,7 @@
 //    an export finishes rather than racing a real one.
 
 import { DEFAULT_VERSION_ID } from "../../static/js/versionModel.js";
+import { MIN_WAVES_PX } from "../../static/js/paneEdgeMath.js";
 
 export const JOB_ID = "e2e0deadbeef";
 export const TRACK_TITLE = "E2E Fixture Track";
@@ -23,8 +24,7 @@ export const SIBLING_JOB_ID = "e2e0cafebabe";
 export const SIBLING_TITLE = "E2E Fixture Track (again)";
 export const SOURCE_URL = "local:e2e-fixture";
 
-// libraryResize.js keeps at least this much waveform beside the stem labels.
-export const MIN_TIMELINE_WIDTH = 320;
+export const MIN_TIMELINE_WIDTH = MIN_WAVES_PX;
 export const LOAD_TIMEOUT_MS = 20000;
 
 const STORAGE_KEY = "stemdeck.folders";
@@ -466,7 +466,15 @@ export async function waitForClickTrack(page, { revealOptions = true } = {}) {
 }
 
 /** Show one of the inspector's tabs: "tempo", "upnext" or "details". */
+/** Bring the song tools back where a narrow window put them aside. */
+export async function showSongTools(page) {
+  const tools = page.locator("#inspector");
+  if (!(await tools.isVisible())) await page.locator("#inspectorToggleBtn").click();
+  await tools.waitFor({ state: "visible" });
+}
+
 export async function openInspectorTab(page, name) {
+  await showSongTools(page);
   const tab = page.locator(`.inspector-tab[data-tab="${name}"]`);
   if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
   await page.locator(`.inspector-pane[data-pane="${name}"]`).waitFor({ state: "visible", timeout: 5000 });

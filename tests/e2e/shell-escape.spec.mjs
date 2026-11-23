@@ -1,6 +1,5 @@
-// One Esc order for the whole shell (#233): error box, menu or popover, dialog,
-// Guide, Stage mode. Dialogs dim the page, popovers stay in the window, and
-// Guide explains the shell and leaves no tooltip behind.
+// One Esc order for the shell: error box, menu or popover, dialog, Guide, Stage
+// mode. Dialogs dim the page, popovers stay in the window, Guide explains the shell.
 
 import { test, expect } from "@playwright/test";
 import { openStudio } from "./helpers.mjs";
@@ -8,18 +7,40 @@ import { openStudio } from "./helpers.mjs";
 const SHORT_WINDOW = { width: 1024, height: 240 };
 const EDGE_PX = 8;
 const MIN_SCRIM_ALPHA = 0.4;
+const QUEUED_ID = "e2e0q0000001";
 const GUIDE_CONTROLS = [
   "#sidebarCollapseBtn", ".topbar-brand", "#addSongBtn", "#notifBtn", "#helpModeBtn", "#aboutBtn",
   "#settingsBtn", "#inspectorToggleBtn", "#libraryResizer", "#stemsResizer", "#inspectorResizer",
-  ".lib-nav-library", ".lib-nav-favorites", ".lib-nav-trash", "#songToolsLyricsBtn",
+  ".lib-nav-library", ".lib-nav-favorites", ".lib-nav-queue", ".lib-nav-trash", "#songToolsLyricsBtn",
+  "#importingBtn", "#connStatus",
 ];
+const COLLAPSED_GUIDE_CONTROLS = [".strip-nav-library", ".strip-nav-favorites", ".strip-nav-trash", "#catalogStrip .strip-thumb"];
 
 const guideOn = (page) => page.locator("body").evaluate((el) => el.classList.contains("help-mode"));
 const stageOn = (page) => page.locator(".app").evaluate((el) => el.classList.contains("stage-mode"));
-const settingsDialog = (page) => page.locator('[role="dialog"][aria-modal="true"]').filter({ has: page.locator(".settings-reset-btn, .library-editor-body") });
+const settingsDialog = (page) => page.locator(".library-editor");
+const listbox = (page) => page.locator('[role="listbox"]:visible');
+const confirmCard = (page) => page.locator(".reset-confirm-card");
 
-/** Pressed straight on the button: a scrim over it would take a real click. */
-const pressGuide = (page) => page.locator("#helpModeBtn").dispatchEvent("click");
+const setGuide = (page, on) => page.evaluate(async (value) => (await import("/js/helpMode.js")).setHelpMode(value), on);
+const showError = (page) => page.evaluate(async () => (await import("/js/job.js")).showError("Something failed."));
+const askConfirm = (page) => page.evaluate(async () => {
+  (await import("/js/confirmDialog.js")).confirmDialog({ title: "Remove it?", name: "It", body: "", confirmLabel: "Remove" });
+});
+
+async function stubQueue(page) {
+  const job = { job_id: QUEUED_ID, status: "queued", title: QUEUED_ID, source_url: "https://example.com/a" };
+  await page.route("**/api/queue", (route) => route.fulfill({ json: { running: null, queued: [job], paused: false } }));
+  await page.route("**/api/queue/events", (route) => route.abort());
+  await page.evaluate(async () => (await import("/js/queue.js")).refreshQueue());
+}
+
+async function openSettingsMenu(page) {
+  await page.locator("#settingsBtn").click();
+  await expect(settingsDialog(page)).toBeVisible();
+  await page.locator(".library-editor select.set-language").click();
+  await expect(listbox(page)).toBeVisible();
+}
 
 function alphaOf(color) {
   const parts = color.match(/[\d.]+/g)?.map(Number) ?? [];
@@ -27,10 +48,17 @@ function alphaOf(color) {
 }
 
 test.describe("Esc closes the topmost thing only", () => {
-  test("Guide before Stage mode", async ({ page }) => {
+  test("a dialog, then Guide, then Stage mode, one per Esc", async ({ page }) => {
     await openStudio(page);
-    await page.locator("#helpModeBtn").click();
     await page.keyboard.press("f");
+    expect(await stageOn(page)).toBe(true);
+    await setGuide(page, true);
+    await askConfirm(page);
+    await expect(confirmCard(page)).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(confirmCard(page)).toHaveCount(0);
+    expect(await guideOn(page)).toBe(true);
     expect(await stageOn(page)).toBe(true);
     await page.keyboard.press("Escape");
     expect(await guideOn(page)).toBe(false);
@@ -39,26 +67,33 @@ test.describe("Esc closes the topmost thing only", () => {
     expect(await stageOn(page)).toBe(false);
   });
 
-  test("a dialog before Guide", async ({ page }) => {
+  test("a menu inside Settings closes before Settings", async ({ page }) => {
     await openStudio(page);
-    await page.locator("#settingsBtn").click();
+    await openSettingsMenu(page);
+    await page.keyboard.press("Escape");
+    await expect(listbox(page)).toHaveCount(0);
     await expect(settingsDialog(page)).toBeVisible();
-    await pressGuide(page);
-    expect(await guideOn(page)).toBe(true);
     await page.keyboard.press("Escape");
     await expect(settingsDialog(page)).toHaveCount(0);
-    expect(await guideOn(page)).toBe(true);
+  });
+
+  test("the error box closes before a menu and its dialog", async ({ page }) => {
+    await openStudio(page);
+    await openSettingsMenu(page);
+    await showError(page);
     await page.keyboard.press("Escape");
-    expect(await guideOn(page)).toBe(false);
+    await expect(page.locator("#error")).toBeHidden();
+    await expect(listbox(page)).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(listbox(page)).toHaveCount(0);
+    await expect(settingsDialog(page)).toBeVisible();
   });
 
   test("a popover before Guide, and Alerts closes on Esc", async ({ page }) => {
     await openStudio(page);
     await page.locator("#notifBtn").click();
     await expect(page.locator(".daw-notif-panel")).toBeVisible();
-    // Not a click: any click outside Alerts closes it.
-    await page.evaluate(async () => (await import("/js/helpMode.js")).setHelpMode(true));
-    expect(await guideOn(page)).toBe(true);
+    await setGuide(page, true);
     await page.keyboard.press("Escape");
     await expect(page.locator(".daw-notif-panel")).toBeHidden();
     expect(await guideOn(page)).toBe(true);
@@ -66,19 +101,22 @@ test.describe("Esc closes the topmost thing only", () => {
 });
 
 test.describe("dialogs and popovers", () => {
-  test("Settings and About dim the page with the one scrim", async ({ page }) => {
+  test("Settings, About and a confirmation dim the page with the one scrim", async ({ page }) => {
     await openStudio(page);
-    for (const [opener, dialog] of [["#settingsBtn", settingsDialog(page)], ["#aboutBtn", page.locator("#aboutDialog")]]) {
-      await page.locator(opener).click();
-      await expect(dialog).toBeVisible();
-      const { backdrop, scrim } = await dialog.evaluate((el) => ({
-        backdrop: getComputedStyle(el.closest(".about-backdrop, .library-editor-backdrop")).backgroundColor,
-        scrim: getComputedStyle(document.documentElement).getPropertyValue("--scrim").trim(),
-      }));
-      expect(backdrop, opener).toBe(scrim);
-      expect(alphaOf(backdrop), opener).toBeGreaterThanOrEqual(MIN_SCRIM_ALPHA);
+    const scrim = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--scrim").trim());
+    const opened = [
+      [() => page.locator("#settingsBtn").click(), ".library-editor-backdrop"],
+      [() => page.locator("#aboutBtn").click(), "#aboutDialog"],
+      [() => askConfirm(page), ".reset-confirm-backdrop"],
+    ];
+    for (const [open, backdrop] of opened) {
+      await open();
+      await expect(page.locator(backdrop)).toBeVisible();
+      const color = await page.locator(backdrop).evaluate((el) => getComputedStyle(el).backgroundColor);
+      expect(color, backdrop).toBe(scrim);
+      expect(alphaOf(color), backdrop).toBeGreaterThanOrEqual(MIN_SCRIM_ALPHA);
       await page.keyboard.press("Escape");
-      await expect(dialog).toBeHidden();
+      await expect(page.locator(backdrop)).toBeHidden();
     }
   });
 
@@ -92,20 +130,45 @@ test.describe("dialogs and popovers", () => {
     expect(box.y).toBeGreaterThanOrEqual(EDGE_PX - 1);
     expect(box.y + box.height).toBeLessThanOrEqual(SHORT_WINDOW.height - EDGE_PX + 1);
     expect(box.x + box.width).toBeLessThanOrEqual(SHORT_WINDOW.width);
-    const overflowY = await panel.evaluate((el) => getComputedStyle(el).overflowY);
-    expect(["auto", "scroll"]).toContain(overflowY);
+    expect(["auto", "scroll"]).toContain(await panel.evaluate((el) => getComputedStyle(el).overflowY));
+  });
+
+  test("a song's menu stays inside a short window and scrolls inside itself", async ({ page }) => {
+    await openStudio(page);
+    await page.setViewportSize(SHORT_WINDOW);
+    await page.locator("#songMoreBtn").click();
+    const menu = page.locator(".lib-menu");
+    await expect(menu).toBeVisible();
+    await expect.poll(async () => {
+      const box = await menu.boundingBox();
+      return box.y >= 0 && box.y + box.height <= SHORT_WINDOW.height;
+    }).toBe(true);
+    expect(["auto", "scroll"]).toContain(await menu.evaluate((el) => getComputedStyle(el).overflowY));
   });
 });
 
 test.describe("Guide and the shell", () => {
-  test("explains every control of the shell", async ({ page }) => {
-    await openStudio(page);
-    await page.locator("#helpModeBtn").click();
-    for (const selector of GUIDE_CONTROLS) {
+  async function explainsEach(page, selectors) {
+    for (const selector of selectors) {
       await page.locator(selector).first().hover({ force: true });
       await expect(page.locator("#helpTip"), selector).toBeVisible();
       await expect(page.locator("#helpTip"), selector).not.toBeEmpty();
     }
+  }
+
+  test("explains every control of the shell", async ({ page }) => {
+    await openStudio(page);
+    await stubQueue(page);
+    await page.locator("#connStatus").evaluate((el) => el.classList.remove("hidden"));
+    await page.locator("#helpModeBtn").click();
+    await explainsEach(page, GUIDE_CONTROLS);
+  });
+
+  test("explains the collapsed sidebar", async ({ page }) => {
+    await openStudio(page);
+    await page.locator("#sidebarCollapseBtn").click();
+    await page.locator("#helpModeBtn").click();
+    await explainsEach(page, COLLAPSED_GUIDE_CONTROLS);
   });
 
   test("leaving by the button or by Esc removes the tooltip", async ({ page }) => {

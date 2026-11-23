@@ -1,6 +1,5 @@
-// One draggable pane edge: pointer drag, Enter or double-click to reset, arrow
-// keys in steps, and the chosen width stored. The width lives in a CSS variable
-// on the host, so every element sized from it follows.
+// A draggable pane edge. The width is a CSS variable on the host, so every
+// element sized from it follows.
 
 import { storeGet, storeSet, storeSetDebounced } from "./utils.js";
 import { clampPaneWidth } from "./paneEdgeMath.js";
@@ -35,11 +34,13 @@ export class PaneEdge {
     return this.handle.getClientRects().length > 0;
   }
 
+  /** The chosen width, or the default when none is chosen, narrowed to what the waveforms can spare. */
   render() {
-    const next = this.preferred === null ? "" : `${this.clampTo(this.preferred)}px`;
-    if (this.host.style.getPropertyValue(this.cssVar) === next) return;
     this.host.classList.add(SIZING_CLASS);
-    this.host.style.setProperty(this.cssVar, next);
+    if (this.preferred === null) this.host.style.removeProperty(this.cssVar);
+    const target = this.preferred ?? Math.round(this.measure());
+    const next = this.clampTo(target);
+    if (this.preferred !== null || next !== target) this.host.style.setProperty(this.cssVar, `${next}px`);
     // Lays out now, while transitions are off, so the pane tracks the pointer.
     void this.host.offsetWidth;
     this.host.classList.remove(SIZING_CLASS);

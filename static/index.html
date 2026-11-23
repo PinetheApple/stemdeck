@@ -30,7 +30,7 @@
 
     <div class="app daw" id="app">
 
-      <!-- ══ TOP BAR: one row; everything used now and then sits behind a button ══ -->
+      <!-- ══ TOP BAR ══ -->
       <header class="topbar daw-topbar" id="topbar">
         <button class="topbar-iconbtn" id="sidebarCollapseBtn" type="button" aria-pressed="true" aria-controls="catalogPanel"
                 title="Show or hide the sidebar" aria-label="Show or hide the sidebar"
@@ -39,7 +39,8 @@
         </button>
         <!-- An anchor: main.js sends target="_blank" links to the system browser on the desktop. -->
         <a class="topbar-brand" href="https://stemdeck.app" target="_blank" rel="noopener noreferrer"
-           title="Open stemdeck.app" data-i18n-title="topbar.website">
+           title="Open stemdeck.app" data-i18n-title="topbar.website"
+           aria-label="Open stemdeck.app" data-i18n-aria-label="topbar.website">
           <img src="/img/stemdeck-waveform-symbol.svg" alt="" width="28" height="28" />
           <span>StemDeck</span>
         </a>
@@ -105,7 +106,7 @@
         </button>
       </header>
 
-      <!-- Today's import bar, opened by Add song until the Add song popover replaces it. -->
+      <!-- The import bar, folded away until Add song opens it. -->
       <div class="composer-drawer" id="composerDrawer" hidden>
         <div class="daw-composer-stack">
         <form id="job-form" class="daw-composer">
@@ -275,7 +276,6 @@
               <span class="search-kbd" aria-hidden="true">⌘K</span>
             </div>
 
-            <!-- Views the icon rail used to open, until Browse library takes them in. -->
             <nav class="lib-nav" aria-label="Library views" data-i18n-aria-label="nav.libraryNav">
             <button class="lib-nav-btn lib-nav-library" type="button" aria-pressed="true" title="Library" data-i18n-title="nav.library">
               <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6 4 14" /> <path d="M12 6v14" /> <path d="M8 8v12" /> <path d="M4 4v16" /></svg>
@@ -290,7 +290,7 @@
               <span data-i18n="nav.queue">Queue</span>
               <span class="lib-nav-count hidden" id="queueBadge" aria-hidden="true"></span>
             </button>
-            <button class="lib-nav-btn lib-nav-trash" type="button" aria-pressed="false" title="Trash" data-i18n-title="nav.trash">
+            <button class="lib-nav-btn lib-nav-trash" type="button" aria-pressed="false" title="Trash">
               <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6" /> <path d="M14 11v6" /> <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /> <path d="M3 6h18" /> <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
               <span data-i18n="nav.trash">Trash</span>
               <span class="lib-nav-count hidden" id="trashBadge" aria-hidden="true"></span>
@@ -350,7 +350,21 @@
               </button>
             </section>
           </div>
-          <!-- What a collapsed sidebar shows: a strip of covers. -->
+          <!-- A collapsed sidebar: its views, then a cover per song. -->
+          <nav class="strip-nav" aria-label="Library navigation" data-i18n-aria-label="nav.libraryNav">
+            <button class="strip-nav-btn strip-nav-library" type="button" title="Library" aria-label="Library" data-i18n-title="nav.library" data-i18n-aria-label="nav.library">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6 4 14" /> <path d="M12 6v14" /> <path d="M8 8v12" /> <path d="M4 4v16" /></svg>
+            </button>
+            <button class="strip-nav-btn strip-nav-favorites" type="button" title="Favorites" aria-label="Favorites" data-i18n-title="nav.favorites" data-i18n-aria-label="nav.favorites">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" /></svg>
+            </button>
+            <button class="strip-nav-btn strip-nav-queue hidden" type="button" title="Queue" aria-label="Queue" data-i18n-title="nav.queue" data-i18n-aria-label="nav.queue">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5h10" /> <path d="M11 12h10" /> <path d="M11 19h10" /> <path d="M4 4h1v5" /> <path d="M4 9h2" /> <path d="M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02" /></svg>
+            </button>
+            <button class="strip-nav-btn strip-nav-trash" type="button" title="Trash" aria-label="Trash" data-i18n-title="nav.trash" data-i18n-aria-label="nav.trash">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6" /> <path d="M14 11v6" /> <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /> <path d="M3 6h18" /> <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+            </button>
+          </nav>
           <div id="catalogStrip" class="cat-collapsed-strip"></div>
         </aside>
         <div class="library-resizer" id="libraryResizer" role="separator" tabindex="0" aria-orientation="vertical" aria-controls="catalogPanel" title="Drag to resize the sidebar. Double-click to reset." aria-label="Resize sidebar" data-i18n-title="shell.resizeSidebarTitle" data-i18n-aria-label="shell.resizeSidebar"></div>
@@ -891,7 +905,7 @@
               <span data-i18n="inspector.eq">EQ</span>
             </button>
           </div>
-          <!-- Lyrics opens in the sidebar from here until it becomes a tab of its own. -->
+          <!-- Lyrics opens in the sidebar. -->
           <button class="tools-lyrics-btn" id="songToolsLyricsBtn" type="button" aria-pressed="false" title="Lyrics" data-i18n-title="nav.lyrics">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 7.601-5.994 8.19a1 1 0 0 0 .1 1.298l.817.818a1 1 0 0 0 1.314.087L15.09 12" /> <path d="M16.5 21.174C15.5 20.5 14.372 20 13 20c-2.058 0-3.928 2.356-6 2-2.072-.356-2.775-3.369-1.5-4.5" /> <circle cx="16" cy="7" r="5" /></svg>
             <span data-i18n="nav.lyrics">Lyrics</span>
@@ -1493,7 +1507,7 @@
 
     </div><!-- /.daw -->
 
-    <!-- Where new menus, popovers and dialogs are drawn, above the whole app. -->
+    <!-- The layer menus, popovers and dialogs are drawn in, above the whole app. -->
     <div class="overlay-root" id="overlayRoot"></div>
 
     <!-- About dialog -->

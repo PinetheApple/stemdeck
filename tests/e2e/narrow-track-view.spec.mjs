@@ -151,10 +151,11 @@ test.afterEach(async ({ page }) => {
 });
 
 test.describe("track view in a narrow window", () => {
-  test("at 1024 with the inspector open the timeline stays readable", async ({ page }) => {
+  test("at 1024 the song tools step aside and the timeline stays readable", async ({ page }) => {
     await seedSections(page, SECTIONS);
     await openAt(page, NARROW_WINDOW);
-    await expect(page.locator("#inspector")).toBeVisible();
+    await expect(page.locator("#inspector")).toBeHidden();
+    await expect(page.locator("#inspectorToggleBtn")).toHaveAttribute("aria-pressed", "false");
 
     await expect(app(page)).toHaveClass(/cat-collapsed/);
     await expect.poll(() => timelineWidth(page)).toBeGreaterThanOrEqual(MIN_TIMELINE_WIDTH);
@@ -162,7 +163,7 @@ test.describe("track view in a narrow window", () => {
     await expect(page.locator("#songHead .daw-panel-toggles-label")).toBeVisible();
   });
 
-  test("at 1024 with the inspector open the waveforms fill the timeline", async ({ page }) => {
+  test("at 1024 the waveforms fill the timeline", async ({ page }) => {
     await openAt(page, NARROW_WINDOW);
     await page.locator("#waveLoadingOverlay.hidden").waitFor({ state: "attached" });
     await waitForPanesSettled(page);
@@ -176,7 +177,7 @@ test.describe("track view in a narrow window", () => {
   for (const { size, inspector } of TITLE_WINDOWS) {
     test(`the title fits at ${size.width} with the inspector ${inspector ? "open" : "closed"}`, async ({ page }) => {
       await openAt(page, size);
-      if (!inspector) await inspectorToggle(page).click();
+      if ((await page.locator("#inspector").isVisible()) !== inspector) await inspectorToggle(page).click();
       await expect(page.locator("#title")).toHaveText(TRACK_TITLE);
       await waitForPanesSettled(page);
 

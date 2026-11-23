@@ -2,6 +2,7 @@
 // shared confirm card (the reset-confirm-* styles).
 
 import { t } from "./i18n.js";
+import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
 
 let openDialog = null;
 let dialogOpener = null;
@@ -23,7 +24,7 @@ function finishDialog(confirmed) {
 }
 
 function onDialogKeydown(e) {
-  if (e.code === "Escape") finishDialog(false);
+  if (e.key === ESCAPE_KEY && escapeIsFor(LAYER.DIALOG)) finishDialog(false);
 }
 
 function onDialogCancel() {
