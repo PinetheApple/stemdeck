@@ -44,6 +44,8 @@ from app.core.config import (
     UPLOAD_EXTS,
     ffprobe_executable,
 )
+from app.core.library_order import remove_songs as library_order_remove_songs
+from app.core.library_order import replace_song as library_order_replace_song
 from app.core.models import (
     FINISHED_STATUSES,
     STATUS_DONE,
@@ -57,8 +59,6 @@ from app.core.models import (
     clean_user_name,
     settle_cancelled,
 )
-from app.core.library_order import remove_songs as library_order_remove_songs
-from app.core.library_order import replace_song as library_order_replace_song
 from app.core.registry import all_jobs as registry_all_jobs
 from app.core.registry import get as registry_get
 from app.core.registry import get_proc as registry_get_proc
