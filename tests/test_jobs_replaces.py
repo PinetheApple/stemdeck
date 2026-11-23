@@ -173,9 +173,9 @@ async def test_the_new_copy_takes_the_old_ones_place_in_every_setlist(client, wi
 @pytest.mark.parametrize("with_files", [True, False])
 async def test_the_new_copy_takes_the_old_ones_place_in_my_order(client, with_files):
     _old_job(with_files=with_files)
-    library_order.replace(cfg.JOBS_DIR, ["aaaaaaaaaaaa", OLD_ID, "bbbbbbbbbbbb"])
+    library_order.save_order(cfg.JOBS_DIR, ["aaaaaaaaaaaa", OLD_ID, "bbbbbbbbbbbb"])
     await _finish(_new_job())
-    assert library_order.song_ids(cfg.JOBS_DIR) == ["aaaaaaaaaaaa", NEW_ID, "bbbbbbbbbbbb"]
+    assert library_order.read_order(cfg.JOBS_DIR) == ["aaaaaaaaaaaa", NEW_ID, "bbbbbbbbbbbb"]
 
 
 async def test_a_new_job_that_fails_leaves_the_setlists(client):

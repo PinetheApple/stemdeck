@@ -1,14 +1,5 @@
-"""My order: GET and PUT the user's drag order of the library (#235).
-
-`GET /api/library/order` answers `{"song_ids": [...]}`, the stored order with
-ids the registry no longer knows left out (a trashed song keeps its place).
-`PUT /api/library/order` with `{"song_ids": [...]}` replaces the whole order and
-answers the same shape. Ids must be job ids the registry knows, as for
-setlists, else a 422; a repeated id keeps its first place. The server never
-sorts: songs not in the list are placed by the client, newest first.
-Stored by app/core/library_order.py; deleting a song or settling a re-import
-updates it from app/api/jobs.py.
-"""
+"""Unknown ids are refused on PUT, as for setlists, but only filtered on GET: a
+song can leave the registry between a client's GET and its PUT."""
 
 from __future__ import annotations
 
@@ -57,7 +48,7 @@ def _served(song_ids: list[str]) -> dict[str, list[str]]:
 
 @router.get("/order")
 def get_library_order() -> dict[str, list[str]]:
-    return _served(store.song_ids(JOBS_DIR))
+    return _served(store.read_order(JOBS_DIR))
 
 
 @router.put("/order")
@@ -65,7 +56,7 @@ def put_library_order(body: LibraryOrder) -> dict[str, list[str]]:
     _refuse_while_relocating(STEMS_FOLDER_MOVING_EDIT)
     _require_known(body.song_ids)
     try:
-        saved = store.replace(JOBS_DIR, body.song_ids)
+        saved = store.save_order(JOBS_DIR, body.song_ids)
     except OSError as exc:
         logger.exception(_SAVE_FAILED)
         raise HTTPException(status_code=500, detail=_SAVE_FAILED) from exc

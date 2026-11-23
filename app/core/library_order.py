@@ -1,18 +1,5 @@
-"""My order: the user's drag order of the library's songs, kept on the server
-so the desktop and the phone share it (#235).
-
-It lives in library_order.json beside setlists.json in the jobs folder, as
-`{"version": 1, "song_ids": [...]}`. Like the setlists file it is small and read
-on every request, so the disk stays the only source of truth.
-
-Writes are atomic (temp file, fsync, replace) under a lock held by this process,
-so a crash never leaves a half-written order and two requests here never
-interleave a read-modify-write. Another process writing the file is not guarded
-against.
-Validation of song ids against the registry is the API's job; this module only
-stores what it is given. The server never sorts: songs missing from the list
-are placed by the client.
-"""
+"""Read on every request so a hand edit is never shadowed by a cache; the API,
+not this module, checks ids against the registry."""
 
 from __future__ import annotations
 
@@ -48,7 +35,7 @@ def _read(jobs_dir: Path) -> list[str]:
     song_ids = data.get("song_ids") if isinstance(data, dict) else None
     if not isinstance(song_ids, list):
         return []
-    return [song_id for song_id in song_ids if isinstance(song_id, str)]
+    return list(dict.fromkeys(song_id for song_id in song_ids if isinstance(song_id, str)))
 
 
 def _write(jobs_dir: Path, song_ids: list[str]) -> None:
@@ -67,22 +54,20 @@ def _write(jobs_dir: Path, song_ids: list[str]) -> None:
         temp.unlink(missing_ok=True)
 
 
-def song_ids(jobs_dir: Path) -> list[str]:
+def read_order(jobs_dir: Path) -> list[str]:
     with _lock:
         return _read(jobs_dir)
 
 
-def replace(jobs_dir: Path, new_order: list[str]) -> list[str]:
+def save_order(jobs_dir: Path, new_order: list[str]) -> list[str]:
     with _lock:
         _write(jobs_dir, list(new_order))
     return list(new_order)
 
 
 def remove_songs(jobs_dir: Path, gone_ids: Collection[str]) -> None:
-    """Take deleted songs out of the order, for the DELETE route.
-
-    Best-effort: the songs are already gone, so a failed write logs rather than
-    failing the delete; the API leaves unknown ids out of what it serves."""
+    """Best-effort: the songs are already gone, so a failed write only logs; the
+    API leaves unknown ids out of what it serves anyway."""
     gone = set(gone_ids)
     with _lock:
         order = _read(jobs_dir)
@@ -100,10 +85,8 @@ def remove_songs(jobs_dir: Path, gone_ids: Collection[str]) -> None:
 
 
 def replace_song(jobs_dir: Path, old_id: str, new_id: str) -> None:
-    """Put a re-imported song in its old copy's place in the order.
-
-    When the new copy is already listed the old one just goes, so no song is
-    listed twice. Best-effort like remove_songs."""
+    """Best-effort like remove_songs. A new copy already listed keeps its own place,
+    so no song is listed twice."""
     with _lock:
         order = _read(jobs_dir)
         if old_id not in order:
