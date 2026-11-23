@@ -33,7 +33,8 @@ test.describe("the error box", () => {
     await expect(box).toBeHidden();
   });
 
-  for (const width of [620, 900]) {
+  // Both narrow enough, beside the 340px song tools, for the lanes to stack the box above the song.
+  for (const width of [800, 900]) {
     test(`in a ${width} px window it sits above the song, covering no control`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await openStudio(page);

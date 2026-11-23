@@ -4,6 +4,7 @@
 
 import { disarmClearSections } from "./sections.js";
 import { keepInWindow } from "./shellFloat.js";
+import { LAYER, escapeIsFor } from "./shellEscape.js";
 
 // Upload button → trigger the hidden file input.
 document.getElementById("uploadFileBtn")?.addEventListener("click", () => {
@@ -47,7 +48,7 @@ document.addEventListener("click", (e) => {
 });
 
 function onNotifEscape(e) {
-  if (e.key !== "Escape" || !notifWrap?.classList.contains("open")) return;
+  if (e.key !== "Escape" || !notifWrap?.classList.contains("open") || !escapeIsFor(LAYER.FLOAT)) return;
   e.preventDefault();
   e.stopPropagation();
   setNotifOpen(false);

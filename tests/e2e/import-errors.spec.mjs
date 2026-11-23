@@ -77,6 +77,7 @@ test("a lost connection reads as words, not as the browser's message", async ({ 
 
 test("the error box leaves Extract stems, the mixer and the transport uncovered", async ({ page }) => {
   await openStudio(page);
+  await openComposer(page);
   await page.evaluate(async () => (await import("/js/job.js")).showError("Something to read"));
   const error = await page.locator("#error").boundingBox();
   const submit = await page.locator("#submit").boundingBox();

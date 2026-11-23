@@ -25,6 +25,7 @@ test.describe("composer arming", () => {
     // seed.py's fixture is sourceUrl "local:e2e-fixture", which is exactly
     // the case that broke.
     await openStudio(page);
+    await openComposer(page);
 
     await openComposer(page);
     const url = page.locator("#url");
@@ -44,6 +45,7 @@ test.describe("composer arming", () => {
     // Neither a URL to import nor stems to re-separate from. This is the one
     // case where the empty box should stop the submit itself.
     await openStudio(page);
+    await openComposer(page);
     await page.evaluate(() => {
       document.getElementById("submit").dataset.resplitJob = "";
       document.getElementById("url").setAttribute("required", "");
@@ -61,6 +63,7 @@ test.describe("composer arming", () => {
     // field" instead of separating the track -- invisible to every assertion
     // that only looks at attributes.
     await openStudio(page);
+    await openComposer(page);
 
     const sent = [];
     await page.route("**/api/jobs/*/resplit", async (route) => {
@@ -83,6 +86,7 @@ test.describe("composer arming", () => {
     // A re-split gets a source of its own, so it stays a row beside the track
     // it came from and a later import of the link still has one track to replace.
     await openStudio(page);
+    await openComposer(page);
 
     await page.route("**/api/jobs/*/resplit", (route) =>
       route.fulfill({
@@ -112,6 +116,7 @@ test.describe("composer arming", () => {
     // The composer is not disabled while such a track is open: putting a link
     // in it is a new import, not a re-split of what happens to be loaded.
     await openStudio(page);
+    await openComposer(page);
 
     const hits = [];
     await page.route("**/api/jobs**", async (route) => {
@@ -137,6 +142,7 @@ test.describe("composer arming", () => {
     // submit of a session renamed the button to "Process" for good -- on a
     // successful import as much as on a failed one.
     await openStudio(page);
+    await openComposer(page);
     const label = page.locator("#submit span");
     const before = await label.textContent();
 

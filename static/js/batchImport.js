@@ -13,6 +13,7 @@ import {
   readableError, refreshSubmitLabel, registerLinkRow, registerUploadRow, setIdleSubmitLabel,
 } from "./job.js";
 import { addPlaylistToLibrary } from "./catalog.js";
+import { openComposer } from "./composerDrawer.js";
 import { looksLikePlaylist } from "./playlist.js";
 import { onResendNotQueued, recordBatch, setBatchNotQueued } from "./queue.js";
 import { icon } from "./libraryIcons.js";
@@ -51,6 +52,8 @@ export function setImportPill({ kind = null, name, size }) {
   document.getElementById("fileName").textContent = name;
   document.getElementById("fileSize").textContent = size;
   pill.classList.remove("hidden");
+  // The pill is in the import bar, so a file dropped while it is folded away opens it.
+  openComposer();
   urlWrap()?.classList.add("has-file");
   urlInput().value = "";
   urlInput().removeAttribute("required");
@@ -267,6 +270,8 @@ async function readDurations(target) {
 
 export function openReview() {
   if (!batch) return;
+  // The review hangs under the import bar, so a batch dropped onto the page opens the bar.
+  openComposer();
   mountPanel({ onChange: onReviewChange, onClick: onReviewClick, closed: onReviewClosed });
   renderReview();
   focusFirst();

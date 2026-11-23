@@ -894,6 +894,7 @@ function wireFileDrop() {
   let dropErrorTimer = null;
   function showDropError(message) {
     if (!dropError) return;
+    openComposer();
     dropError.textContent = message;
     dropError.classList.remove("hidden");
     urlWrap.classList.add("has-drop-error");

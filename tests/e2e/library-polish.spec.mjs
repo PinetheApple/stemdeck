@@ -227,7 +227,7 @@ test("the row menu opens beside the row and covers none of the list", async ({ p
 
 // Too narrow beside any row, and tall enough for room both above and below the
 // fixture rows once unavailable rows pad the list around them.
-const NARROW_TALL_WINDOW = { width: 480, height: 900 };
+const NARROW_TALL_WINDOW = { width: 400, height: 900 };
 const PADDING_ROWS = 4;
 
 const paddingIds = (side) => Array.from({ length: PADDING_ROWS }, (_, i) => `pad-${side}-${i}`);

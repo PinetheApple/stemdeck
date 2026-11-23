@@ -9,15 +9,22 @@ export const LAYER = Object.freeze({ ERROR: "error", FLOAT: "float", DIALOG: "di
 const ESCAPE_KEY = "Escape";
 const ERROR_SHOWN = "#error:not(.hidden)";
 const OPEN_FLOATS = '[role="menu"], [role="listbox"]:not(select), .daw-notif-wrap.open .daw-notif-panel';
+const MODAL = 'dialog[open], [role="dialog"][aria-modal="true"]';
 const GUIDE_ON = "body.help-mode";
 const STAGE_ON = ".app.stage-mode";
 
 const isShown = (el) => el.offsetWidth > 0 && el.offsetHeight > 0 && getComputedStyle(el).visibility !== "hidden";
 const anyShown = (selector) => [...document.querySelectorAll(selector)].some(isShown);
 
+// A dialog covers the page, so a popover left open behind it is not on top; one inside it is.
+function floatOnTop() {
+  const modalOpen = isModalOpen();
+  return [...document.querySelectorAll(OPEN_FLOATS)].some((el) => isShown(el) && (!modalOpen || el.closest(MODAL)));
+}
+
 const LAYERS = [
   [LAYER.ERROR, () => anyShown(ERROR_SHOWN)],
-  [LAYER.FLOAT, () => anyShown(OPEN_FLOATS)],
+  [LAYER.FLOAT, floatOnTop],
   [LAYER.DIALOG, isModalOpen],
   [LAYER.GUIDE, () => Boolean(document.querySelector(GUIDE_ON))],
   [LAYER.STAGE, () => Boolean(document.querySelector(STAGE_ON))],

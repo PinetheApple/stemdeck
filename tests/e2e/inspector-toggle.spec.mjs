@@ -58,7 +58,7 @@ async function stageRoundTrip(page) {
 test.describe("inspector hide and show", () => {
   test("the toggle hides and shows it, keeping its name and state", async ({ page }) => {
     await openWide(page);
-    await expect(toggleOf(page)).toHaveAccessibleName("Toggle song tools");
+    await expect(toggleOf(page)).toHaveAccessibleName("Show or hide song tools");
     await expect(toggleOf(page)).toHaveAttribute("aria-controls", "inspector");
     await expectShown(page);
 

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openStudio } from "./helpers.mjs";
+import { openStudio, waitForPanesSettled } from "./helpers.mjs";
 
 const STORE_KEY = "stemdeck.library.width";
 const INSPECTOR_HIDDEN_KEY = "stemdeck.inspector.hidden";
@@ -33,6 +33,7 @@ const waveWidth = (page) => widthOf(page, ".daw-wave-panel");
 
 /** In SMALL_WINDOW a MAX_WIDTH library would squeeze the waveforms, so it stops where they reach their floor. */
 async function squeezedWidth(page) {
+  await waitForPanesSettled(page);
   await expect.poll(() => waveWidth(page)).toBeGreaterThanOrEqual(MIN_WAVES);
   const width = await libraryWidth(page);
   expect(width).toBeLessThan(MAX_WIDTH);

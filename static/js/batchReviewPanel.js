@@ -66,7 +66,8 @@ export function placePanel() {
   const composer = document.getElementById("job-form").getBoundingClientRect();
   panel.style.left = `${zone.left}px`;
   panel.style.top = `${composer.bottom + PANEL_GAP_PX}px`;
-  scrim.style.top = `${document.querySelector(".daw-topbar").getBoundingClientRect().bottom}px`;
+  // The import bar stays usable above the scrim; the review always opens with it.
+  scrim.style.top = `${document.getElementById("composerDrawer").getBoundingClientRect().bottom}px`;
 }
 
 /** Which control has focus, by its row and class, so a redraw can give it back. */
