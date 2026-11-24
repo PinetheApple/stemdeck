@@ -14,6 +14,7 @@ import {
   LYRICS_LOOKUP,
   LYRICS_REMOVED,
   answerLyricsChoice,
+  openSpeedOptions,
 } from "./helpers.mjs";
 import { dblclickFrozen } from "./saveRaces.mjs";
 
@@ -263,6 +264,7 @@ test.describe("stage mode counter", () => {
   test("keeps to the song's own time at a slowed speed", async ({ page }) => {
     await setUp(page, { grid: gridAnswer(fixtureBeats(), [{ beat: 0, beats_per_bar: 4 }]) });
     await waitForGrid(page);
+    await openSpeedOptions(page);
     await page.locator("#t-speed-value").fill(String(SLOWED_SPEED));
     await page.locator("#t-speed-value").press("Enter");
     await enterStage(page);

@@ -1,6 +1,6 @@
 // Auto-scroll: a zoomed-in timeline follows the playhead a page at a time.
 import { test, expect } from "@playwright/test";
-import { openStudio, SIBLING_JOB_ID } from "./helpers.mjs";
+import { openStudio, SIBLING_JOB_ID, openLoopOptions } from "./helpers.mjs";
 
 // seed.py writes a 6 second fixture; at 10x a page holds well under a second.
 const ZOOM_IN_NOTCHES = 40;
@@ -173,6 +173,7 @@ test.describe("auto-scroll", () => {
 
   test("a loop wrap brings the view back to the loop start", async ({ page }) => {
     await openStudio(page);
+    await openLoopOptions(page);
     await page.locator("#t-loop-end").fill(LOOP_END);
     await page.locator("#t-loop-end").blur();
     await page.locator("#t-loop-start").fill(LOOP_START);

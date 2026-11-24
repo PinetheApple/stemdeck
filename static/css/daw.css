@@ -582,7 +582,6 @@ input, textarea { font-family: inherit; }
    overrides the gold bar from waves.css. */
 .daw-lib-list,
 .mixer-column,
-.footer-row-controls,
 .daw .wave-scroll {
   /* Firefox: thin overlay-style bar, fades to transparent track */
   scrollbar-width: thin;
@@ -592,8 +591,6 @@ input, textarea { font-family: inherit; }
 .daw-lib-list:focus-within,
 .mixer-column:hover,
 .mixer-column:focus-within,
-.footer-row-controls:hover,
-.footer-row-controls:focus-within,
 .daw .wave-scroll:hover,
 .daw .wave-scroll:focus-within {
   scrollbar-color: color-mix(in srgb, var(--text-2) 40%, transparent) transparent;
@@ -601,20 +598,17 @@ input, textarea { font-family: inherit; }
 /* WebKit (Chrome/Safari/WKWebView): thin thumb, hidden until hover/scroll */
 .daw-lib-list::-webkit-scrollbar,
 .mixer-column::-webkit-scrollbar,
-.footer-row-controls::-webkit-scrollbar,
 .daw .wave-scroll::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 .daw-lib-list::-webkit-scrollbar-track,
 .mixer-column::-webkit-scrollbar-track,
-.footer-row-controls::-webkit-scrollbar-track,
 .daw .wave-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
 .daw-lib-list::-webkit-scrollbar-thumb,
 .mixer-column::-webkit-scrollbar-thumb,
-.footer-row-controls::-webkit-scrollbar-thumb,
 .daw .wave-scroll::-webkit-scrollbar-thumb {
   background: transparent;
   border: 2px solid transparent;
@@ -625,8 +619,6 @@ input, textarea { font-family: inherit; }
 .daw-lib-list:focus-within::-webkit-scrollbar-thumb,
 .mixer-column:hover::-webkit-scrollbar-thumb,
 .mixer-column:focus-within::-webkit-scrollbar-thumb,
-.footer-row-controls:hover::-webkit-scrollbar-thumb,
-.footer-row-controls:focus-within::-webkit-scrollbar-thumb,
 .daw .wave-scroll:hover::-webkit-scrollbar-thumb,
 .daw .wave-scroll:focus-within::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--text-2) 40%, transparent);
@@ -634,7 +626,6 @@ input, textarea { font-family: inherit; }
 }
 .daw-lib-list::-webkit-scrollbar-thumb:hover,
 .mixer-column::-webkit-scrollbar-thumb:hover,
-.footer-row-controls::-webkit-scrollbar-thumb:hover,
 .daw .wave-scroll::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--text-2) 60%, transparent);
   background-clip: padding-box;
@@ -2136,7 +2127,6 @@ input, textarea { font-family: inherit; }
 
 .app.panel-analysis-off .daw-track-header { display: none; }
 .app.panel-sections-off .daw-section-ribbon { display: none; }
-.app.panel-timeline-off .footer-wave-region { display: none; }
 
 /* ── Waveform header ── */
 .daw-wave-header {
@@ -2526,7 +2516,6 @@ input, textarea { font-family: inherit; }
 
 .loop-region.hidden { display: none !important; }
 
-
 /* Wave loading overlay */
 .wave-loading-overlay {
   position: absolute; inset: 0; z-index: 10;
@@ -2584,23 +2573,6 @@ input, textarea { font-family: inherit; }
   align-items: stretch;
 }
 
-.daw-footer-left {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 140px;
-  flex: 1;
-}
-.daw-time-big {
-  font-size: 20px; font-weight: 600; letter-spacing: -0.01em;
-}
-.daw-time-total { font-size: 13px; color: var(--muted); }
-.daw-footer-right {
-  display: flex; align-items: center; gap: 8px;
-  min-width: 140px; justify-content: flex-end;
-  flex: 1;
-}
-.daw-master-fader { accent-color: var(--accent); cursor: pointer; }
 .daw-btn {
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--panel-2); border: 1px solid var(--border-strong);
@@ -2610,10 +2582,6 @@ input, textarea { font-family: inherit; }
 }
 .daw-btn:hover { background: var(--panel-3); }
 
-/* Transport controls */
-.daw-transport-controls {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-}
 .daw-play-btn {
   background: var(--accent);
   color: var(--accent-ink);
@@ -2638,44 +2606,6 @@ input, textarea { font-family: inherit; }
 .btn-transport.playing .pause-icon { display: block !important; }
 .btn-transport.playing > svg:first-child { display: none; }
 
-/* Stop/loop buttons inside the footer transport row */
-.daw-footer .daw-iconbtn.btn-transport {
-  width: 40px; height: 40px;
-  border-radius: 9px;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-
-/* Loop active state */
-.daw-iconbtn.loop.active,
-.btn-transport.loop.active { color: var(--accent); }
-
-/* Export buttons in footer */
-.daw-footer .footer-btn {
-  padding: 0 14px;
-  height: 36px;
-  border-radius: 8px;
-  gap: 6px;
-  white-space: nowrap;
-}
-.daw-footer .footer-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-/* ── Footer redesign ── */
-
-/* ── Footer layout: three tiers (design 1b) ── */
-/* Tier 1 -- what is loaded and what leaves the app (track identity, favourite,
-   Export Mix). Tier 2 -- every playback and click control, in labelled clusters
-   separated by hairline dividers. Tier 3 -- the timeline those clusters act on.
-   Each tier owns its own full-width budget instead of everything competing for
-   room in one line. */
-
-.footer-main {
-  flex: 1; min-width: 0;
-  display: flex; flex-direction: column;
-}
-
 /* ── Track identity, in the footer's timeline gutter ── */
 .track-panel-head {
   display: flex; align-items: flex-start; gap: 10px; min-width: 0;
@@ -2692,66 +2622,7 @@ input, textarea { font-family: inherit; }
   transition: background var(--t-fast), color var(--t-fast);
 }
 .track-panel-head .daw-fav-btn:hover { background: var(--panel-3); }
-/* Hairline cluster separator: fades out at both ends so it reads as a seam
-   between groups rather than a hard rule across the footer. Every one of these
-   separates something now that .footer-row-controls never wraps -- the
-   is-orphan state that used to hide a divider stranded at the end of a wrapped
-   line went with the wrapping. */
-.footer-divider {
-  width: 1px; flex: none;
-  background: linear-gradient(
-    180deg, transparent, var(--border-strong) 22%, var(--border-strong) 78%, transparent
-  );
-}
-.footer-row-controls .footer-divider { height: 44px; }
-/* Starts at the footer's own left edge. The track identity that used to sit in
-   front of it now lives in the library sidebar, and leaving its 300px gutter
-   behind pushed every control into the right of the window with a void beside
-   it.
 
-   One line, always. Wrapping rearranged the band into a different shape at
-   every window width -- clusters piling onto a second row, the click track
-   splitting its own options in half -- so the footer never looked like itself
-   twice. Nothing here shrinks either (.footer-group is flex: none), so when
-   the window is too narrow the row scrolls sideways rather than reflowing. */
-.footer-row-controls {
-  display: flex; align-items: flex-start; flex-wrap: nowrap;
-  gap: 16px;
-  padding: 12px 18px 14px;
-}
-/* The clusters, and only the clusters, scroll. Favourite and Export Mix sit
-   outside this box so a window too narrow for the row cannot carry them off
-   the right-hand edge.
-
-   Sideways only. overflow-x: auto alone computes overflow-y to auto too, and
-   the strip is sized to its content, so a vertical scrollbar has nothing to
-   scroll. It can still appear: at a fractional device pixel ratio (250%
-   Windows scaling) content and box heights round differently, and a sub-pixel
-   of phantom overflow puts a classic scrollbar down the strip's right edge.
-   That takes its width out of the row, space-between at the "click" level
-   spreads the loss across every gap, and footerFit's observer re-measures.
-   That matches the breathing row of #633 exactly: every gap moving, Export
-   Mix not. hidden clips exactly what auto already clipped, and never takes
-   width from the row. */
-.footer-clusters {
-  flex: 1; min-width: 0;
-  display: flex; align-items: flex-start; flex-wrap: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
-  gap: 16px;
-}
-/* Acts on the track, not on playback, so it is pinned opposite the clusters
-   rather than filed among them. Nudged down to sit on the controls' own line
-   instead of the labels above them. */
-.footer-track-actions {
-  flex: none;
-  display: flex; align-items: center; gap: 8px;
-  margin-top: 18px;
-}
-.footer-track-actions .track-chip { height: 32px; }
-/* Opens toward the middle of the window: anchored left, a 260px menu on the
-   footer's right edge would hang off it. */
-.footer-track-actions .track-chip-panel { left: auto; right: 0; }
 /* Natural width, never squeezed: a cluster that shrinks re-wraps its own
    controls, which is the pile-up the row-level nowrap exists to prevent. */
 .footer-group {
@@ -2769,18 +2640,7 @@ input, textarea { font-family: inherit; }
   display: flex; align-items: center; flex-wrap: nowrap; gap: 8px;
   min-height: 34px;
 }
-/* Tier 3: the timeline. Full-bleed rather than an inset rounded panel -- its
-   left edge has to land exactly on the lane waveforms' left edge, and a side
-   border would offset the canvas by its own width. Top and bottom rules only,
-   the way the ruler area above the lanes is drawn. */
-/* Bottom tier: the gutter, then the timeline. Two columns rather than one, so
-   the timeline's left edge lands exactly on the lane waveforms' left edge and
-   a position reads at the same x in both -- while the 300px that alignment
-   costs carries Export Mix instead of standing empty. */
-.footer-wave-region {
-  display: flex; align-items: stretch;
-  padding: 0 18px 14px 0; flex-shrink: 0;
-}
+
 /* Exactly the mixer column's width: that offset is what puts the timeline
    beside it on the lanes' x, so the alignment and the block that fills the
    gutter are one fact rather than two numbers that have to agree. */
@@ -2792,55 +2652,6 @@ input, textarea { font-family: inherit; }
   min-width: 0;
   overflow: hidden;
 }
-.footer-wave-col {
-  flex: 1; min-width: 0;
-  display: flex; flex-direction: column;
-}
-.footer-wave-panel {
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  /* Closes the strip's open left edge and lands on the same x as the mixer
-     panel's right border, so that seam runs on down the page. Drawn as an
-     outset shadow rather than a border: a border would sit inside the box and
-     push the canvas a pixel off the lane waveforms it has to line up with. */
-  box-shadow: -1px 0 0 var(--border);
-  background: var(--panel);
-  overflow: hidden;
-}
-/* Ticks at the same times as the lanes ruler (buildFooterWaveTicks shares its
-   step), positioned by percentage so both rulers mark a time at the same x. */
-.footer-wave-ticks {
-  height: 18px; position: relative;
-}
-/* No track, no timeline to label -- an empty ruler strip above the placeholder
-   waveform would be measuring nothing. */
-.footer-wave-ticks:empty { display: none; }
-.footer-wave-ticks .tick {
-  position: absolute; top: 0; bottom: 0;
-  border-left: 1px solid var(--border-strong);
-  padding-left: 4px;
-  display: flex; align-items: flex-start;
-  pointer-events: none;
-}
-.footer-wave-ticks .tick-label {
-  font-family: var(--font-mono); font-size: 9px; line-height: 1.6;
-  color: var(--muted-2);
-  font-variant-numeric: tabular-nums;
-}
-.footer-wave-bar {
-  height: 31px; flex-shrink: 0;
-  position: relative; overflow: hidden;
-}
-#footer-waveform {
-  position: absolute; inset: 0;
-  width: 100%; height: 100%; display: block;
-}
-.footer-scrub {
-  position: absolute; inset: 0;
-  cursor: pointer; z-index: 2;
-  background: transparent;
-}
-.footer-scrub-fill { display: none; }
 
 .track-panel-info {
   flex: 1; min-width: 0;
@@ -2866,88 +2677,7 @@ input, textarea { font-family: inherit; }
 /* Wraps freely here -- the gutter is narrow and the block is stacked, so the
    meta reads as a short paragraph rather than a clipped line. */
 .footer-track-slot .daw-track-meta-line { row-gap: 2px; line-height: 1.35; }
-.footer-art {
-  width: 44px; height: 44px; border-radius: 6px;
-  background: var(--panel-3); flex-shrink: 0; overflow: hidden;
-  display: none;
-}
-.footer-art.has-art { display: block; }
-.footer-thumb-img {
-  width: 100%; height: 100%; object-fit: cover;
-  opacity: 0; transition: opacity 0.2s;
-}
-.footer-thumb-img.loaded { opacity: 1; }
-.footer-info {
-  display: flex; flex-direction: column; gap: 3px; min-width: 0;
-}
-.footer-title {
-  font-size: 13px; font-weight: 600;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  color: var(--fg);
-}
-.footer-meta {
-  font-size: 11px; color: var(--muted);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
 
-/* Position group: elapsed / total time, then the loop controls that act on
-   that position (design 1b groups them together, not with the transport). */
-/* The loop column is three rows tall while the rest of this group is one, so
-   centring it left the two bounds hanging below the elapsed/total readout they
-   belong to. Aligning to the bottom puts the fields on the readout's line and
-   lets the button and its hint stack up out of the way. */
-.footer-group-position .footer-group-body { gap: 4px; align-items: flex-end; }
-.footer-group-position .footer-elapsed,
-.footer-group-position .footer-total,
-.footer-group-position .footer-time-sep {
-  /* Match the fields' box height so the baselines land together, rather than
-     the text bottom meeting the border bottom. */
-  line-height: 22px;
-}
-/* Both readouts hold the width of mm:ss whatever they are showing.
- *
- * They start at 0:00 and become 05:09 the moment a track loads, which is one
- * character wider. The Position cluster grew 17px with it and every cluster to
- * its right, Speed, Global key and Click track, slid across by the same
- * amount. Clicking a track should not move the buttons beside it.
- *
- * Reserved rather than zero-padded, because the format is the readout's own
- * business: a track under ten minutes reads 5:09 and should keep doing so. A
- * track over an hour still grows, and should. */
-.footer-elapsed {
-  font-size: 18px; font-weight: 500; letter-spacing: -0.02em; color: var(--fg);
-  display: inline-block;
-  min-width: 5ch;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.footer-total {
-  font-size: 12px; font-weight: 400; color: var(--muted-2);
-  display: inline-block;
-  min-width: 5ch;
-  font-variant-numeric: tabular-nums;
-}
-.footer-time-sep { font-size: 12px; color: var(--muted-2); }
-
-/* Exact loop start/end inputs (inline, right of the loop button) */
-/* The hint stacks over the two fields rather than beside them: the footer row
-   is already full, and a note about the fields belongs with the fields. Sized
-   to sit inside the width the two boxes already take, so it does not widen the
-   Position group. */
-.footer-loop-times-wrap {
-  display: flex; flex-direction: column; align-items: stretch; gap: 2px;
-  margin-left: 6px;
-}
-.footer-loop-hint {
-  font-size: 7.5px; font-weight: 600; letter-spacing: 0.02em;
-  text-transform: uppercase; color: var(--muted);
-  line-height: 1; white-space: nowrap; text-align: center; user-select: none;
-}
-.footer-loop-times {
-  display: flex; align-items: center; justify-content: center; gap: 5px;
-  cursor: default; user-select: none;
-}
-.loop-times-sep { font-size: 12px; color: var(--muted); flex-shrink: 0; }
 .loop-time-input {
   /* 7ch holds "105.100" -- the widest value a track under 1000 s produces now
      that the minutes field is gone. */
@@ -2962,103 +2692,7 @@ input, textarea { font-family: inherit; }
 .loop-time-input:focus { cursor: text; border-color: var(--accent); }
 .loop-time-input:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* Transport group: stop square + a play key wide enough to be the obvious
-   primary, both on the shared 34px control height. */
-.footer-group-transport .daw-iconbtn.btn-transport {
-  width: 34px; height: 34px; border-radius: 8px;
-  background: var(--panel-2);
-  border-color: var(--border-strong);
-  color: var(--fg-2);
-  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
-}
-.footer-group-transport .daw-iconbtn.btn-transport:hover {
-  background: var(--panel-3);
-  color: var(--fg);
-}
-.footer-group-transport .daw-play-btn {
-  width: 44px; height: 34px; border-radius: 8px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
-}
-.footer-group-transport .daw-play-btn:hover {
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--accent) 35%, transparent), inset 0 1px 0 rgba(255,255,255,0.22);
-}
-.footer-group-transport .daw-play-btn.playing:hover {
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--success) 45%, transparent), inset 0 1px 0 rgba(255,255,255,0.24);
-}
-/* Active transport states: stop = red while stopped, loop = blue while looping. */
-.footer-group-transport .btn-transport.stopped,
-.footer-group-transport .btn-transport.stopped:hover {
-  background: color-mix(in srgb, var(--danger) 16%, transparent);
-  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
-  color: var(--danger);
-}
-.footer-group-transport .footer-group-body { gap: 6px; }
-/* Loop sits in the Position group and reads as a modifier on the readout next
-   to it, so it is a short labelled pill rather than a full-height control. */
-.footer-group-position .daw-iconbtn.btn-transport.loop {
-  /* A tall narrow pill beside the fields, not a bar over them. align-self
-     overrides the group's flex-end so it fills the two rows the hint and the
-     bounds take, which is what keeps the footer one line high. */
-  flex-direction: column; justify-content: center;
-  width: 46px; height: auto; align-self: stretch;
-  padding: 3px 4px; gap: 1px; margin-left: 4px;
-  border-radius: 7px;
-  background: var(--panel-2); border: 1px solid var(--border-strong);
-  color: var(--fg-2);
-  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
-}
-.footer-group-position .btn-transport.loop:hover {
-  background: var(--panel-3); color: var(--fg);
-}
-.loop-btn-label { font-size: 9.5px; font-weight: 500; white-space: nowrap; line-height: 1; }
-.footer-group-position .btn-transport.loop.active,
-.footer-group-position .btn-transport.loop.active:hover {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  color: var(--accent);
-}
-
 /* ── Segmented controls (Speed, click rate) ── */
-/* Transpose stepper (#245): two icon buttons and the readout between them. */
-.pitch-value {
-  display: flex; align-items: center; justify-content: center;
-  min-width: 34px; padding: 0 6px;
-  border-left: 1px solid var(--border); border-right: 1px solid var(--border);
-  color: var(--muted);
-  font-family: var(--font-mono); font-size: 11px; font-weight: 600; line-height: 1;
-  font-variant-numeric: tabular-nums;  /* so +10 and -6 do not shift the buttons */
-  transition: color var(--t-fast), background var(--t-fast);
-}
-/* Lit only when transposed, so "this track is not in its original key" is
-   visible at a glance rather than needing the number to be read. */
-.pitch-value.active {
-  background: color-mix(in srgb, var(--text-2) 16%, transparent); color: var(--accent);
-}
-.pitch-btn:disabled {
-  opacity: 0.35; cursor: default;
-}
-.pitch-btn:disabled:hover { background: transparent; color: var(--muted); }
-
-/* Reset. Outside the stepper's frame, because it does something to the whole
-   mix rather than one more step: it returns every mixer lane to the key the
-   recording is in, which the stepper alone cannot do once lanes have been moved
-   individually. */
-.pitch-reset {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; padding: 0;
-  background: transparent;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  color: var(--muted);
-  font-size: 15px; line-height: 1;
-  cursor: pointer;
-  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
-}
-.pitch-reset:hover:not(:disabled) {
-  background: var(--panel-3); color: var(--fg); border-color: var(--border);
-}
-.pitch-reset:disabled { opacity: 0.35; cursor: default; }
-
 /* Click track on/off toggle. Lit gold while the click is running, so its
    state is visible without any other affordance. */
 .click-toggle-btn {
@@ -3169,10 +2803,7 @@ input, textarea { font-family: inherit; }
 .metro-vol-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
 .metro-vol-icon { flex-shrink: 0; }
 
-/* Fixed rather than absolute:
-   .footer-clusters scrolls sideways and clips vertically (overflow-y: hidden),
-   so an absolutely positioned panel would be clipped by the strip its
-   button sits in. transport.js sets left/top from that button's rect. */
+/* Fixed, so no scrolling ancestor clips it; footerPopover.js places it by its button. */
 .metro-vol-panel {
   position: fixed; z-index: 320;
   display: flex; flex-direction: column; align-items: center; gap: 8px;
@@ -3256,11 +2887,6 @@ input, textarea { font-family: inherit; }
    1b). Hidden until it has text, clipped to one line with the full text as a
    native tooltip. */
 .metro-note {
-  /* Starts where the controls it describes start.
-     It used to inherit its left edge from .footer-wave-region, which insets
-     the gutter the now-playing block filled. That block is in the composer now
-     and the gutter with it, so the note was left against the bare edge of the
-     footer, 18px to the left of Transport and lined up with nothing. */
   margin-top: 8px;
   margin-left: 18px;
   font-size: 11px; line-height: 1.3; color: var(--muted);
@@ -3307,15 +2933,6 @@ input, textarea { font-family: inherit; }
   transition: background var(--t-fast);
 }
 .track-chip:hover { background: var(--panel-3); }
-.track-chip-primary {
-  background: var(--accent); color: var(--accent-ink);
-  border-color: transparent;
-}
-.track-chip-primary:hover { background: color-mix(in srgb, var(--accent) 85%, white); }
-.track-chip-primary:disabled {
-  background: var(--panel-2); color: var(--fg-muted);
-  border-color: var(--border-strong); cursor: not-allowed; opacity: 0.5;
-}
 
 .track-chip-panel {
   /* Opens up and to the right: the button now lives in the left column, and a
@@ -5254,42 +4871,10 @@ input, textarea { font-family: inherit; }
   overflow: hidden;
 }
 
-/* 7. The whole waveform strip in the bottom bar.
-
-   Read this before keeping it. The strip is three things in one: the waveform
-   drawing, the time ticks, and the scrub, which is the footer's seek control
-   and its only progress indicator. All three go together here, so after this
-   the only way to move through a track is the lanes above, and the footer no
-   longer shows where you are.
-
-   If that turns out to be too much, hiding #footer-waveform alone removes the
-   drawing and leaves the ticks and the seek working. */
-.footer-wave-panel {
-  display: none !important;
-}
-
-/* 8. The Timeline toggle.
-
-   It hides .footer-wave-region, which wraps two things: the waveform strip,
-   now hidden outright by 7, and the now-playing block, now pinned into the top
-   bar by 6. A fixed-position element is still hidden when an ancestor is
-   display: none, so the only thing pressing Timeline would do now is make the
-   card in the top bar disappear. A control whose label names something that is
-   not there, doing something the label does not describe.
-
-   Two parts, and the second matters as much as the first. The button is hidden
-   here, but it stays in the DOM, so wireAllToggle still counts "timeline"
-   among the panels All governs: pressing All would set panel-timeline-off and
-   take the card with it. Neutralising the rule is what stops that. Doing this
-   properly means dropping the button from the markup and letting the All row
-   govern two panels rather than three. */
 .daw-panel-toggle[data-panel="timeline"],
 .daw-panel-toggle[data-panel="timeline"] + .daw-panel-toggles-sep,
 .daw-panel-toggles-sep:has(+ .daw-panel-toggle[data-panel="timeline"]) {
   display: none !important;
-}
-.app.panel-timeline-off .footer-wave-region {
-  display: block;
 }
 
 /* 9. An upload's format where it has no artwork (#690).

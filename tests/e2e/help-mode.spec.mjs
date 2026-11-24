@@ -78,11 +78,11 @@ test.describe("help mode", () => {
   test("pointing at a control explains it, under its own label", async ({ page }) => {
     await openStudio(page);
     await helpOn(page);
-    await page.locator("#t-speed").hover();
+    await page.locator("#t-speed-btn").hover();
     await expect(tip(page)).toBeVisible();
     await expect(tip(page).locator("b")).toHaveText("Speed");
     await expect(tip(page)).toContainText("playback speed");
-    await expect(page.locator("#t-speed")).toHaveClass(/help-current/);
+    await expect(page.locator("#t-speed-btn")).toHaveClass(/help-current/);
   });
 
   test("pointing at an icon button rings the icon, not the whole button", async ({ page }) => {

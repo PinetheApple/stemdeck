@@ -8,7 +8,7 @@
 // processor say which stage it is running.
 
 import { test, expect } from "@playwright/test";
-import { openStudio } from "./helpers.mjs";
+import { openStudio, openSpeedOptions } from "./helpers.mjs";
 
 async function recordWorkletMessages(page) {
   await page.addInitScript(() => {
@@ -31,6 +31,7 @@ test("slowed playback runs on the Signalsmith stage", async ({ page }) => {
   await recordWorkletMessages(page);
   await openStudio(page);
 
+  await openSpeedOptions(page);
   await page.locator("#t-speed-value").fill("0.75");
   await page.locator("#t-speed-value").press("Enter");
   await page.locator("#t-play").click();

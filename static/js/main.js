@@ -6,7 +6,7 @@ import {
 } from "./state.js";
 import { STEM_NAMES, SEEK_STEP_SEC, syncStemNamesFromAPI } from "./constants.js";
 import { refreshStemChoiceVisuals } from "./stemChoice.js";
-import { renderEmptyShell, buildStripStems, downloadCurrentMix, downloadCurrentVideo, downloadAllStemsZip, downloadSongBundle, downloadRegionMix, drawFooterPlaceholder, regionDragPayload, stemRegionDragPayload, prewarmRegionMix } from "./player.js";
+import { renderEmptyShell, buildStripStems, downloadCurrentMix, downloadCurrentVideo, downloadAllStemsZip, downloadSongBundle, downloadRegionMix, regionDragPayload, stemRegionDragPayload, prewarmRegionMix } from "./player.js";
 import { wireJobForm, showError } from "./job.js";
 import { initSearch } from "./search.js";
 import { wireTransportButtons } from "./transport.js";
@@ -19,7 +19,6 @@ import { initCatalog, collectDiagnostics, isNativeSpaceTarget, isTextEditingTarg
 import { initNotifications, notifyFailure, dismissFailuresByJobId } from "./notifications.js";
 import { runStoreMigrationIfNeeded, onStoreUnavailable, onStoreLost } from "./utils.js";
 import { initI18n, applyTranslations, t, onLanguageChange } from "./i18n.js";
-import { initFooterFit, refitFooter } from "./footerFit.js";
 import { initArtistInfo } from "./artistInfo.js";
 import { initLyrics } from "./lyrics.js";
 import { initHelpMode } from "./helpMode.js";
@@ -490,7 +489,6 @@ setSectionsLoopBridge({
 wireBeatGridUi();
 window.addEventListener("pagehide", saveEditsOnPageClose);
 wireFooterControls();
-requestAnimationFrame(drawFooterPlaceholder);
 wireStemListControls();
 wireMixerToolbar();
 wireStemChoiceButtons();
@@ -502,7 +500,6 @@ wireFileDrop();
 wireBatchImport();
 wireEmptyStart();
 initShell();
-initFooterFit();
 initArtistInfo();
 initLyrics();
 initHelpMode();
@@ -519,13 +516,6 @@ initTrackMenu();
 initStageMode();
 initSearchShortcut();
 initTempoTools();
-// Re-measure after a language switch. Measured across en/fr/de/pl the strip
-// came out the same width in all four, because the group labels are 10px
-// uppercase and narrower than the controls under them, so this is not the
-// reason the fit is computed rather than written as a breakpoint (that is the
-// sidebar, see footerFit.js). It is here because select options and button
-// text do vary, and re-measuring costs one frame.
-onLanguageChange(refitFooter);
 // Every chip's label changes width with the language, so the count that fits
 // changes with it too.
 onLanguageChange(fitStemChips);

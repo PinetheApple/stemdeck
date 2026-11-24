@@ -218,7 +218,7 @@ test.describe("target sizes", () => {
         ".cat-item .cat-del",
         "#t-pitch-down",
         "#t-pitch-up",
-        "#t-pitch-reset",
+        "#t-key-btn",
       ]),
     ).toEqual(ALL_TARGETS_MET);
 

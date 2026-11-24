@@ -5,14 +5,14 @@
 // double-click toggles between it and 1x.
 
 import { test, expect } from "@playwright/test";
-import { openStudio } from "./helpers.mjs";
+import { openSpeedOptions, openStudio } from "./helpers.mjs";
 
 const fader = (page) => page.locator("#t-speed");
 const box = (page) => page.locator("#t-speed-value");
-const group = (page) => page.locator(".footer-group-speed");
+const group = (page) => page.locator("#footerSpeed");
 const rate = (page) => page.evaluate(async () => (await import("/js/state.js")).playbackSpeed);
 const appliedRates = (page) => page.evaluate(() => window.appliedRates);
-const SLOWED = /\bslowed\b/;
+const SLOWED = /\bis-on\b/;
 
 // Every rate the engine is handed, so a test can tell one apply from many.
 function recordAppliedRates(page) {
@@ -34,6 +34,7 @@ async function typeSpeed(page, text) {
 
 test("dragging the fader shows the speed as it moves and applies it once it settles", async ({ page }) => {
   await openStudio(page);
+  await openSpeedOptions(page);
   await expect(box(page)).toHaveValue("1.00x");
   await expect(group(page)).not.toHaveClass(SLOWED);
   await recordAppliedRates(page);
@@ -54,6 +55,7 @@ test("dragging the fader shows the speed as it moves and applies it once it sett
 
 test("the wheel jumps from notch to notch and applies once the scrolling stops", async ({ page }) => {
   await openStudio(page);
+  await openSpeedOptions(page);
   await recordAppliedRates(page);
   await fader(page).hover();
   for (let i = 0; i < 3; i++) await page.mouse.wheel(0, 100);
@@ -69,6 +71,7 @@ test("the wheel jumps from notch to notch and applies once the scrolling stops",
 
 test("the arrow keys move a hundredth, and five with Shift held", async ({ page }) => {
   await openStudio(page);
+  await openSpeedOptions(page);
   await fader(page).focus();
   await page.keyboard.press("ArrowLeft");
   await expect(box(page)).toHaveValue("0.99x");
@@ -85,6 +88,7 @@ test("the arrow keys move a hundredth, and five with Shift held", async ({ page 
 
 test("the box takes a speed in every form and ignores what isn't a number", async ({ page }) => {
   await openStudio(page);
+  await openSpeedOptions(page);
   const forms = [
     ["0.83", 0.83],
     ["0,82", 0.82],
@@ -108,6 +112,7 @@ test("the box takes a speed in every form and ignores what isn't a number", asyn
 
 test("a double-click toggles between 1x and the last slow speed", async ({ page }) => {
   await openStudio(page);
+  await openSpeedOptions(page);
   await typeSpeed(page, "0.8");
   await expect.poll(() => rate(page)).toBe(0.8);
 
@@ -122,10 +127,12 @@ test("a double-click toggles between 1x and the last slow speed", async ({ page 
 
 test("the slow speed survives a reload, and a song still opens at 1x", async ({ page }) => {
   await openStudio(page);
+  await openSpeedOptions(page);
   await typeSpeed(page, "0.7");
   await expect.poll(() => rate(page)).toBe(0.7);
 
   await page.reload({ waitUntil: "domcontentloaded" });
+  await openSpeedOptions(page);
   await expect(box(page)).toHaveValue("1.00x");
   await fader(page).dblclick();
   await expect(box(page)).toHaveValue("0.70x");

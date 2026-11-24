@@ -1763,7 +1763,6 @@ export async function showTrackOverPlayer(trackId) {
     stems: track.audioStems,
     peaks,
     thumbnail: track.thumb,
-    playingTitle: getPlayingTrackInfo()?.displayTitle ?? "",
   });
   announceShownTrack(trackId);
 }

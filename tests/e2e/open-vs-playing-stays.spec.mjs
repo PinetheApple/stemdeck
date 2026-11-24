@@ -78,7 +78,7 @@ test.describe("the player's own controls act on the playing song", () => {
   test("the footer's Playing line follows a rename of the playing song", async ({ page }) => {
     await openSiblingOverPlaying(page);
     await call(page, "/js/catalog.js", "applyRenamedState", JOB_ID, { user_title: RENAMED_TITLE });
-    await expect(page.locator("#footerPlayingTitle")).toHaveText(RENAMED_TITLE);
+    await expect(page.locator("#footerNowTitle")).toHaveText(RENAMED_TITLE);
     await expect(page.locator("#title")).toHaveText(SIBLING_TITLE);
   });
 });
@@ -166,9 +166,9 @@ const NARROW_WINDOWS = [
 ];
 const AT_MOST_ONE_MORE_ROW = 1;
 
-/** Rows the footer's clusters wrap onto: distinct tops among the shown groups. */
+/** Rows the footer's zones sit on: distinct tops among the shown ones. */
 const footerRows = (page) => page.evaluate(() => {
-  const groups = [...document.querySelectorAll(".footer-clusters > .footer-group")]
+  const groups = [...document.querySelectorAll(".ft > *")]
     .filter((el) => el.getClientRects().length > 0);
   return new Set(groups.map((el) => Math.round(el.getBoundingClientRect().top))).size;
 });
@@ -180,7 +180,7 @@ for (const viewport of NARROW_WINDOWS) {
     await startPlayback(page);
     const before = await footerRows(page);
     await call(page, "/js/openSong.js", "openSong", SIBLING_JOB_ID);
-    await expect(page.locator("#footerPlaying")).toBeVisible();
+    await expect(page.locator(".ft-now-playing")).toBeVisible();
     await expect.poll(() => footerRows(page)).toBeLessThanOrEqual(before + AT_MOST_ONE_MORE_ROW);
   });
 }

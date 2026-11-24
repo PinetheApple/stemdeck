@@ -13,6 +13,7 @@ export const OPEN_FLOATS = [
   ".daw-notif-wrap.open .daw-notif-panel",
   "#stemOverflow.open",
   "#search-panel:not(.hidden)",
+  ".ft-pop:not(.hidden)",
 ].join(", ");
 const MODAL = 'dialog[open], [role="dialog"][aria-modal="true"]';
 const GUIDE_ON = "body.help-mode";

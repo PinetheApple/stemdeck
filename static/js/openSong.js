@@ -9,7 +9,7 @@ import {
   showTrackOverPlayer,
   shownTrackId,
 } from "./catalog.js";
-import { setPlayingTitle } from "./openPreview.js";
+import { initFooterNow } from "./footerNow.js";
 import { REC_PHASE, recordingTake } from "./recorder.js";
 import { openVersion } from "./versions.js";
 import { cancelPlayWhenLoaded, loadAndPlay, playWhenLoaded, upNextTakesOver } from "./upNext.js";
@@ -84,10 +84,6 @@ function onPlaybackReady(e) {
   readyTrackId = e.detail?.id ?? null;
 }
 
-function onTrackNames() {
-  if (shownTrackId()) setPlayingTitle(getPlayingTrackInfo()?.displayTitle ?? "");
-}
-
 function onPlayingTitleClick() {
   const id = playingTrackId();
   if (!id) return;
@@ -96,10 +92,10 @@ function onPlayingTitleClick() {
 }
 
 export function initOpenSong() {
+  initFooterNow();
   $("footerPlayingTitle")?.addEventListener("click", onPlayingTitleClick);
   setPlayRedirect(playShownSongInstead);
   $("songPlayBtn")?.addEventListener("click", onSongHeadPlayClick);
   document.addEventListener("trackended", onPlayingSongEnded);
   document.addEventListener("playbackready", onPlaybackReady);
-  document.addEventListener("tracknames", onTrackNames);
 }

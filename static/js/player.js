@@ -1,6 +1,5 @@
 import Multitrack from "/vendor/multitrack.js";
 import { fmtTime } from "./utils.js";
-import { deviceScale, fitWaveCanvas, drawWaveBars } from "./waveBars.js";
 // job.js imports this module in turn. The cycle is pre-existing (catalog.js does
 // the same) and safe: these are only ever called from a callback, long after both
 // module bodies have run, and they close over DOM handles from dom.js rather than
@@ -14,7 +13,7 @@ import {
 import {
   mixerEl, multitrackContainer, bpmChip, keyChip, stemsChip, timeEl,
   titleEl, npThumb, rulerTime, wavesGrid, playBtn,
-  stopBtn, loopBtn, loopRegionEl,
+  stopBtn, loopRegionEl,
   multitrack, currentJobId, trackIndex, totalDuration, loopEnabled,
   loopStart, loopEnd, trackAnalysers,
   masterVolume, masterFader, mixerState,
@@ -23,7 +22,7 @@ import {
   setLoopEnabled, setLoopStart, setLoopEnd, setMasterVolume,
   waveScroll, selectedStems,
   footerTitle, footerMeta, footerThumb,
-  setFooterWaveDrawFn, setOverviewRerenderFn, autoSectionsResetFn,
+  setOverviewRerenderFn, autoSectionsResetFn,
   metronome, setMetronome, metronomeEnabled, metronomeVolume, metronomeBeatsPerBar,
   metronomeCountInBars, metronomeGrouping, metronomeSound,
   exportClickEl, exportClickWrap, exportCountInEl, exportCountInWrap,
@@ -53,7 +52,7 @@ import {
 import {
   buildRuler, updatePlayheadMarker, updateLoopRegionVisual,
   applyWaveZoom, resetWaveZoom, WAVE_ZOOM_MAX,
-  buildPresenceRuler, buildFooterWaveTicks, updateFooterTimes,
+  buildPresenceRuler, updateFooterTimes, paintLoopButton,
   updatePresencePlayhead, resetSpeed, resetPitch, updatePitchAvailability,
   updateMetronomeAvailability, applyMetronomeAccent,
 } from "./transport.js";
@@ -287,22 +286,16 @@ const WAVEFORM_SEPARATOR_HEIGHT = 2;
 let visualRenderToken = 0;
 let visualAudioContext = null;
 let stemVuRafId = null;
-let _footerWavePeaks = null;
+let _songPeaks = null;
 export const WAVE_PEAKS_EVENT = "wavepeaks";
 export const DURATION_EVENT = "songduration";
 const announceWavePeaks = () => document.dispatchEvent(new CustomEvent(WAVE_PEAKS_EVENT));
 
 /** The open song's whole-song `[min, max]` peaks, or null until they load. Read-only. */
 export function getWavePeaks() {
-  return _footerWavePeaks;
+  return _songPeaks;
 }
-let _footerAccent = "";
-let _lastFooterProgress = 0;
-let _footerPlaceholderResizeObs = null;
-const _FOOTER_BARS = 300;
-const _FOOTER_REST_COLOR = "rgba(255,255,255,0.13)";
-const _FOOTER_WAVE_FILL = 0.78;
-const _FOOTER_MIN_BAR_H = 3;
+const SONG_PEAK_BARS = 300;
 
 function isAudioBufferLike(value) {
   return value && typeof value.getChannelData === "function";
@@ -937,23 +930,15 @@ export function destroyPlayer() {
   setTrackIndex({});
   applyWaveZoom();
   buildPresenceRuler(0);
-  buildFooterWaveTicks(0);
   updateFooterTimes(0);
   updatePresencePlayhead(0);
   if (waveScroll) waveScroll.scrollLeft = 0;
   resetFollowing();
-  loopBtn.classList.remove("active");
+  paintLoopButton();
   playBtn.classList.remove("playing");
   stopBtn.classList.remove("stopped");
   loopRegionEl.classList.add("hidden");
-  _footerWavePeaks = null;
-  _lastFooterProgress = 0;
-  _footerPlaceholderResizeObs?.disconnect();
-  _footerPlaceholderResizeObs = null;
-  _footerWaveResizeObs?.disconnect();
-  setFooterWaveDrawFn(null);
-  const cv = document.getElementById("footer-waveform");
-  if (cv) { const c = cv.getContext("2d"); c?.clearRect(0, 0, cv.width, cv.height); }
+  _songPeaks = null;
   updateFooterTrack({});
 }
 
@@ -1191,7 +1176,6 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
   setLoopEnabled(false);
   setLoopStart(0);
   setLoopEnd(0);
-  loopBtn.classList.remove("active");
   loopRegionEl.classList.add("hidden");
   // Loading a song is the end of whatever the structure toggle was asked to do
   // for the last one. It costs minutes of CPU per import, so it goes back to
@@ -1244,9 +1228,8 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
   applyStemSelectionFilter(new Set(stems.map((s) => s.name)));
   updateFooterTrack({ thumbnail, stemCount: stems.filter((s) => s.name !== "original").length });
 
-  // Reset footer waveform state — will be re-populated below after peaks fetch.
-  _footerWavePeaks = null;
-  setFooterWaveDrawFn(null);
+  // The whole-song peaks are re-populated below after the peaks fetch.
+  _songPeaks = null;
   const waveformUrl = _mixUrl
     || stems.find((s) => s.name === "original")?.url
     || stems[0]?.url;
@@ -1256,7 +1239,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
   // its stem WAV fetches. This keeps peaks.json out of Safari's 6-connection-per-
   // origin window, preventing stem WAV queuing that causes buffer underruns.
   let precomputedPeaks = {};
-  const _footerStemName = stems.find((s) => s.name === "original") ? "original" : stems[0]?.name;
+  const peaksStemName = stems.find((s) => s.name === "original") ? "original" : stems[0]?.name;
   const _peaksPromise = peaksPromise ?? (jobId
     ? (() => {
         const ac = new AbortController();
@@ -1385,15 +1368,13 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
   _peaksPromise.then((peaks) => {
     if (token !== visualRenderToken) return;
     precomputedPeaks = peaks;
-    const footerPeaks = peaks[_footerStemName] || peaks[Object.keys(peaks)[0]];
-    if (footerPeaks?.length) {
-      const step = Math.ceil(footerPeaks.length / _FOOTER_BARS);
-      _footerWavePeaks = footerPeaks.filter((_, i) => i % step === 0).slice(0, _FOOTER_BARS);
+    const stemPeaks = peaks[peaksStemName] || peaks[Object.keys(peaks)[0]];
+    if (stemPeaks?.length) {
+      const step = Math.ceil(stemPeaks.length / SONG_PEAK_BARS);
+      _songPeaks = stemPeaks.filter((_, i) => i % step === 0).slice(0, SONG_PEAK_BARS);
       announceWavePeaks();
-      setFooterWaveDrawFn(_drawFooterWave);
-      _drawFooterWave(0);
     } else if (waveformUrl) {
-      initFooterWaveform(waveformUrl);
+      loadWavePeaksFromStem(waveformUrl);
     }
     // Render the overview as soon as peaks arrive — independent of the audio
     // `canplay` event, so the waveform appears even if the engine owns playback
@@ -1447,7 +1428,6 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
     buildRuler(totalDuration);
     document.dispatchEvent(new CustomEvent(DURATION_EVENT));
     buildPresenceRuler(totalDuration);
-    buildFooterWaveTicks(totalDuration);
     updateFooterTimes(0);
     updatePresencePlayhead(0);
     setMasterVolume(masterFader ? parseFloat(masterFader.value) : masterVolume);
@@ -1752,96 +1732,20 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
   });
 }
 
-export function drawFooterPlaceholder() {
-  _drawPlaceholderWave();
-  const bar = document.getElementById("footer-waveform")?.closest(".footer-wave-bar");
-  if (bar) {
-    _footerPlaceholderResizeObs?.disconnect();
-    _footerPlaceholderResizeObs = new ResizeObserver(() => { if (!_footerWavePeaks) _drawPlaceholderWave(); });
-    _footerPlaceholderResizeObs.observe(bar);
-  }
-}
-
-function _drawPlaceholderWave() {
-  const canvas = document.getElementById("footer-waveform");
-  if (!canvas) return;
-  const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  if (!w || !h) return;
-  canvas.width = Math.round(w * dpr);
-  canvas.height = Math.round(h * dpr);
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const n = 300;
-  const barW = canvas.width / n;
-  const gap = 1;
-  const cy = canvas.height / 2;
-  for (let i = 0; i < n; i++) {
-    const t = i / n;
-    const amp = 0.15 + 0.55 * (
-      0.5 * Math.abs(Math.sin(t * Math.PI * 3.7 + 0.5)) +
-      0.3 * Math.abs(Math.sin(t * Math.PI * 9.1 + 1.2)) +
-      0.2 * Math.abs(Math.sin(t * Math.PI * 21.3 + 2.8))
-    );
-    const barH = Math.max(3, amp * canvas.height * 0.78);
-    const x = Math.round(i * barW);
-    const nextX = i === n - 1 ? canvas.width : Math.round((i + 1) * barW);
-    const bw = Math.max(1, nextX - x - gap);
-    ctx.fillStyle = "rgba(255,255,255,0.07)";
-    ctx.fillRect(x, cy - barH / 2, bw, barH);
-  }
-}
-
-function _drawFooterWave(progress) {
-  _lastFooterProgress = progress;
-  const canvas = document.getElementById("footer-waveform");
-  if (!canvas) return;
-  if (!_footerWavePeaks) { _drawPlaceholderWave(); return; }
-  const ctx = fitWaveCanvas(canvas);
-  if (!ctx) return;
-  const dpr = deviceScale();
-  const cy = canvas.height / 2;
-  const accent = (_footerAccent ||= getComputedStyle(canvas).getPropertyValue("--accent").trim());
-  drawWaveBars(ctx, _footerWavePeaks, {
-    playedBars: Math.floor(progress * _footerWavePeaks.length),
-    playedColor: accent,
-    restColor: _FOOTER_REST_COLOR,
-    fill: _FOOTER_WAVE_FILL,
-    minBarHeight: _FOOTER_MIN_BAR_H,
-  });
-  if (progress > 0.001 && progress < 0.999) {
-    const px = progress * canvas.width;
-    ctx.beginPath();
-    ctx.arc(px, cy, 4 * dpr, 0, Math.PI * 2);
-    ctx.fillStyle = accent;
-    ctx.fill();
-  }
-}
-
-let _footerWaveResizeObs = null;
-async function initFooterWaveform(stemUrl) {
-  const canvas = document.getElementById("footer-waveform");
-  if (!canvas || !stemUrl) return;
+// Decode-only, for the whole-song peaks when peaks.json has none. It never plays
+// anything, so a 192 kHz device would cost four times the buffer for nothing.
+async function loadWavePeaksFromStem(stemUrl) {
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtx) return;
   try {
-    // Decode-only, for the footer's peaks. It never plays anything, so a
-    // 192 kHz device would cost it four times the buffer for four times the
-    // samples per peak bar and not one pixel of extra detail (#578).
     visualAudioContext ??= createPlaybackContext(AudioCtx);
     const res = await fetch(stemUrl, { cache: "force-cache" });
     if (!res.ok) return;
     const buf = await visualAudioContext.decodeAudioData(await res.arrayBuffer());
-    _footerWavePeaks = bufferMinMaxPeaks(buf, _FOOTER_BARS);
+    _songPeaks = bufferMinMaxPeaks(buf, SONG_PEAK_BARS);
     announceWavePeaks();
-    setFooterWaveDrawFn(_drawFooterWave);
-    _drawFooterWave(0);
-    // Redraw on resize so the canvas fills its container correctly
-    _footerWaveResizeObs?.disconnect();
-    _footerWaveResizeObs = new ResizeObserver(() => _drawFooterWave(_lastFooterProgress));
-    _footerWaveResizeObs.observe(canvas.parentElement || canvas);
   } catch (e) {
-    console.warn("[player] footer waveform:", e);
+    console.warn("[player] whole-song peaks:", e);
   }
 }
 

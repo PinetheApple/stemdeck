@@ -2,9 +2,12 @@ import { $, fmtTime, fmtTickLabel, fmtTimeMs, parseTimecode, storeGet, storeSet 
 import { MIN_LOOP_SEC, loopDragResult } from "./loopRegion.js";
 import { tickStepAt } from "./rulerTicks.js";
 import {
-  playBtn, playMiniBtn, stopBtn, loopBtn, timeEl, masterFader,
+  playBtn, playMiniBtn, stopBtn, prevBtn, loopBtn, timeEl, masterFader,
   speedFader,
   speedValueBox,
+  speedReadout,
+  speedDownBtn,
+  speedUpBtn,
   pitchDownBtn,
   pitchUpBtn,
   pitchValueEl,
@@ -14,7 +17,7 @@ import {
   multitrack, audioEngine, totalDuration, loopEnabled, loopStart, loopEnd, masterVolume,
   waveScroll, waveCanvas, multitrackContainer,
   presenceRulerEl, presencePlayheadEl,
-  footerTimeElapsed, footerTimeTotal, footerWaveTicks, npScrubFill, footerWaveDrawFn,
+  footerTimeElapsed, footerTimeTotal, npScrubFill,
   loopStartInput, loopEndInput,
   metroBtn, metroPanel, metroMoreBtn, metroVolEl, metroVolBtn, metroVolPanel, metroVolLabel, metroBarEl, metroBarCustomEl, metroGroupEl, metroNoteEl,
   metroCountInEl, metroSoundEl,
@@ -39,8 +42,14 @@ import { computeCountIn } from "./countIn.js";
 import { CLICK_SOUNDS } from "./clickSounds.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { pitchBlockedKey } from "./pitchBus.js";
-import { refitFooter } from "./footerFit.js";
-import { SPEED_MIN, SPEED_MAX, SPEED_STEP, SPEED_NOTCH, clampSpeed, nextNotch, parseSpeedInput } from "./speedInput.js";
+import { ON_CLASS } from "./footerClasses.js";
+import { paintKeyPanel } from "./footerKey.js";
+import { wirePopover } from "./footerPopover.js";
+import { CLICK_STATE_EVENT, initFooterClick } from "./footerClick.js";
+import { initFooterPractice } from "./footerPractice.js";
+import { initUpNextButton } from "./footerTransport.js";
+import { paintSectionLine } from "./footerSections.js";
+import { SPEED_MIN, SPEED_MAX, SPEED_STEP, SPEED_NOTCH, TIMES_SIGN, clampSpeed, nextNotch, parseSpeedInput } from "./speedInput.js";
 import { trackPlayhead, resumeFollowing } from "./autoScroll.js";
 import { startMediaAnchor, pauseMediaAnchor } from "./mediaSession.js";
 
@@ -188,17 +197,11 @@ export function updatePlayheadMarker(currentSec) {
   }
 }
 
-// Mirror the elapsed/total time into the transport-footer's two side
-// labels (which used to show hardcoded "00:00.000" / "03:38.000") and
-// drive the small scrub bar in the now-playing card. Driven from the
-// same wavesurfer "timeupdate" event that already updates #t-time, so
-// every label stays in sync without extra event plumbing.
-//
-// Written only when the text actually changes. This runs every frame while
-// playing, and assigning textContent replaces the text node even when the
-// string is the same, which re-lays out the whole footer control strip sixty
-// times a second to show a number that moves once a second (#633).
+// The footer's elapsed and total time, its seek bar and its section line.
+// Written only when the text changes: this runs every frame while playing, and
+// rewriting identical text still re-lays out the footer.
 export function updateFooterTimes(currentSec) {
+  paintSectionLine(totalDuration ? currentSec : 0);
   const elapsed = fmtTime(totalDuration ? currentSec : 0);
   const total = fmtTime(totalDuration);
   if (footerTimeElapsed && footerTimeElapsed.textContent !== elapsed) footerTimeElapsed.textContent = elapsed;
@@ -206,24 +209,6 @@ export function updateFooterTimes(currentSec) {
   if (!totalDuration) return;
   const pct = Math.max(0, Math.min(100, (currentSec / totalDuration) * 100));
   if (npScrubFill) npScrubFill.style.width = `${pct}%`;
-  footerWaveDrawFn?.(pct / 100);
-}
-
-// Time labels above the footer waveform. Same ticks as the ruler over the
-// lanes, positioned the same way (percent of duration), because the footer
-// strip is now indented to share that ruler's left edge and width.
-export function buildFooterWaveTicks(durationSec) {
-  if (!footerWaveTicks) return;
-  footerWaveTicks.innerHTML = "";
-  if (!durationSec || durationSec <= 0) return;
-  const step = tickStep(durationSec);
-  for (let t = 0; t <= durationSec; t += step) {
-    const tick = document.createElement("div");
-    tick.className = "tick";
-    tick.style.left = `${(t / durationSec) * 100}%`;
-    tick.innerHTML = `<span class="tick-label">${fmtTickLabel(t)}</span>`;
-    footerWaveTicks.appendChild(tick);
-  }
 }
 
 // Build the presence-panel ruler labels from the actual track duration.
@@ -259,7 +244,15 @@ export function updatePresencePlayhead(currentSec) {
   presencePlayheadEl.classList.remove("hidden");
 }
 
+/** Loop's on state, on the button and its footer segment. */
+export function paintLoopButton() {
+  loopBtn.classList.toggle("active", loopEnabled);
+  loopBtn.setAttribute("aria-pressed", String(loopEnabled));
+  loopBtn.closest(".ft-seg")?.classList.toggle(ON_CLASS, loopEnabled);
+}
+
 export function updateLoopRegionVisual() {
+  paintLoopButton();
   const regionItem = document.getElementById("t-export-region");
   const hasRegion = loopEnabled && totalDuration > 0 && loopEnd > loopStart;
   if (regionItem) regionItem.setAttribute("aria-disabled", String(!hasRegion));
@@ -361,7 +354,6 @@ export function setLoopRange(start, end) {
   setLoopStart(start);
   setLoopEnd(end);
   setLoopEnabled(true);
-  loopBtn.classList.add("active");
   updateLoopRegionVisual();
   return true;
 }
@@ -646,9 +638,13 @@ export function stopTransport() {
   if (eng) playBtn.classList.remove("playing");
 }
 
+/** The footer's Previous: back to the start of the playing song. */
+export function goToPrevious() {
+  setPlayheadTime(0);
+}
+
 export function toggleLoop() {
   setLoopEnabled(!loopEnabled);
-  loopBtn.classList.toggle("active", loopEnabled);
   updateLoopRegionVisual();
 }
 
@@ -775,7 +771,6 @@ function wireLoopDrag() {
       if (Math.abs(t - dragStartTime) < MIN_LOOP_SEC) return;
       moved = true;
       setLoopEnabled(true);
-      loopBtn.classList.add("active");
     }
     if (t < dragStartTime) {
       setLoopStart(t);
@@ -796,7 +791,6 @@ function wireLoopDrag() {
       setLoopStart(boundsBefore.start);
       setLoopEnd(boundsBefore.end);
       setLoopEnabled(false);
-      loopBtn.classList.remove("active");
       updateLoopRegionVisual();
       setPlayheadTime(dragStartTime);
     }
@@ -1018,6 +1012,8 @@ export function wireTransportButtons() {
   playBtn.addEventListener("click", togglePlayPauseFromTransport);
   playMiniBtn?.addEventListener("click", togglePlayPauseFromTransport);
   stopBtn.addEventListener("click", stopTransport);
+  prevBtn?.addEventListener("click", goToPrevious);
+  initUpNextButton();
   loopBtn.addEventListener("click", toggleLoop);
   wireLoopDrag();
   wireLoopRegionAdjust();
@@ -1038,6 +1034,8 @@ export function wireTransportButtons() {
   wireSpeedControl();
   wireMetronomeControl();
   wirePitchControl();
+  initFooterPractice({ stepSpeed, toggleSlowSpeed, resetAllKeys, stepKey, paintKey: renderPitch });
+  initFooterClick({ toggleMetronome });
 }
 
 const SLOW_DEFAULT = 0.75;
@@ -1045,7 +1043,6 @@ const _SLOW_SPEED_KEY = "stemdeck:slow-speed";
 // A drag or a turn of the wheel fires many events; the rate itself is applied
 // once they stop, since every change of rate flushes the tempo stage.
 const SPEED_APPLY_DELAY_MS = 150;
-const SLOWED_CLASS = "slowed";
 const SPEED_KEY_DIRECTIONS = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 };
 
 let _slowRate = SLOW_DEFAULT;
@@ -1054,15 +1051,30 @@ let _speedBeforeClicks = { rate: SPEED_MAX, slow: SLOW_DEFAULT };
 
 const shownSpeed = () => Number(speedFader?.value ?? playbackSpeed);
 
-/** Show `rate` on the fader and in the box, coral below 1x. */
+const SPEED_DECIMALS = 2;
+
+/** Show `rate` on the fader, in the box and on the footer's stepper, coral below 1x. */
 function paintSpeed(rate) {
-  const label = `${rate.toFixed(2)}x`;
+  const label = `${rate.toFixed(SPEED_DECIMALS)}${TIMES_SIGN}`;
   if (speedFader) {
     speedFader.value = String(rate);
     speedFader.setAttribute("aria-valuetext", label);
-    speedFader.closest(".footer-group-speed")?.classList.toggle(SLOWED_CLASS, rate < SPEED_MAX);
   }
   if (speedValueBox) speedValueBox.value = label;
+  if (speedReadout) speedReadout.textContent = label;
+  speedReadout?.closest(".ft-step")?.classList.toggle(ON_CLASS, rate < SPEED_MAX);
+  if (speedDownBtn) speedDownBtn.disabled = rate <= SPEED_MIN;
+  if (speedUpBtn) speedUpBtn.disabled = rate >= SPEED_MAX;
+}
+
+/** One notch slower (`direction` < 0) or faster, from the footer's - and +. */
+export function stepSpeed(direction) {
+  applySpeed(nextNotch(shownSpeed(), direction));
+}
+
+/** Between 1x and the last slow speed. */
+export function toggleSlowSpeed() {
+  applySpeed(playbackSpeed < SPEED_MAX ? SPEED_MAX : _slowRate);
 }
 
 function rememberSlowSpeed(rate) {
@@ -1111,18 +1123,20 @@ const PITCH_MAX = 6;
 let _pitchSemitones = 0;
 let _pitchAvailable = false;
 
+// Signed, so "+2" and "-2" are distinguishable at a glance; bare "0" for
+// the default rather than a redundant "+0".
+const signedSemitones = (semitones) => (semitones > 0 ? `+${semitones}` : String(semitones));
+
 /** Redraw the global key readout and its buttons. Touches no lane. */
 function renderPitch() {
-  if (pitchValueEl) {
-    // Signed, so "+2" and "-2" are distinguishable at a glance; bare "0" for
-    // the default rather than a redundant "+0".
-    pitchValueEl.textContent = _pitchSemitones > 0 ? `+${_pitchSemitones}` : String(_pitchSemitones);
-    pitchValueEl.classList.toggle("active", _pitchSemitones !== 0);
-  }
+  if (pitchValueEl) pitchValueEl.textContent = signedSemitones(_pitchSemitones);
+  pitchWrap?.classList.toggle(ON_CLASS, _pitchSemitones !== 0);
   // A stepper that silently stops responding reads as broken, so say which end
   // has been reached rather than only going inert.
-  if (pitchDownBtn) pitchDownBtn.disabled = !_pitchAvailable || _pitchSemitones <= PITCH_MIN;
-  if (pitchUpBtn) pitchUpBtn.disabled = !_pitchAvailable || _pitchSemitones >= PITCH_MAX;
+  const canDown = _pitchAvailable && _pitchSemitones > PITCH_MIN;
+  const canUp = _pitchAvailable && _pitchSemitones < PITCH_MAX;
+  if (pitchDownBtn) pitchDownBtn.disabled = !canDown;
+  if (pitchUpBtn) pitchUpBtn.disabled = !canUp;
   if (pitchResetBtn) pitchResetBtn.disabled = !_pitchAvailable;
 
   // Three dead buttons still wearing "Transpose up a semitone" explain nothing.
@@ -1139,6 +1153,7 @@ function renderPitch() {
     speedFader.dataset.i18nTitle = _pitchAvailable ? "speed.faderTitle" : "speed.pitchFollows";
     speedFader.title = t(speedFader.dataset.i18nTitle);
   }
+  paintKeyPanel({ semitones: _pitchSemitones, label: signedSemitones(_pitchSemitones), canDown, canUp });
 }
 
 /**
@@ -1166,6 +1181,11 @@ function applyPitch(semitones) {
 export function resetPitch(semitones = 0) {
   _pitchSemitones = semitones;
   renderPitch();
+}
+
+/** One semitone down (`direction` < 0) or up, from the Key popover. */
+export function stepKey(direction) {
+  applyPitch(_pitchSemitones + direction);
 }
 
 /** The user's reset: the global key and every lane, back to the original. */
@@ -1432,18 +1452,11 @@ function _renderMetroGrouping() {
   const n = metronomeBeatsPerBar;
   if (!(n >= 5)) {
     metroGroupEl.classList.add("hidden");
-    // Showing or hiding it changes how wide the row wants to be by ~80px
-    // and the ResizeObserver cannot see it: the strip's own box is flex-sized
-    // and its height does not move, since everything on the row is one line of
-    // 34px controls. Without this, picking a 7/8 meter puts the strip back into
-    // the silent sideways scroll of #586.
-    refitFooter();
     return;
   }
   metroGroupEl.classList.remove("hidden");
   metroGroupEl.value = normaliseGrouping(metronomeGrouping, n).join("+");
   metroGroupEl.placeholder = defaultGrouping(n).join("+");
-  refitFooter(); // see the matching call on the hidden path above
 }
 
 // Parse "3+2+2" (or "3 2 2", or "3,2,2") into a grouping for the current meter.
@@ -1484,6 +1497,8 @@ function _applyGrouping() {
   }
 }
 
+const _announceClickState = () => document.dispatchEvent(new CustomEvent(CLICK_STATE_EVENT));
+
 // Count-in is a length select rather than the press-to-arm toggle it used to
 // be (#587): once "how many bars" is a question, on/off is just the zero case,
 // and a separate toggle beside a length would be two widgets for one setting.
@@ -1496,6 +1511,7 @@ function _renderCountIn() {
   // still shows at a glance that a count-in is armed. Armed whether or not the
   // running click is on: the count-in plays on its own (see _armCountIn).
   metroCountInEl.parentElement?.classList.toggle("active", metronomeCountInBars > 0);
+  _announceClickState();
 }
 
 // Things that have to follow the click on and off but live in modules this
@@ -1525,6 +1541,7 @@ export function toggleMetronome(force) {
       console.warn("[metronome] toggle listener failed:", e);
     }
   }
+  _announceClickState();
 }
 
 /**
@@ -1611,133 +1628,33 @@ export function updateMetronomeAvailability(grid, reason = "") {
     setMetroOptionsAvailable(false);
     renderAccentState();
     if (metroNoteEl) { metroNoteEl.textContent = reason || ""; metroNoteEl.title = ""; metroNoteEl.className = "metro-note"; }
-    // Still re-fits: the options keep their width now rather than leaving, so
-    // the row is wider in this state than it used to be and may need to
-    // collapse a level it did not before.
-    refitFooter();
+    _announceClickState();
     return;
   }
 
   metroBtn.classList.toggle("active", metronomeEnabled);
   metroBtn.setAttribute("aria-pressed", metronomeEnabled ? "true" : "false");
   setMetroOptionsAvailable(true);
-  refitFooter(); // see the matching call on the unavailable path above
   setMetronomeHasBars(Array.isArray(grid.bars) && grid.bars.length > 0);
   _renderMetroBar();
   _renderMetroNote(grid);
+  _announceClickState();
 }
 
-// ── Footer popovers ──────────────────────────────────────────────────────
-//
-// Two of them in the click-track cluster: the options panel behind
-// #t-metro-more, and the volume fader.
-//
-// Both are position:fixed. .footer-clusters scrolls sideways and clips
-// vertically (overflow-y: hidden), so an absolutely positioned panel would be
-// clipped by the strip it belongs to. Fixed escapes that, at the price of
-// placing them from the trigger's rect by hand.
-
-/**
- * Put `panel` directly above `btn`.
- *
- * Upward because these triggers sit in the footer, so there is nothing below
- * them to open into, and measured while the panel is shown: a display:none
- * panel has no height to subtract.
- */
-function _placeAbove(btn, panel) {
-  const r = btn.getBoundingClientRect();
-  const left = Math.max(8, Math.min(Math.round(r.left), window.innerWidth - panel.offsetWidth - 8));
-  panel.style.left = `${left}px`;
-  panel.style.top = `${Math.max(8, Math.round(r.top - panel.offsetHeight - 8))}px`;
-}
-
-/**
- * Wire one trigger/panel pair.
- *
- * `shownClass` is what the panel's own CSS keys off: the options panel is shut
- * by default and opts in with .open, the volume panel ships .hidden and opts
- * out of it. `onOpen` runs before this one is shown, which is how the two take
- * turns.
- */
-function _wirePopover(btn, panel, { shownClass = "open", onOpen } = {}) {
-  const isOpen = () => btn.getAttribute("aria-expanded") === "true";
-  const place = () => _placeAbove(btn, panel);
-
-  const close = () => {
-    if (!isOpen()) return;
-    if (shownClass === "hidden") panel.classList.add("hidden");
-    else panel.classList.remove(shownClass);
-    btn.setAttribute("aria-expanded", "false");
-  };
-
-  const open = () => {
-    onOpen?.();
-    if (shownClass === "hidden") panel.classList.remove("hidden");
-    else panel.classList.add(shownClass);
-    btn.setAttribute("aria-expanded", "true");
-    place();
-  };
-
-  btn.addEventListener("click", (e) => {
-    // Stops the document handler below from treating the press that opened a
-    // panel as the click away that shuts it -- and, for a trigger sitting
-    // inside another panel, stops that outer one closing underneath it.
-    e.stopPropagation();
-    if (isOpen()) close();
-    else open();
+// The Tempo tab's click volume fader and its options disclosure.
+function wireClickPopovers() {
+  if (metroVolBtn && metroVolPanel) wirePopover(metroVolBtn, metroVolPanel);
+  if (!metroMoreBtn || !metroPanel) return;
+  const options = wirePopover(metroMoreBtn, metroPanel, { shownClass: "open" });
+  // A revealed grouping box changes the panel's height, and so where an upward panel's top belongs.
+  metroPanel.addEventListener("change", function onClickOptionsResize() {
+    if (options.isOpen()) options.place();
   });
-
-  // A click inside is a click on a control, not a click away from it.
-  panel.addEventListener("click", (e) => e.stopPropagation());
-
-  document.addEventListener("click", close);
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && isOpen()) {
-      close();
-      btn.focus();
-    }
-  });
-
-  // Anything that moves the trigger moves the panel with it, and a refit that
-  // puts the options back inline leaves nothing for its panel to hang off.
-  window.addEventListener("resize", close);
-  window.addEventListener("footerfit", close);
-
-  return { close, place, isOpen };
-}
-
-function wireFooterPopovers() {
-  // Each trigger stops the click that opened it from reaching the document,
-  // which is what keeps that press from being read as the click away that
-  // shuts the panel -- but it also means neither panel would ever see the
-  // other open. They sit side by side in the same cluster, so only one of them
-  // should be over the footer at a time.
-  const other = {};
-
-  if (metroVolBtn && metroVolPanel) {
-    // The fader is a drag, not a click: a pointerdown that leaves the panel
-    // still ends on the document, and without this the panel would shut
-    // mid-drag.
-    metroVolPanel.addEventListener("pointerdown", (e) => e.stopPropagation());
-    const volume = _wirePopover(metroVolBtn, metroVolPanel, {
-      shownClass: "hidden",
-      onOpen: () => other.options?.(),
-    });
-    other.volume = volume.close;
-  }
-
-  if (metroMoreBtn && metroPanel) {
-    const options = _wirePopover(metroMoreBtn, metroPanel, { onOpen: () => other.volume?.() });
-    other.options = options.close;
-    // Revealing the grouping box or picking a longer meter changes the panel's
-    // height, which for an upward-opening popover changes where its top belongs.
-    metroPanel.addEventListener("change", () => { if (options.isOpen()) options.place(); });
-  }
 }
 
 function wireMetronomeControl() {
   if (!metroBtn) return;
-  wireFooterPopovers();
+  wireClickPopovers();
   onLanguageChange(_renderMetroVolume);
   onLanguageChange(renderAccentState);
   onLanguageChange(_renderMetroSound);
@@ -1771,6 +1688,7 @@ function wireMetronomeControl() {
       metroBtn.classList.add("active");
       metroBtn.setAttribute("aria-pressed", "true");
     }
+    _announceClickState();
   }).catch((e) => console.warn("[transport] failed to load metronome prefs:", e));
 
   // Click options sit inline, always visible once a grid exists.
