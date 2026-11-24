@@ -11,7 +11,8 @@ import { test, expect } from "@playwright/test";
 import { openStudio, waitForPanesSettled, SIBLING_JOB_ID } from "./helpers.mjs";
 
 const BOTH_PANES_WINDOW = { width: 1600, height: 900 };
-const MAX_ZOOM = 10;
+const NOTCHES_TO_MAX = 40;
+const maxZoom = (page) => page.evaluate(async () => (await import("/js/transport.js")).WAVE_ZOOM_MAX);
 
 const wheel = (page, dy, x = 900, y = 400) =>
   page.mouse.move(x, y).then(() => page.mouse.wheel(0, dy));
@@ -113,8 +114,8 @@ test.describe("waveform zoom", () => {
     expect(fitted.zoomVar).toBeCloseTo(1, 2);
     expect(fitted.content).toBe(fitted.viewport);
 
-    for (let i = 0; i < 40; i++) await wheel(page, -240);
-    expect((await zoomState(page)).zoomVar).toBeCloseTo(MAX_ZOOM, 2);
+    for (let i = 0; i < NOTCHES_TO_MAX; i++) await wheel(page, -240);
+    expect((await zoomState(page)).zoomVar).toBeCloseTo(await maxZoom(page), 2);
   });
 
   test("scrolling up zooms in and scrolling down comes back", async ({ page }) => {
@@ -152,7 +153,7 @@ test.describe("waveform zoom", () => {
     await openStudio(page, { tauri: true });
     const fitted = await zoomState(page);
 
-    for (let i = 0; i < 40; i++) await wheel(page, -240);
+    for (let i = 0; i < NOTCHES_TO_MAX; i++) await wheel(page, -240);
     const maxed = await zoomState(page);
     expect(maxed.content / fitted.content).toBeCloseTo(10, 1);
 
@@ -252,11 +253,8 @@ test.describe("waveform zoom", () => {
     expect(bounds.end - bounds.start).toBeLessThan(0.2);
   });
 
-  // WAVE_MIN_WIDTH floors the content width, so on a narrow window the
-  // first zoom step can widen the content by less than its own factor, or not at
-  // all. Deriving the scroll correction from the zoom ratio rather than the
-  // measured width slides the anchor out from under the pointer exactly here.
-  // 600px leaves the wave area narrower than that floor.
+  // 600px is deliberately below any supported window, so the width floor applies and a
+  // step widens the content by less than its factor; only the measured width holds the anchor.
   test("the anchor holds where the minimum wave width floors the growth", async ({ page }) => {
     await page.setViewportSize({ width: 600, height: 800 });
     await openStudio(page, { tauri: true });
@@ -283,7 +281,7 @@ test.describe("waveform zoom", () => {
     await openStudio(page, { tauri: true });
     const base = await zoomState(page);
 
-    for (let i = 0; i < 40; i++) await wheel(page, -240);
+    for (let i = 0; i < NOTCHES_TO_MAX; i++) await wheel(page, -240);
     const zoomed = await zoomState(page);
 
     // Same ticks spread over five screen widths would be a worse ruler the
@@ -336,7 +334,7 @@ test.describe("waveform zoom", () => {
     const canvasesBefore = await waveSurferCanvases(page);
     expect(canvasesBefore.length).toBeGreaterThan(0);
 
-    for (let i = 0; i < 40; i++) await wheel(page, -240);
+    for (let i = 0; i < NOTCHES_TO_MAX; i++) await wheel(page, -240);
     await page.waitForTimeout(1200);
 
     const after = await zoomState(page);
