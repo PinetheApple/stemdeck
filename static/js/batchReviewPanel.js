@@ -1,5 +1,5 @@
 import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
-import { ADD_SONG_ID } from "./composerDrawer.js";
+import { ADD_SONG_ID } from "./addSongIds.js";
 
 const FOCUSABLE = "button:not(:disabled), input:not(:disabled)";
 

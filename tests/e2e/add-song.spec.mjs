@@ -193,11 +193,12 @@ test("a waiting batch shows its count on Add song's corner, and the badge reopen
   await expect(badge(page)).toHaveText(String(held));
   await expect(badge(page)).toHaveAttribute("title", label);
   await expect(badge(page)).toHaveAttribute("aria-label", label);
-  const b = await badge(page).boundingBox();
-  const a = await addSong(page).boundingBox();
-  expect(b.x, "it straddles Add song's right edge").toBeLessThan(a.x + a.width);
-  expect(b.x + b.width).toBeGreaterThan(a.x + a.width);
-  expect(b.y, "on its top corner").toBeLessThan(a.y + a.height / 2);
+  const badgeBox = await badge(page).boundingBox();
+  const buttonBox = await addSong(page).boundingBox();
+  const buttonRight = buttonBox.x + buttonBox.width;
+  expect(badgeBox.x, "it straddles Add song's right edge").toBeLessThan(buttonRight);
+  expect(badgeBox.x + badgeBox.width).toBeGreaterThan(buttonRight);
+  expect(badgeBox.y, "on its top corner").toBeLessThan(buttonBox.y + buttonBox.height / 2);
 
   await badge(page).click();
   await expect(review(page)).toBeVisible();

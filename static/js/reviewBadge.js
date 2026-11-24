@@ -1,5 +1,5 @@
 import { plural } from "./i18n.js";
-import { ADD_SONG_ID } from "./composerDrawer.js";
+import { ADD_SONG_ID } from "./addSongIds.js";
 
 const BADGE_ID = "addSongReviewBadge";
 const BADGE_CLASS = "add-song-badge";
@@ -7,7 +7,7 @@ const REVIEW_KEY = "batch.review";
 
 let badge = null;
 
-/** The count of a batch waiting behind a closed review, on Add song's corner; `onOpen` reopens the review. */
+/** `onOpen` reopens the waiting batch's review. */
 export function mountReviewBadge(onOpen) {
   const anchor = document.getElementById(ADD_SONG_ID);
   if (!anchor || badge) return;
@@ -20,7 +20,6 @@ export function mountReviewBadge(onOpen) {
   anchor.after(badge);
 }
 
-/** Show `count` on the badge, or hide it at 0. */
 export function paintReviewBadge(count) {
   if (!badge) return;
   badge.hidden = count === 0;

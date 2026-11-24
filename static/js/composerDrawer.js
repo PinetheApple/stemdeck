@@ -3,17 +3,16 @@ import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
 import { closeSearch } from "./search.js";
 import { wireEmptyStart } from "./addSongStart.js";
 import { wireDropOverlay } from "./dropOverlay.js";
+import { ADD_SONG_ID, ADD_SONG_POPOVER_ID } from "./addSongIds.js";
 
-const DRAWER_ID = "composerDrawer";
-export const ADD_SONG_ID = "addSongBtn";
 const URL_FIELD_ID = "url";
 const SEARCH_PANEL_ID = "search-panel";
 const HIDDEN_CLASS = "hidden";
 // Part of the popover though not inside it: its button, and the search results search.js hangs on <body>.
-const OWN_TARGETS = `#${DRAWER_ID}, #${ADD_SONG_ID}, #${SEARCH_PANEL_ID}`;
+const OWN_TARGETS = `#${ADD_SONG_POPOVER_ID}, #${ADD_SONG_ID}, #${SEARCH_PANEL_ID}`;
 const MODAL_ABOVE = 'dialog[open], [role="dialog"][aria-modal="true"]';
 
-const drawer = () => document.getElementById(DRAWER_ID);
+const drawer = () => document.getElementById(ADD_SONG_POPOVER_ID);
 const addSongBtn = () => document.getElementById(ADD_SONG_ID);
 const searchShown = () => document.getElementById(SEARCH_PANEL_ID)?.classList.contains(HIDDEN_CLASS) === false;
 

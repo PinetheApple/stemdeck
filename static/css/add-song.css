@@ -13,6 +13,7 @@
   --drop-overlay-tint: 70%;
   --add-song-badge: 18px;
   --add-song-badge-overlap: 12px;
+  --add-song-badge-z: 1;
 }
 
 .add-song-pop {
@@ -53,12 +54,13 @@
 
 .add-song-pickers { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); min-width: 0; }
 .add-song-picker {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
-  height: var(--ctl-h-sm);
-  padding: 0 var(--s-3);
+  min-height: var(--ctl-h-sm);
+  padding: var(--s-1) var(--s-3);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-2);
   background: var(--surface-2);
@@ -66,14 +68,14 @@
   font: inherit;
   font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
-  white-space: nowrap;
+  text-align: start;
   cursor: pointer;
 }
 .add-song-picker:hover { background: var(--surface-3); }
 .add-song-picker[hidden] { display: none; }
 .add-song-picker .ic { width: var(--icon-sm); height: var(--icon-sm); }
 .add-song-formats {
-  white-space: nowrap;
+  min-width: 0;
   font-size: var(--fs-xs);
   color: var(--text-3);
 }
@@ -244,10 +246,10 @@
 .empty-start-btn.is-primary { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
 .empty-start-btn.is-primary:hover { background: var(--accent-hi); }
 
-/* A sibling of Add song, not inside it, so the badge stays its own button; the negative margin lays it on the corner. */
+/* A sibling of Add song, not inside it: a button may not hold another button. */
 .add-song-badge {
   position: relative;
-  z-index: 1;
+  z-index: var(--add-song-badge-z);
   align-self: flex-start;
   min-width: var(--add-song-badge);
   height: var(--add-song-badge);

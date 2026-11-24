@@ -507,7 +507,6 @@ const en = {
   "notif.railLabel": "Alerts",
   "nav.settingsRail": "Settings",
   "start.title": "Start with a song",
-  "start.hint": "Paste a link or drop an audio file in the bar above, or pick a song from your library.",
   "start.upload": "Choose a file",
   "start.link": "Paste a link",
   "help.pill": "Help mode: point at anything to see what it does. Esc to leave.",
@@ -1560,7 +1559,7 @@ const en = {
   "help.version": "A version of this song, with its own stems and mix. Double-click to open it.",
   "help.extractMore": "Pick the stems to add. They are saved as a new version.",
   "help.versionPill": "The open version. Switch to another one or save a new one.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "Search, paste links, or drop files…",
   "batch.dropHere": "Drop files or a folder",
   "batch.addFiles": "Add files",
@@ -1764,6 +1763,7 @@ const en = {
   "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
   "addsong.startHint": "Paste links, or drop files or a folder anywhere in the window.",
   "addsong.browseLibrary": "Browse library",
+  "addsong.help.reviewBadge": "A batch is waiting: opens its review.",
 };
 
 const pl = {
@@ -2054,7 +2054,6 @@ const pl = {
   "notif.railLabel": "Alerty",
   "nav.settingsRail": "Ustawienia",
   "start.title": "Zacznij od utworu",
-  "start.hint": "Wklej link lub upuść plik audio na pasku powyżej albo wybierz utwór z biblioteki.",
   "start.upload": "Wybierz plik",
   "start.link": "Wklej link",
   "help.pill": "Tryb pomocy: wskaż dowolny element, aby zobaczyć, co robi. Esc, aby wyjść.",
@@ -3103,7 +3102,7 @@ const pl = {
   "help.version": "Wersja tego utworu, z własnymi ścieżkami i miksem. Kliknij dwukrotnie, aby ją otworzyć.",
   "help.extractMore": "Wybierz ścieżki do dodania. Zostaną zapisane jako nowa wersja.",
   "help.versionPill": "Otwarta wersja. Przełącz na inną albo zapisz nową.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "Szukaj, wklej linki albo upuść pliki…",
   "batch.dropHere": "Upuść pliki lub folder",
   "batch.addFiles": "Dodaj pliki",
@@ -3321,6 +3320,7 @@ const pl = {
   "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
   "addsong.startHint": "Wklej linki albo upuść pliki lub folder w dowolnym miejscu okna.",
   "addsong.browseLibrary": "Przeglądaj bibliotekę",
+  "addsong.help.reviewBadge": "Partia czeka: otwiera jej przegląd.",
 };
 
 const ja = {
@@ -3611,7 +3611,6 @@ const ja = {
   "notif.railLabel": "通知",
   "nav.settingsRail": "設定",
   "start.title": "曲から始めましょう",
-  "start.hint": "上のバーにリンクを貼り付けるか音声ファイルをドロップするか、ライブラリから曲を選んでください。",
   "start.upload": "ファイルを選択",
   "start.link": "リンクを貼り付け",
   "help.pill": "ヘルプモード：項目を指すと、その働きが表示されます。Esc で終了。",
@@ -4625,7 +4624,7 @@ const ja = {
   "help.version": "この曲のバージョン。パートとミックスを個別に持ちます。ダブルクリックで開きます。",
   "help.extractMore": "追加するパートを選びます。新しいバージョンとして保存されます。",
   "help.versionPill": "開いているバージョン。別のバージョンに切り替えるか、新しく保存できます。",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "検索、リンクを貼り付け、またはファイルをドロップ…",
   "batch.dropHere": "ファイルまたはフォルダをドロップ",
   "batch.addFiles": "ファイルを追加",
@@ -4815,6 +4814,7 @@ const ja = {
   "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
   "addsong.startHint": "リンクを貼り付けるか、ファイルやフォルダをウィンドウのどこかにドロップしてください。",
   "addsong.browseLibrary": "ライブラリを見る",
+  "addsong.help.reviewBadge": "待機中のバッチがあります。確認画面を開きます。",
 };
 
 const zhHans = {
@@ -5105,7 +5105,6 @@ const zhHans = {
   "notif.railLabel": "通知",
   "nav.settingsRail": "设置",
   "start.title": "从一首歌开始",
-  "start.hint": "在上方栏中粘贴链接或拖入音频文件，或从资料库中选一首歌。",
   "start.upload": "选择文件",
   "start.link": "粘贴链接",
   "help.pill": "帮助模式：指向任何项目即可看到它的作用。按 Esc 退出。",
@@ -6119,7 +6118,7 @@ const zhHans = {
   "help.version": "这首歌的一个版本，有自己的音轨和混音。双击即可打开。",
   "help.extractMore": "选择要添加的音轨，它们会另存为新版本。",
   "help.versionPill": "当前打开的版本。可切换到其他版本，或另存为新版本。",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "搜索、粘贴链接，或拖放文件…",
   "batch.dropHere": "拖放文件或文件夹",
   "batch.addFiles": "添加文件",
@@ -6309,6 +6308,7 @@ const zhHans = {
   "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
   "addsong.startHint": "粘贴链接，或将文件或文件夹拖放到窗口中的任意位置。",
   "addsong.browseLibrary": "浏览资料库",
+  "addsong.help.reviewBadge": "有一批正在等待：打开它的检查。",
 };
 
 const de = {
@@ -6599,7 +6599,6 @@ const de = {
   "notif.railLabel": "Hinweise",
   "nav.settingsRail": "Optionen",
   "start.title": "Mit einem Song beginnen",
-  "start.hint": "Füge oben einen Link ein oder zieh eine Audiodatei hinein, oder wähle einen Song aus deiner Bibliothek.",
   "start.upload": "Datei wählen",
   "start.link": "Link einfügen",
   "help.pill": "Hilfemodus: Zeig auf etwas, um zu sehen, was es tut. Esc zum Beenden.",
@@ -7628,7 +7627,7 @@ const de = {
   "help.version": "Eine Version dieses Songs mit eigenen Stems und eigenem Mix. Doppelklick öffnet sie.",
   "help.extractMore": "Wähle die Stems, die dazukommen. Sie werden als neue Version gespeichert.",
   "help.versionPill": "Die geöffnete Version. Wechsle zu einer anderen oder speichere eine neue.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "Suchen, Links einfügen oder Dateien ablegen…",
   "batch.dropHere": "Dateien oder einen Ordner ablegen",
   "batch.addFiles": "Dateien hinzufügen",
@@ -7832,6 +7831,7 @@ const de = {
   "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
   "addsong.startHint": "Füge Links ein oder zieh Dateien oder einen Ordner irgendwo ins Fenster.",
   "addsong.browseLibrary": "Bibliothek durchsuchen",
+  "addsong.help.reviewBadge": "Ein Stapel wartet: öffnet seine Prüfung.",
 };
 
 const pt = {
@@ -8122,7 +8122,6 @@ const pt = {
   "notif.railLabel": "Avisos",
   "nav.settingsRail": "Ajustes",
   "start.title": "Comece com uma música",
-  "start.hint": "Cole um link ou solte um arquivo de áudio na barra acima, ou escolha uma música da sua biblioteca.",
   "start.upload": "Escolher arquivo",
   "start.link": "Colar link",
   "help.pill": "Modo ajuda: aponte para qualquer coisa para ver o que faz. Esc para sair.",
@@ -9153,7 +9152,7 @@ const pt = {
   "help.version": "Uma versão desta música, com seus próprios stems e mixagem. Clique duas vezes para abrir.",
   "help.extractMore": "Escolha os stems a adicionar. Eles são salvos como uma nova versão.",
   "help.versionPill": "A versão aberta. Mude para outra ou salve uma nova.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "Pesquise, cole links ou solte arquivos…",
   "batch.dropHere": "Solte arquivos ou uma pasta",
   "batch.addFiles": "Adicionar arquivos",
@@ -9357,6 +9356,7 @@ const pt = {
   "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
   "addsong.startHint": "Cole links ou solte arquivos ou uma pasta em qualquer lugar da janela.",
   "addsong.browseLibrary": "Explorar biblioteca",
+  "addsong.help.reviewBadge": "Um lote está esperando: abre a revisão dele.",
 };
 
 const id = {
@@ -9647,7 +9647,6 @@ const id = {
   "notif.railLabel": "Notifikasi",
   "nav.settingsRail": "Pengaturan",
   "start.title": "Mulai dengan sebuah lagu",
-  "start.hint": "Tempel tautan atau jatuhkan file audio di bilah atas, atau pilih lagu dari pustaka Anda.",
   "start.upload": "Pilih file",
   "start.link": "Tempel tautan",
   "help.pill": "Mode bantuan: arahkan ke apa saja untuk melihat fungsinya. Esc untuk keluar.",
@@ -10661,7 +10660,7 @@ const id = {
   "help.version": "Versi lagu ini, dengan stem dan mix sendiri. Klik dua kali untuk membukanya.",
   "help.extractMore": "Pilih stem yang ingin ditambahkan. Stem itu disimpan sebagai versi baru.",
   "help.versionPill": "Versi yang terbuka. Pindah ke versi lain atau simpan versi baru.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "Cari, tempel tautan, atau seret file…",
   "batch.dropHere": "Seret file atau folder",
   "batch.addFiles": "Tambah file",
@@ -10851,6 +10850,7 @@ const id = {
   "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
   "addsong.startHint": "Tempel tautan, atau jatuhkan file atau folder di mana saja di jendela.",
   "addsong.browseLibrary": "Jelajahi pustaka",
+  "addsong.help.reviewBadge": "Ada kumpulan yang menunggu: membuka tinjauannya.",
 };
 
 const fr = {
@@ -11141,7 +11141,6 @@ const fr = {
   "notif.railLabel": "Alertes",
   "nav.settingsRail": "Paramètres",
   "start.title": "Commencez par un morceau",
-  "start.hint": "Collez un lien ou déposez un fichier audio dans la barre ci-dessus, ou choisissez un morceau dans votre bibliothèque.",
   "start.upload": "Choisir un fichier",
   "start.link": "Coller un lien",
   "help.pill": "Mode aide : pointez sur un élément pour voir ce qu'il fait. Échap pour quitter.",
@@ -12172,7 +12171,7 @@ const fr = {
   "help.version": "Une version de ce morceau, avec ses propres pistes et son mix. Double-cliquez pour l’ouvrir.",
   "help.extractMore": "Choisissez les pistes à ajouter. Elles sont enregistrées comme nouvelle version.",
   "help.versionPill": "La version ouverte. Passez à une autre ou enregistrez-en une nouvelle.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "Recherchez, collez des liens ou déposez des fichiers…",
   "batch.dropHere": "Déposez des fichiers ou un dossier",
   "batch.addFiles": "Ajouter des fichiers",
@@ -12376,6 +12375,7 @@ const fr = {
   "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
   "addsong.startHint": "Collez des liens ou déposez des fichiers ou un dossier n'importe où dans la fenêtre.",
   "addsong.browseLibrary": "Parcourir la bibliothèque",
+  "addsong.help.reviewBadge": "Un lot attend : ouvre sa vérification.",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -12401,7 +12401,6 @@ const ptPT = {
   "favorites.emptyHint": "Clique no ♥ de uma música para a guardar aqui.",
   "queue.emptyTitle": "Nada a ser importado",
   "nav.settingsRail": "Definições",
-  "start.hint": "Cole uma ligação ou largue um ficheiro de áudio na barra acima, ou escolha uma música da sua biblioteca.",
   "start.upload": "Escolher ficheiro",
   "start.link": "Colar ligação",
   "speed.faderTitle": "Arraste, desloque a roda do rato ou use as setas. Faça duplo clique para alternar entre 1x e a sua velocidade lenta.",
@@ -12738,7 +12737,7 @@ const ptPT = {
   "help.version": "Uma versão desta música, com os seus próprios stems e mistura. Faça duplo clique para a abrir.",
   "help.extractMore": "Escolha os stems a adicionar. São guardados como uma nova versão.",
   "help.versionPill": "A versão aberta. Mude para outra ou guarde uma nova.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "Pesquise, cole ligações ou largue ficheiros…",
   "batch.dropHere": "Largue ficheiros ou uma pasta",
   "batch.addFiles": "Adicionar ficheiros",
@@ -12801,6 +12800,7 @@ const ptPT = {
   "studio.lane.faderTitle": "Arraste para ajustar. Faça duplo clique para repor.",
   "studio.lane.helpMore": "EQ, tom e transferência de {name} quando a faixa é demasiado baixa para os mostrar. Um ponto indica tom ou EQ alterado.",
   "addsong.startHint": "Cole ligações ou largue ficheiros ou uma pasta em qualquer parte da janela.",
+  "addsong.help.reviewBadge": "Um lote está à espera: abre a sua revisão.",
 };
 
 const es = {
@@ -13091,7 +13091,6 @@ const es = {
   "notif.railLabel": "Avisos",
   "nav.settingsRail": "Ajustes",
   "start.title": "Empieza con una canción",
-  "start.hint": "Pega un enlace o suelta un archivo de audio en la barra de arriba, o elige una canción de tu biblioteca.",
   "start.upload": "Elegir archivo",
   "start.link": "Pegar enlace",
   "help.pill": "Modo ayuda: señala cualquier cosa para ver qué hace. Esc para salir.",
@@ -14134,7 +14133,7 @@ const es = {
   "help.version": "Una versión de esta canción, con sus propios stems y mezcla. Haz doble clic para abrirla.",
   "help.extractMore": "Elige los stems que añadir. Se guardan como una nueva versión.",
   "help.versionPill": "La versión abierta. Cambia a otra o guarda una nueva.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "Busca, pega enlaces o suelta archivos…",
   "batch.dropHere": "Suelta archivos o una carpeta",
   "batch.addFiles": "Añadir archivos",
@@ -14338,6 +14337,7 @@ const es = {
   "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
   "addsong.startHint": "Pega enlaces o suelta archivos o una carpeta en cualquier parte de la ventana.",
   "addsong.browseLibrary": "Explorar la biblioteca",
+  "addsong.help.reviewBadge": "Hay un lote esperando: abre su revisión.",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -14637,7 +14637,6 @@ const ko = {
   "notif.railLabel": "알림",
   "nav.settingsRail": "설정",
   "start.title": "곡으로 시작하세요",
-  "start.hint": "위쪽 바에 링크를 붙여 넣거나 오디오 파일을 끌어다 놓거나, 라이브러리에서 곡을 고르세요.",
   "start.upload": "파일 선택",
   "start.link": "링크 붙여넣기",
   "help.pill": "도움말 모드: 아무 항목이나 가리키면 하는 일을 보여 줘요. Esc로 나가요.",
@@ -15651,7 +15650,7 @@ const ko = {
   "help.version": "자체 스템과 믹스를 가진 이 곡의 버전이에요. 두 번 클릭하면 열려요.",
   "help.extractMore": "추가할 스템을 고르세요. 새 버전으로 저장돼요.",
   "help.versionPill": "열려 있는 버전이에요. 다른 버전으로 바꾸거나 새로 저장할 수 있어요.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "검색하거나 링크를 붙여넣거나 파일을 끌어다 놓으세요…",
   "batch.dropHere": "파일이나 폴더를 끌어다 놓으세요",
   "batch.addFiles": "파일 추가",
@@ -15841,6 +15840,7 @@ const ko = {
   "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
   "addsong.startHint": "링크를 붙여넣거나 파일이나 폴더를 창 아무 곳에나 끌어다 놓으세요.",
   "addsong.browseLibrary": "라이브러리 둘러보기",
+  "addsong.help.reviewBadge": "대기 중인 묶음이 있습니다. 검토를 엽니다.",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };

@@ -35,6 +35,7 @@ const HELP = [
   ["#connStatus", "shell.help.offline"],
   ["#importingBtn", "shell.help.importing"],
   ["#addSongBtn", "shell.help.addSong"],
+  ["#addSongReviewBadge", "addsong.help.reviewBadge"],
   ["#inspectorToggleBtn", "shell.help.tools"],
   ["#libraryResizer, #stemsResizer, #inspectorResizer", "shell.help.edge"],
   ['.inspector-tab[data-tab="lyrics"]', "help.lyrics"],

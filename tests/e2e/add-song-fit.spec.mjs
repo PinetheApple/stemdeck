@@ -15,9 +15,9 @@ const chipLayout = (page) => page.evaluate((slack) => {
   const items = [...row.children];
   const problems = [];
   for (const item of items) {
-    const r = item.getBoundingClientRect();
+    const rect = item.getBoundingClientRect();
     const name = item.dataset.stem ?? item.className;
-    if (r.left < edge.left - slack || r.right > edge.right + slack) problems.push(`${name} past the edge`);
+    if (rect.left < edge.left - slack || rect.right > edge.right + slack) problems.push(`${name} past the edge`);
     const parts = item.matches(".stem-group") ? [...item.querySelectorAll(".stem-choice, .vocal-mode-btn")] : [item];
     const tops = new Set(parts.map((p) => Math.round(p.getBoundingClientRect().top)));
     if (tops.size > 1) problems.push(`${name} split over lines`);
@@ -27,6 +27,19 @@ const chipLayout = (page) => page.evaluate((slack) => {
   if (pop.scrollWidth > pop.clientWidth + 1) problems.push("popover scrolls sideways");
   const rows = new Set(items.map((i) => Math.round(i.getBoundingClientRect().top))).size;
   return { rows, problems };
+}, HALF_PX);
+
+/** Add files, Add a folder and the formats line inside the popover's form, nothing cut. */
+const pickerProblems = (page) => page.evaluate((slack) => {
+  const edge = document.getElementById("job-form").getBoundingClientRect();
+  const problems = [];
+  for (const el of document.querySelectorAll("#uploadFileBtn, #addFolderBtn, .add-song-formats")) {
+    const rect = el.getBoundingClientRect();
+    const name = el.id || el.className;
+    if (rect.left < edge.left - slack || rect.right > edge.right + slack) problems.push(`${name} past the edge`);
+    if (el.scrollWidth > el.clientWidth + 1) problems.push(`${name} cut`);
+  }
+  return problems;
 }, HALF_PX);
 
 test("the Extract chips fit the popover in every language", async ({ page }) => {
@@ -42,6 +55,7 @@ test("the Extract chips fit the popover in every language", async ({ page }) => 
       await page.locator("#addSongBtn").click();
       await expect(page.locator("#stemChips")).toBeVisible();
       const { rows, problems } = await chipLayout(page);
+      problems.push(...(await pickerProblems(page)));
       if (rows > MAX_ROWS || problems.length) offenders.push({ lang, width: size.width, rows, problems });
     }
   }
