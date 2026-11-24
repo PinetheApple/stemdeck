@@ -1,6 +1,7 @@
 // The footer's Click and Count-in. The Tempo tab's click controls keep the state;
 // these drive them and repaint from them, so the two places never disagree.
 
+import { HIDDEN_CLASS, ON_CLASS } from "./footerClasses.js";
 import { wirePopover } from "./footerPopover.js";
 import { onLanguageChange, plural, t } from "./i18n.js";
 import {
@@ -20,8 +21,6 @@ import { $ } from "./utils.js";
 /** Fired by transport.js when the click's on state, availability or count-in changes. */
 export const CLICK_STATE_EVENT = "clickstate";
 
-const ON_CLASS = "is-on";
-const HIDDEN_CLASS = "hidden";
 const WARN_CLASS = "warn";
 const CUSTOM_ACCENT = "custom";
 const COUNT_IN_ITEM = "[data-bars]";

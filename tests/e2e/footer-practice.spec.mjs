@@ -15,6 +15,19 @@ const countInBars = (page) => page.evaluate(async () => (await import("/js/state
 const ON = /\bis-on\b/;
 const LOOP_START = "0:02.000";
 const LOOP_END = "0:06.500";
+// Past the popover's double-click wait, so a panel that was going to open has opened.
+const AFTER_DOUBLE_CLICK_MS = 600;
+
+async function watchPanel(page, id) {
+  await page.evaluate((panelId) => {
+    const panel = document.getElementById(panelId);
+    window.__panelShown = false;
+    new MutationObserver(() => {
+      if (!panel.classList.contains("hidden")) window.__panelShown = true;
+    }).observe(panel, { attributes: true, attributeFilter: ["class"] });
+  }, id);
+}
+const panelWasShown = (page) => page.evaluate(() => window.__panelShown);
 
 test("Speed steps by five hundredths with - and + and stops at the ends", async ({ page }) => {
   await openStudio(page);
@@ -60,6 +73,38 @@ test("Key steps with - and +; its value opens Reset and a double-click resets ev
   await page.locator("#t-key-btn").dblclick();
   await expect(page.locator("#t-pitch-value")).toHaveText("0");
   await expect(page.locator("#t-pitch-wrap")).not.toHaveClass(ON);
+});
+
+test("double-clicking Speed's or Key's value does its quick action without opening its panel", async ({ page }) => {
+  await openStudio(page);
+  await expect(page.locator("#t-pitch-up")).toBeEnabled({ timeout: 20000 });
+  await page.locator("#t-pitch-up").click();
+  await watchPanel(page, "t-key-panel");
+  await page.locator("#t-key-btn").dblclick();
+  await expect(page.locator("#t-pitch-value")).toHaveText("0");
+  await page.waitForTimeout(AFTER_DOUBLE_CLICK_MS);
+  expect(await panelWasShown(page)).toBe(false);
+
+  await watchPanel(page, "t-speed-panel");
+  await page.locator("#t-speed-btn").dblclick();
+  await expect.poll(() => rate(page)).toBeLessThan(1);
+  await page.waitForTimeout(AFTER_DOUBLE_CLICK_MS);
+  expect(await panelWasShown(page)).toBe(false);
+});
+
+test("Key's panel steps the key and names the key that gives", async ({ page }) => {
+  await openStudio(page);
+  await expect(page.locator("#t-pitch-up")).toBeEnabled({ timeout: 20000 });
+  await openKeyOptions(page);
+  await expect(page.locator("#t-key-panel-name")).toHaveText("C major");
+  await page.locator("#t-key-panel-up").click();
+  await expect(page.locator("#t-key-panel-value")).toHaveText("+1");
+  await expect(page.locator("#t-pitch-value")).toHaveText("+1");
+  await expect(page.locator("#t-key-panel-name")).toHaveText("C# major");
+  await page.locator("#t-key-panel-down").click();
+  await page.locator("#t-key-panel-down").click();
+  await expect(page.locator("#t-key-panel-name")).toHaveText("B major");
+  await expect(page.locator("#t-key-panel")).toBeVisible();
 });
 
 test("Loop's options hold the exact start and end fields, and typing in them arms the loop", async ({ page }) => {

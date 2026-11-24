@@ -42,12 +42,14 @@ import { computeCountIn } from "./countIn.js";
 import { CLICK_SOUNDS } from "./clickSounds.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { pitchBlockedKey } from "./pitchBus.js";
+import { ON_CLASS } from "./footerClasses.js";
+import { paintKeyPanel } from "./footerKey.js";
 import { wirePopover } from "./footerPopover.js";
 import { CLICK_STATE_EVENT, initFooterClick } from "./footerClick.js";
 import { initFooterPractice } from "./footerPractice.js";
 import { initUpNextButton } from "./footerTransport.js";
 import { paintSectionLine } from "./footerSections.js";
-import { SPEED_MIN, SPEED_MAX, SPEED_STEP, SPEED_NOTCH, clampSpeed, nextNotch, parseSpeedInput } from "./speedInput.js";
+import { SPEED_MIN, SPEED_MAX, SPEED_STEP, SPEED_NOTCH, TIMES_SIGN, clampSpeed, nextNotch, parseSpeedInput } from "./speedInput.js";
 import { trackPlayhead, resumeFollowing } from "./autoScroll.js";
 import { startMediaAnchor, pauseMediaAnchor } from "./mediaSession.js";
 
@@ -195,16 +197,9 @@ export function updatePlayheadMarker(currentSec) {
   }
 }
 
-// Mirror the elapsed/total time into the transport-footer's two side
-// labels (which used to show hardcoded "00:00.000" / "03:38.000") and
-// drive the small scrub bar in the now-playing card. Driven from the
-// same wavesurfer "timeupdate" event that already updates #t-time, so
-// every label stays in sync without extra event plumbing.
-//
-// Written only when the text actually changes. This runs every frame while
-// playing, and assigning textContent replaces the text node even when the
-// string is the same, which re-lays out the whole footer control strip sixty
-// times a second to show a number that moves once a second (#633).
+// The footer's elapsed and total time, its seek bar and its section line.
+// Written only when the text changes: this runs every frame while playing, and
+// rewriting identical text still re-lays out the footer.
 export function updateFooterTimes(currentSec) {
   paintSectionLine(totalDuration ? currentSec : 0);
   const elapsed = fmtTime(totalDuration ? currentSec : 0);
@@ -248,8 +243,6 @@ export function updatePresencePlayhead(currentSec) {
   presencePlayheadEl.style.left = `${pct}%`;
   presencePlayheadEl.classList.remove("hidden");
 }
-
-const ON_CLASS = "is-on";
 
 /** Loop's on state, on the button and its footer segment. */
 export function paintLoopButton() {
@@ -1041,7 +1034,7 @@ export function wireTransportButtons() {
   wireSpeedControl();
   wireMetronomeControl();
   wirePitchControl();
-  initFooterPractice({ stepSpeed, toggleSlowSpeed, resetAllKeys });
+  initFooterPractice({ stepSpeed, toggleSlowSpeed, resetAllKeys, stepKey });
   initFooterClick({ toggleMetronome });
 }
 
@@ -1059,17 +1052,16 @@ let _speedBeforeClicks = { rate: SPEED_MAX, slow: SLOW_DEFAULT };
 const shownSpeed = () => Number(speedFader?.value ?? playbackSpeed);
 
 const SPEED_DECIMALS = 2;
-const TIMES_SIGN = "×";
 
 /** Show `rate` on the fader, in the box and on the footer's stepper, coral below 1x. */
 function paintSpeed(rate) {
-  const label = `${rate.toFixed(SPEED_DECIMALS)}x`;
+  const label = `${rate.toFixed(SPEED_DECIMALS)}${TIMES_SIGN}`;
   if (speedFader) {
     speedFader.value = String(rate);
     speedFader.setAttribute("aria-valuetext", label);
   }
   if (speedValueBox) speedValueBox.value = label;
-  if (speedReadout) speedReadout.textContent = `${rate.toFixed(SPEED_DECIMALS)}${TIMES_SIGN}`;
+  if (speedReadout) speedReadout.textContent = label;
   speedReadout?.closest(".ft-step")?.classList.toggle(ON_CLASS, rate < SPEED_MAX);
   if (speedDownBtn) speedDownBtn.disabled = rate <= SPEED_MIN;
   if (speedUpBtn) speedUpBtn.disabled = rate >= SPEED_MAX;
@@ -1137,7 +1129,6 @@ function renderPitch() {
     // Signed, so "+2" and "-2" are distinguishable at a glance; bare "0" for
     // the default rather than a redundant "+0".
     pitchValueEl.textContent = _pitchSemitones > 0 ? `+${_pitchSemitones}` : String(_pitchSemitones);
-    pitchValueEl.classList.toggle("active", _pitchSemitones !== 0);
   }
   pitchWrap?.classList.toggle(ON_CLASS, _pitchSemitones !== 0);
   // A stepper that silently stops responding reads as broken, so say which end
@@ -1160,6 +1151,7 @@ function renderPitch() {
     speedFader.dataset.i18nTitle = _pitchAvailable ? "speed.faderTitle" : "speed.pitchFollows";
     speedFader.title = t(speedFader.dataset.i18nTitle);
   }
+  paintKeyPanel(_pitchSemitones);
 }
 
 /**
@@ -1190,6 +1182,11 @@ export function resetPitch(semitones = 0) {
 }
 
 /** The user's reset: the global key and every lane, back to the original. */
+/** One semitone down (`direction` < 0) or up, from the Key popover. */
+export function stepKey(direction) {
+  applyPitch(_pitchSemitones + direction);
+}
+
 export function resetAllKeys() {
   _pitchSemitones = 0;
   resetAllLanePitches();
@@ -1498,13 +1495,13 @@ function _applyGrouping() {
   }
 }
 
+const _announceClickState = () => document.dispatchEvent(new CustomEvent(CLICK_STATE_EVENT));
+
 // Count-in is a length select rather than the press-to-arm toggle it used to
 // be (#587): once "how many bars" is a question, on/off is just the zero case,
 // and a separate toggle beside a length would be two widgets for one setting.
 // "Armed" therefore reads as a non-zero value, and the tint lives on the
 // wrapper because a styled <select> cannot carry it.
-const _announceClickState = () => document.dispatchEvent(new CustomEvent(CLICK_STATE_EVENT));
-
 function _renderCountIn() {
   if (!metroCountInEl) return;
   metroCountInEl.value = String(metronomeCountInBars);
@@ -1648,7 +1645,9 @@ function wireClickPopovers() {
   if (!metroMoreBtn || !metroPanel) return;
   const options = wirePopover(metroMoreBtn, metroPanel, { shownClass: "open" });
   // A revealed grouping box changes the panel's height, and so where an upward panel's top belongs.
-  metroPanel.addEventListener("change", () => { if (options.isOpen()) options.place(); });
+  metroPanel.addEventListener("change", function onClickOptionsResize() {
+    if (options.isOpen()) options.place();
+  });
 }
 
 function wireMetronomeControl() {
