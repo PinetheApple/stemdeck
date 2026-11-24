@@ -1,5 +1,3 @@
-// Library view prefs (#235): sort and filters kept on this device, bad values ignored.
-
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
@@ -37,7 +35,10 @@ test("a saved view comes back", async () => {
   assert.deepEqual(await loadLibraryView(), view);
 });
 
-test("unreadable stored text gives the defaults", async () => {
+test("stored text is parsed, and unreadable text gives the defaults", async () => {
+  const view = { sort: SORT_KEYS.TITLE, dir: DIRECTIONS.ASC, filters: DEFAULT_FILTERS };
+  storeRaw(JSON.stringify(view));
+  assert.deepEqual(await loadLibraryView(), view);
   storeRaw("{not json");
   assert.deepEqual(await loadLibraryView(), DEFAULT_VIEW);
 });

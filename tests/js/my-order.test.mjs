@@ -1,5 +1,3 @@
-// My order (#235): server load and serialized saves, placing songs, the moves.
-
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -7,11 +5,15 @@ import {
   applyMyOrder,
   loadMyOrder,
   moveBefore,
+  myOrderAfterMove,
   saveMyOrder,
 } from "../../static/js/myOrder.js";
+import { DEFAULT_FILTERS, FAST_MIN_BPM, SLOW_MAX_BPM, TEMPO_BANDS, filterSongs } from "../../static/js/libraryFilter.js";
 
 const HTTP_OK = 200;
 const HTTP_CONFLICT = 409;
+const FAST_BPM = FAST_MIN_BPM + 1;
+const SLOW_BPM = SLOW_MAX_BPM - 1;
 const requests = [];
 
 function answer(status, body) {
@@ -92,4 +94,27 @@ test("several songs move together, keeping their order", () => {
 test("no target moves to the end; a target among the moved changes nothing", () => {
   assert.deepEqual(moveBefore(["a", "b", "c"], ["a"], null), ["b", "c", "a"]);
   assert.deepEqual(moveBefore(["a", "b", "c"], ["a", "b"], "b"), ["a", "b", "c"]);
+});
+
+test("a target the order does not have changes nothing", () => {
+  assert.deepEqual(moveBefore(["a", "b", "c"], ["a"], "gone"), ["a", "b", "c"]);
+});
+
+test("a move with filters on keeps the hidden songs in their places", () => {
+  const library = [
+    { id: "a", bpm: FAST_BPM, createdAt: 1 },
+    { id: "hidden1", bpm: SLOW_BPM, createdAt: 2 },
+    { id: "b", bpm: FAST_BPM, createdAt: 3 },
+    { id: "hidden2", bpm: SLOW_BPM, createdAt: 4 },
+    { id: "c", bpm: FAST_BPM, createdAt: 5 },
+  ];
+  const saved = library.map((song) => song.id);
+  const shown = filterSongs(library, { ...DEFAULT_FILTERS, tempo: TEMPO_BANDS.FAST }).map((song) => song.id);
+  assert.deepEqual(shown, ["a", "b", "c"]);
+  assert.deepEqual(myOrderAfterMove(library, saved, ["c"], "a"), ["c", "a", "hidden1", "b", "hidden2"]);
+});
+
+test("a move places songs never ordered before, newest first, ahead of the saved order", () => {
+  const library = [{ id: "a", createdAt: 1 }, { id: "b", createdAt: 2 }, { id: "new", createdAt: 3 }];
+  assert.deepEqual(myOrderAfterMove(library, ["b", "a"], ["a"], "b"), ["new", "a", "b"]);
 });

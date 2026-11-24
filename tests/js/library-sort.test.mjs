@@ -1,19 +1,17 @@
-// Library sort (#235): every column both ways, missing values last, the header rule.
-
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_SORT,
   DIRECTIONS,
-  SONG_FIELDS,
   SORT_KEYS,
   nextSortOnHeader,
   sortSongs,
 } from "../../static/js/librarySort.js";
+import { SONG_FIELDS } from "../../static/js/songFields.js";
 
 const { ASC, DESC } = DIRECTIONS;
-const banana = { id: "a", title: "banana", artist: { name: "Zed" }, duration: 200, bpm: 120, key: "D maj", createdAt: 3 };
-const apple = { id: "b", title: "Apple", artist: { name: "alice" }, duration: 100, bpm: 80, key: "C min", createdAt: 2 };
+const banana = { id: "a", title: "Banana", artist: { name: "Zed" }, duration: 200, bpm: 120, key: "D maj", createdAt: 3 };
+const apple = { id: "b", title: "apple", artist: { name: "alice" }, duration: 100, bpm: 80, key: "C min", createdAt: 2 };
 const cherry = { id: "c", title: "cherry", artist: { name: "Bob" }, duration: 300, bpm: 140, key: "C maj", createdAt: 1 };
 const unfinished = { id: "d", title: "", duration: 0, bpm: null, key: null, createdAt: 4 };
 const SONGS = [banana, apple, cherry, unfinished];
@@ -68,10 +66,24 @@ test("keys sort by pitch class, major before minor, flats as their sharps", () =
   assert.deepEqual(sorted(SORT_KEYS.KEY, ASC, songs), ["cSharpMaj", "dbMin", "bHarmonic", "unreadable"]);
 });
 
+test("titles and artists sort without regard to case", () => {
+  assert.deepEqual(sorted(SORT_KEYS.TITLE, ASC, [banana, apple]), ["b", "a"]);
+  assert.deepEqual(sorted(SORT_KEYS.ARTIST, ASC, [cherry, apple]), ["b", "c"]);
+});
+
 test("names a person gave a song come first", () => {
   const renamed = { title: "upload.mp3", userTitle: "My song", artist: { name: "X" }, userArtist: "Me" };
   assert.equal(SONG_FIELDS.title(renamed), "My song");
   assert.equal(SONG_FIELDS.artist(renamed), "Me");
+});
+
+test("the artist is the soundtrack's show, unless it repeats the song's name", () => {
+  const work = { name: "Hamilton" };
+  const band = { name: "Cast" };
+  assert.equal(SONG_FIELDS.artist({ title: "My Shot", work, artist: band }), "Hamilton");
+  assert.equal(SONG_FIELDS.artist({ title: "hamilton", work, artist: band }), "Cast");
+  assert.equal(SONG_FIELDS.artist({ title: "x", identity: { source: "musicbrainz", title: "Hamilton" }, work, artist: band }), "Cast");
+  assert.equal(SONG_FIELDS.artist({ title: "x", displayArtist: "Uploader" }), "Uploader");
 });
 
 test("My order follows the saved ids and ignores the direction", () => {

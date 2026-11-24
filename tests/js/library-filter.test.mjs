@@ -1,5 +1,3 @@
-// Library filters (#235): tempo bands at their edges, key mode, favorites, count and clear.
-
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -8,6 +6,7 @@ import {
   KEY_MODES,
   SLOW_MAX_BPM,
   TEMPO_BANDS,
+  TEMPO_OPTIONS,
   activeFilterCount,
   clearFilters,
   filterSongs,
@@ -19,6 +18,8 @@ const KEY_SONGS = [
   { id: "cMajor", key: "C maj" },
   { id: "aMinor", key: "A min" },
   { id: "fSharpHarmonic", key: "F# min", scale: "Harmonic Minor" },
+  { id: "eByScale", key: "E", scale: "Natural Minor" },
+  { id: "gByScale", key: "G", scale: "Major" },
   { id: "noKey", key: null },
 ];
 const FAVORITE_IDS = new Set(["cMajor"]);
@@ -34,13 +35,20 @@ test("the tempo bands meet at 90 and 130, both in medium", () => {
   assert.deepEqual(keptIds(TEMPO_SONGS, { tempo: TEMPO_BANDS.FAST }), ["131"]);
 });
 
+test("the tempo labels take their limits from the band constants", () => {
+  const varsOf = (band) => TEMPO_OPTIONS.find((option) => option.value === band).vars;
+  assert.deepEqual(varsOf(TEMPO_BANDS.SLOW), { max: SLOW_MAX_BPM });
+  assert.deepEqual(varsOf(TEMPO_BANDS.MEDIUM), { min: SLOW_MAX_BPM, max: FAST_MIN_BPM });
+  assert.deepEqual(varsOf(TEMPO_BANDS.FAST), { min: FAST_MIN_BPM });
+});
+
 test("a song without a tempo shows until a tempo band is picked", () => {
   assert.ok(keptIds(TEMPO_SONGS, {}).includes("noBpm"));
 });
 
 test("the key filter keeps major or minor keys and drops songs without a key", () => {
-  assert.deepEqual(keptIds(KEY_SONGS, { mode: KEY_MODES.MAJOR }), ["cMajor"]);
-  assert.deepEqual(keptIds(KEY_SONGS, { mode: KEY_MODES.MINOR }), ["aMinor", "fSharpHarmonic"]);
+  assert.deepEqual(keptIds(KEY_SONGS, { mode: KEY_MODES.MAJOR }), ["cMajor", "gByScale"]);
+  assert.deepEqual(keptIds(KEY_SONGS, { mode: KEY_MODES.MINOR }), ["aMinor", "fSharpHarmonic", "eByScale"]);
   assert.deepEqual(keptIds(KEY_SONGS, {}), KEY_SONGS.map((song) => song.id));
 });
 

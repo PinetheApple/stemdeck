@@ -1,5 +1,3 @@
-// The library's sort and filters, kept on this device (#235).
-
 import { storeGet, storeSet } from "./utils.js";
 import { DEFAULT_SORT, DIRECTIONS, SORT_KEYS } from "./librarySort.js";
 import { DEFAULT_FILTERS, KEY_MODES, TEMPO_BANDS } from "./libraryFilter.js";
@@ -18,7 +16,6 @@ function readFilters(stored) {
   };
 }
 
-/** The saved view, each unknown or unreadable value replaced by its default. */
 export async function loadLibraryView() {
   const stored = await storeGet(LIBRARY_VIEW_KEY, null);
   const view = isRecord(stored) ? stored : {};
