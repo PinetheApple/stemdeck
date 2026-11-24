@@ -164,26 +164,6 @@
 .app.is-sizing .sidebar,
 .app.is-sizing .inspector { transition: none; }
 
-/* ── Song tools: the Lyrics button ── */
-.tools-lyrics-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  align-self: flex-start;
-  margin: 0 var(--s-3) var(--s-2);
-  padding: var(--s-1) var(--s-3);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-pill);
-  background: none;
-  color: var(--text-2);
-  font: inherit;
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-semibold);
-  cursor: pointer;
-}
-.tools-lyrics-btn:hover { background: var(--surface-2); color: var(--text); }
-.tools-lyrics-btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
-
 /* ── Menus and popovers never run past the window; taller ones scroll ── */
 .shell-float {
   max-height: calc(100vh - 2 * var(--float-edge));
