@@ -42,7 +42,9 @@ test.describe("favourites at a narrow window", () => {
   test("keyboard focus reveals the card heart", async ({ page }) => {
     await openStudio(page);
     await openBrowse(page);
-    await cardHeart(page, SIBLING_JOB_ID).focus();
+    await browseRow(page, SIBLING_JOB_ID).focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(cardHeart(page, SIBLING_JOB_ID)).toBeFocused();
     await expect(cardHeart(page, SIBLING_JOB_ID)).toBeVisible();
   });
 });
