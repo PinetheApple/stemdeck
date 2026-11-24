@@ -64,7 +64,6 @@ input, textarea { font-family: inherit; }
   padding: 0 16px 0 0;
   gap: 14px;
 }
-.daw-topbar > .daw-composer-stack { padding: 10px 0; }
 
 /* ── Composer pill ── */
 .daw-composer {
@@ -4399,10 +4398,6 @@ input, textarea { font-family: inherit; }
   max-height: calc(2.7em + 2px);
   white-space: nowrap;
   overflow: hidden;
-}
-
-.daw-panel-toggle[data-panel="timeline"] {
-  display: none !important;
 }
 
 /* 9. An upload's format where it has no artwork (#690).

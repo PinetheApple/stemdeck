@@ -31,7 +31,6 @@
   background: var(--bg);
   gap: var(--s-4);
 }
-.daw-topbar > .daw-composer-stack { padding: var(--s-2) 0; }
 .daw-composer {
   grid-template-columns: minmax(0, 1fr) auto;
   row-gap: 6px;

@@ -23,10 +23,10 @@ const SECTION_KINDS = new Set([
 ]);
 // Pointer travel that still counts as a click rather than a drag.
 const CLICK_SLOP_PX = 3;
-// The footer Loop's icon, so the block's loop button draws the same one.
-const LOOP_ICON_SELECTOR = "#t-loop .ic";
-
-/** Where the columns that carry each section down through the lanes go. */
+export const LOOP_ICON =
+  '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"' +
+  ' stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/>' +
+  '<path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>';
 export const COLUMNS_ID = "sectionCols";
 /** The parts of a section block that other studio modules read. */
 export const SECTION_SELECTOR = Object.freeze({
@@ -163,7 +163,6 @@ function _makeSectionEl(section) {
   el.setAttribute("role", "group");
   el.setAttribute("aria-label", el.title);
   const loopLabel = _esc(t("studio.sections.loop", { name }));
-  const loopIcon = document.querySelector(LOOP_ICON_SELECTOR)?.outerHTML ?? "";
   const lockMark = section.locked
     ? `<span class="section-lock-mark" title="${_esc(t("studio.sections.locked"))}">${_lockIcon()}</span>`
     : "";
@@ -172,7 +171,7 @@ function _makeSectionEl(section) {
     <span class="section-label">${_esc(name)}</span>
     ${lockMark}
     <span class="section-time num" aria-hidden="true">${start}</span>
-    <button class="section-loop" type="button" aria-pressed="false" title="${loopLabel}" aria-label="${loopLabel}">${loopIcon}</button>
+    <button class="section-loop" type="button" aria-pressed="false" title="${loopLabel}" aria-label="${loopLabel}">${LOOP_ICON}</button>
     <div class="section-handle section-handle-r" data-edge="right"></div>
   `;
 

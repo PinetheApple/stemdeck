@@ -106,7 +106,6 @@ function onLockToggle() {
 
 function onDeleteSection() {
   deleteSection(editing.id);
-  closeEditor();
 }
 
 function buildOverlay() {
