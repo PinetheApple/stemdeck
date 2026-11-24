@@ -1,19 +1,32 @@
-// The My part bar: pick the stem you play, then hear the full band, the band without you, or only you.
-// The studio's bar mounts itself; Stage's Mix panel mounts another with mountMyPart. All bars share one part.
-
 import { MIX_CHANGE_EVENT, setLaneMutes } from "./mixer.js";
 import { mixerState } from "./state.js";
 import { getLoadedStemNames } from "./player.js";
+import { takeSoloActive } from "./takesMix.js";
 import { STEM_DISPLAY, STEM_NAMES } from "./constants.js";
 import { onLanguageChange, t } from "./i18n.js";
+import { icon } from "./libraryIcons.js";
 import { $, storeGet, storeSet } from "./utils.js";
 import { DEFAULT_PART, PRESET, PRESETS, activePreset, canUsePreset, mutesFor, partLanes } from "./myPart.js";
 import { tagMyPartLanes } from "./myPartTags.js";
 
 const PART_STORE_KEY = "stemdeck:my-part";
 const STUDIO_HOST_ID = "myPartStudio";
+const REASON_ID_PREFIX = "myPartReason";
 const ON_CLASS = "is-on";
+const CLASS = Object.freeze({
+  BAR: "my-part",
+  PICK: "my-part-pick",
+  ICON: "my-part-icon",
+  LABEL: "my-part-label",
+  NAME: "my-part-name",
+  SELECT: "my-part-select",
+  CHOICES: "my-part-choices",
+  CHOICE: "my-part-choice",
+  REASON: "my-part-reason",
+});
+const select = (className) => `.${className}`;
 const LABEL_KEY = "studio.myPart.label";
+const PICK_KEY = "studio.myPart.pick";
 const PICK_TITLE_KEY = "studio.myPart.pickTitle";
 const MISSING_KEY = "studio.myPart.missing";
 const PRESET_LABEL_KEYS = Object.freeze({
@@ -21,25 +34,25 @@ const PRESET_LABEL_KEYS = Object.freeze({
   [PRESET.WITHOUT_ME]: "studio.myPart.withoutMe",
   [PRESET.ONLY_ME]: "studio.myPart.onlyMe",
 });
-const ICON_ATTRS = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
-const USER_ICON = `<svg class="my-part-icon" ${ICON_ATTRS}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
-const CHEVRON_ICON = `<svg class="my-part-chevron" ${ICON_ATTRS}><path d="m6 9 6 6 6-6"/></svg>`;
+const CHEVRON_ICON = "down";
+const USER_ICON = `<svg class="ic ${CLASS.ICON}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
 
 let part = DEFAULT_PART;
+let barCount = 0;
 const bars = new Set();
 
 const stemNameKey = (name) => `stem.${name}`;
 const partName = (name) => STEM_DISPLAY[name] || name;
 
-function translated(el, key) {
-  el.dataset.i18n = key;
-  el.textContent = t(key);
-  return el;
-}
-
 function element(tag, className) {
   const el = document.createElement(tag);
   el.className = className;
+  return el;
+}
+
+function translated(el, key) {
+  el.dataset.i18n = key;
+  el.textContent = t(key);
   return el;
 }
 
@@ -50,46 +63,41 @@ function partOption(name) {
 }
 
 function buildPick() {
-  const pick = element("span", "my-part-pick");
+  const pick = element("span", CLASS.PICK);
   pick.dataset.i18nTitle = PICK_TITLE_KEY;
   pick.title = t(PICK_TITLE_KEY);
   pick.innerHTML = USER_ICON;
-  const select = element("select", "my-part-select");
-  select.dataset.i18nAriaLabel = LABEL_KEY;
-  select.setAttribute("aria-label", t(LABEL_KEY));
-  select.append(...STEM_NAMES.map(partOption));
-  pick.append(
-    translated(element("span", "my-part-label"), "studio.myPart.pick"),
-    element("span", "my-part-name"),
-  );
-  pick.insertAdjacentHTML("beforeend", CHEVRON_ICON);
-  pick.append(select);
+  const picker = element("select", CLASS.SELECT);
+  picker.dataset.i18nAriaLabel = LABEL_KEY;
+  picker.setAttribute("aria-label", t(LABEL_KEY));
+  picker.append(...STEM_NAMES.map(partOption));
+  pick.append(translated(element("span", CLASS.LABEL), PICK_KEY), element("span", CLASS.NAME));
+  pick.insertAdjacentHTML("beforeend", icon(CHEVRON_ICON));
+  pick.append(picker);
   return pick;
 }
 
 function choiceButton(preset) {
-  const button = translated(element("button", "my-part-choice"), PRESET_LABEL_KEYS[preset]);
+  const button = translated(element("button", CLASS.CHOICE), PRESET_LABEL_KEYS[preset]);
   button.type = "button";
   button.dataset.preset = preset;
   return button;
 }
 
 function buildBar() {
-  const bar = element("div", "my-part");
+  const bar = element("div", CLASS.BAR);
   bar.setAttribute("role", "group");
   bar.dataset.i18nAriaLabel = LABEL_KEY;
   bar.setAttribute("aria-label", t(LABEL_KEY));
-  const choices = element("div", "my-part-choices");
+  const choices = element("div", CLASS.CHOICES);
   choices.append(...PRESETS.map(choiceButton));
-  bar.append(buildPick(), choices);
+  const reason = element("p", CLASS.REASON);
+  reason.id = `${REASON_ID_PREFIX}${++barCount}`;
+  reason.hidden = true;
+  bar.append(buildPick(), choices, reason);
   bar.addEventListener("change", onPartPicked);
   bar.addEventListener("click", onChoiceClick);
   return bar;
-}
-
-function setTitle(el, title) {
-  if (title) el.title = title;
-  else el.removeAttribute("title");
 }
 
 function missingReason(loaded) {
@@ -97,24 +105,30 @@ function missingReason(loaded) {
   return t(MISSING_KEY, { part: partName(part) });
 }
 
-function paintChoice(button, on, loaded, reason) {
+function paintChoice(button, on, loaded, reasonId) {
   const preset = button.dataset.preset;
   const usable = canUsePreset(preset, part, loaded);
   button.disabled = !usable;
   button.classList.toggle(ON_CLASS, preset === on);
   button.setAttribute("aria-pressed", String(preset === on));
-  setTitle(button, usable ? null : reason);
+  if (usable) button.removeAttribute("aria-describedby");
+  else button.setAttribute("aria-describedby", reasonId);
+}
+
+function paintReason(reasonEl, text) {
+  reasonEl.hidden = !text;
+  reasonEl.textContent = text ?? "";
 }
 
 function paintBar(bar, loaded) {
-  const name = bar.querySelector(".my-part-name");
+  const name = bar.querySelector(select(CLASS.NAME));
   name.dataset.i18n = stemNameKey(part);
   name.textContent = partName(part);
-  bar.querySelector(".my-part-select").value = part;
-  const on = activePreset(part, loaded, mixerState);
-  const reason = missingReason(loaded);
-  bar.querySelectorAll(".my-part-choice").forEach((button) => paintChoice(button, on, loaded, reason));
-  setTitle(bar.querySelector(".my-part-choices"), reason);
+  bar.querySelector(select(CLASS.SELECT)).value = part;
+  const on = activePreset(part, loaded, mixerState, takeSoloActive());
+  const reasonEl = bar.querySelector(select(CLASS.REASON));
+  paintReason(reasonEl, missingReason(loaded));
+  bar.querySelectorAll(select(CLASS.CHOICE)).forEach((button) => paintChoice(button, on, loaded, reasonEl.id));
 }
 
 function paintAll() {
@@ -124,19 +138,18 @@ function paintAll() {
 }
 
 function onPartPicked(e) {
-  if (!e.target.matches(".my-part-select")) return;
+  if (!e.target.matches(select(CLASS.SELECT))) return;
   part = e.target.value;
   storeSet(PART_STORE_KEY, part);
   paintAll();
 }
 
 function onChoiceClick(e) {
-  const button = e.target.closest(".my-part-choice");
+  const button = e.target.closest(select(CLASS.CHOICE));
   if (!button || button.disabled) return;
   setLaneMutes(mutesFor(button.dataset.preset, part, getLoadedStemNames()));
 }
 
-/** Puts a My part bar into `host`, before `before` (or last), and keeps it in step. */
 export function mountMyPart(host, before = null) {
   if (!host) return null;
   const bar = buildBar();

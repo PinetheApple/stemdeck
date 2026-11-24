@@ -1,6 +1,3 @@
-// The "My part" tag on the lanes that are my part, in the studio and in Stage's Mix panel.
-// Rows can be rebuilt at any time, so each host is watched and re-tagged when its rows change.
-
 import { t } from "./i18n.js";
 
 const TAG_CLASS = "my-part-tag";
@@ -52,7 +49,6 @@ function tagHost(spec) {
   host.querySelectorAll(spec.row).forEach((row) => tagRow(row, spec));
 }
 
-/** Tags exactly `lanes` as my part, wherever lanes are shown. */
 export function tagMyPartLanes(lanes) {
   taggedLanes = lanes;
   LANE_HOSTS.forEach(tagHost);

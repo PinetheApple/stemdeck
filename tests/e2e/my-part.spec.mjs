@@ -1,5 +1,3 @@
-// My part: one stem named as yours, three choices that mute around it, in the studio and Stage's Mix panel.
-
 import { test, expect } from "@playwright/test";
 import { JOB_ID, SIBLING_JOB_ID, openStudio, uiText } from "./helpers.mjs";
 
@@ -13,6 +11,8 @@ const MIX_STORE_KEY = `stemdeck:mix:${JOB_ID}`;
 const HALF_GAIN = 0.5;
 const KEY_UP_TWO = 2;
 const SONG_OPEN_TIMEOUT_MS = 20000;
+const PRESET = Object.freeze({ FULL_BAND: "full", WITHOUT_ME: "without", ONLY_ME: "only" });
+const PRESETS = Object.values(PRESET);
 
 const studioBar = (page) => page.locator("#myPartStudio");
 const stageBar = (page) => page.locator("#stageMixer .my-part");
@@ -30,7 +30,7 @@ const withoutMutes = (mix) => Object.fromEntries(
 );
 
 async function expectOn(bar, preset) {
-  for (const other of ["full", "without", "only"]) {
+  for (const other of PRESETS) {
     await expect(choice(bar, other)).toHaveAttribute("aria-pressed", String(other === preset));
   }
 }
@@ -50,13 +50,16 @@ test.describe("my part", () => {
     const bar = studioBar(page);
     await expect(bar.locator(".my-part-name")).toHaveText(MISSING_NAME);
     const reason = await uiText(page, "studio.myPart.missing", { part: MISSING_NAME });
-    for (const preset of ["without", "only"]) {
+    const reasonLine = bar.locator(".my-part-reason");
+    await expect(reasonLine).toBeVisible();
+    await expect(reasonLine).toHaveText(reason);
+    const reasonId = await reasonLine.getAttribute("id");
+    for (const preset of [PRESET.WITHOUT_ME, PRESET.ONLY_ME]) {
       await expect(choice(bar, preset)).toBeDisabled();
-      await expect(choice(bar, preset)).toHaveAttribute("title", reason);
+      await expect(choice(bar, preset)).toHaveAttribute("aria-describedby", reasonId);
     }
-    await expect(bar.locator(".my-part-choices")).toHaveAttribute("title", reason);
-    await expect(choice(bar, "full")).toBeEnabled();
-    await expectOn(bar, "full");
+    await expect(choice(bar, PRESET.FULL_BAND)).toBeEnabled();
+    await expectOn(bar, PRESET.FULL_BAND);
     await expect(page.locator("#mixer .my-part-tag")).toHaveCount(0);
   });
 
@@ -69,8 +72,9 @@ test.describe("my part", () => {
     await expect(lane(page, MINE).locator(".my-part-tag")).toHaveText(await uiText(page, "studio.myPart.label"));
     await expect(page.locator("#mixer .my-part-tag")).toHaveCount(1);
     await expect(lane(page, MINE)).toHaveClass(/is-my-part/);
-    await expect(choice(bar, "without")).toBeEnabled();
-    await expect(choice(bar, "without")).not.toHaveAttribute("title");
+    await expect(choice(bar, PRESET.WITHOUT_ME)).toBeEnabled();
+    await expect(choice(bar, PRESET.WITHOUT_ME)).not.toHaveAttribute("aria-describedby");
+    await expect(bar.locator(".my-part-reason")).toBeHidden();
     expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), PART_STORE_KEY)).toBe(MINE);
   });
 
@@ -85,9 +89,9 @@ test.describe("my part", () => {
     await expectOn(bar, null);
     const before = withoutMutes(await storedMix(page));
 
-    await choice(bar, "without").click();
+    await choice(bar, PRESET.WITHOUT_ME).click();
     await expectMuted(page, [MINE]);
-    await expectOn(bar, "without");
+    await expectOn(bar, PRESET.WITHOUT_ME);
     await expect(lane(page, MINE)).toHaveClass(/muted/);
     await expect(lane(page, "drums").locator(".solo")).not.toHaveClass(/active/);
     await expect.poll(async () => (await storedMix(page))?.[MINE]?.muted).toBe(true);
@@ -95,13 +99,13 @@ test.describe("my part", () => {
     expect(FIXTURE_STEMS.every((stem) => after[stem].soloed === false)).toBe(true);
     expect(withoutMutes(after)).toEqual(before);
 
-    await choice(bar, "only").click();
+    await choice(bar, PRESET.ONLY_ME).click();
     await expectMuted(page, FIXTURE_STEMS.filter((stem) => stem !== MINE));
-    await expectOn(bar, "only");
+    await expectOn(bar, PRESET.ONLY_ME);
 
-    await choice(bar, "full").click();
+    await choice(bar, PRESET.FULL_BAND).click();
     await expectMuted(page, []);
-    await expectOn(bar, "full");
+    await expectOn(bar, PRESET.FULL_BAND);
     const mix = await mixOf(page);
     expect(mix.vocals.volume).toBe(HALF_GAIN);
   });
@@ -110,12 +114,12 @@ test.describe("my part", () => {
     await openStudio(page);
     await pickPart(page, MINE);
     const bar = studioBar(page);
-    await choice(bar, "without").click();
-    await expectOn(bar, "without");
+    await choice(bar, PRESET.WITHOUT_ME).click();
+    await expectOn(bar, PRESET.WITHOUT_ME);
     await lane(page, "drums").locator(".mute").click();
     await expectOn(bar, null);
     await lane(page, "drums").locator(".mute").click();
-    await expectOn(bar, "without");
+    await expectOn(bar, PRESET.WITHOUT_ME);
   });
 
   test("my part outlasts a reload and carries to another song", async ({ page }) => {
@@ -143,10 +147,10 @@ test.describe("my part", () => {
     await expect(bar.locator(".my-part-name")).toHaveText(MINE_NAME);
     await expect(page.locator(`.stage-strip[data-stem="${MINE}"] .my-part-tag`)).toBeVisible();
 
-    await choice(bar, "only").click();
+    await choice(bar, PRESET.ONLY_ME).click();
     await expectMuted(page, FIXTURE_STEMS.filter((stem) => stem !== MINE));
-    await expectOn(bar, "only");
-    await expectOn(studioBar(page), "only");
+    await expectOn(bar, PRESET.ONLY_ME);
+    await expectOn(studioBar(page), PRESET.ONLY_ME);
     await expect(page.locator(`.stage-strip[data-stem="drums"] .stage-ms.mute`)).toHaveAttribute("aria-pressed", "true");
 
     await bar.locator(".my-part-select").selectOption("drums");
