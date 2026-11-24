@@ -86,7 +86,7 @@ async function openFailedLibrary(page, { retry = 200, retryDetail = "stubbed", r
   await stubFailedServer(page, server);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await openBrowse(page, "all");
-  await expect(row(page, LINK_FAILED)).toBeVisible();
+  await expect(browseRow(page, LINK_FAILED)).toBeVisible();
   return server;
 }
 
@@ -113,8 +113,7 @@ async function stubFailedServer(page, server) {
   });
 }
 
-const row = browseRow;
-const panel = (page, id) => row(page, id).locator(".import-fail-panel");
+const panel = (page, id) => browseRow(page, id).locator(".import-fail-panel");
 const libraryRowIds = (page) =>
   page.locator(`${BROWSE_RESULTS} .cat-item`).evaluateAll((rows) => rows.map((r) => r.dataset.id));
 
@@ -175,7 +174,7 @@ test.describe("import source in Details", () => {
 test.describe("failed import rows", () => {
   test("a failed row says Import failed in red and keeps Retry visible", async ({ page }) => {
     await openFailedLibrary(page);
-    const failed = row(page, LINK_FAILED);
+    const failed = browseRow(page, LINK_FAILED);
 
     await expect(failed.locator(".cat-title")).toHaveText("YouTube link");
     const label = failed.locator(".cat-sub");
@@ -194,7 +193,7 @@ test.describe("failed import rows", () => {
 
   test("selecting it opens the reason, the source, Retry and Trash", async ({ page }) => {
     await openFailedLibrary(page);
-    await row(page, LINK_FAILED).click();
+    await browseRow(page, LINK_FAILED).click();
 
     const detail = panel(page, LINK_FAILED);
     await expect(detail.locator(".import-fail-reason")).toHaveText(await uiText(page, "importFail.reason.sourceUnavailable"));
@@ -203,9 +202,9 @@ test.describe("failed import rows", () => {
     await expect(detail.locator(".import-fail-trash")).toBeVisible();
     await expectPointer(detail.locator(".import-fail-primary"));
     await expectPointer(detail.locator(".import-fail-trash"));
-    await expect(row(page, LINK_FAILED).locator(".cat-retry")).toBeHidden();
+    await expect(browseRow(page, LINK_FAILED).locator(".cat-retry")).toBeHidden();
 
-    await row(page, FILE_FAILED).click();
+    await browseRow(page, FILE_FAILED).click();
     await expect(panel(page, FILE_FAILED).locator(".import-fail-reason")).toHaveText(await uiText(page, "importFail.reason.unknown"));
     await expect(panel(page, FILE_FAILED).locator(".import-source-text")).toHaveText(FILE_NAME);
     await expect(panel(page, LINK_FAILED)).toBeHidden();
@@ -213,11 +212,11 @@ test.describe("failed import rows", () => {
 
   test("in the grid, a selected failed card takes the whole row and holds its panel", async ({ page }) => {
     await openFailedLibrary(page);
-    await row(page, LINK_FAILED).click();
+    await browseRow(page, LINK_FAILED).click();
 
     const grid = await page.locator(`${BROWSE_RESULTS} .browse-grid`).boundingBox();
-    const card = await row(page, LINK_FAILED).boundingBox();
-    const next = await row(page, LINK_FAILED).locator("xpath=following-sibling::*[1]").boundingBox();
+    const card = await browseRow(page, LINK_FAILED).boundingBox();
+    const next = await browseRow(page, LINK_FAILED).locator("xpath=following-sibling::*[1]").boundingBox();
     expect(card.width).toBeGreaterThan(grid.width * FULL_ROW_SHARE);
     expect(next.y).toBeGreaterThanOrEqual(card.y + card.height);
     for (const part of await panel(page, LINK_FAILED).locator("button, a, .import-fail-reason").all()) {
@@ -231,28 +230,28 @@ test.describe("failed import rows", () => {
     const server = await openFailedLibrary(page);
     const before = await libraryRowIds(page);
 
-    await row(page, LINK_FAILED).locator(".cat-retry").click();
+    await browseRow(page, LINK_FAILED).locator(".cat-retry").click();
 
-    await expect(row(page, LINK_FAILED).locator(".cat-sub")).toHaveText(await uiText(page, "job.processing"));
+    await expect(browseRow(page, LINK_FAILED).locator(".cat-sub")).toHaveText(await uiText(page, "job.processing"));
     expect(server.retries).toEqual([LINK_FAILED]);
     expect(server.imports).toHaveLength(0);
     expect(await libraryRowIds(page)).toEqual(before);
-    await expect(row(page, LINK_FAILED)).not.toHaveClass(/is-failed/);
+    await expect(browseRow(page, LINK_FAILED)).not.toHaveClass(/is-failed/);
   });
 
   test("a link the server forgot is imported again in place of the failed row", async ({ page }) => {
     const server = await openFailedLibrary(page, { retry: HTTP_NOT_FOUND });
-    await row(page, LINK_FAILED).locator(".cat-retry").click();
+    await browseRow(page, LINK_FAILED).locator(".cat-retry").click();
 
-    await expect(row(page, REPLACEMENT)).toBeVisible();
-    await expect(row(page, LINK_FAILED)).toHaveCount(0);
+    await expect(browseRow(page, REPLACEMENT)).toBeVisible();
+    await expect(browseRow(page, LINK_FAILED)).toHaveCount(0);
     expect(server.imports).toHaveLength(1);
     expect(server.imports[0].postDataJSON()).toMatchObject({ url: LINK, replaces: LINK_FAILED, stems: STEMS });
   });
 
   test("a file that is gone offers Pick the file again, which uploads in its place", async ({ page }) => {
     const server = await openFailedLibrary(page, { retry: HTTP_GONE });
-    await row(page, FILE_FAILED).locator(".cat-retry").click();
+    await browseRow(page, FILE_FAILED).locator(".cat-retry").click();
 
     const detail = panel(page, FILE_FAILED);
     await expect(detail.locator(".import-fail-reason")).toHaveText(await uiText(page, "importFail.reason.fileGone"));
@@ -262,8 +261,8 @@ test.describe("failed import rows", () => {
     await pick.click();
     await (await chooser).setFiles({ name: FILE_NAME, mimeType: "audio/wav", buffer: Buffer.from("RIFF") });
 
-    await expect(row(page, REPLACEMENT)).toBeVisible();
-    await expect(row(page, FILE_FAILED)).toHaveCount(0);
+    await expect(browseRow(page, REPLACEMENT)).toBeVisible();
+    await expect(browseRow(page, FILE_FAILED)).toHaveCount(0);
     expect(server.retries).toEqual([FILE_FAILED]);
     const body = server.imports[0].postDataBuffer().toString("latin1");
     expect(body).toContain(`name="replaces"\r\n\r\n${FILE_FAILED}`);
@@ -272,13 +271,13 @@ test.describe("failed import rows", () => {
 
   test("a full queue says so in words", async ({ page }) => {
     await openFailedLibrary(page, { retry: HTTP_UNAVAILABLE });
-    await row(page, LINK_FAILED).locator(".cat-retry").click();
+    await browseRow(page, LINK_FAILED).locator(".cat-retry").click();
     await expect(page.locator("#error .error-msg")).toHaveText(await uiText(page, "playlist.queueFull"));
   });
 
   test("after a restart a failed import still retries as the same job", async ({ page }) => {
     const server = await openFailedLibrary(page, { stored: { [LINK_FAILED]: { status: "processing" } } });
-    const failed = row(page, LINK_FAILED);
+    const failed = browseRow(page, LINK_FAILED);
     await expect(failed).toHaveClass(/is-failed/);
     await failed.click();
     await expect(panel(page, LINK_FAILED).locator(".import-fail-reason")).toHaveText(await uiText(page, "importFail.reason.sourceUnavailable"));
@@ -293,37 +292,37 @@ test.describe("failed import rows", () => {
     const server = await openFailedLibrary(page);
     let release;
     server.hold = new Promise((resolve) => { release = resolve; });
-    await row(page, LINK_FAILED).locator(".cat-retry").click();
+    await browseRow(page, LINK_FAILED).locator(".cat-retry").click();
     await expect.poll(() => server.retries.length).toBe(1);
     await panel(page, LINK_FAILED).locator(".import-fail-primary").click();
     await page.evaluate(async (id) => (await import("/js/catalog.js")).retryFailedImport(id), LINK_FAILED);
     release();
 
-    await expect(row(page, LINK_FAILED).locator(".cat-sub")).toHaveText(await uiText(page, "job.processing"));
+    await expect(browseRow(page, LINK_FAILED).locator(".cat-sub")).toHaveText(await uiText(page, "job.processing"));
     expect(server.retries).toEqual([LINK_FAILED]);
   });
 
   test("a retry while the stems folder moves says why", async ({ page }) => {
     await openFailedLibrary(page, { retry: HTTP_CONFLICT, retryDetail: STEMS_FOLDER_MOVING_DETAIL });
-    await row(page, LINK_FAILED).locator(".cat-retry").click();
+    await browseRow(page, LINK_FAILED).locator(".cat-retry").click();
     await expect(page.locator("#error .error-msg"))
       .toHaveText(await uiText(page, "job.startFailed", { message: STEMS_FOLDER_MOVING_DETAIL }));
   });
 
   test("a failed job in the Trash says to restore it first", async ({ page }) => {
     await openFailedLibrary(page, { retry: HTTP_CONFLICT, retryDetail: RESTORE_FIRST_DETAIL });
-    await row(page, LINK_FAILED).locator(".cat-retry").click();
+    await browseRow(page, LINK_FAILED).locator(".cat-retry").click();
     await expect(page.locator("#error .error-msg")).toHaveText(await uiText(page, "importFail.restoreFirst"));
   });
 
   test("the panel's controls are the row's actions: arrow keys reach them, Tab does not stop on them", async ({ page }) => {
     await openFailedLibrary(page);
-    await row(page, LINK_FAILED).click();
+    await browseRow(page, LINK_FAILED).click();
     const controls = panel(page, LINK_FAILED).locator("button, a");
     await expect(controls).toHaveCount(4);
     for (const control of await controls.all()) await expect(control).toHaveAttribute("tabindex", "-1");
 
-    await row(page, LINK_FAILED).focus();
+    await browseRow(page, LINK_FAILED).focus();
     const reached = [];
     for (let i = 0; i < 4; i++) {
       await page.keyboard.press(ROW_KEY.INTO);
@@ -337,14 +336,14 @@ test.describe("failed import rows", () => {
 
   test("after Retry, focus is on the retried row", async ({ page }) => {
     await openFailedLibrary(page);
-    await row(page, LINK_FAILED).locator(".cat-retry").click();
-    await expect(row(page, LINK_FAILED).locator(".cat-sub")).toHaveText(await uiText(page, "job.processing"));
-    await expect(row(page, LINK_FAILED)).toBeFocused();
+    await browseRow(page, LINK_FAILED).locator(".cat-retry").click();
+    await expect(browseRow(page, LINK_FAILED).locator(".cat-sub")).toHaveText(await uiText(page, "job.processing"));
+    await expect(browseRow(page, LINK_FAILED)).toBeFocused();
   });
 
   test("after a Retry finds the file gone, focus is on Pick the file again", async ({ page }) => {
     await openFailedLibrary(page, { retry: HTTP_GONE });
-    await row(page, FILE_FAILED).locator(".cat-retry").click();
+    await browseRow(page, FILE_FAILED).locator(".cat-retry").click();
     await expect(panel(page, FILE_FAILED).locator(".import-fail-primary")).toBeFocused();
   });
 });

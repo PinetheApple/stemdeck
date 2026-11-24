@@ -119,12 +119,14 @@ test("a failed item stays in the queue with its reason and Retry", async ({ page
   await expect(head).toContainText(await uiText(page, "batch.doneOf", { done: 0, total: 3 }));
   await expect(head).toContainText(await uiText(page, "batch.failedCount.one", { count: 1 }));
   await expect(head.locator(".batch-retry-failed")).toBeVisible();
+  await expect(queueNavEntry(page).locator(".browse-nav-count")).toHaveText("2");
 
   // The queue drains: the batch and its failure stay in view until dealt with.
   await drainQueue(queue, refresh);
   await expect(head).toBeVisible();
   await expect(failed).toBeVisible();
   await expect(queueNavEntry(page)).toHaveAttribute("aria-current", "page");
+  await expect(queueNavEntry(page).locator(".browse-nav-count")).toHaveCount(0);
   await failed.locator(".batch-failed-retry").click();
   await expect.poll(() => retries.length).toBe(1);
 });

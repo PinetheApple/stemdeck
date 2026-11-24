@@ -46,8 +46,10 @@ function viewButtons() {
     navButton(VIEW.FAVORITES, icon("heart"), t("nav.favorites"), favorites),
     navButton(VIEW.RECENT, icon("clock"), t("lib.recentlyAdded")),
   ];
-  const importing = queueCount(getQueueSnapshot());
-  if (importQueueShown()) buttons.push(navButton(VIEW.QUEUE, icon("download"), t("shell.importQueue"), importing));
+  const snap = getQueueSnapshot();
+  // A tracked batch alone keeps the entry with no count: nothing is importing.
+  const importing = queueCount(snap) || null;
+  if (importQueueShown(snap)) buttons.push(navButton(VIEW.QUEUE, icon("download"), t("shell.importQueue"), importing));
   return buttons;
 }
 
