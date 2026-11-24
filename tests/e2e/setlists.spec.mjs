@@ -1,6 +1,6 @@
 // Setlists: named lists of songs kept on the server (/api/setlists), shown in
-// Browse library, filled from a song's … menu or from Up Next, and played by
-// loading the first song with the rest as Up Next.
+// Browse library, filled from a song's … menu or from Up Next, and played from
+// the first song as the list Next follows, Up Next left as it was.
 import { test, expect } from "@playwright/test";
 import { chooseFromSongMenu, JOB_ID, SIBLING_JOB_ID, SIBLING_TITLE, openBrowse, openInspectorTab, openStudio } from "./helpers.mjs";
 
@@ -100,9 +100,13 @@ test("a setlist is renamed from its dialog, and Esc keeps the old name", async (
   await expect.poll(async () => (await serverSetlists(request))[0]?.name).toBe("New name");
 });
 
-test("Play from the top opens the first song and puts the rest in Up Next", async ({ page, request }) => {
-  await request.post("/api/setlists", { data: { name: "Gig", song_ids: [SIBLING_JOB_ID, JOB_ID] } });
+test("Play from the top opens the first song and leaves Up Next as it was", async ({ page, request }) => {
+  await request.post("/api/setlists", { data: { name: "Gig", song_ids: [SIBLING_JOB_ID] } });
   await openStudio(page);
+  await openBrowse(page);
+  const row = page.locator(`#browseResults .cat-item[data-id="${JOB_ID}"]`);
+  await row.hover();
+  await row.locator(".cat-upnext").click();
   await openSetlist(page, "Gig");
 
   await page.locator("#browseResults .browse-setlist-play").click();
