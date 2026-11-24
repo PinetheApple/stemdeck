@@ -37,6 +37,10 @@ export function setFilters(filters) {
   saveAndNotify();
 }
 
+export function clearLibraryFilters() {
+  setFilters(clearFilters());
+}
+
 export async function loadLibraryViewPrefs() {
   Object.assign(view, await loadLibraryView());
   notify();

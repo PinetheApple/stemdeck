@@ -15,7 +15,8 @@ const LOCALE_FALLBACK = { "pt-PT": "pt" };
 const PLURAL_FORMS = { pl: ["one", "few", "many"] };
 const DEFAULT_PLURAL_FORMS = ["other"];
 const PLACEHOLDERS = /\{\w+\}/g;
-const SELECTED = `${PREFIX}selected.`;
+const PLURAL_STEMS = [`${PREFIX}selected.`, `${PREFIX}movedToTrash.`];
+const isPluralKey = (key) => PLURAL_STEMS.some((stem) => key.startsWith(stem));
 const COUNT_PLACEHOLDER = "{count}";
 const en = TRANSLATIONS.en;
 const ownKeys = Object.keys(en).filter((key) => key.startsWith(PREFIX));
@@ -69,7 +70,7 @@ test("the libSort strings sit in one block in every language", () => {
 });
 
 test("every language has every libSort string with the same placeholders", () => {
-  const singleKeys = ownKeys.filter((key) => !key.startsWith(SELECTED));
+  const singleKeys = ownKeys.filter((key) => !isPluralKey(key));
   for (const { code } of LANGUAGES) {
     const own = table(code);
     for (const key of singleKeys) {
@@ -80,10 +81,12 @@ test("every language has every libSort string with the same placeholders", () =>
   }
 });
 
-test("every language has its plural forms for the selected count", () => {
+test("every language has its plural forms for each counted string", () => {
   for (const { code } of LANGUAGES) {
     const own = table(code);
     const forms = PLURAL_FORMS[code] ?? DEFAULT_PLURAL_FORMS;
-    for (const form of forms) assert.ok(own[`${SELECTED}${form}`]?.includes(COUNT_PLACEHOLDER), `${code}: ${form}`);
+    for (const stem of PLURAL_STEMS) {
+      for (const form of forms) assert.ok(own[`${stem}${form}`]?.includes(COUNT_PLACEHOLDER), `${code}: ${stem}${form}`);
+    }
   }
 });

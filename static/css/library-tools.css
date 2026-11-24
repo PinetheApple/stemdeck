@@ -20,7 +20,7 @@
 /* The arrow may run into the gap after a narrow column rather than cut its name. */
 .browse-thead button.cell.is-on { overflow: visible; }
 .browse-thead button.cell .ic { flex: none; width: var(--fs-xs); height: var(--fs-xs); }
-/* Repeats browse.css's 1500px, where the Added column gives way. */
+/* A media query can't read a custom property, so browse.css's 1500px repeats here. */
 @media (max-width: 1500px) {
   .browse-thead button.c-added { display: none; }
 }
@@ -31,7 +31,11 @@
 .library-hint { margin: 0; padding: 0 var(--s-1) var(--s-2); color: var(--text-3); font-size: var(--fs-sm); }
 
 .library-bulk {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   flex: none;
+  margin-top: auto;
   display: flex;
   align-items: center;
   gap: var(--s-2);

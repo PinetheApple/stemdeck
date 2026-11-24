@@ -3,10 +3,9 @@
 import { t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
 import { getLibraryTrack, libraryTrackIds } from "./catalog.js";
-import { clearFilters } from "./libraryFilter.js";
 import { arrangeIds, filtersHideAll, showsMyOrder } from "./libraryArrange.js";
 import {
-  libraryView, loadLibraryViewPrefs, noteLibrarySongs, onLibraryViewChange, selection, setFilters,
+  clearLibraryFilters, libraryView, loadLibraryViewPrefs, noteLibrarySongs, onLibraryViewChange, selection,
 } from "./libraryView.js";
 import { initLibraryToolbar, paintLibraryToolbar } from "./libraryToolbar.js";
 import { initBulkBar, paintBulkBar } from "./libraryBulkBar.js";
@@ -32,10 +31,6 @@ export function myOrderHintEls(kind) {
   return [hint];
 }
 
-function onClearFiltersClick() {
-  setFilters(clearFilters());
-}
-
 /** The empty state for a view the filters emptied, with Clear filters; null otherwise. */
 export function filteredOutEl(kind, shownCount, viewCount) {
   if (!filtersHideAll(kind, libraryView(), shownCount, viewCount)) return null;
@@ -48,7 +43,7 @@ export function filteredOutEl(kind, shownCount, viewCount) {
   clear.type = "button";
   clear.className = "browse-btn library-clear-filters";
   clear.textContent = t("libSort.clearFilters");
-  clear.addEventListener("click", onClearFiltersClick);
+  clear.addEventListener("click", clearLibraryFilters);
   el.append(clear);
   return el;
 }
@@ -58,11 +53,14 @@ export function afterResultsDrawn(container, kind) {
   noteLibrarySongs(libraryTrackIds());
   if (selection.picking) selection.prune(visibleIds(container));
   paintLibraryToolbar(kind);
-  paintBulkBar(kind);
+  paintBulkBar(kind, container);
 }
 
+/** Leave Select without a redraw; true when it was picking. */
 export function endPicking() {
+  const was = selection.picking;
   selection.done();
+  return was;
 }
 
 /** Esc while picking leaves Select and keeps Browse library open; true when it did. */
@@ -75,7 +73,7 @@ export function leaveSelectOnEscape() {
 
 function onPicksChange() {
   paintPicks(results);
-  paintBulkBar(viewKind());
+  paintBulkBar(viewKind(), results);
 }
 
 function finishPicking() {

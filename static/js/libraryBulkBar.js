@@ -1,16 +1,13 @@
-// The bar over Browse library's songs while picking: how many are picked, Select all,
-// the actions for them, and Done. Each action does for every pick what the row's own
-// button or menu does for one song, in the order they were picked.
+// Each action runs the row's own action for every pick, in pick order, so a bulk change
+// behaves as that many single ones would.
 
 import { t, plural, getLanguage } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
-import {
-  folderChoices, getLibraryTrack, moveTrackToFolder, moveTrackToTrash, restoreTracksFromTrash, toggleFavorite,
-} from "./catalog.js";
+import { folderChoices, getLibraryTrack, moveTrackToFolder, restoreTracksFromTrash, toggleFavorite } from "./catalog.js";
 import { addSongToSetlist, createSetlistFrom, getSetlists } from "./setlists.js";
 import { queueUpNext } from "./upNext.js";
-import { menuItem, openMenu } from "./trackMenu.js";
-import { placeUnder } from "./libraryMenus.js";
+import { trashAllWithUndo } from "./trashUndo.js";
+import { menuItem, openMenu, placeBelow } from "./floatMenu.js";
 import {
   BULK_ACTION, BULK_ACTIONS, BULK_ACTION_LABEL_KEYS, SELECT_DONE_LABEL_KEY, bulkTargets,
 } from "./librarySelection.js";
@@ -18,7 +15,7 @@ import { selectScopeOf } from "./libraryArrange.js";
 import { selection } from "./libraryView.js";
 
 export const BULK_BAR_ID = "libraryBulkBar";
-const DEPTH_PROPERTY = "--menu-depth";
+const COUNT_CLASS = "library-bulk-count";
 const ACTION_ICONS = Object.freeze({
   [BULK_ACTION.UP_NEXT]: "listPlus",
   [BULK_ACTION.ADD_TO_SETLIST]: "listMusic",
@@ -31,9 +28,10 @@ const DANGER_ACTIONS = new Set([BULK_ACTION.TRASH]);
 const SELECT_ALL = "selectAll";
 const DONE = "done";
 
+let bar = null;
 let hooks = { finish: () => {}, selectAll: () => {} };
 
-const isFavorite = (id) => Boolean(getLibraryTrack(id)?.favorite);
+const isFavoriteId = (id) => Boolean(getLibraryTrack(id)?.favorite);
 
 async function addAllToSetlist(setlistId, ids) {
   for (const id of ids) await addSongToSetlist(setlistId, id);
@@ -43,11 +41,19 @@ function moveAllToFolder(folderId, ids) {
   for (const id of ids) moveTrackToFolder(id, folderId);
 }
 
+function queueAll(ids) {
+  ids.forEach(queueUpNext);
+}
+
+function favoriteAll(ids) {
+  ids.forEach(toggleFavorite);
+}
+
 const RUN_NOW = Object.freeze({
-  [BULK_ACTION.UP_NEXT]: (ids) => ids.forEach(queueUpNext),
-  [BULK_ACTION.FAVORITE]: (ids) => ids.forEach(toggleFavorite),
-  [BULK_ACTION.TRASH]: (ids) => ids.forEach(moveTrackToTrash),
-  [BULK_ACTION.RESTORE]: (ids) => restoreTracksFromTrash(ids),
+  [BULK_ACTION.UP_NEXT]: queueAll,
+  [BULK_ACTION.FAVORITE]: favoriteAll,
+  [BULK_ACTION.TRASH]: trashAllWithUndo,
+  [BULK_ACTION.RESTORE]: restoreTracksFromTrash,
 });
 
 function runOnPicks(run) {
@@ -55,24 +61,30 @@ function runOnPicks(run) {
   hooks.finish();
 }
 
-function setlistItems() {
-  const items = getSetlists().map((setlist) => menuItem(setlist.name, "listMusic", function onBulkAddToSetlist() {
+function setlistItem(setlist) {
+  function onBulkAddToSetlist() {
     runOnPicks((ids) => addAllToSetlist(setlist.id, ids));
-  }));
-  return [...items, menuItem(t("trackMenu.newSetlist"), "plus", function onBulkNewSetlist() {
-    runOnPicks(createSetlistFrom);
-  })];
+  }
+  return menuItem(setlist.name, "listMusic", onBulkAddToSetlist);
+}
+
+function onBulkNewSetlist() {
+  runOnPicks(createSetlistFrom);
+}
+
+function setlistItems() {
+  return [...getSetlists().map(setlistItem), menuItem(t("trackMenu.newSetlist"), "plus", onBulkNewSetlist)];
+}
+
+function folderItem(folder) {
+  function onBulkMoveToFolder() {
+    runOnPicks((ids) => moveAllToFolder(folder.id, ids));
+  }
+  return menuItem(folder.name, "folder", onBulkMoveToFolder, { depth: folder.depth });
 }
 
 function folderItems() {
-  return folderChoices(null).map((folder) => {
-    const item = menuItem(folder.name, "folder", function onBulkMoveToFolder() {
-      runOnPicks((ids) => moveAllToFolder(folder.id, ids));
-    });
-    item.classList.add("lib-menu-folder");
-    item.style.setProperty(DEPTH_PROPERTY, String(folder.depth));
-    return item;
-  });
+  return folderChoices(null).map(folderItem);
 }
 
 const MENUS = Object.freeze({
@@ -82,10 +94,10 @@ const MENUS = Object.freeze({
 
 function runAction(action, anchor) {
   if (MENUS[action]) {
-    openMenu(anchor, MENUS[action](), { label: t(BULK_ACTION_LABEL_KEYS[action]), place: placeUnder });
+    openMenu(anchor, MENUS[action](), { label: t(BULK_ACTION_LABEL_KEYS[action]), place: placeBelow });
     return;
   }
-  runOnPicks((ids) => RUN_NOW[action](bulkTargets(action, ids, isFavorite)));
+  runOnPicks((ids) => RUN_NOW[action](bulkTargets(action, ids, isFavoriteId)));
 }
 
 function onBulkBarClick(e) {
@@ -115,9 +127,9 @@ function actionButton(action) {
 
 const drawnKey = (scope) => `${scope}:${getLanguage()}`;
 
-function drawBar(bar, scope) {
+function drawBar(scope) {
   const count = document.createElement("strong");
-  count.className = "library-bulk-count";
+  count.className = COUNT_CLASS;
   const spacer = document.createElement("span");
   spacer.className = "library-bulk-spacer";
   bar.replaceChildren(
@@ -130,15 +142,20 @@ function drawBar(bar, scope) {
   bar.dataset.drawn = drawnKey(scope);
 }
 
-/** Show the bar while picking in a view that picks, with the count and actions up to date. */
-export function paintBulkBar(kind) {
-  const bar = document.getElementById(BULK_BAR_ID);
+// The view's redraw replaces the list's children, so the bar goes back in at its end.
+function placeAfterSongs(container) {
+  if (container && bar.parentElement !== container) container.append(bar);
+}
+
+/** Show the bar at the foot of `container` while picking in a view that picks, its count up to date. */
+export function paintBulkBar(kind, container) {
   if (!bar) return;
   const scope = selection.picking ? selectScopeOf(kind) : null;
   bar.hidden = !scope;
   if (!scope) return;
-  if (bar.dataset.drawn !== drawnKey(scope)) drawBar(bar, scope);
-  bar.querySelector(".library-bulk-count").textContent = plural("libSort.selected", selection.count());
+  placeAfterSongs(container);
+  if (bar.dataset.drawn !== drawnKey(scope)) drawBar(scope);
+  bar.querySelector(`.${COUNT_CLASS}`).textContent = plural("libSort.selected", selection.count());
   for (const button of bar.querySelectorAll("button[data-bulk]")) {
     if (button.dataset.bulk !== SELECT_ALL && button.dataset.bulk !== DONE) button.disabled = !selection.count();
   }
@@ -146,5 +163,6 @@ export function paintBulkBar(kind) {
 
 export function initBulkBar({ finish, selectAll }) {
   hooks = { finish, selectAll };
-  document.getElementById(BULK_BAR_ID)?.addEventListener("click", onBulkBarClick);
+  bar = document.getElementById(BULK_BAR_ID);
+  bar?.addEventListener("click", onBulkBarClick);
 }
