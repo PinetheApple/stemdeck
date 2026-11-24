@@ -1036,23 +1036,6 @@ export function setWaveformLoading(loading, phrase) {
   }
 }
 
-export function buildStripStems() {
-  const container = document.getElementById("appbarStripStems");
-  if (!container) return;
-  container.innerHTML = "";
-  for (const name of STEM_NAMES) {
-    const color = STEM_COLORS[name];
-    const active = selectedStems.has(name);
-    const sq = document.createElement("div");
-    sq.className = "strip-sq strip-sq-stem" + (active ? "" : " inactive");
-    sq.dataset.stem = name;
-    if (active) sq.style.cssText = `background:${color}1a;border-color:${color}44;color:${color}`;
-    const srcSvg = document.querySelector(`.stem-choice[data-stem="${name}"] svg`);
-    if (srcSvg) sq.appendChild(srcSvg.cloneNode(true));
-    container.appendChild(sq);
-  }
-}
-
 // The lane count the panel is currently laid out for, and the observer that
 // re-fits it. _applyLaneHeight divides the wave panel's height between the
 // lanes, so it has to run again whenever that height changes -- which it now

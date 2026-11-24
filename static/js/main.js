@@ -6,7 +6,7 @@ import {
 } from "./state.js";
 import { STEM_NAMES, SEEK_STEP_SEC, syncStemNamesFromAPI } from "./constants.js";
 import { refreshStemChoiceVisuals } from "./stemChoice.js";
-import { renderEmptyShell, buildStripStems, downloadCurrentMix, downloadCurrentVideo, downloadAllStemsZip, downloadSongBundle, downloadRegionMix, regionDragPayload, stemRegionDragPayload, prewarmRegionMix } from "./player.js";
+import { renderEmptyShell, downloadCurrentMix, downloadCurrentVideo, downloadAllStemsZip, downloadSongBundle, downloadRegionMix, regionDragPayload, stemRegionDragPayload, prewarmRegionMix } from "./player.js";
 import { wireJobForm, showError } from "./job.js";
 import { initSearch } from "./search.js";
 import { wireTransportButtons } from "./transport.js";
@@ -110,7 +110,6 @@ function wireVocalModeToggle() {
       }
       saveSelectedStems();
       refreshStemChoiceVisuals();
-      buildStripStems();
     });
   }
 }
@@ -216,7 +215,6 @@ function handleStemChoiceClick(stem) {
 
   saveSelectedStems();
   refreshStemChoiceVisuals();
-  buildStripStems();
 }
 
 function wireStemChoiceButtons() {
@@ -239,7 +237,6 @@ function wireAllButton() {
     }
     saveSelectedStems();
     refreshStemChoiceVisuals();
-    buildStripStems();
   });
 
   // No second listener on the stem chips, and no sync of its own. The button
@@ -277,7 +274,7 @@ onStoreLost(showStoreLost);
 // static/index.html always ships pre-rendered in English).
 const i18nReady = initI18n().then(() => applyTranslations(document));
 
-syncStemNamesFromAPI().then(() => buildStripStems());
+syncStemNamesFromAPI();
 wireJobForm();
 // Live search on the topbar box. Picking a result fills the box and stops
 // there: extraction is minutes of work, so it stays behind the deliberate
@@ -1209,7 +1206,3 @@ window.addEventListener("error", (e) => {
 window.addEventListener("unhandledrejection", (e) => {
   console.error("[app:unhandledrejection]", e.reason?.message ?? e.reason, "\n", e.reason?.stack ?? "");
 });
-
-// ─── Bootstrap ───
-
-buildStripStems();
