@@ -15,7 +15,7 @@ export const BROWSE_ID = "browseLibrary";
 const ERROR_SHOWN = "#error:not(.hidden)";
 export const OPEN_FLOATS = [
   '[role="menu"]',
-  '[role="listbox"]:not(select)',
+  '[role="listbox"]:not(select, [aria-multiselectable="true"])',
   ".daw-notif-wrap.open .daw-notif-panel",
   "#stemOverflow.open",
   "#search-panel:not(.hidden)",
