@@ -1,7 +1,7 @@
 // What each song menu item does. songMenu.js builds the menu and calls these.
 
 import {
-  TRACK_SHOW_EVENT, extractStoppedTrack, getCurrentTrackInfo, moveTrackToFolder, moveTrackToNewFolder,
+  TRACK_OPEN_EVENT, TRACK_SHOW_EVENT, extractStoppedTrack, getCurrentTrackInfo, moveTrackToFolder, moveTrackToNewFolder,
   restoreTracksFromTrash, retryFailedImport, toggleFavorite,
 } from "./catalog.js";
 import { addSongToSetlist, createSetlistFrom } from "./setlists.js";
@@ -22,7 +22,7 @@ import { $ } from "./utils.js";
 
 const ABOUT_BUTTON_ID = "np-details-btn";
 // A function, as catalog.js is still evaluating when this module first runs.
-const shownEvents = () => ["trackopen", TRACK_SHOW_EVENT];
+const shownEvents = () => [TRACK_OPEN_EVENT, TRACK_SHOW_EVENT];
 
 function clickAbout() {
   $(ABOUT_BUTTON_ID)?.click();
