@@ -1758,6 +1758,7 @@ const en = {
   "studio.lane.transposeDown": "Transpose down a semitone",
   "studio.lane.keyValue": "Key {n}",
   "studio.lane.moreChanged": "More for {name}: {state}",
+  "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Mutes or unmutes {name}. M lights up while it is muted.",
   "studio.lane.helpMore": "EQ, key and download for {name} when the lane is too short to show them. A dot means its key or EQ is changed.",
 };
@@ -3311,6 +3312,7 @@ const pl = {
   "studio.lane.transposeDown": "Transponuj o półton w dół",
   "studio.lane.keyValue": "Tonacja {n}",
   "studio.lane.moreChanged": "Więcej: {name}: {state}",
+  "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Wycisza lub włącza {name}. M świeci, gdy ścieżka jest wyciszona.",
   "studio.lane.helpMore": "EQ, tonacja i pobieranie dla {name}, gdy ścieżka jest za niska, by je pokazać. Kropka oznacza zmienioną tonację lub EQ.",
 };
@@ -4801,6 +4803,7 @@ const ja = {
   "studio.lane.transposeDown": "半音下げる",
   "studio.lane.keyValue": "キー {n}",
   "studio.lane.moreChanged": "{name}のその他: {state}",
+  "studio.lane.stateSeparator": "、",
   "studio.lane.helpName": "{name}をミュート/解除します。ミュート中は M が点灯します。",
   "studio.lane.helpMore": "レーンが低くて表示できないときの{name}の EQ、キー、ダウンロードです。点はキーか EQ が変更されていることを示します。",
 };
@@ -6291,6 +6294,7 @@ const zhHans = {
   "studio.lane.transposeDown": "降低半音",
   "studio.lane.keyValue": "调性 {n}",
   "studio.lane.moreChanged": "{name}的更多选项：{state}",
+  "studio.lane.stateSeparator": "，",
   "studio.lane.helpName": "静音或取消静音{name}。静音时 M 会亮起。",
   "studio.lane.helpMore": "音轨太矮无法显示时，{name}的均衡器、调性和下载。圆点表示调性或均衡器已更改。",
 };
@@ -7810,6 +7814,7 @@ const de = {
   "studio.lane.transposeDown": "Einen Halbton tiefer",
   "studio.lane.keyValue": "Tonart {n}",
   "studio.lane.moreChanged": "Mehr für {name}: {state}",
+  "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Schaltet {name} stumm oder laut. M leuchtet, solange die Spur stumm ist.",
   "studio.lane.helpMore": "EQ, Tonart und Download für {name}, wenn die Spur zu niedrig ist, um sie zu zeigen. Ein Punkt heißt: Tonart oder EQ geändert.",
 };
@@ -9331,6 +9336,7 @@ const pt = {
   "studio.lane.transposeDown": "Descer um semitom",
   "studio.lane.keyValue": "Tom {n}",
   "studio.lane.moreChanged": "Mais para {name}: {state}",
+  "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Silencia ou reativa {name}. O M acende enquanto estiver silenciado.",
   "studio.lane.helpMore": "EQ, tom e download de {name} quando a faixa é baixa demais para mostrá-los. Um ponto indica tom ou EQ alterado.",
 };
@@ -10821,6 +10827,7 @@ const id = {
   "studio.lane.transposeDown": "Turunkan satu semiton",
   "studio.lane.keyValue": "Nada {n}",
   "studio.lane.moreChanged": "Lainnya untuk {name}: {state}",
+  "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Membisukan atau mengaktifkan {name}. M menyala selama dibisukan.",
   "studio.lane.helpMore": "EQ, nada, dan unduhan untuk {name} saat jalur terlalu pendek untuk menampilkannya. Titik berarti nada atau EQ diubah.",
 };
@@ -12342,6 +12349,7 @@ const fr = {
   "studio.lane.transposeDown": "Descendre d’un demi-ton",
   "studio.lane.keyValue": "Ton {n}",
   "studio.lane.moreChanged": "Plus pour {name} : {state}",
+  "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Coupe ou rétablit {name}. M s’allume tant que la piste est coupée.",
   "studio.lane.helpMore": "EQ, ton et téléchargement de {name} quand la piste est trop basse pour les afficher. Un point signale un ton ou un EQ modifié.",
 };
@@ -12768,6 +12776,7 @@ const ptPT = {
   "settings.appearance.font.desc": "O tipo de letra de todas as etiquetas e letras.",
   "settings.appearance.wash.desc": "Tinge o estúdio com as cores da capa da canção.",
   "studio.lane.faderTitle": "Arraste para ajustar. Faça duplo clique para repor.",
+  "studio.lane.helpMore": "EQ, tom e transferência de {name} quando a faixa é demasiado baixa para os mostrar. Um ponto indica tom ou EQ alterado.",
 };
 
 const es = {
@@ -14299,6 +14308,7 @@ const es = {
   "studio.lane.transposeDown": "Bajar un semitono",
   "studio.lane.keyValue": "Tono {n}",
   "studio.lane.moreChanged": "Más para {name}: {state}",
+  "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Silencia o activa {name}. La M se enciende mientras está silenciada.",
   "studio.lane.helpMore": "EQ, tono y descarga de {name} cuando la pista es demasiado baja para mostrarlos. Un punto indica tono o EQ cambiado.",
 };
@@ -15798,6 +15808,7 @@ const ko = {
   "studio.lane.transposeDown": "반음 내리기",
   "studio.lane.keyValue": "키 {n}",
   "studio.lane.moreChanged": "{name} 더 보기: {state}",
+  "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "{name}을(를) 음소거하거나 해제해요. 음소거 중에는 M이 켜져요.",
   "studio.lane.helpMore": "레인이 낮아 보이지 않을 때 {name}의 EQ, 키, 다운로드예요. 점은 키나 EQ가 바뀌었다는 뜻이에요.",
 };

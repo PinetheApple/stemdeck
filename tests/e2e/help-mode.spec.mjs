@@ -145,6 +145,16 @@ test.describe("help mode", () => {
     await expect(tip(page).locator("b")).toHaveText("Key of Drums");
   });
 
+  test("a lane's name and its ⋯ menu explain themselves for that lane", async ({ page }) => {
+    await openStudio(page);
+    await helpOn(page);
+    const drums = page.locator('.lane-head[data-stem="drums"]');
+    await drums.locator(".lane-name").hover();
+    await expect(tip(page)).toContainText(await uiText(page, "studio.lane.helpName", { name: "Drums" }));
+    await drums.locator(".lane-more").hover();
+    await expect(tip(page)).toContainText(await uiText(page, "studio.lane.helpMore", { name: "Drums" }));
+  });
+
   test("each song fact and presence card explains itself", async ({ page }) => {
     await openStudio(page);
     await openInspectorTab(page, "details");

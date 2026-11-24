@@ -24,8 +24,7 @@ import {
 } from "./pitchBus.js";
 import { applyTakeGains, clearTakeSolos, takeSoloActive } from "./takesMix.js";
 import { paintLaneSilence } from "./laneSilence.js";
-import { refreshLaneMore } from "./laneMenu.js";
-import { paintLaneKey, setLaneKeysUsable } from "./laneKey.js";
+import { LANE_KEY_CHANGE_EVENT, lanePitch, paintLaneKey, setLaneKeysUsable } from "./laneKey.js";
 import {
   bindFxStore,
   ensureFxDefaults,
@@ -115,7 +114,7 @@ bindFxStore({ save: saveMix, laneNames: allTrackNames });
 /** Push one lane's transpose into whichever engine is playing. */
 export function applyLanePitch(name) {
   if (!audioEngine?.setStemPitch) return;
-  audioEngine.setStemPitch(name, mixerState[name]?.pitch ?? 0);
+  audioEngine.setStemPitch(name, lanePitch(name));
 }
 
 /** Re-send every lane transpose. Called once an engine finishes starting. */
@@ -173,13 +172,13 @@ export function setLanePitch(name, semitones) {
 }
 
 export function stepLanePitch(name, delta) {
-  setLanePitch(name, (mixerState[name]?.pitch ?? 0) + delta);
+  setLanePitch(name, lanePitch(name) + delta);
 }
 
 export function refreshLaneKeyVisual(name) {
   const wrap = mixerEl?.querySelector(`.lane-key[data-stem="${name}"]`);
   if (wrap) paintLaneKey(wrap, name);
-  refreshLaneMore(name);
+  document.dispatchEvent(new CustomEvent(LANE_KEY_CHANGE_EVENT, { detail: { lane: name } }));
 }
 
 /**

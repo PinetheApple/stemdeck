@@ -1,11 +1,13 @@
-// A stem lane's key: who may move it, how it reads, and how its stepper draws.
-
 import { KEY_LOCKED_STEM, PITCH_STEP } from "./constants.js";
 import { mixerState } from "./state.js";
 import { t } from "./i18n.js";
 import { clampPitch, pitchBlockedKey } from "./pitchBus.js";
 
+export const LANE_KEY_CHANGE_EVENT = "lane:keychange";
+
 let laneKeysUsable = true;
+
+export const lanePitch = (name) => mixerState[name]?.pitch ?? 0;
 
 export function setLaneKeysUsable(usable) {
   laneKeysUsable = usable;
@@ -19,13 +21,13 @@ export function laneKeyBlockedReason(name) {
 }
 
 export function canStepLanePitch(name, delta) {
-  const n = mixerState[name]?.pitch ?? 0;
+  const n = lanePitch(name);
   return !laneKeyBlockedReason(name) && clampPitch(n + delta) !== n;
 }
 
 /** `name`'s key offset as shown: "0", "+2", "-1". */
 export function laneKeyText(name) {
-  const n = mixerState[name]?.pitch ?? 0;
+  const n = lanePitch(name);
   return n > 0 ? `+${n}` : String(n);
 }
 
@@ -33,7 +35,7 @@ export function laneKeyText(name) {
 export function paintLaneKey(wrap, name) {
   const signed = laneKeyText(name);
   wrap.querySelector(".lane-key-value").textContent = signed;
-  wrap.classList.toggle("active", (mixerState[name]?.pitch ?? 0) !== 0);
+  wrap.classList.toggle("active", lanePitch(name) !== 0);
   wrap.classList.toggle("locked", name === KEY_LOCKED_STEM);
   wrap.classList.toggle("unsupported", !laneKeysUsable);
   wrap.querySelector(".lane-key-step.up").disabled = !canStepLanePitch(name, PITCH_STEP);

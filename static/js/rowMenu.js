@@ -2,6 +2,7 @@
 // its button, or over it when the footer leaves no room below.
 
 import { icon } from "./libraryIcons.js";
+import { iconButton } from "./libraryControls.js";
 
 const MENU_GAP_PX = 4;
 const VIEWPORT_MARGIN_PX = 8;
@@ -12,6 +13,8 @@ const HINT_CLASS = "row-menu-hint";
 let menu = null;
 let anchorEl = null;
 let anchorRect = null;
+let buildEntries = null;
+let alignToRight = false;
 
 function textSpan(text, className = "") {
   const span = document.createElement("span");
@@ -20,19 +23,24 @@ function textSpan(text, className = "") {
   return span;
 }
 
-function plainButton() {
-  const btn = document.createElement("button");
-  btn.type = "button";
+function linkEntry(item) {
+  const { link } = item;
+  link.classList.add(ITEM_CLASS);
+  link.innerHTML = item.iconHtml ?? icon(item.icon);
+  link.append(textSpan(item.text));
+  return link;
+}
+
+function buttonEntry(item) {
+  const btn = iconButton(ITEM_CLASS, item.icon, { text: item.text });
+  if (item.iconHtml) btn.firstElementChild.outerHTML = item.iconHtml;
   return btn;
 }
 
 /** An entry's element: its own `link` when it has one, else a button. */
 function entryEl(item) {
-  const el = item.link ?? plainButton();
-  el.classList.add(ITEM_CLASS);
+  const el = item.link ? linkEntry(item) : buttonEntry(item);
   if (item.danger) el.classList.add(DANGER_CLASS);
-  el.innerHTML = item.iconHtml ?? icon(item.icon);
-  el.append(textSpan(item.text));
   if (item.hint) el.append(textSpan(item.hint, HINT_CLASS));
   if (item.title) el.title = item.title;
   return el;
@@ -46,8 +54,8 @@ function separatorEl() {
 }
 
 /**
- * A menu entry: `{ text, icon | iconHtml, onChoose | link, hint?, danger?, selected?, disabled?, title? }`,
- * or `{ separator: true }`. A `link` is an anchor that does its own thing when clicked.
+ * A menu entry: `{ text, icon | iconHtml, onChoose | link, hint?, keep?, danger?, selected?, disabled?, title? }`,
+ * or `{ separator: true }`. A `keep` entry leaves the menu open and redraws it.
  */
 function itemEl(item) {
   if (item.separator) return separatorEl();
@@ -64,6 +72,11 @@ function itemEl(item) {
   }
   el.addEventListener("click", function onRowMenuChoose(e) {
     e.stopPropagation();
+    if (item.keep) {
+      item.onChoose();
+      redraw(el);
+      return;
+    }
     closeRowMenu();
     item.onChoose();
   });
@@ -110,10 +123,19 @@ function onAnyScroll() {
   if (now && (now.top !== anchorRect.top || now.left !== anchorRect.left)) closeRowMenu();
 }
 
+function redraw(chosen) {
+  const at = [...menu.children].indexOf(chosen);
+  menu.replaceChildren(...buildEntries().map(itemEl));
+  place(menu, anchorEl, alignToRight);
+  const same = menu.children[at];
+  (same && !same.disabled ? same : items()[0])?.focus({ preventScroll: true });
+}
+
 export function closeRowMenu() {
   if (!menu) return;
   menu.remove();
   menu = null;
+  buildEntries = null;
   anchorEl?.setAttribute("aria-expanded", "false");
   anchorEl = null;
   document.removeEventListener("pointerdown", onOutsidePointerDown, true);
@@ -121,7 +143,7 @@ export function closeRowMenu() {
   window.removeEventListener("resize", closeRowMenu);
 }
 
-/** Toggle a menu of `entries` under `anchor`. */
+/** Toggle a menu of `entries` (or of what a function returns, redrawn after a `keep` entry) under `anchor`. */
 export function openRowMenu(anchor, label, entries, { alignRight = false } = {}) {
   const reopening = menu && anchorEl === anchor;
   closeRowMenu();
@@ -130,7 +152,9 @@ export function openRowMenu(anchor, label, entries, { alignRight = false } = {})
   menu.className = "lib-menu rec-menu";
   menu.setAttribute("role", "menu");
   menu.setAttribute("aria-label", label);
-  menu.append(...entries.map(itemEl));
+  buildEntries = typeof entries === "function" ? entries : () => entries;
+  alignToRight = alignRight;
+  menu.append(...buildEntries().map(itemEl));
   menu.addEventListener("keydown", onMenuKeydown);
   anchorEl = anchor;
   anchorRect = anchor.getBoundingClientRect();

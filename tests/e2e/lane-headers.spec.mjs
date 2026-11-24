@@ -143,14 +143,14 @@ test.describe("a stem's header on a short window", () => {
     await expect(entryTexts(page)).toHaveText([
       "Vocals EQ", "Transpose up a semitone", "Transpose down a semitone", "Download Vocals",
     ]);
-    await expect(entryHints(page)).toHaveText(["EQ off", "Key 0", "Key 0"]);
+    await expect(entryHints(page)).toHaveText(["EQ off", "Key 0"]);
     const m = await box(menu(page));
     expect(m.y + m.height).toBeLessThanOrEqual(SHORT_WINDOW.height);
     expect(m.x + m.width).toBeLessThanOrEqual(SHORT_WINDOW.width);
 
     await menu(page).getByRole("menuitem", { name: "Transpose up a semitone" }).click();
     await expect(vocals.locator(".lane-key-value")).toHaveText("+1");
-    await expect(menu(page)).toHaveCount(0);
+    await expect(entryHints(page)).toHaveText(["EQ off", "Key +1"]);
   });
 
   test("drums' transpose entries are disabled with the reason; EQ opens the lane's EQ", async ({ page }) => {
@@ -178,13 +178,12 @@ test.describe("a stem's header on a short window", () => {
     await expect(more).not.toHaveClass(/\bis-changed\b/);
     await expect(more).toHaveAttribute("aria-label", "More for Vocals");
     await more.click();
-    await menu(page).getByRole("menuitem", { name: "Transpose up a semitone" }).click();
-    await more.click();
-    await menu(page).getByRole("menuitem", { name: "Transpose up a semitone" }).click();
+    const up = menu(page).getByRole("menuitem", { name: "Transpose up a semitone" });
+    await up.click();
+    await up.click();
     await expect(more).toHaveClass(/\bis-changed\b/);
     await expect(more).toHaveAttribute("aria-label", "More for Vocals: Key +2");
-    await more.click();
-    await expect(entryHints(page)).toHaveText(["EQ off", "Key +2", "Key +2"]);
+    await expect(entryHints(page)).toHaveText(["EQ off", "Key +2"]);
   });
 
   test("the menu's download is a stem link like the header's, so it saves and drags out", async ({ page }) => {
