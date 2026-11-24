@@ -49,6 +49,8 @@ import { CLICK_STATE_EVENT, initFooterClick } from "./footerClick.js";
 import { initFooterPractice } from "./footerPractice.js";
 import { initUpNextButton } from "./footerTransport.js";
 import { paintSectionLine } from "./footerSections.js";
+import { initFooterLoop, paintLoopName } from "./footerLoop.js";
+import { emitLoopChange, emitPlayheadMove } from "./studioSignals.js";
 import { SPEED_MIN, SPEED_MAX, SPEED_STEP, SPEED_NOTCH, TIMES_SIGN, clampSpeed, nextNotch, parseSpeedInput } from "./speedInput.js";
 import { trackPlayhead, resumeFollowing } from "./autoScroll.js";
 import { MIN_WAVES_PX } from "./paneEdgeMath.js";
@@ -120,6 +122,8 @@ function timeFromClientX(clientX) {
 export function transport() {
   return audioEngine ?? multitrack;
 }
+
+const playheadTime = () => transport()?.getCurrentTime?.() ?? 0;
 
 // Until the next engine starts, the transport is a multitrack still building
 // its <audio> elements: its setTime() throws and its play() plays nothing.
@@ -201,6 +205,7 @@ export function updatePlayheadMarker(currentSec) {
 // rewriting identical text still re-lays out the footer.
 export function updateFooterTimes(currentSec) {
   paintSectionLine(totalDuration ? currentSec : 0);
+  emitPlayheadMove(totalDuration ? currentSec : 0);
   const elapsed = fmtTime(totalDuration ? currentSec : 0);
   const total = fmtTime(totalDuration);
   if (footerTimeElapsed && footerTimeElapsed.textContent !== elapsed) footerTimeElapsed.textContent = elapsed;
@@ -243,11 +248,13 @@ export function updatePresencePlayhead(currentSec) {
   presencePlayheadEl.classList.remove("hidden");
 }
 
-/** Loop's on state, on the button and its footer segment. */
+/** Loop's on state and what loops, on the button and its footer segment. */
 export function paintLoopButton() {
   loopBtn.classList.toggle("active", loopEnabled);
   loopBtn.setAttribute("aria-pressed", String(loopEnabled));
   loopBtn.closest(".ft-seg")?.classList.toggle(ON_CLASS, loopEnabled);
+  paintLoopName();
+  emitLoopChange();
 }
 
 export function updateLoopRegionVisual() {
@@ -1025,6 +1032,7 @@ export function wireTransportButtons() {
   wireLoopDrag();
   wireLoopRegionAdjust();
   wireLoopInputs();
+  initFooterLoop({ currentTime: playheadTime, setLoopRange, updateLoopRegionVisual });
   wireZoomButtons();
   wireLaneScrollSync();
   masterFader?.addEventListener("input", () => {

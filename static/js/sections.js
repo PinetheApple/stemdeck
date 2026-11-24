@@ -1,7 +1,7 @@
 // sections.js — interactive sections bar above the waveform
 
 import { onLanguageChange, t } from "./i18n.js";
-import { PAGE_CLOSE_FETCH } from "./utils.js";
+import { PAGE_CLOSE_FETCH, fmtTime } from "./utils.js";
 import { isPageClosing, wasCutOffByPageClose } from "./pageClosing.js";
 import { SAVE_KIND, UnconfirmedSaves, refusalNoticeKey, refusalOf } from "./saveFailures.js";
 
@@ -21,6 +21,13 @@ const DEFAULT_WIDTH_FRAC = 0.12; // default new section = 12% of track
 const SECTION_KINDS = new Set([
   "intro", "outro", "break", "bridge", "inst", "solo", "verse", "chorus", "part",
 ]);
+// Pointer travel that still counts as a click rather than a drag.
+const CLICK_SLOP_PX = 3;
+const COLUMNS_ID = "sectionCols";
+const LOOP_ICON =
+  '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"' +
+  ' stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/>' +
+  '<path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>';
 
 let _trackId = null;
 let _duration = 0;
@@ -35,7 +42,7 @@ let _confirmed = "";
 
 // The loop lives in transport.js, which reaches the DOM at import time through
 // state.js. Importing it here would drag a document into every Node test that
-// loads this module, so the two functions sections needs are handed in instead.
+// loads this module, so what sections reads from it is handed in instead.
 // Same reason loopRegion.js is its own module: the testable part stays
 // reachable without a browser.
 let _loopBridge = null;
@@ -57,6 +64,8 @@ onLanguageChange(() => _render());
 
 /** Fired on `document` whenever the section list or a section's name changes. */
 export const SECTIONS_CHANGED_EVENT = "sectionschanged";
+/** Fired on `document` with `{ id }` when a section asks to be edited (sectionEdit.js answers). */
+export const SECTION_EDIT_EVENT = "sectionedit";
 
 // ─── Public API ───────────────────────────────────────────
 
@@ -102,66 +111,69 @@ export function destroySections() {
   _duration = 0;
   if (_container) _container.innerHTML = "";
   _container = null;
+  _renderColumns([]);
   _refreshClearVisibility();
 }
 
 // ─── Rendering ────────────────────────────────────────────
 
+// Listeners run after the blocks are rebuilt, so they can mark the new ones.
 function _render() {
-  document.dispatchEvent(new CustomEvent(SECTIONS_CHANGED_EVENT));
-  // Before the container guard: the button lives in the header, not the
-  // ribbon, so its state must stay correct even when the ribbon is absent.
   _refreshClearVisibility();
-  if (!_container) return;
-  _container.innerHTML = "";
-
-  const sorted = [..._sections].sort((a, b) => a.start - b.start);
-
-  for (const section of sorted) {
-    _container.appendChild(_makeSectionEl(section));
+  if (_container) {
+    const sorted = [..._sections].sort((a, b) => a.start - b.start);
+    _container.replaceChildren(...sorted.map(_makeSectionEl));
+    _renderColumns(sorted);
   }
+  document.dispatchEvent(new CustomEvent(SECTIONS_CHANGED_EVENT));
+}
+
+/** The thin columns that carry each section down through the lanes. */
+function _renderColumns(sorted) {
+  const host = document.getElementById(COLUMNS_ID);
+  if (host) host.replaceChildren(...sorted.map(_makeColumnEl));
+}
+
+function _spanStyle(section) {
+  const left = (section.start / _duration) * 100;
+  const width = ((section.end - section.start) / _duration) * 100;
+  return `left:${left.toFixed(4)}%;width:${width.toFixed(4)}%`;
+}
+
+function _makeColumnEl(section) {
+  const col = document.createElement("div");
+  col.className = "section-col";
+  col.dataset.id = section.id;
+  col.style.cssText = _spanStyle(section);
+  return col;
 }
 
 function _makeSectionEl(section) {
-  const pctStart = (section.start / _duration) * 100;
-  const pctWidth = ((section.end - section.start) / _duration) * 100;
-
+  const name = sectionDisplayName(section, _sections);
   const el = document.createElement("div");
   el.className = section.locked ? "section-block sec-locked" : "section-block";
   el.dataset.id = section.id;
-  el.style.cssText = `left:${pctStart.toFixed(4)}%;width:${pctWidth.toFixed(4)}%;--sc:${section.color}`;
-
-  const lockAria = section.locked ? t("sections.unlockAria") : t("sections.lockAria");
+  el.style.cssText = _spanStyle(section);
+  el.title = t("studio.sections.jumpTo", { name });
+  const loopLabel = _esc(t("studio.sections.loop", { name }));
+  const lockMark = section.locked
+    ? `<span class="section-lock-mark" title="${_esc(t("studio.sections.locked"))}">${_lockIcon(true)}</span>`
+    : "";
   el.innerHTML = `
     <div class="section-handle section-handle-l" data-edge="left"></div>
-    <span class="section-label">${_esc(sectionDisplayName(section, _sections))}</span>
-    <button class="section-lock" type="button" aria-label="${lockAria}" title="${lockAria}" aria-pressed="${section.locked ? "true" : "false"}" tabindex="-1">${_lockIcon(section.locked)}</button>
-    <button class="section-del" type="button" aria-label="${t("sections.deleteAria")}" tabindex="-1">×</button>
+    <span class="section-label">${_esc(name)}</span>
+    ${lockMark}
+    <span class="section-time num">${fmtTime(section.start)}</span>
+    <button class="section-loop" type="button" aria-pressed="false" title="${loopLabel}" aria-label="${loopLabel}">${LOOP_ICON}</button>
     <div class="section-handle section-handle-r" data-edge="right"></div>
   `;
 
-  el.querySelector(".section-lock").addEventListener("click", (e) => {
+  // On the block, not the label: the drag's pointer capture retargets the
+  // dblclick that ends a real double-click to the capturing element.
+  el.addEventListener("dblclick", function onSectionDoubleClick(e) {
+    if (e.target.closest(".section-handle,.section-loop")) return;
     e.stopPropagation();
-    _toggleLock(section.id);
-  });
-
-  el.querySelector(".section-del").addEventListener("click", (e) => {
-    e.stopPropagation();
-    _deleteSection(section.id);
-  });
-
-  // Bound to the block, not to the label inside it. The drag calls
-  // setPointerCapture, which retargets the rest of the gesture to the capturing
-  // element, so the dblclick that ends a real double-click is delivered to the
-  // block and a listener on the child label never runs. Synthetic events do not
-  // capture, which is why this looked fine in a console and failed for every
-  // actual user.
-  el.addEventListener("dblclick", (e) => {
-    if (e.target.closest(".section-handle,.section-del,.section-lock")) return;
-    e.stopPropagation();
-    if (section.locked) return;
-    const labelEl = el.querySelector(".section-label");
-    if (labelEl) _openRename(section.id, labelEl);
+    _requestEdit(section.id);
   });
 
   _wireDrag(el, section);
@@ -170,6 +182,10 @@ function _makeSectionEl(section) {
   }
 
   return el;
+}
+
+function _requestEdit(id) {
+  document.dispatchEvent(new CustomEvent(SECTION_EDIT_EVENT, { detail: { id } }));
 }
 
 export function sectionDisplayName(section, all) {
@@ -214,29 +230,25 @@ function _lockIcon(locked) {
 
 // ─── Drag to move ─────────────────────────────────────────
 
+// A press that travels marks the block as dragged, so the click that ends it
+// neither seeks nor loops (sectionBar.js reads the mark).
 function _wireDrag(el, section) {
   let active = false;
   let startX = 0;
   let origStart = 0;
   let origEnd = 0;
   let changed = false;
-
-  // A press that never moves is a click, and a click loops the section. That is
-  // tracked separately from `active` so a locked section can still be looped:
-  // lock is about position, and refusing to loop one would be a second rule
-  // nobody asked for.
   let pressed = false;
 
-  el.addEventListener("pointerdown", (e) => {
-    if (e.target.closest(".section-handle,.section-del,.section-lock")) return;
+  el.addEventListener("pointerdown", function onSectionPress(e) {
+    if (e.target.closest(".section-handle,.section-loop")) return;
     pressed = true;
+    startX = e.clientX;
     changed = false;
-    // Read the flag here, not at wire time: the block is rebuilt on every
-    // render, but a stale closure would still be the kind of bug that only
-    // shows after a toggle and before the next redraw.
+    delete el.dataset.dragged;
+    // Read here, not at wire time: a stale closure would outlive a lock toggle.
     if (section.locked) return;
     active = true;
-    startX = e.clientX;
     origStart = section.start;
     origEnd = section.end;
     el.setPointerCapture(e.pointerId);
@@ -244,7 +256,7 @@ function _wireDrag(el, section) {
     e.preventDefault();
   });
 
-  el.addEventListener("pointermove", (e) => {
+  el.addEventListener("pointermove", function onSectionDrag(e) {
     if (!active) return;
     const cw = _container.getBoundingClientRect().width;
     if (!cw) return;
@@ -258,24 +270,17 @@ function _wireDrag(el, section) {
     el.style.left = `${(section.start / _duration) * 100}%`;
   });
 
-  el.addEventListener("pointerup", () => {
-    const wasPressed = pressed;
+  el.addEventListener("pointerup", function onSectionRelease(e) {
+    if (!pressed) return;
     pressed = false;
-    if (active) {
-      active = false;
-      el.classList.remove("sec-dragging");
-      if (changed) {
-        _scheduleSave();
-        return;
-      }
-    }
-    // Nothing moved, so this was a click: loop over what it covers. MIN_SEC is
-    // 0.5 s and MIN_LOOP_SEC is 0.2 s, so any section that exists can be a
-    // loop and setLoopRange cannot refuse one.
-    if (wasPressed && !changed) _loopBridge?.setLoopRange?.(section.start, section.end);
+    if (changed || Math.abs(e.clientX - startX) >= CLICK_SLOP_PX) el.dataset.dragged = "1";
+    if (!active) return;
+    active = false;
+    el.classList.remove("sec-dragging");
+    if (changed) _scheduleSave();
   });
 
-  el.addEventListener("pointercancel", () => {
+  el.addEventListener("pointercancel", function onSectionDragCancel() {
     if (active) {
       section.start = origStart;
       section.end = origEnd;
@@ -451,13 +456,8 @@ function _addSection() {
   _sections.push(section);
   _render();
   _scheduleSave();
-
-  // Open rename immediately
-  const el = _container?.querySelector(`[data-id="${section.id}"]`);
-  if (el) {
-    _scrollIntoView(section);
-    _openRename(section.id, el.querySelector(".section-label"));
-  }
+  _scrollIntoView(section);
+  _requestEdit(section.id);
 }
 
 /**
@@ -537,68 +537,38 @@ export function clearAllSections() {
   _scheduleSave();
 }
 
-function _deleteSection(id) {
+/** A copy of the open track's section `id`, or null. */
+export function findSection(id) {
+  const section = _sections.find((s) => s.id === id);
+  return section ? { ...section } : null;
+}
+
+export function deleteSection(id) {
   _sections = _sections.filter((s) => s.id !== id);
   _render();
   _scheduleSave();
 }
 
-// Lock covers editing: drag, resize and rename all refuse while it is set, and
-// the padlock turns red so a locked section is obvious at rest (#573).
-//
-// Looping over a locked section still works. That reads the section without
-// changing it, and it is the gesture most likely to be wanted on one pinned
-// precisely because it matters.
-//
-// Delete is still allowed: the cross is an explicit press on one named target,
-// not something a pointer does on the way to somewhere else.
-function _toggleLock(id) {
+// Lock covers position and name: drag, resize and rename refuse while it is
+// set. Going there, looping and delete still work: they leave it where it is.
+export function setSectionLocked(id, locked) {
   const section = _sections.find((s) => s.id === id);
   if (!section) return;
-  section.locked = !section.locked;
+  section.locked = Boolean(locked);
   _render();
   _scheduleSave();
 }
 
-function _openRename(id, labelEl) {
-  if (!labelEl) return;
+/** Rename a section; an empty or unchanged name, or a locked section, is left as it is. */
+export function renameSection(id, name) {
   const section = _sections.find((s) => s.id === id);
-  if (!section) return;
-  // Also checked here, not only at the gesture. _addSection opens a rename on
-  // the block it just made, and a future caller has no reason to know that a
-  // locked section must not get an editable field.
-  if (section.locked) return;
-
-  const input = document.createElement("input");
-  input.className = "section-rename-input";
-  input.type = "text";
-  const originalName = sectionDisplayName(section, _sections);
-  input.value = originalName;
-  input.style.setProperty("--sc", section.color);
-  labelEl.replaceWith(input);
-  input.focus();
-  input.select();
-
-  const commit = () => {
-    const n = input.value.trim();
-    if (n && n !== originalName) {
-      section.name = n;
-      delete section.kind;
-      _render();
-      _scheduleSave();
-      return;
-    }
-    _render();
-  };
-  input.addEventListener("blur", commit, { once: true });
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { e.preventDefault(); input.blur(); }
-    if (e.key === "Escape") {
-      e.preventDefault();
-      input.removeEventListener("blur", commit);
-      _render();
-    }
-  });
+  const next = String(name ?? "").trim();
+  if (!section || section.locked || !next || next === sectionDisplayName(section, _sections)) return false;
+  section.name = next;
+  delete section.kind;
+  _render();
+  _scheduleSave();
+  return true;
 }
 
 // ─── Persistence ──────────────────────────────────────────

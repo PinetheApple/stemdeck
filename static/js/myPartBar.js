@@ -16,6 +16,7 @@ const ON_CLASS = "is-on";
 const CLASS = Object.freeze({
   BAR: "my-part",
   PICK: "my-part-pick",
+  PICK_LABEL: "my-part-pick-label",
   NAME: "my-part-name",
   SELECT: "my-part-select",
   CHOICES: "my-part-choices",
@@ -69,7 +70,7 @@ function buildPick() {
   picker.dataset.i18nAriaLabel = LABEL_KEY;
   picker.setAttribute("aria-label", t(LABEL_KEY));
   picker.append(...STEM_NAMES.map(partOption));
-  pick.append(translated(document.createElement("span"), PICK_KEY), element("span", CLASS.NAME));
+  pick.append(translated(element("span", CLASS.PICK_LABEL), PICK_KEY), element("span", CLASS.NAME));
   pick.insertAdjacentHTML("beforeend", icon(CHEVRON_ICON));
   pick.append(picker);
   return pick;

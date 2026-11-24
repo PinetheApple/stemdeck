@@ -1,0 +1,116 @@
+/* The Sections and View buttons on the My part row, their popovers, and the Edit section dialog. */
+
+/* The buttons share the part picker's row; the picker leaves them room. */
+#myPartStudio { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+#myPartStudio > .my-part { grid-row: 1; grid-column: 1 / -1; }
+#myPartStudio > .studio-tools { grid-row: 1; grid-column: 2; z-index: 1; padding-top: var(--s-2); }
+#myPartStudio .my-part-pick { max-width: calc(100% - var(--studio-tools-w, 0px) - var(--s-2)); }
+/* Beside Sections and View in a narrow column the part's name matters more than its label. */
+#myPartStudio { container: gut / inline-size; }
+@container gut (max-width: 320px) {
+  #myPartStudio .my-part-pick-label { display: none; }
+}
+
+.studio-tools { display: flex; align-items: center; gap: var(--s-1); }
+.studio-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  color: var(--text);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--t-fast);
+}
+.studio-tool-btn:hover,
+.studio-tool-btn[aria-expanded="true"] { background: var(--surface-3); }
+.studio-tool-btn .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.app.no-track .studio-tool-btn { opacity: var(--disabled-opacity); pointer-events: none; }
+
+.studio-pop { text-align: left; }
+/* #lanes isolates its children, and the wave panel below would otherwise cover an open popover. */
+.daw-wave-header:has(.studio-pop:not(.hidden)) { position: relative; z-index: var(--z-overlay-root); }
+.studio-pop-row { display: flex; gap: var(--s-2); }
+.studio-pop-row .ft-pop-btn { flex: 1 1 0; min-width: 0; }
+.studio-pop > .ft-pop-btn,
+#t-loop-panel > .ft-pop-btn { width: 100%; }
+.studio-pop .ft-pop-btn,
+#t-loop-panel .ft-pop-btn { padding: 0 var(--s-3); }
+#t-loop-panel { --ft-pop-w: 320px; }
+#t-loop-panel .ft-pop-btn { white-space: nowrap; }
+#t-loop-panel kbd {
+  padding: 0 var(--s-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-1);
+  color: var(--text-3);
+  font: var(--fs-2xs) / 1.4 var(--font-mono);
+}
+#sectionsPanel .sections-clear-label { display: inline; }
+#sectionsPanel .sections-clear-btn { align-self: auto; padding: 0 var(--s-3); }
+#sectionsPanel .sections-clear-btn[data-armed] {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+/* One of Hide and Show at a time: Show is the way back once the bar is hidden. */
+.app.panel-sections-off #sectionsHideBtn,
+.app:not(.panel-sections-off) #sectionsShowBtn { display: none; }
+
+/* These carry ui-chrome.js's panel-toggle class for their state, not its look. */
+.studio-pop .daw-panel-toggle[aria-pressed] {
+  opacity: 1;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-regular);
+  letter-spacing: 0;
+  line-height: normal;
+  text-transform: none;
+  text-decoration: none;
+}
+.view-toggle small { margin-left: auto; padding-left: var(--s-3); font: var(--fs-2xs) / 1 var(--font-mono); color: var(--text-3); }
+.view-toggle[aria-pressed="true"] .ft-check { visibility: visible; }
+
+.section-edit-card { width: var(--dialog-confirm-w); }
+.section-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  font: var(--fw-semibold) var(--fs-2xs) / 1 var(--font-sans);
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.section-edit-name {
+  height: var(--ctl-h);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--bg);
+  color: var(--text);
+  font: var(--fs-base) var(--font-sans);
+  text-transform: none;
+}
+.section-edit-name:focus { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.section-edit-name:disabled { opacity: var(--disabled-opacity); }
+.section-edit-hint { margin: 0; font-size: var(--fs-xs); color: var(--text-3); }
+.section-edit-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); padding-top: var(--s-2); }
+.section-edit-row-text { display: flex; flex-direction: column; gap: var(--s-1); font-size: var(--fs-xs); color: var(--text-3); }
+.section-edit-row-text b { font-size: var(--fs-sm); color: var(--text); }
+/* The Settings switch, whose size tokens are scoped to the Settings card. */
+.section-edit-switch {
+  --settings-switch-w: 42px;
+  --settings-switch-h: var(--s-5);
+  --settings-thumb: calc(var(--settings-switch-h) - 2 * (var(--seg-inset) + 1px));
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.section-edit-delete { display: inline-flex; align-items: center; gap: var(--s-2); color: var(--danger); }
+.section-edit-delete .ic { width: var(--icon-sm); height: var(--icon-sm); }

@@ -9,19 +9,34 @@ const GAP_PX = 8;
 const DOUBLE_CLICK_WAIT_MS = 400;
 const POINTER_CLICK = 1;
 
+/** Which side of its trigger a popover opens on. */
+export const PLACEMENT = Object.freeze({ ABOVE: "above", BELOW: "below" });
+
 let closeShown = null;
+
+const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
+
+function placeLeft(r, panel) {
+  panel.style.left = `${clamp(Math.round(r.left), EDGE_PX, window.innerWidth - panel.offsetWidth - EDGE_PX)}px`;
+}
 
 /** Put `panel` directly above `trigger`, measured while shown: a hidden panel has no height. */
 export function placeAbove(trigger, panel) {
   const r = trigger.getBoundingClientRect();
-  const maxLeft = window.innerWidth - panel.offsetWidth - EDGE_PX;
-  panel.style.left = `${Math.max(EDGE_PX, Math.min(Math.round(r.left), maxLeft))}px`;
+  placeLeft(r, panel);
   panel.style.top = `${Math.max(EDGE_PX, Math.round(r.top - panel.offsetHeight - GAP_PX))}px`;
 }
 
-function popoverState(trigger, panel, { shownClass, onOpen }) {
+function placeBelow(trigger, panel) {
+  const r = trigger.getBoundingClientRect();
+  placeLeft(r, panel);
+  const maxTop = window.innerHeight - panel.offsetHeight - EDGE_PX;
+  panel.style.top = `${clamp(Math.round(r.bottom + GAP_PX), EDGE_PX, maxTop)}px`;
+}
+
+function popoverState(trigger, panel, { shownClass, onOpen, placement }) {
   const isOpen = () => trigger.getAttribute("aria-expanded") === "true";
-  const place = () => placeAbove(trigger, panel);
+  const place = () => (placement === PLACEMENT.BELOW ? placeBelow : placeAbove)(trigger, panel);
   const show = (on) => panel.classList.toggle(shownClass, shownClass === HIDDEN_CLASS ? !on : on);
 
   function close() {
@@ -81,10 +96,15 @@ function wireDismissal(trigger, panel, { close, isOpen }) {
 /**
  * Wire one trigger and its panel. `shownClass` is the class the panel's CSS keys off:
  * "hidden" for a panel that ships hidden, "open" for one that opts in to showing.
- * `waitForDoubleClick` is for a trigger whose double-click does something else.
+ * `waitForDoubleClick` is for a trigger whose double-click does something else;
+ * `placement` opens it above (footer controls) or below (controls over the lanes).
  */
-export function wirePopover(trigger, panel, { shownClass = HIDDEN_CLASS, onOpen, waitForDoubleClick = false } = {}) {
-  const popover = popoverState(trigger, panel, { shownClass, onOpen });
+export function wirePopover(
+  trigger,
+  panel,
+  { shownClass = HIDDEN_CLASS, onOpen, waitForDoubleClick = false, placement = PLACEMENT.ABOVE } = {},
+) {
+  const popover = popoverState(trigger, panel, { shownClass, onOpen, placement });
   trigger.setAttribute("aria-expanded", "false");
   trigger.addEventListener("click", triggerClickHandler(popover.toggle, waitForDoubleClick));
   wireDismissal(trigger, panel, popover);
