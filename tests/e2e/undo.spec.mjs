@@ -162,7 +162,10 @@ test("Delete on a keyboard-reached row shows the same Undo", async ({ page }) =>
   const server = await openLibrary(page);
   await openBrowse(page, `folder:${FOLDER_ID}`);
   await page.locator("#browseListBtn").click();
-  await browseRow(page, SIBLING_JOB_ID).focus();
+  // Reached with an arrow key: Delete bins only a row the keyboard is on.
+  await browseRow(page, JOB_ID).focus();
+  await page.keyboard.press("ArrowUp");
+  await expect(browseRow(page, SIBLING_JOB_ID)).toBeFocused();
   await page.keyboard.press(KEY.DELETE);
   await expect(toast(page)).toContainText(movedText(SIBLING_TITLE));
   await toast(page).getByRole("button", { name: "Undo" }).click();
