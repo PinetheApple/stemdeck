@@ -1,7 +1,7 @@
 import {
-  ROW_PENDING, TRACK_SHOW_EVENT, applyVersionsState, getCurrentTrackInfo, getLibraryTrack, paintRunRow, redrawLibrary,
-  setVersionsExpanded,
+  ROW_PENDING, TRACK_SHOW_EVENT, applyVersionsState, getCurrentTrackInfo, getLibraryTrack, paintRunRow, setVersionsExpanded,
 } from "./catalog.js";
+import { openDialogLayer } from "./dialogLayer.js";
 import { currentJobId } from "./state.js";
 import { t } from "./i18n.js";
 import { fetchJson } from "./libraryControls.js";
@@ -18,12 +18,17 @@ const ROW_RUNNING = "running";
 const HEAD_LABEL_ID = "npExtracting";
 const HEAD_LABEL_CLASS = "np-extracting";
 const STAGE_LABEL_ID = "stageExtracting";
+const DIALOG_CLASS = "about-backdrop extract-more-backdrop";
+const CARD_CLASS = "about-card dialog-card extract-more-card";
+const CLOSE_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"'
+  + ' aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 
 let extractFor = null; // { trackId, chosen: Set<string>, refused: boolean, versionsState }
 const runs = new Map(); // trackId → { view, mix, knownIds: Set<string> }
 let latestRequest = 0;
+let extractLayer = null;
 
-// ─── The form ───
+// ─── The dialog ───
 
 function chipHtml(stem, pressed) {
   return `<button class="cat-extract-more-chip" type="button" data-stem="${stem}" style="--chip-color: var(--${stem})"`
@@ -49,30 +54,59 @@ function refusedHtml() {
     + `<div class="cat-extract-more-foot"><button class="cat-extract-more-cancel" type="button">${esc(t("artist.close"))}</button></div>`;
 }
 
-function extractForm(track) {
-  const form = document.createElement("div");
-  form.className = "cat-extract-more";
-  form.setAttribute("role", "group");
-  form.setAttribute("aria-label", t("versions.extractTitle"));
-  form.innerHTML = `<div class="cat-extract-more-title">${esc(t("versions.extractTitle"))}</div>`
-    + (extractFor.refused ? refusedHtml() : choiceHtml(track));
-  const go = form.querySelector(".cat-extract-more-go");
-  if (go) go.disabled = extractFor.chosen.size === 0;
-  form.addEventListener("click", onExtractFormClick);
-  form.addEventListener("keydown", onExtractFormKeydown);
-  return form;
+function headHtml() {
+  const close = esc(t("artist.close"));
+  return `<div class="dialog-head"><h2 class="dialog-title">${esc(t("versions.extractTitle"))}</h2>`
+    + `<button class="about-close extract-more-close" type="button" title="${close}" aria-label="${close}">`
+    + `${CLOSE_ICON}</button></div>`;
 }
 
-/** The song's Extract more form, when it is the one open. */
-export function extractFormFor(trackId, track) {
-  return extractFor?.trackId === trackId ? extractForm(track) : null;
+function extractCard(track) {
+  const card = document.createElement("div");
+  card.className = CARD_CLASS;
+  card.innerHTML = `${headHtml()}<div class="cat-extract-more" role="group">`
+    + `${extractFor.refused ? refusedHtml() : choiceHtml(track)}</div>`;
+  const go = card.querySelector(".cat-extract-more-go");
+  if (go) go.disabled = extractFor.chosen.size === 0;
+  card.addEventListener("click", onExtractFormClick);
+  return card;
+}
+
+const songRowOf = (trackId) => document.querySelector(`#catalogList .cat-item[data-id="${CSS.escape(trackId ?? "")}"]`);
+
+function onExtractDialogClosed() {
+  const trackId = extractFor?.trackId;
+  extractFor = null;
+  extractLayer = null;
+  document.querySelector(".extract-more-backdrop")?.remove();
+  songRowOf(trackId)?.focus();
+}
+
+function openExtractScrim(trackId) {
+  const scrim = document.createElement("div");
+  scrim.className = DIALOG_CLASS;
+  scrim.setAttribute("role", "dialog");
+  scrim.setAttribute("aria-modal", "true");
+  scrim.setAttribute("aria-label", t("versions.extractTitle"));
+  document.body.append(scrim);
+  extractLayer = openDialogLayer(scrim, {
+    onClose: onExtractDialogClosed,
+    opener: songRowOf(trackId),
+  });
+  return scrim;
+}
+
+/** Draws the open song's dialog, opening it first if needed, and focuses `focusSelector`. */
+function renderExtractDialog(focusSelector) {
+  const { trackId } = extractFor;
+  const scrim = document.querySelector(".extract-more-backdrop") ?? openExtractScrim(trackId);
+  scrim.dataset.id = trackId;
+  scrim.replaceChildren(extractCard(getLibraryTrack(trackId)));
+  scrim.querySelector(focusSelector)?.focus();
 }
 
 function closeExtractForm() {
-  const trackId = extractFor?.trackId;
-  extractFor = null;
-  redrawLibrary();
-  document.querySelector(`#catalogList .cat-item[data-id="${CSS.escape(trackId ?? "")}"]`)?.focus();
+  extractLayer?.close();
 }
 
 function toggleChip(chip) {
@@ -87,8 +121,7 @@ function toggleChip(chip) {
 
 function showRefused() {
   extractFor.refused = true;
-  redrawLibrary();
-  document.querySelector("#catalogList .cat-extract-more-cancel")?.focus();
+  renderExtractDialog(".cat-extract-more-cancel");
 }
 
 /** The source's mix with the added lanes left out, so they start at the defaults. */
@@ -132,15 +165,8 @@ function onExtractFormClick(e) {
   const target = e.target.closest("button");
   if (!target || !extractFor) return;
   if (target.matches(".cat-extract-more-chip")) toggleChip(target);
-  else if (target.matches(".cat-extract-more-cancel")) closeExtractForm();
+  else if (target.matches(".cat-extract-more-cancel, .extract-more-close")) closeExtractForm();
   else if (target.matches(".cat-extract-more-go")) submitExtract(target);
-}
-
-function onExtractFormKeydown(e) {
-  e.stopPropagation();
-  if (e.key !== "Escape") return;
-  e.preventDefault();
-  closeExtractForm();
 }
 
 async function readVersionsState(trackId) {
@@ -161,8 +187,7 @@ async function onExtractRequest(e) {
   if (request !== latestRequest) return;
   const chosen = new Set(missingStems(openVersionOf(track)?.stems ?? STEM_NAMES));
   extractFor = { trackId, chosen, refused: false, versionsState };
-  redrawLibrary();
-  document.querySelector("#catalogList .cat-extract-more-go")?.focus();
+  renderExtractDialog(".cat-extract-more-go");
 }
 
 // ─── A run: its row, the song head and Stage ───

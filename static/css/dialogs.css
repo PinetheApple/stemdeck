@@ -117,3 +117,5 @@
   min-height: var(--ctl-h); padding: 0 var(--s-4); border-radius: var(--r-2);
   font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
 }
+
+.about-card.extract-more-card { width: var(--dialog-confirm-w); }

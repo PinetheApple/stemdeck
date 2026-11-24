@@ -18,7 +18,7 @@ import { notifyFailure } from "./notifications.js";
 import { OUT_OF_TAB_ORDER, ROW_PLAY_CLASS } from "./rovingRows.js";
 import { STEM_NAMES } from "./constants.js";
 import { RESTORE_FIRST_DETAIL } from "./importSource.js";
-import { extractFormFor, initExtractMore } from "./extractMore.js";
+import { initExtractMore } from "./extractMore.js";
 import { storeFlushPending, storeGet, storeSet } from "./utils.js";
 import {
   DEFAULT_VERSION_ID, hasVersionRows, mixStoreKey, nextVersionName, openVersionOf, sameLanes, versionLabel,
@@ -217,15 +217,11 @@ function versionGroup(trackId, track) {
   return group;
 }
 
-/** What goes under a song's row: its Extract more form when open, then its versions. */
+/** What goes under a song's row: its versions. */
 export function versionExtras(trackId) {
   const track = getLibraryTrack(trackId);
   if (!track) return [];
-  const extras = [];
-  const form = extractFormFor(trackId, track);
-  if (form) extras.push(form);
-  if (hasVersionRows(track)) extras.push(versionGroup(trackId, track));
-  return extras;
+  return hasVersionRows(track) ? [versionGroup(trackId, track)] : [];
 }
 
 /** The open song's open version wears the fill; its song row then only colours its title. */
