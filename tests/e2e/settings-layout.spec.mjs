@@ -15,7 +15,7 @@ import {
 
 test.afterEach(settleRoutes);
 
-const TABS = ["appearance", "general", "details", "network", "export", "logs", "registry"];
+const TABS = ["appearance", "general", "details", "network", "export", "logs", "registry", "about"];
 const LANGUAGES = ["en", "pl", "ja", "ko", "zh-Hans", "de", "fr", "es", "pt", "pt-PT", "id"];
 // Shorter than the dialog's full height, so it shrinks to the window.
 const MIN_SIZE_VIEWPORT = { width: 1024, height: 600 };
@@ -103,6 +103,15 @@ function selectFaults(dialog, { selectArrow }) {
   return faults;
 }
 
+function sizeForWindow(el) {
+  const px = (target, name) => parseFloat(getComputedStyle(target).getPropertyValue(name));
+  const margin = px(document.documentElement, "--dialog-margin");
+  return [
+    Math.min(px(el, "--settings-w"), window.innerWidth - margin),
+    Math.min(px(el, "--settings-h"), window.innerHeight - margin),
+  ];
+}
+
 async function faultsOnEveryTab(page) {
   const dialog = page.locator(".library-editor");
   const faults = [];
@@ -122,6 +131,7 @@ for (const lang of LANGUAGES) {
     await openSettings(page);
     const dialog = page.locator(".library-editor");
     const box = await dialog.boundingBox();
+    expect([box.width, box.height]).toEqual(await dialog.evaluate(sizeForWindow));
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.y).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(MIN_SIZE_VIEWPORT.width);
