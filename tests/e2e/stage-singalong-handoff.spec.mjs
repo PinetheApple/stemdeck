@@ -19,12 +19,14 @@ const COUNTDOWN_RUNS_OUT_MS = 8000;
 // Longer than the countdown, to see that nothing starts after it was called off.
 const PAST_COUNTDOWN_MS = 6000;
 const SEEK_BACK_SEC = 1;
+const NO_CONTENT = "none";
+const TRANSPARENT = "rgba(0, 0, 0, 0)";
 
 const card = (page) => page.locator("#singHandoff");
-const stageDimmed = (page) => page.locator("#stageView").evaluate((el) => {
+const stageDimmed = (page) => page.locator("#stageView").evaluate((el, off) => {
   const scrim = getComputedStyle(el, "::after");
-  return scrim.content !== "none" && scrim.backgroundColor !== "rgba(0, 0, 0, 0)";
-});
+  return scrim.content !== off.content && scrim.backgroundColor !== off.background;
+}, { content: NO_CONTENT, background: TRANSPARENT });
 
 async function endInSingAlong(page, queued = [SIBLING_JOB_ID]) {
   await serveLyrics(page);

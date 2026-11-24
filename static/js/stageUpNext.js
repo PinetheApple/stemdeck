@@ -53,7 +53,6 @@ function openPanel() {
   (document.querySelector(FOCUSED_ROW) ?? $("stageQueueClose"))?.focus();
 }
 
-/** Closes the Up Next panel, focus going back to the chip unless `refocus` is false; false when it was not open. */
 export function closeStageQueue({ refocus = true } = {}) {
   if (!isStageQueueOpen()) return false;
   if (refocus) $("stageQueueBtn")?.focus();
@@ -62,7 +61,6 @@ export function closeStageQueue({ refocus = true } = {}) {
   return true;
 }
 
-/** Where focus goes when something in Stage it sat on goes away: the footer's Play. */
 export function focusStagePlay() {
   playBtn?.focus();
 }
@@ -81,7 +79,6 @@ function onUpNextChange(e) {
   paintChip();
 }
 
-/** `panelToggled()` runs each time the panel opens or closes. */
 export function initStageUpNext({ panelToggled }) {
   onPanelToggle = panelToggled;
   $("stageQueueBtn")?.addEventListener("click", onChipClick);

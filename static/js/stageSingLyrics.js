@@ -13,7 +13,7 @@ const WAITING_CLASS = "waiting";
 const SUNG_CLASS = "sung";
 const SINGING_CLASS = "singing";
 const FILL_PROPERTY = "--fill";
-const SIDES_OF_ROW = 2;
+const CENTRE_DIVISOR = 2;
 
 let listed = null;
 let rows = [];
@@ -47,7 +47,7 @@ function centre(row, smooth) {
   const list = $("singLyrics");
   if (!list || !row) return;
   const spare = list.clientHeight - row.offsetHeight;
-  const top = row.offsetTop - spare / SIDES_OF_ROW;
+  const top = row.offsetTop - spare / CENTRE_DIVISOR;
   list.scrollTo({ top, behavior: smooth ? "smooth" : "auto" });
 }
 

@@ -15,6 +15,7 @@ const UNPLAYED_TOKEN = "--surface-4";
 const SECTION_CLASS = "stage-sec";
 const SECTION_GO_CLASS = "stage-sec-go";
 const SECTION_LOOP_CLASS = "stage-sec-loop";
+const SECTION_NAME_CLASS = "stage-sec-name";
 
 const freshWave = () => ({ canvasWidth: 0, playedBars: -1, peaks: null });
 const freshPainted = () => ({ current: null, elapsed: null, total: null, playhead: null, loop: null });
@@ -48,7 +49,7 @@ function blockButton(className, title) {
 function goButton(span) {
   const go = blockButton(SECTION_GO_CLASS, t("stage.jumpTo", { name: span.name }));
   const name = document.createElement("span");
-  name.className = "stage-sec-name";
+  name.className = SECTION_NAME_CLASS;
   name.textContent = span.name;
   const time = document.createElement("span");
   time.className = "stage-sec-time num";
