@@ -1123,18 +1123,22 @@ const PITCH_MAX = 6;
 let _pitchSemitones = 0;
 let _pitchAvailable = false;
 
+const signedSemitones = () => (_pitchSemitones > 0 ? `+${_pitchSemitones}` : String(_pitchSemitones));
+
 /** Redraw the global key readout and its buttons. Touches no lane. */
 function renderPitch() {
   if (pitchValueEl) {
     // Signed, so "+2" and "-2" are distinguishable at a glance; bare "0" for
     // the default rather than a redundant "+0".
-    pitchValueEl.textContent = _pitchSemitones > 0 ? `+${_pitchSemitones}` : String(_pitchSemitones);
+    pitchValueEl.textContent = signedSemitones();
   }
   pitchWrap?.classList.toggle(ON_CLASS, _pitchSemitones !== 0);
   // A stepper that silently stops responding reads as broken, so say which end
   // has been reached rather than only going inert.
-  if (pitchDownBtn) pitchDownBtn.disabled = !_pitchAvailable || _pitchSemitones <= PITCH_MIN;
-  if (pitchUpBtn) pitchUpBtn.disabled = !_pitchAvailable || _pitchSemitones >= PITCH_MAX;
+  const canDown = _pitchAvailable && _pitchSemitones > PITCH_MIN;
+  const canUp = _pitchAvailable && _pitchSemitones < PITCH_MAX;
+  if (pitchDownBtn) pitchDownBtn.disabled = !canDown;
+  if (pitchUpBtn) pitchUpBtn.disabled = !canUp;
   if (pitchResetBtn) pitchResetBtn.disabled = !_pitchAvailable;
 
   // Three dead buttons still wearing "Transpose up a semitone" explain nothing.
@@ -1151,7 +1155,7 @@ function renderPitch() {
     speedFader.dataset.i18nTitle = _pitchAvailable ? "speed.faderTitle" : "speed.pitchFollows";
     speedFader.title = t(speedFader.dataset.i18nTitle);
   }
-  paintKeyPanel(_pitchSemitones);
+  paintKeyPanel({ semitones: _pitchSemitones, label: signedSemitones(), canDown, canUp });
 }
 
 /**
@@ -1181,12 +1185,12 @@ export function resetPitch(semitones = 0) {
   renderPitch();
 }
 
-/** The user's reset: the global key and every lane, back to the original. */
 /** One semitone down (`direction` < 0) or up, from the Key popover. */
 export function stepKey(direction) {
   applyPitch(_pitchSemitones + direction);
 }
 
+/** The user's reset: the global key and every lane, back to the original. */
 export function resetAllKeys() {
   _pitchSemitones = 0;
   resetAllLanePitches();

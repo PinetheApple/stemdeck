@@ -618,12 +618,6 @@
   border-color: #b91c1c;
   box-shadow: 0 16px 34px rgba(239, 68, 68, 0.22);
 }
-.btn-transport.loop.active {
-  background: linear-gradient(180deg, var(--gold-bright), var(--gold));
-  color: white;
-  border-color: var(--gold-line);
-  box-shadow: 0 16px 34px rgba(216, 168, 74, 0.18);
-}
 .np-time {
   font-size: 13px;
   color: var(--ink-dim);

@@ -9,7 +9,6 @@ const FLATS = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
 const SEMITONES_PER_OCTAVE = SHARPS.length;
 
 let readPlayingKey = () => null;
-let shownSemitones = 0;
 
 /** A stored key such as "D min" moved by `semitones`, named with sharps; "" when it cannot be read. */
 export function transposeKey(key, semitones) {
@@ -26,19 +25,17 @@ function keyName(semitones) {
   return moved ? formatKey(moved, playing.scale, t) : "";
 }
 
-/** Copy the footer stepper's value and limits into the popover, with the key it gives. */
-export function paintKeyPanel(semitones = shownSemitones) {
-  shownSemitones = semitones;
+/** The popover's value, its - and + limits, and the key `semitones` gives. */
+export function paintKeyPanel({ semitones, label, canDown, canUp }) {
   const value = $("t-key-panel-value");
   if (!value) return;
-  value.textContent = $("t-pitch-value").textContent;
-  $("t-key-panel-down").disabled = $("t-pitch-down").disabled;
-  $("t-key-panel-up").disabled = $("t-pitch-up").disabled;
+  value.textContent = label;
+  $("t-key-panel-down").disabled = !canDown;
+  $("t-key-panel-up").disabled = !canUp;
   $("t-key-panel-name").textContent = keyName(semitones);
 }
 
 /** `playingKey` returns the playing song's `{ key, scale }`, or null. */
 export function initFooterKey(playingKey) {
   readPlayingKey = playingKey;
-  paintKeyPanel();
 }

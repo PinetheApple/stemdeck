@@ -5,8 +5,8 @@ import { HIDDEN_CLASS } from "./footerClasses.js";
 
 const EDGE_PX = 8;
 const GAP_PX = 8;
-// Long enough for a double-click's second press to arrive before the panel opens.
-const DOUBLE_CLICK_WAIT_MS = 300;
+// GTK's default double-click time, so a desktop double-click lands before the panel opens.
+const DOUBLE_CLICK_WAIT_MS = 400;
 const POINTER_CLICK = 1;
 
 let closeShown = null;

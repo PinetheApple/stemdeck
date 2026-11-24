@@ -350,7 +350,6 @@ button.ft-now:hover { background: var(--surface-2); }
 #songHead .track-chip-wrap .track-chip:hover { background: var(--surface-3); }
 #songHead .track-chip-panel { top: calc(100% + var(--s-1)); bottom: auto; left: auto; right: 0; }
 
-/* Key popover: its own - value + row and the key that gives */
 .ft-pop-key { display: flex; align-items: center; gap: var(--s-2); }
 .ft-pop-key-value {
   min-width: var(--ft-step-value-w);
@@ -362,21 +361,7 @@ button.ft-now:hover { background: var(--surface-2); }
 .ft-step.is-on .ft-pop-key-value { color: var(--accent-hi); }
 .ft-pop-key-name { margin-left: auto; font-size: var(--fs-sm); color: var(--text-3); }
 
-/* A narrow song header gives the title the room: Export keeps its icon and its name as a tooltip */
-@container song-head (max-width: 900px) {
-  #songHead #t-export-btn { width: var(--ctl-h); padding: 0; justify-content: center; }
-  #songHead #t-export-btn .export-caret { display: none; }
-  /* Clipped rather than display: none, so the label stays the accessible name. */
-  #songHead #t-export-btn .export-btn-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-}
-
-/* The one footer breakpoint: below it Record and the practice group compact so the row still fits. */
+/* 1500px is where the stem column narrows (variables.css), so Stage and its panels move with it; keep all four together. */
 @media (max-width: 1500px) {
   .ft { --ft-seg-min-w: 56px; --ft-seek-w: 280px; gap: var(--s-3); }
   .ft-seg-main { padding: 0 var(--s-2); }
