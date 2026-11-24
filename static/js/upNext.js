@@ -199,7 +199,7 @@ function onAddRequest(e) {
   if (id) addToUpNext(id);
 }
 
-export function thumbEl(track) {
+function thumbEl(track) {
   const box = document.createElement("span");
   box.className = "upnext-thumb";
   box.setAttribute("aria-hidden", "true");
@@ -215,7 +215,7 @@ export function thumbEl(track) {
   return box;
 }
 
-export function songText(track) {
+function songText(track) {
   const text = document.createElement("span");
   text.className = "upnext-text";
   const title = document.createElement("span");
@@ -228,36 +228,46 @@ export function songText(track) {
   return text;
 }
 
-function queueRow(trackId, position) {
+export function upNextButton(className, title, label = null) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = className;
+  button.title = title;
+  if (label) button.setAttribute("aria-label", label);
+  return button;
+}
+
+/** A row of song `trackId`: Play now holding `lead`, the cover and the title, then `action`. */
+export function upNextRowEl(trackId, { lead = [], onPlay, action }) {
   const track = getLibraryTrack(trackId);
   const li = document.createElement("li");
   li.className = "upnext-row";
   li.dataset.id = trackId;
-  li.draggable = true;
+  const play = upNextButton("upnext-play", t("upNext.playNow"));
+  play.append(...lead, thumbEl(track), songText(track));
+  play.addEventListener("click", onPlay);
+  li.append(play, action);
+  return li;
+}
 
-  const play = document.createElement("button");
-  play.type = "button";
-  play.className = "upnext-play";
-  play.title = t("upNext.playNow");
+function queueRow(trackId, position) {
+  const title = displayTitle(libraryTitle(getLibraryTrack(trackId)));
   const index = document.createElement("span");
   index.className = "upnext-index num";
   index.textContent = String(position);
-  play.append(index, thumbEl(track), songText(track));
-  play.addEventListener("click", function onPlayQueuedSong() {
-    playFromUpNext(trackId);
-  });
-
-  const remove = document.createElement("button");
-  remove.type = "button";
-  remove.className = "upnext-remove";
-  remove.title = t("upNext.remove");
-  remove.setAttribute("aria-label", t("upNext.removeTitle", { title: displayTitle(libraryTitle(track)) }));
+  const remove = upNextButton("upnext-remove", t("upNext.remove"), t("upNext.removeTitle", { title }));
   remove.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
   remove.addEventListener("click", function onRemoveQueuedSong() {
     removeFromUpNext(trackId);
   });
-
-  li.append(play, remove);
+  const li = upNextRowEl(trackId, {
+    lead: [index],
+    onPlay: function onPlayQueuedSong() {
+      playFromUpNext(trackId);
+    },
+    action: remove,
+  });
+  li.draggable = true;
   return li;
 }
 

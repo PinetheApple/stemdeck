@@ -649,8 +649,9 @@ export function stopTransport() {
   announcePlayState(false);
 }
 
+/** Back to the start, or to the loop's start while Loop is on, as Stop does. */
 export function restartSong() {
-  setPlayheadTime(0);
+  setPlayheadTime(loopEnabled ? loopStart : 0);
 }
 
 export function toggleLoop() {

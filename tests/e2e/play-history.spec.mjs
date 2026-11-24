@@ -13,6 +13,7 @@ import {
   position,
   shownId,
   songRow,
+  startPlayback,
 } from "./openVsPlaying.mjs";
 
 const PAST_RESTART_SEC = 4;
@@ -49,6 +50,7 @@ async function playSetlist(page, request) {
 
 test("Previous goes to the song played before it, and Next forward again", async ({ page }) => {
   await openStudio(page);
+  await startPlayback(page);
   await songRow(page, SIBLING_JOB_ID).dblclick();
   await expectInPlayer(page, SIBLING_JOB_ID);
 
@@ -61,8 +63,8 @@ test("Previous goes to the song played before it, and Next forward again", async
 
 test("Previous restarts a song played for more than 3 seconds, and steps back within them", async ({ page }) => {
   await openStudio(page);
-  await songRow(page, SIBLING_JOB_ID).click();
-  await expectInPlayer(page, SIBLING_JOB_ID);
+  await songRow(page, SIBLING_JOB_ID).dblclick();
+  await expectPlaying(page, SIBLING_JOB_ID);
   await songRow(page, JOB_ID).dblclick();
   await expectPlaying(page, JOB_ID);
 
@@ -75,9 +77,14 @@ test("Previous restarts a song played for more than 3 seconds, and steps back wi
   await expectInPlayer(page, SIBLING_JOB_ID);
 });
 
-test("with nothing played before it, Previous goes to the start", async ({ page }) => {
+test("a song only opened, never played, is not a song Previous goes back to", async ({ page }) => {
   await openStudio(page);
+  await songRow(page, SIBLING_JOB_ID).click();
+  await expectInPlayer(page, SIBLING_JOB_ID);
+  await songRow(page, JOB_ID).dblclick();
+  await expectPlaying(page, JOB_ID);
   await seekTo(page, WITHIN_RESTART_SEC);
+
   await page.locator("#t-prev").click();
   await expect.poll(() => position(page)).toBeLessThan(RESTART_SLACK_SEC);
   expect(await playingId(page)).toBe(JOB_ID);
@@ -114,14 +121,14 @@ test("a Next from song plays now and Up Next stays empty", async ({ page, reques
   await expect(page.locator("#upNextList .upnext-row")).toHaveCount(0);
 });
 
-test("a song played from a folder makes that folder the list Next follows", async ({ page }) => {
+test("a song played from the library makes All songs the list Next follows", async ({ page }) => {
   await openStudio(page);
-  const rows = page.locator("#catalogList .folder .cat-item[data-id]");
+  const rows = page.locator("#catalogList .cat-item[data-id]");
   const [first, second] = await rows.evaluateAll((els) => els.map((el) => el.dataset.id));
   await rows.first().dblclick();
   await expectInPlayer(page, first);
   await openInspectorTab(page, "upnext");
-  await expect(page.locator("#upNextFromLabel")).toHaveText("Next from: Unsorted");
+  await expect(page.locator("#upNextFromLabel")).toHaveText("Next from: All songs");
   await expect(page.locator(FROM_ROWS)).toHaveAttribute("data-id", second);
 });
 

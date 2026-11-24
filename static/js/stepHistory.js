@@ -1,6 +1,3 @@
-// Songs in the order they came, with a place among them, stepped through like a
-// browser's Back and Forward.
-
 export const BACK = -1;
 export const FORWARD = 1;
 const NONE = -1;
@@ -22,6 +19,9 @@ export function createStepHistory() {
       if (!id || ids[at] === id) return;
       ids = [...ids.slice(0, at + 1), id];
       at = ids.length - 1;
+    },
+    current() {
+      return ids[at] ?? null;
     },
     /** The nearest song `step` away that `isListed` keeps, or null. */
     peek(step, isListed) {

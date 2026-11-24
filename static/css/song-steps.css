@@ -1,5 +1,3 @@
-/* Back and Forward in the song header, and Up Next's "Next from" list. */
-
 #songHead .song-steps { display: flex; flex: none; }
 #songHead .song-steps-btn {
   width: var(--ctl-h-sm);

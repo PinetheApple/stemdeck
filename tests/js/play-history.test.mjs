@@ -30,6 +30,7 @@ function visited(...ids) {
   check('nothing ahead of the newest song', history.peek(FORWARD, anySong), null);
   check('back peeks at the song before', history.peek(BACK, anySong), 'b');
   check('back steps to the song before', history.go(BACK, anySong), 'b');
+  check('the place is then that song', history.current(), 'b');
   check('forward steps again to the song stepped back from', history.go(FORWARD, anySong), 'c');
 }
 
