@@ -1695,7 +1695,7 @@ input, textarea { font-family: inherit; }
   to { transform: rotate(360deg); }
 }
 
-/* Wave label (left column in wave header — Mixer label) */
+/* Wave label (left column in wave header) */
 .daw-wave-label {
   display: flex;
   align-items: center;
@@ -1843,31 +1843,6 @@ input, textarea { font-family: inherit; }
 
 .lane-stripe { display: none; }
 
-/* Name + VU stacked vertically */
-/* The name and its meter share a fixed column, and the fader takes whatever is
-   left of the row. So this width is the fader's length: every pixel taken off
-   here is a pixel the fader gains. 76px left the fader badly compressed once
-   the key stepper joined the row. */
-.lane-name-vu {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--lane-name-vu-gap, 5px);
-  width: 58px;
-  flex-shrink: 0;
-  /* Centres the NAME on the row, not the name-and-meter pair. The row centres
-     its children, so a stacked pair puts the name above the centre line by half
-     the meter plus the gap -- and the waveform beside it is centred on that
-     line, so the label reads as sitting too high. A top margin is centred with
-     the item, so this offsets the pair by exactly half of it and the name comes
-     level with its own waveform. Cheap and reversible: the meter simply moves
-     down with it. */
-  margin-top: calc(var(--lane-vu-h, 10px) + var(--lane-name-vu-gap, 5px));
-}
-
-/* Stem icon — hidden per user preference */
-.mx-icon { display: none; }
-
 /* Stem name */
 .mx-name {
   font-size: 13px; font-weight: 500;
@@ -1884,7 +1859,6 @@ input, textarea { font-family: inherit; }
   align-items: center;
   min-width: 0;
 }
-.lane-knob-indicator { display: none; }
 .mx-fader-input {
   -webkit-appearance: none;
   appearance: none;
@@ -1930,7 +1904,6 @@ input, textarea { font-family: inherit; }
 /* VU meter — sits below stem name in .lane-left-col, spans full column width */
 /* 5px read as a hairline rather than a meter: at that height the gradient had
    nowhere to show and a moving level was hard to see at a glance. */
-/* Height shared with .lane-name-vu's centring offset, so the two cannot drift. */
 :root { --lane-vu-h: 10px; }
 .lane-vu.mx-meter {
   position: relative;
