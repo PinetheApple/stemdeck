@@ -2,7 +2,7 @@ import { $, fmtTime, fmtTickLabel, fmtTimeMs, parseTimecode, storeGet, storeSet 
 import { MIN_LOOP_SEC, loopDragResult } from "./loopRegion.js";
 import { tickStepAt } from "./rulerTicks.js";
 import {
-  playBtn, PLAYING_CLASS, playMiniBtn, stopBtn, loopBtn, timeEl, masterFader,
+  playBtn, PLAY_BUTTON_PLAYING_CLASS, playMiniBtn, stopBtn, loopBtn, timeEl, masterFader,
   speedFader,
   speedValueBox,
   speedReadout,
@@ -559,7 +559,7 @@ function _unlightIfNotStarted(eng, start) {
   start.then(
     function unlightUnlessPlaying(started) {
       if (started || !stillSilent()) return;
-      playBtn.classList.remove(PLAYING_CLASS);
+      playBtn.classList.remove(PLAY_BUTTON_PLAYING_CLASS);
       announcePlayState(false);
       pauseMediaAnchor();
     },
@@ -594,7 +594,7 @@ export function togglePlayPause() {
     // The engine emits no play/pause events (the multitrack stays silent), so
     // the play-button visual that the ws "pause" handler normally toggles must
     // be driven here directly.
-    if (eng) playBtn.classList.remove(PLAYING_CLASS);
+    if (eng) playBtn.classList.remove(PLAY_BUTTON_PLAYING_CLASS);
     announcePlayState(false);
     return;
   }
@@ -618,7 +618,7 @@ export function togglePlayPause() {
     if (totalDuration > 0 && startPos >= totalDuration) startPos = 0;
     const countBars = _recordCountInBars ?? metronomeCountInBars;
     _unlightIfNotStarted(eng, _armCountIn(eng, startPos, countBars) || eng.play());
-    playBtn.classList.add(PLAYING_CLASS);
+    playBtn.classList.add(PLAY_BUTTON_PLAYING_CLASS);
     announcePlayState(true);
     stopBtn.classList.remove("stopped");
   } else {
@@ -645,7 +645,7 @@ export function stopTransport() {
   pauseMediaAnchor();
   _dropCountIn(); // a count-in in progress must not outlive Stop
   if (!loadingMultitrack(tx)) tx.setTime(loopEnabled ? loopStart : 0); // engine: setTime → onTime → stop visual
-  if (eng) playBtn.classList.remove(PLAYING_CLASS);
+  if (eng) playBtn.classList.remove(PLAY_BUTTON_PLAYING_CLASS);
   announcePlayState(false);
 }
 

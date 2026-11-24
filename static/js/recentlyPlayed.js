@@ -2,7 +2,7 @@
 // the player's play state; the sidebar's Recently played reads it.
 
 export const RECENT_CAP = 50;
-const STORAGE_KEY = "stemdeck.recentlyPlayed";
+export const STORAGE_KEY = "stemdeck.recentlyPlayed";
 const listeners = new Set();
 
 /** `ids` with `id` played now: first, once, the list capped. */

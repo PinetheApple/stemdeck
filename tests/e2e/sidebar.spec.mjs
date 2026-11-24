@@ -14,11 +14,30 @@ import {
   stubImportQueue,
   stubServerTrash,
 } from "./helpers.mjs";
+import { STORAGE_KEY as RECENTLY_PLAYED_KEY } from "../../static/js/recentlyPlayed.js";
 
 const SETLISTS_PATH = "/api/setlists";
 const IMPORT_ID = "e2e0abc00001";
+const GONE_ID = "e2e0feed0bad";
 const group = (page, id) => page.locator(`#${id}`);
 const groupRow = (page, id, songId) => group(page, id).locator(`.cat-item[data-id="${songId}"]`);
+
+/** Both fixture songs, plus `extra` tracks, in Unsorted; `trashed` ids in the Trash. */
+async function seedSongs(page, { extra = {}, trashed = [] } = {}) {
+  const tracks = {
+    [JOB_ID]: fixtureTrack(JOB_ID, TRACK_TITLE),
+    [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, SIBLING_TITLE),
+    ...extra,
+  };
+  const ids = Object.keys(tracks);
+  await seedCatalogState(page, {
+    folders: [
+      { id: "f-unsorted", name: "Unsorted", items: ids.filter((id) => !trashed.includes(id)), color: null },
+      { id: "trash", name: "Trash", items: trashed, color: null },
+    ],
+    tracks,
+  });
+}
 
 test.afterEach(async ({ request }) => {
   const res = await request.get(SETLISTS_PATH);
@@ -84,16 +103,7 @@ test("the song in the player is listed under Favorites when it is not a favorite
 
 test("a song dropped on a sidebar setlist or on Trash goes there", async ({ page, request }) => {
   const { id } = await (await request.post(SETLISTS_PATH, { data: { name: "Drop here", song_ids: [] } })).json();
-  await seedCatalogState(page, {
-    folders: [
-      { id: "f-unsorted", name: "Unsorted", items: [JOB_ID, SIBLING_JOB_ID], color: null },
-      { id: "trash", name: "Trash", items: [], color: null },
-    ],
-    tracks: {
-      [JOB_ID]: fixtureTrack(JOB_ID, TRACK_TITLE),
-      [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, SIBLING_TITLE),
-    },
-  });
+  await seedSongs(page);
   await stubFavorites(page);
   await stubServerTrash(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
@@ -109,22 +119,26 @@ test("a song dropped on a sidebar setlist or on Trash goes there", async ({ page
   await expect(page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`)).toHaveCount(0);
 });
 
+/** Recently played as if `ids` were played, newest first. */
+async function seedRecentlyPlayed(page, ids) {
+  await page.addInitScript(({ key, played }) => window.localStorage.setItem(key, JSON.stringify(played)), { key: RECENTLY_PLAYED_KEY, played: ids });
+}
+
 test("Recently played skips a song that can no longer play", async ({ page }) => {
-  const goneId = "e2e0feed0bad";
-  await seedCatalogState(page, {
-    folders: [
-      { id: "f-unsorted", name: "Unsorted", items: [JOB_ID, SIBLING_JOB_ID, goneId], color: null },
-      { id: "trash", name: "Trash", items: [], color: null },
-    ],
-    tracks: {
-      [JOB_ID]: fixtureTrack(JOB_ID, TRACK_TITLE),
-      [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, SIBLING_TITLE),
-      [goneId]: { ...fixtureTrack(goneId, "Gone"), status: "unavailable" },
-    },
-  });
-  await page.addInitScript((ids) => window.localStorage.setItem("stemdeck.recentlyPlayed", JSON.stringify(ids)), [goneId, SIBLING_JOB_ID]);
+  await seedSongs(page, { extra: { [GONE_ID]: { ...fixtureTrack(GONE_ID, "Gone"), status: "unavailable" } } });
+  await seedRecentlyPlayed(page, [GONE_ID, SIBLING_JOB_ID]);
   await stubFavorites(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(groupRow(page, "sidebarRecent", SIBLING_JOB_ID)).toBeVisible();
-  await expect(groupRow(page, "sidebarRecent", goneId)).toHaveCount(0);
+  await expect(groupRow(page, "sidebarRecent", GONE_ID)).toHaveCount(0);
+});
+
+test("Recently played skips a song in the Trash", async ({ page }) => {
+  await seedSongs(page, { trashed: [SIBLING_JOB_ID] });
+  await seedRecentlyPlayed(page, [SIBLING_JOB_ID]);
+  await stubFavorites(page);
+  await stubServerTrash(page, { trashed: [SIBLING_JOB_ID] });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#trashBadge")).toHaveText("1");
+  await expect(groupRow(page, "sidebarRecent", SIBLING_JOB_ID)).toHaveCount(0);
 });

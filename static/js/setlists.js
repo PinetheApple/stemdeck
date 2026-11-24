@@ -243,10 +243,9 @@ export function makeFolderOf(id) {
   return setlist ? makeFolderFromSetlist(setlist.name, setlist.song_ids) : null;
 }
 
-/** Play from the first playable song, the setlist then the list Next follows; false, and said, when none can play. */
+/** Play the setlist from its first playable song; false, and said, when none can play. */
 export async function playSetlist(id) {
-  const setlist = getSetlist(id);
-  const started = await playList({ kind: LIST_KIND.SETLIST, name: setlist?.name ?? "", ids: setlist?.song_ids ?? [] });
+  const started = await playList({ kind: LIST_KIND.SETLIST, id });
   if (!started) {
     showError(t("setlists.nothingToPlay"));
     announce();

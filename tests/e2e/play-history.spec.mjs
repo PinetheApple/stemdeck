@@ -2,7 +2,16 @@
 // was started from, and the song header steps Back and Forward through songs shown.
 
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, SIBLING_TITLE, TRACK_TITLE, openBrowse, openInspectorTab, openStudio } from "./helpers.mjs";
+import {
+  JOB_ID,
+  SIBLING_JOB_ID,
+  SIBLING_TITLE,
+  TRACK_TITLE,
+  fixtureTrack,
+  openBrowse,
+  openInspectorTab,
+  openStudio,
+} from "./helpers.mjs";
 import {
   LOAD_TIMEOUT_MS,
   SETTLE_MS,
@@ -26,6 +35,19 @@ test.afterEach(async ({ request }) => {
   const res = await request.get("/api/setlists");
   for (const setlist of await res.json()) await request.delete(`/api/setlists/${setlist.id}`);
 });
+
+/** Both fixture songs in Unsorted, each with its own tag from `tags`. */
+function taggedLibrary(tags) {
+  const ids = [JOB_ID, SIBLING_JOB_ID];
+  const titles = { [JOB_ID]: TRACK_TITLE, [SIBLING_JOB_ID]: SIBLING_TITLE };
+  return {
+    folders: [
+      { id: "f-unsorted", name: "Unsorted", items: ids, color: null },
+      { id: "trash", name: "Trash", items: [], color: null },
+    ],
+    tracks: Object.fromEntries(ids.map((id) => [id, { ...fixtureTrack(id, titles[id]), tags: [tags[id]] }])),
+  };
+}
 
 const seek = (page, sec) => page.evaluate(async (at) => (await import("/js/transport.js")).setPlayheadTime(at), sec);
 
@@ -147,6 +169,33 @@ test("a song played from a folder makes that folder the list Next follows", asyn
   await openStudio(page);
   const [, second] = await playFirstInBrowse(page, "folder:f-unsorted");
   await expect(page.locator("#upNextFromLabel")).toHaveText("Next from: Unsorted");
+  await expect(page.locator(FROM_ROWS)).toHaveAttribute("data-id", second);
+});
+
+test("a favourite played from the sidebar follows Favorites, never the non-favourite playing beside it", async ({ page }) => {
+  await openStudio(page, { serverFavorites: { [SIBLING_JOB_ID]: true } });
+  await startPlayback(page);
+  const favorites = page.locator("#sidebarFavorites");
+  await expect(favorites.locator(`.cat-item[data-id="${JOB_ID}"]`)).toBeVisible();
+  await favorites.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).dblclick();
+  await expectPlaying(page, SIBLING_JOB_ID);
+  await openInspectorTab(page, "upnext");
+  await expect(page.locator(`${FROM_ROWS}[data-id="${JOB_ID}"]`)).toHaveCount(0);
+  await expect(page.locator("#upNextFrom")).toBeHidden();
+});
+
+test("a song played from a searched Browse view still follows the whole list", async ({ page }) => {
+  const tags = { [JOB_ID]: "e2e-one", [SIBLING_JOB_ID]: "e2e-two" };
+  await openStudio(page, { catalog: taggedLibrary(tags) });
+  const [first, second] = await page.evaluate(async () => (await import("/js/catalog.js")).libraryTrackIds());
+  await openBrowse(page, "all");
+  await page.locator("#browseSearch").fill(`#${tags[first]}`);
+  const rows = page.locator("#browseResults .cat-item[data-id]");
+  await expect(rows).toHaveCount(1);
+  await rows.first().dblclick();
+  await expectInPlayer(page, first);
+  await openInspectorTab(page, "upnext");
+  await expect(page.locator("#upNextFromLabel")).toHaveText("Next from: All songs");
   await expect(page.locator(FROM_ROWS)).toHaveAttribute("data-id", second);
 });
 

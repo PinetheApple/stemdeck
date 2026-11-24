@@ -12,7 +12,7 @@ import {
 } from "./constants.js";
 import {
   mixerEl, multitrackContainer, bpmChip, keyChip, stemsChip, timeEl,
-  titleEl, npThumb, rulerTime, wavesGrid, playBtn, PLAYING_CLASS,
+  titleEl, npThumb, rulerTime, wavesGrid, playBtn, PLAY_BUTTON_PLAYING_CLASS,
   stopBtn, loopRegionEl,
   multitrack, currentJobId, trackIndex, totalDuration, loopEnabled,
   loopStart, loopEnd, trackAnalysers,
@@ -938,7 +938,7 @@ export function destroyPlayer() {
   if (waveScroll) waveScroll.scrollLeft = 0;
   resetFollowing();
   paintLoopButton();
-  playBtn.classList.remove(PLAYING_CLASS);
+  playBtn.classList.remove(PLAY_BUTTON_PLAYING_CLASS);
   announcePlayState(false);
   stopBtn.classList.remove("stopped");
   loopRegionEl.classList.add("hidden");
@@ -1152,7 +1152,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
     audioEngine.destroy();
     setAudioEngine(null);
   }
-  playBtn.classList.remove(PLAYING_CLASS);
+  playBtn.classList.remove(PLAY_BUTTON_PLAYING_CLASS);
   announcePlayState(false);
   stopBtn.classList.remove("stopped");
   resetPitch();
@@ -1496,13 +1496,13 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
       }
     });
     ws.on("play", () => {
-      playBtn.classList.add(PLAYING_CLASS);
+      playBtn.classList.add(PLAY_BUTTON_PLAYING_CLASS);
       announcePlayState(true);
       stopBtn.classList.remove("stopped");
       applyMix();
     });
     ws.on("pause", () => {
-      playBtn.classList.remove(PLAYING_CLASS);
+      playBtn.classList.remove(PLAY_BUTTON_PLAYING_CLASS);
       announcePlayState(false);
       updateStopVisual();
     });
@@ -1530,7 +1530,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
       };
       teardownMetronome();
       const onEnded = () => {
-        playBtn.classList.remove(PLAYING_CLASS);
+        playBtn.classList.remove(PLAY_BUTTON_PLAYING_CLASS);
         announcePlayState(false);
         updateStopVisual();
         document.dispatchEvent(new CustomEvent("trackended", { detail: { id: jobId } }));

@@ -236,23 +236,16 @@ const PLAY_LIST_KINDS = Object.freeze({
   [VIEW.SETLIST]: LIST_KIND.SETLIST,
 });
 
-function playListName(kind, id) {
-  if (kind === VIEW.FOLDER) return libraryFolderTree().find((folder) => folder.id === id)?.name ?? "";
-  if (kind === VIEW.SETLIST) return getSetlist(id)?.name ?? "";
-  return "";
-}
-
-// The list a song played from here becomes the one Next follows.
 function markPlayList(container, view) {
   const [kind, id] = viewParts(view);
   const listKind = PLAY_LIST_KINDS[kind];
   if (!listKind) {
     delete container.dataset.playList;
-    delete container.dataset.playListName;
+    delete container.dataset.playListId;
     return;
   }
   container.dataset.playList = listKind;
-  container.dataset.playListName = playListName(kind, id);
+  container.dataset.playListId = id;
 }
 
 /** Draw the current view into `container`; a view that is gone falls back to All songs. Returns the view drawn. */

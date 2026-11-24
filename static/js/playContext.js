@@ -1,7 +1,8 @@
-import { isPlayableTrack } from "./catalog.js";
+import { folderTrackIds, getLibraryTrack, isPlayableTrack, libraryFolderTree, libraryTrackIds } from "./catalog.js";
 import { t } from "./i18n.js";
 import { cursorAt, songsAhead } from "./playOrder.js";
 import { onPlayStateChange } from "./playState.js";
+import { getSetlist } from "./setlists.js";
 import { isInUpNext, playNow } from "./upNext.js";
 
 export const PLAY_CONTEXT_CHANGE_EVENT = "playcontext:change";
@@ -10,10 +11,19 @@ const KIND_LABEL_KEYS = Object.freeze({
   [LIST_KIND.ALL]: "studio.playList.allSongs",
   [LIST_KIND.FAVORITES]: "nav.favorites",
 });
+const LIST_SONGS = Object.freeze({
+  [LIST_KIND.ALL]: () => libraryTrackIds(),
+  [LIST_KIND.FAVORITES]: () => libraryTrackIds().filter((trackId) => getLibraryTrack(trackId).favorite),
+  [LIST_KIND.FOLDER]: (id) => folderTrackIds(id),
+  [LIST_KIND.SETLIST]: (id) => getSetlist(id)?.song_ids ?? [],
+});
+const LIST_NAMES = Object.freeze({
+  [LIST_KIND.FOLDER]: (id) => libraryFolderTree().find((folder) => folder.id === id)?.name,
+  [LIST_KIND.SETLIST]: (id) => getSetlist(id)?.name,
+});
 const LIST_SELECTOR = "[data-play-list]";
-const LIST_SONG_SELECTOR = ".cat-item[data-id]:not(.cat-version):not(.in-trash):not(.queue-row)";
 const NOT_STARTED = -1;
-const NO_LIST = Object.freeze({ kind: null, name: "", ids: [], at: NOT_STARTED });
+const NO_LIST = Object.freeze({ kind: null, id: "", ids: [], at: NOT_STARTED });
 
 let list = NO_LIST;
 
@@ -22,36 +32,30 @@ function setList(next) {
   document.dispatchEvent(new CustomEvent(PLAY_CONTEXT_CHANGE_EVENT));
 }
 
-export function startPlayContext({ kind, name = "", ids }, trackId) {
-  setList({ kind, name, ids, at: cursorAt({ ids, at: NOT_STARTED }, trackId) });
-}
-
-function shownSongIds(container) {
-  return [...new Set([...container.querySelectorAll(LIST_SONG_SELECTOR)].map((row) => row.dataset.id))];
+// The whole list, whatever a search or the playing song adds to or hides from its rows.
+function startList(kind, id, trackId) {
+  const ids = LIST_SONGS[kind](id);
+  setList({ kind, id, ids, at: cursorAt({ ids, at: NOT_STARTED }, trackId) });
 }
 
 export function startPlayContextFromRow(row) {
-  const container = row.closest(LIST_SELECTOR);
-  if (!container) {
-    setList(NO_LIST);
-    return;
-  }
-  const { playList: kind, playListName: name } = container.dataset;
-  startPlayContext({ kind, name, ids: shownSongIds(container) }, row.dataset.id);
+  const { playList: kind, playListId: id = "" } = row.closest(LIST_SELECTOR)?.dataset ?? {};
+  if (kind in LIST_SONGS) startList(kind, id, row.dataset.id);
+  else setList(NO_LIST);
 }
 
-/** Play a list from its first playable song, Up Next left as it is; false when none can play. */
-export async function playList(list) {
-  const first = list.ids.find(isPlayableTrack);
+/** Play a list ({ kind, id }) from its first playable song, Up Next left as it is; false when none can play. */
+export async function playList({ kind, id = "" }) {
+  const first = LIST_SONGS[kind](id).find(isPlayableTrack);
   if (!first) return false;
-  startPlayContext(list, first);
+  startList(kind, id, first);
   await playNow(first);
   return true;
 }
 
 export function playContextLabel() {
   const key = KIND_LABEL_KEYS[list.kind];
-  return key ? t(key) : list.name;
+  return key ? t(key) : LIST_NAMES[list.kind]?.(list.id) ?? "";
 }
 
 const isAhead = (trackId) => isPlayableTrack(trackId) && !isInUpNext(trackId);
@@ -65,7 +69,8 @@ export function nextInContext() {
 }
 
 function onPlayState({ id, playing }) {
-  const at = playing ? cursorAt(list, id) : list.at;
+  if (!playing) return;
+  const at = cursorAt(list, id);
   if (at !== list.at) setList({ ...list, at });
 }
 
