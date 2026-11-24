@@ -3,18 +3,22 @@
 
 import { $ } from "./utils.js";
 import { t, getLanguage, onLanguageChange } from "./i18n.js";
-import { openMenu, menuItem } from "./trackMenu.js";
+import { openMenu } from "./trackMenu.js";
 import { keepInWindow } from "./shellFloat.js";
 import { overflowTabs } from "./inspectorTabFit.js";
 
-const TAB_SELECTOR = ".inspector-tab[data-tab]";
 const SELECTED_TAB = '[aria-selected="true"]';
 const COUNT_SHOWN = ".inspector-count:not([hidden])";
-
-let chooseTab = () => null;
+const MENU_ITEM_CLASS = "lib-menu-item";
+const COUNT_CHANGES = Object.freeze({
+  childList: true,
+  characterData: true,
+  subtree: true,
+  attributes: true,
+  attributeFilter: ["hidden"],
+});
 
 const tabbar = () => document.querySelector(".inspector-tabbar");
-const tabs = () => [...document.querySelectorAll(TAB_SELECTOR)];
 const listOf = (labels) => new Intl.ListFormat(getLanguage(), { type: "unit" }).format(labels);
 
 function tabLabel(tab) {
@@ -37,12 +41,10 @@ function paintMore(more, hidden) {
   more.title = t("panel.moreTitle", { tabs: listOf(hidden.map(tabLabel)) });
 }
 
-/** Measure every tab at its own width, then move the ones that don't fit into More. */
-export function fitInspectorTabs() {
+export function fitInspectorTabs(all) {
   const bar = tabbar();
   const more = $("inspectorMoreBtn");
   if (!bar?.clientWidth || !more) return;
-  const all = tabs();
   for (const tab of all) tab.hidden = false;
   more.hidden = false;
   const hidden = overflowTabs({
@@ -56,35 +58,49 @@ export function fitInspectorTabs() {
   paintMore(more, hidden);
 }
 
-function onMoreTabChosen(tab) {
-  chooseTab(tab.dataset.tab)?.focus();
-}
-
-function moreItem(tab) {
-  const item = menuItem(tabLabel(tab), null, () => onMoreTabChosen(tab));
-  item.querySelector("svg")?.remove();
+function moreItem(tab, onChoose) {
+  const item = document.createElement("button");
+  item.type = "button";
+  item.className = MENU_ITEM_CLASS;
+  item.setAttribute("role", "menuitem");
+  const label = document.createElement("span");
+  label.textContent = tabLabel(tab);
+  item.append(label);
+  item.addEventListener("click", function onMoreItemClick() {
+    onChoose(tab);
+  });
   return item;
 }
 
-function onMoreClick(e) {
-  const items = tabs().filter((tab) => tab.hidden).map(moreItem);
-  openMenu(e.currentTarget, items, { label: t("panel.more"), place: keepInWindow });
-}
-
-function watchTabWidths() {
-  new ResizeObserver(fitInspectorTabs).observe(tabbar());
+function watchTabWidths(bar, refit) {
+  new ResizeObserver(refit).observe(bar);
   const count = $("upNextCount");
-  const changes = { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ["hidden"] };
-  if (count) new MutationObserver(fitInspectorTabs).observe(count, changes);
-  onLanguageChange(fitInspectorTabs);
+  if (count) new MutationObserver(refit).observe(count, COUNT_CHANGES);
+  onLanguageChange(refit);
 }
 
-/** `choose(name)` opens a tab as a click on it does, and returns it. */
-export function initInspectorMore({ choose }) {
+/** `tabs()` lists the tab buttons; `choose(name)` opens one as a click on it does, and returns it. */
+export function initInspectorMore({ tabs, choose }) {
   const more = $("inspectorMoreBtn");
-  if (!more || !tabbar()) return;
-  chooseTab = choose;
+  const bar = tabbar();
+  if (!more || !bar) return;
+
+  function refit() {
+    fitInspectorTabs(tabs());
+  }
+
+  // openMenu() closes the menu when asked again from the same button.
+  function onMoreTabChosen(tab) {
+    more.click();
+    choose(tab.dataset.tab)?.focus();
+  }
+
+  function onMoreClick() {
+    const items = tabs().filter((tab) => tab.hidden).map((tab) => moreItem(tab, onMoreTabChosen));
+    openMenu(more, items, { label: t("panel.more"), place: keepInWindow });
+  }
+
   more.addEventListener("click", onMoreClick);
-  watchTabWidths();
-  fitInspectorTabs();
+  watchTabWidths(bar, refit);
+  refit();
 }

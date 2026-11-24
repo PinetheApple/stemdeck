@@ -476,6 +476,9 @@ export async function showSongTools(page) {
   await tools.waitFor({ state: "visible" });
 }
 
+/** Where the song tools remember their last tab (inspector.js). */
+export const TAB_STORE_KEY = "stemdeck.inspector.tab";
+
 /** Show one of the song tools' tabs: "lyrics", "upnext", "tempo", "eq" or "details". */
 export async function openInspectorTab(page, name) {
   await showSongTools(page);

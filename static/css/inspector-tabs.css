@@ -1,5 +1,3 @@
-/* The song tools' tab row: tabs at their own width, the ones that don't fit in More. */
-
 .inspector-tabbar {
   display: flex;
   align-items: center;
@@ -11,7 +9,7 @@
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
-  gap: 2px;
+  gap: var(--s-0);
   overflow: hidden;
 }
 .inspector-tab,
@@ -40,7 +38,7 @@
 .inspector-more { margin-left: auto; color: var(--text-2); }
 .inspector-more .ic { width: var(--icon-sm); height: var(--icon-sm); }
 .inspector-count {
-  padding: 2px 6px;
+  padding: var(--s-0) 6px;
   border-radius: var(--r-pill);
   background: var(--surface-3);
   color: var(--text-2);

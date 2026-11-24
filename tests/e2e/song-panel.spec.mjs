@@ -1,11 +1,10 @@
 // The right panel's song tools: Lyrics, Up Next, Tempo, EQ and Details as tabs, the
 // ones that don't fit in More, Lyrics first, the last tab remembered.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, fixtureTrack, openStudio, uiText } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, TAB_STORE_KEY, fixtureTrack, openStudio, uiText } from "./helpers.mjs";
 
 const WIDE_WINDOW = { width: 1600, height: 900 };
 const TAB_ORDER = ["lyrics", "upnext", "tempo", "eq", "details"];
-const TAB_STORE_KEY = "stemdeck.inspector.tab";
 const WIDE_TAB_PADDING = "#inspector .inspector-tab { padding-inline: 48px !important; }";
 const LRCLIB = /^https:\/\/lrclib\.net\//;
 const LINE_COUNT = 40;

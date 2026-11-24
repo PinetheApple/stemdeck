@@ -82,12 +82,11 @@ import { editableRows, plainTexts, plainTimedLines, untimedRows } from "./lyrics
 import { toolButton, setToolLabel, keepOnePrimary, TOOL_QUIET } from "./lyricsToolbar.js";
 import { initLyricsTranscribe, checkTranscribe, resetTranscribe } from "./lyricsTranscribe.js";
 import { RUN_STATE } from "./lyricsRunState.js";
-import { INSPECTOR_TAB_SHOWN_EVENT } from "./inspector.js";
+import { INSPECTOR_TABS, INSPECTOR_TAB_SHOWN_EVENT } from "./inspector.js";
 import { FOLDER_MOVING_KEY, refusalKey, refusedForFolderMove } from "./folderMoving.js";
 
 // Set once every lyrics entry this browser kept is on the server (lyricsCarryOver.js).
 const CARRIED_OVER_KEY = "stemdeck.lyrics_carried_over";
-const LYRICS_TAB = "lyrics";
 const LYRICS_FAILURE_KIND = "lyrics";
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -1825,7 +1824,7 @@ function setVisible(on) {
 }
 
 function onInspectorTabShown(e) {
-  setVisible(e.detail?.tab === LYRICS_TAB);
+  setVisible(e.detail?.tab === INSPECTOR_TABS.LYRICS);
 }
 
 // A renamed song was looked up again (catalog.js), so what this session found is stale.

@@ -4,8 +4,15 @@ import { $, storeGet, storeSet } from "./utils.js";
 import { TOOLS_HIDDEN_CLASS, isToolsAutoHidden } from "./shellEdges.js";
 import { fitInspectorTabs, initInspectorMore } from "./inspectorMore.js";
 
+export const INSPECTOR_TABS = Object.freeze({
+  LYRICS: "lyrics",
+  UP_NEXT: "upnext",
+  TEMPO: "tempo",
+  EQ: "eq",
+  DETAILS: "details",
+});
 const TAB_STORE_KEY = "stemdeck.inspector.tab";
-const DEFAULT_TAB = "lyrics";
+const DEFAULT_TAB = INSPECTOR_TABS.LYRICS;
 const HIDDEN_STORE_KEY = "stemdeck.inspector.hidden";
 const HIDDEN_STORED = "1";
 const SHOWN_STORED = "0";
@@ -46,7 +53,7 @@ function showInspectorTab(name) {
     const pane = $(tab.getAttribute("aria-controls"));
     if (pane) pane.hidden = !selected;
   }
-  fitInspectorTabs();
+  fitInspectorTabs(all);
   announceShownTab();
   return target;
 }
@@ -103,7 +110,7 @@ function readInspectorHidden() {
   }
 }
 
-/** Show a tab from elsewhere in the app (a lane's EQ, the footer's Up Next), unhiding the song tools. */
+/** Show a tab from elsewhere in the app, unhiding the song tools. */
 export function openInspectorTab(name) {
   setInspectorHidden(false);
   saveInspectorHidden(false);
@@ -128,7 +135,7 @@ export function initInspector() {
   tablist.addEventListener("click", onTabClick);
   tablist.addEventListener("keydown", onTabKeydown);
   $("inspectorToggleBtn")?.addEventListener("click", onInspectorToggleClick);
-  initInspectorMore({ choose: chooseInspectorTab });
+  initInspectorMore({ tabs, choose: chooseInspectorTab });
   watchShownTab();
   restoreInspectorTab();
 }
