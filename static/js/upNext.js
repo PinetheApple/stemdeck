@@ -118,6 +118,14 @@ async function playFromUpNext(trackId) {
   await loadAndPlay(trackId);
 }
 
+export function isInUpNext(trackId) {
+  return queue.includes(trackId);
+}
+
+export function firstInUpNext() {
+  return playableQueue()[0] ?? null;
+}
+
 /** The song in the player, when it can be played, then what is queued after it. */
 export function getNowAndUpNextIds() {
   const current = getPlayingTrackInfo()?.id;
@@ -125,20 +133,14 @@ export function getNowAndUpNextIds() {
   return [...new Set([...now, ...playableQueue()])];
 }
 
-/** Open the first playable song and start it, with the rest as Up Next. */
-export async function playSongs(trackIds) {
-  const [first, ...rest] = trackIds.filter(isPlayableTrack);
-  if (!first) return false;
-  queue = rest;
-  persist();
-  renderUpNext();
+/** Stop what plays, then open `trackId` and start it; Up Next stays as it is. */
+export async function playNow(trackId) {
   if (transport()?.isPlaying()) stopTransport();
-  await loadAndPlay(first);
-  return true;
+  await loadAndPlay(trackId);
 }
 
 export function playNextInUpNext() {
-  const [next] = playableQueue();
+  const next = firstInUpNext();
   if (!next) return;
   if (transport()?.isPlaying()) stopTransport();
   playFromUpNext(next);
@@ -185,6 +187,7 @@ function onPlaybackReady(e) {
 }
 
 export const UP_NEXT_ADD_EVENT = "upnext:add";
+export const UP_NEXT_CHANGE_EVENT = "upnext:change";
 
 /** Queue a song from anywhere, without importing this module's state. */
 export function queueUpNext(trackId) {
@@ -196,7 +199,7 @@ function onAddRequest(e) {
   if (id) addToUpNext(id);
 }
 
-function thumbEl(track) {
+export function thumbEl(track) {
   const box = document.createElement("span");
   box.className = "upnext-thumb";
   box.setAttribute("aria-hidden", "true");
@@ -212,7 +215,7 @@ function thumbEl(track) {
   return box;
 }
 
-function songText(track) {
+export function songText(track) {
   const text = document.createElement("span");
   text.className = "upnext-text";
   const title = document.createElement("span");
@@ -296,10 +299,8 @@ export function renderUpNext() {
     count.textContent = String(ids.length);
     count.hidden = empty;
   }
-  const next = $("t-next");
-  if (next) next.disabled = empty;
   renderNowPlaying();
-  document.dispatchEvent(new CustomEvent("upnext:change", { detail: { count: ids.length, nextId: ids[0] ?? null } }));
+  document.dispatchEvent(new CustomEvent(UP_NEXT_CHANGE_EVENT, { detail: { count: ids.length, nextId: ids[0] ?? null } }));
 }
 
 /** Songs queued before the stored list arrived stay queued, after it. */
@@ -406,7 +407,6 @@ function wireUpNextRows() {
 
 export function initUpNext() {
   wireUpNextRows();
-  $("t-next")?.addEventListener("click", playNextInUpNext);
   document.addEventListener(UP_NEXT_ADD_EVENT, onAddRequest);
   document.addEventListener("trackended", onTrackEnded);
   document.addEventListener("playbackready", onPlaybackReady);

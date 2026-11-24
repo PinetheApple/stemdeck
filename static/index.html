@@ -28,6 +28,7 @@
     <link rel="stylesheet" href="/css/section-bar.css" />
     <link rel="stylesheet" href="/css/studio-menus.css" />
     <link rel="stylesheet" href="/css/my-part.css" />
+    <link rel="stylesheet" href="/css/song-steps.css" />
     <link rel="stylesheet" href="/css/batch-import.css" />
     <link rel="stylesheet" href="/css/shell.css" />
     <link rel="stylesheet" href="/css/themes.css" />
@@ -327,6 +328,10 @@
           <!-- Kept for screen readers; the song head's position says it. -->
           <span class="np-legend" data-i18n="track.nowPlaying">Now playing</span>
           <div class="track-panel-head">
+            <div class="song-steps">
+              <button class="song-steps-btn" type="button" id="songBackBtn" disabled aria-keyshortcuts="Alt+ArrowLeft" title="Back to the song you looked at before (Alt ←)" aria-label="Back to the song you looked at before" data-i18n-title="studio.songSteps.back" data-i18n-aria-label="studio.songSteps.backLabel"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+              <button class="song-steps-btn" type="button" id="songForwardBtn" disabled aria-keyshortcuts="Alt+ArrowRight" title="Forward (Alt →)" aria-label="Forward to the song you looked at next" data-i18n-title="studio.songSteps.forward" data-i18n-aria-label="studio.songSteps.forwardLabel"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+            </div>
             <div class="daw-cover track-panel-cover" id="np-art">
               <div class="np-art-placeholder" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -1071,6 +1076,12 @@
                 <strong data-i18n="upNext.empty">Up Next is empty</strong>
                 <span data-i18n="upNext.emptyHint">Choose Add to Up Next from a song's … menu in the library.</span>
               </div>
+              <p class="upnext-hint" id="upNextNothingQueued" data-i18n="studio.upNext.nothingQueued" hidden>Nothing queued. Press + on a song to play it next.</p>
+            </div>
+            <div class="upnext-block" id="upNextFrom" hidden>
+              <span class="inspector-label" id="upNextFromLabel"></span>
+              <ol class="upnext-list" id="upNextFromList"></ol>
+              <p class="upnext-hint" id="upNextFromMore" hidden></p>
             </div>
           </section>
 
@@ -1308,9 +1319,9 @@
           <div class="ft-transport">
             <div class="ft-buttons">
               <button class="ft-iconbtn btn-transport" id="t-stop" type="button" title="Stop" aria-label="Stop" data-i18n-title="transport.stop" data-i18n-aria-label="transport.stop"><svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /></svg></button>
-              <button class="ft-iconbtn" id="t-prev" type="button" title="Back to the start" aria-label="Back to the start" data-i18n-title="studio.footer.previous" data-i18n-aria-label="studio.footer.previous"><svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.971 4.285A2 2 0 0 1 21 6v12a2 2 0 0 1-3.029 1.715l-9.997-5.998a2 2 0 0 1-.003-3.432z"/><path d="M3 20V4"/></svg></button>
+              <button class="ft-iconbtn" id="t-prev" type="button" title="Back to the start" aria-label="Back to the start" disabled><svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.971 4.285A2 2 0 0 1 21 6v12a2 2 0 0 1-3.029 1.715l-9.997-5.998a2 2 0 0 1-.003-3.432z"/><path d="M3 20V4"/></svg></button>
               <button class="daw-play-btn btn-transport" id="t-play" type="button" aria-label="Play / Pause" data-i18n-aria-label="transport.playPause"><svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" /></svg><svg class="ic ic-fill pause-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none"><rect x="14" y="3" width="5" height="18" rx="1" /> <rect x="5" y="3" width="5" height="18" rx="1" /></svg></button>
-              <button class="ft-iconbtn" id="t-next" type="button" title="Play the next song in Up Next" aria-label="Play the next song in Up Next" data-i18n-title="upNext.nextTitle" data-i18n-aria-label="upNext.nextTitle" disabled><svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4v16"/><path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z"/></svg></button>
+              <button class="ft-iconbtn" id="t-next" type="button" title="Next song: forward again after going back, otherwise the next in Up Next or in the list it was played from" aria-label="Next song" data-i18n-title="studio.footer.next" data-i18n-aria-label="studio.footer.nextLabel" disabled><svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4v16"/><path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z"/></svg></button>
               <button class="ft-iconbtn" id="t-upnext" type="button" aria-pressed="false" title="Show Up Next" aria-label="Show Up Next" data-i18n-title="studio.footer.showUpNext" data-i18n-aria-label="studio.footer.showUpNext"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15V6"/><path d="M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/><path d="M12 12H3"/><path d="M16 6H3"/><path d="M12 18H3"/></svg></button>
             </div>
             <div class="ft-seek">

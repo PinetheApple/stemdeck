@@ -2,7 +2,7 @@ import { $, fmtTime, fmtTickLabel, fmtTimeMs, parseTimecode, storeGet, storeSet 
 import { MIN_LOOP_SEC, loopDragResult } from "./loopRegion.js";
 import { tickStepAt } from "./rulerTicks.js";
 import {
-  playBtn, playMiniBtn, stopBtn, prevBtn, loopBtn, timeEl, masterFader,
+  playBtn, playMiniBtn, stopBtn, loopBtn, timeEl, masterFader,
   speedFader,
   speedValueBox,
   speedReadout,
@@ -48,6 +48,7 @@ import { wirePopover } from "./popover.js";
 import { CLICK_STATE_EVENT, initFooterClick } from "./footerClick.js";
 import { initFooterPractice } from "./footerPractice.js";
 import { initUpNextButton } from "./footerTransport.js";
+import { initSongSteps } from "./songSteps.js";
 import { paintSectionLine } from "./footerSections.js";
 import { initFooterLoop, paintLoopName } from "./footerLoop.js";
 import { emitLoopChange, emitPlayheadMove } from "./studioSignals.js";
@@ -648,8 +649,7 @@ export function stopTransport() {
   announcePlayState(false);
 }
 
-/** The footer's Previous: back to the start of the playing song. */
-export function goToPrevious() {
+export function restartSong() {
   setPlayheadTime(0);
 }
 
@@ -1026,7 +1026,7 @@ export function wireTransportButtons() {
   playBtn.addEventListener("click", togglePlayPauseFromTransport);
   playMiniBtn?.addEventListener("click", togglePlayPauseFromTransport);
   stopBtn.addEventListener("click", stopTransport);
-  prevBtn?.addEventListener("click", goToPrevious);
+  initSongSteps();
   initUpNextButton();
   loopBtn.addEventListener("click", toggleLoop);
   wireLoopDrag();
