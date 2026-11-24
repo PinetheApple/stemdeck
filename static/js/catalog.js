@@ -5207,7 +5207,7 @@ let libraryEditorOpener = null;
 // already re-fetches everything fresh and is safe to call while already open
 // (it closes any existing instance first).
 onLanguageChange(() => {
-  if (libraryEditor) openLibraryEditor(shownSettingsTab());
+  if (libraryEditor) openSettings(shownSettingsTab());
 });
 
 // Library list rows bake their subtitle/placeholder/empty-state text into

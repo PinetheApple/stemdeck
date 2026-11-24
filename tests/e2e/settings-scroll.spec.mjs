@@ -12,7 +12,7 @@
 // dialog or collide with the footer.
 
 import { test, expect } from "@playwright/test";
-import { seedLibrary, settleRoutes } from "./helpers.mjs";
+import { seedLibrary, settleRoutes, waitForNetworkRendered } from "./helpers.mjs";
 
 test.afterEach(settleRoutes);
 
@@ -32,6 +32,9 @@ async function withManyAddresses(page) {
     "http://192.168.1.50:8000",
     "http://10.0.0.7:8000",
     "http://172.28.224.1:8000",
+    "http://192.168.56.1:8000",
+    "http://10.8.0.2:8000",
+    "http://100.64.0.9:8000",
   ];
   await page.route("**/api/settings", async (route) => {
     if (route.request().method() !== "GET") return route.continue();
@@ -88,6 +91,7 @@ test("the network tab scrolls rather than overflowing", async ({ page }) => {
   await withManyAddresses(page);
   await openSettings(page);
   const pane = await showTab(page, "network");
+  await waitForNetworkRendered(page);
   const { scrollable, canScroll } = await pane.evaluate((el) => ({
     scrollable: getComputedStyle(el).overflowY,
     canScroll: el.scrollHeight > el.clientHeight,
