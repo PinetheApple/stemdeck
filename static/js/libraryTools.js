@@ -9,7 +9,7 @@ import {
 } from "./libraryView.js";
 import { initLibraryToolbar, paintLibraryToolbar } from "./libraryToolbar.js";
 import { initBulkBar, paintBulkBar } from "./libraryBulkBar.js";
-import { paintPicks, visibleIds, wirePicking } from "./libraryPicking.js";
+import { markPickLists, paintPicks, visibleIds, wirePicking } from "./libraryPicking.js";
 
 export { decorateSongEl } from "./libraryPicking.js";
 export { sortableHeadEl } from "./libraryHeads.js";
@@ -51,16 +51,19 @@ export function filteredOutEl(kind, shownCount, viewCount) {
 /** After a view is drawn: drop picks it no longer shows, and repaint the toolbar and bulk bar. */
 export function afterResultsDrawn(container, kind) {
   noteLibrarySongs(libraryTrackIds());
-  if (selection.picking) selection.prune(visibleIds(container));
+  if (selection.picking) {
+    selection.prune(visibleIds(container));
+    markPickLists(container);
+  }
   paintLibraryToolbar(kind);
   paintBulkBar(kind, container);
 }
 
 /** Leave Select without a redraw; true when it was picking. */
 export function endPicking() {
-  const was = selection.picking;
+  const wasPicking = selection.picking;
   selection.done();
-  return was;
+  return wasPicking;
 }
 
 /** Esc while picking leaves Select and keeps Browse library open; true when it did. */

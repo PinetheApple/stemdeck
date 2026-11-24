@@ -13,6 +13,8 @@ const PICK_BOX_HTML = `<span class="pick-box" aria-hidden="true">${icon("check")
 const PICKABLE_ROW = ".cat-item[data-id]:not(.queue-row):not(.cat-version)";
 // The row's own buttons keep their jobs while picking.
 const NOT_A_PICK = `.cat-actions, .cat-versions-toggle, .import-fail-panel, .${ROW_PLAY_CLASS}`;
+const LIST_ROLE = "listbox";
+const ROW_ROLE = "option";
 const OPEN_KEY = "Enter";
 const TOGGLE_KEY = " ";
 
@@ -31,12 +33,22 @@ export function paintPicks(container) {
   for (const row of container.querySelectorAll(PICKABLE_ROW)) paintPick(row);
 }
 
+/** While picking, each list holding pickable rows is a multi-select listbox; a redraw drops it again. */
+export function markPickLists(container) {
+  const lists = new Set([...container.querySelectorAll(PICKABLE_ROW)].map((row) => row.parentElement));
+  for (const list of lists) {
+    list.setAttribute("role", LIST_ROLE);
+    list.setAttribute("aria-multiselectable", "true");
+  }
+}
+
 /** Give a drawn song its pick box while picking, and make it a My order drop target when sorted so. */
 export function decorateSongEl(el, kind) {
   if (!el) return el;
   if (selection.picking && selectScopeOf(kind)) {
     const host = el.classList.contains(SONG_CARD_CLASS) ? el.querySelector(".cat-thumb") : el;
     host?.insertAdjacentHTML("afterbegin", PICK_BOX_HTML);
+    el.setAttribute("role", ROW_ROLE);
     paintPick(el);
   }
   if (showsMyOrder(kind, libraryView())) wireMyOrderDrop(el);

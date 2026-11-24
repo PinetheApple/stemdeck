@@ -146,13 +146,13 @@ test("Favorites sorts its songs too", async ({ page }) => {
 test("a column head sorts by its column, and a second click flips the direction", async ({ page }) => {
   await openSongs(page);
   await page.locator("#browseListBtn").click();
-  const tempo = page.locator(".browse-thead button.c-tempo");
+  const tempo = page.locator(".browse-thead .c-tempo button");
   await expect(tempo).toHaveAttribute("title", await uiText(page, "libSort.sortByColumn", { column: await uiText(page, "lib.colTempo") }));
-  await expect(page.locator(".browse-thead button.c-folder")).toHaveCount(0);
+  await expect(page.locator(".browse-thead .c-folder button")).toHaveCount(0);
   await tempo.click();
-  await expect(page.locator(".browse-thead button.c-tempo")).toHaveClass(/is-on/);
+  await expect(page.locator(".browse-thead .c-tempo")).toHaveClass(/is-on/);
   await expect.poll(() => shownIds(page)).toEqual(idsOf(ALPHA, CHARLIE, BRAVO));
-  await page.locator(".browse-thead button.c-tempo").click();
+  await page.locator(".browse-thead .c-tempo button").click();
   await expect.poll(() => shownIds(page)).toEqual(idsOf(BRAVO, CHARLIE, ALPHA));
 });
 
@@ -286,13 +286,26 @@ test("a row's Play button plays while picking instead of picking the song", asyn
 test("picked rows and the sorted column say their state to assistive tech", async ({ page }) => {
   await openSongs(page);
   await page.locator("#browseListBtn").click();
+  const list = page.locator(`${BROWSE_RESULTS} .browse-list`);
+  const head = page.locator(".browse-thead");
+  await expect(head).toHaveAttribute("role", "row");
+  await expect(head.locator(".cell")).toHaveCount(await head.locator('[role="columnheader"]').count());
+  await expect(list).not.toHaveAttribute("role");
+  await expect(rows(page).first()).not.toHaveAttribute("role");
   await expect(rows(page).first()).not.toHaveAttribute("aria-selected");
   await selectButton(page).click();
   await pick(page, ALPHA);
+  await expect(list).toHaveAttribute("role", "listbox");
+  await expect(list).toHaveAttribute("aria-multiselectable", "true");
+  await expect(row(page, ALPHA)).toHaveAttribute("role", "option");
   await expect(row(page, ALPHA)).toHaveAttribute("aria-selected", "true");
   await expect(row(page, BRAVO)).toHaveAttribute("aria-selected", "false");
-  await expect(page.locator(".browse-thead button.c-added")).toHaveAttribute("aria-sort", "descending");
-  await page.locator(".browse-thead button.c-title").click();
-  await expect(page.locator(".browse-thead button.c-title")).toHaveAttribute("aria-sort", "ascending");
-  await expect(page.locator(".browse-thead button.c-added")).not.toHaveAttribute("aria-sort");
+  await expect(bulkBar(page)).toHaveAttribute("aria-label", await uiText(page, "libSort.select"));
+  await expect(head.locator(".c-added")).toHaveAttribute("aria-sort", "descending");
+  await head.locator(".c-title button").click();
+  await expect(head.locator(".c-title")).toHaveAttribute("aria-sort", "ascending");
+  await expect(head.locator(".c-added")).not.toHaveAttribute("aria-sort");
+  await bulkBar(page).getByRole("button", { name: await uiText(page, "settings.done") }).click();
+  await expect(list).not.toHaveAttribute("role");
+  await expect(rows(page).first()).not.toHaveAttribute("role");
 });
