@@ -10,7 +10,7 @@ import { storeGet, storeSet, $ } from "./utils.js";
 import { wireSongList } from "./libraryRows.js";
 import { onSetlistsChange, setSetlistOpeners } from "./setlists.js";
 import { onPlayStateChange } from "./playState.js";
-import { drawBrowseNav, paintCurrentView, wireBrowseNav } from "./browseNav.js";
+import { NAV_COUNT_CLASS, drawBrowseNav, paintCurrentView, wireBrowseNav } from "./browseNav.js";
 import { drawBrowseResults } from "./browseViews.js";
 import { drawTagChips, wireBrowseSearch } from "./browseSearch.js";
 import { openSetlistRename } from "./setlistRenameDialog.js";
@@ -139,7 +139,7 @@ function onBrowseKeydown(e) {
 }
 
 const queueNavEntry = () => $("browseNav")?.querySelector(`[data-view="${VIEW.QUEUE}"]`);
-const queueNavCount = (entry) => Number(entry.querySelector(".browse-nav-count")?.textContent ?? 0);
+const queueNavCount = (entry) => Number(entry.querySelector(`.${NAV_COUNT_CLASS}`)?.textContent ?? 0);
 
 // The nav's Import queue entry comes and goes with the queue, and the view leaves with it.
 function onQueueFrame(snap = getQueueSnapshot()) {

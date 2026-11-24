@@ -19,13 +19,14 @@ import { VIEW } from "./browseViewNames.js";
 import { $ } from "./utils.js";
 
 const RENAME_TITLE_KEY = "folderEditor.renameTitle";
+export const NAV_COUNT_CLASS = "browse-nav-count";
 
 function navButton(view, iconHtml, label, count = null) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "browse-nav-btn";
   btn.dataset.view = view;
-  btn.innerHTML = `${iconHtml}<span class="browse-nav-label"></span>${count === null ? "" : `<span class="browse-nav-count num">${count}</span>`}`;
+  btn.innerHTML = `${iconHtml}<span class="browse-nav-label"></span>${count === null ? "" : `<span class="${NAV_COUNT_CLASS} num">${count}</span>`}`;
   btn.querySelector(".browse-nav-label").textContent = label;
   btn.title = label;
   if (browseState().view === view) btn.setAttribute("aria-current", "page");
