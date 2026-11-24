@@ -2,13 +2,12 @@
 // player keeps its engine, mixer and lanes mounted underneath.
 
 import {
-  UNKNOWN_STEM_COLOR,
   WAVE_VIEWBOX_HEIGHT,
   barsWaveformSvg,
   overviewBarCount,
   overviewLaneNames,
 } from "./player.js";
-import { STEM_COLORS, STEM_DISPLAY } from "./constants.js";
+import { STEM_COLORS, STEM_DISPLAY, UNKNOWN_STEM_COLOR } from "./constants.js";
 import { npThumb } from "./state.js";
 import { $ } from "./utils.js";
 

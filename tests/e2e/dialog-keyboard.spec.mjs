@@ -14,7 +14,11 @@ import {
   stubFavorites,
   stubLongQueue,
   stubUpdateCheck,
-  tabTo, openComposer } from "./helpers.mjs";
+  tabTo,
+  openComposer,
+  waitForPanesSettled,
+  TALL_WINDOW,
+} from "./helpers.mjs";
 
 const MIN_TARGET_PX = 24;
 const USER_FOLDER_ID = "f-live";
@@ -232,16 +236,24 @@ test.describe("target sizes", () => {
     expect(await smallTargets(page, [".queue-cancel", ".queue-top"])).toEqual(ALL_TARGETS_MET);
   });
 
-  test("a lane's transpose arrows take a 24 px hit, reaching away from the K", async ({ page }) => {
+  test("a lane's transpose arrows take a 24 px hit", async ({ page }) => {
+    await page.setViewportSize(TALL_WINDOW);
     await openStudio(page);
-    const up = page.locator('.lane-key[data-stem="vocals"] .lane-key-step.up');
-    await expect(up).toBeVisible();
-    const box = await up.boundingBox();
-    const hits = await page.evaluate(
-      ({ x, ys }) => ys.map((y) => Boolean(document.elementFromPoint(x, y)?.closest(".lane-key-step.up"))),
-      { x: box.x + box.width / 2, ys: [box.y + box.height - 1, box.y + box.height - MIN_TARGET_PX + 1] },
-    );
-    expect(hits).toEqual([true, true]);
+    await waitForPanesSettled(page);
+    for (const step of ["up", "down"]) {
+      const sel = `.lane-key[data-stem="vocals"] .lane-key-step.${step}`;
+      await expect.poll(async () => {
+        const box = await page.locator(sel).boundingBox();
+        const midX = box.x + box.width / 2;
+        const midY = box.y + box.height / 2;
+        // Edge midpoints: hit-testing follows the rounded corners.
+        const edges = [[box.x + 1, midY], [box.x + MIN_TARGET_PX - 1, midY], [midX, box.y + 1], [midX, box.y + MIN_TARGET_PX - 1]];
+        return page.evaluate(
+          ({ points, selector }) => points.map(([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest(selector))),
+          { points: edges, selector: sel },
+        );
+      }, { message: step }).toEqual([true, true, true, true]);
+    }
   });
 });
 

@@ -26,6 +26,8 @@ export const SOURCE_URL = "local:e2e-fixture";
 
 export const MIN_TIMELINE_WIDTH = MIN_WAVES_PX;
 export const LOAD_TIMEOUT_MS = 20000;
+// Tall enough that each lane shows its second row (EQ, Key, Stem) rather than its ⋯ menu.
+export const TALL_WINDOW = Object.freeze({ width: 1600, height: 1000 });
 
 const STORAGE_KEY = "stemdeck.folders";
 const STORAGE_VERSION = 2;

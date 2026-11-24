@@ -5,7 +5,15 @@
 
 import { test, expect } from "@playwright/test";
 
-import { SIBLING_JOB_ID, openInspectorTab, openStudio, seedLibrary, stubUpdateCheck, uiText } from "./helpers.mjs";
+import {
+  SIBLING_JOB_ID,
+  TALL_WINDOW,
+  openInspectorTab,
+  openStudio,
+  seedLibrary,
+  stubUpdateCheck,
+  uiText,
+} from "./helpers.mjs";
 
 const tip = (page) => page.locator("#helpTip");
 // The pointer's ring is placed on whole pixels.
@@ -123,6 +131,7 @@ test.describe("help mode", () => {
   });
 
   test("a lane's control names its instrument", async ({ page }) => {
+    await page.setViewportSize(TALL_WINDOW);
     await openStudio(page);
     await helpOn(page);
     const drumsMute = page.locator(".mx-row, .lane-header").filter({ hasText: "Drums" }).locator(".mx-btn.mute").first();
@@ -134,6 +143,16 @@ test.describe("help mode", () => {
     const drumsKey = page.locator(".lane-key").filter({ has: page.locator('[aria-label*="Drums"]') }).locator(".lane-key-value").first();
     await drumsKey.hover({ force: true });
     await expect(tip(page).locator("b")).toHaveText("Key of Drums");
+  });
+
+  test("a lane's name and its ⋯ menu explain themselves for that lane", async ({ page }) => {
+    await openStudio(page);
+    await helpOn(page);
+    const drums = page.locator('.lane-head[data-stem="drums"]');
+    await drums.locator(".lane-name").hover();
+    await expect(tip(page)).toContainText(await uiText(page, "studio.lane.helpName", { name: "Drums" }));
+    await drums.locator(".lane-more").hover();
+    await expect(tip(page)).toContainText(await uiText(page, "studio.lane.helpMore", { name: "Drums" }));
   });
 
   test("each song fact and presence card explains itself", async ({ page }) => {

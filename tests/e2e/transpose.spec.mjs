@@ -7,7 +7,7 @@
 // not passable.
 
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, openStudio, openSpeedOptions, openKeyOptions } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, TALL_WINDOW, openStudio, openSpeedOptions, openKeyOptions } from "./helpers.mjs";
 
 const down = (page) => page.locator("#t-pitch-down");
 const up = (page) => page.locator("#t-pitch-up");
@@ -19,6 +19,9 @@ const laneKey = (page, stem) => page.locator(`.lane-key[data-stem="${stem}"]`);
 const laneUp = (page, stem) => laneKey(page, stem).locator(".lane-key-step.up");
 const laneDown = (page, stem) => laneKey(page, stem).locator(".lane-key-step.down");
 const laneValue = (page, stem) => laneKey(page, stem).locator(".lane-key-value");
+
+// A lane in the song's own key reads 0.
+const ORIGINAL_KEY = "0";
 
 // Input 6 is semitone 0, so input (6 + n) is a shift of n semitones.
 const ZERO_INPUT = 6;
@@ -242,7 +245,7 @@ test.describe("transpose", () => {
     await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().dblclick();
     await settleRoutes(page);
     await expect(value(page)).toHaveText("0");
-    await expect(laneValue(page, "vocals")).toHaveText("K");
+    await expect(laneValue(page, "vocals")).toHaveText(ORIGINAL_KEY);
 
     await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
     await expect.poll(() => recentInputs(page)).toContain(ZERO_INPUT - 2);
@@ -252,6 +255,7 @@ test.describe("transpose", () => {
   });
 
   test("the saved global key outranks lanes moved back on their own", async ({ page }) => {
+    await page.setViewportSize(TALL_WINDOW);
     await recordRouting(page);
     await openStudio(page);
     await settleRoutes(page);
@@ -260,7 +264,7 @@ test.describe("transpose", () => {
     for (const stem of ["vocals", "bass"]) {
       await laneUp(page, stem).click();
       await laneUp(page, stem).click();
-      await expect(laneValue(page, stem)).toHaveText("K");
+      await expect(laneValue(page, stem)).toHaveText(ORIGINAL_KEY);
     }
     await expect(value(page)).toHaveText("-2");
 
@@ -304,11 +308,13 @@ test.describe("transpose", () => {
 });
 
 test.describe("per-lane transpose", () => {
+  test.use({ viewport: TALL_WINDOW });
+
   test("every instrument lane carries a key stepper", async ({ page }) => {
     await openStudio(page);
     await expect(laneKey(page, "vocals")).toBeVisible();
     // Reads as a label until it is doing something, then as a number.
-    await expect(laneValue(page, "vocals")).toHaveText("K");
+    await expect(laneValue(page, "vocals")).toHaveText(ORIGINAL_KEY);
     await expect(laneKey(page, "vocals")).not.toHaveClass(/active/);
   });
 
@@ -334,7 +340,7 @@ test.describe("per-lane transpose", () => {
     await expect(laneValue(page, "vocals")).toHaveText("-1");
 
     await laneUp(page, "vocals").click();
-    await expect(laneValue(page, "vocals")).toHaveText("K");
+    await expect(laneValue(page, "vocals")).toHaveText(ORIGINAL_KEY);
     await expect(laneKey(page, "vocals")).not.toHaveClass(/active/);
   });
 
@@ -358,7 +364,7 @@ test.describe("per-lane transpose", () => {
     await expect(laneValue(page, "vocals")).toHaveText("+2");
     await expect(laneValue(page, "bass")).toHaveText("+2");
     // Except drums, which never move.
-    await expect(laneValue(page, "drums")).toHaveText("K");
+    await expect(laneValue(page, "drums")).toHaveText(ORIGINAL_KEY);
   });
 
   test("a lane keeps its distance when the global key moves", async ({ page }) => {
@@ -418,8 +424,8 @@ test.describe("per-lane transpose", () => {
     // individually, stepping the global back to zero cannot undo them.
     await expect(value(page)).toHaveText("0");
     await expect(keyGroup(page)).not.toHaveClass(/\bis-on\b/);
-    await expect(laneValue(page, "vocals")).toHaveText("K");
-    await expect(laneValue(page, "bass")).toHaveText("K");
+    await expect(laneValue(page, "vocals")).toHaveText(ORIGINAL_KEY);
+    await expect(laneValue(page, "bass")).toHaveText(ORIGINAL_KEY);
     await expect(laneKey(page, "vocals")).not.toHaveClass(/active/);
   });
 
