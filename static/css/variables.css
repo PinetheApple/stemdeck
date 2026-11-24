@@ -119,7 +119,6 @@
   --eqbar-w: 3px;
   --eqbar-r: 1px;
   --sidebar-count-pad-y: 1px;
-  --z-dialog: 400;
   --badge-h:      15px;
   --scrollbar-w:  8px;
   --s-0:          2px;
@@ -138,10 +137,12 @@
   /* Shared by the composer's Detect structure and Extract stems segments. */
   --composer-action-w: 140px;
 
-  /* Stacking: pane edges over their panes, the stem edge over the lanes, the overlay layer over the app */
+  /* Stacking: pane edges over their panes, the stem edge over the lanes, the overlay layer over the app,
+     dialogs over the overlay layer, where Browse library sits */
   --z-pane-edge:       4;
   --z-pane-edge-lanes: 20;
   --z-overlay-root:    300;
+  --z-dialog:          400;
   --z-toast:           1;
 
   /* Motion */

@@ -1,13 +1,12 @@
 :root {
   --dialog-blur: 3px;
-  --dialog-z: 100;
   --dialog-margin: var(--s-6);
   --dialog-w: 560px;
   --dialog-confirm-w: 440px;
 }
 
 .dialog-scrim {
-  position: fixed; inset: 0; z-index: var(--dialog-z);
+  position: fixed; inset: 0; z-index: var(--z-dialog);
   display: grid; place-items: center;
 }
 
