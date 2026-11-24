@@ -22,7 +22,7 @@ import { t } from "./i18n.js";
 import {
   GLOBAL_PITCH_FIELD, PITCH_MAX, PITCH_MIN, clampPitch, pitchBlockedKey, savedGlobalPitch,
 } from "./pitchBus.js";
-import { applyTakeGains, takeSoloActive } from "./takesMix.js";
+import { applyTakeGains, clearTakeSolos, takeSoloActive } from "./takesMix.js";
 import {
   bindFxStore,
   ensureFxDefaults,
@@ -48,7 +48,7 @@ export function ensureMixerStateDefaults() {
 
 export const MIX_CHANGE_EVENT = "mixchange";
 
-const announceMixChange = () => document.dispatchEvent(new CustomEvent(MIX_CHANGE_EVENT));
+export const announceMixChange = () => document.dispatchEvent(new CustomEvent(MIX_CHANGE_EVENT));
 
 let globalPitch = 0;
 // Never saved: a view's silence must not leak into the song's mix.
@@ -773,6 +773,12 @@ export function soloOnlyStem(name) {
   saveMix();
 }
 
+function commitMixChange() {
+  refreshMixerVisuals();
+  applyMix();
+  saveMix();
+}
+
 export function resetMixer() {
   for (const name of allTrackNames()) {
     const s = mixerState[name];
@@ -781,9 +787,7 @@ export function resetMixer() {
     s.muted = false;
     s.soloed = false;
   }
-  refreshMixerVisuals();
-  applyMix();
-  saveMix();
+  commitMixChange();
 }
 
 export function muteAll() {
@@ -798,9 +802,7 @@ export function muteAll() {
     if (!s) continue;
     s.muted = !allMuted;
   }
-  refreshMixerVisuals();
-  applyMix();
-  saveMix();
+  commitMixChange();
 }
 
 export function clearAllSolos() {
@@ -809,9 +811,18 @@ export function clearAllSolos() {
     if (!s) continue;
     s.soloed = false;
   }
-  refreshMixerVisuals();
-  applyMix();
-  saveMix();
+  commitMixChange();
+}
+
+export function setLaneMutes(mutedByLane) {
+  for (const name of allTrackNames()) {
+    const s = mixerState[name];
+    if (!s) continue;
+    s.soloed = false;
+    if (name in mutedByLane) s.muted = mutedByLane[name];
+  }
+  clearTakeSolos();
+  commitMixChange();
 }
 
 export function wireMixerToolbar() {

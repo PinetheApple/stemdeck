@@ -10,6 +10,9 @@ import { fmtTickLabel } from "./utils.js";
 import { vuLevel } from "./vuScale.js";
 
 export const REC_ROW_SELECTOR = ".rec-row, .rec-take-row, .rec-add-row";
+export const TRACK_ROW_SELECTOR = ".rec-row[data-rec-track]";
+const SOLO_CLASS = "solo";
+const ACTIVE_CLASS = "active";
 
 const FADER_STEP = 0.01;
 const WHEEL_STEP = 0.04;
@@ -95,17 +98,28 @@ function leftColumn(view, inputLabel, on) {
   return left;
 }
 
+function paintSolo(solo, soloed) {
+  solo.classList.toggle(ACTIVE_CLASS, soloed);
+  solo.setAttribute("aria-pressed", String(soloed));
+}
+
+export function paintTrackSolo(row, soloed) {
+  const solo = row.querySelector(`.${SOLO_CLASS}`);
+  if (solo) paintSolo(solo, soloed);
+}
+
 function toggles(view, mix, armed, on) {
   const arm = button("rec-arm mx-btn", { label: t("rec.arm", { name: view.name }) });
   arm.setAttribute("aria-pressed", String(armed));
   arm.addEventListener("click", function onArmClick() { on.arm(view.id); });
-  const mute = button(`lane-icon-toggle mx-btn mute${mix.muted ? "" : " active"}`, { text: "M" });
+  const mute = button("lane-icon-toggle mx-btn mute", { text: "M" });
+  mute.classList.toggle(ACTIVE_CLASS, !mix.muted);
   mute.setAttribute("aria-label", t("aria.mute", { name: view.name }));
   mute.setAttribute("aria-pressed", String(mix.muted));
   mute.addEventListener("click", function onTakeMuteClick() { on.mute(view.id); });
-  const solo = button(`solo ms-btn mx-btn${mix.soloed ? " active" : ""}`, { text: "S" });
+  const solo = button(`${SOLO_CLASS} ms-btn mx-btn`, { text: "S" });
   solo.setAttribute("aria-label", t("aria.solo", { name: view.name }));
-  solo.setAttribute("aria-pressed", String(mix.soloed));
+  paintSolo(solo, mix.soloed);
   solo.addEventListener("click", function onTakeSoloClick() { on.solo(view.id); });
   const more = button("lane-dl mx-btn rec-track-more", { iconName: "more", label: t("rec.trackOptions", { name: view.name }) });
   more.setAttribute("aria-haspopup", "menu");

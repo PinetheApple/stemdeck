@@ -2,7 +2,7 @@
 // the open song: { jobId, listing, ui, refresh(), render() }.
 
 import { t } from "./i18n.js";
-import { applyMix, updateLaneKnobVisual } from "./mixer.js";
+import { announceMixChange, applyMix, updateLaneKnobVisual } from "./mixer.js";
 import { confirmDialog } from "./confirmDialog.js";
 import { openTakesMenu } from "./takesMenu.js";
 import { nextName } from "./takesState.js";
@@ -114,6 +114,7 @@ export function toggleSolo(session, trackId) {
   toggleTakeSolo(trackId);
   applyMix();
   session.render();
+  announceMixChange();
 }
 
 // The track's own input, so the latency test measures what this track records.

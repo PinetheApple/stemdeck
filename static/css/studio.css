@@ -267,7 +267,6 @@
   border-radius: var(--r-1);
   font-size: var(--fs-2xs);
 }
-.daw-wave-label .daw-label-title,
 .daw-sections-header .daw-label-title { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
 
 /* ── Transport bar ── */
