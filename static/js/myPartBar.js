@@ -16,15 +16,13 @@ const ON_CLASS = "is-on";
 const CLASS = Object.freeze({
   BAR: "my-part",
   PICK: "my-part-pick",
-  ICON: "my-part-icon",
-  LABEL: "my-part-label",
   NAME: "my-part-name",
   SELECT: "my-part-select",
   CHOICES: "my-part-choices",
   CHOICE: "my-part-choice",
   REASON: "my-part-reason",
 });
-const select = (className) => `.${className}`;
+const toSelector = (className) => `.${className}`;
 const LABEL_KEY = "studio.myPart.label";
 const PICK_KEY = "studio.myPart.pick";
 const PICK_TITLE_KEY = "studio.myPart.pickTitle";
@@ -35,7 +33,7 @@ const PRESET_LABEL_KEYS = Object.freeze({
   [PRESET.ONLY_ME]: "studio.myPart.onlyMe",
 });
 const CHEVRON_ICON = "down";
-const USER_ICON = `<svg class="ic ${CLASS.ICON}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+const USER_ICON = `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
 
 let part = DEFAULT_PART;
 let barCount = 0;
@@ -71,7 +69,7 @@ function buildPick() {
   picker.dataset.i18nAriaLabel = LABEL_KEY;
   picker.setAttribute("aria-label", t(LABEL_KEY));
   picker.append(...STEM_NAMES.map(partOption));
-  pick.append(translated(element("span", CLASS.LABEL), PICK_KEY), element("span", CLASS.NAME));
+  pick.append(translated(document.createElement("span"), PICK_KEY), element("span", CLASS.NAME));
   pick.insertAdjacentHTML("beforeend", icon(CHEVRON_ICON));
   pick.append(picker);
   return pick;
@@ -121,14 +119,14 @@ function paintReason(reasonEl, text) {
 }
 
 function paintBar(bar, loaded) {
-  const name = bar.querySelector(select(CLASS.NAME));
+  const name = bar.querySelector(toSelector(CLASS.NAME));
   name.dataset.i18n = stemNameKey(part);
   name.textContent = partName(part);
-  bar.querySelector(select(CLASS.SELECT)).value = part;
+  bar.querySelector(toSelector(CLASS.SELECT)).value = part;
   const on = activePreset(part, loaded, mixerState, takeSoloActive());
-  const reasonEl = bar.querySelector(select(CLASS.REASON));
+  const reasonEl = bar.querySelector(toSelector(CLASS.REASON));
   paintReason(reasonEl, missingReason(loaded));
-  bar.querySelectorAll(select(CLASS.CHOICE)).forEach((button) => paintChoice(button, on, loaded, reasonEl.id));
+  bar.querySelectorAll(toSelector(CLASS.CHOICE)).forEach((button) => paintChoice(button, on, loaded, reasonEl.id));
 }
 
 function paintAll() {
@@ -138,14 +136,14 @@ function paintAll() {
 }
 
 function onPartPicked(e) {
-  if (!e.target.matches(select(CLASS.SELECT))) return;
+  if (!e.target.matches(toSelector(CLASS.SELECT))) return;
   part = e.target.value;
   storeSet(PART_STORE_KEY, part);
   paintAll();
 }
 
 function onChoiceClick(e) {
-  const button = e.target.closest(select(CLASS.CHOICE));
+  const button = e.target.closest(toSelector(CLASS.CHOICE));
   if (!button || button.disabled) return;
   setLaneMutes(mutesFor(button.dataset.preset, part, getLoadedStemNames()));
 }

@@ -69,7 +69,10 @@
 .my-part-reason { margin: 0; color: var(--text-3); font: var(--fw-medium) var(--fs-xs) / 1.3 var(--font-sans); }
 
 .my-part-tag { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.stage-side-head:has(.my-part) { flex-wrap: wrap; }
-.stage-side-head .my-part { display: contents; }
+/* The bar spans the whole head under the Mix label, so the pill shares the label's row and the choices get the full width. */
+.stage-side-head:has(.my-part) { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; }
+.stage-side-head:has(.my-part) > .stage-label { grid-area: 1 / 1; line-height: var(--ctl-h-sm); }
+.stage-side-head .my-part { display: grid; grid-area: 1 / 1 / auto / -1; grid-template-columns: minmax(0, 1fr) auto; padding: 0; }
+.stage-side-head .my-part-pick { grid-column: 2; }
 .stage-side-head .my-part-choices,
-.stage-side-head .my-part-reason { flex-basis: 100%; }
+.stage-side-head .my-part-reason { grid-column: 1 / -1; }
