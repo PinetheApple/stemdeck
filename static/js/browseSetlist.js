@@ -4,9 +4,10 @@
 import { t } from "./i18n.js";
 import { isInTrash } from "./catalog.js";
 import {
-  canPlaySetlist, getSetlist, makeFolderOf, moveSetlistSongDown, moveSetlistSongUp, playSetlist, removeSetlist,
-  removeSetlistSong, setlistsError,
+  canPlaySetlist, getSetlist, insertSetlistSong, makeFolderOf, moveSetlistSongDown, moveSetlistSongUp, playSetlist,
+  removeSetlist, removeSetlistSong, setlistsError,
 } from "./setlists.js";
+import { showUndo } from "./undoToast.js";
 import { ARM_TEXT_CLASS, confirmOnSecondClick } from "./armConfirm.js";
 import { icon } from "./libraryIcons.js";
 import { songRowEl } from "./songRow.js";
@@ -16,10 +17,19 @@ import { VIEW } from "./browseViewNames.js";
 import { emptyStateEl, viewHeadEl } from "./browseViews.js";
 import { openSetlistRename } from "./setlistRenameDialog.js";
 
+async function removeWithUndo(setlistId, trackId) {
+  const setlist = getSetlist(setlistId);
+  const at = setlist?.song_ids.indexOf(trackId) ?? -1;
+  if (!(await removeSetlistSong(setlistId, trackId))) return;
+  showUndo(t("lib.removedFrom", { name: setlist.name }), function onUndoRemoveFromSetlist() {
+    insertSetlistSong(setlistId, trackId, at);
+  });
+}
+
 const SONG_BUTTONS = [
   [".setlist-song-up", moveSetlistSongUp],
   [".setlist-song-down", moveSetlistSongDown],
-  [".setlist-song-remove", removeSetlistSong],
+  [".setlist-song-remove", removeWithUndo],
 ];
 
 function headButton(className, iconName, label, text = "") {

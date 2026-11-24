@@ -1,0 +1,36 @@
+/* ── The song menu, and a grid card's heart and ⋯ on its cover ── */
+.lib-menu.song-menu { width: var(--song-menu-w); max-width: calc(100vw - 2 * var(--float-edge)); }
+.lib-menu.song-menu .lib-menu-item span { flex: 1; }
+.lib-menu.song-menu .lib-menu-label {
+  border-top: 0;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.song-card-fav,
+.song-card-more {
+  position: absolute;
+  top: var(--s-2);
+  z-index: 1;
+  display: none;
+  place-items: center;
+  width: var(--cover-btn);
+  height: var(--cover-btn);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--cover-btn-bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.song-card-fav { right: var(--s-2); }
+.song-card-more { right: calc(var(--s-2) + var(--cover-btn) + var(--s-1)); }
+.song-card-fav .ic,
+.song-card-more .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.song-card-fav.active { display: grid; color: var(--fav); }
+.song-card:is(:hover, :focus-within, .is-selected) :is(.song-card-fav, .song-card-more),
+.song-card-more[aria-expanded="true"] { display: grid; }
+.song-card-fav:hover,
+.song-card-more:hover { background: var(--surface-4); }

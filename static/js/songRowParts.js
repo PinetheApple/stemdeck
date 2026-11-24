@@ -9,6 +9,7 @@ import { icon } from "./libraryIcons.js";
 import { hasVersionRows } from "./versionModel.js";
 import { versionToggleHtml } from "./versions.js";
 import { fmtTime } from "./utils.js";
+import { OUT_OF_TAB_ORDER } from "./rovingRows.js";
 
 const MUSIC_NOTE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>';
 
@@ -67,7 +68,8 @@ function favButtonHtml(track) {
   const on = Boolean(track.favorite);
   const label = i18nT(on ? "track.unfavoriteTitle" : "track.favoriteTitle", { title: titleOf(track) });
   const heart = icon("heart", { filled: on });
-  return labelledButton(`cat-fav${on ? " active" : ""}`, i18nT(on ? "track.unfavorite" : "track.favorite"), label, heart, `aria-pressed="${on}"`);
+  const tip = i18nT(on ? "track.unfavorite" : "track.favorite");
+  return labelledButton(`song-card-fav${on ? " active" : ""}`, tip, label, heart, `aria-pressed="${on}" tabindex="${OUT_OF_TAB_ORDER}"`);
 }
 
 export const isDone = (track) => track.status === "done";
@@ -77,10 +79,10 @@ function upNextButtonHtml(track) {
   return labelledButton("cat-upnext", i18nT("upNext.add"), i18nT("upNext.addTitle", { title: titleOf(track) }), icon("listPlus"));
 }
 
-function moreButtonHtml(track) {
+function moreButtonHtml(track, className = "cat-more", extra = "") {
   if (!isDone(track)) return "";
   const label = i18nT("trackMenu.openTitle", { title: titleOf(track) });
-  return labelledButton("cat-more", i18nT("trackMenu.open"), label, icon("more"), 'aria-haspopup="menu"');
+  return labelledButton(className, i18nT("trackMenu.open"), label, icon("more"), `aria-haspopup="menu" ${extra}`);
 }
 
 // A song stopped by the Trash keeps its files; this is the one way to run it again.
@@ -90,17 +92,19 @@ function extractButtonHtml(track) {
   return labelledButton("cat-extract", text, i18nT("track.extractAgainOf", { title: displayTitle(track.title) }), esc(text));
 }
 
-function trashButtonHtml(track) {
-  return labelledButton("cat-del", i18nT("track.moveToTrash"), i18nT("track.moveTitleToTrash", { title: titleOf(track) }), icon("trash"));
-}
-
 export function restoreButtonHtml(track) {
   const label = i18nT("lib.restoreTitle", { title: titleOf(track) });
   return labelledButton("cat-restore", label, label, icon("restore"));
 }
 
 export function songActionsHtml(track) {
-  return `${extractButtonHtml(track)}${upNextButtonHtml(track)}${moreButtonHtml(track)}${favButtonHtml(track)}${trashButtonHtml(track)}`;
+  return `${extractButtonHtml(track)}${upNextButtonHtml(track)}${moreButtonHtml(track)}`;
+}
+
+/** A grid card's heart and ⋯, on its cover. */
+export function cardCoverButtonsHtml(track) {
+  if (!isDone(track)) return "";
+  return `${favButtonHtml(track)}${moreButtonHtml(track, "song-card-more", `tabindex="${OUT_OF_TAB_ORDER}"`)}`;
 }
 
 export function failedRowHtml(track) {

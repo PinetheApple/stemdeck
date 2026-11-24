@@ -2,9 +2,11 @@
 
 import { t, onLanguageChange } from "./i18n.js";
 import {
-  displayTitle, getLibraryTrack, getPlayingTrackInfo, isInTrash, isPlayableTrack, libraryTrackIds,
-  moveTrackToTrash, onLibraryDraw, trashTrackIds,
+  displayTitle, getLibraryTrack, getPlayingTrackInfo, isInTrash, isPlayableTrack, libraryTrackIds, onLibraryDraw,
+  trashTrackIds,
 } from "./catalog.js";
+import { trashWithUndo } from "./trashUndo.js";
+import { SONG_MENU_ATTR } from "./songMenu.js";
 import { getQueueSnapshot, onQueueChange, runningLabel } from "./queue.js";
 import { openSong } from "./openSong.js";
 import { songRowEl } from "./songRow.js";
@@ -69,6 +71,7 @@ function importingRowEl(job, running) {
   row.type = "button";
   row.className = "importing-row";
   row.dataset.id = job.job_id;
+  row.setAttribute(SONG_MENU_ATTR, "");
   const title = displayTitle(job.title || track?.title || job.source_url);
   const status = running ? runningLabel(job) : t("lib.waiting");
   row.innerHTML = `<span class="cat-thumb">${thumbHtml(track ?? { thumb: job.thumbnail })}</span>
@@ -168,7 +171,7 @@ function wireSidebarButtons() {
   for (const btn of document.querySelectorAll(".sidebar-see-all")) btn.addEventListener("click", onSeeAllClick);
   for (const btn of [$("trashBtn"), document.querySelector(".strip-nav-trash")].filter(Boolean)) {
     btn.addEventListener("click", onTrashClick);
-    wireDropTarget(btn, moveTrackToTrash);
+    wireDropTarget(btn, trashWithUndo);
   }
 }
 

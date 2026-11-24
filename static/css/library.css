@@ -153,8 +153,6 @@
 .rename-error { margin: 0; font-size: var(--fs-xs); color: var(--danger); }
 .rename-error[hidden] { display: none; }
 .is-renaming > :not(.rename-form) { display: none !important; }
-.cat-item.renaming-row { cursor: default; background: var(--surface-2); border-color: var(--line-strong); }
-.cat-item.renaming-row .cat-actions { display: none; }
 
 :is(.cat-item, .setlist-song).active {
   --row-bg: color-mix(in srgb, var(--accent) 13%, var(--surface-1));

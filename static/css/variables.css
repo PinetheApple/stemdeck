@@ -109,6 +109,11 @@
   --col-folder-w: 150px;
   --col-added-w: 104px;
   --col-actions-w: 96px;
+  --song-menu-w: 280px;
+  --cover-btn: 28px;
+  --cover-btn-bg: rgba(0, 0, 0, 0.62);
+  --toast-max-w: 520px;
+  --toast-bottom: 100px;
   --eqbar-w: 3px;
   --eqbar-r: 1px;
   --sidebar-count-pad-y: 1px;
@@ -135,6 +140,7 @@
   --z-pane-edge:       4;
   --z-pane-edge-lanes: 20;
   --z-overlay-root:    300;
+  --z-toast:           1;
 
   /* Motion */
   --t-fast: 120ms;

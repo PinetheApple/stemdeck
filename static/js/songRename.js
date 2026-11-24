@@ -1,5 +1,6 @@
-// Rename a song's title and artist in place, in the song head or a library row.
-// Saved with PATCH /api/jobs/{id}; the song is then looked up again by its new names.
+// Rename a song's title and artist in place in the song head; songRenameDialog.js
+// asks for them from the song menu. Saved with PATCH /api/jobs/{id}; the song is
+// then looked up again by its new names.
 
 import { TRACK_SHOW_EVENT, applyRenamedState, getCurrentTrackInfo, getTrackNames, relookupTrack } from "./catalog.js";
 import { t } from "./i18n.js";
@@ -7,9 +8,8 @@ import { icon } from "./libraryIcons.js";
 import { SONG_NAME_MAX_CHARS, fetchJson, iconButton, isNotFound, refusalReason, textInput } from "./libraryControls.js";
 import { FOLDER_MOVING_KEY, isFolderMovingError } from "./folderMoving.js";
 import { $ } from "./utils.js";
-import { shownInSongLists } from "./libraryRows.js";
 
-let editor = null; // { trackId, place: "head" | "row", close }
+let editor = null; // { trackId, close }
 
 function nameInput(className, value, labelKey, placeholder) {
   return textInput({
@@ -26,7 +26,7 @@ function restoreButton(names) {
   return iconButton("rename-restore", "restore", { label, text: t("rename.restore") });
 }
 
-function failureMessage(err) {
+export function renameFailureMessage(err) {
   if (isNotFound(err)) return t("rename.gone");
   if (isFolderMovingError(err)) return t(FOLDER_MOVING_KEY);
   const reason = refusalReason(err);
@@ -34,7 +34,7 @@ function failureMessage(err) {
 }
 
 /** Only what changed is sent; an emptied field goes back to the detected name. */
-function changedNames(initial, title, artist) {
+export function changedNames(initial, title, artist) {
   const body = {};
   if (title !== initial.title) body.title = title || null;
   if (artist !== initial.artist) body.artist = artist || null;
@@ -46,6 +46,13 @@ function selectFromStart(input) {
   input.focus();
   input.setSelectionRange(0, input.value.length, "backward");
   input.scrollLeft = 0;
+}
+
+/** Save the names in `body`, then look the song up again by them; throws when the server refuses. */
+export async function saveSongNames(trackId, body) {
+  const state = await fetchJson(`/api/jobs/${encodeURIComponent(trackId)}`, { method: "PATCH", body });
+  applyRenamedState(trackId, state);
+  relookupTrack(trackId);
 }
 
 function closeEditor() {
@@ -85,15 +92,13 @@ function buildForm(trackId, names, focusField) {
     form.classList.add("busy");
     error.hidden = true;
     try {
-      const state = await fetchJson(`/api/jobs/${encodeURIComponent(trackId)}`, { method: "PATCH", body });
+      await saveSongNames(trackId, body);
       closeEditor();
-      applyRenamedState(trackId, state);
-      relookupTrack(trackId);
     } catch (err) {
       console.warn("[rename] saving the new names failed:", err);
       busy = false;
       form.classList.remove("busy");
-      error.textContent = failureMessage(err);
+      error.textContent = renameFailureMessage(err);
       error.hidden = false;
       title.focus();
     }
@@ -134,20 +139,16 @@ function buildForm(trackId, names, focusField) {
   return { form, focus: () => selectFromStart(focusField === "artist" ? artist : title) };
 }
 
-function openEditor(trackId, host, { row = null, focusField = "title", shownTitle = "" } = {}) {
+function openEditor(trackId, host, { focusField = "title", shownTitle = "" } = {}) {
   closeEditor();
   const libraryNames = getTrackNames(trackId);
   if (!libraryNames || !host) return;
   const names = shownTitle ? { ...libraryNames, title: shownTitle } : libraryNames;
   const { form, focus } = buildForm(trackId, names, focusField);
   host.classList.add("is-renaming");
-  row?.classList.add("renaming-row");
-  const wasDraggable = row?.draggable;
-  if (row) row.draggable = false;
   host.append(form);
   const session = {
     trackId,
-    place: row ? "row" : "head",
     close() {
       if (editor !== session) return;
       editor = null;
@@ -155,23 +156,15 @@ function openEditor(trackId, host, { row = null, focusField = "title", shownTitl
       form.dataset.closed = "1";
       form.remove();
       host.classList.remove("is-renaming");
-      row?.classList.remove("renaming-row");
-      if (row) row.draggable = wasDraggable;
     },
   };
   editor = session;
   focus();
 }
 
-/** Rename a song from its row in the library list. */
-export function startRowRename(trackId) {
-  const row = shownInSongLists(`.cat-item[data-id="${CSS.escape(trackId)}"]`);
-  openEditor(trackId, row?.querySelector(".cat-meta"), { row });
-}
-
 function startHeadRename(focusField) {
   const info = getCurrentTrackInfo();
-  if (!info || (editor?.place === "head" && editor.trackId === info.id)) return;
+  if (!info || editor?.trackId === info.id) return;
   const host = document.querySelector("#nowPlayingPanel .track-panel-info");
   openEditor(info.id, host, { focusField, shownTitle: info.displayTitle });
 }
@@ -185,7 +178,7 @@ function onHeadArtistClick() {
 }
 
 function onTrackOpen() {
-  if (editor?.place === "head") closeEditor();
+  closeEditor();
 }
 
 export function initSongRename() {

@@ -1,7 +1,8 @@
 // One keyboard and mouse model for every list of library songs: a click shows a
 // song, a double-click or Enter plays it, Delete trashes a row reached by keyboard.
 
-import { getLibraryTrack, isTextEditingTarget, moveTrackToTrash } from "./catalog.js";
+import { getLibraryTrack, isTextEditingTarget } from "./catalog.js";
+import { trashWithUndo } from "./trashUndo.js";
 import { openSong, playSong, playVersion } from "./openSong.js";
 import { ON_ROW, isShown, wireRovingRows } from "./rovingRows.js";
 import { isDialogOpen } from "./shellEscape.js";
@@ -14,6 +15,7 @@ const DELETE_KEYS = new Set(["Delete", "Backspace"]);
 const DELETABLE_ROW_SELECTOR = `${SONG_ROW_SELECTOR}:not(.setlist-song)`;
 const ROW_ACTIONS = [
   `${SONG_ROW_SELECTOR} .cat-actions button`,
+  `${SONG_ROW_SELECTOR} :is(.song-card-fav, .song-card-more)`,
   `${TRASH_ROW_SELECTOR} .cat-actions button`,
   `${SONG_ROW_SELECTOR} .import-fail-panel :is(button, a)`,
   ".cat-version .cat-actions button",
@@ -101,7 +103,7 @@ function onLibraryDeleteKey(e) {
   const trackId = keyboardFocusedSong(e.target);
   if (!trackId) return;
   e.preventDefault();
-  moveTrackToTrash(trackId);
+  trashWithUndo(trackId);
 }
 
 export function initLibraryRows() {
