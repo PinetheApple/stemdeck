@@ -121,7 +121,7 @@ test.describe("track view in a narrow window", () => {
     await expect(app(page)).not.toHaveClass(/cat-collapsed/);
     await expect.poll(() => timelineWidth(page)).toBeGreaterThanOrEqual(MIN_TIMELINE_WIDTH);
     await expect.poll(() => firstSectionFit(page)).toEqual({ inside: true, labelCut: false });
-    await expect(page.locator("#songHead .daw-panel-toggles-label")).toBeVisible();
+    await expect(page.locator("#viewMenuBtn")).toBeVisible();
   });
 
   test("at 1024 the waveforms fill the timeline", async ({ page }) => {

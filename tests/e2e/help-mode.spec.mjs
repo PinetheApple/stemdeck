@@ -197,12 +197,15 @@ test.describe("help mode", () => {
     await expect(fav).toHaveAttribute("aria-pressed", "true");
   });
 
-  test("the sections bar's Hide says how to bring the bar back", async ({ page }) => {
+  test("the Sections and View buttons say what they hold, and open nothing", async ({ page }) => {
     await openStudio(page);
     await helpOn(page);
-    await page.locator("#sectionsHideBtn").click();
-    await expect(tip(page)).toContainText(await uiText(page, "help.sectionsHide"));
-    await expect(page.locator(".app")).not.toHaveClass(/panel-sections-off/);
+    await page.locator("#sectionsMenuBtn").click();
+    await expect(tip(page)).toContainText(await uiText(page, "studio.help.sectionsMenu"));
+    await expect(page.locator("#sectionsPanel")).toBeHidden();
+    await page.locator("#viewMenuBtn").click();
+    await expect(tip(page)).toContainText(await uiText(page, "studio.help.viewMenu"));
+    await expect(page.locator("#viewPanel")).toBeHidden();
   });
 
   test("Settings lists every tab and its options", async ({ page }) => {

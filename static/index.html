@@ -25,7 +25,8 @@
     <link rel="stylesheet" href="/css/vocal-split.css" />
     <link rel="stylesheet" href="/css/forms.css" />
 <link rel="stylesheet" href="/css/import-source.css" />
-    <link rel="stylesheet" href="/css/autoscroll.css" />
+    <link rel="stylesheet" href="/css/section-bar.css" />
+    <link rel="stylesheet" href="/css/studio-menus.css" />
     <link rel="stylesheet" href="/css/my-part.css" />
     <link rel="stylesheet" href="/css/batch-import.css" />
     <link rel="stylesheet" href="/css/shell.css" />
@@ -235,7 +236,7 @@
           <div class="add-song-foot">
             <!-- Off makes the pipeline skip structure detection; the backend reads it once per job,
                  so it applies to the next import. The sections bar has its own control. -->
-            <button class="add-song-detect" type="button" id="autoSectionsBtn" aria-pressed="false" title="Experimental. Labels intro, verse and chorus while a track is imported. Applies to the next import, not to a track that is already open. To hide the sections bar, use Collapse &gt; Sections." aria-label="Detect song structure on import (experimental)" data-i18n-title="structure.toggleTitle" data-i18n-aria-label="structure.toggleAria">
+            <button class="add-song-detect" type="button" id="autoSectionsBtn" aria-pressed="false" title="Experimental. Labels intro, verse and chorus while a track is imported. Applies to the next import, not to a track that is already open. To hide the sections bar, use View &gt; Sections bar." aria-label="Detect song structure on import (experimental)" data-i18n-title="structure.toggleTitle" data-i18n-aria-label="structure.toggleAria">
               <span class="add-song-switch" aria-hidden="true"></span>
               <span data-i18n="structure.toggle">Detect structure</span>
               <span class="add-song-tag" data-i18n="structure.experimental">Experimental</span>
@@ -366,20 +367,6 @@
             <span id="t-time"></span><span id="t-bpm"></span><span id="t-key"></span><span id="track-artist"></span>
           </div>
           </div>
-        <!-- Panel toggles (#480): a way to put a panel away, kept outside the
-             panel so the way back is always on screen. -->
-        <div class="daw-panel-toggles">
-          <span class="daw-panel-toggles-label" data-i18n="panels.collapse">Collapse</span>
-          <button class="daw-panel-toggle" type="button" data-panel="sections" aria-pressed="true"
-                  title="Show or hide the sections bar" data-i18n-title="panels.sectionsTitle" data-i18n-aria-label="panels.sectionsTitle">
-            <span data-i18n="sections.title">Sections</span>
-          </button>
-        </div>
-          <button class="autoscroll-toggle" id="autoScrollBtn" type="button" aria-pressed="true"
-                  title="Keep the playhead in view while playing when zoomed in" data-i18n-title="autoScroll.title">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 17 5-5-5-5"/><path d="m13 17 5-5-5-5"/></svg>
-            <span data-i18n="autoScroll.label">Auto-scroll</span>
-          </button>
           <div class="track-chip-wrap" id="footer-export-wrap">
             <button class="track-chip" id="t-export-btn" type="button" title="Export Mix" data-i18n-title="export.mix" aria-haspopup="menu" aria-expanded="false" aria-controls="t-export-panel">
               <svg class="export-dl-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -462,27 +449,7 @@
           <!-- Sections bar -->
           <div class="daw-section-ribbon">
             <div class="daw-mixer-label daw-sections-header">
-              <span class="daw-sections-title-group">
-                <span class="daw-label-title" data-i18n="sections.title">Sections</span>
-              </span>
-              <span class="sections-header-actions">
-                <span class="sections-save-indicator hidden" id="sectionsSaveIndicator" aria-live="polite" aria-label="Saving sections" data-i18n-aria-label="sections.savingAria"></span>
-                <!-- Clearing every marker at once is not undoable and an
-                     automatic set costs a whole re-import to regenerate, so the
-                     button arms on the first click and only clears on the
-                     second. Hidden entirely while there is nothing to clear. -->
-                <button class="sections-add-btn-label sections-clear-btn hidden" id="sectionsClearBtn" type="button" title="Clear all sections" aria-label="Clear all sections" data-i18n-title="sections.clearAria" data-i18n-aria-label="sections.clearAria">
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>
-                  <span class="sections-clear-label" data-i18n="sections.clear">Clear</span>
-                </button>
-                <button class="sections-add-btn-label" id="sectionsAddBtn" type="button" title="Add section" aria-label="Add section" data-i18n-title="sections.addAria" data-i18n-aria-label="sections.addAria">
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                  <span data-i18n="sections.add">Add</span>
-                </button>
-                <button class="sections-add-btn-label sections-hide-btn" id="sectionsHideBtn" type="button" title="Hide the sections bar. Collapse &gt; Sections brings it back." aria-label="Hide the sections bar" data-i18n-title="sections.hideTitle" data-i18n-aria-label="sections.hideAria">
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></svg>
-                </button>
-              </span>
+              <span class="sections-save-indicator hidden" id="sectionsSaveIndicator" aria-live="polite" aria-label="Saving sections" data-i18n-aria-label="sections.savingAria"></span>
             </div>
             <!-- The inner track is what carries the sections. It is the width
                  of the zoomed waveform rather than the width of the window, so
@@ -513,8 +480,30 @@
 
           <!-- Waveform header / ruler -->
           <div class="daw-wave-header">
-            <div class="daw-wave-label" id="myPartStudio"></div>
+            <div class="daw-wave-label" id="myPartStudio">
+              <div class="studio-tools">
+                <button class="studio-tool-btn" id="sectionsMenuBtn" type="button" aria-haspopup="dialog" aria-controls="sectionsPanel" title="Add, clear or hide sections" data-i18n-title="studio.sections.menuTitle"><span data-i18n="studio.sections.menu">Sections</span></button>
+                <div class="ft-pop studio-pop hidden" id="sectionsPanel" role="dialog" aria-labelledby="sectionsPanelTitle">
+                  <h3 class="ft-pop-title" id="sectionsPanelTitle" data-i18n="studio.sections.menu">Sections</h3>
+                  <div class="studio-pop-row">
+                    <button class="ft-pop-btn" id="sectionsAddBtn" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg><span data-i18n="sections.addAria">Add section</span></button>
+                    <button class="ft-pop-btn sections-clear-btn hidden" id="sectionsClearBtn" type="button" title="Clear all sections" aria-label="Clear all sections" data-i18n-title="sections.clearAria" data-i18n-aria-label="sections.clearAria"><span class="sections-clear-label" data-i18n="sections.clear">Clear</span></button>
+                  </div>
+                  <p class="ft-pop-hint" data-i18n="studio.sections.addHint">Add uses the loop when Loop is on; otherwise it goes in the first free gap.</p>
+                  <p class="ft-pop-hint" data-i18n="studio.sections.editHint">Double-click a section to rename it, lock its position or delete it. Drag a section to move it, or its edge to resize it.</p>
+                  <button class="ft-pop-btn sections-bar-hide" id="sectionsHideBtn" type="button" title="Hide the sections bar. View &gt; Sections bar brings it back." data-i18n-title="studio.sections.hideTitle"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></svg><span data-i18n="sections.hideAria">Hide the sections bar</span></button>
+                  <button class="ft-pop-btn sections-bar-show daw-panel-toggle" id="sectionsShowBtn" type="button" data-panel="sections" aria-pressed="true"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="studio.sections.show">Show the sections bar</span></button>
+                </div>
+                <button class="studio-tool-btn" id="viewMenuBtn" type="button" aria-haspopup="dialog" aria-controls="viewPanel" title="What the lanes show" data-i18n-title="studio.view.menuTitle"><span data-i18n="studio.view.menu">View</span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+                <div class="ft-pop ft-menu studio-pop hidden" id="viewPanel" role="dialog" aria-label="View" data-i18n-aria-label="studio.view.menu">
+                  <button class="ft-menu-item view-toggle" id="autoScrollBtn" type="button" aria-pressed="true" title="Keep the playhead in view while playing when zoomed in" data-i18n-title="autoScroll.title"><svg class="ic ft-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="autoScroll.label">Auto-scroll</span><small data-i18n="studio.view.autoScrollHint">when zoomed in</small></button>
+                  <button class="ft-menu-item view-toggle daw-panel-toggle" id="viewSectionsBtn" type="button" data-panel="sections" aria-pressed="true" title="Show or hide the sections bar" data-i18n-title="panels.sectionsTitle"><svg class="ic ft-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="studio.view.sectionsBar">Sections bar</span></button>
+                  <button class="ft-menu-item view-toggle" id="beatGridViewBtn" type="button" aria-pressed="true" title="Show the beat grid over the lanes while the click plays" data-i18n-title="studio.view.beatGridTitle"><svg class="ic ft-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="studio.view.beatGrid">Beat grid</span><small data-i18n="studio.view.beatGridHint">with the click on</small></button>
+                </div>
+              </div>
+            </div>
             <div class="daw-ruler-area">
+              <p class="lyric-ticker" id="lyricTicker"><b class="lyric-ticker-now"></b><span class="lyric-ticker-next"></span></p>
               <div class="lanes-ruler" data-position="top">
                 <div class="lanes-ruler-time" id="ruler-time">
                   <div class="playhead-marker" aria-hidden="true">
@@ -730,6 +719,7 @@
               <div class="wave-scroll" id="wave-scroll">
                 <div class="wave-canvas" id="wave-canvas">
                   <div class="waves-column">
+                    <div id="sectionCols" class="section-cols" aria-hidden="true"></div>
                     <div id="waves-grid" class="waves-grid" aria-hidden="true"></div>
                     <div id="multitrack-container"></div>
                     <div id="loop-region" class="loop-region hidden" aria-hidden="true"><div class="loop-handle loop-handle-start" data-loop-handle="start"></div><div class="loop-handle loop-handle-end" data-loop-handle="end"></div><div class="loop-grip" data-loop-drag-out draggable="true" data-i18n-title="loop.dragOut" title="Drag this region into a DAW or folder"></div></div>
@@ -1339,7 +1329,7 @@
 
             <div class="ft-practice">
               <div class="ft-seg" id="footerLoop">
-                <button class="ft-seg-main" id="t-loop" type="button" aria-pressed="false" title="Loop the selected position (L)" data-i18n-title="position.loopTitle"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4" /> <path d="M3 11v-1a4 4 0 0 1 4-4h14" /> <path d="m7 22-4-4 4-4" /> <path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg><span data-i18n="position.loopLabel">Loop</span></button>
+                <button class="ft-seg-main" id="t-loop" type="button" aria-pressed="false" title="Loop the selected position (L)" data-i18n-title="position.loopTitle"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4" /> <path d="M3 11v-1a4 4 0 0 1 4-4h14" /> <path d="m7 22-4-4 4-4" /> <path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg><span id="t-loop-name">Loop</span></button>
                 <button class="ft-seg-more" id="t-loop-more" type="button" aria-haspopup="dialog" aria-controls="t-loop-panel" title="Loop options" aria-label="Loop options" data-i18n-title="studio.footer.loopOptions" data-i18n-aria-label="studio.footer.loopOptions"><svg class="ic ft-more-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
                 <div class="ft-pop hidden" id="t-loop-panel" role="dialog" aria-labelledby="t-loop-panel-title">
                   <h3 class="ft-pop-title" id="t-loop-panel-title" data-i18n="position.loopLabel">Loop</h3>
@@ -1350,6 +1340,11 @@
                       <input type="text" id="t-loop-end" class="loop-time-input num" inputmode="decimal" spellcheck="false" autocomplete="off" aria-label="Loop end" data-i18n-aria-label="position.loopEndAria" value="00.000"></label>
                   </div>
                   <p class="ft-pop-hint" data-i18n="studio.footer.loopHint">Loop start/end · scroll. Type a time, then Enter.</p>
+                  <div class="studio-pop-row">
+                    <button class="ft-pop-btn" id="t-loop-start-here" type="button"><span data-i18n="studio.footer.loopStartHere">Set start here</span><kbd>I</kbd></button>
+                    <button class="ft-pop-btn" id="t-loop-end-here" type="button"><span data-i18n="studio.footer.loopEndHere">Set end here</span><kbd>O</kbd></button>
+                  </div>
+                  <button class="ft-pop-btn" id="t-loop-clear" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span data-i18n="studio.footer.loopClear">Clear loop</span></button>
                 </div>
               </div>
 
@@ -1624,6 +1619,7 @@
     <script type="module" src="/js/selectMenu.js"></script>
     <script type="module" src="/js/takes.js"></script>
     <script type="module" src="/js/myPartBar.js"></script>
+<script type="module" src="/js/studioSections.js"></script>
     <script type="module" src="/js/eq/eqTab.js"></script>
     <script type="module" src="/js/coverWash.js"></script>
   </body>

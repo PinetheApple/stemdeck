@@ -10,8 +10,6 @@
   --ft-step-value-w: 52px;
   --ft-more: 18px;
   --ft-more-ic: 12px;
-  --ft-pop-w: 280px;
-  --ft-pop-pad: var(--s-3);
   flex: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
@@ -252,8 +250,10 @@ button.ft-now:hover { background: var(--surface-2); }
 .ft-step-value b,
 .ft-step-value output { font: var(--fw-medium) var(--fs-base) / 1 var(--font-mono); color: var(--text); }
 
-/* Popovers over the footer: placed by footerPopover.js */
+/* Popovers over the footer: placed by popover.js */
 .ft-pop {
+  --ft-pop-w: 280px;
+  --ft-pop-pad: var(--s-3);
   position: fixed;
   z-index: var(--z-overlay-root);
   display: flex;

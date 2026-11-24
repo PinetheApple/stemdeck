@@ -185,7 +185,9 @@ function fmtLength(seconds) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-const announceLines = () => document.dispatchEvent(new CustomEvent("lyricschange"));
+/** Fired on `document` when the lyric lines change or are retimed. */
+export const LYRICS_CHANGE_EVENT = "lyricschange";
+const announceLines = () => document.dispatchEvent(new CustomEvent(LYRICS_CHANGE_EVENT));
 
 function clearLyrics() {
   closeSync(false, { keepOpen: true });

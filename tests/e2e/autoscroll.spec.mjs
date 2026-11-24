@@ -1,6 +1,6 @@
 // Auto-scroll: a zoomed-in timeline follows the playhead a page at a time.
 import { test, expect } from "@playwright/test";
-import { openStudio, SIBLING_JOB_ID, openLoopOptions } from "./helpers.mjs";
+import { openStudio, SIBLING_JOB_ID, openLoopOptions, openViewMenu } from "./helpers.mjs";
 
 // seed.py writes a 6 second fixture; at 10x a page holds well under a second.
 const ZOOM_IN_NOTCHES = 40;
@@ -121,6 +121,7 @@ test.describe("auto-scroll", () => {
   test("turned off, the view stays put", async ({ page }) => {
     await openStudio(page);
     await zoomIn(page);
+    await openViewMenu(page);
     await page.locator("#autoScrollBtn").focus();
     await page.keyboard.press("Enter");
     await expect(page.locator("#autoScrollBtn")).toHaveAttribute("aria-pressed", "false");
@@ -134,6 +135,7 @@ test.describe("auto-scroll", () => {
 
   test("the choice survives a reload and a change of song", async ({ page }) => {
     await openStudio(page);
+    await openViewMenu(page);
     await page.locator("#autoScrollBtn").click();
     await expect(page.locator("#autoScrollBtn")).toHaveAttribute("aria-pressed", "false");
 
@@ -143,6 +145,7 @@ test.describe("auto-scroll", () => {
     await expect(page.locator(".app")).not.toHaveClass(/no-track/);
     await expect(page.locator("#autoScrollBtn")).toHaveAttribute("aria-pressed", "false");
 
+    await openViewMenu(page);
     await page.locator("#autoScrollBtn").click();
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.locator("#autoScrollBtn")).toHaveAttribute("aria-pressed", "true");

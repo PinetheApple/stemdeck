@@ -1,19 +1,7 @@
-// The Collapse row governs the panels beside it. Not the library.
-//
-// It used to carry an "All" as well, one press to put every panel away. That
-// button is gone: it governed two panels by the end, so it saved a single
-// press, and it wore a word the Extract row already uses for something else.
-// What survives it is the rule it existed to prove, which is still the thing
-// worth guarding: whatever this row collapses, it can also bring back, and the
-// library is not one of the things it touches.
-//
-// "All" used to take the library with it, and nothing in the row could put it
-// back: the buttons beside it only know about their own panels, so you could
-// turn each panel on again, see the row looking complete, and still be staring
-// at a collapsed library with no way to reach it from here (#588). The library
-// has its own control in the rail.
+// View > Sections bar governs the sections bar, not the library. Whatever it
+// puts away it can bring back, and the library has its own control (#588).
 import { test, expect } from "@playwright/test";
-import { openStudio } from "./helpers.mjs";
+import { openStudio, openViewMenu } from "./helpers.mjs";
 
 const PANELS = ["sections"];
 
@@ -23,22 +11,20 @@ const state = (page) =>
     return {
       hidden: panels.filter((n) => app.classList.contains(`panel-${n}-off`)),
       libraryCollapsed: app.classList.contains("cat-collapsed"),
-      buttons: [...document.querySelectorAll(".daw-panel-toggle")].map((b) => b.textContent.trim()),
+      buttons: [...document.querySelectorAll("#viewPanel .daw-panel-toggle")].map((b) => b.textContent.trim()),
     };
   }, PANELS);
 
-const clickPanel = (page, name) =>
-  page.locator(`.daw-panel-toggle[data-panel="${name}"]`).click();
+async function clickPanel(page, name) {
+  await openViewMenu(page);
+  await page.locator(`#viewPanel .daw-panel-toggle[data-panel="${name}"]`).click();
+}
 
-test.describe("collapse row", () => {
-  test("the row is the panels it governs, and nothing else", async ({ page }) => {
+test.describe("View panel toggles", () => {
+  test("View's panel toggles are the panels it governs, and nothing else", async ({ page }) => {
     await openStudio(page, { tauri: true });
 
-    const s = await state(page);
-    expect(s.buttons).toEqual(["Sections"]);
-    // No "All": one press saved is not worth a third control called All in a
-    // bar that already has one.
-    expect(s.buttons).not.toContain("All");
+    expect((await state(page)).buttons).toEqual(["Sections bar"]);
   });
 
   test("every panel it puts away, it can bring back", async ({ page }) => {

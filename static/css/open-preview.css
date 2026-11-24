@@ -23,7 +23,7 @@
 .app.is-previewing .np-legend { display: none; }
 
 /* These marks belong to the song in the player, not to the one shown. */
-.app.is-previewing :is(.playhead-marker, .lanes-ruler-time, .daw-sections-track, .sections-header-actions, .daw-lyrics-ribbon) {
+.app.is-previewing :is(.playhead-marker, .lanes-ruler-time, .daw-sections-track, .section-cols, .lyric-ticker, .sections-save-indicator, .daw-lyrics-ribbon) {
   visibility: hidden;
 }
 
