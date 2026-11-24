@@ -153,6 +153,7 @@
   clip-path: inset(50%);
 }
 #songHead #nowPlayingPanel .track-panel-head {
+  container: song-title / inline-size;
   display: flex;
   align-items: center;
   gap: var(--s-3);
@@ -181,6 +182,10 @@
   font-weight: var(--fw-bold);
   letter-spacing: -0.015em;
   line-height: 1.2;
+}
+/* The title's own row, not the head, decides: Export and Stage mode take a varying share of the head. */
+@container song-title (max-width: 680px) {
+  #songHead #nowPlayingPanel .track-panel-title { font-size: var(--fs-lg); }
 }
 #songHead #nowPlayingPanel .np-artist {
   max-width: 100%;
