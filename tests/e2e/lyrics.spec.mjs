@@ -400,7 +400,7 @@ test.describe("lyrics tab", () => {
 
     await page.unroute(LRCLIB);
     await stubLrclib(page);
-    await page.locator(".lib-nav-library").click();
+    await openInspectorTab(page, "tempo");
     await showLyricsTab(page);
     await expect(page.locator(".lyrics-line")).toHaveCount(3);
     expect(asked).toHaveLength(1);

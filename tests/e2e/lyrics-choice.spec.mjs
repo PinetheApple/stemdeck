@@ -191,7 +191,7 @@ test.describe("the user's lyrics choice is kept with the song", () => {
     await page.route(new RegExp(`/api/jobs/${JOB_ID}/lyrics$`), (route) => (route.request().method() === "GET"
       ? route.fulfill({ status: 404, json: { detail: "no lyrics" } })
       : route.fallback()), { times: 1 });
-    await page.locator(".lib-nav-library").click();
+    await openInspectorTab(page, "tempo");
     await openInspectorTab(page, "lyrics");
     await expect.poll(() => asked.length).toBe(2);
     expect(asked[1].body).toEqual({});

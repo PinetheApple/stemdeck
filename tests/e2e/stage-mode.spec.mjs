@@ -19,6 +19,7 @@ import {
 } from "./helpers.mjs";
 import { dblclickFrozen } from "./saveRaces.mjs";
 
+const TAB_STORE_KEY = "stemdeck.inspector.tab";
 const BEAT_PERIOD = 0.5;
 const BEATS_PER_BAR = 4;
 const BAR_SEC = BEAT_PERIOD * BEATS_PER_BAR;
@@ -541,6 +542,8 @@ test.describe("stage mode and the Lyrics tab's load", () => {
   });
 
   test("a load left behind by a switch saves nothing under the new track, and runs again on return", async ({ page }) => {
+    // Another tab in the song tools, so Stage is what first reads the lyrics.
+    await page.addInitScript((key) => localStorage.setItem(key, JSON.stringify("tempo")), TAB_STORE_KEY);
     const firstLoad = heldPromise();
     let gate = Promise.resolve();
     const { choices } = await setUp(page, {

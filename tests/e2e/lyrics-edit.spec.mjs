@@ -114,9 +114,11 @@ async function openLyrics(page) {
   await openInspectorTab(page, "lyrics");
 }
 
+/** Open a song from the library, then come back to its Lyrics tab, which reads them afresh. */
 async function openTrackFromLibrary(page, id) {
   await page.locator(".lib-nav-library").click();
   await page.locator(`.cat-item[data-id="${id}"]`).first().dblclick();
+  await openInspectorTab(page, "tempo");
   await openInspectorTab(page, "lyrics");
 }
 
