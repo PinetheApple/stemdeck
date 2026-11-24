@@ -1,20 +1,20 @@
 // Select in Browse library: a click picks a song instead of showing it, Ctrl/Cmd toggles,
 // Shift picks a range, and the picked rows wear a frame and a ticked box.
 
+import { t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
 import { selectScopeOf, showsMyOrder } from "./libraryArrange.js";
 import { libraryView, selection } from "./libraryView.js";
 import { wireMyOrderDrop } from "./myOrderDrag.js";
 import { SONG_CARD_CLASS } from "./songRow.js";
-import { ROW_PLAY_CLASS } from "./rovingRows.js";
+import { OUT_OF_TAB_ORDER, ROW_PLAY_CLASS } from "./rovingRows.js";
 
 const PICKED_CLASS = "is-picked";
-const PICK_BOX_HTML = `<span class="pick-box" aria-hidden="true">${icon("check")}</span>`;
+const PICK_BOX_CLASS = "pick-box";
+const CHECKBOX_ROLE = "checkbox";
 const PICKABLE_ROW = ".cat-item[data-id]:not(.queue-row):not(.cat-version)";
 // The row's own buttons keep their jobs while picking.
 const NOT_A_PICK = `.cat-actions, .cat-versions-toggle, .import-fail-panel, .${ROW_PLAY_CLASS}`;
-const LIST_ROLE = "listbox";
-const ROW_ROLE = "option";
 const OPEN_KEY = "Enter";
 const TOGGLE_KEY = " ";
 
@@ -26,20 +26,25 @@ export function visibleIds(container) {
 function paintPick(el) {
   const picked = selection.has(el.dataset.id);
   el.classList.toggle(PICKED_CLASS, picked);
-  el.setAttribute("aria-selected", String(picked));
+  el.querySelector(`.${PICK_BOX_CLASS}`)?.setAttribute("aria-checked", String(picked));
 }
 
 export function paintPicks(container) {
   for (const row of container.querySelectorAll(PICKABLE_ROW)) paintPick(row);
 }
 
-/** While picking, each list holding pickable rows is a multi-select listbox; a redraw drops it again. */
-export function markPickLists(container) {
-  const lists = new Set([...container.querySelectorAll(PICKABLE_ROW)].map((row) => row.parentElement));
-  for (const list of lists) {
-    list.setAttribute("role", LIST_ROLE);
-    list.setAttribute("aria-multiselectable", "true");
-  }
+// A click on the box reaches wirePicking's row click, so it picks as a click on the row does.
+function pickBoxEl(el) {
+  const label = t("libSort.selectSong", { title: el.querySelector(".cat-title")?.textContent ?? "" });
+  const box = document.createElement("button");
+  box.type = "button";
+  box.className = PICK_BOX_CLASS;
+  box.tabIndex = OUT_OF_TAB_ORDER;
+  box.setAttribute("role", CHECKBOX_ROLE);
+  box.setAttribute("aria-label", label);
+  box.title = label;
+  box.innerHTML = icon("check");
+  return box;
 }
 
 /** Give a drawn song its pick box while picking, and make it a My order drop target when sorted so. */
@@ -47,8 +52,7 @@ export function decorateSongEl(el, kind) {
   if (!el) return el;
   if (selection.picking && selectScopeOf(kind)) {
     const host = el.classList.contains(SONG_CARD_CLASS) ? el.querySelector(".cat-thumb") : el;
-    host?.insertAdjacentHTML("afterbegin", PICK_BOX_HTML);
-    el.setAttribute("role", ROW_ROLE);
+    host?.prepend(pickBoxEl(el));
     paintPick(el);
   }
   if (showsMyOrder(kind, libraryView())) wireMyOrderDrop(el);
