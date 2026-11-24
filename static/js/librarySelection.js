@@ -31,6 +31,11 @@ export const BULK_ACTION_LABEL_KEYS = Object.freeze({
 
 export const SELECT_DONE_LABEL_KEY = "settings.done";
 
+/** The picks an action changes: Favorite leaves songs that already are favorites alone. */
+export function bulkTargets(action, pickedIds, isFavorite) {
+  return action === BULK_ACTION.FAVORITE ? pickedIds.filter((id) => !isFavorite(id)) : [...pickedIds];
+}
+
 function toggleIn(state, id) {
   if (state.picked.has(id)) state.picked.delete(id);
   else state.picked.add(id);

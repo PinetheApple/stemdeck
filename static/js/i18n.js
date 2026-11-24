@@ -1874,6 +1874,8 @@ const en = {
   "libSort.restore": "Restore",
   "libSort.myOrderHint": "My order: drag a song onto another to place it before that song.",
   "libSort.myOrderSaveFailed": "Couldn't save your order. Try again.",
+  "libSort.noFilterMatch": "No songs match these filters",
+  "libSort.noFilterMatchHint": "Change or clear the filters to see more songs.",
 };
 
 const pl = {
@@ -3546,6 +3548,8 @@ const pl = {
   "libSort.restore": "Przywróć",
   "libSort.myOrderHint": "Moja kolejność: upuść utwór na inny, aby umieścić go przed nim.",
   "libSort.myOrderSaveFailed": "Nie udało się zapisać kolejności. Spróbuj ponownie.",
+  "libSort.noFilterMatch": "Żaden utwór nie pasuje do tych filtrów",
+  "libSort.noFilterMatchHint": "Zmień lub wyczyść filtry, aby zobaczyć więcej utworów.",
 };
 
 const ja = {
@@ -5147,6 +5151,8 @@ const ja = {
   "libSort.restore": "復元",
   "libSort.myOrderHint": "自分の並び順：曲を別の曲の上にドラッグすると、その曲の前に移動します。",
   "libSort.myOrderSaveFailed": "並び順を保存できませんでした。もう一度お試しください。",
+  "libSort.noFilterMatch": "この絞り込みに合う曲はありません",
+  "libSort.noFilterMatchHint": "絞り込みを変更するか解除すると、ほかの曲も表示されます。",
 };
 
 const zhHans = {
@@ -6748,6 +6754,8 @@ const zhHans = {
   "libSort.restore": "恢复",
   "libSort.myOrderHint": "我的顺序：把一首歌拖到另一首上，即可放到那首歌之前。",
   "libSort.myOrderSaveFailed": "无法保存你的顺序，请重试。",
+  "libSort.noFilterMatch": "没有符合这些筛选条件的歌曲",
+  "libSort.noFilterMatchHint": "更改或清除筛选即可看到更多歌曲。",
 };
 
 const de = {
@@ -8381,6 +8389,8 @@ const de = {
   "libSort.restore": "Wiederherstellen",
   "libSort.myOrderHint": "Meine Reihenfolge: Ziehe einen Song auf einen anderen, um ihn davor einzuordnen.",
   "libSort.myOrderSaveFailed": "Die Reihenfolge konnte nicht gespeichert werden. Versuche es erneut.",
+  "libSort.noFilterMatch": "Keine Songs passen zu diesen Filtern",
+  "libSort.noFilterMatchHint": "Ändere die Filter oder setze sie zurück, um mehr Songs zu sehen.",
 };
 
 const pt = {
@@ -10016,6 +10026,8 @@ const pt = {
   "libSort.restore": "Restaurar",
   "libSort.myOrderHint": "Minha ordem: arraste uma música sobre outra para colocá-la antes dela.",
   "libSort.myOrderSaveFailed": "Não foi possível salvar sua ordem. Tente novamente.",
+  "libSort.noFilterMatch": "Nenhuma música corresponde a esses filtros",
+  "libSort.noFilterMatchHint": "Altere ou limpe os filtros para ver mais músicas.",
 };
 
 const id = {
@@ -11617,6 +11629,8 @@ const id = {
   "libSort.restore": "Pulihkan",
   "libSort.myOrderHint": "Urutan saya: seret lagu ke lagu lain untuk menaruhnya sebelum lagu itu.",
   "libSort.myOrderSaveFailed": "Urutan tidak bisa disimpan. Coba lagi.",
+  "libSort.noFilterMatch": "Tidak ada lagu yang cocok dengan saringan ini",
+  "libSort.noFilterMatchHint": "Ubah atau hapus saringan untuk melihat lebih banyak lagu.",
 };
 
 const fr = {
@@ -13252,6 +13266,8 @@ const fr = {
   "libSort.restore": "Restaurer",
   "libSort.myOrderHint": "Mon ordre : faites glisser un morceau sur un autre pour le placer avant celui-ci.",
   "libSort.myOrderSaveFailed": "Impossible d'enregistrer votre ordre. Réessayez.",
+  "libSort.noFilterMatch": "Aucun morceau ne correspond à ces filtres",
+  "libSort.noFilterMatchHint": "Modifiez ou effacez les filtres pour voir plus de morceaux.",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -13711,6 +13727,7 @@ const ptPT = {
   "libSort.selectTitle": "Selecione várias músicas para as alterar de uma vez",
   "libSort.myOrderHint": "A minha ordem: arraste uma música para cima de outra para a colocar antes dela.",
   "libSort.myOrderSaveFailed": "Não foi possível guardar a sua ordem. Tente novamente.",
+  "libSort.noFilterMatch": "Nenhuma música corresponde a estes filtros",
 };
 
 const es = {
@@ -15358,6 +15375,8 @@ const es = {
   "libSort.restore": "Restaurar",
   "libSort.myOrderHint": "Mi orden: arrastra una canción sobre otra para colocarla antes de ella.",
   "libSort.myOrderSaveFailed": "No se pudo guardar tu orden. Inténtalo de nuevo.",
+  "libSort.noFilterMatch": "Ninguna canción coincide con estos filtros",
+  "libSort.noFilterMatchHint": "Cambia o quita los filtros para ver más canciones.",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -16968,6 +16987,8 @@ const ko = {
   "libSort.restore": "복원",
   "libSort.myOrderHint": "내 순서: 곡을 다른 곡 위로 끌어다 놓으면 그 곡 앞에 놓여요.",
   "libSort.myOrderSaveFailed": "순서를 저장하지 못했어요. 다시 시도해 주세요.",
+  "libSort.noFilterMatch": "이 필터에 맞는 곡이 없어요",
+  "libSort.noFilterMatchHint": "필터를 바꾸거나 지우면 더 많은 곡이 보여요.",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };
