@@ -2,22 +2,17 @@
 // Up Next place, and a song that was in the player opens again, paused where it was.
 
 import {
-  displayTitle, getLibraryTrack, getPlayingTrackInfo, libraryTitle, loadTrackIntoStudio, moveTrackToTrash, undoTrash,
+  displayTitle, getLibraryTrack, getPlayingTrackInfo, libraryTitle, loadTrackIntoStudio, moveTrackToTrash,
+  shownTrackId, undoTrash,
 } from "./catalog.js";
-import { getNowAndUpNextIds, insertUpNext } from "./upNext.js";
+import { insertUpNext, upNextIndexOf } from "./upNext.js";
 import { setPlayheadTime, togglePlayPause, transport } from "./transport.js";
+import { PLAYBACK_READY_EVENT } from "./player.js";
 import { showUndo } from "./undoToast.js";
 import { t } from "./i18n.js";
 
 const NOT_QUEUED = -1;
-const READY_EVENT = "playbackready";
-
-/** The song's place in Up Next, not counting the song in the player. */
-function upNextIndexOf(trackId) {
-  const ids = getNowAndUpNextIds();
-  const queued = ids[0] === getPlayingTrackInfo()?.id ? ids.slice(1) : ids;
-  return queued.indexOf(trackId);
-}
+const READY_TIMEOUT_MS = 20000;
 
 /** Where the player stood on the song, or null when it was not the player's. */
 function playerPositionOf(trackId) {
@@ -25,12 +20,20 @@ function playerPositionOf(trackId) {
   return transport()?.getCurrentTime?.() ?? 0;
 }
 
+/** Run `then` once the player has `trackId` ready; returns how to give up waiting, which a timeout also does. */
 function whenReady(trackId, then) {
-  document.addEventListener(READY_EVENT, function onPlaybackReady(e) {
+  const timer = setTimeout(stopWaiting, READY_TIMEOUT_MS);
+  function stopWaiting() {
+    clearTimeout(timer);
+    document.removeEventListener(PLAYBACK_READY_EVENT, onPlaybackReady);
+  }
+  function onPlaybackReady(e) {
     if (e.detail?.id !== trackId) return;
-    document.removeEventListener(READY_EVENT, onPlaybackReady);
+    stopWaiting();
     then();
-  });
+  }
+  document.addEventListener(PLAYBACK_READY_EVENT, onPlaybackReady);
+  return stopWaiting;
 }
 
 function pauseAt(seconds) {
@@ -43,22 +46,24 @@ async function reopenPaused(trackId, seconds) {
     pauseAt(seconds);
     return;
   }
-  whenReady(trackId, function onReopened() {
+  const stopWaiting = whenReady(trackId, function onReopened() {
     pauseAt(seconds);
   });
-  await loadTrackIntoStudio(trackId);
+  if (!(await loadTrackIntoStudio(trackId))) stopWaiting();
 }
 
-/** Move the song to the Trash and offer to take it back. */
 export function trashWithUndo(trackId) {
   const track = getLibraryTrack(trackId);
   if (!track) return;
   const queuedAt = upNextIndexOf(trackId);
   const position = playerPositionOf(trackId);
   const place = moveTrackToTrash(trackId);
+  const shownAfterTrash = shownTrackId();
   showUndo(t("lib.movedToTrash", { title: displayTitle(libraryTitle(track)) }), function onUndoTrash() {
+    // A song opened or played since the trash keeps the studio; the trashed one only returns to the library.
+    const movedOn = Boolean(getPlayingTrackInfo()) || shownTrackId() !== shownAfterTrash;
     undoTrash(trackId, place);
     if (queuedAt !== NOT_QUEUED) insertUpNext(trackId, queuedAt);
-    if (position !== null) reopenPaused(trackId, position);
+    if (position !== null && !movedOn) reopenPaused(trackId, position);
   });
 }

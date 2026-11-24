@@ -25,6 +25,8 @@ const SETLISTS_PATH = "/api/setlists";
 const SETLIST_NAME = "Gig";
 const UP_NEXT_KEY = "stemdeck.upNext";
 const FOLDER_ID = "f-rock";
+// Queued, but in no library here, so it cannot play.
+const UNPLAYABLE_ID = "e2e0dead0000";
 const TOAST = ".undo-toast";
 // Longer than the message stays up.
 const PAST_THE_TOAST_MS = 8000;
@@ -187,4 +189,33 @@ test("Undo after trashing the playing song opens it again, paused where it was",
   await expect.poll(() => playhead(page)).toBeGreaterThanOrEqual(at);
   expect(await playhead(page)).toBeLessThan(at + POSITION_SLACK_S);
   await expect(page.locator("#songMoreBtn")).toBeEnabled();
+});
+
+test("Undo puts a song back at its Up Next place behind a song that cannot play", async ({ page }) => {
+  await openLibrary(page, { upNext: [UNPLAYABLE_ID, JOB_ID, SIBLING_JOB_ID] });
+  await openBrowse(page, `folder:${FOLDER_ID}`);
+  await trashFromMenu(page, browseRow(page, SIBLING_JOB_ID));
+  await expect.poll(() => storedUpNext(page)).toEqual([UNPLAYABLE_ID, JOB_ID]);
+
+  await toast(page).getByRole("button", { name: "Undo" }).click();
+  await expect.poll(() => storedUpNext(page)).toEqual([UNPLAYABLE_ID, JOB_ID, SIBLING_JOB_ID]);
+});
+
+test("Undo after trashing the playing song leaves a song played since in the player", async ({ page }) => {
+  await stubServerTrash(page);
+  await openStudio(page);
+  await page.locator("#t-play").click();
+  await expect.poll(() => isPlaying(page), { timeout: LOAD_TIMEOUT_MS }).toBe(true);
+  await page.locator("#songMoreBtn").click();
+  await page.locator(".song-menu").getByRole("menuitem", { name: "Move to Trash" }).click();
+  await expect(toast(page)).toBeVisible();
+
+  await page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`).first().dblclick();
+  await expect(page.locator("#title")).toHaveText(SIBLING_TITLE, { timeout: LOAD_TIMEOUT_MS });
+  await toast(page).getByRole("button", { name: "Undo" }).click();
+
+  await expect(page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first()).toBeVisible();
+  await page.waitForTimeout(SECONDS_TRASHED * 1000);
+  await expect(page.locator("#title")).toHaveText(SIBLING_TITLE);
+  expect(await isPlaying(page)).toBe(true);
 });
