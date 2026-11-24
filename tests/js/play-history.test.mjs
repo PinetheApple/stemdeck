@@ -4,7 +4,17 @@
 // Run:  node tests/js/play-history.test.mjs
 
 import { BACK, FORWARD, createStepHistory } from '../../static/js/stepHistory.js';
-import { NEXT_SOURCE, RESTART_AFTER_SEC, cursorAt, nextSong, previousSongId, songsAhead } from '../../static/js/playOrder.js';
+import {
+  NEXT_SOURCE,
+  RESTART_AFTER_SEC,
+  SONG_EVENT,
+  cursorAt,
+  nextSong,
+  noteSong,
+  previousPlayedId,
+  previousSongId,
+  songsAhead,
+} from '../../static/js/playOrder.js';
 
 let passed = 0;
 let failed = 0;
@@ -62,6 +72,22 @@ function visited(...ids) {
   history.go(BACK, anySong);
   history.visit('a');
   check('visiting the song stepped to keeps what is ahead', history.peek(FORWARD, anySong), 'b');
+}
+
+{
+  const history = createStepHistory();
+  noteSong(history, SONG_EVENT.PLAYED, 'a');
+  noteSong(history, SONG_EVENT.OPENED, 'b');
+  noteSong(history, SONG_EVENT.PLAYED, 'c');
+  const back = previousPlayedId(history, 'c', anySong);
+  check('Previous within 3 s goes to the song played before, not one only opened', previousSongId(RESTART_AFTER_SEC, back), 'a');
+}
+
+{
+  const history = createStepHistory();
+  noteSong(history, SONG_EVENT.PLAYED, 'a');
+  noteSong(history, SONG_EVENT.OPENED, 'b');
+  check('from a song only opened, Previous goes to the last one played', previousPlayedId(history, 'b', anySong), 'a');
 }
 
 check('Previous restarts a song played for more than 3 seconds', previousSongId(RESTART_AFTER_SEC + 0.1, 'a'), null);

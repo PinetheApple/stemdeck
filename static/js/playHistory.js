@@ -1,6 +1,6 @@
 import { TRACK_OPEN_EVENT, TRASH_CHANGE_EVENT, getPlayingTrackInfo, isPlayableTrack, loadTrackIntoStudio } from "./catalog.js";
 import { BACK, FORWARD, createStepHistory } from "./stepHistory.js";
-import { NEXT_SOURCE, nextSong, previousSongId } from "./playOrder.js";
+import { NEXT_SOURCE, SONG_EVENT, nextSong, noteSong, previousPlayedId, previousSongId } from "./playOrder.js";
 import { PLAY_CONTEXT_CHANGE_EVENT, nextInContext } from "./playContext.js";
 import { onSongPlayed } from "./songPlayed.js";
 import { UP_NEXT_CHANGE_EVENT, firstInUpNext, playNextInUpNext, playNow } from "./upNext.js";
@@ -11,11 +11,8 @@ import { $ } from "./utils.js";
 const played = createStepHistory();
 const changeListeners = new Set();
 
-// A song opened after the last one played, and not played itself, steps back to that one.
-function previousPlayedId() {
-  const last = played.current();
-  if (last && last !== getPlayingTrackInfo()?.id && isPlayableTrack(last)) return last;
-  return played.peek(BACK, isPlayableTrack);
+function previousId() {
+  return previousPlayedId(played, getPlayingTrackInfo()?.id, isPlayableTrack);
 }
 
 function upcoming() {
@@ -33,7 +30,7 @@ function openPlayed(trackId) {
 
 export function goToPrevious() {
   const position = transport()?.getCurrentTime() ?? 0;
-  const backId = previousSongId(position, previousPlayedId());
+  const backId = previousSongId(position, previousId());
   if (!backId) {
     restartSong();
     return;
@@ -72,7 +69,7 @@ export function onPreviousNextChange(listener) {
 function paintPrevious() {
   const prev = $("t-prev");
   if (!prev) return;
-  const label = t(previousPlayedId() ? "studio.footer.previousSong" : "studio.footer.previous");
+  const label = t(previousId() ? "studio.footer.previousSong" : "studio.footer.previous");
   prev.disabled = !canGoPrevious();
   prev.title = label;
   prev.setAttribute("aria-label", label);
@@ -86,7 +83,12 @@ function paintPreviousNext() {
 }
 
 function onPlayed(trackId) {
-  played.visit(trackId);
+  noteSong(played, SONG_EVENT.PLAYED, trackId);
+  paintPreviousNext();
+}
+
+function onSongOpened(e) {
+  noteSong(played, SONG_EVENT.OPENED, e.detail?.id);
   paintPreviousNext();
 }
 
@@ -94,7 +96,8 @@ export function initPlayHistory() {
   $("t-prev")?.addEventListener("click", goToPrevious);
   $("t-next")?.addEventListener("click", goToNext);
   onSongPlayed(onPlayed);
-  for (const name of [TRACK_OPEN_EVENT, UP_NEXT_CHANGE_EVENT, PLAY_CONTEXT_CHANGE_EVENT, TRASH_CHANGE_EVENT]) {
+  document.addEventListener(TRACK_OPEN_EVENT, onSongOpened);
+  for (const name of [UP_NEXT_CHANGE_EVENT, PLAY_CONTEXT_CHANGE_EVENT, TRASH_CHANGE_EVENT]) {
     document.addEventListener(name, paintPreviousNext);
   }
   onLanguageChange(paintPreviousNext);

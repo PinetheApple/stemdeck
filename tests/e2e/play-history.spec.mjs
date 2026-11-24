@@ -77,7 +77,7 @@ test("Previous restarts a song played for more than 3 seconds, and steps back wi
   await expectInPlayer(page, SIBLING_JOB_ID);
 });
 
-test("a song only opened, never played, is not a song Previous goes back to", async ({ page }) => {
+test("with only the playing song played before, Previous restarts it rather than going to a song only opened", async ({ page }) => {
   await openStudio(page);
   await startPlayback(page);
   await page.locator("#t-play").click();
