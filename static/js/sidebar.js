@@ -8,7 +8,7 @@ import {
 import { getQueueSnapshot, onQueueChange, runningLabel } from "./queue.js";
 import { openSong } from "./openSong.js";
 import { songRowEl } from "./songRow.js";
-import { versionExtras } from "./versions.js";
+import { paintOpenVersion, versionExtras } from "./versions.js";
 import { esc, thumbHtml } from "./songRowParts.js";
 import { wireDropTarget, wireTrackDrag } from "./songDrag.js";
 import { wireSongList } from "./libraryRows.js";
@@ -135,6 +135,8 @@ function drawSidebar() {
   drawSidebarSetlists();
   drawImporting();
   paintTrashButton();
+  // A redraw outside the library's own (a play or pause) still marks the open version.
+  paintOpenVersion(getPlayingTrackInfo()?.id);
   songRows?.restore(saved);
 }
 
