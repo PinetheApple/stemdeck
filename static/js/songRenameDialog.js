@@ -7,13 +7,15 @@ import { SONG_NAME_MAX_CHARS } from "./libraryControls.js";
 import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
 import { editorDialogEl } from "./editorDialog.js";
 import { esc } from "./songRowParts.js";
-import { changedNames, renameFailureMessage, saveSongNames } from "./songRename.js";
+import { changedNames, saveSongNames } from "./songRename.js";
+import { focusSongRow } from "./libraryRows.js";
 
 const TITLE_KEY = "rename.open";
 const BUSY_CLASS = "busy";
 
 let dialog = null;
 let opener = null;
+let songId = null;
 
 function nameFieldHtml(className, labelKey) {
   return `<label class="folder-editor-field"><span data-i18n="${labelKey}">${esc(t(labelKey))}</span>
@@ -23,14 +25,17 @@ function nameFieldHtml(className, labelKey) {
 
 function fieldsHtml() {
   return `${nameFieldHtml("rename-title", "rename.titleLabel")}${nameFieldHtml("rename-artist", "rename.artistLabel")}
-    <p class="song-rename-hint" data-i18n="lib.renameSongHint">${esc(t("lib.renameSongHint"))}</p>`;
+    <p class="rename-dialog-hint" data-i18n="lib.renameSongHint">${esc(t("lib.renameSongHint"))}</p>`;
 }
 
+// A saved rename draws the rows again, so an opener that has gone hands focus to the song's new row.
 function closeDialog() {
   dialog?.remove();
   dialog = null;
   if (opener?.isConnected) opener.focus();
+  else if (songId) focusSongRow(songId);
   opener = null;
+  songId = null;
 }
 
 function onDialogKeydown(e) {
@@ -47,14 +52,10 @@ async function save(trackId, form, initial) {
   const body = changedNames(initial, title, artist);
   if (!Object.keys(body).length) return closeDialog();
   form.classList.add(BUSY_CLASS);
-  try {
-    await saveSongNames(trackId, body);
-    closeDialog();
-  } catch (err) {
-    console.warn("[rename] saving the new names failed:", err);
-    form.classList.remove(BUSY_CLASS);
-    form.querySelector(".folder-editor-msg").textContent = renameFailureMessage(err);
-  }
+  const failure = await saveSongNames(trackId, body);
+  if (!failure) return closeDialog();
+  form.classList.remove(BUSY_CLASS);
+  form.querySelector(".folder-editor-msg").textContent = failure;
 }
 
 function fillNames(form, names) {
@@ -66,13 +67,14 @@ function fillNames(form, names) {
   return { title: title.value.trim(), artist: artist.value.trim() };
 }
 
-/** Ask for a new title and artist for the song `trackId`. */
-export function openSongRename(trackId) {
+/** `returnFocus` takes focus when the dialog closes; by default, whatever had it when it opened. */
+export function openSongRename(trackId, { returnFocus = document.activeElement } = {}) {
   const names = getTrackNames(trackId);
   if (!names) return;
   closeDialog();
-  opener = document.activeElement;
-  dialog = editorDialogEl({ titleKey: TITLE_KEY, className: "song-rename-dialog", fieldsHtml: fieldsHtml() });
+  opener = returnFocus;
+  songId = trackId;
+  dialog = editorDialogEl({ titleKey: TITLE_KEY, fieldsHtml: fieldsHtml() });
   const form = dialog.querySelector("form");
   const initial = fillNames(form, names);
   form.addEventListener("submit", function onRenameSubmit(e) {

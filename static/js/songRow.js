@@ -7,7 +7,7 @@ import {
   retryFailedImport, toggleFavorite, wireSourceBlock,
 } from "./catalog.js";
 import { trashWithUndo } from "./trashUndo.js";
-import { SONG_MENU_ATTR } from "./songMenu.js";
+import { SONG_MENU_ATTR, openSongMenu } from "./songMenu.js";
 import { FAILED_STATUS, sourceKindOf } from "./importSource.js";
 import { icon } from "./libraryIcons.js";
 import { OUT_OF_TAB_ORDER, ROW_PLAY_CLASS } from "./rovingRows.js";
@@ -25,7 +25,6 @@ export const SONG_ROW_CLASS = "cat-item";
 export const SONG_CARD_CLASS = "song-card";
 const RESUME_CLASS = "cat-resume";
 const PLAYING_CLASS = "is-playing";
-const TRACK_MENU_EVENT = "trackmenu";
 const EQ_BARS_HTML = '<span class="eqbars" aria-hidden="true"><i></i><i></i><i></i></span>';
 
 function onRetryButton(trackId, button) {
@@ -38,9 +37,8 @@ function onExtractButton(trackId, button) {
   extractStoppedTrack(trackId);
 }
 
-// songMenu.js draws the menu; an event, since it imports this module's importers.
 function onMoreButton(trackId, button) {
-  document.dispatchEvent(new CustomEvent(TRACK_MENU_EVENT, { detail: { id: trackId, anchor: button } }));
+  openSongMenu(trackId, { anchor: button });
 }
 
 const ROW_BUTTONS = [

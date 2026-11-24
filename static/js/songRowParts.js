@@ -44,7 +44,7 @@ export function showsVersionRows(track, inTrash = false) {
 function sublineParts(track, inTrash) {
   if (PROCESSING_STATUSES.has(track.status)) return [i18nT("job.processing")];
   if (track.status === "error") return [i18nT("notifKind.importFailed")];
-  if (track.status === "stopped") return [i18nT("track.stopped")];
+  if (isStopped(track)) return [i18nT("track.stopped")];
   const timeShown = track.duration && !showsVersionRows(track, inTrash);
   return [libraryArtistName(track), timeShown ? fmtTime(track.duration) : ""];
 }
@@ -73,6 +73,7 @@ function favButtonHtml(track) {
 }
 
 export const isDone = (track) => track.status === "done";
+export const isStopped = (track) => track.status === "stopped";
 
 function upNextButtonHtml(track) {
   if (!isDone(track)) return "";
@@ -87,7 +88,7 @@ export function moreButtonHtml(track, className = "cat-more", extra = "") {
 
 // A song stopped by the Trash keeps its files; this is the one way to run it again.
 function extractButtonHtml(track) {
-  if (track.status !== "stopped") return "";
+  if (!isStopped(track)) return "";
   const text = i18nT("track.extractAgain");
   return labelledButton("cat-extract", text, i18nT("track.extractAgainOf", { title: displayTitle(track.title) }), esc(text));
 }
@@ -101,7 +102,6 @@ export function songActionsHtml(track) {
   return `${extractButtonHtml(track)}${upNextButtonHtml(track)}${moreButtonHtml(track)}`;
 }
 
-/** A grid card's heart and ⋯, on its cover. */
 export function cardCoverButtonsHtml(track) {
   if (!isDone(track)) return "";
   return `${favButtonHtml(track)}${moreButtonHtml(track, "song-card-more", `tabindex="${OUT_OF_TAB_ORDER}"`)}`;

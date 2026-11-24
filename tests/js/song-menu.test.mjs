@@ -28,9 +28,9 @@ const SETLISTS = [
   { id: 'set-b', name: 'Practice', song_ids: [OTHER] },
 ];
 const FOLDERS = [
-  { id: 'f-unsorted', name: 'Unsorted', depth: 0, current: false },
-  { id: 'f-rock', name: 'Rock', depth: 0, current: true },
-  { id: 'f-live', name: 'Live', depth: 1, current: false },
+  { id: 'f-unsorted', name: 'Unsorted', depth: 0, color: '#4f9de8', current: false },
+  { id: 'f-rock', name: 'Rock', depth: 0, color: '#ff6f59', current: true },
+  { id: 'f-live', name: 'Live', depth: 1, color: '#64c86f', current: false },
 ];
 
 function song(overrides = {}) {
@@ -79,6 +79,7 @@ check('a setlist without the song can be chosen', flags(itemOf(filed, A.ADD_TO_S
 check('the song\'s folder is checked and disabled', flags(itemOf(filed, A.MOVE_TO_FOLDER, 'f-rock')), { checked: true, disabled: true });
 check('another folder can be chosen', flags(itemOf(filed, A.MOVE_TO_FOLDER, 'f-unsorted')), { checked: false, disabled: false });
 check('a subfolder keeps its depth', itemOf(filed, A.MOVE_TO_FOLDER, 'f-live').depth, 1);
+check('a folder shows its colour', itemOf(filed, A.MOVE_TO_FOLDER, 'f-live').color, '#64c86f');
 check('setlists and folders show their own names', [itemOf(filed, A.ADD_TO_SETLIST, 'set-b').text, itemOf(filed, A.MOVE_TO_FOLDER, 'f-live').text], ['Practice', 'Live']);
 
 check('Add to Up Next is disabled for the playing song',
@@ -93,6 +94,8 @@ check('a song not a favorite offers Add to Favorites', itemOf(buildSongMenuModel
 
 check('a trashed song offers only Restore', shape(buildSongMenuModel(song({ state: ROW_STATE.TRASHED }))), [A.RESTORE]);
 check('an importing song offers Cancel and Move to Trash', shape(buildSongMenuModel(song({ state: ROW_STATE.IMPORTING }))), [A.CANCEL_IMPORT, SEP, A.TRASH]);
+check('an import the library does not list yet offers only Cancel',
+  shape(buildSongMenuModel(song({ state: ROW_STATE.IMPORTING, inLibrary: false }))), [A.CANCEL_IMPORT]);
 check('cancelling an upload asks first', itemOf(buildSongMenuModel(song({ state: ROW_STATE.IMPORTING, upload: true })), A.CANCEL_IMPORT).confirmKey, 'queue.cancelConfirm');
 check('cancelling a link import does not ask', itemOf(buildSongMenuModel(song({ state: ROW_STATE.IMPORTING })), A.CANCEL_IMPORT).confirmKey, undefined);
 check('a failed import offers Retry and Move to Trash', shape(buildSongMenuModel(song({ state: ROW_STATE.FAILED }))), [A.RETRY, SEP, A.TRASH]);

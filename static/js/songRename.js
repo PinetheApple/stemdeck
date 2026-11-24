@@ -1,6 +1,5 @@
-// Rename a song's title and artist in place in the song head; songRenameDialog.js
-// asks for them from the song menu. Saved with PATCH /api/jobs/{id}; the song is
-// then looked up again by its new names.
+// Rename a song's title and artist in place in the song head; a saved rename
+// asks the server to look the song up again by its new names.
 
 import { TRACK_SHOW_EVENT, applyRenamedState, getCurrentTrackInfo, getTrackNames, relookupTrack } from "./catalog.js";
 import { t } from "./i18n.js";
@@ -26,7 +25,7 @@ function restoreButton(names) {
   return iconButton("rename-restore", "restore", { label, text: t("rename.restore") });
 }
 
-export function renameFailureMessage(err) {
+function renameFailureMessage(err) {
   if (isNotFound(err)) return t("rename.gone");
   if (isFolderMovingError(err)) return t(FOLDER_MOVING_KEY);
   const reason = refusalReason(err);
@@ -48,11 +47,17 @@ function selectFromStart(input) {
   input.scrollLeft = 0;
 }
 
-/** Save the names in `body`, then look the song up again by them; throws when the server refuses. */
+/** Save the names in `body` and look the song up again by them; resolves to null, or to why it failed. */
 export async function saveSongNames(trackId, body) {
-  const state = await fetchJson(`/api/jobs/${encodeURIComponent(trackId)}`, { method: "PATCH", body });
-  applyRenamedState(trackId, state);
-  relookupTrack(trackId);
+  try {
+    const state = await fetchJson(`/api/jobs/${encodeURIComponent(trackId)}`, { method: "PATCH", body });
+    applyRenamedState(trackId, state);
+    relookupTrack(trackId);
+    return null;
+  } catch (err) {
+    console.warn("[rename] saving the new names failed:", err);
+    return renameFailureMessage(err);
+  }
 }
 
 function closeEditor() {
@@ -91,17 +96,16 @@ function buildForm(trackId, names, focusField) {
     busy = true;
     form.classList.add("busy");
     error.hidden = true;
-    try {
-      await saveSongNames(trackId, body);
+    const failure = await saveSongNames(trackId, body);
+    if (!failure) {
       closeEditor();
-    } catch (err) {
-      console.warn("[rename] saving the new names failed:", err);
-      busy = false;
-      form.classList.remove("busy");
-      error.textContent = renameFailureMessage(err);
-      error.hidden = false;
-      title.focus();
+      return;
     }
+    busy = false;
+    form.classList.remove("busy");
+    error.textContent = failure;
+    error.hidden = false;
+    title.focus();
   }
 
   function saveTyped() {

@@ -2,7 +2,7 @@
 // at the button or at the pointer. The open song's head offers it without Rename.
 
 import {
-  PROCESSING_STATUSES, folderChoices, getCurrentTrackInfo, getLibraryTrack, isInTrash, isPlayableTrack,
+  PROCESSING_STATUSES, displayTitle, folderChoices, getCurrentTrackInfo, getLibraryTrack, isInTrash, isPlayableTrack,
   isTextEditingTarget,
 } from "./catalog.js";
 import { getSetlists } from "./setlists.js";
@@ -14,7 +14,7 @@ import { missingStems, openVersionOf } from "./versionModel.js";
 import { closeMenu, menuItem, menuLabel, menuSeparator, openMenu, placeAtPoint, placeBeside } from "./floatMenu.js";
 import { ROW_STATE, buildSongMenuModel } from "./songMenuModel.js";
 import { SONG_ACTIONS } from "./songMenuActions.js";
-import { titleOf } from "./songRowParts.js";
+import { isDone, isStopped, titleOf } from "./songRowParts.js";
 import { t } from "./i18n.js";
 import { isReimportableSource, $ } from "./utils.js";
 
@@ -25,17 +25,14 @@ const HEAD_MORE_ID = "songMoreBtn";
 const SONG_MENU_CLASS = "song-menu";
 const VERSION_ROW = ".cat-version";
 const VERSION_MENU_BUTTON = ".cat-more";
-const TRACK_MENU_EVENT = "trackmenu";
 const SECONDARY_BUTTON = 2;
-const DONE_STATUS = "done";
-const STOPPED_STATUS = "stopped";
 
 function rowStateOf(trackId, track) {
   if (isInTrash(trackId)) return ROW_STATE.TRASHED;
   if (PROCESSING_STATUSES.has(track.status) || currentIds(getQueueSnapshot()).has(trackId)) return ROW_STATE.IMPORTING;
   if (track.status === FAILED_STATUS) return ROW_STATE.FAILED;
-  if (track.status === STOPPED_STATUS) return ROW_STATE.STOPPED;
-  return track.status === DONE_STATUS ? ROW_STATE.DONE : ROW_STATE.UNAVAILABLE;
+  if (isStopped(track)) return ROW_STATE.STOPPED;
+  return isDone(track) ? ROW_STATE.DONE : ROW_STATE.UNAVAILABLE;
 }
 
 function canExtractMore(track) {
@@ -65,26 +62,41 @@ function entryEl(entry, trackId, anchor) {
   const text = entry.text ?? t(entry.labelKey);
   const item = menuItem(text, entry.icon, function onSongMenuChoice(chosen) {
     SONG_ACTIONS[entry.action](trackId, { entry, item: chosen, anchor });
-  }, { disabled: entry.disabled, keep: Boolean(entry.confirmKey), depth: entry.depth ?? null });
+  }, { disabled: entry.disabled, keep: Boolean(entry.confirmKey), depth: entry.depth ?? null, color: entry.color ?? null });
   if (entry.danger) item.classList.add("is-danger");
   if (entry.checked) item.setAttribute("aria-current", "true");
   return item;
 }
 
-/** Open the menu of `trackId` from `anchor`, at `point` when a right-click gave one. */
-export function openSongMenu(trackId, { anchor, point = null, rename = true }) {
+function queuedJob(jobId) {
+  const snap = getQueueSnapshot();
+  return [snap?.running, ...(snap?.queued ?? [])].find((job) => job?.job_id === jobId) ?? null;
+}
+
+/** What the menu shows for `trackId`: a library song, or an import not listed yet; null for neither. */
+function menuSubject(trackId, rename) {
   const track = getLibraryTrack(trackId);
-  if (!track || !anchor) {
+  if (track) return { input: songMenuInput(trackId, track, rename), title: titleOf(track) };
+  const job = queuedJob(trackId);
+  if (!job) return null;
+  const input = { id: trackId, state: ROW_STATE.IMPORTING, inLibrary: false, upload: !isReimportableSource(job.source_url) };
+  return { input, title: displayTitle(job.title || job.source_url) };
+}
+
+/** Open the menu of `trackId` from `anchor`, at `point` when a right-click gave one; false when it has none. */
+export function openSongMenu(trackId, { anchor, point = null, rename = true }) {
+  const subject = anchor ? menuSubject(trackId, rename) : null;
+  if (!subject) {
     closeMenu();
-    return;
+    return false;
   }
-  const entries = buildSongMenuModel(songMenuInput(trackId, track, rename));
-  openMenu(anchor, entries.map((entry) => entryEl(entry, trackId, anchor)), {
-    label: t("trackMenu.openTitle", { title: titleOf(track) }),
+  openMenu(anchor, buildSongMenuModel(subject.input).map((entry) => entryEl(entry, trackId, anchor)), {
+    label: t("trackMenu.openTitle", { title: subject.title }),
     place: point ? placeAtPoint(point) : placeBeside,
     className: SONG_MENU_CLASS,
     toggle: !point,
   });
+  return true;
 }
 
 /** The open song's menu needs a song that can play, as its Up Next button does. */
@@ -114,16 +126,9 @@ function onSongContextMenu(e) {
   const host = e.target.closest?.(`[${SONG_MENU_ATTR}]`);
   const target = host && menuTarget(host);
   if (!target?.anchor) return;
-  e.preventDefault();
-  openSongMenu(target.id, { anchor: target.anchor, point: pointOf(e), rename: target.rename });
-}
-
-function onTrackMenuRequest(e) {
-  const { id, anchor } = e.detail || {};
-  openSongMenu(id, { anchor });
+  if (openSongMenu(target.id, { anchor: target.anchor, point: pointOf(e), rename: target.rename })) e.preventDefault();
 }
 
 export function initSongMenu() {
   document.addEventListener("contextmenu", onSongContextMenu);
-  document.addEventListener(TRACK_MENU_EVENT, onTrackMenuRequest);
 }

@@ -16,6 +16,7 @@ import {
   stubExportEndpoints,
   stubFavorites,
   stubServerTrash,
+  stubImportQueue,
   stubUpdateCheck,
 } from "./helpers.mjs";
 
@@ -23,6 +24,7 @@ const SETLIST_NAME = "Gig";
 const SETLISTS_PATH = "/api/setlists";
 const MENU = ".lib-menu.song-menu";
 const RIGHT = "right";
+const IMPORT_ID = "e2e0feed0abc";
 // The song is in the setlist and in Unsorted, so those two items are disabled.
 const ENABLED_ITEMS = 8;
 const ITEMS_IN_ORDER = [
@@ -196,4 +198,37 @@ test("arrow keys move through enabled items, Home/End jump, Esc closes and retur
   await page.keyboard.press(KEY.ESCAPE);
   await expect(menu(page)).toHaveCount(0);
   await expect(more).toBeFocused();
+});
+
+test("Esc closes the menu before Browse library and gives focus back to the card", async ({ page }) => {
+  await openLibrary(page);
+  await openBrowse(page);
+  const card = browseRow(page, JOB_ID);
+  await card.click({ button: RIGHT });
+  await expect(menu(page)).toBeVisible();
+
+  await page.keyboard.press(KEY.ESCAPE);
+  await expect(menu(page)).toHaveCount(0);
+  await expect(page.locator("#browseLibrary")).toBeVisible();
+  await expect(card).toBeFocused();
+  await page.keyboard.press(KEY.ESCAPE);
+  await expect(page.locator("#browseLibrary")).toBeHidden();
+});
+
+test("folders in the menu show their colour dot in place of an icon", async ({ page }) => {
+  await openLibrary(page);
+  await sidebarRow(page, JOB_ID).click({ button: RIGHT });
+  const folder = menu(page).locator(".lib-menu-folder", { hasText: "Unsorted" });
+  await expect(folder.locator(".folder-dot")).toBeVisible();
+  await expect(folder.locator(".ic")).toHaveCount(0);
+});
+
+test("right-click on an import the library does not list yet offers its Cancel", async ({ page }) => {
+  const queue = await stubImportQueue(page, IMPORT_ID, "Still importing", { sourceUrl: "https://example.com/song" });
+  await openLibrary(page);
+  await queue.run();
+  const row = page.locator(`#sidebarImporting .importing-row[data-id="${IMPORT_ID}"]`);
+  await row.click({ button: RIGHT });
+  await expect(menu(page)).toBeVisible();
+  expect(await menuLabels(page)).toEqual(["Cancel this import"]);
 });

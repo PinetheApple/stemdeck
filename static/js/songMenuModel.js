@@ -57,6 +57,7 @@ function folderItems({ folders }) {
       text: folder.name,
       arg: folder.id,
       depth: folder.depth,
+      color: folder.color,
       checked: folder.current,
       disabled: folder.current,
     });
@@ -90,7 +91,8 @@ function shortMenu(song) {
       return [item(SONG_ACTION.RESTORE, "lib.restore", "restore")];
     case ROW_STATE.IMPORTING: {
       const confirm = song.upload ? { confirmKey: "queue.cancelConfirm" } : {};
-      return [item(SONG_ACTION.CANCEL_IMPORT, "queue.cancelImport", "x", confirm), SEPARATOR, trashItem()];
+      const cancel = item(SONG_ACTION.CANCEL_IMPORT, "queue.cancelImport", "x", confirm);
+      return song.inLibrary === false ? [cancel] : [cancel, SEPARATOR, trashItem()];
     }
     case ROW_STATE.FAILED: {
       const retryKey = song.pickAgain ? "importFail.pickAgain" : "importFail.retry";
@@ -105,7 +107,8 @@ function shortMenu(song) {
 
 /**
  * The menu for one song. `queuedIds` holds the playing song and Up Next; `folders`
- * come as folderChoices() gives them; `rename` is false on the open song's head.
+ * come as folderChoices() gives them; `rename` is false on the open song's head;
+ * `inLibrary` is false for an import the library does not list yet.
  */
 export function buildSongMenuModel(song) {
   return song.state === ROW_STATE.DONE ? fullMenu(song) : shortMenu(song);

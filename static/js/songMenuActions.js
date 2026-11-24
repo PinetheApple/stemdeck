@@ -15,6 +15,7 @@ import { trashWithUndo } from "./trashUndo.js";
 import { openSongRename } from "./songRenameDialog.js";
 import { closeMenu } from "./floatMenu.js";
 import { confirmOnSecondClick } from "./armConfirm.js";
+import { EXTRACT_REQUEST_EVENT } from "./extractMore.js";
 import { SONG_ACTION as A } from "./songMenuModel.js";
 import { t } from "./i18n.js";
 import { $ } from "./utils.js";
@@ -46,10 +47,10 @@ function showAbout(trackId) {
 }
 
 /** The song head and Stage offer Extract too, so Browse library and the song's row come on screen first. */
-function extractMore(trackId, anchor) {
+function extractMore(trackId, { anchor }) {
   if (isStageMode()) setStageMode(false);
   revealSongRows();
-  document.dispatchEvent(new CustomEvent("versions:extract", { detail: { id: trackId, anchor } }));
+  document.dispatchEvent(new CustomEvent(EXTRACT_REQUEST_EVENT, { detail: { id: trackId, anchor } }));
 }
 
 function cancelImport(trackId, { item, entry }) {
@@ -76,21 +77,46 @@ function moveToFolder(trackId, { entry, anchor }) {
   if (!moveTrackToFolder(trackId, entry.arg)) anchor.focus();
 }
 
-/** Each action as `(trackId, { entry, item, anchor })`. */
+// The menu has closed by now, so the dialog is told where focus goes back.
+function renameSong(trackId, { anchor }) {
+  openSongRename(trackId, { returnFocus: anchor });
+}
+
+function addToUpNext(trackId) {
+  queueUpNext(trackId);
+}
+
+function stopExtracting(trackId) {
+  cancelExtract(trackId);
+}
+
+function addToSetlist(trackId, { entry }) {
+  addSongToSetlist(entry.arg, trackId);
+}
+
+function newSetlistWith(trackId) {
+  createSetlistFrom([trackId]);
+}
+
+function restore(trackId) {
+  restoreTracksFromTrash([trackId]);
+}
+
+/** Each action as `(trackId, { entry, item, anchor })`; the ones taking only `trackId` ignore the rest. */
 export const SONG_ACTIONS = Object.freeze({
   [A.PLAY]: playNow,
-  [A.UP_NEXT]: queueUpNext,
+  [A.UP_NEXT]: addToUpNext,
   [A.FAVORITE]: toggleFavorite,
-  [A.RENAME]: openSongRename,
-  [A.EXTRACT]: (trackId, { anchor }) => extractMore(trackId, anchor),
-  [A.STOP_EXTRACT]: (trackId) => cancelExtract(trackId),
+  [A.RENAME]: renameSong,
+  [A.EXTRACT]: extractMore,
+  [A.STOP_EXTRACT]: stopExtracting,
   [A.ABOUT]: showAbout,
-  [A.ADD_TO_SETLIST]: (trackId, { entry }) => addSongToSetlist(entry.arg, trackId),
-  [A.NEW_SETLIST]: (trackId) => createSetlistFrom([trackId]),
+  [A.ADD_TO_SETLIST]: addToSetlist,
+  [A.NEW_SETLIST]: newSetlistWith,
   [A.MOVE_TO_FOLDER]: moveToFolder,
   [A.NEW_FOLDER]: moveTrackToNewFolder,
   [A.TRASH]: trashWithUndo,
-  [A.RESTORE]: (trackId) => restoreTracksFromTrash([trackId]),
+  [A.RESTORE]: restore,
   [A.CANCEL_IMPORT]: cancelImport,
   [A.RETRY]: retryFailedImport,
   [A.EXTRACT_AGAIN]: extractStoppedTrack,

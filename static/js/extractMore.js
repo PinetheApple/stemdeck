@@ -23,6 +23,8 @@ const STAGE_LABEL_ID = "stageExtracting";
 const SCRIM_CLASS = "extract-more-backdrop";
 const SCRIM_SELECTOR = `.${SCRIM_CLASS}`;
 const CARD_CLASS = "dialog-card extract-more-card";
+/** Asks for the Extract more stems form under a song's row, with `{ id, anchor }`. */
+export const EXTRACT_REQUEST_EVENT = "versions:extract";
 
 let extractFor = null; // { trackId, chosen: Set<string>, refused: boolean, versionsState }
 const runs = new Map(); // trackId → { view, mix, knownIds: Set<string> }
@@ -270,7 +272,7 @@ async function followRun(trackId, run) {
 }
 
 export function initExtractMore() {
-  document.addEventListener("versions:extract", onExtractRequest);
+  document.addEventListener(EXTRACT_REQUEST_EVENT, onExtractRequest);
   document.addEventListener("trackopen", paintOpenSongLabels);
   document.addEventListener(TRACK_SHOW_EVENT, paintOpenSongLabels);
 }

@@ -1,9 +1,9 @@
-// The library's menus: items, separators and headings in a popup that stays in
-// the window, opened beside a row, under a button or at the pointer.
-// Up/Down/Home/End move through the enabled items; Esc closes it back on its opener.
+// The library's menus: a popup that stays in the window, beside a row, under a
+// button or at the pointer; arrows, Home and End move, Esc closes it back on its opener.
 
 import { iconButton } from "./libraryControls.js";
 import { FLOAT_CLASS } from "./shellFloat.js";
+import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
 
 const MENU_GAP_PX = 4;
 const VIEWPORT_MARGIN_PX = 8;
@@ -17,9 +17,18 @@ const JUMP_KEYS = new Set(["Home", "End"]);
 let menu = null;
 let anchorEl = null;
 
-/** `keep` leaves the menu open and hands the item to `onChoose`, for an item that asks twice. */
-export function menuItem(text, iconName, onChoose, { disabled = false, keep = false, depth = null } = {}) {
+function folderDotEl(color) {
+  const dot = document.createElement("span");
+  dot.className = "folder-dot";
+  dot.style.background = color;
+  return dot;
+}
+
+/** `keep` leaves the menu open and hands the item to `onChoose`, for an item that asks twice;
+ *  `color` shows a folder's dot in place of the icon. */
+export function menuItem(text, iconName, onChoose, { disabled = false, keep = false, depth = null, color = null } = {}) {
   const item = iconButton("lib-menu-item", iconName, { text });
+  if (color) item.querySelector(".ic")?.replaceWith(folderDotEl(color));
   item.setAttribute("role", "menuitem");
   item.disabled = disabled;
   if (depth !== null) {
@@ -109,18 +118,21 @@ function moveFocus(key) {
   focusItem(items[(at + STEP_KEYS[key] + items.length) % items.length]);
 }
 
+// Esc goes on to the document, where shellEscape decides whether it is the menu's.
 function onMenuKeydown(e) {
+  if (e.key === ESCAPE_KEY) return;
   e.stopPropagation();
-  if (e.key === "Escape") {
-    e.preventDefault();
-    const anchor = anchorEl;
-    closeMenu();
-    anchor?.focus({ preventScroll: true });
-    return;
-  }
   if (!(e.key in STEP_KEYS) && !JUMP_KEYS.has(e.key)) return;
   e.preventDefault();
   moveFocus(e.key);
+}
+
+function onEscapeKey(e) {
+  if (e.key !== ESCAPE_KEY || !menu || !escapeIsFor(LAYER.FLOAT)) return;
+  e.preventDefault();
+  const anchor = anchorEl;
+  closeMenu();
+  anchor?.focus({ preventScroll: true });
 }
 
 function onOutsidePointerDown(e) {
@@ -143,12 +155,14 @@ export function closeMenu() {
   anchorEl = null;
   document.removeEventListener("pointerdown", onOutsidePointerDown, true);
   document.removeEventListener("scroll", onPageScroll, true);
+  document.removeEventListener("keydown", onEscapeKey);
   window.removeEventListener("resize", closeMenu);
 }
 
 function listenWhileOpen() {
   document.addEventListener("pointerdown", onOutsidePointerDown, true);
   document.addEventListener("scroll", onPageScroll, { capture: true, passive: true });
+  document.addEventListener("keydown", onEscapeKey);
   window.addEventListener("resize", closeMenu);
 }
 

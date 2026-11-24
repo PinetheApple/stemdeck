@@ -34,3 +34,5 @@
 .song-card-more[aria-expanded="true"] { display: grid; }
 .song-card-fav:hover,
 .song-card-more:hover { background: var(--surface-4); }
+
+.rename-dialog-hint { margin: 0; color: var(--text-3); font-size: var(--fs-xs); line-height: 1.4; }

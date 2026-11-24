@@ -2093,7 +2093,7 @@ export function moveTrackToNewFolder(trackId) {
 export function folderChoices(trackId) {
   const choices = [];
   const visit = (folder, depth) => {
-    choices.push({ id: folder.id, name: folderDisplayName(folder), depth, current: folder.items.includes(trackId) });
+    choices.push({ id: folder.id, name: folderDisplayName(folder), depth, color: folder.color, current: folder.items.includes(trackId) });
     for (const child of childFoldersOf(folder.id)) visit(child, depth + 1);
   };
   for (const top of topLevelFolders()) visit(top, 0);
