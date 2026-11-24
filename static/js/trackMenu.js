@@ -12,6 +12,9 @@ import { queueUpNext } from "./upNext.js";
 import { openSongMenu } from "./songMenu.js";
 import { closeMenu } from "./floatMenu.js";
 
+// inspectorMore.js opens its More menu through this module.
+export { openMenu } from "./floatMenu.js";
+
 const STAGE_UP_NEXT_ID = "stageUpNextBtn";
 const STAGE_MORE_ID = "stageMoreBtn";
 const OPEN_SONG_UP_NEXT_IDS = ["songUpNextBtn", STAGE_UP_NEXT_ID];
