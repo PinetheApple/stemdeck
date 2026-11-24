@@ -47,6 +47,7 @@ import { createSetlistFromFolder } from "./setlists.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 import { FOLDER_MOVING_KEY, isFolderMovingError, noticeKey, refusedForFolderMove } from "./folderMoving.js";
 import { lookupArtist } from "./artistLookup.js";
+import { confidentIdentity, libraryWork, nowPlayingArtist, nowPlayingTitle } from "./songFields.js";
 import { HELD_DROP, HELD_SEND, HTTP_UNPROCESSABLE, heldBandAction, libraryArtist, mergedBand, sendHeldBand, uploadBands } from "./trackBand.js";
 import {
   CANCELLED_STATUS, REINSTATE_REPLACED, RELEASE_REPLACED, isServerTrashed, migrationTrashIds, replacedJobIds,
@@ -357,19 +358,7 @@ const serverBand = (trackId, localBand, source) => (
   mergedBand(localBand, source, !_bandsUploaded || trackId in _heldBands)
 );
 
-const WORK_KINDS = new Set(["musical", "film", "tv", "other"]);
-
-/**
- * The work a job's state carries: the musical, film or series a soundtrack
- * or cast recording is from, found by the server while the job ran
- * (app/pipeline/work_lookup.py). { id, kind, name, englishName } with id a
- * Wikidata item, or null for anything else.
- */
-export function libraryWork(work) {
-  const artist = libraryArtist(work);
-  if (!artist || !WORK_KINDS.has(work.kind)) return null;
-  return { ...artist, kind: work.kind };
-}
+export { libraryWork };
 
 /**
  * Which recording a job was identified as (app/pipeline/identify.py), as the
@@ -578,15 +567,6 @@ export function getCurrentTrackWork() {
   return libraryWork(tracks[studioTrackId()]?.work);
 }
 
-// Identities checked against a catalogue. "tags" only repeats what the file
-// says, which the card and the box already read from the tags themselves.
-const CONFIDENT_SOURCES = new Set(["musicbrainz", "acoustid", "lrclib"]);
-
-function confidentIdentity(track) {
-  const identity = track?.identity;
-  return identity && CONFIDENT_SOURCES.has(identity.source) ? identity : null;
-}
-
 const trimmed = (value) => String(value || "").trim();
 
 /**
@@ -782,13 +762,6 @@ async function uploadBrowserBands() {
 // the track's band, else display_artist.
 export function libraryArtistName(track) {
   return nowPlayingArtist(track);
-}
-
-function nowPlayingArtist(track) {
-  if (trimmed(track?.userArtist)) return trimmed(track.userArtist);
-  let work = trimmed(libraryWork(track?.work)?.name);
-  if (work.toLowerCase() === nowPlayingTitle(track).toLowerCase()) work = "";
-  return trimmed(work || track?.artist?.name || track?.displayArtist);
 }
 
 function paintNowPlayingArtist(track) {
@@ -1115,16 +1088,6 @@ export function applyStemPresenceCards(stemPresence) {
       if (label) label.textContent = pct === 0 ? "0%" : "—";
     }
   });
-}
-
-// For the card only (lists use libraryTitle): the job title is often a filename or
-// video name ("... Official Video"), so the identified song or the title tag comes first.
-function nowPlayingTitle(track) {
-  return trimmed(track?.userTitle)
-    || trimmed(confidentIdentity(track)?.title)
-    || trimmed(track?.audioTags?.title)
-    || track?.title
-    || "";
 }
 
 function paintNowPlayingNames(track) {
