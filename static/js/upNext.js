@@ -68,8 +68,19 @@ function removeFromUpNext(trackId) {
   renderUpNext();
 }
 
-function clearUpNext() {
+/** Empty Up Next; returns what it held, for an Undo. */
+export function clearUpNext() {
+  const removed = queue;
   queue = [];
+  persist();
+  renderUpNext();
+  return removed;
+}
+
+/** Put `trackId` back in Up Next at `at`, for an Undo. */
+export function insertUpNext(trackId, at) {
+  if (!getLibraryTrack(trackId) || queue.includes(trackId)) return;
+  queue.splice(at, 0, trackId);
   persist();
   renderUpNext();
 }
@@ -390,7 +401,6 @@ function wireUpNextRows() {
 
 export function initUpNext() {
   wireUpNextRows();
-  $("upNextClear")?.addEventListener("click", clearUpNext);
   $("t-next")?.addEventListener("click", playNextInUpNext);
   document.addEventListener(UP_NEXT_ADD_EVENT, onAddRequest);
   document.addEventListener("trackended", onTrackEnded);
