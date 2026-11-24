@@ -2,16 +2,17 @@
 // layout allows: each row's parts inside the row, none on another, the dB readout first to go.
 import { test, expect } from "@playwright/test";
 import { openStudio } from "./helpers.mjs";
+import { PANE_LIMITS } from "../../static/js/paneEdgeMath.js";
 
 test.use({
   launchOptions: { args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] },
   permissions: ["microphone"],
 });
 
-// 288: variables.css today; 328-480: the stem column's resize range (#233).
-const COLUMN_WIDTHS = [288, 328, 400, 480];
-const NARROWEST = COLUMN_WIDTHS[0];
-const WIDEST = COLUMN_WIDTHS.at(-1);
+// The stem column's resize range, its ends and a middle.
+const NARROWEST = PANE_LIMITS.stems.min;
+const WIDEST = PANE_LIMITS.stems.max;
+const COLUMN_WIDTHS = [NARROWEST, Math.round((NARROWEST + WIDEST) / 2), WIDEST];
 const COLUMN_VAR = "--daw-col-w";
 const WINDOWS = { tall: { width: 1600, height: 1000 }, short: { width: 1366, height: 768 } };
 const RECORD_MS = 1200;
@@ -98,14 +99,22 @@ for (const [kind, viewport] of Object.entries(WINDOWS)) {
   });
 }
 
-test("the dB readout is the first to go, and the fader grows with the column", async ({ page }) => {
+test("the fader grows with the column", async ({ page }) => {
   await page.setViewportSize(WINDOWS.tall);
   await openStudio(page);
   await setColumnWidth(page, WIDEST);
-  await expect(shownStemDb(page).first()).toBeVisible();
   const wide = await faderWidth(page);
   await setColumnWidth(page, NARROWEST);
-  await expect(shownStemDb(page)).toHaveCount(0);
-  await expect(page.locator('.lane-header[data-stem="vocals"] .lane-x')).toBeVisible();
   expect(await faderWidth(page)).toBeLessThan(wide);
+});
+
+test("with ⋯ on the row, the dB readout is the first to go as the column narrows", async ({ page }) => {
+  await page.setViewportSize(WINDOWS.short);
+  await openStudio(page);
+  const vocals = page.locator('.lane-header[data-stem="vocals"]');
+  await setColumnWidth(page, WIDEST);
+  await expect(shownStemDb(page).first()).toBeVisible();
+  await setColumnWidth(page, NARROWEST);
+  await expect(shownStemDb(page)).toHaveCount(0);
+  for (const sel of [".mx-name", ".mute", ".solo", ".lane-knob", ".lane-more"]) await expect(vocals.locator(sel)).toBeVisible();
 });
