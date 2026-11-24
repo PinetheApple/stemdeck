@@ -64,6 +64,21 @@ function alphaOf(color) {
   return parts.length === 4 ? parts[3] : parts.length === 3 ? 1 : 0;
 }
 
+// A module that throws while loading leaves the page half built; a network error is not the app's.
+const NETWORK_ERROR = /^Failed to load resource/;
+
+test("the app boots with no error from its own modules", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
+  page.on("console", (message) => {
+    if (message.type() === "error" && !NETWORK_ERROR.test(message.text())) errors.push(`console: ${message.text()}`);
+  });
+  await openLibrary(page);
+  await expect(page.locator("#catalogList .cat-item").first()).toBeVisible();
+  await expect(page.locator("#boot-failure")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("Browse library and Ctrl+K open it over a dimmed page; Ctrl+K focuses the search", async ({ page }) => {
   await openLibrary(page);
   await page.locator("#browseBtn").click();
