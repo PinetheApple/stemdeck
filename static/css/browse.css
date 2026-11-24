@@ -186,7 +186,7 @@ button.browse-nav-chevron:hover { background: var(--surface-3); color: var(--tex
 
 .browse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--browse-card-min), 1fr)); gap: var(--s-2); align-content: start; }
 .browse-list { display: flex; flex-direction: column; gap: var(--s-0); }
-.setlist-song .cat-actions { grid-template-columns: repeat(3, var(--target-min)); }
+.setlist-song .cat-actions { grid-template-columns: repeat(4, var(--target-min)); }
 .setlist-song :is(.setlist-song-up, .setlist-song-down, .setlist-song-remove) {
   display: inline-grid;
   place-items: center;

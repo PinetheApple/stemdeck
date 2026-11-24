@@ -79,7 +79,7 @@ function upNextButtonHtml(track) {
   return labelledButton("cat-upnext", i18nT("upNext.add"), i18nT("upNext.addTitle", { title: titleOf(track) }), icon("listPlus"));
 }
 
-function moreButtonHtml(track, className = "cat-more", extra = "") {
+export function moreButtonHtml(track, className = "cat-more", extra = "") {
   if (!isDone(track)) return "";
   const label = i18nT("trackMenu.openTitle", { title: titleOf(track) });
   return labelledButton(className, i18nT("trackMenu.open"), label, icon("more"), `aria-haspopup="menu" ${extra}`);

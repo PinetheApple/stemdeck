@@ -2,7 +2,7 @@
 // A song in the Trash keeps its place, greyed.
 
 import { t } from "./i18n.js";
-import { isInTrash } from "./catalog.js";
+import { getLibraryTrack, isInTrash } from "./catalog.js";
 import {
   canPlaySetlist, getSetlist, insertSetlistSong, makeFolderOf, moveSetlistSongDown, moveSetlistSongUp, playSetlist,
   removeSetlist, removeSetlistSong, setlistsError,
@@ -11,7 +11,7 @@ import { showUndo } from "./undoToast.js";
 import { ARM_TEXT_CLASS, confirmOnSecondClick } from "./armConfirm.js";
 import { icon } from "./libraryIcons.js";
 import { songRowEl } from "./songRow.js";
-import { esc, labelledButton } from "./songRowParts.js";
+import { esc, labelledButton, moreButtonHtml } from "./songRowParts.js";
 import { closeBrowse, openBrowse } from "./browseLibrary.js";
 import { VIEW } from "./browseViewNames.js";
 import { emptyStateEl, viewHeadEl } from "./browseViews.js";
@@ -83,11 +83,11 @@ function headActions(setlist) {
   return buttons;
 }
 
-function songActionsHtml(title, index, count) {
+function songActionsHtml(trackId, title, index, count) {
   const up = labelledButton("setlist-song-up", t("setlists.moveUp", { title }), t("setlists.moveUp", { title }), icon("up"), index === 0 ? "disabled" : "");
   const down = labelledButton("setlist-song-down", t("setlists.moveDown", { title }), t("setlists.moveDown", { title }), icon("down"), index === count - 1 ? "disabled" : "");
   const remove = labelledButton("setlist-song-remove", t("setlists.removeSong", { title }), t("setlists.removeSong", { title }), icon("x"));
-  return up + down + remove;
+  return up + down + remove + moreButtonHtml(getLibraryTrack(trackId));
 }
 
 function setlistSongEl(setlist, trackId, index) {
@@ -100,7 +100,7 @@ function setlistSongEl(setlist, trackId, index) {
   });
   if (!row) return null;
   const title = row.querySelector(".cat-title")?.textContent ?? "";
-  row.querySelector(".cat-actions").innerHTML = songActionsHtml(title, index, setlist.song_ids.length);
+  row.querySelector(".cat-actions").innerHTML = songActionsHtml(trackId, title, index, setlist.song_ids.length);
   row.classList.add("setlist-song");
   row.addEventListener("click", function onSetlistSongButton(e) {
     const hit = SONG_BUTTONS.find(([selector]) => e.target.closest(selector));

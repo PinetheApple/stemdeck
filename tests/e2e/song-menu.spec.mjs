@@ -99,7 +99,9 @@ test("⋯ and right-click open the same menu in the sidebar, Browse grid, Browse
 
   await page.locator(`#browseNav .browse-nav-btn[data-view^="setlist:"]`, { hasText: SETLIST_NAME }).click();
   const setlistRow = page.locator(`#browseResults .setlist-song[data-id="${SIBLING_JOB_ID}"]`);
-  expect(await rightClickLabels(page, setlistRow)).toEqual(ITEMS_IN_ORDER);
+  const inSetlist = await labelsBothWays(page, setlistRow, setlistRow.locator(".cat-more"));
+  expect(inSetlist).toEqual({ fromButton: ITEMS_IN_ORDER, fromRightClick: ITEMS_IN_ORDER });
+  await expect(setlistRow.locator(".setlist-song-up, .setlist-song-down, .setlist-song-remove")).toHaveCount(3);
 });
 
 test("the song head's ⋯ and right-click give the menu without Rename…", async ({ page }) => {
