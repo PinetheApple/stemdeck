@@ -37,7 +37,7 @@ const HELP = [
   ["#addSongBtn", "shell.help.addSong"],
   ["#inspectorToggleBtn", "shell.help.tools"],
   ["#libraryResizer, #stemsResizer, #inspectorResizer", "shell.help.edge"],
-  ["#songToolsLyricsBtn", "help.lyrics"],
+  ['.inspector-tab[data-tab="lyrics"]', "help.lyrics"],
   ["#uploadFileBtn", "help.upload"],
   ["#url", "help.search"],
   ["#stemAllBtn", "help.stemAll"],

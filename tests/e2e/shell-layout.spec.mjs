@@ -2,7 +2,15 @@
 // covers with its views, song tools that hide, and every library view reachable.
 
 import { test, expect } from "@playwright/test";
-import { JOB_ID, MIN_TIMELINE_WIDTH, SIBLING_JOB_ID, openStudio, uiText, waitForPanesSettled } from "./helpers.mjs";
+import {
+  JOB_ID,
+  MIN_TIMELINE_WIDTH,
+  SIBLING_JOB_ID,
+  openInspectorTab,
+  openStudio,
+  uiText,
+  waitForPanesSettled,
+} from "./helpers.mjs";
 
 const TOP_BAR_HEIGHT = 52;
 const STRIP_WIDTH = 64;
@@ -154,13 +162,13 @@ test.describe("the rail's views are still reachable", () => {
     await expect(page.locator("#catalogPanel")).toHaveClass(/queue-view/);
   });
 
-  test("Lyrics from the song tools, opening a collapsed sidebar", async ({ page }) => {
+  test("Lyrics from the song tools, leaving a collapsed sidebar collapsed", async ({ page }) => {
     await openStudio(page);
     await page.locator("#sidebarCollapseBtn").click();
-    await page.locator("#songToolsLyricsBtn").click();
-    await expect(page.locator("#catalogPanel")).toHaveClass(/lyrics-view/);
-    await expect(page.locator("#lyricsPanel")).toBeVisible();
-    await expect(page.locator("#songToolsLyricsBtn")).toHaveAttribute("aria-pressed", "true");
+    await openInspectorTab(page, "lyrics");
+    await expect(page.locator("#inspector #lyricsPanel")).toBeVisible();
+    await expect(page.locator('.inspector-tab[data-tab="lyrics"]')).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator(".app")).toHaveClass(/cat-collapsed/);
   });
 
   test("Trash keeps its count in its name after a language change", async ({ page }) => {

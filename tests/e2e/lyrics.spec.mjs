@@ -23,6 +23,7 @@ import {
   stubUpdateCheck,
   stubLyricsLookup,
   LYRICS_LOOKUP,
+  openInspectorTab,
 } from "./helpers.mjs";
 
 const LRCLIB = LYRICS_LOOKUP;
@@ -107,7 +108,7 @@ async function openTrack(page) {
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
 }
 
-const showLyricsTab = (page) => page.locator("#songToolsLyricsBtn").click();
+const showLyricsTab = (page) => openInspectorTab(page, "lyrics");
 
 /** A tagged track, opened, with the tab showing its lyrics found. */
 async function lyricsShown(page) {
@@ -124,19 +125,18 @@ const stored = (page) =>
   page.evaluate((id) => JSON.parse(localStorage.getItem(`stemdeck.lyrics.${id}`) || "null"), JOB_ID);
 
 test.describe("lyrics tab", () => {
-  test("the rail button swaps the library list for the lyrics panel, which has no search box", async ({ page }) => {
+  test("the song tools' Lyrics tab shows the lyrics beside the library, with no search box", async ({ page }) => {
     await stubLrclib(page);
     await seedLibrary(page);
     await open(page);
     await showLyricsTab(page);
-    await expect(page.locator("#lyricsPanel")).toBeVisible();
-    await expect(page.locator("#catalogList")).toBeHidden();
-    await expect(page.locator("#songToolsLyricsBtn")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#inspector #lyricsPanel")).toBeVisible();
+    await expect(page.locator("#catalogList")).toBeVisible();
+    await expect(page.locator('.inspector-tab[data-tab="lyrics"]')).toHaveAttribute("aria-selected", "true");
     await expect(page.locator("#lyricsPanel input, #lyricsPanel form")).toHaveCount(0);
 
-    await page.locator(".lib-nav-library").click();
+    await page.locator('.inspector-tab[data-tab="tempo"]').click();
     await expect(page.locator("#lyricsPanel")).toBeHidden();
-    await expect(page.locator("#catalogList")).toBeVisible();
   });
 
   test("with no track open it says to open one", async ({ page }) => {
@@ -400,7 +400,7 @@ test.describe("lyrics tab", () => {
 
     await page.unroute(LRCLIB);
     await stubLrclib(page);
-    await page.locator(".lib-nav-library").click();
+    await openInspectorTab(page, "tempo");
     await showLyricsTab(page);
     await expect(page.locator(".lyrics-line")).toHaveCount(3);
     expect(asked).toHaveLength(1);

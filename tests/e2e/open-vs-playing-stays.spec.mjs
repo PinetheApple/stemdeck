@@ -133,7 +133,7 @@ test.describe("what stays with the playing song", () => {
     await serveLyrics(page);
     await page.route(`**/api/jobs/${SIBLING_JOB_ID}/lyrics`, (route) => route.fulfill({ status: 200, json: SIBLING_LYRICS }));
     await openSiblingOverPlaying(page);
-    await call(page, "/js/catalog.js", "showLyricsView");
+    await openInspectorTab(page, "lyrics");
     await expect.poll(() => timedLines(page), { timeout: LOAD_TIMEOUT_MS }).toEqual(linesOf(LYRICS));
     const bpm = await page.evaluate(async () => (await import("/js/tempoTools.js")).shownBpm());
     await openInspectorTab(page, "tempo");

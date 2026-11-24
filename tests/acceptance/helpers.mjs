@@ -462,11 +462,11 @@ export function aboutOutline(page) {
   });
 }
 
-/** Switch the sidebar to Lyrics and wait for it to settle on an answer. */
+/** Open the song tools' Lyrics tab and wait for it to settle on an answer. */
 export async function openLyrics(page) {
-  const lyrics = page.locator("#songToolsLyricsBtn");
+  const lyrics = page.locator('.inspector-tab[data-tab="lyrics"]');
   if (!(await lyrics.isVisible())) await page.locator("#inspectorToggleBtn").click();
-  if ((await lyrics.getAttribute("aria-pressed")) !== "true") await lyrics.click();
+  if ((await lyrics.getAttribute("aria-selected")) !== "true") await lyrics.click();
   await expect(page.locator("#lyricsPanel")).toBeVisible();
   await expect.poll(
     () => page.evaluate(() => {

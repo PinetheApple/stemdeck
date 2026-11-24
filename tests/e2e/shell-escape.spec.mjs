@@ -11,7 +11,7 @@ const QUEUED_ID = "e2e0q0000001";
 const GUIDE_CONTROLS = [
   "#sidebarCollapseBtn", ".topbar-brand", "#addSongBtn", "#notifBtn", "#helpModeBtn", "#aboutBtn",
   "#settingsBtn", "#inspectorToggleBtn", "#libraryResizer", "#stemsResizer", "#inspectorResizer",
-  ".lib-nav-library", ".lib-nav-favorites", ".lib-nav-queue", ".lib-nav-trash", "#songToolsLyricsBtn",
+  ".lib-nav-library", ".lib-nav-favorites", ".lib-nav-queue", ".lib-nav-trash", '.inspector-tab[data-tab="lyrics"]',
   "#importingBtn", "#connStatus",
 ];
 const COLLAPSED_GUIDE_CONTROLS = [

@@ -10,6 +10,7 @@ import {
   stubAudioTags,
   stubExportEndpoints,
   stubUpdateCheck,
+  openInspectorTab,
 } from "./helpers.mjs";
 
 const JSON_TYPE = "application/json";
@@ -91,7 +92,7 @@ async function setUp(page, { transcribe = {}, started = running("queued", 0) } =
 async function openTrack(page, id) {
   await page.locator(".lib-nav-library").click();
   await page.locator(`.cat-item[data-id="${id}"]`).first().dblclick();
-  await page.locator("#songToolsLyricsBtn").click();
+  await openInspectorTab(page, "lyrics");
 }
 
 const startButton = (page) => page.locator(".lyrics-transcribe-open");

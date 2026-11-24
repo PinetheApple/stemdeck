@@ -1,7 +1,7 @@
 // Sing along on a song without timed lyrics: say why, and offer the Lyrics tab's own
 // transcription and the tab itself.
 
-import { showLyricsView } from "./catalog.js";
+import { INSPECTOR_TABS, openInspectorTab } from "./inspector.js";
 import { TRANSCRIBE_CHANGE_EVENT, startTranscription, transcribeStatus } from "./lyricsTranscribe.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $ } from "./utils.js";
@@ -36,7 +36,7 @@ function onTranscribeChange() {
 
 function onOpenLyricsClick() {
   leave();
-  showLyricsView();
+  openInspectorTab(INSPECTOR_TABS.LYRICS);
 }
 
 /** `leaveStage()` closes Stage before the Lyrics tab opens. */
