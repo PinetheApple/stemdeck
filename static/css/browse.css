@@ -215,22 +215,30 @@ button.browse-nav-chevron:hover { background: var(--surface-3); color: var(--tex
 .cat-item.song-card .cat-status { position: absolute; top: var(--s-3); left: var(--s-3); }
 .cat-item.song-card .cat-actions { top: var(--s-3); right: var(--s-3); transform: none; }
 
+/* The head and the rows share one box, so each label sits over its column. */
+.browse-thead,
+.browse-list.is-table > .cat-item { gap: var(--s-3); padding-inline: var(--s-2); }
+.browse-list.is-table > .cat-item { border-width: var(--line-w); }
+.browse-list.is-table > .cat-item .cat-thumb { width: var(--sidebar-cover); height: var(--sidebar-cover); }
+.browse-list.is-table > .cat-item .cat-meta,
+.browse-thead .c-title { flex: var(--col-title-grow) 1 0; }
 .browse-thead {
   position: sticky;
   top: 0;
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: var(--s-3);
-  padding: 0 var(--s-2) var(--s-1);
-  border-bottom: 1px solid var(--line);
+  padding-bottom: var(--s-1);
+  border: var(--line-w) solid transparent;
+  border-top: 0;
+  border-bottom-color: var(--line);
   margin-bottom: var(--s-1);
   background: var(--surface-2);
 }
 .browse-thead .cell { color: var(--text-3); font: var(--fw-bold) var(--fs-2xs) / 2.4 var(--font-sans); letter-spacing: 0.06em; text-transform: uppercase; }
-.browse-thead .c-title { margin-left: calc(var(--sidebar-cover) + var(--s-3)); width: auto; }
-.browse-thead .c-artist { flex: 1; }
+.browse-thead .c-title { margin-left: calc(var(--sidebar-cover) + var(--s-3)); }
 .cell { flex: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); font-size: var(--fs-sm); }
+.c-artist { flex: var(--col-artist-grow) 1 0; }
 .c-key { width: var(--col-key-w); }
 .c-tempo,
 .c-length { width: var(--col-num-w); font-family: var(--font-mono); }

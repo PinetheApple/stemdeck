@@ -26,6 +26,15 @@ const HTTP_SERVER_ERROR = 500;
 const PICKED = /is-picked/;
 const GIG = { id: "f-gig", name: "Gig", color: "#4f9de8", parentId: null };
 const UNDO_TOAST = ".undo-toast";
+const SELECTED = /is-selected/;
+const ACTIVE = /\bactive\b/;
+const PICK_BOX = ".pick-box";
+const ALIGN_TOLERANCE_PX = 2;
+const WIDE_WINDOW = Object.freeze({ width: 1920, height: 1080 });
+const NARROW_WINDOW = Object.freeze({ width: 1366, height: 768 });
+const NARROW_COLUMNS = ["c-title", "c-artist", "c-key", "c-tempo", "c-length"];
+const WIDE_COLUMNS = [...NARROW_COLUMNS, "c-folder", "c-added"];
+const ROW_CELL_OF_COLUMN = Object.freeze({ "c-title": ".cat-title" });
 
 const rows = (page) => page.locator(`${BROWSE_RESULTS} .cat-item[data-id]`);
 const row = (page, song) => page.locator(`${BROWSE_RESULTS} .cat-item[data-id="${song.id}"]`);
@@ -215,9 +224,10 @@ test("in the Trash, Select all and Restore bring every song back", async ({ page
   await expect(sortButton(page)).toBeHidden();
 });
 
-test("Esc leaves Select without closing Browse library; a Ctrl click starts picking", async ({ page }) => {
+test("Esc leaves Select without closing Browse library", async ({ page }) => {
   await openSongs(page);
-  await pick(page, BRAVO, ["ControlOrMeta"]);
+  await selectButton(page).click();
+  await pick(page, BRAVO);
   await expect(bulkBar(page)).toBeVisible();
   await expect(row(page, BRAVO)).toHaveClass(PICKED);
   await page.keyboard.press(KEY.ESCAPE);
@@ -313,3 +323,117 @@ test("pick boxes and the sorted column say their state to assistive tech", async
   await bulkBar(page).getByRole("button", { name: await uiText(page, "settings.done") }).click();
   await expect(rows(page).first().locator(".pick-box")).toHaveCount(0);
 });
+
+async function expectNotPicking(page) {
+  await expect(bulkBar(page)).toBeHidden();
+  await expect(selectButton(page)).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(`${BROWSE_RESULTS} ${PICK_BOX}`)).toHaveCount(0);
+  await expect(page.locator(`${BROWSE_RESULTS} .is-picked`)).toHaveCount(0);
+}
+
+const sidebarRow = (page, song) => page.locator(`#catalogList .cat-item[data-id="${song.id}"]`);
+const selectedText = (page) => page.evaluate(() => window.getSelection().toString());
+const ALT_SETTLE_MS = 500;
+
+async function clickSong(songRow, modifiers = []) {
+  await songRow.locator(".cat-title").click({ modifiers });
+}
+
+for (const modifier of ["ControlOrMeta", "Shift"]) {
+  test(`outside Select, a ${modifier} click shows the song as a plain click does`, async ({ page }) => {
+    await openSongs(page);
+    await clickSong(row(page, ALPHA));
+    await expect(row(page, ALPHA)).toHaveClass(SELECTED);
+    await expect(row(page, ALPHA)).toHaveClass(ACTIVE);
+    await clickSong(row(page, BRAVO), [modifier]);
+    await expect(row(page, BRAVO)).toHaveClass(SELECTED);
+    await expect(row(page, BRAVO)).toHaveClass(ACTIVE);
+    await expectNotPicking(page);
+  });
+
+  test(`in the sidebar, a ${modifier} click shows the song as a plain click does`, async ({ page }) => {
+    await openSongs(page);
+    await page.keyboard.press(KEY.ESCAPE);
+    await clickSong(sidebarRow(page, ALPHA));
+    await expect(sidebarRow(page, ALPHA)).toHaveClass(ACTIVE);
+    await clickSong(sidebarRow(page, BRAVO), [modifier]);
+    await expect(sidebarRow(page, BRAVO)).toHaveClass(SELECTED);
+    await expect(sidebarRow(page, BRAVO)).toHaveClass(ACTIVE);
+  });
+}
+
+test("in the Trash, a Shift click outside Select selects no text", async ({ page }) => {
+  await openSongs(page, { trashed: idsOf(ALPHA, BRAVO, CHARLIE), view: "trash" });
+  await clickSong(row(page, ALPHA));
+  await clickSong(row(page, CHARLIE), ["Shift"]);
+  await expect(row(page, CHARLIE)).toBeFocused();
+  expect(await selectedText(page)).toBe("");
+  await expectNotPicking(page);
+});
+
+/** Whether a Shift mousedown on the song's title goes through, as a drag needs it to. */
+function shiftMousedownGoesThrough(songRow) {
+  return songRow.locator(".cat-title").evaluate((title) => title.dispatchEvent(new MouseEvent("mousedown", {
+    bubbles: true,
+    cancelable: true,
+    shiftKey: true,
+  })));
+}
+
+test("a Shift mousedown leaves a draggable row free to start a drag, in Browse and the sidebar", async ({ page }) => {
+  await openSongs(page);
+  expect(await shiftMousedownGoesThrough(row(page, ALPHA))).toBe(true);
+  await page.keyboard.press(KEY.ESCAPE);
+  expect(await shiftMousedownGoesThrough(sidebarRow(page, ALPHA))).toBe(true);
+});
+
+test("an Alt click on a row shows nothing", async ({ page }) => {
+  await openSongs(page);
+  await clickSong(row(page, ALPHA));
+  await expect(row(page, ALPHA)).toHaveClass(ACTIVE);
+  await clickSong(row(page, BRAVO), ["Alt"]);
+  await page.waitForTimeout(ALT_SETTLE_MS);
+  await expect(row(page, ALPHA)).toHaveClass(ACTIVE);
+  await expect(row(page, BRAVO)).not.toHaveClass(ACTIVE);
+});
+
+test("outside Select, Space on a row picks nothing", async ({ page }) => {
+  await openSongs(page);
+  await page.locator(`${BROWSE_RESULTS} .cat-item[tabindex="0"]`).focus();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Space");
+  await expectNotPicking(page);
+});
+
+/** For each column head shown: how far its label's left edge sits from its column in the first row. */
+function headOffsets(page) {
+  return page.evaluate(({ results, rowCellOf }) => {
+    const head = document.querySelector(`${results} .browse-thead`);
+    const first = document.querySelector(`${results} .browse-list .cat-item[data-id]`);
+    const offsets = {};
+    for (const cell of head.querySelectorAll(".cell")) {
+      const column = [...cell.classList].find((cls) => cls.startsWith("c-") && cls !== "c-acts");
+      if (!column || !cell.getClientRects().length) continue;
+      const label = cell.querySelector("button") ?? cell;
+      const target = first.querySelector(rowCellOf[column] ?? `.${column}`);
+      offsets[column] = target ? Math.round(label.getBoundingClientRect().left - target.getBoundingClientRect().left) : null;
+    }
+    return offsets;
+  }, { results: BROWSE_RESULTS, rowCellOf: ROW_CELL_OF_COLUMN });
+}
+
+for (const [size, columns] of [[WIDE_WINDOW, WIDE_COLUMNS], [NARROW_WINDOW, NARROW_COLUMNS]]) {
+  test(`at ${size.width}x${size.height} each column head sits over its column`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await openSongs(page);
+    await page.locator("#browseListBtn").click();
+    for (const picking of [false, true]) {
+      if (picking) await selectButton(page).click();
+      const offsets = await headOffsets(page);
+      expect(Object.keys(offsets)).toEqual(columns);
+      for (const [column, offset] of Object.entries(offsets)) {
+        expect(Math.abs(offset ?? Infinity), `${column} ${picking ? "while picking" : ""}`).toBeLessThanOrEqual(ALIGN_TOLERANCE_PX);
+      }
+    }
+  });
+}

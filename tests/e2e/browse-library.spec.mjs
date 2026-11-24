@@ -183,7 +183,10 @@ test("Esc in the search clears it first, and only the next Esc closes Browse lib
 });
 
 test("grid and list both show; the list has Title, Artist, Key, Tempo, Length, Folder, Added", async ({ page }) => {
-  await openLibrary(page, { tracks: { [JOB_ID]: { bpm: 119.6, key: "B", scale: "Natural Minor", duration: 245, createdAt: Date.now() / 1000 } } });
+  await openLibrary(page, {
+    tracks: { [JOB_ID]: { bpm: 119.6, key: "B", scale: "Natural Minor", duration: 245, createdAt: Date.now() / 1000 } },
+    artists: { [JOB_ID]: "Night Owls" },
+  });
   await openBrowse(page);
   await page.locator("#browseGridBtn").click();
   await expect(page.locator("#browseGridBtn")).toHaveAttribute("aria-pressed", "true");
@@ -196,6 +199,8 @@ test("grid and list both show; the list has Title, Artist, Key, Tempo, Length, F
     .evaluateAll((cells) => cells.map((cell) => (cell.querySelector("button > span") ?? cell).textContent));
   await expect.poll(columnNames).toEqual([...LIST_COLUMNS, ""]);
   const row = browseRow(page, JOB_ID);
+  await expect(row.locator(".c-artist")).toHaveText("Night Owls");
+  await expect(row.locator(".cat-sub")).not.toContainText("Night Owls");
   await expect(row.locator(".c-tempo")).toHaveText("120");
   await expect(row.locator(".c-key")).toHaveText("B minor");
   await expect(row.locator(".c-length")).toHaveText("04:05");

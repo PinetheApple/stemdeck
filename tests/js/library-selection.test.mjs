@@ -28,11 +28,14 @@ test("start and done switch picking, and done clears the picks", () => {
   assert.equal(selection.count(), 0);
 });
 
-test("a plain click outside picking is left to the caller", () => {
-  const selection = createSelection();
-  assert.equal(selection.click("a", PLAIN, VISIBLE), false);
-  assert.equal(selection.count(), 0);
-});
+for (const [name, modifiers] of [["plain", PLAIN], ["Ctrl", CTRL], ["Shift", SHIFT], ["Ctrl+Shift", CTRL_SHIFT]]) {
+  test(`a ${name} click outside picking is left to the caller`, () => {
+    const selection = createSelection();
+    assert.equal(selection.click("a", modifiers, VISIBLE), false);
+    assert.equal(selection.picking, false);
+    assert.equal(selection.count(), 0);
+  });
+}
 
 test("a plain click while picking toggles the song", () => {
   const selection = picking();
@@ -42,8 +45,8 @@ test("a plain click while picking toggles the song", () => {
   assert.deepEqual(selection.ids(), []);
 });
 
-test("a Ctrl click toggles, and starts picking", () => {
-  const selection = createSelection();
+test("a Ctrl click while picking toggles the song", () => {
+  const selection = picking();
   selection.click("a", CTRL, VISIBLE);
   selection.click("c", CTRL, VISIBLE);
   selection.click("a", CTRL, VISIBLE);

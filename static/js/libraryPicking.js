@@ -60,7 +60,7 @@ export function decorateSongEl(el, kind) {
 }
 
 /** Let picking claim clicks on `container`'s rows before the list shows or opens a song. */
-export function wirePicking(container, { viewKind, onPicksChange, onPickingStart }) {
+export function wirePicking(container, { viewKind, onPicksChange }) {
   function pickRowOf(e) {
     if (!selectScopeOf(viewKind())) return null;
     const row = e.target.closest?.(PICKABLE_ROW);
@@ -70,13 +70,11 @@ export function wirePicking(container, { viewKind, onPicksChange, onPickingStart
   function onPickClick(e) {
     const row = pickRowOf(e);
     if (!row) return;
-    const wasPicking = selection.picking;
     const modifiers = { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey };
     if (!selection.click(row.dataset.id, modifiers, visibleIds(container))) return;
     e.stopPropagation();
     e.preventDefault();
-    if (wasPicking) onPicksChange();
-    else onPickingStart();
+    onPicksChange();
   }
 
   function onPickingDoubleClick(e) {
@@ -94,13 +92,7 @@ export function wirePicking(container, { viewKind, onPicksChange, onPickingStart
     }
   }
 
-  // Shift+click would otherwise select the text between the two rows.
-  function onRangeMousedown(e) {
-    if (e.shiftKey && pickRowOf(e)) e.preventDefault();
-  }
-
   container.addEventListener("click", onPickClick, true);
   container.addEventListener("dblclick", onPickingDoubleClick, true);
   container.addEventListener("keydown", onPickingKeydown, true);
-  container.addEventListener("mousedown", onRangeMousedown, true);
 }

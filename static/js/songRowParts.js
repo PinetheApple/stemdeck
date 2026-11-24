@@ -41,18 +41,20 @@ export function showsVersionRows(track, inTrash = false) {
   return !inTrash && track.status === "done" && hasVersionRows(track);
 }
 
-function sublineParts(track, inTrash) {
+function sublineParts(track, inTrash, inColumns) {
   if (PROCESSING_STATUSES.has(track.status)) return [i18nT("job.processing")];
   if (track.status === "error") return [i18nT("notifKind.importFailed")];
   if (isStopped(track)) return [i18nT("track.stopped")];
+  if (inColumns) return [];
   const timeShown = track.duration && !showsVersionRows(track, inTrash);
   return [libraryArtistName(track), timeShown ? fmtTime(track.duration) : ""];
 }
 
-/** The line under a song's title, built from what is true of it now; HTML, since an unavailable song's is a warning. */
-export function trackSublineHtml(track, { inTrash = false } = {}) {
+/** The line under a song's title, built from what is true of it now; HTML, since an unavailable song's is a warning.
+ *  `inColumns`: the row's columns show the artist and length, so the line leaves them out. */
+export function trackSublineHtml(track, { inTrash = false, inColumns = false } = {}) {
   if (track.status === "unavailable") return unavailableWarningHtml(track);
-  const parts = sublineParts(track, inTrash);
+  const parts = sublineParts(track, inTrash, inColumns);
   if (inTrash) parts.push(i18nT("track.removed"));
   return [
     ...parts.filter(Boolean).map((part) => `<span>${esc(part)}</span>`),

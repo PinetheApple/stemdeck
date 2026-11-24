@@ -72,7 +72,6 @@ function reset(state, picking) {
   state.anchor = null;
 }
 
-// Ctrl or Shift starts picking even outside Select mode, as in desktop file lists.
 export function createSelection() {
   const state = { picking: false, picked: new Set(), anchor: null };
   return {
@@ -81,8 +80,7 @@ export function createSelection() {
     done: () => reset(state, false),
     toggle: (id) => toggleIn(state, id),
     click(id, { shift = false, ctrl = false } = {}, visibleIds = []) {
-      if (!state.picking && !shift && !ctrl) return false;
-      state.picking = true;
+      if (!state.picking) return false;
       if (shift) pickRange(state, id, visibleIds, ctrl);
       else toggleIn(state, id);
       return true;

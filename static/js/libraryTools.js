@@ -98,7 +98,7 @@ export function initLibraryTools(container, { redraw: redrawView, viewKind: kind
   viewKind = kindOf;
   initLibraryToolbar({ onSelectToggle });
   initBulkBar({ finish: finishPicking, selectAll: selectAllShown });
-  wirePicking(container, { viewKind, onPicksChange, onPickingStart: redraw });
+  wirePicking(container, { viewKind, onPicksChange });
   onLibraryViewChange(redraw);
   loadLibraryViewPrefs();
 }

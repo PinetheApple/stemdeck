@@ -125,7 +125,7 @@ export function songRowEl(trackId, { inTrash = false, lead = "", cells = "", act
     <div class="cat-thumb">${thumbHtml(track)}${coverActionHtml(trackId, track, inTrash)}</div>
     <div class="cat-meta">
       <div class="cat-title">${esc(titleOf(track))}</div>
-      <div class="cat-sub">${sub === null ? trackSublineHtml(track, { inTrash }) : esc(sub)}</div>
+      <div class="cat-sub">${sub === null ? trackSublineHtml(track, { inTrash, inColumns: Boolean(cells) }) : esc(sub)}</div>
     </div>
     ${cells}
     <div class="cat-status${statusClass(track)}"></div>
