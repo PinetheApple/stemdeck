@@ -1,13 +1,18 @@
 /* ── Sidebar: Browse library, Importing, Favorites, Setlists, Recently played, Trash ── */
 .daw .sidebar-body { display: flex; flex-direction: column; padding: 0; gap: 0; }
 .sidebar-top { flex: none; padding: var(--s-3); }
+/* When the label leaves no room for the shortcut hint, the hint wraps to a second line
+   the button clips, so a long translation keeps its words. */
 .sidebar-browse-btn {
   width: 100%;
   height: var(--sidebar-browse-h);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-2);
-  padding: 0 var(--s-3);
+  align-content: flex-start;
+  gap: var(--sidebar-browse-h) var(--s-2);
+  overflow: hidden;
+  padding: calc((var(--sidebar-browse-h) - var(--icon)) / 2 - 1px) var(--s-3) 0;
   border: 1px solid var(--line-strong);
   border-radius: var(--r-2);
   background: var(--surface-2);
@@ -17,7 +22,7 @@
 }
 .sidebar-browse-btn:hover { background: var(--surface-3); }
 .sidebar-browse-btn .ic { width: var(--icon); height: var(--icon); flex: none; }
-.sidebar-browse-btn span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-browse-btn span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: var(--icon); }
 .sidebar-kbd {
   margin-left: auto;
   padding: var(--s-0) var(--s-1);
