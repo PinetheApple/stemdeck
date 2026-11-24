@@ -308,7 +308,7 @@ test("Extract more stems from the song head clears a search that hides the song'
   const search = page.locator("#browseSearch");
   await search.fill("again");
   await expect(browseRow(page, JOB_ID)).toHaveCount(0);
-  await page.keyboard.press("Escape");
+  await page.locator("#browseCloseBtn").click();
 
   await page.locator("#songMoreBtn").click();
   await page.getByRole("menuitem", { name: "Extract more stems…" }).click();
@@ -384,7 +384,6 @@ test("Trash shows no version rows", async ({ page, request }) => {
   await seedLibrary(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await openBrowse(page, "trash");
-  await page.locator("#browseListBtn").click();
   await expect(page.locator(`#browseResults .cat-item.in-trash[data-id="${SIBLING_JOB_ID}"]`)).toBeVisible();
   await expect(page.locator("#browseResults .cat-versions-toggle, #browseResults .cat-version")).toHaveCount(0);
 });

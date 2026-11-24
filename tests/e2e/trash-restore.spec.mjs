@@ -87,6 +87,16 @@ test.describe("the Trash button", () => {
 });
 
 test.describe("a Trash row", () => {
+  test("looks like a library row at rest, not greyed", async ({ page }) => {
+    await seedFullTrash(page);
+    await openTrash(page);
+    await page.mouse.move(0, 0);
+    const row = trashRow(page, JOB_ID);
+    await expect(row.locator(".cat-meta")).toHaveCSS("filter", "none");
+    await expect(row.locator(".cat-meta")).toHaveCSS("opacity", "1");
+    await expect(row.locator(".cat-sub")).toBeVisible();
+  });
+
   test("names its Restore button after the song", async ({ page }) => {
     await seedFullTrash(page);
     await openTrash(page);

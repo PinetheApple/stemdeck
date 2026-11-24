@@ -279,6 +279,9 @@ test.describe("setlists", () => {
     expect(await rowTabStops(page, BROWSE_ROWS)).toBe(1);
 
     await songs.first().focus();
+    await page.keyboard.press("Shift+Tab");
+    await expect(page.locator("#browseResults .browse-head button:focus")).toHaveCount(1);
+    await songs.first().focus();
     await page.keyboard.press(ROW_KEY.NEXT);
     await expect(songs.nth(1)).toBeFocused();
     await page.keyboard.press(ROW_KEY.INTO);
