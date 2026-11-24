@@ -81,7 +81,7 @@ test.describe("a stem's header on a tall window", () => {
     const offLook = await mute.evaluate((el) => getComputedStyle(el).backgroundColor);
     await drums.locator(".mx-name").click();
     await expect(mute).toHaveAttribute("aria-pressed", "true");
-    expect(await mute.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe(offLook);
+    await expect.poll(() => mute.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe(offLook);
     await drums.locator(".mx-name").click();
     await expect(mute).toHaveAttribute("aria-pressed", "false");
   });
