@@ -220,9 +220,10 @@ test.describe("other song lists", () => {
     await openLibrary(page, { favorite: true });
     await openBrowse(page, "fav");
     const row = browseRow(page, SIBLING_JOB_ID);
-    await row.click();
+    // A card's middle is its Play cover, so the clicks aim at its title.
+    await row.locator(".cat-title").click();
     await expectSelectedAndOpened(page, row, SIBLING_JOB_ID);
-    await row.dblclick();
+    await row.locator(".cat-title").dblclick();
     await expectPlaying(page, SIBLING_JOB_ID);
   });
 
@@ -232,7 +233,7 @@ test.describe("other song lists", () => {
     await page.locator("#browseSearch").fill(SIBLING_TITLE);
     await expect(browseRow(page, JOB_ID)).toHaveCount(0);
     const row = browseRow(page, SIBLING_JOB_ID);
-    await row.click();
+    await row.locator(".cat-title").click();
     await expectSelectedAndOpened(page, row, SIBLING_JOB_ID);
     await page.keyboard.press(ROW_KEY.OPEN);
     await expectPlaying(page, SIBLING_JOB_ID);

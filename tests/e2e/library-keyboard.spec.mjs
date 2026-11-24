@@ -27,6 +27,7 @@ const LIBRARY_ROWS = "#catalogList .cat-item";
 const BROWSE_ROWS = "#browseResults .cat-item";
 // The control just before the Recently played rows, where a Tab into the list starts.
 const BEFORE_THE_ROWS = "#sidebarRecent .sidebar-see-all";
+const IN_TAB_ORDER = 0;
 const UPNEXT_ROWS = "#upNextList .upnext-row";
 const ACTIVE = /\bactive\b/;
 const UPNEXT_STORE_KEY = "stemdeck.upNext";
@@ -44,8 +45,8 @@ const trashCall = (id) => ({ id, action: "trash" });
 
 /** A Delete that does bin, pressed after the one under test: keys run in order, so its call proves the first did nothing. */
 async function binSiblingByKeyboard(page, trash) {
-  await page.locator(BEFORE_THE_ROWS).focus();
-  await page.keyboard.press(KEY.TAB);
+  // The list's one tab stop can sit in any group, so it is focused directly and End moves from it.
+  await page.locator(`#catalogList [tabindex="${IN_TAB_ORDER}"]`).first().focus();
   await page.keyboard.press(ROW_KEY.LAST);
   await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
   await page.keyboard.press(KEY.DELETE);
@@ -73,7 +74,8 @@ async function openLibrary(page, { favorite = false, trashed = [] } = {}) {
   const listed = page.waitForResponse(JOB_LIST_URL);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await listed;
-  await expect(page.locator(LIBRARY_ROWS).first()).toBeAttached();
+  // With every song in the Trash the sidebar lists none, so its first drawn entry will do.
+  await expect(page.locator("#catalogList :is(.cat-item, .sidebar-empty)").first()).toBeAttached();
   return { trash };
 }
 
