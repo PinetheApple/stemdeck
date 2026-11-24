@@ -33,7 +33,6 @@ import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind, getFailures, restoreFailures } from "./notifications.js";
 import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
 import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
-import { isTrackDragEvent, getDraggedTrackId } from "./songDrag.js";
 import { focusSongRow } from "./libraryRows.js";
 import { thumbHtml } from "./songRowParts.js";
 import { KEYBOARD_FOCUS, OUT_OF_TAB_ORDER, ROW_KEY, isShown } from "./rovingRows.js";
@@ -109,8 +108,6 @@ let _loadTrackToken = 0;
 // finished one opens in the studio only if nothing has been opened since (#747).
 const _autoOpenTokens = new Map();
 let catalogView = LIBRARY_VIEW;
-// The song tools' Lyrics button shows the sidebar's Lyrics view until #243 moves it.
-const LYRICS_BUTTON = "#songToolsLyricsBtn";
 const LYRICS_VIEW = "lyrics";
 const LIBRARY_VIEW = "library";
 // Each list drawn from the library (sidebar, Browse library) redraws through these.
@@ -1489,14 +1486,8 @@ export function showLibraryView() {
   if (catalogView !== LIBRARY_VIEW) setCatalogView(LIBRARY_VIEW);
 }
 
-function onLyricsButtonClick() {
-  setCatalogView(catalogView === LYRICS_VIEW ? LIBRARY_VIEW : LYRICS_VIEW);
-}
-
-function paintLyricsButton(on) {
-  const btn = document.querySelector(LYRICS_BUTTON);
-  btn?.classList.toggle("active", on);
-  btn?.setAttribute("aria-pressed", String(on));
+export function isLyricsViewShown() {
+  return catalogView === LYRICS_VIEW;
 }
 
 // The default version alone plays the import's selection, read as before; the
@@ -2199,41 +2190,6 @@ function paintFavoriteHearts(trackId) {
   render();
 }
 
-const LANES_DROP_CLASS = "library-drop-target";
-
-function clearLanesDrop() {
-  document.getElementById("lanes")?.classList.remove(LANES_DROP_CLASS);
-}
-
-function onLanesDragOver(e) {
-  if (!isTrackDragEvent(e)) return;
-  e.preventDefault();
-  e.dataTransfer.dropEffect = "copy";
-  e.currentTarget.classList.add(LANES_DROP_CLASS);
-}
-
-function onLanesDragLeave(e) {
-  if (!e.currentTarget.contains(e.relatedTarget)) clearLanesDrop();
-}
-
-function onLanesDrop(e) {
-  const trackId = getDraggedTrackId(e);
-  if (!trackId || !tracks[trackId]) return;
-  e.preventDefault();
-  clearLanesDrop();
-  loadTrackIntoStudio(trackId);
-}
-
-function wireMainPanelDrop() {
-  const lanes = document.getElementById("lanes");
-  if (!lanes || lanes.dataset.libraryDropReady === "1") return;
-  lanes.dataset.libraryDropReady = "1";
-  lanes.addEventListener("dragover", onLanesDragOver);
-  lanes.addEventListener("dragleave", onLanesDragLeave);
-  lanes.addEventListener("drop", onLanesDrop);
-  document.addEventListener("dragend", clearLanesDrop);
-}
-
 /** Take tracks back out of the Trash, with one save and one render however
  *  many there are. Restore never queues a song again (#748): a stopped one
  *  comes back stopped, with its Extract button. */
@@ -2648,7 +2604,6 @@ function takeVersions(track, state) {
 function drawCatalog() {
   const lyricsShown = catalogView === LYRICS_VIEW;
   document.getElementById("catalogPanel")?.classList.toggle("lyrics-view", lyricsShown);
-  paintLyricsButton(lyricsShown);
   for (const draw of libraryDrawers) draw();
   applyQueueDecorations();
 }
@@ -5941,9 +5896,7 @@ export async function initCatalog() {
   await loadState();
   window.addEventListener("storage", onLibraryStoredElsewhere);
   wireCatalogToggle();
-  document.querySelector(LYRICS_BUTTON)?.addEventListener("click", onLyricsButtonClick);
   wireWidgets();
-  wireMainPanelDrop();
   initOpenSong();
   initVersions();
   wireAboutButton();
