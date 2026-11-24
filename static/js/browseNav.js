@@ -6,7 +6,7 @@
 import { t } from "./i18n.js";
 import {
   createFolder, dropTrackOnFolder, folderTrackIds, libraryFolderTree, libraryTrackIds, moveTrackToTrash,
-  openFolderEditor, getLibraryTrack, trashTrackIds, wireFolderRenameKey,
+  openFolderEditor, getLibraryTrack, setFolderCollapsed, trashTrackIds, wireFolderRenameKey,
 } from "./catalog.js";
 import { queueCount, getQueueSnapshot } from "./queue.js";
 import { addSongToSetlist, getSetlists, newSetlist } from "./setlists.js";
@@ -60,12 +60,52 @@ function setlistButtons() {
   });
 }
 
+// The nav is redrawn by the change, so focus moves to the new chevron.
+function onChevronClick(e) {
+  const folderId = e.currentTarget.dataset.folder;
+  setFolderCollapsed(folderId, e.currentTarget.getAttribute("aria-expanded") === "true");
+  $("browseNav")?.querySelector(`.browse-nav-chevron[data-folder="${CSS.escape(folderId)}"]`)?.focus();
+}
+
+// A folder with subfolders folds them away; one without keeps the chevron's room, so names line up.
+function chevronEl(folder) {
+  const chevron = document.createElement(folder.hasChildren ? "button" : "span");
+  chevron.className = "browse-nav-chevron";
+  if (!folder.hasChildren) return chevron;
+  const label = t(folder.collapsed ? "lib.expandFolder" : "lib.collapseFolder", { name: folder.name });
+  chevron.type = "button";
+  chevron.dataset.folder = folder.id;
+  chevron.title = label;
+  chevron.setAttribute("aria-label", label);
+  chevron.setAttribute("aria-expanded", String(!folder.collapsed));
+  chevron.innerHTML = icon("down");
+  chevron.addEventListener("click", onChevronClick);
+  return chevron;
+}
+
+function folderItem(folder) {
+  const item = document.createElement("div");
+  item.className = "browse-nav-folder-item";
+  item.style.setProperty("--folder-depth", String(folder.depth));
+  item.append(chevronEl(folder), folderButton(folder));
+  return item;
+}
+
+/** The tree's folders that show: none under a collapsed folder. */
+function shownFolders(tree) {
+  let hiddenBelow = Infinity;
+  return tree.filter((folder) => {
+    if (folder.depth > hiddenBelow) return false;
+    hiddenBelow = folder.collapsed && folder.hasChildren ? folder.depth : Infinity;
+    return true;
+  });
+}
+
 function folderButton(folder) {
   const dot = `<span class="folder-dot" style="background: ${folder.color}"></span>`;
   const btn = navButton(`${VIEW.FOLDER}:${folder.id}`, dot, folder.name, folderTrackIds(folder.id).length);
   btn.classList.add("browse-nav-folder");
   btn.dataset.folder = folder.id;
-  btn.style.setProperty("--folder-depth", String(folder.depth));
   btn.addEventListener("dblclick", function onFolderRowDoubleClick() {
     openFolderEditor(folder.id, RENAME_TITLE_KEY);
   });
@@ -102,7 +142,7 @@ export function drawBrowseNav() {
     groupHead(t("setlists.title"), "browseNewSetlist", t("setlists.new")),
     ...setlistButtons(),
     groupHead(t("lib.folders"), "browseNewFolder", t("library.newFolder")),
-    ...libraryFolderTree().map(folderButton),
+    ...shownFolders(libraryFolderTree()).map(folderItem),
     spacer,
     trashButton(),
   );

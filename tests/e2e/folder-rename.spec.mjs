@@ -265,7 +265,8 @@ test("the … menu's New subfolder adds a named folder inside this one", async (
 
   const child = page.locator("#browseNav .browse-nav-folder", { hasText: RENAMED_SUBFOLDER });
   await expect(child).toBeVisible();
-  expect(await child.evaluate((el) => el.style.getPropertyValue("--folder-depth"))).toBe("1");
+  const dotX = async (row) => (await row.locator(".folder-dot").boundingBox()).x;
+  expect(await dotX(child)).toBeGreaterThan(await dotX(headOf(page, REHEARSAL.id)));
   const state = await readCatalogState(page);
   expect(state.folders.find((f) => f.name === RENAMED_SUBFOLDER)?.parentId).toBe(REHEARSAL.id);
 });

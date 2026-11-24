@@ -1875,7 +1875,18 @@ function folderEntry(folder, depth) {
     color: normalizeFolderColor(folder.color),
     depth,
     system: isSystemFolder(folder.id),
+    collapsed: Boolean(folder.collapsed),
+    hasChildren: childFoldersOf(folder.id).length > 0,
   };
+}
+
+/** Fold or unfold a folder's subfolders in the folder tree; remembered with the library. */
+export function setFolderCollapsed(folderId, collapsed) {
+  const folder = folders.find((f) => f.id === folderId);
+  if (!folder || folder.collapsed === collapsed) return;
+  folder.collapsed = collapsed;
+  saveState();
+  render();
 }
 
 /** Every folder but the Trash, in the tree's order, each with its nesting depth. */
@@ -2458,6 +2469,7 @@ function onReplacementFilePicked(e) {
 function addSubfolder(folder) {
   const child = makeFolder({ parentId: folder.id });
   folders.push(child);
+  folder.collapsed = false;
   saveState();
   render();
   openFolderEditor(child.id, NEW_SUBFOLDER_TITLE_KEY);
