@@ -6,6 +6,7 @@
   width: 100%;
   min-width: 0;
   padding: var(--s-2) 0;
+  container-type: inline-size;
 }
 
 .my-part-pick {
@@ -69,6 +70,11 @@
 .my-part-choice:hover:not(:disabled) { color: var(--text); }
 .my-part-choice.is-on { background: var(--surface-3); color: var(--text); }
 .my-part-choice:disabled { opacity: var(--disabled-opacity); cursor: default; }
+
+/* A narrow stem column (the resizer's low end) still fits all three labels. */
+@container (max-width: 240px) {
+  .my-part-choice { padding: 0; font-size: var(--fs-xs); }
+}
 
 .my-part-tag { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stage-mixer .my-part { padding: 0; }
