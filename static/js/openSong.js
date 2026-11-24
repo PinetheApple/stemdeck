@@ -14,6 +14,7 @@ import { REC_PHASE, recordingTake } from "./recorder.js";
 import { openVersion } from "./versions.js";
 import { cancelPlayWhenLoaded, loadAndPlay, playWhenLoaded, upNextTakesOver } from "./upNext.js";
 import { setPlayRedirect, togglePlayPause, transport } from "./transport.js";
+import { isStageMode } from "./stageMode.js";
 import { $ } from "./utils.js";
 
 // The song whose engine said "playbackready" last, so Play can start it at once.
@@ -63,7 +64,7 @@ export async function playVersion(trackId, versionId) {
 
 function playShownSongInstead() {
   const shown = shownTrackId();
-  if (!shown || isPlaying()) return false;
+  if (!shown || isPlaying() || isStageMode()) return false;
   playSong(shown);
   return true;
 }
