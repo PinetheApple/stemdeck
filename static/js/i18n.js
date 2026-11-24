@@ -1735,6 +1735,8 @@ const en = {
   "studio.help.loopOptions": "The exact loop start and end. Type a time, or scroll over the numbers.",
   "studio.help.keyValue": "How far every lane is moved from the original key. Click for Reset; double-click to put every lane back.",
   "studio.help.countIn": "Bars of click before the song starts when you press play: off, or 1 to 4.",
+  "panel.more": "More",
+  "panel.moreTitle": "More song tools: {tabs}",
 };
 
 const pl = {
@@ -3263,6 +3265,8 @@ const pl = {
   "studio.help.loopOptions": "Dokładny początek i koniec pętli. Wpisz czas albo przewiń nad liczbami.",
   "studio.help.keyValue": "O ile wszystkie ścieżki są przesunięte względem oryginalnej tonacji. Kliknij, aby zresetować; kliknij dwukrotnie, aby przywrócić wszystkie ścieżki.",
   "studio.help.countIn": "Takty metronomu przed startem utworu po naciśnięciu odtwarzania: wyłączone albo od 1 do 4.",
+  "panel.more": "Więcej",
+  "panel.moreTitle": "Więcej narzędzi utworu: {tabs}",
 };
 
 const ja = {
@@ -4728,6 +4732,8 @@ const ja = {
   "studio.help.loopOptions": "ループの正確な開始と終了。時間を入力するか、数字の上でスクロールします。",
   "studio.help.keyValue": "すべてのトラックを元のキーからどれだけ動かしているか。クリックでリセット、ダブルクリックですべて元に戻します。",
   "studio.help.countIn": "再生を押してから曲が始まるまでのクリックの小節数。オフ、または 1〜4。",
+  "panel.more": "その他",
+  "panel.moreTitle": "その他の曲のツール: {tabs}",
 };
 
 const zhHans = {
@@ -6193,6 +6199,8 @@ const zhHans = {
   "studio.help.loopOptions": "循环的精确起点和终点。输入时间，或在数字上滚动。",
   "studio.help.keyValue": "所有音轨相对原调移动了多少。单击可重置；双击将所有音轨恢复原调。",
   "studio.help.countIn": "按下播放后歌曲开始前的节拍器小节数：关闭，或 1 到 4。",
+  "panel.more": "更多",
+  "panel.moreTitle": "更多歌曲工具：{tabs}",
 };
 
 const de = {
@@ -7687,6 +7695,8 @@ const de = {
   "studio.help.loopOptions": "Genauer Anfang und genaues Ende des Loops. Zeit eingeben oder über den Zahlen scrollen.",
   "studio.help.keyValue": "Wie weit alle Spuren von der Originaltonart verschoben sind. Klicken zum Zurücksetzen; Doppelklick setzt alle Spuren zurück.",
   "studio.help.countIn": "Takte Click, bevor der Song nach Play beginnt: aus oder 1 bis 4.",
+  "panel.more": "Mehr",
+  "panel.moreTitle": "Weitere Song-Werkzeuge: {tabs}",
 };
 
 const pt = {
@@ -9183,6 +9193,8 @@ const pt = {
   "studio.help.loopOptions": "O início e o fim exatos do loop. Digite um tempo ou role sobre os números.",
   "studio.help.keyValue": "Quanto todas as faixas foram deslocadas do tom original. Clique para redefinir; clique duas vezes para retornar todas as faixas.",
   "studio.help.countIn": "Compassos de clique antes de a música começar quando você aperta play: desligado ou de 1 a 4.",
+  "panel.more": "Mais",
+  "panel.moreTitle": "Mais ferramentas da música: {tabs}",
 };
 
 const id = {
@@ -10648,6 +10660,8 @@ const id = {
   "studio.help.loopOptions": "Awal dan akhir loop yang tepat. Ketik waktu, atau gulir di atas angkanya.",
   "studio.help.keyValue": "Seberapa jauh semua trek digeser dari nada aslinya. Klik untuk mengatur ulang; klik dua kali untuk mengembalikan semua trek.",
   "studio.help.countIn": "Birama klik sebelum lagu dimulai saat Anda menekan putar: mati, atau 1 sampai 4.",
+  "panel.more": "Lainnya",
+  "panel.moreTitle": "Alat lagu lainnya: {tabs}",
 };
 
 const fr = {
@@ -12144,6 +12158,8 @@ const fr = {
   "studio.help.loopOptions": "Le début et la fin exacts de la boucle. Saisissez un temps ou faites défiler sur les chiffres.",
   "studio.help.keyValue": "De combien toutes les pistes sont décalées par rapport à la tonalité d'origine. Cliquez pour réinitialiser ; double-cliquez pour tout remettre.",
   "studio.help.countIn": "Mesures de métronome avant le début du morceau quand vous lancez la lecture : désactivé, ou de 1 à 4.",
+  "panel.more": "Plus",
+  "panel.moreTitle": "Autres outils du morceau : {tabs}",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -14070,6 +14086,8 @@ const es = {
   "studio.help.loopOptions": "El inicio y el final exactos del bucle. Escribe un tiempo o desplaza la rueda sobre los números.",
   "studio.help.keyValue": "Cuánto se han movido todas las pistas respecto al tono original. Haz clic para restablecer; doble clic para devolver todas las pistas.",
   "studio.help.countIn": "Compases de click antes de que empiece la canción al pulsar reproducir: desactivado o de 1 a 4.",
+  "panel.more": "Más",
+  "panel.moreTitle": "Más herramientas de la canción: {tabs}",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -15544,6 +15562,8 @@ const ko = {
   "studio.help.loopOptions": "루프의 정확한 시작과 끝이에요. 시간을 입력하거나 숫자 위에서 스크롤하세요.",
   "studio.help.keyValue": "모든 트랙을 원래 키에서 얼마나 옮겼는지예요. 클릭하면 초기화, 두 번 클릭하면 모든 트랙을 되돌려요.",
   "studio.help.countIn": "재생을 누른 뒤 곡이 시작되기 전 클릭 마디 수예요: 끄기 또는 1~4.",
+  "panel.more": "더 보기",
+  "panel.moreTitle": "곡 도구 더 보기: {tabs}",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };

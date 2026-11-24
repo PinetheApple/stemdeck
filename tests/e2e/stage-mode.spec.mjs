@@ -15,6 +15,7 @@ import {
   LYRICS_REMOVED,
   answerLyricsChoice,
   openSpeedOptions,
+  openInspectorTab,
 } from "./helpers.mjs";
 import { dblclickFrozen } from "./saveRaces.mjs";
 
@@ -364,7 +365,7 @@ test.describe("stage mode lyrics", () => {
     await page.route("**/lyrics/user-synced", (route) => route.fulfill({ status: 200, json: {} }));
     const plain = { ...lyricsOf("Fixture Song", "", "Plain one\nPlain two"), source: "user" };
     await setUp(page, { lyrics: { [JOB_ID]: plain } });
-    await page.locator("#songToolsLyricsBtn").click();
+    await openInspectorTab(page, "lyrics");
     await page.locator(".lyrics-sync-toggle").click();
     await expect(page.locator("#lyricsSync")).toBeVisible();
     await enterStage(page);
@@ -396,7 +397,7 @@ test.describe("stage mode lyrics", () => {
   test("repaint while paused when the Align offset moves them", async ({ page }) => {
     await page.route("**/lyrics/offset", (route) => route.fulfill({ status: 200, json: {} }));
     await setUp(page, { lyrics: { [JOB_ID]: lyricsOf("Fixture Song", "[00:01.00] Line one\n[00:03.00] Line three") } });
-    await page.locator("#songToolsLyricsBtn").click();
+    await openInspectorTab(page, "lyrics");
     await page.locator(".lyrics-align-toggle").click();
     await enterStage(page);
     await seekShows(page, 1.2, ui(page).lyric, "Line one");
@@ -409,7 +410,7 @@ test.describe("stage mode lyrics", () => {
   test("repaint while paused when Sync lines moves them", async ({ page }) => {
     await page.route("**/lyrics/user-synced", (route) => route.fulfill({ status: 200, json: {} }));
     await setUp(page, { lyrics: { [JOB_ID]: lyricsOf("Fixture Song", "[00:01.00] Line one\n[00:03.00] Line three") } });
-    await page.locator("#songToolsLyricsBtn").click();
+    await openInspectorTab(page, "lyrics");
     await page.locator(".lyrics-sync-toggle").click();
     await enterStage(page);
     await seekShows(page, 1.2, ui(page).lyric, "Line one");
@@ -494,7 +495,7 @@ test.describe("stage mode and the Lyrics tab's load", () => {
     await expect(ui(page).next).toHaveText("Other one");
     await page.locator("#stageExitBtn").click();
 
-    await page.locator("#songToolsLyricsBtn").click();
+    await openInspectorTab(page, "lyrics");
     await expect(page.locator(".lyrics-line")).toHaveText(["Other one"]);
     await expect(page.locator(".lyrics-match-title")).toHaveText("Other Song");
     expect(errors).toEqual([]);
@@ -568,7 +569,7 @@ test.describe("stage mode and the Lyrics tab's load", () => {
   test("a version picked in the visible tab is saved to its track", async ({ page }) => {
     const live = { ...lyricsOf("Fixture Song", "", "Live words"), album: "Live", lrclib_id: 2 };
     const { choices } = await setUp(page, { lyrics: { [JOB_ID]: { ...SERVER_LYRICS, others: [live] } } });
-    await page.locator("#songToolsLyricsBtn").click();
+    await openInspectorTab(page, "lyrics");
     await page.locator(".lyrics-versions-toggle").click();
     await page.locator(".lyrics-version", { hasText: "Live" }).click();
 

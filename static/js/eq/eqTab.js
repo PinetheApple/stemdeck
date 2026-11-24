@@ -3,6 +3,7 @@ import { $ } from "../utils.js";
 import { STEM_COLORS, STEM_DISPLAY } from "../constants.js";
 import { MASTER_LANE } from "../eqEngine.js";
 import { openInspectorTab } from "../inspector.js";
+import { TOOLS_HIDDEN_CLASS, isToolsAutoHidden } from "../shellEdges.js";
 import { PLAYBACK_READY_EVENT } from "../player.js";
 import { laneHasPanel } from "./eqPanelKinds.js";
 import { EqLaneView } from "./eqLaneView.js";
@@ -14,7 +15,6 @@ import { initMasterExportRow, refreshMasterExportRow } from "./masterExportRow.j
 const SCOPE = Object.freeze({ lane: "lane", master: "master" });
 const EQ_TAB = "eq";
 const EDITING_CLASS = "eq-editing";
-const INSPECTOR_HIDDEN_CLASS = "inspector-hidden";
 const SCOPE_KEY_STEPS = Object.freeze({ ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 });
 const SCOPE_ORDER = Object.freeze([SCOPE.lane, SCOPE.master]);
 const scopeButton = (scope) => $(scope === SCOPE.lane ? "eqScopeLane" : "eqScopeMaster");
@@ -40,7 +40,7 @@ function pickLane() {
   if (!lanes.includes(tab.lane)) tab.lane = lanes[0] ?? null;
 }
 
-const isShown = () => !pane.hidden && !app?.classList.contains(INSPECTOR_HIDDEN_CLASS);
+const isShown = () => !pane.hidden && !app?.classList.contains(TOOLS_HIDDEN_CLASS) && !isToolsAutoHidden();
 
 function renderScope() {
   const lane = tab.lane;

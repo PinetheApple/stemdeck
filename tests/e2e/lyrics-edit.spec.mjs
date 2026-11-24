@@ -12,6 +12,7 @@ import {
   stubUpdateCheck,
   answerLyricsChoice,
   LYRICS_REMOVED,
+  openInspectorTab,
 } from "./helpers.mjs";
 
 const WIKIMEDIA = /^https:\/\/((www|query)\.wikidata\.org|[a-z-]+\.wikipedia\.org)\//;
@@ -110,13 +111,13 @@ async function openLyrics(page) {
   // A click opens the song paused; a double-click would also start it.
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
-  await page.locator("#songToolsLyricsBtn").click();
+  await openInspectorTab(page, "lyrics");
 }
 
 async function openTrackFromLibrary(page, id) {
   await page.locator(".lib-nav-library").click();
   await page.locator(`.cat-item[data-id="${id}"]`).first().dblclick();
-  await page.locator("#songToolsLyricsBtn").click();
+  await openInspectorTab(page, "lyrics");
 }
 
 const editLink = (page) => page.locator(".lyrics-edit-open");
@@ -319,7 +320,7 @@ test.describe("the app's keys while editing", () => {
     await expect(editor(page)).toBeVisible();
     await page.locator(".lib-nav-library").click();
     await expect(page.locator(`.cat-item[data-id="${JOB_ID}"]`).first()).toBeVisible();
-    await page.locator("#songToolsLyricsBtn").click();
+    await openInspectorTab(page, "lyrics");
     await rowAction(page, 0, "Delete this line").focus();
     await page.keyboard.press("Space");
     await expect(page.locator(".lyrics-edit-input")).toHaveCount(2);
@@ -495,7 +496,7 @@ test.describe("the user's lyrics come first", () => {
     await expect(shownText(page)).toHaveText(["Mine one", "Mine two"]);
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
-    await page.locator("#songToolsLyricsBtn").click();
+    await openInspectorTab(page, "lyrics");
     await expect(shownText(page)).toHaveText(["Mine one", "Mine two"]);
     expect(await stored(page)).toBeNull();
   });

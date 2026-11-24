@@ -1,7 +1,7 @@
 // Ctrl+K and ⌘K reach the library search; plain K stays the click track.
 
 import { test, expect } from "@playwright/test";
-import { openStudio, waitForClickTrack, openLoopOptions } from "./helpers.mjs";
+import { openInspectorTab, openLoopOptions, openStudio, waitForClickTrack } from "./helpers.mjs";
 
 const search = (page) => page.locator("#catalogSearch");
 const clickToggle = (page) => page.locator("#t-metro");
@@ -73,15 +73,14 @@ test.describe("library search shortcut", () => {
     await expect(app(page)).toHaveClass(/cat-collapsed/);
   });
 
-  test("Ctrl+K leaves the Lyrics view for the library and focuses the search", async ({ page }) => {
+  test("Ctrl+K focuses the search beside the Lyrics tab, which stays open", async ({ page }) => {
     await openTrackView(page);
-    await page.locator("#songToolsLyricsBtn").click();
-    await expect(page.locator(".sidebar")).toHaveClass(/lyrics-view/);
+    await openInspectorTab(page, "lyrics");
     await blurFocus(page);
 
     await page.keyboard.press("Control+K");
-    await expect(page.locator(".sidebar")).not.toHaveClass(/lyrics-view/);
     await expect(search(page)).toBeFocused();
+    await expect(page.locator("#lyricsPanel")).toBeVisible();
   });
 
   test("Ctrl+K does nothing in Stage mode", async ({ page }) => {

@@ -19,6 +19,7 @@ import {
   stubAudioTags,
   stubExportEndpoints,
   stubUpdateCheck,
+  openInspectorTab,
 } from "./helpers.mjs";
 
 const LRCLIB = /^https:\/\/lrclib\.net\//;
@@ -135,7 +136,7 @@ async function openLyrics(page) {
   // A click opens the song paused; a double-click would also start it.
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
-  await page.locator("#songToolsLyricsBtn").click();
+  await openInspectorTab(page, "lyrics");
   await expect(page.locator(".lyrics-line, .lyrics-text").first()).toBeVisible();
 }
 

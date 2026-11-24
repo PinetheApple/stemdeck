@@ -1,17 +1,40 @@
-// Inspector tab switching; the modules that own each tab fill it.
+// The song tools' tab switching; the modules that own each tab fill it.
 
 import { $, storeGet, storeSet } from "./utils.js";
+import { TOOLS_HIDDEN_CLASS, isToolsAutoHidden } from "./shellEdges.js";
+import { fitInspectorTabs, initInspectorMore } from "./inspectorMore.js";
 
 const TAB_STORE_KEY = "stemdeck.inspector.tab";
-const DEFAULT_TAB = "tempo";
+const DEFAULT_TAB = "lyrics";
 const HIDDEN_STORE_KEY = "stemdeck.inspector.hidden";
-const HIDDEN_CLASS = "inspector-hidden";
 const HIDDEN_STORED = "1";
 const SHOWN_STORED = "0";
+const TAB_SELECTOR = ".inspector-tab[data-tab]";
+const TAB_KEY_STEPS = Object.freeze({ ArrowRight: 1, ArrowLeft: -1 });
+/** Fired on document with { tab }: the tab now on screen, or null while the song tools are hidden. */
+export const INSPECTOR_TAB_SHOWN_EVENT = "inspectortabshown";
 
-const tabs = () => [...document.querySelectorAll(".inspector-tab[data-tab]")];
+let announcedTab;
 
-/** Show one tab's pane and hide the others. Unknown names fall back to Tempo. */
+const app = () => document.querySelector(".app");
+const tabs = () => [...document.querySelectorAll(TAB_SELECTOR)];
+const selectedTab = () => tabs().find((tab) => tab.getAttribute("aria-selected") === "true") ?? null;
+const isHiddenByUser = () => Boolean(app()?.classList.contains(TOOLS_HIDDEN_CLASS));
+
+/** The tab on screen, or null while the song tools are hidden or stepped aside. */
+export function shownInspectorTab() {
+  if (isHiddenByUser() || isToolsAutoHidden()) return null;
+  return selectedTab()?.dataset.tab ?? null;
+}
+
+function announceShownTab() {
+  const tab = shownInspectorTab();
+  if (tab === announcedTab) return;
+  announcedTab = tab;
+  document.dispatchEvent(new CustomEvent(INSPECTOR_TAB_SHOWN_EVENT, { detail: { tab } }));
+}
+
+/** Show one tab's pane and hide the others. Unknown names fall back to Lyrics. */
 function showInspectorTab(name) {
   const all = tabs();
   const target = all.find((tab) => tab.dataset.tab === name) ?? all.find((tab) => tab.dataset.tab === DEFAULT_TAB);
@@ -23,38 +46,44 @@ function showInspectorTab(name) {
     const pane = $(tab.getAttribute("aria-controls"));
     if (pane) pane.hidden = !selected;
   }
+  fitInspectorTabs();
+  announceShownTab();
   return target;
 }
 
 function chooseInspectorTab(name) {
   const shown = showInspectorTab(name);
   if (shown) storeSet(TAB_STORE_KEY, shown.dataset.tab);
+  return shown;
 }
 
 function onTabClick(e) {
-  const tab = e.target.closest(".inspector-tab[data-tab]");
+  const tab = e.target.closest(TAB_SELECTOR);
   if (tab) chooseInspectorTab(tab.dataset.tab);
 }
 
 function onTabKeydown(e) {
-  const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+  const step = TAB_KEY_STEPS[e.key];
   if (!step) return;
   const all = tabs();
   const at = all.indexOf(document.activeElement);
   if (at < 0) return;
   e.preventDefault();
-  const next = all[(at + step + all.length) % all.length];
-  chooseInspectorTab(next.dataset.tab);
-  next.focus();
+  chooseInspectorTab(all[(at + step + all.length) % all.length].dataset.tab)?.focus();
 }
 
 async function restoreInspectorTab() {
-  showInspectorTab(await storeGet(TAB_STORE_KEY, DEFAULT_TAB));
+  let name = DEFAULT_TAB;
+  try {
+    name = await storeGet(TAB_STORE_KEY, DEFAULT_TAB);
+  } catch (e) {
+    console.warn("[inspector] could not read the last tab:", e);
+  }
+  showInspectorTab(name);
 }
 
 function setInspectorHidden(hidden) {
-  document.querySelector(".app")?.classList.toggle(HIDDEN_CLASS, hidden);
-  $("inspectorToggleBtn")?.setAttribute("aria-expanded", String(!hidden));
+  app()?.classList.toggle(TOOLS_HIDDEN_CLASS, hidden);
 }
 
 function saveInspectorHidden(hidden) {
@@ -74,17 +103,22 @@ function readInspectorHidden() {
   }
 }
 
-/** Show a tab from elsewhere in the app, unhiding the inspector. */
+/** Show a tab from elsewhere in the app (a lane's EQ, the footer's Up Next), unhiding the song tools. */
 export function openInspectorTab(name) {
   setInspectorHidden(false);
   saveInspectorHidden(false);
-  chooseInspectorTab(name);
+  return chooseInspectorTab(name);
 }
 
-function onInspectorToggleClick(e) {
-  const hidden = e.currentTarget.getAttribute("aria-expanded") === "true";
+function onInspectorToggleClick() {
+  const hidden = !isHiddenByUser();
   setInspectorHidden(hidden);
   saveInspectorHidden(hidden);
+}
+
+function watchShownTab() {
+  const root = app();
+  if (root) new MutationObserver(announceShownTab).observe(root, { attributes: true, attributeFilter: ["class"] });
 }
 
 export function initInspector() {
@@ -94,6 +128,7 @@ export function initInspector() {
   tablist.addEventListener("click", onTabClick);
   tablist.addEventListener("keydown", onTabKeydown);
   $("inspectorToggleBtn")?.addEventListener("click", onInspectorToggleClick);
-  showInspectorTab(DEFAULT_TAB);
-  restoreInspectorTab().catch(console.error);
+  initInspectorMore({ choose: chooseInspectorTab });
+  watchShownTab();
+  restoreInspectorTab();
 }

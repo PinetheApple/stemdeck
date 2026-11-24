@@ -82,10 +82,12 @@ import { editableRows, plainTexts, plainTimedLines, untimedRows } from "./lyrics
 import { toolButton, setToolLabel, keepOnePrimary, TOOL_QUIET } from "./lyricsToolbar.js";
 import { initLyricsTranscribe, checkTranscribe, resetTranscribe } from "./lyricsTranscribe.js";
 import { RUN_STATE } from "./lyricsRunState.js";
+import { INSPECTOR_TAB_SHOWN_EVENT } from "./inspector.js";
 import { FOLDER_MOVING_KEY, refusalKey, refusedForFolderMove } from "./folderMoving.js";
 
 // Set once every lyrics entry this browser kept is on the server (lyricsCarryOver.js).
 const CARRIED_OVER_KEY = "stemdeck.lyrics_carried_over";
+const LYRICS_TAB = "lyrics";
 const LYRICS_FAILURE_KIND = "lyrics";
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -1808,9 +1810,10 @@ function fillWords(index, now) {
 }
 
 function setVisible(on) {
+  if (on === visible) return;
   visible = on;
-  // Sync lines works with the list in view; another view of the sidebar
-  // leaves it, and what it set is saved.
+  // Sync lines works with the lines in view; another tab or hiding the song
+  // tools leaves it, and what it set is saved.
   if (!on) closeSync(false);
   if (on) {
     loadForCurrentTrack();
@@ -1819,6 +1822,10 @@ function setVisible(on) {
     cancelAnimationFrame(frame);
     frame = 0;
   }
+}
+
+function onInspectorTabShown(e) {
+  setVisible(e.detail?.tab === LYRICS_TAB);
 }
 
 // A renamed song was looked up again (catalog.js), so what this session found is stale.
@@ -1872,7 +1879,7 @@ export function initLyrics() {
   });
   // Capture, on the window: ahead of the app's own keys (see onSyncKey).
   window.addEventListener("keydown", onSyncKey, true);
-  document.addEventListener("catalogviewchange", (e) => setVisible(e.detail?.view === "lyrics"));
+  document.addEventListener(INSPECTOR_TAB_SHOWN_EVENT, onInspectorTabShown);
   document.addEventListener("tracktags", (e) => {
     if (visible && nothingKnownFor && e.detail?.id === nothingKnownFor) loadForCurrentTrack();
   });

@@ -20,6 +20,7 @@ import {
   stubUpdateCheck,
   LYRICS_LOOKUP,
   answerLyricsChoice,
+  openInspectorTab,
 } from "./helpers.mjs";
 
 const WIKIMEDIA = /^https:\/\/((www|query)\.wikidata\.org|[a-z-]+\.wikipedia\.org)\//;
@@ -95,7 +96,7 @@ async function setUp(page, { server = SERVER } = {}) {
   await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
-  await page.locator("#songToolsLyricsBtn").click();
+  await openInspectorTab(page, "lyrics");
   return { lrclib, served, choices };
 }
 
@@ -146,7 +147,7 @@ test.describe("lyrics from the server", () => {
     // The server serves it from then on.
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
-    await page.locator("#songToolsLyricsBtn").click();
+    await openInspectorTab(page, "lyrics");
     await expect(page.locator(".lyrics-text").first()).toHaveText("Live words");
     expect(lrclib).toEqual([]);
   });

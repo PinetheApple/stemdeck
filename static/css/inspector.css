@@ -1,4 +1,4 @@
-/* The inspector: tabbed pane beside the lanes (Tempo, Up Next, Details). */
+/* The song tools: tabbed panel beside the lanes. Its tab row is inspector-tabs.css. */
 
 .daw.inspector-hidden .inspector { display: none; }
 .daw.stage-mode .inspector-toggle { display: none; }
@@ -19,44 +19,6 @@
   background: var(--surface-1);
   border-left: 1px solid var(--line);
 }
-.inspector-tabs {
-  display: flex;
-  gap: 2px;
-  padding: var(--s-2);
-  border-bottom: 1px solid var(--line);
-}
-.inspector-tab {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: var(--ctl-h);
-  padding: 0 6px;
-  border: 0;
-  border-radius: var(--r-2);
-  background: none;
-  color: var(--text-3);
-  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background var(--t-fast), color var(--t-fast);
-}
-.inspector-tab > span:not(.inspector-count) { overflow: hidden; text-overflow: ellipsis; }
-.inspector-tab:hover { background: var(--surface-2); color: var(--text); }
-.inspector-tab[aria-selected="true"] { background: var(--surface-3); color: var(--text); }
-.inspector-count {
-  padding: 2px 6px;
-  border-radius: var(--r-pill);
-  background: var(--surface-3);
-  color: var(--text-2);
-  font-size: var(--fs-2xs);
-}
-@container (max-width: 300px) {
-  .inspector-tab .ic { display: none; }
-}
-.inspector-tab[aria-selected="true"] .inspector-count { background: var(--accent); color: var(--accent-ink); }
 .inspector-pane {
   --inspector-pane-pad: var(--s-4);
   flex: 1;
@@ -96,6 +58,17 @@
   }
 }
 .inspector-pane[hidden] { display: none; }
+
+/* Lyrics tab: the lines scroll on their own, so the sung one can be kept in view */
+.lyrics-pane { overflow: hidden; }
+.lyrics-pane .lyrics-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.lyrics-pane .lyrics-panel.lyrics-editing :is(.lyrics-versions, .lyrics-body) { display: none; }
 .inspector-card {
   display: flex;
   flex-direction: column;

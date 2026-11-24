@@ -18,6 +18,7 @@ import {
   stubExportEndpoints,
   stubUpdateCheck,
   LYRICS_LOOKUP,
+  openInspectorTab,
 } from "./helpers.mjs";
 
 // Wide enough for the now-playing card, which the bar hides below 1460px.
@@ -321,7 +322,7 @@ test.describe("tags for tracks imported before they were read", () => {
     await stubAudioTags(page, TAGS, { hold });
     await openStudio(page);
     await openTrack(page);
-    await page.locator("#songToolsLyricsBtn").click();
+    await openInspectorTab(page, "lyrics");
     await expect(page.locator("#lyricsStatus")).toContainText("no artist or song tags");
     expect(lrclib).toEqual([]);
 
