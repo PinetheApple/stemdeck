@@ -18,6 +18,8 @@ import {
   openComposer,
   waitForPanesSettled,
   TALL_WINDOW,
+  openBrowse,
+  browseRow,
 } from "./helpers.mjs";
 
 const MIN_TARGET_PX = 24;
@@ -29,14 +31,14 @@ async function openApp(page, { updateAvailable = false, seed = seedLibrary } = {
   await stubExportEndpoints(page);
   await stubUpdateCheck(page, { available: updateAvailable });
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(`.cat-item[data-id="${JOB_ID}"]`)).toBeVisible();
+  await expect(page.locator("#catalogList .cat-item").first()).toBeVisible();
 }
 
 async function openLongQueue(page) {
   await stubLongQueue(page);
   await openApp(page);
   await page.evaluate(() => import("/js/queue.js").then((m) => m.refreshQueue()));
-  await page.locator(".lib-nav-queue").click();
+  await openBrowse(page, "queue");
   await expect(page.locator(".queue-top").first()).toBeAttached();
 }
 
@@ -95,13 +97,15 @@ test.describe("dialogs and Esc", () => {
 
   test("the folder editor closes on Esc and hands focus back to the folder", async ({ page }) => {
     await openApp(page, { seed: seedFolderAndStoppedSong });
-    const head = page.locator(`.folder[data-id="${USER_FOLDER_ID}"] > .folder-head`);
-    await head.dblclick();
+    await openBrowse(page);
+    const row = page.locator(`#browseNav .browse-nav-folder[data-folder="${USER_FOLDER_ID}"]`);
+    await row.dblclick();
     await expect(page.locator(".folder-editor-name")).toBeFocused();
 
     await page.keyboard.press(KEY.ESCAPE);
     await expect(page.locator(".folder-editor")).toHaveCount(0);
-    await expect(page.locator(`.folder[data-id="${USER_FOLDER_ID}"] > .folder-head`)).toBeFocused();
+    await expect(page.locator("#browseLibrary")).toBeVisible();
+    await expect(row).toBeFocused();
   });
 });
 
@@ -210,22 +214,23 @@ function seedFolderAndStoppedSong(page) {
 test.describe("target sizes", () => {
   test("row, folder, transpose and About buttons are at least 24 px", async ({ page }) => {
     await openApp(page, { seed: seedFolderAndStoppedSong });
-    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).hover();
-    await expect(page.locator(".cat-item .cat-extract")).toBeVisible();
+    expect(await smallTargets(page, ["#t-pitch-down", "#t-pitch-up", "#t-key-btn"])).toEqual(ALL_TARGETS_MET);
+    await openBrowse(page, `folder:${USER_FOLDER_ID}`);
+    expect(await smallTargets(page, ["#browseNewFolder", ".browse-folder-more"])).toEqual(ALL_TARGETS_MET);
+    await openBrowse(page);
+    await page.locator("#browseListBtn").click();
+    await browseRow(page, SIBLING_JOB_ID).hover();
+    await expect(page.locator("#browseResults .cat-item .cat-extract")).toBeVisible();
     expect(
       await smallTargets(page, [
-        "#newFolderBtn",
-        ".folder-head .f-more",
-        ".cat-item .cat-extract",
-        ".cat-item .cat-upnext",
-        ".cat-item .cat-more",
-        ".cat-item .cat-fav",
-        ".cat-item .cat-del",
-        "#t-pitch-down",
-        "#t-pitch-up",
-        "#t-key-btn",
+        "#browseResults .cat-item .cat-extract",
+        "#browseResults .cat-item .cat-upnext",
+        "#browseResults .cat-item .cat-more",
+        "#browseResults .cat-item .cat-fav",
+        "#browseResults .cat-item .cat-del",
       ]),
     ).toEqual(ALL_TARGETS_MET);
+    await page.keyboard.press(KEY.ESCAPE);
 
     await page.locator("#aboutBtn").click();
     expect(await smallTargets(page, [".library-editor-close", ".about-social-btn"])).toEqual(ALL_TARGETS_MET);

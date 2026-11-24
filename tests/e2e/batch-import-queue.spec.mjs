@@ -1,7 +1,7 @@
 // The queue view's summary of a batch: its failed items, Retry failed, and what
 // stays shown once the queue drains. Preview, imports and queue are stubbed.
 import { test, expect } from "@playwright/test";
-import { KEY, openComposer, uiText } from "./helpers.mjs";
+import { KEY, openBrowse, openComposer, uiText } from "./helpers.mjs";
 import {
   HTTP_FULL, LINE, PASTE, TICKED_BY_DEFAULT, linkItem, openBar, paste, pasteList, preview, queueButton, review,
   stubImports, stubPreview,
@@ -50,7 +50,7 @@ async function queueWithFailure(page, { retryStatus = 200 } = {}) {
 
   const refresh = () => page.evaluate(async () => (await import("/js/queue.js")).refreshQueue());
   await refresh();
-  await page.locator(".lib-nav-queue").click();
+  await openBrowse(page, "queue");
   queue.queued = [WAITING_ID];
   await refresh();
   return { queue, refresh, retries };
@@ -163,7 +163,7 @@ test("Retry failed in the queue sends again what the queue did not take", async 
   await expect(review(page).locator(".batch-item-retry").first()).toBeVisible();
   await page.keyboard.press("Escape");
   await page.evaluate(async () => (await import("/js/queue.js")).refreshQueue());
-  await page.locator(".lib-nav-queue").click();
+  await openBrowse(page, "queue");
 
   const head = page.locator(".batch-head");
   await expect(head).toContainText(await uiText(page, "batch.notQueuedCount.other", { count: TICKED_BY_DEFAULT - 1 }));

@@ -3,7 +3,7 @@
 
 import { test, expect } from "@playwright/test";
 
-import { failureMessages, seedLibrary, stubUpdateCheck, uiText } from "./helpers.mjs";
+import { failureMessages, seedLibrary, stubUpdateCheck, uiText, JOB_ID } from "./helpers.mjs";
 
 const LIBRARY_KEY = "stemdeck.folders";
 
@@ -56,28 +56,28 @@ test.describe("a library the device could not save", () => {
     await seedLibrary(page);
     await stubUpdateCheck(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    const head = page.locator('.folder[data-id="f-unsorted"] > .folder-head');
-    await expect(head).toBeVisible();
-    const toggleFolder = async () => {
-      const collapsed = await page.locator('.folder[data-id="f-unsorted"]').getAttribute("class");
-      await head.click();
-      await expect(page.locator('.folder[data-id="f-unsorted"]')).not.toHaveAttribute("class", collapsed);
+    const heart = page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"] .cat-fav`).first();
+    await expect(heart).toBeAttached();
+    const toggleHeart = async () => {
+      const pressed = await heart.getAttribute("aria-pressed");
+      await heart.click({ force: true });
+      await expect(heart).not.toHaveAttribute("aria-pressed", pressed);
     };
     const clearFailures = () => page.evaluate(() => document.getElementById("notifClearAll").click());
 
     await page.evaluate(() => { window.__e2eStoreFull = true; });
-    await toggleFolder();
+    await toggleHeart();
     await expect.poll(() => failureMessages(page)).toEqual([await uiText(page, "notif.storageFull")]);
 
     await clearFailures();
-    await toggleFolder();
+    await toggleHeart();
     await page.waitForTimeout(300);
     expect(await failureMessages(page)).toEqual([]);
 
     await page.evaluate(() => { window.__e2eStoreFull = false; });
-    await toggleFolder();
+    await toggleHeart();
     await page.evaluate(() => { window.__e2eStoreFull = true; });
-    await toggleFolder();
+    await toggleHeart();
     await expect.poll(() => failureMessages(page)).toEqual([await uiText(page, "notif.storageFull")]);
   });
 });

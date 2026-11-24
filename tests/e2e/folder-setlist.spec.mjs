@@ -1,4 +1,5 @@
-// A folder's … menu makes a setlist of its songs, and a setlist's "Make a folder" makes a folder.
+// In Browse library, a folder's … menu makes a setlist of its songs, and a
+// setlist's "Make a folder" makes a folder; each then shows what it made.
 import { test, expect } from "@playwright/test";
 import { SETLIST_MAX_SONGS, SETLIST_NAME_MAX_CHARS } from "../../static/js/libraryControls.js";
 import { copySuffix } from "../../static/js/listNames.js";
@@ -8,6 +9,7 @@ import {
   SIBLING_TITLE,
   TRACK_TITLE,
   fixtureTrack,
+  openBrowse,
   readCatalogState,
   seedCatalogState,
   stubFavorites,
@@ -28,7 +30,7 @@ const GIG = "Gig #3";
 const GIG_AS_FOLDER = "Gig 3";
 const NOTHING_VALID = "#!?";
 const RENAMED = "Gig night";
-const MORE = ".f-more";
+const MORE = "#browseResults .browse-folder-more";
 const MENU = ".lib-menu";
 const ANNOUNCE = "#libraryAnnounce";
 const SETLISTS_PATH = "/api/setlists";
@@ -63,20 +65,18 @@ async function openLibrary(page, folders, { tracks = BOTH_TRACKS, trashed = [] }
   // Last, so its job list wins over the favorites stub's.
   await stubServerTrash(page, { trashed });
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator("#catalogList .folder").first()).toBeVisible();
+  await openBrowse(page);
+  await expect(page.locator("#browseNav .browse-nav-folder").first()).toBeVisible();
 }
 
-const headOf = (page, id) => page.locator(`#catalogList .folder[data-id="${id}"] > .folder-head`);
-const headNamed = (page, name) => page.locator("#catalogList .folder-head").filter({
-  has: page.locator(".f-name").getByText(name, { exact: true }),
+const viewTitle = (page) => page.locator("#browseResults .browse-head h2");
+const navNamed = (page, kind, name) => page.locator(`#browseNav .browse-nav-btn[data-view^="${kind}:"]`).filter({
+  has: page.locator(".browse-nav-label").getByText(name, { exact: true }),
 });
-const makeFolderButton = (page, setlistName) => page.locator(".setlist").filter({
-  has: page.locator(".setlist-name").getByText(setlistName, { exact: true }),
-}).locator(".setlist-make-folder");
 
 async function openFolderMenu(page, id) {
-  await headOf(page, id).hover();
-  await headOf(page, id).locator(MORE).click();
+  await openBrowse(page, `folder:${id}`);
+  await page.locator(MORE).click();
   const menu = page.locator(MENU);
   await expect(menu).toBeVisible();
   return menu;
@@ -87,14 +87,21 @@ async function makeSetlistItem(page, id) {
   return menu.getByRole("menuitem", { name: await uiText(page, "folder.makeSetlist"), exact: true });
 }
 
-async function makeFolderFrom(page, setlistName) {
-  await page.locator("#libTabSetlists").click();
-  await makeFolderButton(page, setlistName).click();
+/** The setlist's view in Browse library; its Make a folder button. */
+async function makeFolderButton(page, setlistName) {
+  await navNamed(page, "setlist", setlistName).click();
+  await expect(viewTitle(page)).toHaveText(setlistName);
+  return page.locator("#browseResults .browse-setlist-folder");
 }
 
-async function expectKeyboardFocus(locator) {
-  await expect(locator).toBeFocused();
-  expect(await locator.evaluate((el) => el.matches(":focus-visible"))).toBe(true);
+async function makeFolderFrom(page, setlistName) {
+  await (await makeFolderButton(page, setlistName)).click();
+}
+
+/** The folder made is shown: its view's title and its row in the nav. */
+async function expectFolderShown(page, name) {
+  await expect(viewTitle(page)).toHaveText(name);
+  await expect(navNamed(page, "folder", name)).toHaveAttribute("aria-current", "page");
 }
 
 async function storedFolders(page) {
@@ -113,9 +120,9 @@ test("a folder becomes a setlist: its songs, then its subfolders' at any depth, 
 
   await expect.poll(() => namesAndSongs(request)).toEqual([[REHEARSAL.name, [SIBLING_JOB_ID, JOB_ID]]]);
   const [{ id }] = await serverSetlists(request);
-  await expect(page.locator("#libTabSetlists")).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator(`.setlist[data-id="${id}"] .setlist-song`)).toHaveCount(2);
-  await expectKeyboardFocus(page.locator(`.setlist[data-id="${id}"] > .setlist-head`));
+  await expect(page.locator(`#browseNav [data-view="setlist:${id}"]`)).toHaveAttribute("aria-current", "page");
+  await expect(viewTitle(page)).toHaveText(REHEARSAL.name);
+  await expect(page.locator("#browseResults .setlist-song")).toHaveCount(2);
 
   const folders = await storedFolders(page);
   expect(folders.find((f) => f.id === REHEARSAL.id)?.items).toEqual([SIBLING_JOB_ID]);
@@ -136,7 +143,6 @@ test("a taken setlist name gets a number, trimmed to fit", async ({ page, reques
   await (await makeSetlistItem(page, REHEARSAL.id)).click();
   await expect.poll(() => lastSetlistName(request)).toBe(`${REHEARSAL.name}${copySuffix(3)}`);
 
-  await page.locator("#libTabSongs").click();
   await (await makeSetlistItem(page, LONG.id)).click();
   const suffix = copySuffix(2);
   await expect.poll(() => lastSetlistName(request)).toBe(`${"L".repeat(SETLIST_NAME_MAX_CHARS - suffix.length)}${suffix}`);
@@ -156,8 +162,8 @@ test("a name taken in another letter case counts as taken, for setlists and fold
   await (await makeSetlistItem(page, REHEARSAL.id)).click();
   await expect.poll(() => lastSetlistName(request)).toBe(`${REHEARSAL.name}${copySuffix(2)}`);
 
-  await makeFolderButton(page, RENAMED).click();
-  await expectKeyboardFocus(headNamed(page, `${RENAMED}${copySuffix(2)}`));
+  await makeFolderFrom(page, RENAMED);
+  await expectFolderShown(page, `${RENAMED}${copySuffix(2)}`);
 });
 
 test("a failed create says the save failed and makes nothing", async ({ page, request }) => {
@@ -172,9 +178,9 @@ test("a failed create says the save failed and makes nothing", async ({ page, re
   ]);
   await (await makeSetlistItem(page, REHEARSAL.id)).click();
 
-  await expect(page.locator("#libTabSetlists")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#setlistsError")).toHaveText(await uiText(page, "setlists.saveFailed"));
-  await expect(page.locator(".setlist")).toHaveCount(0);
+  await expect(page.locator('#browseNav [data-view^="setlist:"]')).toHaveCount(0);
+  await expect(page.locator("#sidebarSetlists .sidebar-setlist")).toHaveCount(0);
   expect(await serverSetlists(request)).toEqual([]);
 });
 
@@ -186,37 +192,38 @@ test("an empty folder or setlist cannot be converted, and Unsorted has no menu",
     { ...TRASH, items: [], color: null },
   ]);
   await expect(await makeSetlistItem(page, EMPTY.id)).toBeDisabled();
+  await expect(page.locator("#browseResults .browse-make-setlist")).toBeDisabled();
   await page.keyboard.press("Escape");
-  await expect(headOf(page, UNSORTED.id).locator(MORE)).toHaveCount(0);
+  await openBrowse(page, `folder:${UNSORTED.id}`);
+  await expect(page.locator(MORE)).toHaveCount(0);
+  await expect(page.locator("#browseResults .browse-make-setlist")).toHaveCount(0);
 
-  await page.locator("#libTabSetlists").click();
-  await expect(makeFolderButton(page, EMPTY.name)).toBeDisabled();
+  await expect(await makeFolderButton(page, EMPTY.name)).toBeDisabled();
   expect(await namesAndSongs(request)).toEqual([[EMPTY.name, []]]);
 });
 
-test("a folder with too many songs says so under its row, makes nothing, and the message goes once the folder changes", async ({ page, request }) => {
+test("a folder with too many songs says so under its title, makes nothing, and the message goes once the folder changes", async ({ page, request }) => {
   const ids = Array.from({ length: SETLIST_MAX_SONGS + 1 }, (_, i) => fakeSongId(i));
   const tracks = { ...BOTH_TRACKS };
   for (const id of ids) tracks[id] = fixtureTrack(id, `Song ${id}`);
   await openLibrary(page, [
     { ...UNSORTED, items: [JOB_ID, SIBLING_JOB_ID], color: null },
-    { ...REHEARSAL, items: ids, color: null, collapsed: true },
+    { ...REHEARSAL, items: ids, color: null },
     { ...TRASH, items: [], color: null },
   ], { tracks });
 
   await (await makeSetlistItem(page, REHEARSAL.id)).click();
-  const error = page.locator(`#catalogList .folder[data-id="${REHEARSAL.id}"] > .folder-error`);
+  const error = page.locator("#browseResults .folder-error");
   const message = await uiText(page, "folder.tooManyForSetlist", { max: SETLIST_MAX_SONGS });
   await expect(error).toHaveText(message);
   await expect(page.locator(ANNOUNCE)).toHaveText(message);
-  await expect(headOf(page, REHEARSAL.id)).toBeFocused();
-  await expect(page.locator("#libTabSongs")).toHaveAttribute("aria-selected", "true");
+  await expect(viewTitle(page)).toHaveText(REHEARSAL.name);
   expect(await serverSetlists(request)).toEqual([]);
 
-  await page.keyboard.press("F2");
+  await navNamed(page, "folder", REHEARSAL.name).dblclick();
   await page.locator(".folder-editor-name").fill(RENAMED);
   await page.keyboard.press("Enter");
-  await expect(headNamed(page, RENAMED)).toBeVisible();
+  await expect(viewTitle(page)).toHaveText(RENAMED);
   await expect(error).toHaveCount(0);
   await expect(page.locator(ANNOUNCE)).toHaveText("");
 });
@@ -230,16 +237,13 @@ test("a setlist becomes a folder: its songs move in setlist order, and the setli
   ]);
   await makeFolderFrom(page, GIG);
 
-  const head = headNamed(page, GIG_AS_FOLDER);
-  await expect(page.locator("#libTabSongs")).toHaveAttribute("aria-selected", "true");
-  await expectKeyboardFocus(head);
+  await expectFolderShown(page, GIG_AS_FOLDER);
   const folders = await storedFolders(page);
   const made = folders.find((f) => f.name === GIG_AS_FOLDER);
   expect(made.items).toEqual([SIBLING_JOB_ID, JOB_ID]);
-  expect(made.collapsed).toBe(false);
   expect(folders.find((f) => f.id === UNSORTED.id)?.items).toEqual([]);
   expect(folders.find((f) => f.id === REHEARSAL.id)?.items).toEqual([]);
-  await expect(page.locator(`#catalogList .folder[data-id="${made.id}"] .cat-item`)).toHaveCount(2);
+  await expect(page.locator("#browseResults .cat-item")).toHaveCount(2);
   expect(await namesAndSongs(request)).toEqual([[GIG, [SIBLING_JOB_ID, JOB_ID]]]);
 });
 
@@ -251,19 +255,19 @@ test("a trashed song stays in the Trash, a taken folder name gets a number, and 
     { ...REHEARSAL, items: [], color: null },
     { ...TRASH, items: [JOB_ID], color: null },
   ], { trashed: [JOB_ID] });
-  await page.locator("#libTabSetlists").click();
-  await expect(page.locator(`.setlist-song[data-id="${JOB_ID}"]`)).toHaveClass(/in-trash/);
-  await makeFolderButton(page, REHEARSAL.name).click();
+  const makeFolder = await makeFolderButton(page, REHEARSAL.name);
+  await expect(page.locator(`#browseResults .setlist-song[data-id="${JOB_ID}"]`)).toHaveClass(/in-trash/);
+  await makeFolder.click();
 
   const renamed = `${REHEARSAL.name}${copySuffix(2)}`;
-  await expectKeyboardFocus(headNamed(page, renamed));
+  await expectFolderShown(page, renamed);
   let folders = await storedFolders(page);
   expect(folders.find((f) => f.name === renamed)?.items).toEqual([SIBLING_JOB_ID]);
   expect(folders.find((f) => f.id === TRASH.id)?.items).toEqual([JOB_ID]);
 
   await makeFolderFrom(page, NOTHING_VALID);
   const fallback = await uiText(page, "library.newFolder");
-  await expectKeyboardFocus(headNamed(page, fallback));
+  await expectFolderShown(page, fallback);
   folders = await storedFolders(page);
   expect(folders.find((f) => f.name === fallback)?.items).toEqual([SIBLING_JOB_ID]);
 });

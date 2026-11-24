@@ -2,7 +2,7 @@
 // batch of files the server takes only some of, a playlist that skips tracks,
 // and a lost connection. Each names what was left out and why, in words.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, failureMessages, fixtureTrack, openStudio, uiText, openComposer } from "./helpers.mjs";
+import { JOB_ID, failureMessages, fixtureTrack, openStudio, uiText, openComposer, openBrowse } from "./helpers.mjs";
 
 const PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLe2eskips";
 const PLAYLIST_TITLE = "Skips";
@@ -138,7 +138,7 @@ test("a queue that will not start says so, and Start comes back", async ({ page 
   await page.route("**/api/queue/start", (route) => route.fulfill({ status: 500, json: { detail: "no" } }));
   await openStudio(page);
 
-  await page.locator(".lib-nav-queue").click();
+  await openBrowse(page, "queue");
   const start = page.locator(".queue-start-btn");
   await start.click();
 

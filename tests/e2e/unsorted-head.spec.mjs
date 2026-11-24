@@ -1,11 +1,9 @@
-// The Unsorted row in Stem Collections is a system folder: every new import
-// lands in it, it cannot be deleted, and it has nothing to reorder. It used to
-// carry a drag grip ("Drag to reorder") and its own New subfolder button, both
-// revealed by a hover highlight, while the Stem Collections header right above
-// already has New Folder (#695).
+// Unsorted is a system folder: every new import lands in it, it cannot be
+// deleted, and it has nothing to reorder. In Browse library its row cannot be
+// dragged and its view offers neither Make a setlist nor a … menu (#695).
 //
-// A folder the user made keeps all of that: its grip still reorders and nests,
-// and its New subfolder still works.
+// A folder the user made keeps all of that: its row drags to reorder and nest,
+// and its view has Make a setlist and the … menu.
 import { test, expect } from "@playwright/test";
 import {
   JOB_ID,
@@ -13,18 +11,16 @@ import {
   TRACK_TITLE,
   SIBLING_TITLE,
   fixtureTrack,
+  openBrowse,
   seedCatalogState,
   stubExportEndpoints,
   stubUpdateCheck,
 } from "./helpers.mjs";
 
-const UNSORTED = '.folder[data-id="f-unsorted"] > .folder-head';
-const MINE = '.folder[data-id="f-mine"] > .folder-head';
+const navRow = (page, id) => page.locator(`#browseNav .browse-nav-folder[data-folder="${id}"]`);
+const head = (page) => page.locator("#browseResults .browse-head");
 
 async function open(page) {
-  // Zero the motion tokens so a hover background is read after, not during,
-  // its transition.
-  await page.emulateMedia({ reducedMotion: "reduce" });
   await seedCatalogState(page, {
     folders: [
       { id: "f-unsorted", name: "Unsorted", items: [JOB_ID], color: null },
@@ -39,38 +35,26 @@ async function open(page) {
   await stubExportEndpoints(page);
   await stubUpdateCheck(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator(UNSORTED).waitFor({ timeout: 20000 });
+  await openBrowse(page);
 }
 
-const background = (page, sel) =>
-  page.locator(sel).evaluate((el) => getComputedStyle(el).backgroundColor);
-
-test.describe("Unsorted folder row", () => {
-  test("has no grip and no … menu", async ({ page }) => {
+test.describe("Unsorted folder", () => {
+  test("its row does not drag and its view has no Make a setlist or … menu", async ({ page }) => {
     await open(page);
-    const head = page.locator(UNSORTED);
-    await head.hover();
-    await expect(head.locator(".f-grip")).toHaveCount(0);
-    await expect(head.locator(".f-more")).toHaveCount(0);
-    // The one New Folder button is on the section header.
-    await expect(page.locator("#newFolderBtn")).toHaveCount(1);
+    await expect(navRow(page, "f-unsorted")).not.toHaveAttribute("draggable", "true");
+    await openBrowse(page, "folder:f-unsorted");
+    await expect(head(page).locator("h2")).toHaveText("Unsorted");
+    await expect(head(page).locator(".browse-make-setlist")).toHaveCount(0);
+    await expect(head(page).locator(".browse-folder-more")).toHaveCount(0);
+    // The one New folder button is on the Folders heading.
+    await expect(page.locator("#browseNewFolder")).toHaveCount(1);
   });
 
-  test("does not light up on hover", async ({ page }) => {
+  test("a user folder drags, and its view has Make a setlist and the … menu", async ({ page }) => {
     await open(page);
-    const before = await background(page, UNSORTED);
-    await page.locator(UNSORTED).hover();
-    expect(await background(page, UNSORTED)).toBe(before);
-  });
-
-  test("a user folder keeps its grip, … menu and hover", async ({ page }) => {
-    await open(page);
-    const head = page.locator(MINE);
-    const before = await background(page, MINE);
-    await head.hover();
-    await expect(head.locator(".f-grip")).toBeVisible();
-    await expect(head.locator(".f-grip")).toHaveAttribute("draggable", "true");
-    await expect(head.locator(".f-more")).toBeVisible();
-    expect(await background(page, MINE)).not.toBe(before);
+    await expect(navRow(page, "f-mine")).toHaveAttribute("draggable", "true");
+    await openBrowse(page, "folder:f-mine");
+    await expect(head(page).locator(".browse-make-setlist")).toBeVisible();
+    await expect(head(page).locator(".browse-folder-more")).toBeVisible();
   });
 });

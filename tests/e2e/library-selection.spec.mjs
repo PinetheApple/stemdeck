@@ -17,10 +17,12 @@ import {
   stubFavorites,
   stubServerTrash,
   stubUpdateCheck,
+  openBrowse,
+  browseRow,
 } from "./helpers.mjs";
 
 const SONG_ROW = "#catalogList .cat-item";
-const SETLIST_SONG = "#setlistsList .setlist-song";
+const SETLIST_SONG = "#browseResults .setlist-song";
 const PLAY = `.${ROW_PLAY_CLASS}`;
 const SELECTED = new RegExp(`\\b${SELECTED_ROW_CLASS}\\b`);
 const ACTIVE = /\bactive\b/;
@@ -196,7 +198,7 @@ test.describe("selected and open look different", () => {
     const selected = songRow(page, SIBLING_JOB_ID);
     await selected.click();
     await expect.poll(() => openId(page)).toBe(SIBLING_JOB_ID);
-    await page.locator("#catalogSearch").focus();
+    await page.locator("#browseBtn").focus();
     await page.mouse.move(0, 0);
 
     await expect(selected).toHaveClass(SELECTED);
@@ -216,8 +218,8 @@ test.describe("selected and open look different", () => {
 test.describe("other song lists", () => {
   test("Favourites: a click opens, a double-click plays", async ({ page }) => {
     await openLibrary(page, { favorite: true });
-    await page.locator(".lib-nav-favorites").click();
-    const row = songRow(page, SIBLING_JOB_ID);
+    await openBrowse(page, "fav");
+    const row = browseRow(page, SIBLING_JOB_ID);
     await row.click();
     await expectSelectedAndOpened(page, row, SIBLING_JOB_ID);
     await row.dblclick();
@@ -226,37 +228,38 @@ test.describe("other song lists", () => {
 
   test("search results: a click opens, Enter plays", async ({ page }) => {
     await openLibrary(page);
-    await page.locator("#catalogSearch").fill(SIBLING_TITLE);
-    const row = songRow(page, SIBLING_JOB_ID);
+    await openBrowse(page);
+    await page.locator("#browseSearch").fill(SIBLING_TITLE);
+    await expect(browseRow(page, JOB_ID)).toHaveCount(0);
+    const row = browseRow(page, SIBLING_JOB_ID);
     await row.click();
     await expectSelectedAndOpened(page, row, SIBLING_JOB_ID);
     await page.keyboard.press(ROW_KEY.OPEN);
     await expectPlaying(page, SIBLING_JOB_ID);
   });
 
-  test("Setlists: a click selects, the open song is marked, double-click and Play open", async ({ page, request }) => {
-    await request.post("/api/setlists", { data: { name: "Gig", song_ids: [JOB_ID, SIBLING_JOB_ID] } });
+  test("Setlists: a click opens, the playing song is marked, double-click and Play play", async ({ page, request }) => {
+    const { id } = await (await request.post("/api/setlists", { data: { name: "Gig", song_ids: [JOB_ID, SIBLING_JOB_ID] } })).json();
     await openStudio(page);
     await startPlayback(page);
-    await page.locator("#libTabSetlists").click();
-    const opens = countOpens(page, SIBLING_JOB_ID);
+    await openBrowse(page, `setlist:${id}`);
     const song = setlistSong(page, SIBLING_JOB_ID);
 
     await song.click();
     await expect(song).toHaveClass(SELECTED);
+    await expect.poll(() => openId(page)).toBe(SIBLING_JOB_ID);
     await expect(setlistSong(page, JOB_ID)).toHaveClass(ACTIVE);
-    await page.waitForTimeout(SETTLE_MS);
-    expect(opens.count).toBe(0);
-    expect(await isPlaying(page)).toBe(true);
-    await expect(song.locator(PLAY)).toBeVisible();
+    expect(await playingId(page)).toBe(JOB_ID);
     await setlistSong(page, JOB_ID).hover();
-    await expect(setlistSong(page, JOB_ID).locator(PLAY)).toBeHidden();
+    await expect(setlistSong(page, JOB_ID).locator(PLAY)).toHaveCount(0);
 
     await song.dblclick();
-    await expect(song).toHaveClass(ACTIVE, { timeout: OPEN_TIMEOUT_MS });
+    await expectPlaying(page, SIBLING_JOB_ID);
+    await expect(page.locator("#browseLibrary")).toBeHidden();
+    await openBrowse(page, `setlist:${id}`);
     await setlistSong(page, JOB_ID).hover();
     await setlistSong(page, JOB_ID).locator(PLAY).click();
-    await expect(setlistSong(page, JOB_ID)).toHaveClass(ACTIVE, { timeout: OPEN_TIMEOUT_MS });
+    await expectPlaying(page, JOB_ID);
   });
 
   test("Up Next still plays a row on a single click", async ({ page }) => {

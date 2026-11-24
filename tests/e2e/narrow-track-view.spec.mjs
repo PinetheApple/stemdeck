@@ -5,7 +5,6 @@ import {
   JOB_ID,
   MIN_TIMELINE_WIDTH,
   TRACK_TITLE,
-  fixtureTrack,
   openStudio,
   waitForPanesSettled,
 } from "./helpers.mjs";
@@ -27,11 +26,6 @@ const DRAG_PAST_MAX = 1000;
 const DRAG_STEPS = { steps: 5 };
 // The desktop store answers over IPC, so the library's saved state lands after the first layout.
 const SLOW_STORE_MS = 200;
-// Mirrors --lib-tags-max-h: two rows of chips and a glimpse of a third.
-const TAGS_MAX_HEIGHT = 86;
-const MANY_TAG_COUNT = 14;
-const MANY_TAGS = Array.from({ length: MANY_TAG_COUNT }, (_, i) => `tag number ${i + 1}`);
-const FEW_TAGS = ["live", "acoustic"];
 // Longer than the library's width transition and the re-fit frame after it.
 const STAY_WINDOW_MS = 600;
 const FIXTURE_SECONDS = 6;
@@ -59,40 +53,6 @@ const collapsedStatesOver = (page) =>
     }
     return [...seen];
   }, STAY_WINDOW_MS);
-
-const tagsFade = (page) =>
-  page.locator(".lib-tags-row").evaluate((el) => parseFloat(getComputedStyle(el).getPropertyValue("--lib-tags-fade")));
-
-async function openWithTags(page, tags) {
-  await openAt(page, NARROW_WINDOW, {
-    catalog: {
-      folders: [
-        { id: "f-unsorted", name: "Unsorted", items: [JOB_ID], color: null },
-        { id: "trash", name: "Trash", items: [], color: null },
-      ],
-      tracks: { [JOB_ID]: { ...fixtureTrack(JOB_ID, TRACK_TITLE), tags } },
-    },
-  });
-  await expect(page.locator(".lib-tag-chip")).toHaveCount(tags.length);
-  await waitForPanesSettled(page);
-}
-
-// Each chip's focus ring, grown by its outline and offset, inside the row's scroll box.
-function clippedFocusRings(page) {
-  return page.locator(".lib-tags-row").evaluate((row) => {
-    const box = row.getBoundingClientRect();
-    return [...row.querySelectorAll(".lib-tag-chip")]
-      .map((chip) => {
-        chip.focus({ focusVisible: true });
-        const style = getComputedStyle(chip);
-        const ring = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
-        const r = chip.getBoundingClientRect();
-        const inside = r.left - ring >= box.left && r.right + ring <= box.right && r.top - ring >= box.top;
-        return { tag: chip.dataset.tag, ring, inside };
-      })
-      .filter(({ ring, inside }) => !(ring > 0 && inside));
-  });
-}
 
 async function seedSections(page, sections) {
   const res = await page.request.patch(`/api/jobs/${JOB_ID}/sections`, { data: { sections } });
@@ -196,28 +156,6 @@ test.describe("track view in a narrow window", () => {
     await page.setViewportSize(WIDE_WINDOW);
     await expect.poll(() => stageButtonLook(page)).toEqual(narrow);
     expect(narrow.labelShown).toBe(true);
-  });
-
-  test("many tags stay within two rows of the library and fade until scrolled to the end", async ({ page }) => {
-    await openWithTags(page, MANY_TAGS);
-
-    const row = await page.locator(".lib-tags-row").evaluate((el) => ({
-      height: el.getBoundingClientRect().height,
-      scrolls: el.scrollHeight > el.clientHeight,
-    }));
-    expect(row.height).toBeLessThanOrEqual(TAGS_MAX_HEIGHT);
-    expect(row.scrolls).toBe(true);
-    expect(await tagsFade(page)).toBeGreaterThan(0);
-
-    await page.locator(".lib-tags-row").evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
-    await expect.poll(() => tagsFade(page)).toBe(0);
-  });
-
-  test("a few tags show unfaded, with their focus rings inside the row", async ({ page }) => {
-    await openWithTags(page, FEW_TAGS);
-
-    expect(await tagsFade(page)).toBe(0);
-    expect(await clippedFocusRings(page)).toEqual([]);
   });
 
   test("the library comes back once the window has room for it", async ({ page }) => {

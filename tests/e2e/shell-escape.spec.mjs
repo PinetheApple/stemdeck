@@ -12,11 +12,11 @@ const QUEUED_ID = "e2e0q0000001";
 const GUIDE_CONTROLS = [
   "#sidebarCollapseBtn", ".topbar-brand", "#addSongBtn", "#notifBtn", "#helpModeBtn", "#aboutBtn",
   "#settingsBtn", "#inspectorToggleBtn", "#libraryResizer", "#stemsResizer", "#inspectorResizer",
-  ".lib-nav-library", ".lib-nav-favorites", ".lib-nav-queue", ".lib-nav-trash", '.inspector-tab[data-tab="lyrics"]',
+  "#browseBtn", "#sidebarFavorites .sidebar-group-head", "#sidebarImporting .sidebar-group-head", "#trashBtn", '.inspector-tab[data-tab="lyrics"]',
   "#importingBtn", "#connStatus",
 ];
 const COLLAPSED_GUIDE_CONTROLS = [
-  ".strip-nav-library", ".strip-nav-favorites", ".strip-nav-queue", ".strip-nav-trash", "#catalogStrip .strip-thumb",
+  ".strip-nav-browse", ".strip-nav-trash", "#catalogStrip .strip-thumb",
 ];
 
 const guideOn = (page) => page.locator("body").evaluate((el) => el.classList.contains("help-mode"));
@@ -91,12 +91,22 @@ test.describe("Esc closes the topmost thing only", () => {
     await expect(settingsDialog(page)).toBeVisible();
   });
 
-  test("with nothing open, Esc in a search field still clears it", async ({ page }) => {
+  test("a dialog over Browse library closes first, then Browse library, then Guide", async ({ page }) => {
     await openStudio(page);
-    const search = page.locator("#catalogSearch");
-    await search.fill("zzzz");
-    await search.press("Escape");
-    await expect(search).toHaveValue("");
+    await setGuide(page, true);
+    await page.locator("#browseBtn").click();
+    await expect(page.locator("#browseLibrary")).toBeVisible();
+    await askConfirm(page);
+    await expect(confirmCard(page)).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(confirmCard(page)).toHaveCount(0);
+    await expect(page.locator("#browseLibrary")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#browseLibrary")).toBeHidden();
+    expect(await guideOn(page)).toBe(true);
+    await page.keyboard.press("Escape");
+    expect(await guideOn(page)).toBe(false);
   });
 
   test("a popover before Guide, and Alerts closes on Esc", async ({ page }) => {
