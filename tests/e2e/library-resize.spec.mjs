@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openStudio, showSongTools, waitForPanesSettled } from "./helpers.mjs";
+import { JOB_ID, openStudio, showSongTools, waitForPanesSettled } from "./helpers.mjs";
 import { MIN_WAVES_PX, PANE_LIMITS } from "../../static/js/paneEdgeMath.js";
 
 const STORE_KEY = "stemdeck.library.width";
@@ -34,6 +34,8 @@ const waveWidth = (page) => widthOf(page, ".daw-wave-panel");
 
 /** In SMALL_WINDOW, with the song tools kept open, a MAX_WIDTH library stops where the waveforms reach their floor. */
 async function squeezedWidth(page) {
+  // Shown while the library still opens, the tools would leave no room for it and collapse it.
+  await waitForPanesSettled(page);
   await showSongTools(page);
   await waitForPanesSettled(page);
   await expect.poll(async () => Math.floor(await waveWidth(page))).toBe(MIN_WAVES);
@@ -157,6 +159,8 @@ test.describe("library pane width", () => {
     expect(await savedWidth(page)).toBe(MAX_WIDTH);
 
     await reload(page);
+    // Room is only weighed with a song open, so the tools step aside again before they are shown.
+    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
     await showSongTools(page);
     await expect.poll(() => libraryWidth(page)).toBe(smallMax);
 
