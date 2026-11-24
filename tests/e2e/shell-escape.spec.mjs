@@ -93,9 +93,9 @@ test.describe("Esc closes the topmost thing only", () => {
 
   test("a dialog over Browse library closes first, then Browse library, then Guide", async ({ page }) => {
     await openStudio(page);
-    await setGuide(page, true);
     await page.locator("#browseBtn").click();
     await expect(page.locator("#browseLibrary")).toBeVisible();
+    await setGuide(page, true);
     await askConfirm(page);
     await expect(confirmCard(page)).toBeVisible();
 
