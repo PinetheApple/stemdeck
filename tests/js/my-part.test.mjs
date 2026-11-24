@@ -1,11 +1,21 @@
-// My part: which lanes are mine, what each choice mutes, and which choice the mix matches (myPart.js).
-// Run:  node tests/js/my-part.test.mjs
-
 globalThis.window = { addEventListener() {}, matchMedia: () => ({ matches: false, addEventListener() {} }) };
-globalThis.document = { documentElement: { getAttribute: () => null }, addEventListener() {} };
+const fakeElement = () => ({ querySelector: () => null, querySelectorAll: () => [], addEventListener() {}, style: {} });
+globalThis.CustomEvent = class { constructor(type) { this.type = type; } };
+globalThis.document = {
+  documentElement: { getAttribute: () => null },
+  addEventListener() {},
+  dispatchEvent() {},
+  getElementById: fakeElement,
+  querySelector: () => null,
+  querySelectorAll: () => [],
+  createElement: () => ({ style: {} }),
+};
+globalThis.fetch = async () => ({ ok: false, json: async () => ({}) });
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 
 const { PRESET, activePreset, canUsePreset, mutesFor, partLanes } = await import("../../static/js/myPart.js");
+const { setLaneMutes } = await import("../../static/js/mixer.js");
+const { setMixTracks, takeSoloActive, toggleTakeSolo } = await import("../../static/js/takesMix.js");
 
 let passed = 0;
 let failed = 0;
@@ -76,6 +86,15 @@ check(
   activePreset("guitar", FOUR, mixWith(FOUR, ["vocals", "drums", "bass", "other"])),
   null,
 );
+
+check("a soloed take means no choice is on", activePreset("bass", FOUR, mixWith(FOUR), true), null);
+
+const TAKE_TRACK = "take-track-1";
+setMixTracks([TAKE_TRACK]);
+toggleTakeSolo(TAKE_TRACK);
+check("a take solo is on before a choice", takeSoloActive(), true);
+setLaneMutes(mutesFor(PRESET.FULL_BAND, "bass", FOUR));
+check("a choice clears take solos too", takeSoloActive(), false);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

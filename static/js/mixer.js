@@ -22,7 +22,7 @@ import { t } from "./i18n.js";
 import {
   GLOBAL_PITCH_FIELD, PITCH_MAX, PITCH_MIN, clampPitch, pitchBlockedKey, savedGlobalPitch,
 } from "./pitchBus.js";
-import { applyTakeGains, takeSoloActive } from "./takesMix.js";
+import { applyTakeGains, clearTakeSolos, takeSoloActive } from "./takesMix.js";
 import {
   bindFxStore,
   ensureFxDefaults,
@@ -48,7 +48,7 @@ export function ensureMixerStateDefaults() {
 
 export const MIX_CHANGE_EVENT = "mixchange";
 
-const announceMixChange = () => document.dispatchEvent(new CustomEvent(MIX_CHANGE_EVENT));
+export const announceMixChange = () => document.dispatchEvent(new CustomEvent(MIX_CHANGE_EVENT));
 
 let globalPitch = 0;
 // Never saved: a view's silence must not leak into the song's mix.
@@ -786,6 +786,12 @@ export function resetMixer() {
   saveMix();
 }
 
+function commitMixChange() {
+  refreshMixerVisuals();
+  applyMix();
+  saveMix();
+}
+
 export function muteAll() {
   // Toggle direction reflects the lanes actually loaded for this job (base 6,
   // or drums/bass/lead_vocals/backing_vocals/guitar/piano/other when the
@@ -798,9 +804,7 @@ export function muteAll() {
     if (!s) continue;
     s.muted = !allMuted;
   }
-  refreshMixerVisuals();
-  applyMix();
-  saveMix();
+  commitMixChange();
 }
 
 export function clearAllSolos() {
@@ -809,12 +813,9 @@ export function clearAllSolos() {
     if (!s) continue;
     s.soloed = false;
   }
-  refreshMixerVisuals();
-  applyMix();
-  saveMix();
+  commitMixChange();
 }
 
-/** Sets each lane named in `mutedByLane` to its mute and clears every solo; faders, keys and EQ stay. */
 export function setLaneMutes(mutedByLane) {
   for (const name of allTrackNames()) {
     const s = mixerState[name];
@@ -822,9 +823,8 @@ export function setLaneMutes(mutedByLane) {
     s.soloed = false;
     if (name in mutedByLane) s.muted = mutedByLane[name];
   }
-  refreshMixerVisuals();
-  applyMix();
-  saveMix();
+  clearTakeSolos();
+  commitMixChange();
 }
 
 export function wireMixerToolbar() {

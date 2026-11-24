@@ -50,6 +50,10 @@ export function toggleTakeSolo(trackId) {
   save(trackId, { soloed: !takeMixEntry(trackId).soloed });
 }
 
+export function clearTakeSolos() {
+  for (const id of trackIds) if (takeMixEntry(id).soloed) save(id, { soloed: false });
+}
+
 export function takeSoloActive() {
   return trackIds.some((id) => takeMixEntry(id).soloed);
 }

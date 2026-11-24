@@ -12,7 +12,7 @@ import { renderTakeRows, paintTrackMeter } from "./takesRows.js";
 import { renderTakeLanes, paintLiveClip } from "./takesLanes.js";
 import { setTakeLaneSpace } from "./takesLayout.js";
 import { loadTakeMix, setMixTracks, takeMixEntry } from "./takesMix.js";
-import { applyMix } from "./mixer.js";
+import { MIX_CHANGE_EVENT, applyMix } from "./mixer.js";
 import { setTakeLanes } from "./takesPlayback.js";
 import { fetchTakePeaks, listTakes } from "./takesApi.js";
 import * as actions from "./takesActions.js";
@@ -253,9 +253,19 @@ function frame() {
   paintFooter();
 }
 
+function paintTakeSolos() {
+  for (const row of mixerEl.querySelectorAll(".rec-row[data-rec-track]")) {
+    const soloed = takeMixEntry(row.dataset.recTrack).soloed;
+    const solo = row.querySelector(".solo");
+    solo?.classList.toggle("active", soloed);
+    solo?.setAttribute("aria-pressed", String(soloed));
+  }
+}
+
 function init() {
   loadRecorderPrefs();
   document.addEventListener("trackopen", onTrackOpen);
+  document.addEventListener(MIX_CHANGE_EVENT, paintTakeSolos);
   onRecorderEvent(onRecorder);
   onArmChange(render);
   onLanguageChange(render);
