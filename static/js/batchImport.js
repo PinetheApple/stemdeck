@@ -1,7 +1,7 @@
 import { t, plural, onLanguageChange } from "./i18n.js";
 import { selectedStems } from "./state.js";
 import {
-  FileReadError, ITEM_KIND, ITEM_STATUS, capEntries, capLines, fileItems,
+  FileReadError, ITEM_KIND, ITEM_STATUS, SOURCE, capEntries, capLines, fileItems,
   formatBytes, isPastedList, isTickable, isUploadable, linkItems, lookingUpItems, markUnchecked,
   pastedLines, previewNames, queueItems, queuePlan, sendFileItem,
 } from "./batchImportModel.js";
@@ -16,7 +16,7 @@ import { mountReviewBadge, paintReviewBadge } from "./reviewBadge.js";
 import { onResendNotQueued, recordBatch, setBatchNotQueued } from "./queue.js";
 import { icon } from "./libraryIcons.js";
 import { reviewShell } from "./batchReviewRows.js";
-import { SOURCE, headText, listRows, notes } from "./batchReviewContent.js";
+import { headText, listRows, notes } from "./batchReviewContent.js";
 import { lengthOf } from "./batchDuration.js";
 import {
   closePanel, focusFirst, focusedControl, mountPanel, restoreFocus, returnFocus, reviewPanel,

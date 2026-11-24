@@ -20,7 +20,6 @@ function readDuration(file) {
   });
 }
 
-/** A file's length in seconds, or null; a file known only by its description asks the batch's `measure`. */
 export const lengthOf = (target, file) => {
   if (isLoaded(file)) return readDuration(file);
   return target.measure ? target.measure(file) : null;

@@ -1,8 +1,7 @@
 import { t, plural } from "./i18n.js";
-import { MAX_BATCH_FILES, MAX_BATCH_LINKS, PATH_SEP, isTickable } from "./batchImportModel.js";
+import { MAX_BATCH_FILES, MAX_BATCH_LINKS, PATH_SEP, SOURCE, isTickable } from "./batchImportModel.js";
 import { folderRow, groupRow, itemRow, moreRow, rowView } from "./batchReviewRows.js";
 
-export const SOURCE = Object.freeze({ LINKS: "links", FILES: "files", FOLDER: "folder" });
 const CHILDREN_SHOWN = 3;
 
 export function headText(batch) {

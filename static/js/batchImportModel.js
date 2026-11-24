@@ -7,6 +7,7 @@ export const MAX_UPLOAD_BYTES = 400 * 1024 * 1024; // must match server _MAX_UPL
 export const AUDIO_EXTS = [".mp3", ".wav", ".flac", ".mp4", ".m4a", ".ogg", ".opus"];
 
 export const ITEM_KIND = Object.freeze({ LINK: "link", FILE: "file" });
+export const SOURCE = Object.freeze({ LINKS: "links", FILES: "files", FOLDER: "folder" });
 
 export const ITEM_STATUS = Object.freeze({
   OK: "ok",
