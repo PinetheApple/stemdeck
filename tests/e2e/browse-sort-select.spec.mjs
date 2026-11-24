@@ -29,6 +29,12 @@ const UNDO_TOAST = ".undo-toast";
 const SELECTED = /is-selected/;
 const ACTIVE = /\bactive\b/;
 const PICK_BOX = ".pick-box";
+const ALIGN_TOLERANCE_PX = 2;
+const WIDE_WINDOW = Object.freeze({ width: 1920, height: 1080 });
+const NARROW_WINDOW = Object.freeze({ width: 1366, height: 768 });
+const NARROW_COLUMNS = ["c-title", "c-artist", "c-key", "c-tempo", "c-length"];
+const WIDE_COLUMNS = [...NARROW_COLUMNS, "c-folder", "c-added"];
+const ROW_CELL_OF_COLUMN = Object.freeze({ "c-title": ".cat-title" });
 
 const rows = (page) => page.locator(`${BROWSE_RESULTS} .cat-item[data-id]`);
 const row = (page, song) => page.locator(`${BROWSE_RESULTS} .cat-item[data-id="${song.id}"]`);
@@ -346,3 +352,35 @@ test("outside Select, Space on a row picks nothing", async ({ page }) => {
   await expectNotPicking(page);
 });
 
+/** For each column head shown: how far its label's left edge sits from its column in the first row. */
+function headOffsets(page) {
+  return page.evaluate(({ results, rowCellOf }) => {
+    const head = document.querySelector(`${results} .browse-thead`);
+    const first = document.querySelector(`${results} .browse-list .cat-item[data-id]`);
+    const offsets = {};
+    for (const cell of head.querySelectorAll(".cell")) {
+      const column = [...cell.classList].find((cls) => cls.startsWith("c-") && cls !== "c-acts");
+      if (!column || !cell.getClientRects().length) continue;
+      const label = cell.querySelector("button") ?? cell;
+      const target = first.querySelector(rowCellOf[column] ?? `.${column}`);
+      offsets[column] = target ? Math.round(label.getBoundingClientRect().left - target.getBoundingClientRect().left) : null;
+    }
+    return offsets;
+  }, { results: BROWSE_RESULTS, rowCellOf: ROW_CELL_OF_COLUMN });
+}
+
+for (const [size, columns] of [[WIDE_WINDOW, WIDE_COLUMNS], [NARROW_WINDOW, NARROW_COLUMNS]]) {
+  test(`at ${size.width}x${size.height} each column head sits over its column`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await openSongs(page);
+    await page.locator("#browseListBtn").click();
+    for (const picking of [false, true]) {
+      if (picking) await selectButton(page).click();
+      const offsets = await headOffsets(page);
+      expect(Object.keys(offsets)).toEqual(columns);
+      for (const [column, offset] of Object.entries(offsets)) {
+        expect(Math.abs(offset ?? Infinity), `${column} ${picking ? "while picking" : ""}`).toBeLessThanOrEqual(ALIGN_TOLERANCE_PX);
+      }
+    }
+  });
+}

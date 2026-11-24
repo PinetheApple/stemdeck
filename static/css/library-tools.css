@@ -25,7 +25,7 @@
 /* The arrow may run into the gap after a narrow column rather than cut its name. */
 .browse-thead .cell.is-on { overflow: visible; }
 .browse-thead .cell > button .ic { flex: none; width: var(--fs-xs); height: var(--fs-xs); }
-.browse-thead.is-picking .c-title { margin-left: calc(var(--sidebar-cover) + var(--s-3) + var(--icon-lg) + var(--s-2)); }
+.browse-thead.is-picking .c-title { margin-left: calc(var(--sidebar-cover) + var(--icon-lg) + 2 * var(--s-3)); }
 .browse-thead .cell > button:hover,
 .browse-thead .cell.is-on { color: var(--text); }
 

@@ -3,7 +3,7 @@
 
 import { t, plural, getLanguage } from "./i18n.js";
 import {
-  armEmptyTrash, favoriteTrackIds, folderErrorEl, folderNameOf, folderTrackIds, folderTreeTrackIds, getLibraryTrack, libraryFolderTree, libraryTrackIds,
+  armEmptyTrash, favoriteTrackIds, folderErrorEl, folderNameOf, folderTrackIds, folderTreeTrackIds, getLibraryTrack, libraryArtistName, libraryFolderTree, libraryTrackIds,
   librarySearchFields, makeSetlistFromFolder, renderImportQueue, trashTrackIds, wireFolderMenuButton,
 } from "./catalog.js";
 import { songMatches } from "./librarySearch.js";
@@ -33,7 +33,7 @@ const COLUMNS = [
   ["c-folder", "lib.colFolder"],
   ["c-added", "lib.colAdded"],
 ];
-const CELL_CLASSES = [["key", "c-key"], ["tempo", "c-tempo"], ["length", "c-length"], ["folder", "c-folder"], ["added", "c-added"]];
+const CELL_CLASSES = [["artist", "c-artist"], ["key", "c-key"], ["tempo", "c-tempo"], ["length", "c-length"], ["folder", "c-folder"], ["added", "c-added"]];
 const DATE_FORMAT = { day: "numeric", month: "short", year: "numeric" };
 
 const matching = (ids) => ids.filter((id) => songMatches(librarySearchFields(id), browseState().query));
@@ -66,9 +66,11 @@ const ADDED_WORDS = () => ({
 });
 
 function cellsHtml(trackId) {
-  const cells = songCells(getLibraryTrack(trackId), {
+  const track = getLibraryTrack(trackId);
+  const cells = songCells(track, {
     now: Date.now(),
     words: ADDED_WORDS(),
+    artistName: libraryArtistName(track),
     folderName: folderNameOf(trackId),
     keyLabel: (key, scale) => formatKey(key, scale, t),
     time: fmtTime,

@@ -104,6 +104,8 @@
   --folder-dot: 10px;
   --folder-dot-lg: 14px;
   --browse-tag-pad-y: 3px;
+  --col-title-grow: 2;
+  --col-artist-grow: 1;
   --col-key-w: 96px;
   --col-num-w: 56px;
   --col-folder-w: 150px;

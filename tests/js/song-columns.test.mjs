@@ -1,4 +1,4 @@
-// The Browse library list's columns: Key, Tempo, Length, Folder and Added.
+// The Browse library list's columns: Artist, Key, Tempo, Length, Folder and Added.
 //
 // Run:  node tests/js/song-columns.test.mjs
 
@@ -34,6 +34,7 @@ check("no date added reads nothing", addedLabel(undefined, NOW_MS, WORDS), "");
 const FORMAT = {
   now: NOW_MS,
   words: WORDS,
+  artistName: "The Band",
   folderName: "Gig",
   keyLabel: (key, scale) => `${key} ${scale}`,
   time: (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`,
@@ -43,13 +44,13 @@ const DONE = { status: "done", key: "B", scale: "minor", bpm: 119.6, duration: 2
 check(
   "a finished song fills every cell",
   songCells(DONE, FORMAT),
-  { key: "B minor", tempo: "120", length: "4:05", folder: "Gig", added: "Today" },
+  { artist: "The Band", key: "B minor", tempo: "120", length: "4:05", folder: "Gig", added: "Today" },
 );
 check("an unknown tempo and key stay blank", songCells({ ...DONE, bpm: null, key: null }, FORMAT).tempo + songCells({ ...DONE, key: null }, FORMAT).key, "");
 check(
   "an unfinished song leaves every cell blank",
   songCells({ ...DONE, status: "separating" }, FORMAT),
-  { key: "", tempo: "", length: "", folder: "", added: "" },
+  { artist: "", key: "", tempo: "", length: "", folder: "", added: "" },
 );
 
 console.log(`\n${passed}/${passed + failed} checks passed`);
