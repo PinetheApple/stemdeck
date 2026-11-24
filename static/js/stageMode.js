@@ -6,7 +6,6 @@ import { isBeatGridEditing, getBeats, barPositionIndex, barLengthAt } from "./be
 import { buildBeatTable, beatAt } from "./stageBeats.js";
 import { ensureLyricsLoaded, getTimedLyricLines } from "./lyrics.js";
 import { currentLineIndex } from "./lyricsLookup.js";
-import { refitFooter } from "./footerFit.js";
 import {
   forgetStageMixer,
   initStageMixer,
@@ -186,7 +185,6 @@ export function setStageMode(on) {
   app.classList.toggle("stage-mode", on);
   view.hidden = !on;
   $("stageModeBtn")?.setAttribute("aria-pressed", String(on));
-  refitFooter();
   singStageShown(on);
   if (on) {
     forgetPainted();
