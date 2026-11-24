@@ -21,7 +21,8 @@ import { t } from "./i18n.js";
 import { $ } from "./utils.js";
 
 const ABOUT_BUTTON_ID = "np-details-btn";
-const SHOWN_EVENTS = ["trackopen", TRACK_SHOW_EVENT];
+// A function, as catalog.js is still evaluating when this module first runs.
+const shownEvents = () => ["trackopen", TRACK_SHOW_EVENT];
 
 function clickAbout() {
   $(ABOUT_BUTTON_ID)?.click();
@@ -30,10 +31,10 @@ function clickAbout() {
 /** Run `then` once the studio shows `trackId`; given up when another song comes first. */
 function whenShown(trackId, then) {
   function onShown(e) {
-    for (const name of SHOWN_EVENTS) document.removeEventListener(name, onShown);
+    for (const name of shownEvents()) document.removeEventListener(name, onShown);
     if (e.detail?.id === trackId) then();
   }
-  for (const name of SHOWN_EVENTS) document.addEventListener(name, onShown);
+  for (const name of shownEvents()) document.addEventListener(name, onShown);
 }
 
 /** About is the song head's; a song not open is shown first, without playing it. */
