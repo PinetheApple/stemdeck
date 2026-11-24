@@ -12,6 +12,7 @@
 //    window.__TAURI__ so the desktop branch runs, and so the test decides when
 //    an export finishes rather than racing a real one.
 
+import { expect } from "@playwright/test";
 import { DEFAULT_VERSION_ID } from "../../static/js/versionModel.js";
 import { MIN_WAVES_PX } from "../../static/js/paneEdgeMath.js";
 
@@ -282,6 +283,7 @@ export async function stubUpdateCheck(page, { available = false } = {}) {
 
 // A read still in flight when the test ends: its response is gone and the
 // request can no longer be answered.
+const OPEN_RETRY_MS = 1000;
 const TEARDOWN_ERROR = /Response has been disposed|Target page, context or browser has been closed/;
 
 /** Open the fixture track in the studio and wait until the transport is live. */
@@ -391,11 +393,14 @@ export async function stubServerTrash(
   return server;
 }
 
-/** Open the import bar under the top bar, which Add song folds away; a no-op when it is open. */
+/** Open the Add song popover; a no-op when it is open. Not #url: a staged chip hides it. */
 export async function openComposer(page) {
-  const field = page.locator("#url");
-  if (!(await field.isVisible())) await page.locator("#addSongBtn").click();
-  await field.waitFor({ state: "visible" });
+  const popover = page.locator("#composerDrawer");
+  // Retried: a click that lands before the shell has wired the button opens nothing.
+  await expect(async function clickAddSongUntilOpen() {
+    if (!(await popover.isVisible())) await page.locator("#addSongBtn").click();
+    await expect(popover).toBeVisible({ timeout: OPEN_RETRY_MS });
+  }).toPass();
 }
 
 export async function openStudio(

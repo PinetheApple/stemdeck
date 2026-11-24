@@ -1,7 +1,7 @@
 // The queue view's summary of a batch: its failed items, Retry failed, and what
 // stays shown once the queue drains. Preview, imports and queue are stubbed.
 import { test, expect } from "@playwright/test";
-import { uiText } from "./helpers.mjs";
+import { KEY, openComposer, uiText } from "./helpers.mjs";
 import {
   HTTP_FULL, LINE, PASTE, TICKED_BY_DEFAULT, linkItem, openBar, paste, pasteList, preview, queueButton, review,
   stubImports, stubPreview,
@@ -186,6 +186,8 @@ test("clearing the chip while the batch is being sent leaves nothing broken", as
   });
   await queueButton(page).click();
   await expect.poll(() => posts.length).toBe(1);
+  await page.keyboard.press(KEY.ESCAPE);
+  await openComposer(page);
   await page.locator("#fileClear").click();
   release();
   await expect.poll(() => posts.length).toBe(TICKED_BY_DEFAULT);
