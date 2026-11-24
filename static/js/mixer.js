@@ -773,6 +773,12 @@ export function soloOnlyStem(name) {
   saveMix();
 }
 
+function commitMixChange() {
+  refreshMixerVisuals();
+  applyMix();
+  saveMix();
+}
+
 export function resetMixer() {
   for (const name of allTrackNames()) {
     const s = mixerState[name];
@@ -781,15 +787,7 @@ export function resetMixer() {
     s.muted = false;
     s.soloed = false;
   }
-  refreshMixerVisuals();
-  applyMix();
-  saveMix();
-}
-
-function commitMixChange() {
-  refreshMixerVisuals();
-  applyMix();
-  saveMix();
+  commitMixChange();
 }
 
 export function muteAll() {

@@ -8,7 +8,7 @@ import { t, onLanguageChange } from "./i18n.js";
 import { playWithCountIn } from "./transport.js";
 import { HTTP_NOT_FOUND, HttpError } from "./libraryControls.js";
 import { buildTrackViews, laneSpace, nextName } from "./takesState.js";
-import { renderTakeRows, paintTrackMeter } from "./takesRows.js";
+import { TRACK_ROW_SELECTOR, paintTrackMeter, paintTrackSolo, renderTakeRows } from "./takesRows.js";
 import { renderTakeLanes, paintLiveClip } from "./takesLanes.js";
 import { setTakeLaneSpace } from "./takesLayout.js";
 import { loadTakeMix, setMixTracks, takeMixEntry } from "./takesMix.js";
@@ -254,12 +254,7 @@ function frame() {
 }
 
 function paintTakeSolos() {
-  for (const row of mixerEl.querySelectorAll(".rec-row[data-rec-track]")) {
-    const soloed = takeMixEntry(row.dataset.recTrack).soloed;
-    const solo = row.querySelector(".solo");
-    solo?.classList.toggle("active", soloed);
-    solo?.setAttribute("aria-pressed", String(soloed));
-  }
+  for (const row of mixerEl.querySelectorAll(TRACK_ROW_SELECTOR)) paintTrackSolo(row, takeMixEntry(row.dataset.recTrack).soloed);
 }
 
 function init() {
