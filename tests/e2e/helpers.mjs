@@ -531,6 +531,25 @@ export const openSpeedOptions = (page) => openFooterPanel(page, "#t-speed-btn", 
 /** The Key popover: Reset. */
 export const openKeyOptions = (page) => openFooterPanel(page, "#t-key-btn", "#t-key-panel");
 
+/** The Sections popover over the lanes: Add section, Clear, Hide the sections bar. */
+export const openSectionsMenu = (page) => openFooterPanel(page, "#sectionsMenuBtn", "#sectionsPanel");
+
+/** The View popover over the lanes: Auto-scroll, Sections bar, Beat grid. */
+export const openViewMenu = (page) => openFooterPanel(page, "#viewMenuBtn", "#viewPanel");
+
+/** The Edit section dialog that a double-click on a section block opens. */
+export const sectionEditDialog = (page) => page.getByRole("dialog", { name: "Edit section" });
+
+/** Add a section from the Sections popover and leave the Edit section dialog it opens. */
+export async function addSection(page) {
+  await openSectionsMenu(page);
+  await page.locator("#sectionsAddBtn").click();
+  const dialog = sectionEditDialog(page);
+  await dialog.waitFor({ state: "visible", timeout: 5000 });
+  await page.keyboard.press("Escape");
+  await dialog.waitFor({ state: "hidden", timeout: 5000 });
+}
+
 export const exportUi = (page) => ({
   button: page.locator("#t-export-btn"),
   panel: page.locator("#t-export-panel"),

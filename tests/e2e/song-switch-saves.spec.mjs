@@ -1,6 +1,6 @@
 // Section and grid edits made just before a song switch or a page close.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, openStudio } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, addSection, openStudio } from "./helpers.mjs";
 import {
   STALE_BPM,
   beatsUrl,
@@ -48,7 +48,7 @@ test.describe("sections", () => {
   test("a section save held open across a switch lands on its own song only", async ({ page, request }) => {
     await openStudio(page);
     const { seen, release } = await holdFirstPatch(page, `**${sectionsUrl(JOB_ID)}`);
-    await page.locator("#sectionsAddBtn").click();
+    await addSection(page);
     await openSong(page, SIBLING_JOB_ID);
     await seen;
     await expect(page.locator(".section-block")).toHaveCount(0);
@@ -62,7 +62,7 @@ test.describe("sections", () => {
   test("a song reopened before its section save lands shows the edit", async ({ page, request }) => {
     await openStudio(page);
     const { seen, release } = await holdFirstPatch(page, `**${sectionsUrl(JOB_ID)}`);
-    await page.locator("#sectionsAddBtn").click();
+    await addSection(page);
     await openSong(page, SIBLING_JOB_ID);
     await seen;
     await openSong(page, JOB_ID);
@@ -75,7 +75,7 @@ test.describe("sections", () => {
   test("a refused section save is neither shown on reopen nor sent on close", async ({ page, request }) => {
     await openTempo(page);
     const hold = await holdFirstPatch(page, `**${sectionsUrl(JOB_ID)}`, FAILED_SAVES.refused.answer);
-    await page.locator("#sectionsAddBtn").click();
+    await addSection(page);
     await openSongTempo(page, SIBLING_JOB_ID);
     await hold.seen;
     await failHeldSave(page, hold, FAILED_SAVES.refused, sectionsUrl(JOB_ID));
@@ -91,7 +91,7 @@ test.describe("sections", () => {
 
   test("a section added just before the page closes is saved", async ({ page, request }) => {
     await openStudio(page);
-    await page.locator("#sectionsAddBtn").click();
+    await addSection(page);
     await page.reload({ waitUntil: "domcontentloaded" });
 
     await expect.poll(() => savedSections(request, JOB_ID).then((s) => s.length)).toBe(1);
@@ -100,7 +100,7 @@ test.describe("sections", () => {
   test("a section save in flight when the page closes is sent again", async ({ page, request }) => {
     await openStudio(page);
     const hold = await holdFirstPatch(page, `**${sectionsUrl(JOB_ID)}`, FAILED_SAVES.lost.answer);
-    await page.locator("#sectionsAddBtn").click();
+    await addSection(page);
     await hold.seen;
     await closeAsHeldSaveFails(page, hold, FAILED_SAVES.lost, sectionsUrl(JOB_ID));
 
@@ -110,11 +110,11 @@ test.describe("sections", () => {
   test("a section save queued behind one in flight is sent when the page closes", async ({ page, request }) => {
     await openStudio(page);
     const hold = await holdFirstPatch(page, `**${sectionsUrl(JOB_ID)}`, FAILED_SAVES.lost.answer);
-    await page.locator("#sectionsAddBtn").click();
+    await addSection(page);
     await queueSectionsSave(page);
     await hold.seen;
     for (let queued = 0; queued < 2; queued++) {
-      await page.locator("#sectionsAddBtn").click();
+      await addSection(page);
       await queueSectionsSave(page);
     }
     await noteSaves(page);
@@ -265,7 +265,7 @@ test.describe("after a beforeunload that never closed the page", () => {
   });
 
   test("a section edit is saved", async ({ page, request }) => {
-    await page.locator("#sectionsAddBtn").click();
+    await addSection(page);
     await expect.poll(() => savedSections(request, JOB_ID).then((s) => s.length)).toBe(1);
   });
 
