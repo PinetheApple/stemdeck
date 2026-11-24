@@ -1,4 +1,4 @@
-import { menuItem, menuSeparator, openMenu } from "./trackMenu.js";
+import { menuItem, menuSeparator, openMenu } from "./floatMenu.js";
 import { t } from "./i18n.js";
 
 /**

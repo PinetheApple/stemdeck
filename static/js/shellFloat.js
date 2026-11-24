@@ -2,7 +2,7 @@
 // shell.css caps in height so they scroll, and moved back in from any edge they cross.
 
 const ANCHOR_GAP_PX = 6;
-const FLOAT_CLASS = "shell-float";
+export const FLOAT_CLASS = "shell-float";
 const EDGE_TOKEN = "--float-edge";
 // Popovers placed by their own modules; a translate nudges them without fighting that placement.
 const CLAMPED_FLOATS = ".lib-menu, #stemOverflow, #t-export-panel, #search-panel";
