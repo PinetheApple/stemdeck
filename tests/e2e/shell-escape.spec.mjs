@@ -116,7 +116,7 @@ test.describe("dialogs and popovers", () => {
     const scrim = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--scrim").trim());
     const opened = [
       [() => page.locator("#settingsBtn").click(), ".library-editor-backdrop"],
-      [() => page.locator("#aboutBtn").click(), "#aboutDialog"],
+      [() => page.locator("#aboutBtn").click(), ".library-editor-backdrop"],
       [() => askConfirm(page), ".reset-confirm-backdrop"],
     ];
     for (const [open, backdrop] of opened) {

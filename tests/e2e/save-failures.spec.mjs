@@ -13,6 +13,7 @@ async function openGeneralSettings(page) {
   await stubUpdateCheck(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator("#settingsBtn").click();
+  await page.locator('.settings-tab[data-tab="general"]').click();
   await expect(page.locator(".set-playlist-max")).not.toHaveValue("");
 }
 

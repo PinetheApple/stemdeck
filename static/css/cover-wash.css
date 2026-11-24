@@ -1,0 +1,23 @@
+/* The cover colour wash: the open song's cover, blurred, tinting the top of the
+   studio and Stage (coverWash.js). Settings > Appearance turns it off. */
+
+.cover-wash {
+  --cover-wash-blur: 70px;
+  --cover-wash-saturate: 1.5;
+  --cover-wash-opacity: 0.3;
+  --cover-wash-scale: 1.3;
+  --cover-wash-fade-end: 80%;
+  position: absolute; inset: 0; z-index: -1;
+  background: var(--cover-wash-image, none) center / cover no-repeat;
+  filter: blur(var(--cover-wash-blur)) saturate(var(--cover-wash-saturate));
+  opacity: var(--cover-wash-opacity);
+  transform: scale(var(--cover-wash-scale));
+  mask-image: linear-gradient(#000, transparent var(--cover-wash-fade-end));
+  pointer-events: none;
+}
+.cover-wash:not(.has-cover),
+:root[data-wash="off"] .cover-wash { display: none; }
+
+/* The wash sits under the studio's content, not over it. */
+#lanes { isolation: isolate; }
+.stage-view .cover-wash { --cover-wash-opacity: 0.35; }

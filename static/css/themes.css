@@ -1,0 +1,44 @@
+/* Themes and fonts a device can choose in Settings > Appearance (appearance.js
+   sets data-theme / data-font on <html>). Ink & coral and Manrope are the defaults
+   in variables.css; each block here overrides only what its choice changes. The
+   [data-*-preview] selectors let a Settings card show a choice before it is made. */
+
+:root {
+  --font-sans-fallback: -apple-system, system-ui, 'Hiragino Sans', 'Noto Sans JP', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+}
+
+/* The defaults again, for a preview card shown while another theme is on. */
+[data-theme-preview="ink-coral"] {
+  --bg: #0f1011;
+  --surface-2: #1e1f22;
+  --accent: #ff6f59;
+}
+
+:root[data-theme="ink-ice"],
+[data-theme-preview="ink-ice"] {
+  --accent: #eef1f4;
+  --accent-2: #d5dae0;
+  --accent-hi: #ffffff;
+  --accent-ink: #0f1011;
+}
+
+:root[data-theme="dusk-coral"],
+[data-theme-preview="dusk-coral"] {
+  --bg: #131018;
+  --surface-1: #1a1621;
+  --surface-2: #231e2c;
+  --surface-3: #2f2839;
+  --surface-4: #3b3347;
+  --line: #272131;
+  --line-strong: #383043;
+  --accent: #ff7d68;
+  --accent-hi: #ff9a88;
+}
+
+[data-font-preview="manrope"] { --font-sans: 'Manrope', var(--font-sans-fallback); }
+:root[data-font="inter"], [data-font-preview="inter"] { --font-sans: 'Inter', var(--font-sans-fallback); }
+:root[data-font="geist"], [data-font-preview="geist"] { --font-sans: 'Geist', var(--font-sans-fallback); }
+:root[data-font="figtree"], [data-font-preview="figtree"] { --font-sans: 'Figtree', var(--font-sans-fallback); }
+:root[data-font="dm-sans"], [data-font-preview="dm-sans"] { --font-sans: 'DM Sans', var(--font-sans-fallback); }
+:root[data-font="plus-jakarta-sans"], [data-font-preview="plus-jakarta-sans"] { --font-sans: 'Plus Jakarta Sans', var(--font-sans-fallback); }
+:root[data-font="bricolage-grotesque"], [data-font-preview="bricolage-grotesque"] { --font-sans: 'Bricolage Grotesque', var(--font-sans-fallback); }

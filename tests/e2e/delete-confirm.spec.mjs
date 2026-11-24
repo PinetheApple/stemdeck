@@ -212,8 +212,8 @@ test.describe("keyboard delete", () => {
     const fav = page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"] .cat-fav`);
     await fav.focus();
     // Shown the way the app shows it, without taking focus from the row.
-    await page.evaluate(() => document.getElementById("aboutDialog").classList.remove("hidden"));
-    await expect(page.locator("#aboutDialog")).toBeVisible();
+    await page.evaluate(() => document.getElementById("failureDialog").classList.remove("hidden"));
+    await expect(page.locator("#failureDialog")).toBeVisible();
     await expect(fav).toBeFocused();
     await page.keyboard.press("Delete");
 
@@ -233,6 +233,7 @@ test.describe("keyboard delete", () => {
     await expect(page.locator(".app")).not.toHaveClass(/stage-mode/);
 
     await page.locator("#settingsBtn").click();
+    await page.locator('.settings-tab[data-tab="general"]').click();
     await expect(page.locator(".auto-delete-input")).toBeAttached();
     await page.keyboard.press("Backspace");
 

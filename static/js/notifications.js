@@ -13,6 +13,8 @@
 
 import { storeGet, storeSet } from "./utils.js";
 import { t, plural } from "./i18n.js";
+import { openDialogLayer } from "./dialogLayer.js";
+import { initAlertsPanel } from "./alertsPanel.js";
 
 const FAILURES_KEY = "stemdeck:failures";
 // Enough to cover a bad session without letting a crash loop fill the store.
@@ -433,7 +435,7 @@ export function render() {
 
 // ─── Detail dialog ────────────────────────────────────────────────────────
 
-let failureOpener = null;
+let failureLayer = null;
 
 async function openFailureDialog(record) {
   const dialog = document.getElementById("failureDialog");
@@ -458,8 +460,10 @@ async function openFailureDialog(record) {
     logsBtn.textContent = t("failure.includeLogs");
   }
 
-  if (dialog.classList.contains("hidden")) failureOpener = document.activeElement;
-  dialog.classList.remove("hidden");
+  if (!failureLayer) {
+    dialog.classList.remove("hidden");
+    failureLayer = openDialogLayer(dialog, { onClose: onFailureDialogClosed });
+  }
   document.getElementById("failureClose")?.focus();
 
   // The stderr tail and full traceback live in the quarantined error.txt and
@@ -545,19 +549,19 @@ async function copyReportToClipboard(el) {
   }
 }
 
+function onFailureDialogClosed() {
+  document.getElementById("failureDialog")?.classList.add("hidden");
+  failureLayer = null;
+}
+
+function onFailureCloseClick() {
+  failureLayer?.close();
+}
+
 function wireFailureDialog() {
   const dialog = document.getElementById("failureDialog");
-  const close = document.getElementById("failureClose");
   if (!dialog) return;
-  const hide = () => {
-    if (dialog.classList.contains("hidden")) return;
-    dialog.classList.add("hidden");
-    if (failureOpener?.isConnected) failureOpener.focus();
-    failureOpener = null;
-  };
-  close?.addEventListener("click", hide);
-  dialog.addEventListener("mousedown", (e) => { if (e.target === dialog) hide(); });
-  dialog.addEventListener("keydown", (e) => { if (e.code === "Escape") hide(); });
+  document.getElementById("failureClose")?.addEventListener("click", onFailureCloseClick);
   document.getElementById("notifClearAll")?.addEventListener("click", (e) => {
     e.stopPropagation();
     clearFailures();
@@ -581,6 +585,7 @@ function wireFailureDialog() {
 export async function initNotifications({ diagnostics } = {}) {
   if (typeof diagnostics === "function") getDiagnostics = diagnostics;
   wireFailureDialog();
+  initAlertsPanel();
   const stored = await storeGet(FAILURES_KEY, []);
   // Merge rather than assign: reading the store is async, and a failure
   // recorded while it was in flight would otherwise be overwritten by the

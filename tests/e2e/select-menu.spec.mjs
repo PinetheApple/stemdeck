@@ -266,6 +266,7 @@ test.describe("select lists", () => {
     });
     await openApp(page);
     await page.locator("#settingsBtn").click();
+    await page.locator('.settings-tab[data-tab="general"]').click();
     await page.locator(".set-demucs-device").click();
     await expect(option(page, "CUDA (NVIDIA)")).not.toHaveAttribute("aria-disabled", "true");
 
@@ -277,6 +278,7 @@ test.describe("select lists", () => {
   test("the list takes the field's font", async ({ page }) => {
     await openApp(page);
     await page.locator("#settingsBtn").click();
+    await page.locator('.settings-tab[data-tab="general"]').click();
     const quality = page.locator(".set-separation-quality");
     await quality.click();
     const field = await quality.evaluate((el) => [getComputedStyle(el).fontFamily, getComputedStyle(el).fontSize]);
@@ -287,6 +289,7 @@ test.describe("select lists", () => {
   test("in Settings the option text ends before the caret", async ({ page }) => {
     await openApp(page);
     await page.locator("#settingsBtn").click();
+    await page.locator('.settings-tab[data-tab="general"]').click();
     const general = [".set-language", ".set-demucs-device", ".set-separation-quality"];
     for (const selector of general) expect(await textClearOfCaret(page.locator(selector))).toBe(true);
     await page.locator('.settings-tab[data-tab="export"]').click();
@@ -298,6 +301,7 @@ test.describe("select lists", () => {
   test("Escape closes only the list, not Settings around it", async ({ page }) => {
     await openApp(page);
     await page.locator("#settingsBtn").click();
+    await page.locator('.settings-tab[data-tab="general"]').click();
     const quality = page.locator(".set-separation-quality");
     await quality.click();
     await expect(list(page)).toBeVisible();
@@ -390,6 +394,7 @@ test.describe("select lists without the popover API", () => {
   test("a pick lands inside Settings", async ({ page }) => {
     await openApp(page);
     await page.locator("#settingsBtn").click();
+    await page.locator('.settings-tab[data-tab="general"]').click();
     const quality = page.locator(".set-separation-quality");
     await quality.click();
     await option(page, "Best (2× slower)").click();

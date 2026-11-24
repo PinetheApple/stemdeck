@@ -1,0 +1,127 @@
+/* Settings: one dialog with its tabs down the left (catalog.js builds it,
+   settingsNav.js the tab list), plus the Appearance and About tabs. */
+
+.library-editor {
+  --settings-w: 760px;
+  --settings-h: 600px;
+  --settings-nav-w: 184px;
+  --settings-nav-item-h: 34px;
+  --settings-theme-preview-h: 52px;
+  --settings-swatch-w: 24px;
+  --settings-swatch-h: 12px;
+  --settings-font-sample: 22px;
+  display: grid;
+  grid-template-columns: var(--settings-nav-w) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(var(--settings-w), calc(100vw - var(--dialog-margin)));
+  min-width: 0;
+  height: min(var(--settings-h), calc(100vh - var(--dialog-margin)));
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.library-editor-head {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: var(--s-4) var(--s-4) var(--s-3) var(--s-5);
+  font: var(--fw-heavy) var(--fs-lg) / 1.25 var(--font-sans);
+}
+
+.settings-nav {
+  grid-column: 1; grid-row: 2;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: var(--s-2);
+  border-top: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+}
+.settings-nav .settings-tab {
+  flex: none; justify-content: flex-start; gap: var(--s-3);
+  height: var(--settings-nav-item-h); padding: 0 var(--s-3);
+  border-radius: var(--r-1);
+  color: var(--text-2); text-align: left;
+}
+.settings-nav .settings-tab:hover { background: var(--surface-3); color: var(--text); }
+.settings-nav .settings-tab[aria-selected="true"] { background: var(--surface-4); color: var(--text); }
+.settings-nav .settings-tab svg { flex-shrink: 0; width: var(--icon); height: var(--icon); }
+.settings-nav .settings-tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.library-editor > .settings-pane {
+  grid-column: 2; grid-row: 2;
+  margin: 0;
+  padding: var(--s-1) var(--s-4) var(--s-4) var(--s-5);
+  border-top: 1px solid var(--line);
+}
+
+.library-editor > .settings-foot {
+  grid-column: 1 / -1; grid-row: 3;
+  margin: 0;
+  padding: var(--s-3) var(--s-5) var(--s-4);
+}
+
+/* ── Appearance ── */
+.appearance-row { padding: var(--s-3) 0; border-bottom: 1px solid var(--line); }
+.appearance-row .settings-row-desc { margin-bottom: var(--s-3); }
+.appearance-themes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); }
+.appearance-fonts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-2); }
+.appearance-theme,
+.appearance-font {
+  display: flex; flex-direction: column; gap: var(--s-2);
+  padding: var(--s-2);
+  border: 1px solid var(--line-strong); border-radius: var(--r-2);
+  background: var(--surface-1);
+  color: var(--text-2); text-align: left;
+  font: var(--fw-semibold) var(--fs-sm) / 1.25 var(--font-sans);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+.appearance-theme:hover,
+.appearance-font:hover { background: var(--surface-3); color: var(--text); }
+.appearance-theme[aria-pressed="true"],
+.appearance-font[aria-pressed="true"] { border-color: var(--text); color: var(--text); }
+
+/* The preview reads its colours from the theme it shows (themes.css). */
+.appearance-preview {
+  display: grid; grid-template-columns: 1fr 2fr; grid-template-rows: 1fr 1fr; gap: var(--s-1);
+  height: var(--settings-theme-preview-h); padding: var(--s-2);
+  border-radius: var(--r-1);
+  background: var(--bg);
+}
+.appearance-preview i { border-radius: var(--s-1); background: var(--surface-2); }
+.appearance-preview i:first-child { grid-row: span 2; }
+.appearance-preview b {
+  align-self: center;
+  width: var(--settings-swatch-w); height: var(--settings-swatch-h);
+  border-radius: var(--r-pill); background: var(--accent);
+}
+
+.appearance-font { gap: 2px; font-family: var(--font-sans); }
+.appearance-font b { font-size: var(--settings-font-sample); font-weight: var(--fw-bold); color: var(--text); }
+.appearance-font span { font-size: var(--fs-xs); }
+
+.settings-switch.appearance-wash { padding: 0; border: 0; background: none; }
+.settings-switch[aria-pressed="true"] .settings-switch-track { background: var(--accent-soft); border-color: var(--accent-line); }
+.settings-switch[aria-pressed="true"] .settings-switch-thumb {
+  transform: translateX(calc(var(--settings-switch-w) - var(--settings-switch-h)));
+  background: var(--accent);
+}
+
+/* ── About ── */
+.settings-about {
+  display: flex; flex-direction: column; align-items: center; gap: var(--s-2);
+  padding-top: var(--s-3);
+  text-align: center;
+}
+.settings-about .about-logo { margin-bottom: var(--s-1); }
+.settings-about h2 { margin: 0; font: var(--fw-heavy) var(--fs-xl) / 1.2 var(--font-sans); }
+.settings-about .about-tagline,
+.settings-about .about-version-badge,
+.settings-about .about-primary-links { margin: 0; }
+.settings-about .about-primary-links { width: auto; justify-content: center; }
+.settings-about .about-link { flex: 0 0 auto; padding: var(--s-2) var(--s-4); }
+.settings-about .about-divider { display: none; }
+.settings-about .about-credits,
+.settings-about .about-license { margin: 0; max-width: 46ch; font-size: var(--fs-xs); color: var(--text-3); }
+.settings-about .about-data { align-self: stretch; overflow: visible; }
+.settings-about .about-data-summary { cursor: pointer; }

@@ -37,15 +37,15 @@ async function openLongQueue(page) {
 }
 
 test.describe("dialogs and Esc", () => {
-  test("About opens on Enter, closes on Esc and hands focus back", async ({ page }) => {
+  test("About opens Settings on its About tab on Enter, closes on Esc and hands focus back", async ({ page }) => {
     await openApp(page);
     await page.locator("#aboutBtn").focus();
     await page.keyboard.press(KEY.ENTER);
-    await expect(page.locator("#aboutDialog")).toBeVisible();
-    await expect(page.locator("#aboutClose")).toBeFocused();
+    await expect(page.locator('.settings-tab[aria-selected="true"]')).toHaveAttribute("data-tab", "about");
+    await expect(page.locator('.settings-pane[data-pane="about"]')).toBeVisible();
 
     await page.keyboard.press(KEY.ESCAPE);
-    await expect(page.locator("#aboutDialog")).toBeHidden();
+    await expect(page.locator(".library-editor")).toHaveCount(0);
     await expect(page.locator("#aboutBtn")).toBeFocused();
   });
 
@@ -75,6 +75,7 @@ test.describe("dialogs and Esc", () => {
   test("Esc in the reset confirmation closes only it, after typing", async ({ page }) => {
     await openApp(page);
     await page.locator("#settingsBtn").click();
+    await page.locator('.settings-tab[data-tab="general"]').click();
     const reset = page.locator(".settings-reset-btn");
     await reset.scrollIntoViewIfNeeded();
     await reset.click();
@@ -223,7 +224,7 @@ test.describe("target sizes", () => {
     ).toEqual(ALL_TARGETS_MET);
 
     await page.locator("#aboutBtn").click();
-    expect(await smallTargets(page, ["#aboutClose", ".about-social-btn"])).toEqual(ALL_TARGETS_MET);
+    expect(await smallTargets(page, [".library-editor-close", ".about-social-btn"])).toEqual(ALL_TARGETS_MET);
   });
 
   test("an import's cancel and extract-next buttons are at least 24 px", async ({ page }) => {

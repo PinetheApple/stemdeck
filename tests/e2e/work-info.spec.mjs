@@ -355,10 +355,10 @@ test.describe("the work a soundtrack is from", () => {
   });
 });
 
-test("the About box credits the licensed sources", async ({ page }) => {
+test("the About tab credits the licensed sources", async ({ page }) => {
   await openPage(page, { [JOB_ID]: fixtureTrack(JOB_ID, "E2E Fixture Track") });
   await page.evaluate(() => document.getElementById("aboutBtn")?.click());
-  const credits = page.locator("#aboutDialog .about-credits");
+  const credits = page.locator('.settings-pane[data-pane="about"] .about-credits');
   await expect(credits).toBeVisible();
   for (const name of ["Wikipedia (CC BY-SA)", "MusicBrainz and Wikidata (CC0)", "Whisper (MIT)"]) {
     await expect(credits).toContainText(name);

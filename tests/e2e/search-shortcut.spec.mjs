@@ -66,7 +66,7 @@ test.describe("library search shortcut", () => {
     await openTrackView(page);
     await page.locator("#sidebarCollapseBtn").click();
     await page.locator("#aboutBtn").click();
-    await expect(page.locator("#aboutDialog")).toBeVisible();
+    await expect(page.locator(".library-editor")).toBeVisible();
 
     await page.keyboard.press("Control+K");
     await expect(search(page)).not.toBeFocused();

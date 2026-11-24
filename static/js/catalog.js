@@ -57,6 +57,10 @@ import { finishTakeBeforeTeardown } from "./recorder.js";
 import { t as i18nT, plural as i18nPlural, LANGUAGES, getLanguage, setLanguage, onLanguageChange, applyTranslations } from "./i18n.js";
 import { applyNetworkSwitch, networkSwitchOn } from "./networkRestart.js";
 import { GPU_BACKEND_ROCM, gpuUnusedMessage } from "./gpuUnused.js";
+import { openDialogLayer } from "./dialogLayer.js";
+import { DEFAULT_SETTINGS_TAB, SETTINGS_TAB, isSettingsTab, settingsNavHtml } from "./settingsNav.js";
+import { appearancePaneHtml, wireAppearancePane } from "./settingsAppearance.js";
+import { mountAboutPane, setAboutVersion } from "./settingsAbout.js";
 
 // Escape user-supplied strings before inserting into innerHTML.
 function esc(s) {
@@ -4528,10 +4532,9 @@ function canonicalVersion(value) {
 
 function setDisplayedVersion(version) {
   const brand = document.getElementById("brandVersion");
-  const about = document.getElementById("aboutVersion");
   currentVersion = normalizeVersion(version);
   if (brand) brand.textContent = `v${currentVersion}`;
-  if (about) about.textContent = `v${currentVersion}`;
+  setAboutVersion(currentVersion);
 }
 
 // Kept from the health check so a bug report can state the running version,
@@ -4999,41 +5002,32 @@ async function checkForUpdate() {
 }
 
 function wireBackdropDialog(dialog, closeButton) {
-  let returnFocus = null;
-  function hideDialog() {
-    if (dialog.classList.contains("hidden")) return;
+  let layer = null;
+  function onDialogClosed() {
     dialog.classList.add("hidden");
-    returnFocus?.focus?.();
-    returnFocus = null;
+    layer = null;
+  }
+  function hideDialog() {
+    layer?.close();
   }
   function showDialog() {
-    returnFocus = document.activeElement;
+    if (layer) return;
     dialog.classList.remove("hidden");
+    layer = openDialogLayer(dialog, { onClose: onDialogClosed });
     closeButton?.focus();
   }
-  function onBackdropMousedown(e) {
-    if (e.target === dialog) hideDialog();
-  }
-  function onDialogKeydown(e) {
-    if (e.key === ESCAPE_KEY && escapeIsFor(LAYER.DIALOG)) hideDialog();
-  }
   closeButton?.addEventListener("click", hideDialog);
-  dialog.addEventListener("mousedown", onBackdropMousedown);
-  dialog.addEventListener("keydown", onDialogKeydown);
   return { show: showDialog, hide: hideDialog };
 }
 
+function onAboutButtonClick() {
+  openSettings(SETTINGS_TAB.ABOUT);
+}
+
+/** About is the last tab of Settings; the rail's About button opens Settings there. */
 function wireAboutDialog() {
-  const btn = document.getElementById("aboutBtn");
-  const dialog = document.getElementById("aboutDialog");
-  const close = document.getElementById("aboutClose");
-  const version = document.getElementById("aboutVersion");
-  if (!btn || !dialog) return;
-
-  if (version) version.textContent = `v${currentVersion}`;
-
-  const aboutDialog = wireBackdropDialog(dialog, close);
-  btn.addEventListener("click", aboutDialog.show);
+  setAboutVersion(currentVersion);
+  document.getElementById("aboutBtn")?.addEventListener("click", onAboutButtonClick);
 }
 
 // Ground truth for "done" <-> "unavailable" is the server (it checks the
@@ -5201,7 +5195,7 @@ function settleStaleProcessingTracks() {
 // ─── Settings menu + Library editor ───
 
 let libraryEditor = null;
-let libraryEditorOnKey = null;
+let settingsLayer = null;
 let settingsResizeObserver = null;
 let libraryEditorOpener = null;
 
@@ -5213,7 +5207,7 @@ let libraryEditorOpener = null;
 // already re-fetches everything fresh and is safe to call while already open
 // (it closes any existing instance first).
 onLanguageChange(() => {
-  if (libraryEditor) openLibraryEditor();
+  if (libraryEditor) openLibraryEditor(shownSettingsTab());
 });
 
 // Library list rows bake their subtitle/placeholder/empty-state text into
@@ -5250,18 +5244,21 @@ function refreshLibrarySyncSummary() {
     : i18nT("settings.outOfSync.allSynced");
 }
 
-function closeLibraryEditor() {
-  if (libraryEditorOnKey) {
-    document.removeEventListener("keydown", libraryEditorOnKey);
-    libraryEditorOnKey = null;
-  }
+function teardownLibraryEditor() {
   closeResetConfirm();
   settingsResizeObserver?.disconnect();
   settingsResizeObserver = null;
   libraryEditor?.remove();
   libraryEditor = null;
-  libraryEditorOpener?.focus?.();
-  libraryEditorOpener = null;
+  settingsLayer = null;
+}
+
+function closeLibraryEditor() {
+  settingsLayer?.close();
+}
+
+function shownSettingsTab() {
+  return libraryEditor?.querySelector('.settings-nav [aria-selected="true"]')?.dataset.tab;
 }
 
 // Fill the editor's table body from `tracks` (skips Trash). Built via DOM +
@@ -6306,20 +6303,16 @@ async function exportLogs(btn) {
 }
 
 let resetConfirmOverlay = null;
+let resetConfirmLayer = null;
 
-function closeResetConfirm() {
-  if (!resetConfirmOverlay) return;
-  document.removeEventListener("keydown", onResetConfirmKeydown, true);
-  resetConfirmOverlay.remove();
+function removeResetConfirm() {
+  resetConfirmOverlay?.remove();
   resetConfirmOverlay = null;
-  libraryEditor?.querySelector(".settings-reset-btn")?.focus();
+  resetConfirmLayer = null;
 }
 
-// Captured, so it is heard before Settings' own Esc closes everything behind it.
-function onResetConfirmKeydown(e) {
-  if (e.key !== ESCAPE_KEY) return;
-  e.stopPropagation();
-  closeResetConfirm();
+function closeResetConfirm() {
+  resetConfirmLayer?.close();
 }
 
 function openResetConfirm() {
@@ -6349,8 +6342,6 @@ function openResetConfirm() {
     goBtn.disabled = input.value.trim() !== "RESET";
   });
   overlay.querySelector(".reset-confirm-cancel").addEventListener("click", closeResetConfirm);
-  overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) closeResetConfirm(); });
-  document.addEventListener("keydown", onResetConfirmKeydown, true);
 
   goBtn.addEventListener("click", async () => {
     goBtn.disabled = true;
@@ -6388,10 +6379,11 @@ function openResetConfirm() {
 
   document.body.appendChild(overlay);
   resetConfirmOverlay = overlay;
+  resetConfirmLayer = openDialogLayer(overlay, { onClose: removeResetConfirm });
   input.focus();
 }
 
-const TAB_KEY_STEP = { ArrowRight: 1, ArrowLeft: -1 };
+const TAB_KEY_STEP = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
 // Scroll positions this close to an end count as the end (fractional pixels).
 const SCROLL_END_SLACK = 1;
 
@@ -6427,9 +6419,11 @@ function settingsOverlayOf(el) {
 
 function onSettingsTabClick(e) {
   const tab = e.currentTarget;
-  const overlay = settingsOverlayOf(tab);
-  const name = tab.dataset.tab;
-  selectSettingsTab(tab);
+  showSettingsTab(settingsOverlayOf(tab), tab.dataset.tab);
+}
+
+function showSettingsTab(overlay, name) {
+  selectSettingsTab(overlay.querySelector(`.settings-nav .settings-tab[data-tab="${name}"]`));
   for (const pane of overlay.querySelectorAll(".settings-pane")) {
     pane.classList.toggle("hidden", pane.dataset.pane !== name);
     updateScrollCue(pane);
@@ -6492,8 +6486,14 @@ function wireScrollCues(overlay) {
   }
 }
 
-function openLibraryEditor() {
-  const opener = document.activeElement;
+/** Settings, open on `tab` (Appearance unless asked). */
+export function openSettings(tab = DEFAULT_SETTINGS_TAB) {
+  openLibraryEditor(isSettingsTab(tab) ? tab : DEFAULT_SETTINGS_TAB);
+}
+
+function openLibraryEditor(tab) {
+  // Rebuilt in place (a language change) it keeps the opener it had.
+  const opener = libraryEditor?.contains(document.activeElement) ? libraryEditorOpener : document.activeElement;
   closeFolderEditor();
   closeLibraryEditor();
   libraryEditorOpener = opener;
@@ -6508,20 +6508,14 @@ function openLibraryEditor() {
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
         </button>
       </div>
-      <div class="settings-tabs" role="tablist">
-        <button class="settings-tab" type="button" data-tab="general" role="tab" aria-selected="true" data-i18n="settings.tab.general">General</button>
-        <button class="settings-tab" type="button" data-tab="details" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.songDetails">Song details</button>
-        <button class="settings-tab" type="button" data-tab="network" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.network">Network</button>
-        <button class="settings-tab" type="button" data-tab="export" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.export">Export</button>
-        <button class="settings-tab" type="button" data-tab="recording" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.recording">Recording</button>
-        <button class="settings-tab" type="button" data-tab="logs" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.logs">Logs</button>
-        <button class="settings-tab" type="button" data-tab="registry" role="tab" aria-selected="false" tabindex="-1" data-i18n="settings.tab.library">Library</button>
-      </div>
-      <div class="settings-pane" data-pane="general">
+      ${settingsNavHtml()}
+      <div class="settings-pane hidden" data-pane="appearance">${appearancePaneHtml()}</div>
+      <div class="settings-pane hidden" data-pane="general">
         <div class="settings-section">
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title" data-i18n="settings.language.title">Language</div>
+              <div class="settings-row-desc" data-i18n="settings.language.desc">Applies at once, on this device only.</div>
             </div>
             <select class="settings-select set-language" aria-label="Language" data-i18n-aria-label="settings.language.title"></select>
           </div>
@@ -6829,18 +6823,21 @@ function openLibraryEditor() {
           </div>
         </div>
       </div>
+      <div class="settings-pane hidden" data-pane="about"></div>
       <div class="settings-foot">
         <button class="settings-done" type="button" data-i18n="settings.done">Done</button>
       </div>
     </div>
   `;
+  mountAboutPane(overlay.querySelector('.settings-pane[data-pane="about"]'));
   applyTranslations(overlay);
+  wireAppearancePane(overlay.querySelector('.settings-pane[data-pane="appearance"]'));
 
   renderLibraryRows(overlay.querySelector(".library-editor-body"));
 
   overlay.querySelectorAll(".settings-tab").forEach((tab) => tab.addEventListener("click", onSettingsTabClick));
   overlay.querySelectorAll(".settings-subtab").forEach((tab) => tab.addEventListener("click", onLogsSubtabClick));
-  overlay.querySelectorAll(".settings-tabs, .settings-subtabs").forEach((bar) => {
+  overlay.querySelectorAll(".settings-nav, .settings-subtabs").forEach((bar) => {
     bar.addEventListener("keydown", onSettingsTablistKeydown);
   });
   overlay.querySelector(".settings-registry-download")?.addEventListener("click", onRegistryDownloadClick);
@@ -6848,19 +6845,15 @@ function openLibraryEditor() {
   overlay.querySelectorAll(".settings-logtail-refresh").forEach((b) => b.addEventListener("click", onLogTailRefreshClick));
   overlay.querySelector(".settings-export-logs")?.addEventListener("click", onExportLogsClick);
 
-  overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) closeLibraryEditor(); });
   // (status summary is filled in after the overlay is in the DOM, below)
   overlay.querySelector(".library-editor-close")?.addEventListener("click", closeLibraryEditor);
   overlay.querySelector(".settings-done")?.addEventListener("click", closeLibraryEditor);
   overlay.querySelector(".library-editor-sync")?.addEventListener("click", () => resyncLibrary());
-  // Escape closes from anywhere (the overlay isn't focused, so listen on document).
-  libraryEditorOnKey = function onSettingsKeydown(e) {
-    if (e.key === ESCAPE_KEY && escapeIsFor(LAYER.DIALOG)) closeLibraryEditor();
-  };
-  document.addEventListener("keydown", libraryEditorOnKey);
 
   document.body.appendChild(overlay);
   libraryEditor = overlay;
+  settingsLayer = openDialogLayer(overlay, { onClose: teardownLibraryEditor, opener });
+  showSettingsTab(overlay, tab);
   refreshLibrarySyncSummary();
   const isDesktop = Boolean(window.__TAURI__?.core?.invoke);
   wireLanguageSetting(overlay);
@@ -6963,13 +6956,15 @@ async function resyncLibrary() {
   }
 }
 
+function onSettingsButtonClick() {
+  openSettings();
+}
+
 function wireSettingsMenu() {
   const btn = document.getElementById("settingsBtn");
   if (!btn || btn.dataset.menuReady === "1") return;
   btn.dataset.menuReady = "1";
-  // The only setting today is the library, so Settings opens the Edit Library
-  // window directly (a centered modal, like the About dialog).
-  btn.addEventListener("click", openLibraryEditor);
+  btn.addEventListener("click", onSettingsButtonClick);
 }
 
 export async function initCatalog() {

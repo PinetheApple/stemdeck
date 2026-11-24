@@ -15,9 +15,9 @@ import {
 
 test.afterEach(settleRoutes);
 
-const TABS = ["general", "details", "network", "export", "logs", "registry"];
+const TABS = ["appearance", "general", "details", "network", "export", "logs", "registry"];
 const LANGUAGES = ["en", "pl", "ja", "ko", "zh-Hans", "de", "fr", "es", "pt", "pt-PT", "id"];
-// Short enough that the dialog's height clamps to its minimum.
+// Shorter than the dialog's full height, so it shrinks to the window.
 const MIN_SIZE_VIEWPORT = { width: 1024, height: 600 };
 const ACCENT_RGB = "rgb(255, 111, 89)";
 // Gap between one row's content and the next, the arrow a native select draws,
@@ -49,6 +49,7 @@ async function openSettings(page) {
   await seedLibrary(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator("#settingsBtn").click();
+  await page.locator('.settings-tab[data-tab="general"]').click();
   await expect(page.locator(".library-editor")).toBeVisible();
 }
 
@@ -114,17 +115,17 @@ async function faultsOnEveryTab(page) {
 }
 
 for (const lang of LANGUAGES) {
-  test(`every tab fits the dialog at its minimum size in ${lang}`, async ({ page }) => {
+  test(`every tab fits a 1024 x 600 window in ${lang}`, async ({ page }) => {
     await page.setViewportSize(MIN_SIZE_VIEWPORT);
     await useLanguage(page, lang);
     await withAddresses(page, ["http://192.168.1.50:8000"]);
     await openSettings(page);
     const dialog = page.locator(".library-editor");
-    const { box, min } = await dialog.evaluate((el) => ({
-      box: [el.offsetWidth, el.offsetHeight],
-      min: [parseFloat(getComputedStyle(el).minWidth), parseFloat(getComputedStyle(el).minHeight)],
-    }));
-    expect(box).toEqual(min);
+    const box = await dialog.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(MIN_SIZE_VIEWPORT.width);
+    expect(box.y + box.height).toBeLessThanOrEqual(MIN_SIZE_VIEWPORT.height);
     expect(await faultsOnEveryTab(page)).toEqual([]);
   });
 }
@@ -163,20 +164,20 @@ test.describe("tabs by keyboard", () => {
     await expect(page.locator('.settings-pane[data-pane="details"]')).toBeVisible();
     await expect(selectedTab(page)).toBeFocused();
     await page.keyboard.press("End");
-    await expect(selectedTab(page)).toHaveAttribute("data-tab", "registry");
+    await expect(selectedTab(page)).toHaveAttribute("data-tab", "about");
     await page.keyboard.press("ArrowRight");
-    await expect(selectedTab(page)).toHaveAttribute("data-tab", "general");
+    await expect(selectedTab(page)).toHaveAttribute("data-tab", "appearance");
     await page.keyboard.press("ArrowLeft");
-    await expect(selectedTab(page)).toHaveAttribute("data-tab", "registry");
+    await expect(selectedTab(page)).toHaveAttribute("data-tab", "about");
     await page.keyboard.press("Home");
-    await expect(selectedTab(page)).toHaveAttribute("data-tab", "general");
+    await expect(selectedTab(page)).toHaveAttribute("data-tab", "appearance");
   });
 
   test("only the selected tab is a Tab stop", async ({ page }) => {
     await openSettings(page);
     await showTab(page, "network");
     const stops = await page.locator(".settings-tab").evaluateAll((tabs) => tabs.map((t) => t.tabIndex));
-    expect(stops).toEqual([-1, -1, 0, -1, -1, -1, -1]);
+    expect(stops).toEqual([-1, -1, -1, 0, -1, -1, -1, -1, -1]);
   });
 
   test("the Logs sub-tabs move the same way", async ({ page }) => {

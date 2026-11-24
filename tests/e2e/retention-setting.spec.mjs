@@ -19,6 +19,7 @@ async function openSettings(page) {
   await seedLibrary(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator("#settingsBtn").click();
+  await page.locator('.settings-tab[data-tab="general"]').click();
   await expect(page.locator(".auto-delete-input")).toBeVisible();
 }
 
@@ -80,6 +81,7 @@ test.describe("automatic deletion", () => {
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.locator("#settingsBtn").click();
+    await page.locator('.settings-tab[data-tab="general"]').click();
     await expect(page.locator(".auto-delete-input")).toBeChecked();
     await expect(page.locator(".auto-delete-days-row")).not.toHaveClass(/disabled/);
     await expect(page.locator(".set-auto-delete-days")).toBeEnabled();

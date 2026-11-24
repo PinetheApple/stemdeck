@@ -191,7 +191,7 @@ test("Guide and About are told apart by name and tooltip, and do different thing
   expect(await guide.getAttribute("title")).not.toBe(await about.getAttribute("title"));
 
   await about.click();
-  await expect(page.locator("#aboutDialog")).toBeVisible();
+  await expect(page.locator('.settings-pane[data-pane="about"]')).toBeVisible();
   await page.keyboard.press("Escape");
   await guide.click();
   await expect(guide).toHaveAttribute("aria-pressed", "true");
