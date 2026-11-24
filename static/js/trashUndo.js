@@ -9,7 +9,7 @@ import { insertUpNext, upNextIndexOf } from "./upNext.js";
 import { setPlayheadTime, togglePlayPause, transport } from "./transport.js";
 import { PLAYBACK_READY_EVENT } from "./player.js";
 import { showUndo } from "./undoToast.js";
-import { t } from "./i18n.js";
+import { plural, t } from "./i18n.js";
 
 const NOT_QUEUED = -1;
 
@@ -51,18 +51,36 @@ async function reopenPaused(trackId, seconds) {
   else stopWaiting();
 }
 
-export function trashWithUndo(trackId) {
-  const track = getLibraryTrack(trackId);
-  if (!track) return;
+function binForUndo(trackId) {
   const queuedAt = upNextIndexOf(trackId);
   const position = playerPositionOf(trackId);
-  const place = moveTrackToTrash(trackId);
+  return { trackId, queuedAt, position, place: moveTrackToTrash(trackId) };
+}
+
+function putBack({ trackId, queuedAt, position, place }, movedOn) {
+  undoTrash(trackId, place);
+  if (queuedAt !== NOT_QUEUED) insertUpNext(trackId, queuedAt);
+  if (position !== null && !movedOn) reopenPaused(trackId, position);
+}
+
+function trashedMessage(binned) {
+  if (binned.length > 1) return plural("libSort.movedToTrash", binned.length);
+  return t("lib.movedToTrash", { title: displayTitle(libraryTitle(getLibraryTrack(binned[0].trackId))) });
+}
+
+/** Trash every song in `trackIds`, with one Undo that puts them all back. */
+export function trashAllWithUndo(trackIds) {
+  const binned = trackIds.filter(getLibraryTrack).map(binForUndo);
+  if (!binned.length) return;
   const shownAfterTrash = shownTrackId();
-  showUndo(t("lib.movedToTrash", { title: displayTitle(libraryTitle(track)) }), function onUndoTrash() {
-    // A song opened or played since the trash keeps the studio; the trashed one only returns to the library.
+  showUndo(trashedMessage(binned), function onUndoTrash() {
+    // A song opened or played since the trash keeps the studio; the trashed ones only return to the library.
     const movedOn = Boolean(getPlayingTrackInfo()) || shownTrackId() !== shownAfterTrash;
-    undoTrash(trackId, place);
-    if (queuedAt !== NOT_QUEUED) insertUpNext(trackId, queuedAt);
-    if (position !== null && !movedOn) reopenPaused(trackId, position);
+    // Last binned first, so each Up Next place is taken back in the queue it was taken from.
+    for (const entry of [...binned].reverse()) putBack(entry, movedOn);
   });
+}
+
+export function trashWithUndo(trackId) {
+  trashAllWithUndo([trackId]);
 }

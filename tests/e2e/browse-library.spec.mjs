@@ -192,7 +192,9 @@ test("grid and list both show; the list has Title, Artist, Key, Tempo, Length, F
   await page.locator("#browseListBtn").click();
   await expect(page.locator("#browseListBtn")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#browseGridBtn")).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator("#browseResults .browse-thead .cell")).toHaveText([...LIST_COLUMNS, ""]);
+  const columnNames = () => page.locator("#browseResults .browse-thead .cell")
+    .evaluateAll((cells) => cells.map((cell) => (cell.querySelector("button > span") ?? cell).textContent));
+  await expect.poll(columnNames).toEqual([...LIST_COLUMNS, ""]);
   const row = browseRow(page, JOB_ID);
   await expect(row.locator(".c-tempo")).toHaveText("120");
   await expect(row.locator(".c-key")).toHaveText("B minor");

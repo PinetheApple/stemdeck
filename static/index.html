@@ -40,6 +40,7 @@
     <link rel="stylesheet" href="/css/browse.css" />
     <link rel="stylesheet" href="/css/song-menu.css" />
     <link rel="stylesheet" href="/css/toast.css" />
+    <link rel="stylesheet" href="/css/library-tools.css" />
     <script type="module" src="/js/appearance.js"></script>
     <link rel="stylesheet" href="/css/add-song.css" />
   </head>
@@ -1457,6 +1458,9 @@
                      aria-label="Search library" data-i18n-aria-label="search.ariaLabel" autocomplete="off" spellcheck="false" />
               <ul class="tag-suggest" id="tagSuggest" role="listbox" aria-label="Tag suggestions" data-i18n-aria-label="search.tagSuggestions"></ul>
             </label>
+            <button class="browse-btn" id="librarySortBtn" type="button" aria-haspopup="menu" aria-expanded="false" title="Sort the library" data-i18n-title="libSort.sortTitle" hidden></button>
+            <button class="browse-btn" id="libraryFilterBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-pressed="false" title="Filter the library" data-i18n-title="libSort.filterTitle" hidden></button>
+            <button class="browse-btn" id="librarySelectBtn" type="button" aria-pressed="false" title="Select several songs to change them together" data-i18n-title="libSort.selectTitle" hidden></button>
             <button class="browse-iconbtn" id="browseGridBtn" type="button" aria-pressed="true" title="Show as a grid" aria-label="Show as a grid" data-i18n-title="lib.showGrid" data-i18n-aria-label="lib.showGrid">
               <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1" /> <rect width="7" height="7" x="14" y="3" rx="1" /> <rect width="7" height="7" x="14" y="14" rx="1" /> <rect width="7" height="7" x="3" y="14" rx="1" /></svg>
             </button>
@@ -1468,7 +1472,9 @@
             </button>
           </div>
           <div class="browse-tags" id="browseTags"></div>
-          <div class="browse-results" id="browseResults"></div>
+          <div class="browse-results" id="browseResults">
+            <div class="library-bulk" id="libraryBulkBar" role="toolbar" hidden></div>
+          </div>
         </div>
       </section>
     </div>

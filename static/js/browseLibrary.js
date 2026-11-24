@@ -15,6 +15,7 @@ import { drawBrowseResults } from "./browseViews.js";
 import { drawTagChips, wireBrowseSearch } from "./browseSearch.js";
 import { openSetlistRename } from "./setlistRenameDialog.js";
 import { LAYOUT, VIEW } from "./browseViewNames.js";
+import { afterResultsDrawn, endPicking, initLibraryTools, leaveSelectOnEscape } from "./libraryTools.js";
 
 const LAYOUT_KEY = "stemdeck.browse.layout";
 const OPEN_CLASS = "browse-open";
@@ -36,6 +37,7 @@ export function closeBrowse() {
   const overlay = $("browseLibrary");
   if (!overlay || overlay.hidden) return;
   overlay.hidden = true;
+  endPicking();
   $("browseScrim").hidden = true;
   document.body.classList.remove(OPEN_CLASS);
   const back = opener?.isConnected ? opener : $("browseBtn");
@@ -57,9 +59,11 @@ export function renderResults() {
   const saved = resultRows?.remember();
   const drawn = drawBrowseResults($("browseResults"));
   if (drawn !== state.view) {
-    state.view = drawn;
+    // The view shown went away; one drawn while picking loses its pick boxes.
+    if (setView(drawn)) drawBrowseResults($("browseResults"));
     drawBrowseNav();
   }
+  afterResultsDrawn($("browseResults"), currentViewKind());
   resultRows?.restore(saved);
 }
 
@@ -74,7 +78,7 @@ export function openBrowse(view = state.view) {
     $("browseScrim").hidden = false;
     document.body.classList.add(OPEN_CLASS);
   }
-  state.view = view;
+  setView(view);
   // A nav row's own click must not rebuild the nav: its double-click renames the folder.
   if (opening) renderBrowse();
   else {
@@ -126,6 +130,17 @@ function setLayout(layout) {
   renderResults();
 }
 
+/** Every change of view leaves Select; true when that ended picking. */
+function setView(view) {
+  const endedPicking = view !== state.view && endPicking();
+  state.view = view;
+  return endedPicking;
+}
+
+function currentViewKind() {
+  return viewParts()[0];
+}
+
 function onGridClick() {
   setLayout(LAYOUT.GRID);
 }
@@ -135,7 +150,7 @@ function onListClick() {
 }
 
 function onBrowseKeydown(e) {
-  if (e.key === ESCAPE_KEY && escapeIsFor(LAYER.BROWSE)) closeBrowse();
+  if (e.key === ESCAPE_KEY && escapeIsFor(LAYER.BROWSE) && !leaveSelectOnEscape()) closeBrowse();
 }
 
 const queueNavEntry = () => $("browseNav")?.querySelector(`[data-view="${VIEW.QUEUE}"]`);
@@ -150,7 +165,7 @@ function onQueueFrame(snap = getQueueSnapshot()) {
     if (entry && queueNavCount(entry) !== queueCount(snap)) drawBrowseNav();
     return;
   }
-  if (!queueShown && state.view === VIEW.QUEUE) state.view = VIEW.ALL;
+  if (!queueShown && state.view === VIEW.QUEUE) setView(VIEW.ALL);
   renderBrowse();
 }
 
@@ -169,6 +184,7 @@ export function initBrowseLibrary() {
   const results = $("browseResults");
   if (!results) return;
   resultRows = wireSongList(results, { afterPlay: closeBrowse });
+  initLibraryTools(results, { redraw: renderResults, viewKind: currentViewKind });
   $("browseScrim")?.addEventListener("click", closeBrowse);
   $("browseCloseBtn")?.addEventListener("click", closeBrowse);
   $("browseGridBtn")?.addEventListener("click", onGridClick);
