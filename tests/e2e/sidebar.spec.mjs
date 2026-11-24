@@ -1,5 +1,5 @@
 // The sidebar: Browse library, then Importing while imports run, Favorites (with
-// the playing song), Setlists and Recently played, and Trash with its count at the foot.
+// the song in the player), Setlists and Recently played, and Trash with its count at the foot.
 
 import { test, expect } from "@playwright/test";
 import {
@@ -10,10 +10,10 @@ import {
   fixtureTrack,
   openStudio,
   seedCatalogState,
+  stubFavorites,
   stubImportQueue,
   stubServerTrash,
 } from "./helpers.mjs";
-import { startPlayback } from "./openVsPlaying.mjs";
 
 const SETLISTS_PATH = "/api/setlists";
 const IMPORT_ID = "e2e0abc00001";
@@ -71,12 +71,15 @@ test("Importing shows only while an import runs", async ({ page }) => {
   await expect(group(page, "sidebarImporting")).toBeHidden();
 });
 
-test("the playing song is listed under Favorites when it is not a favorite", async ({ page }) => {
+test("the song in the player is listed under Favorites when it is not a favorite", async ({ page }) => {
   await openStudio(page);
-  await expect(groupRow(page, "sidebarFavorites", JOB_ID)).toHaveCount(0);
-  await startPlayback(page);
   await expect(groupRow(page, "sidebarFavorites", JOB_ID)).toBeVisible();
   await expect(groupRow(page, "sidebarFavorites", SIBLING_JOB_ID)).toHaveCount(0);
+
+  await groupRow(page, "sidebarRecent", SIBLING_JOB_ID).dblclick();
+  await expect(page.locator("#title")).toHaveText(SIBLING_TITLE, { timeout: 15000 });
+  await expect(groupRow(page, "sidebarFavorites", SIBLING_JOB_ID)).toBeVisible();
+  await expect(groupRow(page, "sidebarFavorites", JOB_ID)).toHaveCount(0);
 });
 
 test("a song dropped on a sidebar setlist or on Trash goes there", async ({ page, request }) => {
@@ -91,14 +94,16 @@ test("a song dropped on a sidebar setlist or on Trash goes there", async ({ page
       [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, SIBLING_TITLE),
     },
   });
+  await stubFavorites(page);
   await stubServerTrash(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   const setlistRow = group(page, "sidebarSetlists").locator(`.sidebar-setlist[data-id="${id}"]`);
-  await groupRow(page, "sidebarRecent", JOB_ID).dragTo(setlistRow);
+  const sidebarRow = (id) => page.locator(`#catalogList .cat-item[data-id="${id}"]`).first();
+  await sidebarRow(JOB_ID).dragTo(setlistRow);
   await expect.poll(async () => (await (await request.get(SETLISTS_PATH)).json()).find((s) => s.id === id)?.song_ids).toEqual([JOB_ID]);
   await expect(setlistRow).toContainText("Setlist · 1 song");
 
-  await groupRow(page, "sidebarRecent", SIBLING_JOB_ID).dragTo(page.locator("#trashBtn"));
+  await sidebarRow(SIBLING_JOB_ID).dragTo(page.locator("#trashBtn"));
   await expect(page.locator("#trashBadge")).toHaveText("1");
   await expect(page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`)).toHaveCount(0);
 });

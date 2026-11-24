@@ -7,6 +7,7 @@ import {
   SIBLING_JOB_ID,
   SIBLING_TITLE,
   TRACK_TITLE,
+  JOB_LIST_URL,
   browseRow,
   fixtureTrack,
   openBrowse,
@@ -36,7 +37,7 @@ test.afterEach(async ({ request }) => {
   for (const setlist of await serverSetlists(request)) await request.delete(`${SETLISTS_PATH}/${setlist.id}`);
 });
 
-async function openLibrary(page, { folders = [GIG, ENCORE], trashed = [], tracks = {} } = {}) {
+async function openLibrary(page, { folders = [GIG, ENCORE], trashed = [], tracks = {}, artists = null } = {}) {
   const filed = new Set(folders.flatMap((f) => f.items));
   const loose = [JOB_ID, SIBLING_JOB_ID].filter((id) => !filed.has(id) && !trashed.includes(id));
   await seedCatalogState(page, {
@@ -54,6 +55,11 @@ async function openLibrary(page, { folders = [GIG, ENCORE], trashed = [], tracks
   await stubFavorites(page);
   await stubUpdateCheck(page);
   const server = await stubServerTrash(page, { trashed });
+  // The server's names win over seeded ones, so an artist is set where the library reads it.
+  if (artists) await page.route(JOB_LIST_URL, async (route) => {
+    const jobs = await (await route.fetch()).json();
+    await route.fulfill({ json: jobs.map((job) => ({ ...job, user_artist: artists[job.job_id] ?? job.user_artist })) });
+  });
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#browseBtn")).toBeVisible();
   return server;
@@ -202,9 +208,10 @@ test("grid and list both show; the list has Title, Artist, Key, Tempo, Length, F
 test("search matches title, artist, source and tags; #tag and chips filter by tag", async ({ page }) => {
   await openLibrary(page, {
     tracks: {
-      [JOB_ID]: { userArtist: "Night Owls", tags: ["rock"] },
+      [JOB_ID]: { tags: ["rock"] },
       [SIBLING_JOB_ID]: { sourceUrl: "https://example.com/rock-anthem", tags: ["jazz"] },
     },
+    artists: { [JOB_ID]: "Night Owls" },
   });
   await openBrowse(page);
   const shows = async (query, ids) => {
@@ -355,14 +362,14 @@ test("an empty Recently added shows its title and nothing more", async ({ page }
 test("click shows, double-click / Enter / cover Play plays and closes; Delete trashes only a keyboard-reached row", async ({ page }) => {
   await openLibrary(page);
   await openBrowse(page);
-  await browseRow(page, JOB_ID).click();
+  await browseRow(page, JOB_ID).locator(".cat-title").click();
   await expect(page.locator("#title")).toHaveText(TRACK_TITLE, { timeout: 15000 });
   await expect(overlay(page)).toBeVisible();
   expect(await isPlaying(page)).toBe(false);
   await page.keyboard.press("Delete");
   await expect(browseRow(page, JOB_ID)).toHaveCount(1);
 
-  await browseRow(page, SIBLING_JOB_ID).dblclick();
+  await browseRow(page, SIBLING_JOB_ID).locator(".cat-title").dblclick();
   await expect(overlay(page)).toBeHidden();
   await expect.poll(() => isPlaying(page), { timeout: 15000 }).toBe(true);
 
@@ -396,7 +403,8 @@ test("the playing row shows moving bars while playing and Resume when paused", a
   const row = browseRow(page, JOB_ID);
   await expect(row.locator(".eqbars")).toBeVisible();
   await expect(row.locator(".cat-resume")).toHaveCount(0);
-  await page.locator("#t-play").click();
+  // The transport sits under Browse library's scrim, so its button is pressed directly.
+  await page.locator("#t-play").dispatchEvent("click");
   await expect(row.locator(".eqbars")).toHaveCount(0);
   await expect(row.locator(".cat-resume")).toHaveAttribute("aria-label", `Resume ${TRACK_TITLE}`);
   await row.locator(".cat-resume").click({ force: true });
