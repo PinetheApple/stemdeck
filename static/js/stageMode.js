@@ -31,6 +31,7 @@ import { dismissSingHandoff, singPlayheadAt, singQueueSettles } from "./stageSin
 import { EMPTY_VALUE } from "./constants.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $ } from "./utils.js";
+import { TRACK_OPEN_EVENT } from "./trackEvents.js";
 
 const OPEN_MODAL = 'dialog[open], [role="dialog"][aria-modal="true"]';
 
@@ -249,7 +250,7 @@ export function initStageMode() {
   initStageUpNext({ panelToggled: paintMixButton });
   initSingAlong({ showing: isStageMode, redraw: redrawStage, leaveStage: onStageExitClick });
   window.addEventListener("keydown", onStageKeydown);
-  document.addEventListener("trackopen", onSongChangeInStage);
+  document.addEventListener(TRACK_OPEN_EVENT, onSongChangeInStage);
   document.addEventListener("tracktags", onSongChangeInStage);
   document.addEventListener("tracklookup", onSongChangeInStage);
   document.addEventListener("tempochange", onTempoChange);

@@ -75,17 +75,6 @@
   font-weight: var(--fw-bold);
 }
 
-/* ── Import bar, under the top bar while Add song is on ── */
-.composer-drawer {
-  flex: none;
-  display: flex;
-  padding: var(--s-2) var(--s-3);
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
-}
-.composer-drawer[hidden] { display: none; }
-.composer-drawer > .daw-composer-stack { flex: 1; min-width: 0; padding: 0; }
-
 /* ── Sidebar: the library, or a strip of covers when collapsed ── */
 .daw .sidebar { width: var(--library-w); flex-direction: column; }
 .daw .sidebar-body { flex: 1; min-height: 0; }
@@ -174,26 +163,6 @@
 .daw.no-track .stems-resizer { display: none; }
 .app.is-sizing .sidebar,
 .app.is-sizing .inspector { transition: none; }
-
-/* ── Song tools: the Lyrics button ── */
-.tools-lyrics-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  align-self: flex-start;
-  margin: 0 var(--s-3) var(--s-2);
-  padding: var(--s-1) var(--s-3);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-pill);
-  background: none;
-  color: var(--text-2);
-  font: inherit;
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-semibold);
-  cursor: pointer;
-}
-.tools-lyrics-btn:hover { background: var(--surface-2); color: var(--text); }
-.tools-lyrics-btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
 
 /* ── Menus and popovers never run past the window; taller ones scroll ── */
 .shell-float {

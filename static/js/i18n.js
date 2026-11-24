@@ -447,7 +447,6 @@ const en = {
   "lyrics.supply.network": "Could not reach the server. Check the connection and try again.",
   "lyrics.supply.refused": "The server could not do this (error {status}). Try again.",
   "extract.all": "All",
-  "extract.moreAria": "Choose stems",
   "process.extractStems": "Extract stems",
 
   "stem.original": "Original",
@@ -2109,7 +2108,6 @@ const pl = {
   "lyrics.supply.network": "Nie można połączyć się z serwerem. Sprawdź połączenie i spróbuj ponownie.",
   "lyrics.supply.refused": "Serwer nie mógł tego wykonać (błąd {status}). Spróbuj ponownie.",
   "extract.all": "Wszystko",
-  "extract.moreAria": "Wybierz ścieżki",
   "process.extractStems": "Wyodrębnij ścieżki",
 
   "stem.original": "Oryginał",
@@ -3787,7 +3785,6 @@ const ja = {
   "lyrics.supply.network": "サーバーに接続できませんでした。接続を確認してもう一度お試しください。",
   "lyrics.supply.refused": "サーバーで処理できませんでした(エラー {status})。もう一度お試しください。",
   "extract.all": "すべて",
-  "extract.moreAria": "抽出するパートを選ぶ",
   "process.extractStems": "パートを抽出",
 
   "stem.original": "オリジナル",
@@ -5392,7 +5389,6 @@ const zhHans = {
   "lyrics.supply.network": "无法连接服务器。请检查连接后重试。",
   "lyrics.supply.refused": "服务器无法完成此操作(错误 {status})。请重试。",
   "extract.all": "全部",
-  "extract.moreAria": "选择要提取的音轨",
   "process.extractStems": "提取音轨",
 
   "stem.original": "原始",
@@ -6997,7 +6993,6 @@ const de = {
   "lyrics.supply.network": "Der Server ist nicht erreichbar. Prüfe die Verbindung und versuche es erneut.",
   "lyrics.supply.refused": "Der Server konnte das nicht ausführen (Fehler {status}). Versuche es erneut.",
   "extract.all": "Alle",
-  "extract.moreAria": "Stems auswählen",
   "process.extractStems": "Stems extrahieren",
 
   "stem.original": "Original",
@@ -8635,7 +8630,6 @@ const pt = {
   "lyrics.supply.network": "Não foi possível acessar o servidor. Verifique a conexão e tente novamente.",
   "lyrics.supply.refused": "O servidor não conseguiu fazer isso (erro {status}). Tente novamente.",
   "extract.all": "Todos",
-  "extract.moreAria": "Escolher as faixas",
   "process.extractStems": "Extrair stems",
 
   "stem.original": "Original",
@@ -10275,7 +10269,6 @@ const id = {
   "lyrics.supply.network": "Tidak dapat menghubungi server. Periksa koneksi lalu coba lagi.",
   "lyrics.supply.refused": "Server tidak dapat melakukan ini (galat {status}). Coba lagi.",
   "extract.all": "Semua",
-  "extract.moreAria": "Pilih stem",
   "process.extractStems": "Ekstrak stem",
 
   "stem.original": "Asli",
@@ -11880,7 +11873,6 @@ const fr = {
   "lyrics.supply.network": "Impossible de joindre le serveur. Vérifiez la connexion et réessayez.",
   "lyrics.supply.refused": "Le serveur n’a pas pu effectuer cette action (erreur {status}). Réessayez.",
   "extract.all": "Tout",
-  "extract.moreAria": "Choisir les pistes",
   "process.extractStems": "Extraire les pistes",
 
   "stem.original": "Original",
@@ -13980,7 +13972,6 @@ const es = {
   "lyrics.supply.network": "No se pudo contactar con el servidor. Comprueba la conexión e inténtalo de nuevo.",
   "lyrics.supply.refused": "El servidor no pudo hacerlo (error {status}). Inténtalo de nuevo.",
   "extract.all": "Todo",
-  "extract.moreAria": "Elegir las pistas",
   "process.extractStems": "Extraer stems",
 
   "stem.original": "Original",
@@ -15641,7 +15632,6 @@ const ko = {
   "lyrics.supply.network": "서버에 연결할 수 없습니다. 연결을 확인하고 다시 시도하세요.",
   "lyrics.supply.refused": "서버에서 처리하지 못했습니다(오류 {status}). 다시 시도하세요.",
   "extract.all": "전체",
-  "extract.moreAria": "추출할 스템 선택",
   "process.extractStems": "스템 추출",
 
   "stem.original": "원본",

@@ -17,7 +17,6 @@ export const OPEN_FLOATS = [
   '[role="menu"]',
   '[role="listbox"]:not(select)',
   ".daw-notif-wrap.open .daw-notif-panel",
-  "#stemOverflow.open",
   "#search-panel:not(.hidden)",
   ".ft-pop:not(.hidden)",
   "#composerDrawer:not([hidden])",

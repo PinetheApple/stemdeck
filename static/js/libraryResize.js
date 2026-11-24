@@ -4,6 +4,7 @@ import { $ } from "./utils.js";
 import { isSidebarCollapsed, setSidebarCollapsed } from "./catalog.js";
 import { PANE_LIMITS } from "./paneEdgeMath.js";
 import { FIT_ORDER, createShellEdge, queueShellFit, waveSpare } from "./shellEdges.js";
+import { TRACK_OPEN_EVENT } from "./trackEvents.js";
 
 const WIDTH_STORE_KEY = "stemdeck.library.width";
 // localStorage like the catalog's collapsed flag: both are read synchronously at startup,
@@ -86,7 +87,7 @@ export function initLibraryResize() {
     order: FIT_ORDER.SIDEBAR, afterFit: fitLibraryToRoom, handle, cssVar: WIDTH_VAR, ...PANE_LIMITS.sidebar,
     storeKey: WIDTH_STORE_KEY, measure: () => sidebar.offsetWidth,
   });
-  document.addEventListener("trackopen", onFirstTrackOpen, { once: true });
+  document.addEventListener(TRACK_OPEN_EVENT, onFirstTrackOpen, { once: true });
   autoCollapsed = readAutoCollapsed();
   collapseWatcher = new MutationObserver(onCollapseChange);
   collapseWatcher.observe(app, { attributes: true, attributeFilter: ["class"], attributeOldValue: true });

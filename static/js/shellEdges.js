@@ -4,6 +4,7 @@
 import { $ } from "./utils.js";
 import { GROWS_LEFT, PaneEdge } from "./paneEdge.js";
 import { MIN_WAVES_PX, PANE_LIMITS } from "./paneEdgeMath.js";
+import { TRACK_OPEN_EVENT } from "./trackEvents.js";
 
 // inspector.js's hidden class, named once here for the shell.
 export const TOOLS_HIDDEN_CLASS = "inspector-hidden";
@@ -116,7 +117,7 @@ export function initShellEdges() {
     storeKey: STEMS_WIDTH_KEY, measure: stemsColumnWidth,
   });
   $("inspectorToggleBtn")?.addEventListener("click", onToolsToggleCapture, true);
-  document.addEventListener("trackopen", onFirstTrackOpen, { once: true });
+  document.addEventListener(TRACK_OPEN_EVENT, onFirstTrackOpen, { once: true });
   const observer = new ResizeObserver(queueShellFit);
   for (const el of [document.querySelector(".daw-panes"), inspector, $("main")]) if (el) observer.observe(el);
   window.addEventListener("resize", queueShellFit);

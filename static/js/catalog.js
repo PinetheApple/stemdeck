@@ -63,6 +63,7 @@ import { dialogHead } from "./dialogHead.js";
 import { DEFAULT_SETTINGS_TAB, SETTINGS_TAB, isSettingsTab, settingsNavHtml } from "./settingsNav.js";
 import { appearancePaneHtml, wireAppearancePane } from "./settingsAppearance.js";
 import { mountAboutPane, setAboutVersion } from "./settingsAbout.js";
+import { TRACK_OPEN_EVENT } from "./trackEvents.js";
 
 // Escape user-supplied strings before inserting into innerHTML.
 function esc(s) {
@@ -119,7 +120,7 @@ const TRASH_ID = "trash";
 export const TRASH_CHANGE_EVENT = "tracktrash";
 // A song shown over the player: the song head and Details follow it, the player does not change.
 export const TRACK_SHOW_EVENT = "trackshow";
-export const TRACK_OPEN_EVENT = "trackopen";
+export { TRACK_OPEN_EVENT };
 // The default landing folder for unorganized tracks — protected from deletion.
 const UNSORTED_ID = "f-unsorted";
 const isSystemFolder = (folderId) => folderId === TRASH_ID || folderId === UNSORTED_ID;

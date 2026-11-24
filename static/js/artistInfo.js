@@ -57,6 +57,7 @@ import {
 } from "./catalog.js";
 import { openDialogLayer } from "./dialogLayer.js";
 import { SETTINGS_TAB } from "./settingsNav.js";
+import { TRACK_OPEN_EVENT } from "./trackEvents.js";
 
 // One answer per language and name, for the life of the page. A band's
 // members do not change between two clicks, and asking again costs the user a
@@ -1053,7 +1054,7 @@ export function initArtistInfo() {
 
   // catalog.js says when a track has been opened or shown, after its load is under way,
   // and when an older track's tags have been read.
-  document.addEventListener("trackopen", onSongOpenedOrShown);
+  document.addEventListener(TRACK_OPEN_EVENT, onSongOpenedOrShown);
   document.addEventListener(TRACK_SHOW_EVENT, onSongOpenedOrShown);
   document.addEventListener("tracktags", (e) => onTrackTags(e.detail?.id ?? null));
 }

@@ -13,6 +13,7 @@ import { forgetSingLyrics, initSingLyrics, paintSingLyrics } from "./stageSingLy
 import { NO_LYRICS, initSingNoLyrics, paintSingNoLyrics } from "./stageSingNoLyrics.js";
 import { t, onLanguageChange } from "./i18n.js";
 import { $, fmtTickLabel, storeGet, storeSet } from "./utils.js";
+import { TRACK_OPEN_EVENT } from "./trackEvents.js";
 
 const LOOK_STORE_KEY = "stemdeck.stage.look";
 const LOOK_SING = "sing";
@@ -185,7 +186,7 @@ export function initSingAlong({ showing, redraw, leaveStage }) {
   $("stageLook")?.addEventListener("keydown", onLookKeydown);
   $("singVoiceBtn")?.addEventListener("click", onVoiceClick);
   $("singBackingBtn")?.addEventListener("click", onBackingClick);
-  document.addEventListener("trackopen", onTrackOpen);
+  document.addEventListener(TRACK_OPEN_EVENT, onTrackOpen);
   document.addEventListener("playbackready", onPlaybackReady);
   document.addEventListener(MIX_CHANGE_EVENT, onMixChange);
   onLanguageChange(paintVoice);

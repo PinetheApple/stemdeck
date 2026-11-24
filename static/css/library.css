@@ -1,7 +1,6 @@
 /* Library pane: Songs / Setlists tabs, setlists, a row's … menu, and renaming a song. */
 
 /* ── Tabs ── */
-.settings-tabs,
 .settings-subtabs {
   display: flex;
   flex-shrink: 0;

@@ -269,4 +269,4 @@ button.browse-nav-chevron:hover { background: var(--surface-3); color: var(--tex
 .browse-queue { display: flex; flex-direction: column; }
 
 /* A dialog opened while Browse library is open sits above it, on the one dialog layer. */
-.browse-open :is(.dialog-scrim, .folder-editor-backdrop, .reset-confirm-backdrop) { z-index: var(--z-dialog); }
+.browse-open :is(.about-backdrop, .library-editor-backdrop, .folder-editor-backdrop, .reset-confirm-backdrop) { z-index: var(--z-dialog); }

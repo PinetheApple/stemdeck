@@ -21,6 +21,7 @@ import {
   resendOnceIfAnswered,
   forgetOwnResend,
 } from "./saveFailures.js";
+import { TRACK_OPEN_EVENT } from "./trackEvents.js";
 
 const MODE_CONSTANT = "constant";
 const SOURCE_USER = "user";
@@ -487,7 +488,7 @@ export function initTempoTools() {
   for (const chip of document.querySelectorAll("[data-tempo-field]")) chip.addEventListener("click", onFieldResetClick);
   $("tempoReset").addEventListener("click", onResetClick);
   document.addEventListener("beatgridsave", onBeatGridSave);
-  document.addEventListener("trackopen", render);
+  document.addEventListener(TRACK_OPEN_EVENT, render);
   onConnectionRestored(retryLostFields);
   onLanguageChange(onLanguageSwitch);
   onLanguageSwitch();

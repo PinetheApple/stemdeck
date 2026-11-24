@@ -11,6 +11,7 @@ import {
 import { queueUpNext } from "./upNext.js";
 import { openSongMenu } from "./songMenu.js";
 import { closeMenu } from "./floatMenu.js";
+import { TRACK_OPEN_EVENT } from "./trackEvents.js";
 
 // inspectorMore.js opens its More menu through this module.
 export { openMenu } from "./floatMenu.js";
@@ -57,7 +58,7 @@ export function initTrackMenu() {
   for (const button of openSongButtons(OPEN_SONG_MORE_IDS)) {
     button.addEventListener("click", onOpenSongMenuClick);
   }
-  for (const eventName of ["trackopen", TRACK_SHOW_EVENT, "tracknames", TRASH_CHANGE_EVENT]) {
+  for (const eventName of [TRACK_OPEN_EVENT, TRACK_SHOW_EVENT, "tracknames", TRASH_CHANGE_EVENT]) {
     document.addEventListener(eventName, paintOpenSongButtons);
   }
   paintOpenSongButtons();

@@ -40,7 +40,6 @@
   border-radius: var(--r-3);
   box-shadow: none;
 }
-.daw-composer > .daw-composer-sep { display: none; }
 .daw-composer > .daw-url-zone { background: var(--bg); border-radius: var(--r-2); }
 .daw-composer > .daw-url-zone:focus-within { border-color: var(--accent); }
 
@@ -81,14 +80,6 @@
 .daw.cat-collapsed .library-resizer,
 .daw.stage-mode .library-resizer { display: none; }
 .sidebar-body { padding: var(--s-3); gap: var(--s-3); }
-.daw-search {
-  height: var(--ctl-h);
-  border-radius: var(--r-2);
-  border-color: var(--line-strong);
-  background: var(--bg);
-  font-size: var(--fs-base);
-}
-.daw-search:focus-within { border-color: var(--accent); }
 
 .cat-item .cat-title { font-weight: var(--fw-semibold); }
 /* Two by two, so a done song's four actions keep to the row's end and leave the title its middle. */
