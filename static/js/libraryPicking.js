@@ -6,12 +6,13 @@ import { selectScopeOf, showsMyOrder } from "./libraryArrange.js";
 import { libraryView, selection } from "./libraryView.js";
 import { wireMyOrderDrop } from "./myOrderDrag.js";
 import { SONG_CARD_CLASS } from "./songRow.js";
+import { ROW_PLAY_CLASS } from "./rovingRows.js";
 
 const PICKED_CLASS = "is-picked";
 const PICK_BOX_HTML = `<span class="pick-box" aria-hidden="true">${icon("check")}</span>`;
 const PICKABLE_ROW = ".cat-item[data-id]:not(.queue-row):not(.cat-version)";
 // The row's own buttons keep their jobs while picking.
-const NOT_A_PICK = ".cat-actions, .cat-versions-toggle, .import-fail-panel";
+const NOT_A_PICK = `.cat-actions, .cat-versions-toggle, .import-fail-panel, .${ROW_PLAY_CLASS}`;
 const OPEN_KEY = "Enter";
 const TOGGLE_KEY = " ";
 
@@ -20,10 +21,14 @@ export function visibleIds(container) {
   return [...new Set([...container.querySelectorAll(PICKABLE_ROW)].map((row) => row.dataset.id))];
 }
 
+function paintPick(el) {
+  const picked = selection.has(el.dataset.id);
+  el.classList.toggle(PICKED_CLASS, picked);
+  el.setAttribute("aria-selected", String(picked));
+}
+
 export function paintPicks(container) {
-  for (const row of container.querySelectorAll(PICKABLE_ROW)) {
-    row.classList.toggle(PICKED_CLASS, selection.has(row.dataset.id));
-  }
+  for (const row of container.querySelectorAll(PICKABLE_ROW)) paintPick(row);
 }
 
 /** Give a drawn song its pick box while picking, and make it a My order drop target when sorted so. */
@@ -32,7 +37,7 @@ export function decorateSongEl(el, kind) {
   if (selection.picking && selectScopeOf(kind)) {
     const host = el.classList.contains(SONG_CARD_CLASS) ? el.querySelector(".cat-thumb") : el;
     host?.insertAdjacentHTML("afterbegin", PICK_BOX_HTML);
-    el.classList.toggle(PICKED_CLASS, selection.has(el.dataset.id));
+    paintPick(el);
   }
   if (showsMyOrder(kind, libraryView())) wireMyOrderDrop(el);
   return el;

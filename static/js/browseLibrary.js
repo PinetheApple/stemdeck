@@ -59,7 +59,8 @@ export function renderResults() {
   const saved = resultRows?.remember();
   const drawn = drawBrowseResults($("browseResults"));
   if (drawn !== state.view) {
-    state.view = drawn;
+    // The view shown went away; one drawn while picking loses its pick boxes.
+    if (setView(drawn)) drawBrowseResults($("browseResults"));
     drawBrowseNav();
   }
   afterResultsDrawn($("browseResults"), currentViewKind());
@@ -77,8 +78,7 @@ export function openBrowse(view = state.view) {
     $("browseScrim").hidden = false;
     document.body.classList.add(OPEN_CLASS);
   }
-  if (view !== state.view) endPicking();
-  state.view = view;
+  setView(view);
   // A nav row's own click must not rebuild the nav: its double-click renames the folder.
   if (opening) renderBrowse();
   else {
@@ -130,6 +130,13 @@ function setLayout(layout) {
   renderResults();
 }
 
+/** Every change of view leaves Select; true when that ended picking. */
+function setView(view) {
+  const endedPicking = view !== state.view && endPicking();
+  state.view = view;
+  return endedPicking;
+}
+
 function currentViewKind() {
   return viewParts()[0];
 }
@@ -158,7 +165,7 @@ function onQueueFrame(snap = getQueueSnapshot()) {
     if (entry && queueNavCount(entry) !== queueCount(snap)) drawBrowseNav();
     return;
   }
-  if (!queueShown && state.view === VIEW.QUEUE) state.view = VIEW.ALL;
+  if (!queueShown && state.view === VIEW.QUEUE) setView(VIEW.ALL);
   renderBrowse();
 }
 

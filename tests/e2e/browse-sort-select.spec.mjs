@@ -24,6 +24,8 @@ const MY_ORDER_URL = "**/api/library/order";
 const SINGLE_JOB_URL = /\/api\/jobs\/e2e0sort\d+$/;
 const HTTP_SERVER_ERROR = 500;
 const PICKED = /is-picked/;
+const GIG = { id: "f-gig", name: "Gig", color: "#4f9de8", parentId: null };
+const UNDO_TOAST = ".undo-toast";
 
 const rows = (page) => page.locator(`${BROWSE_RESULTS} .cat-item[data-id]`);
 const row = (page, song) => page.locator(`${BROWSE_RESULTS} .cat-item[data-id="${song.id}"]`);
@@ -80,11 +82,12 @@ async function stubMyOrder(page, saved = []) {
   return order;
 }
 
-async function openSongs(page, { trashed = [], favorite = [], view = "all" } = {}) {
+async function openSongs(page, { trashed = [], favorite = [], filed = [], view = "all" } = {}) {
   const ids = idsOf(...SONGS);
   await seedCatalogState(page, {
     folders: [
-      { id: "f-unsorted", name: "Unsorted", items: ids.filter((id) => !trashed.includes(id)), color: null },
+      { id: "f-unsorted", name: "Unsorted", items: ids.filter((id) => !trashed.includes(id) && !filed.includes(id)), color: null },
+      { ...GIG, items: filed },
       { id: "trash", name: "Trash", items: trashed, color: null },
     ],
     tracks: Object.fromEntries(SONGS.map((song) => [
@@ -237,4 +240,59 @@ test("My order: a drop saves the whole order, and a failed save puts the order b
   await expect.poll(() => order.puts.length).toBe(2);
   await expect.poll(() => shownIds(page)).toEqual(idsOf(CHARLIE, ALPHA, BRAVO));
   await expect.poll(() => failureMessages(page)).toContain(await uiText(page, "libSort.myOrderSaveFailed"));
+});
+
+test("bulk Trash moves every pick with one Undo that brings them all back", async ({ page }) => {
+  await openSongs(page);
+  await selectButton(page).click();
+  await pick(page, ALPHA);
+  await pick(page, BRAVO, ["ControlOrMeta"]);
+  await bulkBar(page).getByRole("button", { name: await uiText(page, "libSort.trash") }).click();
+  await expect.poll(() => shownIds(page)).toEqual(idsOf(CHARLIE));
+  await expect(page.locator(UNDO_TOAST)).toHaveCount(1);
+  await expect(page.locator(UNDO_TOAST)).toContainText(await uiText(page, "libSort.movedToTrash.other", { count: 2 }));
+  await page.locator(`${UNDO_TOAST} .undo-toast-undo`).click();
+  await expect.poll(() => shownIds(page)).toEqual(idsOf(ALPHA, BRAVO, CHARLIE));
+});
+
+test("changing view leaves Select, from the nav or when the view shown goes away", async ({ page }) => {
+  await openSongs(page, { filed: idsOf(ALPHA) });
+  await selectButton(page).click();
+  await pick(page, BRAVO);
+  await page.locator('#browseNav .browse-nav-btn[data-view="fav"]').click();
+  await expect(selectButton(page)).toHaveAttribute("aria-pressed", "false");
+  await expect(bulkBar(page)).toBeHidden();
+  await openBrowse(page, "folder:f-gig");
+  await selectButton(page).click();
+  await pick(page, ALPHA);
+  const more = page.locator("#browseResults .browse-folder-more");
+  await more.click();
+  await page.locator(".lib-menu").getByRole("menuitem", { name: await uiText(page, "folder.deleteFolder") }).click();
+  await more.click();
+  await expect(page.locator('#browseNav [data-view="all"][aria-current="page"]')).toBeVisible();
+  await expect(selectButton(page)).toHaveAttribute("aria-pressed", "false");
+  await expect(bulkBar(page)).toBeHidden();
+  await expect(rows(page).first().locator(".pick-box")).toHaveCount(0);
+});
+
+test("a row's Play button plays while picking instead of picking the song", async ({ page }) => {
+  await openSongs(page);
+  await selectButton(page).click();
+  await row(page, ALPHA).hover();
+  await row(page, ALPHA).locator(".row-play").click();
+  await expect(page.locator("#browseLibrary")).toBeHidden();
+});
+
+test("picked rows and the sorted column say their state to assistive tech", async ({ page }) => {
+  await openSongs(page);
+  await page.locator("#browseListBtn").click();
+  await expect(rows(page).first()).not.toHaveAttribute("aria-selected");
+  await selectButton(page).click();
+  await pick(page, ALPHA);
+  await expect(row(page, ALPHA)).toHaveAttribute("aria-selected", "true");
+  await expect(row(page, BRAVO)).toHaveAttribute("aria-selected", "false");
+  await expect(page.locator(".browse-thead button.c-added")).toHaveAttribute("aria-sort", "descending");
+  await page.locator(".browse-thead button.c-title").click();
+  await expect(page.locator(".browse-thead button.c-title")).toHaveAttribute("aria-sort", "ascending");
+  await expect(page.locator(".browse-thead button.c-added")).not.toHaveAttribute("aria-sort");
 });

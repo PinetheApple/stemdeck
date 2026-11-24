@@ -6,7 +6,7 @@ import { DIRECTIONS, SORT_KEYS, nextSortOnHeader } from "./librarySort.js";
 import { isArrangedView, selectScopeOf } from "./libraryArrange.js";
 import { libraryView, selection, setSort } from "./libraryView.js";
 
-const ON_CLASS = "is-on";
+export const ON_CLASS = "is-on";
 const PICKING_CLASS = "is-picking";
 const COLUMN_SORTS = Object.freeze({
   "c-title": SORT_KEYS.TITLE,
@@ -16,7 +16,8 @@ const COLUMN_SORTS = Object.freeze({
   "c-length": SORT_KEYS.LENGTH,
   "c-added": SORT_KEYS.ADDED,
 });
-const DIRECTION_ICONS = Object.freeze({ [DIRECTIONS.ASC]: "up", [DIRECTIONS.DESC]: "down" });
+export const DIRECTION_ICONS = Object.freeze({ [DIRECTIONS.ASC]: "up", [DIRECTIONS.DESC]: "down" });
+const ARIA_SORT = Object.freeze({ [DIRECTIONS.ASC]: "ascending", [DIRECTIONS.DESC]: "descending" });
 
 function plainCell(cls, label) {
   const cell = document.createElement("span");
@@ -32,6 +33,7 @@ function sortCell(cls, label, sortKey) {
   cell.type = "button";
   cell.className = `cell ${cls}${on ? ` ${ON_CLASS}` : ""}`;
   cell.dataset.sort = sortKey;
+  if (on) cell.setAttribute("aria-sort", ARIA_SORT[dir]);
   cell.title = t("libSort.sortByColumn", { column: label });
   cell.innerHTML = `<span></span>${on ? icon(DIRECTION_ICONS[dir]) : ""}`;
   cell.firstChild.textContent = label;

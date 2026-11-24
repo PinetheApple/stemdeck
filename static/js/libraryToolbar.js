@@ -2,17 +2,16 @@
 
 import { t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
-import { DIRECTIONS, SORT_KEYS, SORT_LABEL_KEYS } from "./librarySort.js";
+import { SORT_KEYS, SORT_LABEL_KEYS } from "./librarySort.js";
 import { activeFilterCount } from "./libraryFilter.js";
 import { isArrangedView, selectScopeOf } from "./libraryArrange.js";
 import { libraryView, selection } from "./libraryView.js";
 import { openFilterMenu, openSortMenu } from "./libraryMenus.js";
+import { DIRECTION_ICONS, ON_CLASS } from "./libraryHeads.js";
 
 export const SORT_BUTTON_ID = "librarySortBtn";
 export const FILTER_BUTTON_ID = "libraryFilterBtn";
 export const SELECT_BUTTON_ID = "librarySelectBtn";
-const ON_CLASS = "is-on";
-const DIRECTION_ICONS = Object.freeze({ [DIRECTIONS.ASC]: "up", [DIRECTIONS.DESC]: "down" });
 
 const button = (id) => document.getElementById(id);
 
