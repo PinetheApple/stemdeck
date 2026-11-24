@@ -75,17 +75,6 @@
   font-weight: var(--fw-bold);
 }
 
-/* ── Import bar, under the top bar while Add song is on ── */
-.composer-drawer {
-  flex: none;
-  display: flex;
-  padding: var(--s-2) var(--s-3);
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
-}
-.composer-drawer[hidden] { display: none; }
-.composer-drawer > .daw-composer-stack { flex: 1; min-width: 0; padding: 0; }
-
 /* ── Sidebar: the library, or a strip of covers when collapsed ── */
 .daw .sidebar { width: var(--library-w); flex-direction: column; }
 .daw .sidebar-body { flex: 1; min-height: 0; }

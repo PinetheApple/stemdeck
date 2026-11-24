@@ -110,23 +110,6 @@ input, textarea { font-family: inherit; }
 }
 .daw-url-zone #url::placeholder { color: var(--muted); }
 
-/* Upload button inside URL zone */
-.daw-upload-btn {
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--muted);
-  cursor: pointer;
-  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
-}
-.daw-upload-btn:hover { background: var(--panel-2); color: var(--fg-2); border-color: var(--border-strong); }
-
 /* File pill (shown when file selected) */
 .file-pill {
   display: flex;
@@ -194,32 +177,6 @@ input, textarea { font-family: inherit; }
    costs one line in the handler and works in every engine. */
 .daw-url-zone.has-drop-error #url { display: none; }
 
-/* Composer vertical divider */
-.daw-composer-sep {
-  width: 1px;
-  background: var(--border);
-  align-self: stretch;
-  margin: 6px 0;
-  flex-shrink: 0;
-}
-
-/* Stem section */
-.daw-stem-section {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 14px;
-  flex-shrink: 0;
-}
-.daw-extract-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.daw-stem-chips { display: flex; gap: 4px; }
-
 /* Stem choice buttons */
 .stem-choice {
   height: 30px;
@@ -242,34 +199,6 @@ input, textarea { font-family: inherit; }
   border-color: color-mix(in srgb, var(--color) 60%, transparent);
   background: color-mix(in srgb, var(--color) 14%, transparent);
   color: var(--color);
-}
-/* Automatic song-structure detection. It sits at the end of the composer next
-   to Extract stems and matches its footprint, so the pair reads as two segments
-   of one bar rather than a chip loose beside a button. Colour still separates
-   them: the timeline blue, never the amber the primary action owns. */
-.structure-toggle {
-  --color: var(--accent);
-  min-width: var(--composer-action-w);
-  height: auto;
-  align-self: stretch;
-  margin-left: 0;
-  justify-content: center;
-  border-radius: 0;
-  border: none;
-  border-left: 1px solid var(--border-strong);
-  flex-direction: column;
-  gap: 2px;
-  line-height: 1.15;
-}
-.structure-toggle-main { display: inline-flex; align-items: center; gap: 6px; }
-/* Says what the feature is, quietly and where the choice is actually made,
-   rather than as a badge on the results after the fact. */
-.structure-toggle-note {
-  font-size: 8.5px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  opacity: 0.62;
 }
 
 /* "All" toggle */
@@ -313,8 +242,7 @@ input, textarea { font-family: inherit; }
 /* Process button */
 .daw-process-btn {
   height: auto;
-  /* Shared with .structure-toggle so the two end segments are the same width.
-     A min rather than a fixed width, because a longer translation must be
+  /* A min rather than a fixed width, because a longer translation must be
      allowed to grow instead of being clipped. */
   min-width: var(--composer-action-w);
   justify-content: center;
@@ -3933,9 +3861,7 @@ input, textarea { font-family: inherit; }
      edge of its own container. Zero as the floor lets the column give way, and
      the card's own text clips with an ellipsis rather than forcing the row. */
   /* The card's floor is its compact form, the heart and the About this song
-     button and nothing else (#735). Below what the whole card needs, the
-     chips fold into their overflow button first (fitStemChips), so the card
-     is never squeezed out of the row the way display: none once took it. */
+     button and nothing else (#735). */
   --np-min: 72px;
   grid-template-columns: minmax(0, max-content) auto auto auto minmax(var(--np-min), 1fr);
   align-items: center;
@@ -3967,16 +3893,6 @@ input, textarea { font-family: inherit; }
   padding: 0 10px 0 6px;
   gap: 6px;
 }
-/* Inside the box, flat against it, not a box of its own. order rather than
-   markup: the button keeps its place in the DOM, so tab order and the drop
-   handlers bound to .url-wrap are untouched. */
-.daw-url-zone > .daw-upload-btn {
-  order: -1;
-  width: 26px;
-  height: 26px;
-  border: none;
-  background: none;
-}
 .daw-url-zone #url {
   background: none;
   border: none;
@@ -3984,97 +3900,7 @@ input, textarea { font-family: inherit; }
   height: auto;
 }
 
-/* Row two, column one. This is what sizes the column, and therefore the search
-   box above it. min-width: 0 is what lets it be narrower than the chips inside
-   it: at max-content they are 655px, which on their own overflow a 1100px
-   window once the two actions have been paid for.
-
-   The chips used to be allowed to wrap here, which is how that overflow was
-   absorbed before the row could fold. It cannot be allowed now: the rule was
-   three classes deep and quietly outranked the two-class `flex-wrap: nowrap`
-   the folding row declares for itself, so the row kept wrapping to a second
-   line in any language whose words are longer than English (#673). */
-.daw-composer > .daw-stem-section {
-  grid-column: 1;
-  grid-row: 2;
-  min-width: 0;
-}
-
-/* The rule divides the extraction, search through Split, from the track that
-   is playing (#699). Nothing crosses it: what is left of it is one sentence,
-   what is right of it is not an input to that sentence. */
-/* One rule down both rows, drawn by one element so it cannot drift out of level. */
-.daw-composer > .daw-composer-sep {
-  grid-column: 4;
-  grid-row: 1 / 3;
-  display: block;
-  justify-self: center;
-  align-self: stretch;
-  width: 1px;
-  height: auto;
-  margin: 6px 4px;
-  background: var(--border-strong);
-}
-
-/* Detect structure reads as a switch rather than a word you press. The button
-   keeps its markup and its aria-pressed, so nothing about how it works
-   changes; the pill and its knob are drawn from the two pseudo elements.
-   Grid because the switch sits left of the label and spans both the label and
-   the EXPERIMENTAL note under it. */
-.daw-composer > .structure-toggle {
-  grid-column: 2;
-  grid-row: 1;
-  position: relative;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  column-gap: 9px;
-  padding: 0 14px;
-  text-align: left;
-}
-.daw-composer > .structure-toggle::before {
-  content: "";
-  grid-row: 1 / 3;
-  width: 34px;
-  height: 19px;
-  border-radius: 999px;
-  background: var(--panel-3);
-  border: 1px solid var(--border-strong);
-  transition: background var(--t-fast);
-}
-.daw-composer > .structure-toggle::after {
-  content: "";
-  position: absolute;
-  left: 17px;
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  background: var(--fg-2);
-  transition: transform var(--t-fast), background var(--t-fast);
-}
-.daw-composer > .structure-toggle[aria-pressed="true"]::before {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-.daw-composer > .structure-toggle[aria-pressed="true"]::after {
-  transform: translateX(15px);
-  background: #1a1a1a;
-}
-.daw-composer > .structure-toggle .structure-toggle-main { grid-column: 2; }
-.daw-composer > .structure-toggle .structure-toggle-note {
-  grid-column: 2;
-  text-align: left;
-}
-
-/* Row two, and the only thing on it. A 100% basis is what forces the wrap. */
-.daw-composer > .daw-stem-section {
-  order: 1;
-  flex: 1 0 100%;
-  min-width: 0;
-}
-
-/* The two actions keep their shared width and stop being full-bleed. */
-.daw-composer > .structure-toggle,
+/* Extract stems keeps its width and stops being full-bleed. */
 .daw-composer > .daw-process-btn {
   align-self: center;
   min-height: 40px;
@@ -4527,70 +4353,6 @@ input, textarea { font-family: inherit; }
 .stem-group:has(.stem-choice[data-stem="vocals"][aria-pressed="true"]) .vocal-mode-btn + .vocal-mode-btn {
   border-left: 1px solid color-mix(in srgb, var(--color) 60%, transparent);
 }
-
-/* ── The Extract chips, and what happens when they stop fitting ───────────
-   The row never wraps and the bar never gets taller. As the window narrows,
-   whichever chips no longer fit move into a panel behind a three-dot button,
-   one at a time, from the end of the row. The button sits after the row, on the
-   side the chips are leaving from, and is hidden entirely while everything
-   fits.
-
-   Wrapping was the alternative and it is the wrong one here: the composer went
-   from 96px tall to 168 and then 236 as the chips spilled onto further lines,
-   so the bar grew exactly as the window shrank, and the controls on the right
-   were left stranded at the top of a column stretched by chips they have
-   nothing to do with.
-
-   The measuring is in fitStemChips in main.js; this is only what it looks
-   like.
-   ───────────────────────────────────────────────────────────────────────── */
-.stem-more-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 34px;
-  height: 30px;
-  margin-left: 5px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: none;
-  color: var(--muted-2);
-  cursor: pointer;
-  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
-}
-.stem-more-btn[hidden] { display: none; }
-.stem-more-btn:hover { background: var(--panel-2); color: var(--fg); }
-.stem-more-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
-
-/* One line, always. Overflow hidden so a chip mid-move is never half drawn,
-   and so this element's clientWidth is the honest budget fitStemChips
-   measures against. */
-.daw-composer .daw-stem-chips {
-  flex: 1 1 auto;
-  min-width: 0;
-  flex-wrap: nowrap;
-  overflow: hidden;
-}
-
-/* Fixed rather than absolute, for the same reason the footer's options panel
-   is: it has to escape the bar it is anchored in. JS sets left/top from the
-   button's own rect. */
-.stem-overflow {
-  position: fixed;
-  z-index: 320;
-  display: none;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  max-width: min(560px, calc(100vw - 32px));
-  padding: 10px;
-  background: var(--panel);
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
-}
-.stem-overflow.open { display: flex; }
 
 /* Help mode. The Guide button in the top bar; while it is pressed,
    a ring is drawn around what can be seen of the control being explained,

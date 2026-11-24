@@ -5,8 +5,8 @@ const ANCHOR_GAP_PX = 6;
 export const FLOAT_CLASS = "shell-float";
 const EDGE_TOKEN = "--float-edge";
 // Popovers placed by their own modules; a translate nudges them without fighting that placement.
-const CLAMPED_FLOATS = ".lib-menu, #stemOverflow, #t-export-panel, #search-panel";
-const STATIC_FLOATS = ["stemOverflow", "t-export-panel"];
+const CLAMPED_FLOATS = ".lib-menu, #t-export-panel, #search-panel";
+const STATIC_FLOATS = ["t-export-panel"];
 
 const windowEdge = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(EDGE_TOKEN));
 
