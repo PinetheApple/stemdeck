@@ -447,3 +447,10 @@
 .rec-menu .lib-menu-item:disabled .ic { color: var(--text-3); }
 .rec-menu .lib-menu-sep { height: 1px; margin: var(--s-1) 0; background: var(--line); }
 .rec-menu .lib-menu-item[aria-checked="true"] { color: var(--accent); }
+.rec-menu a.lib-menu-item { text-decoration: none; }
+.rec-menu .row-menu-hint {
+  margin-left: auto;
+  padding-left: var(--s-3);
+  color: var(--text-3);
+  font: var(--fw-medium) var(--fs-xs) / 1 var(--font-mono);
+}

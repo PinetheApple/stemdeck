@@ -3,9 +3,14 @@
 
 import { t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
-import { LANE_VOLUME_MAX } from "./constants.js";
+import {
+  LANE_VOLUME_MAX,
+  FADER_STEP,
+  FADER_UNITY,
+  WHEEL_STEP,
+  WHEEL_STEP_COARSE,
+} from "./constants.js";
 import { updateLaneKnobVisual } from "./mixer.js";
-import { FADER_STEP, FADER_UNITY, WHEEL_STEP, WHEEL_STEP_COARSE } from "./laneHeader.js";
 import { ROW_ELSEWHERE, ROW_TAKE, ROW_UNFINISHED } from "./takesState.js";
 import { fmtTickLabel } from "./utils.js";
 import { vuLevel } from "./vuScale.js";
@@ -109,7 +114,7 @@ function toggles(view, mix, armed, on) {
   arm.setAttribute("aria-pressed", String(armed));
   arm.addEventListener("click", function onArmClick() { on.arm(view.id); });
   const mute = button("lane-icon-toggle mx-btn mute", { text: "M" });
-  mute.classList.toggle(ACTIVE_CLASS, !mix.muted);
+  mute.classList.toggle(ACTIVE_CLASS, mix.muted);
   mute.setAttribute("aria-label", t("aria.mute", { name: view.name }));
   mute.setAttribute("aria-pressed", String(mix.muted));
   mute.addEventListener("click", function onTakeMuteClick() { on.mute(view.id); });

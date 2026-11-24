@@ -3,7 +3,6 @@
 export const SILENT_CLASS = "is-silent";
 const LANE_PARTS = ".mixer-column .lane-header[data-stem], .stem-waveform-row[data-stem]";
 
-/** `isSilenced(stemName)` decides each lane; mixer.js passes its own rule. */
 export function paintLaneSilence(isSilenced) {
   for (const part of document.querySelectorAll(LANE_PARTS)) {
     part.classList.toggle(SILENT_CLASS, isSilenced(part.dataset.stem));

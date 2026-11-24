@@ -555,7 +555,7 @@ const en = {
   "help.laneKeyUp": "Moves only {name} up one semitone, the smallest step in music.",
   "help.laneKeyDown": "Moves only {name} down one semitone, the smallest step in music.",
   "help.laneKeyTitle": "Key of {name}",
-  "help.laneKey": "The key of {name}. K means its original key; a number means how many semitones it moved.",
+  "help.laneKey": "The key of {name}. 0 means its original key; any other number is how many semitones it moved.",
   "help.mute": "Silences {name}, so you can play or sing that part yourself.",
   "help.solo": "Plays only {name}, to hear it clearly.",
   "help.download": "Saves {name} as its own audio file.",
@@ -1756,6 +1756,10 @@ const en = {
   "studio.lane.eq": "EQ",
   "studio.lane.transposeUp": "Transpose up a semitone",
   "studio.lane.transposeDown": "Transpose down a semitone",
+  "studio.lane.keyValue": "Key {n}",
+  "studio.lane.moreChanged": "More for {name}: {state}",
+  "studio.lane.helpName": "Mutes or unmutes {name}. M lights up while it is muted.",
+  "studio.lane.helpMore": "EQ, key and download for {name} when the lane is too short to show them. A dot means its key or EQ is changed.",
 };
 
 const pl = {
@@ -2094,7 +2098,7 @@ const pl = {
   "help.laneKeyUp": "Podnosi tylko {name} o półton, najmniejszy krok w muzyce.",
   "help.laneKeyDown": "Obniża tylko {name} o półton, najmniejszy krok w muzyce.",
   "help.laneKeyTitle": "Tonacja: {name}",
-  "help.laneKey": "Tonacja: {name}. K oznacza oryginalną tonację; liczba pokazuje, o ile półtonów ją przesunięto.",
+  "help.laneKey": "Tonacja: {name}. 0 oznacza oryginalną tonację; inna liczba pokazuje, o ile półtonów ją przesunięto.",
   "help.mute": "Wycisza {name}, żebyś mógł sam zagrać lub zaśpiewać tę partię.",
   "help.solo": "Odtwarza tylko {name}, żeby było wyraźnie słychać.",
   "help.download": "Zapisuje {name} jako osobny plik audio.",
@@ -3305,6 +3309,10 @@ const pl = {
   "studio.lane.eq": "EQ",
   "studio.lane.transposeUp": "Transponuj o półton w górę",
   "studio.lane.transposeDown": "Transponuj o półton w dół",
+  "studio.lane.keyValue": "Tonacja {n}",
+  "studio.lane.moreChanged": "Więcej: {name}: {state}",
+  "studio.lane.helpName": "Wycisza lub włącza {name}. M świeci, gdy ścieżka jest wyciszona.",
+  "studio.lane.helpMore": "EQ, tonacja i pobieranie dla {name}, gdy ścieżka jest za niska, by je pokazać. Kropka oznacza zmienioną tonację lub EQ.",
 };
 
 const ja = {
@@ -3643,7 +3651,7 @@ const ja = {
   "help.laneKeyUp": "{name}だけを半音上げます。半音は音楽で最も小さな音程の単位です。",
   "help.laneKeyDown": "{name}だけを半音下げます。半音は音楽で最も小さな音程の単位です。",
   "help.laneKeyTitle": "{name}のキー",
-  "help.laneKey": "{name}のキーです。K は元のキー、数字は何半音動かしたかを示します。",
+  "help.laneKey": "{name}のキーです。0 は元のキー、それ以外の数字は何半音動かしたかを示します。",
   "help.mute": "{name}をミュートします。そのパートを自分で演奏したり歌ったりできます。",
   "help.solo": "{name}だけを再生して、はっきり聞けるようにします。",
   "help.download": "{name}を単独の音声ファイルとして保存します。",
@@ -4791,6 +4799,10 @@ const ja = {
   "studio.lane.eq": "EQ",
   "studio.lane.transposeUp": "半音上げる",
   "studio.lane.transposeDown": "半音下げる",
+  "studio.lane.keyValue": "キー {n}",
+  "studio.lane.moreChanged": "{name}のその他: {state}",
+  "studio.lane.helpName": "{name}をミュート/解除します。ミュート中は M が点灯します。",
+  "studio.lane.helpMore": "レーンが低くて表示できないときの{name}の EQ、キー、ダウンロードです。点はキーか EQ が変更されていることを示します。",
 };
 
 const zhHans = {
@@ -5129,7 +5141,7 @@ const zhHans = {
   "help.laneKeyUp": "只把{name}升高一个半音，半音是音乐中最小的音程。",
   "help.laneKeyDown": "只把{name}降低一个半音，半音是音乐中最小的音程。",
   "help.laneKeyTitle": "{name}的调",
-  "help.laneKey": "{name}的调。K 表示原调；数字表示移动了几个半音。",
+  "help.laneKey": "{name}的调。0 表示原调；其他数字表示移动了几个半音。",
   "help.mute": "将{name}静音，让你自己演奏或演唱这一部分。",
   "help.solo": "只播放{name}，听得更清楚。",
   "help.download": "把{name}保存为单独的音频文件。",
@@ -6277,6 +6289,10 @@ const zhHans = {
   "studio.lane.eq": "均衡器",
   "studio.lane.transposeUp": "升高半音",
   "studio.lane.transposeDown": "降低半音",
+  "studio.lane.keyValue": "调性 {n}",
+  "studio.lane.moreChanged": "{name}的更多选项：{state}",
+  "studio.lane.helpName": "静音或取消静音{name}。静音时 M 会亮起。",
+  "studio.lane.helpMore": "音轨太矮无法显示时，{name}的均衡器、调性和下载。圆点表示调性或均衡器已更改。",
 };
 
 const de = {
@@ -6615,7 +6631,7 @@ const de = {
   "help.laneKeyUp": "Hebt nur {name} um einen Halbton an, den kleinsten Schritt in der Musik.",
   "help.laneKeyDown": "Senkt nur {name} um einen Halbton, den kleinsten Schritt in der Musik.",
   "help.laneKeyTitle": "Tonart von {name}",
-  "help.laneKey": "Die Tonart von {name}. K heißt Originaltonart; eine Zahl zeigt, um wie viele Halbtöne verschoben wurde.",
+  "help.laneKey": "Die Tonart von {name}. 0 heißt Originaltonart; jede andere Zahl zeigt, um wie viele Halbtöne verschoben wurde.",
   "help.mute": "Schaltet {name} stumm, damit du diesen Part selbst spielen oder singen kannst.",
   "help.solo": "Spielt nur {name}, damit du es deutlich hörst.",
   "help.download": "Speichert {name} als eigene Audiodatei.",
@@ -7792,6 +7808,10 @@ const de = {
   "studio.lane.eq": "EQ",
   "studio.lane.transposeUp": "Einen Halbton höher",
   "studio.lane.transposeDown": "Einen Halbton tiefer",
+  "studio.lane.keyValue": "Tonart {n}",
+  "studio.lane.moreChanged": "Mehr für {name}: {state}",
+  "studio.lane.helpName": "Schaltet {name} stumm oder laut. M leuchtet, solange die Spur stumm ist.",
+  "studio.lane.helpMore": "EQ, Tonart und Download für {name}, wenn die Spur zu niedrig ist, um sie zu zeigen. Ein Punkt heißt: Tonart oder EQ geändert.",
 };
 
 const pt = {
@@ -8130,7 +8150,7 @@ const pt = {
   "help.laneKeyUp": "Sobe só {name} um semitom, o menor passo na música.",
   "help.laneKeyDown": "Desce só {name} um semitom, o menor passo na música.",
   "help.laneKeyTitle": "Tom de {name}",
-  "help.laneKey": "O tom de {name}. K quer dizer o tom original; um número mostra quantos semitons ele mudou.",
+  "help.laneKey": "O tom de {name}. 0 quer dizer o tom original; outro número mostra quantos semitons ele mudou.",
   "help.mute": "Silencia {name}, para você tocar ou cantar essa parte.",
   "help.solo": "Toca só {name}, para ouvir com clareza.",
   "help.download": "Salva {name} como um arquivo de áudio separado.",
@@ -9309,6 +9329,10 @@ const pt = {
   "studio.lane.eq": "EQ",
   "studio.lane.transposeUp": "Subir um semitom",
   "studio.lane.transposeDown": "Descer um semitom",
+  "studio.lane.keyValue": "Tom {n}",
+  "studio.lane.moreChanged": "Mais para {name}: {state}",
+  "studio.lane.helpName": "Silencia ou reativa {name}. O M acende enquanto estiver silenciado.",
+  "studio.lane.helpMore": "EQ, tom e download de {name} quando a faixa é baixa demais para mostrá-los. Um ponto indica tom ou EQ alterado.",
 };
 
 const id = {
@@ -9647,7 +9671,7 @@ const id = {
   "help.laneKeyUp": "Menaikkan hanya {name} satu semitone, langkah terkecil dalam musik.",
   "help.laneKeyDown": "Menurunkan hanya {name} satu semitone, langkah terkecil dalam musik.",
   "help.laneKeyTitle": "Kunci nada {name}",
-  "help.laneKey": "Kunci nada {name}. K berarti kunci aslinya; angka menunjukkan berapa semitone digeser.",
+  "help.laneKey": "Kunci nada {name}. 0 berarti kunci aslinya; angka lain menunjukkan berapa semitone digeser.",
   "help.mute": "Membisukan {name}, agar Anda bisa memainkan atau menyanyikan bagian itu sendiri.",
   "help.solo": "Hanya memutar {name}, agar terdengar jelas.",
   "help.download": "Menyimpan {name} sebagai file audio tersendiri.",
@@ -10795,6 +10819,10 @@ const id = {
   "studio.lane.eq": "EQ",
   "studio.lane.transposeUp": "Naikkan satu semiton",
   "studio.lane.transposeDown": "Turunkan satu semiton",
+  "studio.lane.keyValue": "Nada {n}",
+  "studio.lane.moreChanged": "Lainnya untuk {name}: {state}",
+  "studio.lane.helpName": "Membisukan atau mengaktifkan {name}. M menyala selama dibisukan.",
+  "studio.lane.helpMore": "EQ, nada, dan unduhan untuk {name} saat jalur terlalu pendek untuk menampilkannya. Titik berarti nada atau EQ diubah.",
 };
 
 const fr = {
@@ -11133,7 +11161,7 @@ const fr = {
   "help.laneKeyUp": "Monte seulement {name} d'un demi-ton, le plus petit pas en musique.",
   "help.laneKeyDown": "Descend seulement {name} d'un demi-ton, le plus petit pas en musique.",
   "help.laneKeyTitle": "Tonalité de {name}",
-  "help.laneKey": "La tonalité de {name}. K signifie sa tonalité d'origine ; un nombre indique de combien de demi-tons elle a bougé.",
+  "help.laneKey": "La tonalité de {name}. 0 signifie sa tonalité d'origine ; un autre nombre indique de combien de demi-tons elle a bougé.",
   "help.mute": "Coupe {name}, pour que vous puissiez jouer ou chanter cette partie vous-même.",
   "help.solo": "Joue seulement {name}, pour l'entendre clairement.",
   "help.download": "Enregistre {name} comme fichier audio séparé.",
@@ -12312,6 +12340,10 @@ const fr = {
   "studio.lane.eq": "EQ",
   "studio.lane.transposeUp": "Monter d’un demi-ton",
   "studio.lane.transposeDown": "Descendre d’un demi-ton",
+  "studio.lane.keyValue": "Ton {n}",
+  "studio.lane.moreChanged": "Plus pour {name} : {state}",
+  "studio.lane.helpName": "Coupe ou rétablit {name}. M s’allume tant que la piste est coupée.",
+  "studio.lane.helpMore": "EQ, ton et téléchargement de {name} quand la piste est trop basse pour les afficher. Un point signale un ton ou un EQ modifié.",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -13074,7 +13106,7 @@ const es = {
   "help.laneKeyUp": "Sube solo {name} un semitono, el paso más pequeño en música.",
   "help.laneKeyDown": "Baja solo {name} un semitono, el paso más pequeño en música.",
   "help.laneKeyTitle": "Tonalidad de {name}",
-  "help.laneKey": "La tonalidad de {name}. K es su tonalidad original; un número indica cuántos semitonos se movió.",
+  "help.laneKey": "La tonalidad de {name}. 0 es su tonalidad original; otro número indica cuántos semitonos se movió.",
   "help.mute": "Silencia {name}, para que puedas tocar o cantar esa parte tú.",
   "help.solo": "Reproduce solo {name}, para oírlo con claridad.",
   "help.download": "Guarda {name} como un archivo de audio aparte.",
@@ -14265,6 +14297,10 @@ const es = {
   "studio.lane.eq": "EQ",
   "studio.lane.transposeUp": "Subir un semitono",
   "studio.lane.transposeDown": "Bajar un semitono",
+  "studio.lane.keyValue": "Tono {n}",
+  "studio.lane.moreChanged": "Más para {name}: {state}",
+  "studio.lane.helpName": "Silencia o activa {name}. La M se enciende mientras está silenciada.",
+  "studio.lane.helpMore": "EQ, tono y descarga de {name} cuando la pista es demasiado baja para mostrarlos. Un punto indica tono o EQ cambiado.",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -14612,7 +14648,7 @@ const ko = {
   "help.laneKeyUp": "{name}만 반음 올려요. 반음은 음악에서 가장 작은 음 간격이에요.",
   "help.laneKeyDown": "{name}만 반음 내려요. 반음은 음악에서 가장 작은 음 간격이에요.",
   "help.laneKeyTitle": "{name}의 키",
-  "help.laneKey": "{name}의 키예요. K는 원래 키이고, 숫자는 몇 반음 옮겼는지 보여 줘요.",
+  "help.laneKey": "{name}의 키예요. 0은 원래 키이고, 다른 숫자는 몇 반음 옮겼는지 보여 줘요.",
   "help.mute": "{name} 소리를 꺼서 그 부분을 직접 연주하거나 부를 수 있게 해요.",
   "help.solo": "{name}만 재생해서 또렷하게 들려줘요.",
   "help.download": "{name}을(를) 별도의 오디오 파일로 저장해요.",
@@ -15760,6 +15796,10 @@ const ko = {
   "studio.lane.eq": "EQ",
   "studio.lane.transposeUp": "반음 올리기",
   "studio.lane.transposeDown": "반음 내리기",
+  "studio.lane.keyValue": "키 {n}",
+  "studio.lane.moreChanged": "{name} 더 보기: {state}",
+  "studio.lane.helpName": "{name}을(를) 음소거하거나 해제해요. 음소거 중에는 M이 켜져요.",
+  "studio.lane.helpMore": "레인이 낮아 보이지 않을 때 {name}의 EQ, 키, 다운로드예요. 점은 키나 EQ가 바뀌었다는 뜻이에요.",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };

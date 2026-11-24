@@ -1,6 +1,5 @@
-/* Stem lane headers (laneHeader.js) and recording rows, over daw.css's mixer-column rules.
-   The column is var(--daw-col-w) wide; the header is a size container, so the dB readout
-   goes first as it narrows and the second row moves into ⋯ when the lane is too short. */
+/* The header is a size container: the dB readout goes first as the column narrows,
+   and the second row moves into ⋯ when the lane is too short. */
 :root {
   --lane-stripe-w: 4px;
   --lane-meter-w: 4px;
@@ -10,6 +9,7 @@
   --lane-db-w: calc(var(--s-6) + var(--s-2));
   --lane-fader-min: var(--s-6);
   --lane-silent-opacity: 0.25;
+  --lane-more-mark: 6px;
 }
 
 /* ── Stem header ── */
@@ -96,6 +96,7 @@
 }
 
 .lane-more {
+  position: relative;
   display: none;
   place-items: center;
   flex: none;
@@ -111,6 +112,16 @@
 .lane-more:hover:not(:disabled),
 .lane-more[aria-expanded="true"] { background: var(--surface-3); color: var(--text); }
 .lane-more:disabled { cursor: default; }
+.lane-more.is-changed::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--lane-more-mark);
+  height: var(--lane-more-mark);
+  border-radius: 50%;
+  background: var(--accent);
+}
 .lane-more .ic { width: var(--icon); height: var(--icon); }
 
 /* ── Second row: EQ, Key, Stem ── */
@@ -204,11 +215,8 @@
   .lane-x { display: none; }
   .lane-more { display: inline-grid; }
 }
-/* The dB readout is the first thing a narrow column gives up. */
-@container lane-head (width < 264px) {
-  .mx-val { display: none; }
-}
-@container lane-head (height < 78px) and (width < 300px) {
+/* A column of 344 px or less (the header's padding takes 37) gives up the dB readout first. */
+@container lane-head (width < 308px) {
   .mx-val { display: none; }
 }
 
@@ -262,6 +270,11 @@
   height: var(--ctl-h-sm);
   border-radius: var(--r-1);
   font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-mono);
+}
+.rec-row .lane-icon-toggle.mx-btn.mute {
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--text-2);
 }
 .rec-row .lane-icon-toggle.mx-btn.mute[aria-pressed="true"] { border-color: transparent; background: var(--text); color: var(--bg); }
 .rec-row .ms-btn.mx-btn.solo[aria-pressed="true"] { border-color: transparent; background: var(--text-2); color: var(--bg); }

@@ -7,7 +7,7 @@ import { fmtTime } from "./utils.js";
 import { showPlaybackError, clearPlaybackError, resolvePlaybackSuccess } from "./job.js";
 import {
   STEM_NAMES, TRACK_NAMES, EXTRA_STEM_NAMES, STEM_COLORS, PROGRESS_COLOR,
-  LOOP_DEFAULT_START_FRAC, LOOP_DEFAULT_END_FRAC, LANE_VOLUME_MAX,
+  LOOP_DEFAULT_START_FRAC, LOOP_DEFAULT_END_FRAC, LANE_VOLUME_MAX, UNKNOWN_STEM_COLOR,
   effectiveStemOrder,
 } from "./constants.js";
 import {
@@ -51,6 +51,7 @@ import {
 } from "./mixer.js";
 import { buildLaneHeader } from "./laneHeader.js";
 import { SILENT_CLASS } from "./laneSilence.js";
+import { setStemDownloads } from "./laneDownload.js";
 import {
   buildRuler, updatePlayheadMarker, updateLoopRegionVisual,
   applyWaveZoom, resetWaveZoom, WAVE_ZOOM_MAX,
@@ -280,7 +281,7 @@ function renderPlaceholderTracks() {
 }
 
 const OVERVIEW_WAVE_POINTS = 1500;
-export const UNKNOWN_STEM_COLOR = "#a0a0a0";
+export { UNKNOWN_STEM_COLOR };
 export const WAVE_VIEWBOX_HEIGHT = 48;
 const STEM_VU_FPS = 30;
 const WAVEFORM_LANE_HEIGHT = 70;
@@ -888,13 +889,7 @@ export function destroyPlayer() {
   }
   renderPlaceholderTracks();
   clearOverviewWaveforms();
-  for (const row of mixerEl.querySelectorAll(".lane-header")) {
-    const dl = row.querySelector(".lane-dl");
-    if (dl) {
-      dl.href = "#";
-      dl.removeAttribute("download");
-    }
-  }
+  setStemDownloads([]);
   resetMixerState();
   refreshMixerVisuals();
   setLaneControlsEnabled(false);
@@ -955,7 +950,7 @@ export function renderEmptyShell() {
   // base 6 -- applyStemSelectionFilter (below) hides them by default since no
   // job is loaded yet, and shows them in place of "vocals" once one is.
   for (const name of ["original", ...STEM_NAMES, ...EXTRA_STEM_NAMES]) {
-    mixerEl.appendChild(buildLaneHeader({ name, url: "#" }, createLaneEqMark(name)));
+    mixerEl.appendChild(buildLaneHeader(name, createLaneEqMark(name)));
   }
   requestAnimationFrame(() => _applyLaneHeight(1 + STEM_NAMES.length));
   applyStemSelectionFilter(new Set(STEM_NAMES));
@@ -1262,15 +1257,11 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
     return _fetchBeatGrid(jobId).then((fresh) => fresh ?? _loadTimeBeats);
   };
 
-  for (const stem of stems) {
-    const row = mixerEl.querySelector(`.lane-header[data-stem="${stem.name}"]`);
-    if (!row) continue;
-    const dl = row.querySelector(".lane-dl");
-    if (dl) {
-      dl.href = stem.url;
-      dl.download = _stemFilename(stem.name, stemFileExt(stem.url));
-    }
-  }
+  setStemDownloads(stems.map((stem) => ({
+    name: stem.name,
+    url: stem.url,
+    filename: _stemFilename(stem.name, stemFileExt(stem.url)),
+  })));
 
   stemsChip.textContent = plural("footer.stemsCount", stems.length);
 

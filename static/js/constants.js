@@ -77,5 +77,15 @@ export const LOOP_DEFAULT_END_FRAC = 0.5;
 export const SEEK_STEP_SEC = 5;
 
 export const LANE_VOLUME_MAX = 2;
+// A lane fader's input step and unity gain, and how far one wheel notch moves it (Shift: coarse).
+export const FADER_STEP = 0.01;
+export const FADER_UNITY = 1;
+export const WHEEL_STEP = 0.04;
+export const WHEEL_STEP_COARSE = 0.2;
+export const PITCH_STEP = 1;
+export const KEY_LOCKED_STEM = "drums";
+export const UNKNOWN_STEM_COLOR = "#a0a0a0";
+
+export const stemDisplayName = (stemName) => STEM_DISPLAY[stemName] || stemName;
 
 export const MS_PER_SEC = 1000;

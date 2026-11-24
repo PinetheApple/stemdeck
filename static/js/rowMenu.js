@@ -1,49 +1,70 @@
 // The studio's small menus (recording tracks, stem lanes): one open at a time, under
 // its button, or over it when the footer leaves no room below.
 
-import { iconButton } from "./libraryControls.js";
+import { icon } from "./libraryIcons.js";
 
 const MENU_GAP_PX = 4;
 const VIEWPORT_MARGIN_PX = 8;
+const ITEM_CLASS = "lib-menu-item";
+const DANGER_CLASS = "is-danger";
+const HINT_CLASS = "row-menu-hint";
 
 let menu = null;
 let anchorEl = null;
+let anchorRect = null;
 
-function entryButton(item) {
-  const className = `lib-menu-item${item.danger ? " is-danger" : ""}`;
-  if (!item.iconHtml) return iconButton(className, item.icon, { text: item.text });
-  const el = document.createElement("button");
-  el.type = "button";
-  el.className = className;
-  el.innerHTML = item.iconHtml;
-  const text = document.createElement("span");
-  text.textContent = item.text;
-  el.append(text);
+function textSpan(text, className = "") {
+  const span = document.createElement("span");
+  if (className) span.className = className;
+  span.textContent = text;
+  return span;
+}
+
+function plainButton() {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  return btn;
+}
+
+/** An entry's element: its own `link` when it has one, else a button. */
+function entryEl(item) {
+  const el = item.link ?? plainButton();
+  el.classList.add(ITEM_CLASS);
+  if (item.danger) el.classList.add(DANGER_CLASS);
+  el.innerHTML = item.iconHtml ?? icon(item.icon);
+  el.append(textSpan(item.text));
+  if (item.hint) el.append(textSpan(item.hint, HINT_CLASS));
+  if (item.title) el.title = item.title;
   return el;
 }
 
+function separatorEl() {
+  const sep = document.createElement("div");
+  sep.className = "lib-menu-sep";
+  sep.setAttribute("role", "separator");
+  return sep;
+}
+
 /**
- * A menu entry: `{ text, icon | iconHtml, onChoose, danger?, selected?, disabled?, title? }`,
- * or `{ separator: true }`.
+ * A menu entry: `{ text, icon | iconHtml, onChoose | link, hint?, danger?, selected?, disabled?, title? }`,
+ * or `{ separator: true }`. A `link` is an anchor that does its own thing when clicked.
  */
 function itemEl(item) {
-  if (item.separator) {
-    const sep = document.createElement("div");
-    sep.className = "lib-menu-sep";
-    sep.setAttribute("role", "separator");
-    return sep;
-  }
-  const el = entryButton(item);
-  if (item.title) el.title = item.title;
+  if (item.separator) return separatorEl();
+  const el = entryEl(item);
   el.setAttribute("role", item.selected === undefined ? "menuitem" : "menuitemradio");
   if (item.selected !== undefined) el.setAttribute("aria-checked", String(item.selected));
   if (item.disabled) {
     el.disabled = true;
     return el;
   }
-  el.addEventListener("click", function onTakesMenuChoose(e) {
+  if (item.link) {
+    el.addEventListener("click", closeRowMenu);
+    return el;
+  }
+  el.addEventListener("click", function onRowMenuChoose(e) {
     e.stopPropagation();
-    closeTakesMenu();
+    closeRowMenu();
     item.onChoose();
   });
   return el;
@@ -60,7 +81,7 @@ function place(el, anchor, alignRight) {
 }
 
 function items() {
-  return [...(menu?.querySelectorAll(".lib-menu-item:not(:disabled)") ?? [])];
+  return [...(menu?.querySelectorAll(`.${ITEM_CLASS}:not(:disabled)`) ?? [])];
 }
 
 function onMenuKeydown(e) {
@@ -68,7 +89,7 @@ function onMenuKeydown(e) {
   if (e.key === "Escape") {
     e.preventDefault();
     const anchor = anchorEl;
-    closeTakesMenu();
+    closeRowMenu();
     anchor?.focus({ preventScroll: true });
     return;
   }
@@ -80,23 +101,30 @@ function onMenuKeydown(e) {
 }
 
 function onOutsidePointerDown(e) {
-  if (menu && !menu.contains(e.target) && !anchorEl?.contains(e.target)) closeTakesMenu();
+  if (menu && !menu.contains(e.target) && !anchorEl?.contains(e.target)) closeRowMenu();
 }
 
-export function closeTakesMenu() {
+// Any scroll that carries the button away; the waves scrolling sideways under it does not.
+function onAnyScroll() {
+  const now = anchorEl?.getBoundingClientRect();
+  if (now && (now.top !== anchorRect.top || now.left !== anchorRect.left)) closeRowMenu();
+}
+
+export function closeRowMenu() {
   if (!menu) return;
   menu.remove();
   menu = null;
   anchorEl?.setAttribute("aria-expanded", "false");
   anchorEl = null;
   document.removeEventListener("pointerdown", onOutsidePointerDown, true);
-  window.removeEventListener("resize", closeTakesMenu);
+  document.removeEventListener("scroll", onAnyScroll, true);
+  window.removeEventListener("resize", closeRowMenu);
 }
 
 /** Toggle a menu of `entries` under `anchor`. */
-export function openTakesMenu(anchor, label, entries, { alignRight = false } = {}) {
+export function openRowMenu(anchor, label, entries, { alignRight = false } = {}) {
   const reopening = menu && anchorEl === anchor;
-  closeTakesMenu();
+  closeRowMenu();
   if (reopening) return;
   menu = document.createElement("div");
   menu.className = "lib-menu rec-menu";
@@ -105,10 +133,12 @@ export function openTakesMenu(anchor, label, entries, { alignRight = false } = {
   menu.append(...entries.map(itemEl));
   menu.addEventListener("keydown", onMenuKeydown);
   anchorEl = anchor;
+  anchorRect = anchor.getBoundingClientRect();
   anchor.setAttribute("aria-expanded", "true");
   document.body.append(menu);
   place(menu, anchor, alignRight);
   items()[0]?.focus({ preventScroll: true });
   document.addEventListener("pointerdown", onOutsidePointerDown, true);
-  window.addEventListener("resize", closeTakesMenu);
+  document.addEventListener("scroll", onAnyScroll, { capture: true, passive: true });
+  window.addEventListener("resize", closeRowMenu);
 }

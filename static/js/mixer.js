@@ -1,5 +1,5 @@
 import {
-  STEM_NAMES, TRACK_NAMES, EXTRA_STEM_NAMES, STEM_COLORS, LANE_VOLUME_MAX,
+  STEM_NAMES, TRACK_NAMES, EXTRA_STEM_NAMES, STEM_COLORS, LANE_VOLUME_MAX, KEY_LOCKED_STEM,
 } from "./constants.js";
 
 // Every lane name this session might ever need mixer state for, including
@@ -20,10 +20,12 @@ import { storeGet, storeSetDebounced, storeFlushPending } from "./utils.js";
 import { DEFAULT_VERSION_ID, mixStoreKey } from "./versionModel.js";
 import { t } from "./i18n.js";
 import {
-  GLOBAL_PITCH_FIELD, PITCH_MAX, PITCH_MIN, clampPitch, pitchBlockedKey, savedGlobalPitch,
+  GLOBAL_PITCH_FIELD, clampPitch, savedGlobalPitch,
 } from "./pitchBus.js";
 import { applyTakeGains, clearTakeSolos, takeSoloActive } from "./takesMix.js";
 import { paintLaneSilence } from "./laneSilence.js";
+import { refreshLaneMore } from "./laneMenu.js";
+import { paintLaneKey, setLaneKeysUsable } from "./laneKey.js";
 import {
   bindFxStore,
   ensureFxDefaults,
@@ -136,7 +138,7 @@ export function nudgeAllLanePitches(delta) {
   globalPitch = clampPitch(globalPitch + delta);
   for (const name of allTrackNames()) {
     const state = mixerState[name];
-    if (!state || name === "drums") continue;
+    if (!state || name === KEY_LOCKED_STEM) continue;
     setLanePitch(name, state.pitch + delta);
   }
   saveMix();
@@ -161,7 +163,7 @@ export function resetAllLanePitches() {
  */
 export function setLanePitch(name, semitones) {
   const state = mixerState[name];
-  if (!state || name === "drums") return;
+  if (!state || name === KEY_LOCKED_STEM) return;
   const next = clampPitch(semitones);
   if (state.pitch === next) return;
   state.pitch = next;
@@ -170,31 +172,14 @@ export function setLanePitch(name, semitones) {
   refreshLaneKeyVisual(name);
 }
 
-/** Redraw one lane's key stepper from state. */
+export function stepLanePitch(name, delta) {
+  setLanePitch(name, (mixerState[name]?.pitch ?? 0) + delta);
+}
+
 export function refreshLaneKeyVisual(name) {
   const wrap = mixerEl?.querySelector(`.lane-key[data-stem="${name}"]`);
-  if (!wrap) return;
-  const n = mixerState[name]?.pitch ?? 0;
-  const signed = n > 0 ? `+${n}` : String(n);
-  const valueEl = wrap.querySelector(".lane-key-value");
-  if (valueEl) valueEl.textContent = signed;
-  wrap.classList.toggle("active", n !== 0);
-
-  const locked = wrap.classList.contains("locked");
-  const unsupported = wrap.classList.contains("unsupported");
-  const up = wrap.querySelector(".lane-key-step.up");
-  const down = wrap.querySelector(".lane-key-step.down");
-  if (up) up.disabled = locked || unsupported || n >= PITCH_MAX;
-  if (down) down.disabled = locked || unsupported || n <= PITCH_MIN;
-  // One place decides the tooltip. Setting it from both here and from
-  // availability left a drum lane explaining the wrong thing after the engine
-  // came up, because whichever ran last won and neither restored the other.
-  if (locked) wrap.title = t("mixer.key.drumsLocked");
-  // Same reason as the transport control, so the same sentence: a lane saying
-  // "needs Web Audio" while the group above it names the real cause would just
-  // be two answers to one question (#552).
-  else if (unsupported) wrap.title = t(pitchBlockedKey());
-  else wrap.title = t("mixer.key.title", { n: signed });
+  if (wrap) paintLaneKey(wrap, name);
+  refreshLaneMore(name);
 }
 
 /**
@@ -205,10 +190,8 @@ export function refreshLaneKeyVisual(name) {
  * plainly says it cannot.
  */
 export function setLaneKeysAvailable(available) {
-  for (const wrap of mixerEl?.querySelectorAll(".lane-key") || []) {
-    wrap.classList.toggle("unsupported", !available);
-    refreshLaneKeyVisual(wrap.dataset.stem);
-  }
+  setLaneKeysUsable(available);
+  for (const wrap of mixerEl?.querySelectorAll(".lane-key") || []) paintLaneKey(wrap, wrap.dataset.stem);
 }
 
 /**
@@ -319,9 +302,10 @@ export function refreshMixerVisuals() {
       }
       const iconToggle = row.querySelector(".lane-icon-toggle");
       if (iconToggle) {
-        iconToggle.classList.toggle("active", !state.muted);
+        iconToggle.classList.toggle("active", state.muted);
         iconToggle.setAttribute("aria-pressed", String(state.muted));
       }
+      row.querySelector(".lane-name")?.setAttribute("aria-pressed", String(state.muted));
       row.classList.toggle("muted", state.muted);
       const knob = row.querySelector(".lane-knob");
       if (knob) updateLaneKnobVisual(knob, state.volume);
