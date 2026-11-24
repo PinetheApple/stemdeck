@@ -13,6 +13,9 @@
 #songHead .song-steps-btn:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
 #songHead .song-steps-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 #songHead .song-steps-btn:disabled { color: var(--text-3); opacity: 0.5; cursor: default; }
+@container song-head (max-width: 900px) {
+  #songHead .song-steps-btn { width: auto; padding: 0; }
+}
 
 #inspectorPaneUpNext.has-list-ahead #upNextEmpty,
 #upNextFrom[hidden] { display: none; }
