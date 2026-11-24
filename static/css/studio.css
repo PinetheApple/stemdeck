@@ -349,8 +349,7 @@
   #songHead #nowPlayingPanel .track-panel-head { gap: var(--s-2); }
   #songHead #nowPlayingPanel .track-panel-head :is(.daw-fav-btn, .daw-details-btn) { width: var(--ctl-h-sm); }
 }
-/* Export keeps its icon; its title stays the name and the tooltip.
-   The cover gives Back and Forward their room. */
+/* Export keeps its icon; its title stays the name and the tooltip. */
 @container song-head (max-width: 900px) {
   #songHead #nowPlayingPanel .track-panel-cover { display: none; }
   #songHead #t-export-btn { width: var(--ctl-h); padding: 0; justify-content: center; }

@@ -11,7 +11,7 @@ function onPlayButtonChange() {
   playing = now;
 }
 
-/** `listener(trackId)` runs each time the player's song starts playing, a resume after a pause too. */
+/** A resume after a pause counts as a start too. */
 export function onSongPlayed(listener) {
   listeners.add(listener);
 }

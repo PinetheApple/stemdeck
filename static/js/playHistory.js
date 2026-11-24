@@ -1,6 +1,6 @@
 import { TRACK_OPEN_EVENT, TRASH_CHANGE_EVENT, getPlayingTrackInfo, isPlayableTrack, loadTrackIntoStudio } from "./catalog.js";
 import { BACK, FORWARD, createStepHistory } from "./stepHistory.js";
-import { NEXT_SOURCE, SONG_EVENT, nextSong, noteSong, previousPlayedId, previousSongId } from "./playOrder.js";
+import { NEXT_SOURCE, nextSong, previousPlayedId, previousSongId } from "./playOrder.js";
 import { PLAY_CONTEXT_CHANGE_EVENT, nextInContext } from "./playContext.js";
 import { onSongPlayed } from "./songPlayed.js";
 import { UP_NEXT_CHANGE_EVENT, firstInUpNext, playNextInUpNext, playNow } from "./upNext.js";
@@ -83,12 +83,7 @@ function paintPreviousNext() {
 }
 
 function onPlayed(trackId) {
-  noteSong(played, SONG_EVENT.PLAYED, trackId);
-  paintPreviousNext();
-}
-
-function onSongOpened(e) {
-  noteSong(played, SONG_EVENT.OPENED, e.detail?.id);
+  played.visit(trackId);
   paintPreviousNext();
 }
 
@@ -96,8 +91,7 @@ export function initPlayHistory() {
   $("t-prev")?.addEventListener("click", goToPrevious);
   $("t-next")?.addEventListener("click", goToNext);
   onSongPlayed(onPlayed);
-  document.addEventListener(TRACK_OPEN_EVENT, onSongOpened);
-  for (const name of [UP_NEXT_CHANGE_EVENT, PLAY_CONTEXT_CHANGE_EVENT, TRASH_CHANGE_EVENT]) {
+  for (const name of [TRACK_OPEN_EVENT, UP_NEXT_CHANGE_EVENT, PLAY_CONTEXT_CHANGE_EVENT, TRASH_CHANGE_EVENT]) {
     document.addEventListener(name, paintPreviousNext);
   }
   onLanguageChange(paintPreviousNext);

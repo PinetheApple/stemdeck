@@ -15,7 +15,8 @@ function paintBackForward() {
   if (forward) forward.disabled = !shown.peek(FORWARD, isPlayableTrack);
 }
 
-// The place moves once the song is on screen; openSong refuses mid-take or while it already loads.
+// The place moves once the song is on screen; openSong refuses mid-take, for the song
+// already shown, and for one still loading.
 function showStep(step) {
   const trackId = shown.peek(step, isPlayableTrack);
   if (!trackId) return;

@@ -7,10 +7,8 @@ import { BACK, FORWARD, createStepHistory } from '../../static/js/stepHistory.js
 import {
   NEXT_SOURCE,
   RESTART_AFTER_SEC,
-  SONG_EVENT,
   cursorAt,
   nextSong,
-  noteSong,
   previousPlayedId,
   previousSongId,
   songsAhead,
@@ -75,20 +73,12 @@ function visited(...ids) {
 }
 
 {
-  const history = createStepHistory();
-  noteSong(history, SONG_EVENT.PLAYED, 'a');
-  noteSong(history, SONG_EVENT.OPENED, 'b');
-  noteSong(history, SONG_EVENT.PLAYED, 'c');
+  const history = visited('a', 'c');
   const back = previousPlayedId(history, 'c', anySong);
-  check('Previous within 3 s goes to the song played before, not one only opened', previousSongId(RESTART_AFTER_SEC, back), 'a');
+  check('within 3 s Previous goes to the song played before the playing one', previousSongId(RESTART_AFTER_SEC, back), 'a');
 }
 
-{
-  const history = createStepHistory();
-  noteSong(history, SONG_EVENT.PLAYED, 'a');
-  noteSong(history, SONG_EVENT.OPENED, 'b');
-  check('from a song only opened, Previous goes to the last one played', previousPlayedId(history, 'b', anySong), 'a');
-}
+check('from an open song that was not the last played, Previous goes to the last played', previousPlayedId(visited('a'), 'b', anySong), 'a');
 
 check('Previous restarts a song played for more than 3 seconds', previousSongId(RESTART_AFTER_SEC + 0.1, 'a'), null);
 check('Previous goes to the song before within 3 seconds', previousSongId(RESTART_AFTER_SEC, 'a'), 'a');

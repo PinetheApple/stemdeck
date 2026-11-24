@@ -1,18 +1,12 @@
 import { BACK } from "./stepHistory.js";
 
 export const RESTART_AFTER_SEC = 3;
-export const SONG_EVENT = Object.freeze({ OPENED: "opened", PLAYED: "played" });
 export const NEXT_SOURCE = Object.freeze({ HISTORY: "history", UP_NEXT: "upNext", LIST: "list" });
 const NOT_IN_LIST = -1;
 
 /** The song Previous goes to, or null when it restarts the playing one. */
 export function previousSongId(positionSec, backId) {
   return positionSec > RESTART_AFTER_SEC ? null : backId;
-}
-
-// Only a song that played joins the history; one opened and left paused does not.
-export function noteSong(history, event, trackId) {
-  if (event === SONG_EVENT.PLAYED) history.visit(trackId);
 }
 
 // A song opened after the last one played, and not played itself, steps back to that one.
