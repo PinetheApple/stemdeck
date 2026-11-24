@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from app.core import stems_location
-from app.core.config import SETLISTS_FILE
+from app.core.config import LIBRARY_ORDER_FILE, SETLISTS_FILE
 from app.core.models import Job
 from app.core.stems_location import StemsLocationError, move_library, validate_target
 from tests.test_stems_location import _isolate_registry, _job_dir, client  # noqa: F401
@@ -375,6 +375,30 @@ def test_a_move_whose_setting_did_not_save_can_be_retried_after_new_writes(
         "registry.json",
         SETLISTS_FILE,
     ], "no marker left once the move is saved"
+
+
+def test_my_order_edited_after_an_unsaved_move_goes_with_the_retry(
+    client,  # noqa: F811
+    tmp_path,
+    monkeypatch,
+    other_drive,
+):
+    import app.core.settings as settings_mod
+
+    _library(client.jobs_dir)
+    (client.jobs_dir / LIBRARY_ORDER_FILE).write_text('{"first": 1}', encoding="utf-8")
+    target = tmp_path / "elsewhere"
+    real_save = settings_mod._save
+    monkeypatch.setattr(settings_mod, "_save", lambda: False)
+    client.post("/api/settings/stems-location", json={"path": str(target)})
+    (client.jobs_dir / LIBRARY_ORDER_FILE).write_text('{"edited": 1}', encoding="utf-8")
+    monkeypatch.setattr(settings_mod, "_save", real_save)
+
+    r = client.post("/api/settings/stems-location", json={"path": str(target)})
+
+    assert r.status_code == 200, r.text
+    assert (target / LIBRARY_ORDER_FILE).read_text(encoding="utf-8") == '{"edited": 1}'
+    assert list(client.jobs_dir.iterdir()) == []
 
 
 def test_records_from_a_move_that_died_after_copying_them_are_not_another_library(

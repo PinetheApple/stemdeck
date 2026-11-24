@@ -44,6 +44,8 @@ from app.core.config import (
     UPLOAD_EXTS,
     ffprobe_executable,
 )
+from app.core.library_order import remove_songs as library_order_remove_songs
+from app.core.library_order import replace_song as library_order_replace_song
 from app.core.models import (
     FINISHED_STATUSES,
     STATUS_DONE,
@@ -2468,6 +2470,7 @@ def _remove_job(job: Job) -> bool:
     registry_remove(job_id)
     registry_persist(JOBS_DIR)
     setlists_remove_songs(JOBS_DIR, [job_id])
+    library_order_remove_songs(JOBS_DIR, [job_id])
     return removed
 
 
@@ -2512,9 +2515,9 @@ def _apply_replacement(job: Job) -> None:
     An old copy whose files are gone ("Sync again" on an unavailable song) is
     deleted outright. One that still plays goes to the Trash instead: it may
     carry the user's sections, lyrics and tempo edits. Either way the new copy
-    takes the old one's place in every setlist. An old copy the user trashed or
-    deleted meanwhile is left as it is, and so is everything when the new job
-    itself was trashed as it finished.
+    takes the old one's place in every setlist and in My order. An old copy the
+    user trashed or deleted meanwhile is left as it is, and so is everything
+    when the new job itself was trashed as it finished.
 
     Settled, whatever the outcome, the job forgets ``replaces``, so an old copy
     the user later restores from the Trash is never trashed again. A failure
@@ -2532,8 +2535,9 @@ def _settle_old_copy(job: Job) -> None:
     old = _known_job(job.replaces)
     if old is None or old.trashed_at is not None or old.status not in FINISHED_STATUSES:
         return
-    # Before the delete below, which would take the old copy out of its setlists.
+    # Before the delete below, which would take the old copy out of its setlists and My order.
     setlists_replace_song(JOBS_DIR, old.id, job.id)
+    library_order_replace_song(JOBS_DIR, old.id, job.id)
     if job_files_missing(old):
         logger.info("[%s] replaces %s, whose files are gone: deleting it", job.id, old.id)
         if not _remove_job(old):

@@ -503,6 +503,11 @@ SETLISTS_FILE_VERSION = 1
 SETLIST_ID_HEX_CHARS = 12
 SETLIST_NAME_MAX_CHARS = 100
 SETLIST_MAX_SONGS = 1000
+# My order (app/core/library_order.py), the user's drag order of the whole
+# library, beside setlists.json. The cap bounds the request body.
+LIBRARY_ORDER_FILE = "library_order.json"
+LIBRARY_ORDER_FILE_VERSION = 1
+LIBRARY_ORDER_MAX_SONGS = 10000
 # An upload's tags written in a Windows codepage but read as Latin-1 (an MP3's
 # ID3v1 tag, or an ID3v2 frame marked ISO-8859-1): "zapomnia³em" for
 # "zapomniałem", "Êèíî" for "Кино". The codepages tried when re-reading
