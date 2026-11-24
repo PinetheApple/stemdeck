@@ -98,12 +98,11 @@ test("a song dropped on a sidebar setlist or on Trash goes there", async ({ page
   await stubServerTrash(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   const setlistRow = group(page, "sidebarSetlists").locator(`.sidebar-setlist[data-id="${id}"]`);
-  const sidebarRow = (id) => page.locator(`#catalogList .cat-item[data-id="${id}"]`).first();
-  await sidebarRow(JOB_ID).dragTo(setlistRow);
+  await groupRow(page, "sidebarRecent", JOB_ID).dragTo(setlistRow);
   await expect.poll(async () => (await (await request.get(SETLISTS_PATH)).json()).find((s) => s.id === id)?.song_ids).toEqual([JOB_ID]);
   await expect(setlistRow).toContainText("Setlist · 1 song");
 
-  await sidebarRow(SIBLING_JOB_ID).dragTo(page.locator("#trashBtn"));
+  await groupRow(page, "sidebarRecent", SIBLING_JOB_ID).dragTo(page.locator("#trashBtn"));
   await expect(page.locator("#trashBadge")).toHaveText("1");
   await expect(page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`)).toHaveCount(0);
 });
