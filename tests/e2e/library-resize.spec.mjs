@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openStudio, waitForPanesSettled } from "./helpers.mjs";
+import { openStudio, showSongTools, waitForPanesSettled } from "./helpers.mjs";
 import { MIN_WAVES_PX, PANE_LIMITS } from "../../static/js/paneEdgeMath.js";
 
 const STORE_KEY = "stemdeck.library.width";
@@ -32,8 +32,9 @@ const widthOf = (page, selector) =>
 const libraryWidth = (page) => widthOf(page, ".sidebar");
 const waveWidth = (page) => widthOf(page, ".daw-wave-panel");
 
-/** In SMALL_WINDOW a MAX_WIDTH library would squeeze the waveforms, so it stops where they reach their floor. */
+/** In SMALL_WINDOW, with the song tools kept open, a MAX_WIDTH library stops where the waveforms reach their floor. */
 async function squeezedWidth(page) {
+  await showSongTools(page);
   await waitForPanesSettled(page);
   await expect.poll(async () => Math.floor(await waveWidth(page))).toBe(MIN_WAVES);
   const width = await libraryWidth(page);
@@ -60,14 +61,13 @@ async function dragHandle(page, dx) {
   await page.mouse.up();
 }
 
-// A window this small collapses the library once a song opens; reopening it is the user's call.
+// The song tools step aside here; kept open, they leave the library no room, and reopening it is the user's call.
 async function openWithNoRoom(page) {
   await page.setViewportSize(NO_ROOM_WINDOW);
   await openStudio(page);
+  await showSongTools(page);
   await expect(page.locator(".app")).toHaveClass(/cat-collapsed/);
   await collapseButton(page).click();
-  // The song tools stepped aside too; bringing them back leaves no room again.
-  if (!(await page.locator("#inspector").isVisible())) await page.locator("#inspectorToggleBtn").click();
   await expect(handleOf(page)).toBeVisible();
   await expect.poll(() => libraryWidth(page)).toBe(MIN_WIDTH);
 }
@@ -157,6 +157,7 @@ test.describe("library pane width", () => {
     expect(await savedWidth(page)).toBe(MAX_WIDTH);
 
     await reload(page);
+    await showSongTools(page);
     await expect.poll(() => libraryWidth(page)).toBe(smallMax);
 
     await page.setViewportSize(WIDE_WINDOW);

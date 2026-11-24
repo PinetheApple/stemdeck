@@ -14,6 +14,8 @@ const NARROW_WINDOW = { width: 1024, height: 768 };
 const MEDIUM_WINDOW = { width: 1280, height: 800 };
 const WIDE_WINDOW = { width: 1440, height: 900 };
 const ROOMY_WINDOW = { width: 1600, height: 900 };
+// Too narrow for the library even with the song tools stepped aside.
+const NO_ROOM_WINDOW = { width: 860, height: 768 };
 const TITLE_WINDOWS = [
   { size: NARROW_WINDOW, inspector: true },
   { size: NARROW_WINDOW, inspector: false },
@@ -71,7 +73,6 @@ async function openWithTags(page, tags) {
       tracks: { [JOB_ID]: { ...fixtureTrack(JOB_ID, TRACK_TITLE), tags } },
     },
   });
-  await inspectorToggle(page).click();
   await expect(page.locator(".lib-tag-chip")).toHaveCount(tags.length);
   await waitForPanesSettled(page);
 }
@@ -157,7 +158,7 @@ test.describe("track view in a narrow window", () => {
     await expect(page.locator("#inspector")).toBeHidden();
     await expect(page.locator("#inspectorToggleBtn")).toHaveAttribute("aria-pressed", "false");
 
-    await expect(app(page)).toHaveClass(/cat-collapsed/);
+    await expect(app(page)).not.toHaveClass(/cat-collapsed/);
     await expect.poll(() => timelineWidth(page)).toBeGreaterThanOrEqual(MIN_TIMELINE_WIDTH);
     await expect.poll(() => firstSectionFit(page)).toEqual({ inside: true, labelCut: false });
     await expect(page.locator("#songHead .daw-panel-toggles-label")).toBeVisible();
@@ -188,7 +189,6 @@ test.describe("track view in a narrow window", () => {
 
   test("the Stage mode button looks the same at 1024 and 1440", async ({ page }) => {
     await openAt(page, NARROW_WINDOW);
-    await expect(app(page)).toHaveClass(/cat-collapsed/);
     await waitForPanesSettled(page);
     const narrow = await stageButtonLook(page);
 
@@ -220,7 +220,7 @@ test.describe("track view in a narrow window", () => {
   });
 
   test("the library comes back once the window has room for it", async ({ page }) => {
-    await openAt(page, NARROW_WINDOW);
+    await openAt(page, NO_ROOM_WINDOW);
     await expect(app(page)).toHaveClass(/cat-collapsed/);
 
     await page.setViewportSize(ROOMY_WINDOW);
@@ -228,7 +228,7 @@ test.describe("track view in a narrow window", () => {
   });
 
   test("a library collapsed for a narrow window opens again after a reload and a wider window", async ({ page }) => {
-    await openAt(page, NARROW_WINDOW);
+    await openAt(page, NO_ROOM_WINDOW);
     await expect(app(page)).toHaveClass(/cat-collapsed/);
 
     await reload(page);
@@ -238,19 +238,19 @@ test.describe("track view in a narrow window", () => {
   });
 
   test("a library reopened in a narrow window stays open, through a wide and narrow round trip", async ({ page }) => {
-    await openAt(page, NARROW_WINDOW);
+    await openAt(page, NO_ROOM_WINDOW);
     await expect(app(page)).toHaveClass(/cat-collapsed/);
 
     await collapseButton(page).click();
     await expect(app(page)).not.toHaveClass(/cat-collapsed/);
     await page.setViewportSize(ROOMY_WINDOW);
     expect(await collapsedStatesOver(page)).toEqual([false]);
-    await page.setViewportSize(NARROW_WINDOW);
+    await page.setViewportSize(NO_ROOM_WINDOW);
     expect(await collapsedStatesOver(page)).toEqual([false]);
   });
 
   test("a library the user shuts after an automatic collapse stays shut in a wide window", async ({ page }) => {
-    await openAt(page, NARROW_WINDOW);
+    await openAt(page, NO_ROOM_WINDOW);
     await expect(app(page)).toHaveClass(/cat-collapsed/);
 
     await reload(page);

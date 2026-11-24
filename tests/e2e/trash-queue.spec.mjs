@@ -129,6 +129,8 @@ test("the queue button is named by the label it shows, in every language", async
       const label = btn.querySelector("[data-i18n]").textContent.trim();
       for (const attr of ["aria-label", "title"]) {
         const name = btn.getAttribute(attr);
+        // A button with no aria-label is named by the label it shows.
+        if (attr === "aria-label" && name === null) continue;
         if (!name.startsWith(label)) found.push(`${code} ${attr}: "${name}" vs "${label}"`);
       }
     }
