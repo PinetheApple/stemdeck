@@ -22,8 +22,10 @@ export const ON_ROW = -1;
 const NOT_FOUND = -1;
 export const KEYBOARD_FOCUS = ":focus-visible";
 const TEXT_FIELD = "input, textarea, select, [contenteditable='true']";
-const NOT_THE_ROW = `button, form, ${TEXT_FIELD}`;
+const NOT_THE_ROW = `a, button, form, ${TEXT_FIELD}`;
 const SECOND_CLICK = 2;
+/** Focus a row for a click: no scrolling, no keyboard focus ring. */
+export const CLICK_FOCUS = Object.freeze({ preventScroll: true, focusVisible: false });
 const wiredLists = new WeakMap();
 
 /** The row index a movement key leads to, or null for any other key. */
@@ -113,7 +115,7 @@ function wireRowOpening(container, { selectableRowOf, openRow, showRow, focusRow
     if (!e.target.closest(`.${ROW_PLAY_CLASS}`)) return;
     const row = selectableRowOf(e.target);
     if (!row) return;
-    focusRow(row, ON_ROW, { preventScroll: true, focusVisible: false });
+    focusRow(row, ON_ROW, CLICK_FOCUS);
     openRow(row);
   }
 
@@ -124,12 +126,13 @@ function wireRowOpening(container, { selectableRowOf, openRow, showRow, focusRow
 }
 
 // Shift+click would otherwise select the text between the last click and this row.
+// A draggable row's text is not selectable, and holding its mousedown would stop the drag.
 function wireShiftClick(container, { rowOf, focusRow }) {
   function onRowShiftMousedown(e) {
     const row = e.shiftKey ? rowOf(e.target) : null;
-    if (!row || e.target.closest(NOT_THE_ROW)) return;
+    if (!row || row.draggable || e.target.closest(NOT_THE_ROW)) return;
     e.preventDefault();
-    focusRow(row, ON_ROW, { preventScroll: true, focusVisible: false });
+    focusRow(row, ON_ROW, CLICK_FOCUS);
   }
 
   container.addEventListener("mousedown", onRowShiftMousedown);
@@ -141,7 +144,7 @@ function wireShiftClick(container, { rowOf, focusRow }) {
  * `preferredRow(rows)` picks the stop among `rows` when none was focused yet.
  * Rows matching `selectableRow` wear SELECTED_ROW_CLASS while they are the row
  * last focused, and open on a double-click or a click on their ROW_PLAY_CLASS button.
- * `showRow(row)`, when given, is what a single click on a selectable row does.
+ * `showRow(row)`, when given, is what a single click without Alt on a selectable row does.
  * Call `remember()` before a redraw and `restore(saved)` after it, or `refresh()`
  * when rows were shown or hidden without one. `isKeyboardFocus()` says whether the
  * focus in the list is the keyboard's rather than a click's or a tap's.

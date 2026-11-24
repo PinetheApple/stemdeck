@@ -5,7 +5,7 @@ import { getLibraryTrack, isTextEditingTarget } from "./catalog.js";
 import { trashWithUndo } from "./trashUndo.js";
 import { openSong, playSong, playVersion } from "./openSong.js";
 import { startPlayContextFromRow } from "./playContext.js";
-import { ON_ROW, isShown, wireRovingRows } from "./rovingRows.js";
+import { CLICK_FOCUS, ON_ROW, isShown, wireRovingRows } from "./rovingRows.js";
 import { isDialogOpen } from "./shellEscape.js";
 
 export const SONG_ROW_SELECTOR = ".cat-item:not(.in-trash):not(.queue-row)";
@@ -84,7 +84,7 @@ export function focusSongRow(trackId, controlSelector = null) {
   for (const [container, rows] of [...lists].reverse()) {
     const row = rowIn(container, trackId);
     if (!row || !isShown(row)) continue;
-    rows.focusRow(row, ON_ROW, { preventScroll: true, focusVisible: false });
+    rows.focusRow(row, ON_ROW, CLICK_FOCUS);
     if (controlSelector) row.querySelector(controlSelector)?.focus();
     return true;
   }

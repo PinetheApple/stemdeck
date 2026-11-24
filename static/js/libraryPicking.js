@@ -94,4 +94,5 @@ export function wirePicking(container, { viewKind, onPicksChange }) {
 
   container.addEventListener("click", onPickClick, true);
   container.addEventListener("dblclick", onPickingDoubleClick, true);
-  container.addEventListener("keydown", onPickingKeydown, true);}
+  container.addEventListener("keydown", onPickingKeydown, true);
+}

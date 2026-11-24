@@ -371,6 +371,22 @@ test("in the Trash, a Shift click outside Select selects no text", async ({ page
   await expectNotPicking(page);
 });
 
+/** Whether a Shift mousedown on the song's title goes through, as a drag needs it to. */
+function shiftMousedownGoesThrough(songRow) {
+  return songRow.locator(".cat-title").evaluate((title) => title.dispatchEvent(new MouseEvent("mousedown", {
+    bubbles: true,
+    cancelable: true,
+    shiftKey: true,
+  })));
+}
+
+test("a Shift mousedown leaves a draggable row free to start a drag, in Browse and the sidebar", async ({ page }) => {
+  await openSongs(page);
+  expect(await shiftMousedownGoesThrough(row(page, ALPHA))).toBe(true);
+  await page.keyboard.press(KEY.ESCAPE);
+  expect(await shiftMousedownGoesThrough(sidebarRow(page, ALPHA))).toBe(true);
+});
+
 test("an Alt click on a row shows nothing", async ({ page }) => {
   await openSongs(page);
   await clickSong(row(page, ALPHA));
