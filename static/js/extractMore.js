@@ -14,6 +14,7 @@ import { esc, reportRefusal, showOpenedVersion, songSubline, versionMix, version
 import {
   EXTRACT_OUTCOME, EXTRACT_STATE, failureKey, filelessStems, followExtract, runLabel, startExtract,
 } from "./extractRun.js";
+import { shownInSongLists } from "./libraryRows.js";
 
 const ROW_RUNNING = "running";
 const HEAD_LABEL_ID = "npExtracting";
@@ -69,8 +70,7 @@ function extractCard(track) {
 }
 
 function shownSongRow(trackId) {
-  const row = document.querySelector(`#catalogList .cat-item[data-id="${CSS.escape(trackId ?? "")}"]`);
-  return row?.getClientRects().length ? row : null;
+  return shownInSongLists(`.cat-item[data-id="${CSS.escape(trackId ?? "")}"]`);
 }
 
 // Opening a version at once redraws the library, which replaces the row that opened the dialog.

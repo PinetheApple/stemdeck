@@ -7,6 +7,7 @@ import { icon } from "./libraryIcons.js";
 import { SONG_NAME_MAX_CHARS, fetchJson, iconButton, isNotFound, refusalReason, textInput } from "./libraryControls.js";
 import { FOLDER_MOVING_KEY, isFolderMovingError } from "./folderMoving.js";
 import { $ } from "./utils.js";
+import { shownInSongLists } from "./libraryRows.js";
 
 let editor = null; // { trackId, place: "head" | "row", close }
 
@@ -164,7 +165,7 @@ function openEditor(trackId, host, { row = null, focusField = "title", shownTitl
 
 /** Rename a song from its row in the library list. */
 export function startRowRename(trackId) {
-  const row = document.querySelector(`#catalogList .cat-item[data-id="${CSS.escape(trackId)}"]`);
+  const row = shownInSongLists(`.cat-item[data-id="${CSS.escape(trackId)}"]`);
   openEditor(trackId, row?.querySelector(".cat-meta"), { row });
 }
 

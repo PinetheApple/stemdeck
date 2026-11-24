@@ -96,6 +96,11 @@
   --brand-mark:   28px;
   --sidebar-strip-w: 64px;
   --strip-cover:  44px;
+  --sidebar-cover: 40px;
+  --sidebar-browse-h: 40px;
+  --browse-nav-w: 232px;
+  --browse-card-min: 172px;
+  --z-dialog: 400;
   --badge-h:      15px;
   --scrollbar-w:  8px;
   --s-0:          2px;
@@ -112,8 +117,6 @@
   --lane-h:       86px;
   /* Shared by the composer's Detect structure and Extract stems segments. */
   --composer-action-w: 140px;
-  /* Two rows of tag chips and a glimpse of a third under the fade, so more tags read as more. */
-  --lib-tags-max-h: 86px;
 
   /* Stacking: pane edges over their panes, the stem edge over the lanes, the overlay layer over the app */
   --z-pane-edge:       4;

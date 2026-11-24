@@ -1,10 +1,17 @@
-// Esc closes the topmost open layer only. Each layer's own handler closes it;
+// Esc closes the topmost open layer only: error box, menu or popover, dialog,
+// Browse library, Guide, then Stage mode. Each layer's own handler closes it;
 // handlers of lower layers ask escapeIsFor() first.
 
-import { isModalOpen } from "./stageMode.js";
-
 export const ESCAPE_KEY = "Escape";
-export const LAYER = Object.freeze({ ERROR: "error", FLOAT: "float", DIALOG: "dialog", GUIDE: "guide", STAGE: "stage" });
+export const LAYER = Object.freeze({
+  ERROR: "error",
+  FLOAT: "float",
+  DIALOG: "dialog",
+  BROWSE: "browse",
+  GUIDE: "guide",
+  STAGE: "stage",
+});
+export const BROWSE_ID = "browseLibrary";
 
 const ERROR_SHOWN = "#error:not(.hidden)";
 export const OPEN_FLOATS = [
@@ -17,22 +24,35 @@ export const OPEN_FLOATS = [
   "#composerDrawer:not([hidden])",
 ].join(", ");
 const MODAL = 'dialog[open], [role="dialog"][aria-modal="true"]';
+const BROWSE_SHOWN = `#${BROWSE_ID}:not([hidden])`;
 const GUIDE_ON = "body.help-mode";
 const STAGE_ON = ".app.stage-mode";
 
 const isShown = (el) => el.offsetWidth > 0 && el.offsetHeight > 0 && getComputedStyle(el).visibility !== "hidden";
 const anyShown = (selector) => [...document.querySelectorAll(selector)].some(isShown);
 
+// Browse library is a layer of its own, under the dialogs it opens.
+const dialogOf = (el) => {
+  const modal = el.closest(MODAL);
+  return modal && modal.id !== BROWSE_ID ? modal : null;
+};
+
+/** Whether a dialog (not Browse library) is open. */
+export function isDialogOpen() {
+  return [...document.querySelectorAll(MODAL)].some((el) => el.id !== BROWSE_ID && isShown(el));
+}
+
 // A dialog covers the page, so a popover left open behind it is not on top; one inside it is.
 function floatOnTop() {
-  const modalOpen = isModalOpen();
-  return [...document.querySelectorAll(OPEN_FLOATS)].some((el) => isShown(el) && (!modalOpen || el.closest(MODAL)));
+  const dialogOpen = isDialogOpen();
+  return [...document.querySelectorAll(OPEN_FLOATS)].some((el) => isShown(el) && (!dialogOpen || dialogOf(el)));
 }
 
 const LAYERS = [
   [LAYER.ERROR, () => anyShown(ERROR_SHOWN)],
   [LAYER.FLOAT, floatOnTop],
-  [LAYER.DIALOG, isModalOpen],
+  [LAYER.DIALOG, isDialogOpen],
+  [LAYER.BROWSE, () => anyShown(BROWSE_SHOWN)],
   [LAYER.GUIDE, () => Boolean(document.querySelector(GUIDE_ON))],
   [LAYER.STAGE, () => Boolean(document.querySelector(STAGE_ON))],
 ];

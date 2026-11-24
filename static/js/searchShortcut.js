@@ -1,7 +1,8 @@
-// Ctrl+K or ⌘K jumps to the library search, except in Stage mode or behind a modal.
+// Ctrl+K or ⌘K opens Browse library and focuses its search, except in Stage mode or behind a dialog.
 
-import { isSidebarCollapsed, setSidebarCollapsed, showLibraryView } from "./catalog.js";
-import { isStageMode, isModalOpen } from "./stageMode.js";
+import { isStageMode } from "./stageMode.js";
+import { isDialogOpen } from "./shellEscape.js";
+import { focusBrowseSearch } from "./browseLibrary.js";
 
 const SEARCH_SHORTCUT_CODE = "KeyK";
 
@@ -10,19 +11,10 @@ function isSearchShortcut(e) {
   return e.ctrlKey !== e.metaKey;
 }
 
-function isLyricsViewShown() {
-  return Boolean(document.querySelector(".sidebar.lyrics-view"));
-}
-
 function onSearchShortcutKeydown(e) {
-  if (!isSearchShortcut(e) || isStageMode() || isModalOpen()) return;
-  const input = document.getElementById("catalogSearch");
-  if (!input) return;
+  if (!isSearchShortcut(e) || isStageMode() || isDialogOpen()) return;
   e.preventDefault();
-  if (isSidebarCollapsed()) setSidebarCollapsed(false);
-  if (isLyricsViewShown()) showLibraryView();
-  input.focus();
-  input.select();
+  focusBrowseSearch();
 }
 
 export function initSearchShortcut() {

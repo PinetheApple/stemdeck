@@ -3,25 +3,24 @@ import { STEM_NAMES } from "./constants.js";
 import { STEM_EXT_MP3 } from "./playbackStems.js";
 import { wireUpAudio, updateFooterTrack } from "./player.js";
 import { clearOpenPreview, showOpenPreview } from "./openPreview.js";
-import { initOpenSong, openSong, playSong, playVersion } from "./openSong.js";
+import { initOpenSong } from "./openSong.js";
 import { initSections } from "./sections.js";
 import {
   audioEngine, bpmChip, foregroundJobId, keyChip, multitrack, saveSelectedStems, selectedStems, titleEl,
 } from "./state.js";
 import { DEFAULT_VERSION_ID, hasVersionRows, openVersionOf, sameLanes } from "./versionModel.js";
 import {
-  forgetVersionMixes, initVersions, paintOpenVersion, paintVersionPill, versionExtras, versionToggleHtml,
-  wireVersionToggle,
+  forgetVersionMixes, initVersions, paintOpenVersion, paintVersionPill,
 } from "./versions.js";
 import { refreshStemChoiceVisuals } from "./stemChoice.js";
-import { trackFormat, formatIconSvg, paintNowPlayingArt } from "./formatIcon.js";
+import { trackFormat, paintNowPlayingArt } from "./formatIcon.js";
 import { formatKey } from "./keyLabel.js";
 import {
   showError, importFromUrl, detachForegroundJob, reimportFailedLink, reuploadFailedImport, showRetryError,
   readableError,
 } from "./job.js";
 import {
-  FILE_GONE_REASON_KEY, RETRY_OUTCOME, SOURCE_KIND, failureReasonKey, importSource, needsFilePickedAgain,
+  RETRY_OUTCOME, SOURCE_KIND, failureReasonKey, importSource, needsFilePickedAgain,
   retryOutcome, sourceKindOf, FAILED_STATUS,
 } from "./importSource.js";
 import { confirmDialog } from "./confirmDialog.js";
@@ -33,15 +32,16 @@ import {
 import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
 import { notifyFailure, setReleasePending, dismissFailuresByJobId, dismissFailuresByKind, getFailures, restoreFailures } from "./notifications.js";
 import { ARM_TEXT_CLASS, arm, confirmOnSecondClick, disarm, isArmed } from "./armConfirm.js";
-import { isModalOpen } from "./stageMode.js";
 import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
-import { queueUpNext } from "./upNext.js";
-import { KEYBOARD_FOCUS, ON_ROW, OUT_OF_TAB_ORDER, ROW_KEY, ROW_PLAY_CLASS, isShown, wireRovingRows } from "./rovingRows.js";
+import { isTrackDragEvent, getDraggedTrackId } from "./songDrag.js";
+import { focusSongRow } from "./libraryRows.js";
+import { thumbHtml } from "./songRowParts.js";
+import { KEYBOARD_FOCUS, OUT_OF_TAB_ORDER, ROW_KEY, isShown } from "./rovingRows.js";
 // Aliased (not the bare "t") -- this file already uses "t"/"tr" as local
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
 import { openFolderMenu } from "./folderMenu.js";
-import { HTTP_NOT_FOUND, SETLIST_MAX_SONGS, SHOWN_FOCUS, fetchJson, isNotFound } from "./libraryControls.js";
+import { HTTP_NOT_FOUND, SETLIST_MAX_SONGS, fetchJson, isNotFound } from "./libraryControls.js";
 import { MAX_FOLDER_NAME_LEN, folderNameFrom, isValidFolderName, uniqueName } from "./listNames.js";
 import { createSetlistFromFolder } from "./setlists.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
@@ -108,36 +108,13 @@ let _loadTrackToken = 0;
 // Imports submitted from the form, mapped to the load token at that moment. A
 // finished one opens in the studio only if nothing has been opened since (#747).
 const _autoOpenTokens = new Map();
-let catalogView = "library";
-let catalogSearchQuery = "";
-const SEARCH_HAS_QUERY_CLASS = "has-query";
-
-/** WebKit does not refresh `:placeholder-shown` when code sets the value, so the ⌘K hint keys on a class. */
-function syncSearchHasQuery(input) {
-  input.closest(".daw-search")?.classList.toggle(SEARCH_HAS_QUERY_CLASS, input.value !== "");
-}
-// Rows picked in the Trash with a click, Ctrl or Shift. A hold on one of them
-// restores them all. The anchor is where the next Shift+click range starts.
-const _trashSelection = new Set();
-let _trashAnchor = null;
-// How long a Trash row has to be held to restore it. daw.css reads it through
-// --hold-ms, so the fill and the timer cannot drift apart.
-export const TRASH_HOLD_MS = 1000;
-// The buttons that switch the sidebar's view; Lyrics sits in the song tools.
-const VIEW_BUTTONS = Object.freeze({
-  library: ".lib-nav-library",
-  favorites: ".lib-nav-favorites",
-  queue: ".lib-nav-queue",
-  trash: ".lib-nav-trash",
-  lyrics: "#songToolsLyricsBtn",
-});
-// The same views from a collapsed sidebar, which they open.
-const STRIP_VIEW_BUTTONS = Object.freeze({
-  library: ".strip-nav-library",
-  favorites: ".strip-nav-favorites",
-  queue: ".strip-nav-queue",
-  trash: ".strip-nav-trash",
-});
+let catalogView = LIBRARY_VIEW;
+// The song tools' Lyrics button shows the sidebar's Lyrics view until #243 moves it.
+const LYRICS_BUTTON = "#songToolsLyricsBtn";
+const LYRICS_VIEW = "lyrics";
+const LIBRARY_VIEW = "library";
+// Each list drawn from the library (sidebar, Browse library) redraws through these.
+const libraryDrawers = new Set();
 
 // ─── Persistence ───
 
@@ -149,7 +126,6 @@ export const TRACK_SHOW_EVENT = "trackshow";
 // The default landing folder for unorganized tracks — protected from deletion.
 const UNSORTED_ID = "f-unsorted";
 const isSystemFolder = (folderId) => folderId === TRASH_ID || folderId === UNSORTED_ID;
-const FOLDER_HEAD_CONTROLS = ".f-grip, .f-more";
 const EDIT_FOLDER_TITLE_KEY = "folderEditor.title";
 const RENAME_FOLDER_TITLE_KEY = "folderEditor.renameTitle";
 const NEW_FOLDER_TITLE_KEY = "library.newFolder";
@@ -160,15 +136,10 @@ const UNSORTED_NAME_KEY = "folder.unsorted";
 function folderDisplayName(folder) {
   return folder.id === UNSORTED_ID ? i18nT(UNSORTED_NAME_KEY) : folder.name;
 }
-const PROCESSING_STATUSES = new Set(["queued", "downloading", "analyzing", "separating", "processing"]);
+export const PROCESSING_STATUSES = new Set(["queued", "downloading", "analyzing", "separating", "processing"]);
 
 
-// The trash can only ever moves a song to the Trash. The queue's cancel deletes
-// the import's files, so it has an X of its own.
-const TRASH_ICON_SVG = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <polyline points="3 6 5 6 21 6"></polyline>
-        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
-      </svg>`;
+// The queue's cancel deletes the import's files, so it has an X of its own.
 const CANCEL_ICON_SVG = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>
       </svg>`;
@@ -178,8 +149,6 @@ const ARM_TEXT_HTML = `<span class="${ARM_TEXT_CLASS}"></span>`;
 const AUTO_DELETE_ARM_MS = 10000;
 const FOLDER_COLORS = ["#ff6f59", "#e85f6f", "#64c86f", "#4f9de8", "#a985f4"];
 const DEFAULT_FOLDER_COLOR = FOLDER_COLORS[0];
-const TRACK_DRAG_TYPE = "application/x-stemdeck-track";
-const FOLDER_DRAG_TYPE = "application/x-stemdeck-folder";
 
 function getDeletedJobIds() {
   return _deletedJobIds;
@@ -227,26 +196,17 @@ function removeTrackFromFolders(trackId) {
   }
 }
 
-function normalizeSearch(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function trackMatchesSearch(track) {
-  const q = normalizeSearch(catalogSearchQuery);
-  if (!q) return true;
-  if (q.startsWith("#")) {
-    const tag = q.slice(1);
-    if (!tag) return true;
-    return (track?.tags ?? []).some((t) => String(t).toLowerCase().includes(tag));
-  }
-  // Not `channel`: it was a stored status label, not something a person would
-  // search by, and old tracks still carry it (#656).
-  return [
-    track?.title,
-    track?.sourceUrl,
-    ...(track?.stems || []),
-    ...(track?.tags || []),
-  ].some((value) => String(value || "").toLowerCase().includes(q));
+/** What Browse library's search reads of a song: title, artist, source, stems and tags. */
+export function librarySearchFields(trackId) {
+  const track = tracks[trackId];
+  if (!track) return {};
+  return {
+    title: displayTitle(libraryTitle(track)),
+    artist: nowPlayingArtist(track),
+    source: track.sourceUrl,
+    stems: track.stems,
+    tags: track.tags,
+  };
 }
 
 // A re-import is a new job: the server's state says which versions it has.
@@ -824,6 +784,10 @@ async function uploadBrowserBands() {
 
 // The user's artist, else a soundtrack's show unless it repeats the title, else
 // the track's band, else display_artist.
+export function libraryArtistName(track) {
+  return nowPlayingArtist(track);
+}
+
 function nowPlayingArtist(track) {
   if (trimmed(track?.userArtist)) return trimmed(track.userArtist);
   let work = trimmed(libraryWork(track?.work)?.name);
@@ -1278,7 +1242,7 @@ function paintTrackSource(track) {
 }
 
 /** Where a song came from: its link, with Copy and Open, or its file's name. */
-function sourceBlockHtml(track) {
+export function sourceBlockHtml(track) {
   const source = importSource(track);
   if (!source) return "";
   return `<div class="import-source">
@@ -1314,7 +1278,7 @@ async function onCopySourceClick(e) {
   }, COPIED_FEEDBACK_MS);
 }
 
-function wireSourceBlock(root) {
+export function wireSourceBlock(root) {
   root.querySelector(".import-source-copy")?.addEventListener("click", onCopySourceClick);
 }
 
@@ -1471,7 +1435,7 @@ function applyServerFavorite(track, state) {
   return true;
 }
 
-function moveTrackToTrash(trackId) {
+export function moveTrackToTrash(trackId) {
   if (!tracks[trackId]) return;
   binTrack(trackId);
   saveState();
@@ -1507,10 +1471,8 @@ function putInTrash(ids) {
 }
 
 function setCatalogView(view) {
-  catalogView = ["trash", "favorites", "queue", "lyrics"].includes(view) ? view : "library";
-  // Any view but the library asks to see the sidebar; the shared helper keeps the toggle's aria-pressed true.
-  if (catalogView !== "library") setSidebarCollapsed(false);
-  if (catalogView !== "trash") clearTrashSelection();
+  catalogView = view === LYRICS_VIEW ? LYRICS_VIEW : LIBRARY_VIEW;
+  if (catalogView === LYRICS_VIEW) setSidebarCollapsed(false);
   render();
   // The lyrics panel (lyrics.js) draws itself; this is how it learns it is on
   // screen, without catalog.js importing it.
@@ -1519,17 +1481,22 @@ function setCatalogView(view) {
 
 /** Show the Lyrics view in the sidebar, as the song tools' Lyrics button does. */
 export function showLyricsView() {
-  setCatalogView("lyrics");
+  setCatalogView(LYRICS_VIEW);
 }
 
-/** Show the import queue in the sidebar, as the top bar's Importing button does. */
-export function showQueueView() {
-  setCatalogView("queue");
-}
-
-/** Show the library list in the sidebar, as the sidebar's Library button does. */
+/** Show the sidebar's song list rather than its Lyrics view. */
 export function showLibraryView() {
-  if (catalogView !== "library") setCatalogView("library");
+  if (catalogView !== LIBRARY_VIEW) setCatalogView(LIBRARY_VIEW);
+}
+
+function onLyricsButtonClick() {
+  setCatalogView(catalogView === LYRICS_VIEW ? LIBRARY_VIEW : LYRICS_VIEW);
+}
+
+function paintLyricsButton(on) {
+  const btn = document.querySelector(LYRICS_BUTTON);
+  btn?.classList.toggle("active", on);
+  btn?.setAttribute("aria-pressed", String(on));
 }
 
 // The default version alone plays the import's selection, read as before; the
@@ -1822,23 +1789,13 @@ export function setResplitTarget(track) {
 
 export function setCurrentTrack(trackId) {
   _currentTrackId = trackId;
-  // The library's Tags section shows the open track's tags, so it is rebuilt
-  // when those are not what the last render() drew. Compared by tags rather
-  // than by id: loadTrackIntoStudio() can bring a track's tags in from the
-  // server while that same track is already the open one. Anything else is
-  // patched in place, since a full render() rebuilds the whole sidebar.
-  if (openTrackTags().join("\n") !== _renderedTagsKey) { render(); return; }
-  for (const el of document.querySelectorAll(".cat-item.active")) el.classList.remove("active");
-  for (const el of document.querySelectorAll(`.cat-item[data-id="${trackId}"]`)) el.classList.add("active");
-  for (const el of document.querySelectorAll(".strip-thumb.active")) el.classList.remove("active");
-  for (const el of document.querySelectorAll(`.strip-thumb[data-id="${trackId}"]`)) el.classList.add("active");
-  paintOpenVersion(trackId);
+  render();
 }
 
 // ─── Folder operations ───
 
 /** A new folder, opened for naming; `trackId` moves that song into it first. */
-function createFolder({ trackId = null } = {}) {
+export function createFolder({ trackId = null } = {}) {
   const folder = makeFolder();
   folders.push(folder);
   if (trackId) placeTrackInFolder(folder.id, trackId);
@@ -1890,6 +1847,59 @@ export function addPlaylistToLibrary(playlistTitle, jobs) {
   return folder.id;
 }
 
+// ─── Read by the sidebar and Browse library ───
+
+const byNewest = ([, a], [, b]) => (b.createdAt ?? 0) - (a.createdAt ?? 0);
+
+/** The songs out of the Trash, newest first. */
+export function libraryTrackIds() {
+  const trashed = new Set(getTrashFolder().items);
+  return Object.entries(tracks).filter(([id]) => !trashed.has(id)).sort(byNewest).map(([id]) => id);
+}
+
+/** The songs in the Trash, in the order they went in. */
+export function trashTrackIds() {
+  return getTrashFolder().items.filter((id) => tracks[id]);
+}
+
+/** A folder's own songs, the ones in its subfolders left out. */
+export function folderTrackIds(folderId) {
+  return (folders.find((f) => f.id === folderId)?.items ?? []).filter((id) => tracks[id]);
+}
+
+function folderEntry(folder, depth) {
+  return {
+    id: folder.id,
+    parentId: folder.parentId ?? null,
+    name: folderDisplayName(folder),
+    color: normalizeFolderColor(folder.color),
+    depth,
+    system: isSystemFolder(folder.id),
+  };
+}
+
+/** Every folder but the Trash, in the tree's order, each with its nesting depth. */
+export function libraryFolderTree() {
+  const tree = [];
+  const visit = (folder, depth) => {
+    tree.push(folderEntry(folder, depth));
+    for (const child of childFoldersOf(folder.id)) visit(child, depth + 1);
+  };
+  for (const top of topLevelFolders()) visit(top, 0);
+  return tree;
+}
+
+/** The name of the folder holding a song, or "". */
+export function folderNameOf(trackId) {
+  const folder = folders.find((f) => f.id !== TRASH_ID && f.items.includes(trackId));
+  return folder ? folderDisplayName(folder) : "";
+}
+
+/** The folder's songs, then each subfolder's, in the order the tree shows them. */
+export function folderTreeTrackIds(folderId) {
+  return songsInFolderTree(folderId);
+}
+
 /** The folders at the top of the tree, the Trash left out. */
 function topLevelFolders() {
   return folders.filter((f) => f.id !== TRASH_ID && !f.parentId);
@@ -1922,7 +1932,7 @@ function deleteFolder(folderId) {
   render();
 }
 
-function reorderFolder(draggedId, targetId, before) {
+export function reorderFolder(draggedId, targetId, before) {
   if (draggedId === targetId) return;
   const dragged = folders.find((f) => f.id === draggedId);
   const target = folders.find((f) => f.id === targetId);
@@ -1934,7 +1944,7 @@ function reorderFolder(draggedId, targetId, before) {
   render();
 }
 
-function isFolderDescendant(ancestorId, candidateId) {
+export function isFolderDescendant(ancestorId, candidateId) {
   let cur = folders.find((f) => f.id === candidateId);
   while (cur?.parentId) {
     if (cur.parentId === ancestorId) return true;
@@ -1943,7 +1953,7 @@ function isFolderDescendant(ancestorId, candidateId) {
   return false;
 }
 
-function reparentFolder(childId, newParentId) {
+export function reparentFolder(childId, newParentId) {
   if (childId === newParentId) return;
   if (isFolderDescendant(childId, newParentId)) return; // would create cycle
   const child = folders.find((f) => f.id === childId);
@@ -1954,7 +1964,7 @@ function reparentFolder(childId, newParentId) {
 }
 
 let folderEditor = null;
-let folderEditorFolderId = null;
+let folderEditorOpener = null;
 
 function folderColorButtonsHtml(activeColor) {
   return FOLDER_COLORS.map((color, index) => `
@@ -1969,16 +1979,20 @@ function folderColorButtonsHtml(activeColor) {
   `).join("");
 }
 
+// A redraw while the editor was open replaces a folder control that opened it; find its replacement.
+function currentOpener(opener) {
+  if (opener?.isConnected || !opener?.dataset?.folder) return opener;
+  const classes = [...opener.classList].map((name) => `.${CSS.escape(name)}`).join("");
+  return document.querySelector(`${classes}[data-folder="${CSS.escape(opener.dataset.folder)}"]`);
+}
+
 function closeFolderEditor() {
   if (!folderEditor) return;
   folderEditor.remove();
   folderEditor = null;
-  folderHeadEl(folderEditorFolderId)?.focus();
-  folderEditorFolderId = null;
-}
-
-function folderHeadEl(folderId) {
-  return folderId ? document.querySelector(`#catalogList .folder[data-id="${CSS.escape(folderId)}"] > ${FOLDER_ROW_SELECTOR}`) : null;
+  const opener = currentOpener(folderEditorOpener);
+  if (opener?.isConnected) opener.focus();
+  folderEditorOpener = null;
 }
 
 /** Why `name` can't be a folder name, or "" when it can. */
@@ -1989,10 +2003,11 @@ function folderNameError(name) {
   return "";
 }
 
-function openFolderEditor(folderId, requestedTitleKey = EDIT_FOLDER_TITLE_KEY) {
+export function openFolderEditor(folderId, requestedTitleKey = EDIT_FOLDER_TITLE_KEY) {
   const folder = folders.find((f) => f.id === folderId);
   if (!folder || folder.id === TRASH_ID) return;
   closeFolderEditor();
+  const opener = document.activeElement;
   const colorOnly = folder.id === UNSORTED_ID;
   const titleKey = colorOnly ? EDIT_FOLDER_TITLE_KEY : requestedTitleKey;
 
@@ -2077,46 +2092,13 @@ function openFolderEditor(folderId, requestedTitleKey = EDIT_FOLDER_TITLE_KEY) {
 
   document.body.appendChild(overlay);
   folderEditor = overlay;
-  folderEditorFolderId = folder.id;
+  folderEditorOpener = opener;
   if (colorOnly) {
     overlay.querySelector(".folder-color-dot.active")?.focus();
     return;
   }
   input.focus();
   input.select();
-}
-
-// ─── Drag-and-drop ───
-
-let dragId = null;
-let folderDragId = null;
-
-function isTrackDragEvent(event) {
-  return dragId != null || Boolean(event?.dataTransfer?.types?.includes(TRACK_DRAG_TYPE));
-}
-
-function getDraggedTrackId(event) {
-  return event?.dataTransfer?.getData(TRACK_DRAG_TYPE)
-    || event?.dataTransfer?.getData("text/plain")
-    || dragId;
-}
-
-function startDrag(trackId, itemEl, event) {
-  dragId = trackId;
-  if (event?.dataTransfer) {
-    event.dataTransfer.effectAllowed = "copyMove";
-    event.dataTransfer.setData(TRACK_DRAG_TYPE, trackId);
-    event.dataTransfer.setData("text/plain", trackId);
-  }
-  itemEl.classList.add("dragging");
-}
-
-function endDrag(itemEl) {
-  dragId = null;
-  itemEl.classList.remove("dragging");
-  for (const el of document.querySelectorAll(".folder.drop-target")) el.classList.remove("drop-target");
-  document.querySelector(VIEW_BUTTONS.trash)?.classList.remove("drop-target");
-  document.getElementById("lanes")?.classList.remove("library-drop-target");
 }
 
 /** Take the song out of its current folder and into `folderId`. */
@@ -2129,39 +2111,21 @@ function placeTrackInFolder(folderId, id) {
   if (target && !target.items.includes(id)) target.items.push(id);
 }
 
-function dropOnFolder(folderId, trackId) {
-  const id = trackId ?? dragId;
-  if (!id) return;
-  placeTrackInFolder(folderId, id);
+/** A song dropped on a folder goes there. */
+export function dropTrackOnFolder(folderId, trackId) {
+  if (!tracks[trackId]) return;
+  placeTrackInFolder(folderId, trackId);
   saveState();
   render();
 }
 
 /** The row menu's move: the song leaves its folder as on a drag, then takes
- *  focus. False when nothing in the list could take it. */
+ *  focus. False when no list shows it. */
 export function moveTrackToFolder(trackId, folderId) {
   placeTrackInFolder(folderId, trackId);
   saveState();
   render();
-  return focusMovedSong(trackId, folderId);
-}
-
-/** The row of the folder, or of the nearest folder above it, that is shown. */
-function shownFolderRow(folderId) {
-  for (let f = folders.find((x) => x.id === folderId); f; f = folders.find((x) => x.id === f.parentId)) {
-    const head = folderHeadEl(f.id);
-    if (head && isShown(head)) return head;
-  }
-  return null;
-}
-
-// Not as the keyboard's focus, so Delete is not armed on the song just moved.
-function focusMovedSong(trackId, folderId) {
-  const row = document.querySelector(`${LIBRARY_ROW_SELECTOR}[data-id="${CSS.escape(trackId)}"]`);
-  const target = row && isShown(row) ? row : shownFolderRow(folderId);
-  if (!target || !libraryRows) return false;
-  libraryRows.focusRow(target, ON_ROW, { preventScroll: true, focusVisible: false });
-  return true;
+  return focusSongRow(trackId);
 }
 
 export function moveTrackToNewFolder(trackId) {
@@ -2224,124 +2188,45 @@ function paintFavoriteHearts(trackId) {
   render();
 }
 
-function favButtonHtml(track) {
-  const on = Boolean(track.favorite);
-  const label = i18nT(on ? "track.unfavoriteTitle" : "track.favoriteTitle", {
-    title: displayTitle(libraryTitle(track)),
-  });
-  return `<button class="cat-fav${on ? " active" : ""}" type="button" aria-pressed="${on}"
-      title="${esc(i18nT(on ? "track.unfavorite" : "track.favorite"))}" aria-label="${esc(label)}">
-      <svg viewBox="0 0 24 24" width="12" height="12" fill="${on ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-      </svg>
-    </button>`;
+const LANES_DROP_CLASS = "library-drop-target";
+
+function clearLanesDrop() {
+  document.getElementById("lanes")?.classList.remove(LANES_DROP_CLASS);
 }
 
-function wireFavButton(el, trackId) {
-  el.querySelector(".cat-fav")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    toggleFavorite(trackId);
-  });
+function onLanesDragOver(e) {
+  if (!isTrackDragEvent(e)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "copy";
+  e.currentTarget.classList.add(LANES_DROP_CLASS);
 }
 
-function upNextButtonHtml(track) {
-  if (track.status !== "done") return "";
-  const label = i18nT("upNext.addTitle", { title: displayTitle(libraryTitle(track)) });
-  return `<button class="cat-upnext" type="button" title="${esc(i18nT("upNext.add"))}" aria-label="${esc(label)}">${icon("listPlus")}</button>`;
+function onLanesDragLeave(e) {
+  if (!e.currentTarget.contains(e.relatedTarget)) clearLanesDrop();
 }
 
-function wireUpNextButton(el, trackId) {
-  el.querySelector(".cat-upnext")?.addEventListener("click", function onAddToUpNext(e) {
-    e.stopPropagation();
-    queueUpNext(trackId);
-  });
-}
-
-function moreButtonHtml(track) {
-  if (track.status !== "done") return "";
-  const label = i18nT("trackMenu.openTitle", { title: displayTitle(libraryTitle(track)) });
-  return `<button class="cat-more" type="button" title="${esc(i18nT("trackMenu.open"))}" aria-label="${esc(label)}" aria-haspopup="menu">${icon("more")}</button>`;
-}
-
-// trackMenu.js draws the menu; an event, since it imports this module.
-function wireMoreButton(el, trackId) {
-  el.querySelector(".cat-more")?.addEventListener("click", function onOpenTrackMenu(e) {
-    e.stopPropagation();
-    document.dispatchEvent(new CustomEvent("trackmenu", { detail: { id: trackId, anchor: e.currentTarget } }));
-  });
-}
-
-function playButtonHtml(track) {
-  const label = esc(i18nT("track.playTitle", { title: displayTitle(libraryTitle(track)) }));
-  return `<button class="${ROW_PLAY_CLASS}" type="button" tabindex="${OUT_OF_TAB_ORDER}" title="${label}" aria-label="${label}">${icon("play", { filled: true })}</button>`;
-}
-
-function wireTrackDrag(el, trackId) {
-  el.draggable = true;
-  el.addEventListener("dragstart", (e) => {
-    startDrag(trackId, el, e);
-  });
-  el.addEventListener("dragend", () => endDrag(el));
-}
-
-// The collapsed strip has no selection to make, so a click there opens the song.
-function wireStripTrack(el, trackId) {
-  wireTrackDrag(el, trackId);
-  el.addEventListener("click", function onOpenStripTrack() {
-    openSong(trackId);
-  });
+function onLanesDrop(e) {
+  const trackId = getDraggedTrackId(e);
+  if (!trackId || !tracks[trackId]) return;
+  e.preventDefault();
+  clearLanesDrop();
+  loadTrackIntoStudio(trackId);
 }
 
 function wireMainPanelDrop() {
   const lanes = document.getElementById("lanes");
   if (!lanes || lanes.dataset.libraryDropReady === "1") return;
   lanes.dataset.libraryDropReady = "1";
-
-  lanes.addEventListener("dragover", (e) => {
-    if (!isTrackDragEvent(e)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-    lanes.classList.add("library-drop-target");
-  });
-  lanes.addEventListener("dragleave", (e) => {
-    if (!lanes.contains(e.relatedTarget)) lanes.classList.remove("library-drop-target");
-  });
-  lanes.addEventListener("drop", (e) => {
-    const trackId = getDraggedTrackId(e);
-    if (!trackId || !tracks[trackId]) return;
-    e.preventDefault();
-    lanes.classList.remove("library-drop-target");
-    loadTrackIntoStudio(trackId);
-  });
-}
-
-function wireTrashButtonDrop() {
-  const trash = document.querySelector(VIEW_BUTTONS.trash);
-  if (!trash || trash.dataset.dropReady === "1") return;
-  trash.dataset.dropReady = "1";
-
-  trash.addEventListener("dragover", (e) => {
-    if (!isTrackDragEvent(e)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    trash.classList.add("drop-target");
-  });
-  trash.addEventListener("dragleave", (e) => {
-    if (!trash.contains(e.relatedTarget)) trash.classList.remove("drop-target");
-  });
-  trash.addEventListener("drop", (e) => {
-    const trackId = getDraggedTrackId(e);
-    if (!trackId || !tracks[trackId]) return;
-    e.preventDefault();
-    trash.classList.remove("drop-target");
-    moveTrackToTrash(trackId);
-  });
+  lanes.addEventListener("dragover", onLanesDragOver);
+  lanes.addEventListener("dragleave", onLanesDragLeave);
+  lanes.addEventListener("drop", onLanesDrop);
+  document.addEventListener("dragend", clearLanesDrop);
 }
 
 /** Take tracks back out of the Trash, with one save and one render however
  *  many there are. Restore never queues a song again (#748): a stopped one
  *  comes back stopped, with its Extract button. */
-function restoreTracksFromTrash(trackIds) {
+export function restoreTracksFromTrash(trackIds) {
   const trash = getTrashFolder();
   const ids = trackIds.filter((id) => tracks[id] && trash?.items.includes(id));
   if (!ids.length) return;
@@ -2358,151 +2243,9 @@ function takeOutOfTrash(ids) {
   trash.items = trash.items.filter((id) => !ids.includes(id));
   const target = getUnsortedFolder();
   for (const id of ids) {
-    _trashSelection.delete(id);
     if (!target.items.includes(id)) target.items.push(id);
   }
   if (ids.length) announceTrashChange(ids);
-}
-
-/** The rows a gesture on this one acts on: the whole selection when the row
- *  is part of it, otherwise the row alone. */
-function trashTargets(trackId) {
-  return _trashSelection.has(trackId) ? [..._trashSelection] : [trackId];
-}
-
-function clearTrashSelection() {
-  _trashSelection.clear();
-  _trashAnchor = null;
-}
-
-function paintTrashSelection() {
-  for (const el of document.querySelectorAll(TRASH_ROW_SELECTOR)) {
-    const selected = _trashSelection.has(el.dataset.id);
-    el.classList.toggle("selected", selected);
-    el.setAttribute("aria-selected", String(selected));
-  }
-}
-
-/** Click picks rows: alone, Ctrl (Cmd on a Mac) adds or removes one, Shift
- *  takes the range from the last row picked, in the order on screen. */
-function selectTrashRow(trackId, e) {
-  if (e.shiftKey && _trashAnchor) {
-    const order = [...document.querySelectorAll(TRASH_ROW_SELECTOR)].map((el) => el.dataset.id);
-    const from = order.indexOf(_trashAnchor);
-    const to = order.indexOf(trackId);
-    if (from !== -1 && to !== -1) {
-      if (!(e.ctrlKey || e.metaKey)) _trashSelection.clear();
-      const [a, b] = from < to ? [from, to] : [to, from];
-      for (const id of order.slice(a, b + 1)) _trashSelection.add(id);
-      paintTrashSelection();
-      return;
-    }
-  }
-  if (e.ctrlKey || e.metaKey) {
-    if (_trashSelection.has(trackId)) _trashSelection.delete(trackId);
-    else _trashSelection.add(trackId);
-  } else {
-    _trashSelection.clear();
-    _trashSelection.add(trackId);
-  }
-  _trashAnchor = trackId;
-  paintTrashSelection();
-}
-
-/** A Trash row: click selects, holding for TRASH_HOLD_MS restores it (or the
- *  selection it belongs to), and dragging it onto Library still restores. A
- *  click no longer opens the song: every hold let go early would do that. */
-function wireTrashRow(el, trackId) {
-  el.draggable = true;
-  el.style.setProperty("--hold-ms", `${TRASH_HOLD_MS}ms`);
-  let timer = null;
-  let restored = false;
-  // Every row the hold will restore fills together, so a selection shows as
-  // one gesture rather than only the row under the pointer.
-  let held = [];
-  const cancel = () => {
-    clearTimeout(timer);
-    timer = null;
-    for (const row of held) row.classList.remove("holding");
-    held = [];
-  };
-  const start = () => {
-    cancel();
-    restored = false;
-    const targets = new Set(trashTargets(trackId));
-    held = [...document.querySelectorAll(TRASH_ROW_SELECTOR)].filter((row) => targets.has(row.dataset.id));
-    if (!held.includes(el)) held.push(el);
-    for (const row of held) row.classList.add("holding");
-    timer = setTimeout(() => {
-      timer = null;
-      restored = true;
-      for (const row of held) row.classList.remove("holding");
-      held = [];
-      restoreTracksFromTrash([...targets]);
-    }, TRASH_HOLD_MS);
-  };
-  el.addEventListener("pointerdown", (e) => {
-    // Ctrl and Shift are for picking rows, not for restoring them.
-    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
-    start();
-  });
-  for (const type of ["pointerup", "pointerleave", "pointercancel"]) el.addEventListener(type, cancel);
-  el.addEventListener("keydown", (e) => {
-    if ((e.key === "Enter" || e.key === " ") && !e.repeat) {
-      e.preventDefault();
-      start();
-    }
-  });
-  el.addEventListener("keyup", (e) => {
-    if (e.key === "Enter" || e.key === " ") cancel();
-  });
-  el.addEventListener("click", (e) => {
-    if (restored) return;
-    selectTrashRow(trackId, e);
-  });
-  el.addEventListener("dragstart", (e) => {
-    cancel();
-    startDrag(trackId, el, e);
-  });
-  el.addEventListener("dragend", () => endDrag(el));
-}
-
-/** The Trash shows how full it is (#749): the reporter never noticed it was
- *  there, so nothing told them their deleted songs were still on disk. */
-function updateTrashBadge(count = getTrashFolder()?.items.length ?? 0) {
-  const btn = document.querySelector(VIEW_BUTTONS.trash);
-  const badge = document.getElementById("trashBadge");
-  if (!btn || !badge) return;
-  badge.textContent = count > 99 ? "99+" : String(count);
-  badge.classList.toggle("hidden", count === 0);
-  const label = count ? i18nT("nav.trashWithCount", { count }) : i18nT("nav.trash");
-  btn.title = label;
-  btn.setAttribute("aria-label", label);
-}
-
-function wireLibraryButtonDrop() {
-  const btn = document.querySelector(VIEW_BUTTONS.library);
-  if (!btn || btn.dataset.dropReady === "1") return;
-  btn.dataset.dropReady = "1";
-
-  btn.addEventListener("dragover", (e) => {
-    if (!isTrackDragEvent(e) || catalogView !== "trash") return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    btn.classList.add("drop-target");
-  });
-  btn.addEventListener("dragleave", (e) => {
-    if (!btn.contains(e.relatedTarget)) btn.classList.remove("drop-target");
-  });
-  btn.addEventListener("drop", (e) => {
-    btn.classList.remove("drop-target");
-    if (catalogView !== "trash") return;
-    const trackId = getDraggedTrackId(e);
-    if (!trackId || !tracks[trackId]) return;
-    e.preventDefault();
-    restoreTracksFromTrash(trashTargets(trackId));
-    setCatalogView("library");
-  });
 }
 
 // Inputs that take no typing, so a focused one leaves the app's keys alone.
@@ -2538,115 +2281,9 @@ export function isNativeSpaceTarget(target) {
   return Boolean(target?.closest?.(NATIVE_SPACE_SELECTOR)) && target === keyboardFocusedEl;
 }
 
-const SONG_ROW_SELECTOR = ".cat-item:not(.in-trash):not(.queue-row)";
-const TRASH_ROW_SELECTOR = ".cat-item.in-trash";
-const FOLDER_ROW_SELECTOR = ".folder-head";
-const LIBRARY_ROW_SELECTOR = `#catalogList ${SONG_ROW_SELECTOR}`;
-const VERSION_ROW_SELECTOR = ".cat-version:not(.queue-running):not(.renaming-row)";
-
-let libraryRows = null;
-
-function toggleFolderCollapsed(folderEl) {
-  const folder = folders.find((f) => f.id === folderEl.dataset.id);
-  if (!folder) return;
-  folder.collapsed = !folder.collapsed;
-  folderEl.classList.toggle("collapsed", folder.collapsed);
-  saveState();
-  libraryRows?.refresh();
-}
-
-function libraryRowKey(row) {
-  if (row.matches(FOLDER_ROW_SELECTOR)) return `folder:${row.parentElement.dataset.id}`;
-  return row.dataset.version ? `${row.dataset.id}:${row.dataset.version}` : row.dataset.id;
-}
-
-// A Trash row's own Enter is hold-to-restore (wireTrashRow); it never opens the song.
-function openLibraryRow(row) {
-  if (row.matches(TRASH_ROW_SELECTOR)) return;
-  if (row.matches(FOLDER_ROW_SELECTOR)) toggleFolderCollapsed(row.parentElement);
-  else if (row.dataset.version) playVersion(row.dataset.id, row.dataset.version);
-  else playSong(row.dataset.id);
-}
-
-// A click on a song opens it; a version row keeps to being selected.
-function showLibraryRow(row) {
-  if (!row.dataset.version) openSong(row.dataset.id);
-}
-
-function preferredLibraryRow(rows) {
-  return rows.find((row) => row.matches(`${SONG_ROW_SELECTOR}.active`)) ?? rows.find((row) => row.matches(SONG_ROW_SELECTOR));
-}
-
-function wireLibraryRows() {
-  const list = document.getElementById("catalogList");
-  if (!list || libraryRows) return;
-  libraryRows = wireRovingRows(
-    list,
-    {
-      rowSelector: `${SONG_ROW_SELECTOR}, ${VERSION_ROW_SELECTOR}, ${TRASH_ROW_SELECTOR}, ${FOLDER_ROW_SELECTOR}`,
-      actionSelector: [
-        `${SONG_ROW_SELECTOR} .cat-actions button`,
-        `${SONG_ROW_SELECTOR} .import-fail-panel :is(button, a)`,
-        `${FOLDER_ROW_SELECTOR} button`,
-        ".cat-version .cat-actions button",
-        ".cat-item .cat-versions-toggle",
-      ].join(", "),
-      keyOf: libraryRowKey,
-      openRow: openLibraryRow,
-      showRow: showLibraryRow,
-      preferredRow: preferredLibraryRow,
-      selectableRow: `${SONG_ROW_SELECTOR}, ${VERSION_ROW_SELECTOR}`,
-    },
-  );
-}
-
-/** The library song whose row holds keyboard focus, or null. */
-function focusedLibraryTrackId(target) {
-  const row = target?.closest?.(LIBRARY_ROW_SELECTOR);
-  return row && tracks[row.dataset.id] ? row.dataset.id : null;
-}
-
-// Only a song whose row has focus: the open song is not a target, or Delete
-// in Stage mode or a dialog would bin whatever happens to be playing.
-function onLibraryDeleteKey(e) {
-  if (e.key !== "Delete" && e.key !== "Backspace") return;
-  if (isTextEditingTarget(e.target) || isModalOpen()) return;
-  const trackId = focusedLibraryTrackId(e.target);
-  if (!trackId || !libraryRows?.isKeyboardFocus()) return;
-  e.preventDefault();
-  moveTrackToTrash(trackId);
-}
-
-function wireLibraryDeleteKeys() {
-  if (document.body.dataset.libraryDeleteReady === "1") return;
-  document.body.dataset.libraryDeleteReady = "1";
-  document.addEventListener("keydown", onLibraryDeleteKey);
-}
-
 // ─── Rendering helpers ───
 
-/** The open track's tags, deduplicated, or none when it is in the Trash. */
-function openTrackTags() {
-  const track = tracks[_currentTrackId];
-  if (!track || getTrashFolder()?.items.includes(_currentTrackId)) return [];
-  return [...new Set(track.tags ?? [])];
-}
-
-function getAllTags(trashIds) {
-  const counts = {};
-  for (const [id, track] of Object.entries(tracks)) {
-    if (trashIds.has(id)) continue;
-    for (const tag of track.tags ?? []) {
-      counts[tag] = (counts[tag] || 0) + 1;
-    }
-  }
-  return Object.entries(counts).sort(([, a], [, b]) => b - a);
-}
-
 const EMPTY_ICONS = {
-  search: icon("search"),
-  trash: icon("trash"),
-  favorites: icon("heart"),
   queue: icon("listPlus"),
 };
 
@@ -2656,38 +2293,6 @@ function emptyStateHtml(iconName, headingKey, hintKey) {
     + `<span class="lib-empty-hint">${esc(i18nT(hintKey))}</span></div>`;
 }
 
-function noMatchHtml(headingKey) {
-  return emptyStateHtml("search", headingKey, "search.noMatchHint");
-}
-
-function visibleSongCount(trashIds) {
-  return Object.entries(tracks).filter(([id, track]) => !trashIds.has(id) && trackMatchesSearch(track)).length;
-}
-
-function makeSectionEl(labelText) {
-  const section = document.createElement("div");
-  section.className = "lib-section";
-  const head = document.createElement("div");
-  head.className = "lib-section-head";
-  head.textContent = labelText;
-  section.appendChild(head);
-  return section;
-}
-
-// A URL-sourced track can be rebuilt by re-running the import; a local
-// upload has no source bytes left to rebuild from, only a re-upload gets it
-// back (see reimportUnavailableTrack).
-function canReimportTrack(track) {
-  return Boolean(track.sourceUrl) && !track.sourceUrl.startsWith("local:");
-}
-
-function unavailableWarningHtml(track) {
-  const label = canReimportTrack(track)
-    ? i18nT("track.unavailableReimport")
-    : i18nT("track.unavailableReupload");
-  return `<span class="cat-unavailable-warning">${esc(label)}</span>`;
-}
-
 /**
  * How many stems a track has: the stem files that exist once it is done, and
  * the ones asked for before then. The mix itself ("original") is not a stem.
@@ -2695,70 +2300,6 @@ function unavailableWarningHtml(track) {
 function stemCountOf(track) {
   const stems = track?.audioStems?.length ? track.audioStems : track?.stems || [];
   return stems.filter((s) => (s?.name ?? s) !== "original").length;
-}
-
-/**
- * The line under a track's title, built from what is true of the track now.
- *
- * It used to read a `channel` field that was never a channel: six code paths
- * stored a status label in it, as text in whatever language was active at the
- * time, and the path that adopts a server job the library did not know about
- * stored nothing. So two copies of the same song could read "Extracted ·
- * 6 stems" and " · 6 stems" side by side (#656), and a label written in one
- * language stayed in it after the user switched. Nothing is stored now, and
- * every path that creates a track gets the same line.
- *
- * Returns HTML: an unavailable track's line is a warning, not plain text.
- */
-function trackSublineHtml(track, { inTrash = false } = {}) {
-  if (track.status === "unavailable") return unavailableWarningHtml(track);
-  let parts;
-  if (PROCESSING_STATUSES.has(track.status)) {
-    parts = [i18nT("job.processing")];
-  } else if (track.status === "error") {
-    parts = [i18nT("notifKind.importFailed")];
-  } else if (track.status === "stopped") {
-    parts = [i18nT("track.stopped")];
-  } else {
-    // No stem count: forty rows saying "6 stems" says nothing (#699).
-    const timeShown = track.duration && !showsVersionRows(track, inTrash);
-    parts = [nowPlayingArtist(track), timeShown ? fmtTime(track.duration) : ""];
-  }
-  if (inTrash) parts.push(i18nT("track.removed"));
-  // Spaced as text as well as by the row's flex gap, so what a screen reader
-  // or a copy gets reads "05:57 · 6 stems" rather than "05:57·6 stems".
-  return [
-    ...parts.filter(Boolean).map((part) => `<span>${esc(part)}</span>`),
-    ...(showsVersionRows(track, inTrash) ? [versionToggleHtml(track)] : []),
-  ].join(' <span class="dot">·</span> ');
-}
-
-function showsVersionRows(track, inTrash = false) {
-  return !inTrash && track.status === "done" && hasVersionRows(track);
-}
-
-function renderRecentItem(trackId) {
-  const track = tracks[trackId];
-  if (!track) return null;
-  const el = document.createElement("div");
-  const isUnavailable = track.status === "unavailable";
-  el.className = `cat-item${trackId === _currentTrackId ? " active" : ""}${isUnavailable ? " unavailable" : ""}${track.favorite ? " is-fav" : ""}${showsVersionRows(track) ? " has-versions" : ""}`;
-  el.dataset.id = trackId;
-  el.innerHTML = `
-    <div class="cat-thumb">${thumbHtml(track)}${playButtonHtml(track)}</div>
-    <div class="cat-meta">
-      <div class="cat-title">${esc(displayTitle(libraryTitle(track)))}</div>
-      <div class="cat-sub">${trackSublineHtml(track)}</div>
-    </div>
-    <div class="cat-status${PROCESSING_STATUSES.has(track.status) ? " processing" : isUnavailable ? " unavailable" : ""}"></div>
-    <div class="cat-actions">${upNextButtonHtml(track)}${moreButtonHtml(track)}${favButtonHtml(track)}</div>
-  `;
-  wireFavButton(el, trackId);
-  wireUpNextButton(el, trackId);
-  wireMoreButton(el, trackId);
-  wireVersionToggle(el);
-  wireTrackDrag(el, trackId);
-  return el;
 }
 
 // ─── Rendering ───
@@ -2783,33 +2324,9 @@ export function displayTitle(title) {
   }
 }
 
-function thumbHtml(track) {
-  if (track.thumb) return `<img src="${esc(track.thumb)}" alt="" loading="lazy" />`;
-  const format = trackFormat(track);
-  if (format) return formatIconSvg(format);
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>`;
-}
-
-function makeStripItem({ className = "", id, title, html, trackId }) {
-  const item = document.createElement("div");
-  item.className = className ? `strip-thumb ${className}` : "strip-thumb";
-  item.dataset.id = id;
-  item.title = title;
-  item.innerHTML = html;
-  if (trackId) wireStripTrack(item, trackId);
-  return item;
-}
-
 // A song stopped by the Trash keeps its files (#748). Restore brings it back
-// as it was, and this is the one way to run it again: the user decides when it
-// gets the GPU, never Restore and never a reload.
-function extractButtonHtml(track) {
-  const label = i18nT("track.extractAgainOf", { title: displayTitle(track.title) });
-  return `<button class="cat-extract" type="button" title="${esc(i18nT("track.extractAgain"))}"
-            aria-label="${esc(label)}">${esc(i18nT("track.extractAgain"))}</button>`;
-}
-
-async function extractStoppedTrack(trackId) {
+// as it was, and its Extract button is the one way to run it again.
+export async function extractStoppedTrack(trackId) {
   try {
     const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/extract`, { method: "POST" });
     if (!res.ok) {
@@ -2828,101 +2345,6 @@ async function extractStoppedTrack(trackId) {
     console.warn("[catalog] could not extract", trackId, e);
     render();
   }
-}
-
-function renderTrackItem(trackId, { inTrash = false } = {}) {
-  const track = tracks[trackId];
-  if (!track) return null;
-
-  const el = document.createElement("div");
-  const isUnavailable = track.status === "unavailable";
-  const isFailed = !inTrash && track.status === FAILED_STATUS;
-  el.className = `cat-item${trackId === _currentTrackId ? " active" : ""}${isUnavailable ? " unavailable" : ""}${!inTrash && track.favorite ? " is-fav" : ""}${!inTrash && track.status === "stopped" ? " is-stopped" : ""}${inTrash ? " in-trash" : ""}${inTrash && _trashSelection.has(trackId) ? " selected" : ""}${isFailed ? " is-failed" : ""}${showsVersionRows(track, inTrash) ? " has-versions" : ""}`;
-  el.dataset.id = trackId;
-
-  el.innerHTML = `
-    <div class="cat-thumb">${isFailed ? icon(sourceKindOf(track)) : `${thumbHtml(track)}${inTrash ? "" : playButtonHtml(track)}`}</div>
-    <div class="cat-meta">
-      <div class="cat-title">${esc(displayTitle(libraryTitle(track)))}</div>
-      <div class="cat-sub">${trackSublineHtml(track, { inTrash })}</div>${inTrash ? `<div class="cat-sub trash-hint">${esc(i18nT("trash.holdToRestore"))}</div>` : ""}
-    </div>
-    <div class="cat-status${PROCESSING_STATUSES.has(track.status) ? " processing" : isUnavailable ? " unavailable" : ""}"></div>
-    ${inTrash ? `<div class="trash-hold" aria-hidden="true"></div>` : isFailed ? failedRowHtml(track) : `<div class="cat-actions">${track.status === "stopped" ? extractButtonHtml(track) : ""}${upNextButtonHtml(track)}${moreButtonHtml(track)}${favButtonHtml(track)}<button class="cat-del" type="button" title="${esc(i18nT("track.moveToTrash"))}">
-      ${TRASH_ICON_SVG}
-    </button></div>`}
-  `;
-  el.querySelector(".cat-del")?.setAttribute("aria-label", i18nT("track.moveTitleToTrash", { title: displayTitle(libraryTitle(track)) }));
-
-  el.querySelector(".cat-del")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    moveTrackToTrash(trackId);
-  });
-  el.querySelector(".cat-extract")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    e.currentTarget.disabled = true;
-    extractStoppedTrack(trackId);
-  });
-  wireFavButton(el, trackId);
-  wireUpNextButton(el, trackId);
-  wireMoreButton(el, trackId);
-  wireVersionToggle(el);
-  if (isFailed) wireFailedRow(el);
-
-  if (inTrash) {
-    el.title = i18nT("trash.holdToRestore");
-    el.setAttribute("aria-selected", String(_trashSelection.has(trackId)));
-    wireTrashRow(el, trackId);
-  } else {
-    wireTrackDrag(el, trackId);
-  }
-
-  return el;
-}
-
-// ─── Failed imports: Retry on the row, the reason and source once selected ───
-
-function failedRowHtml(track) {
-  const pickAgain = needsFilePickedAgain(track);
-  const title = displayTitle(libraryTitle(track));
-  const label = pickAgain ? i18nT("importFail.pickAgainTitle", { title }) : i18nT("importFail.retryTitle", { title });
-  const tip = i18nT(pickAgain ? "importFail.pickAgain" : "importFail.retry");
-  return `<div class="cat-actions"><button class="cat-retry" type="button" title="${esc(tip)}" aria-label="${esc(label)}">${icon("restore")}</button></div>
-    ${failedPanelHtml(track, pickAgain)}`;
-}
-
-function failedPanelHtml(track, pickAgain) {
-  const reasonKey = pickAgain ? FILE_GONE_REASON_KEY : failureReasonKey(track.errorCode);
-  const primaryIcon = pickAgain ? icon("folderOpen") : icon("restore");
-  const primaryKey = pickAgain ? "importFail.pickAgain" : "importFail.retry";
-  return `<div class="import-fail-panel">
-      <p class="import-fail-reason">${icon("alert")}<span>${esc(i18nT(reasonKey))}</span></p>
-      ${sourceBlockHtml(track)}
-      <div class="import-fail-actions">
-        <button class="import-fail-btn import-fail-primary" type="button">${primaryIcon}<span>${esc(i18nT(primaryKey))}</span></button>
-        <button class="import-fail-btn import-fail-trash" type="button">${icon("trash")}<span>${esc(i18nT("nav.trash"))}</span></button>
-      </div>
-    </div>`;
-}
-
-function failedRowId(e) {
-  return e.currentTarget.closest(".cat-item")?.dataset.id;
-}
-
-function onFailedRetryClick(e) {
-  e.stopPropagation();
-  e.currentTarget.disabled = true;
-  retryFailedImport(failedRowId(e));
-}
-
-function onFailedTrashClick(e) {
-  e.stopPropagation();
-  moveTrackToTrash(failedRowId(e));
-}
-
-function wireFailedRow(el) {
-  for (const btn of el.querySelectorAll(".cat-retry, .import-fail-primary")) btn.addEventListener("click", onFailedRetryClick);
-  el.querySelector(".import-fail-trash")?.addEventListener("click", onFailedTrashClick);
-  wireSourceBlock(el);
 }
 
 const _retriesInFlight = new Set();
@@ -2961,7 +2383,7 @@ async function runRetry(trackId) {
   const body = await res.json().catch(() => ({}));
   const outcome = retryOutcome({ ok: res.ok, status: res.status, detail: body.detail }, sourceKindOf(track));
   const focusId = (await RETRY_STEPS[outcome](trackId, res.status, body)) ?? trackId;
-  focusLibraryRow(focusId, outcome === RETRY_OUTCOME.FILE_GONE ? ".import-fail-primary" : null);
+  focusSongRow(focusId, outcome === RETRY_OUTCOME.FILE_GONE ? ".import-fail-primary" : null);
 }
 
 const trackWithId = (trackId) => ({ ...tracks[trackId], id: trackId });
@@ -3016,14 +2438,6 @@ const RETRY_STEPS = {
   [RETRY_OUTCOME.FAILED]: showRetryRefusal,
 };
 
-/** After a redraw: focus a song's row, or one of its controls. */
-function focusLibraryRow(trackId, controlSelector = null) {
-  const row = document.querySelector(`#catalogList .cat-item[data-id="${CSS.escape(trackId)}"]`);
-  if (!row || !libraryRows) return;
-  libraryRows.focusRow(row);
-  if (controlSelector) row.querySelector(controlSelector)?.focus();
-}
-
 function pickFileAgain(trackId) {
   const input = document.createElement("input");
   input.type = "file";
@@ -3041,11 +2455,9 @@ function onReplacementFilePicked(e) {
   });
 }
 
-function addSubfolder(folder, folderEl) {
+function addSubfolder(folder) {
   const child = makeFolder({ parentId: folder.id });
   folders.push(child);
-  folder.collapsed = false;
-  folderEl.classList.remove("collapsed");
   saveState();
   render();
   openFolderEditor(child.id, NEW_SUBFOLDER_TITLE_KEY);
@@ -3069,6 +2481,7 @@ function songsInFolderTree(folderId) {
 // The message goes once either of those changes.
 let tooManySongs = null;
 
+const TOO_MANY_SELECTOR = ".folder-error";
 const tooManySongsText = () => i18nT("folder.tooManyForSetlist", { max: SETLIST_MAX_SONGS });
 const folderLook = (folder) => `${folder.name}\n${songsInFolderTree(folder.id).join()}`;
 
@@ -3097,10 +2510,13 @@ function tooManySongsError() {
 function clearTooManySongs() {
   tooManySongs = null;
   announceInLibrary("");
-  document.querySelector("#catalogList .folder-error")?.remove();
+  for (const error of document.querySelectorAll(TOO_MANY_SELECTOR)) error.remove();
 }
 
-function makeSetlistFromFolder(folder) {
+/** A setlist of the folder's songs and its subfolders', or a message when there are too many. */
+export function makeSetlistFromFolder(folderId) {
+  const folder = folders.find((f) => f.id === folderId);
+  if (!folder || isSystemFolder(folderId)) return;
   const songIds = songsInFolderTree(folder.id);
   if (songIds.length <= SETLIST_MAX_SONGS) {
     createSetlistFromFolder(folder.name, songIds);
@@ -3109,15 +2525,15 @@ function makeSetlistFromFolder(folder) {
   tooManySongs = { folderId: folder.id, look: folderLook(folder) };
   announceInLibrary(tooManySongsText());
   render();
-  focusFolderRow(folder.id);
 }
 
-function focusFolderRow(folderId) {
-  const head = folderHeadEl(folderId);
-  if (head) libraryRows?.focusRow(head, ON_ROW, SHOWN_FOCUS);
+/** The "too many songs for a setlist" message for this folder, or null. */
+export function folderErrorEl(folderId) {
+  const folder = folders.find((f) => f.id === folderId);
+  return folder && stillTooManySongs(folder) ? tooManySongsError() : null;
 }
 
-/** A new folder named after a setlist, holding its songs that are out of the Trash, focused. */
+/** A new folder named after a setlist, holding its songs that are out of the Trash; its id. */
 export function makeFolderFromSetlist(setlistName, songIds) {
   const taken = folders.filter((f) => f.id !== TRASH_ID).map(folderDisplayName);
   const base = folderNameFrom(setlistName, i18nT(NEW_FOLDER_TITLE_KEY));
@@ -3128,22 +2544,27 @@ export function makeFolderFromSetlist(setlistName, songIds) {
   }
   saveState();
   render();
-  focusFolderRow(folder.id);
+  return folder.id;
 }
 
 const RENAME_FOLDER_KEY = "F2";
 
-/** A user folder's F2 rename and its … menu; Delete in the menu arms the … button. */
-function wireFolderControls(head, folderEl, folder) {
-  const renameFolder = () => openFolderEditor(folder.id, RENAME_FOLDER_TITLE_KEY);
-  head.addEventListener("keydown", function onFolderHeadRenameKey(e) {
-    if (e.key !== RENAME_FOLDER_KEY || e.target !== head) return;
+/** F2 on a user folder's row renames it. */
+export function wireFolderRenameKey(row, folderId) {
+  if (isSystemFolder(folderId)) return;
+  row.addEventListener("keydown", function onFolderRenameKey(e) {
+    if (e.key !== RENAME_FOLDER_KEY || e.target !== row) return;
     e.preventDefault();
-    renameFolder();
+    openFolderEditor(folderId, RENAME_FOLDER_TITLE_KEY);
   });
-  head.querySelector(".f-more").addEventListener("click", function onFolderMoreClick(e) {
+}
+
+/** A user folder's … menu on `button`; Delete in the menu arms the button, a second click deletes. */
+export function wireFolderMenuButton(button, folderId) {
+  const folder = folders.find((f) => f.id === folderId);
+  if (!folder || isSystemFolder(folderId)) return;
+  button.addEventListener("click", function onFolderMoreClick(e) {
     e.stopPropagation();
-    const button = e.currentTarget;
     clearTooManySongs();
     if (isArmed(button)) {
       armFolderDelete(button, folder.id);
@@ -3153,9 +2574,9 @@ function wireFolderControls(head, folderEl, folder) {
       button,
       folderDisplayName(folder),
       {
-        rename: renameFolder,
-        addSubfolder: function onAddSubfolderFromMenu() { addSubfolder(folder, folderEl); },
-        makeSetlist: function onMakeSetlistFromMenu() { makeSetlistFromFolder(folder); },
+        rename: function onRenameFromMenu() { openFolderEditor(folder.id, RENAME_FOLDER_TITLE_KEY); },
+        addSubfolder: function onAddSubfolderFromMenu() { addSubfolder(folder); },
+        makeSetlist: function onMakeSetlistFromMenu() { makeSetlistFromFolder(folder.id); },
         remove: function onArmDeleteFromMenu() {
           armFolderDelete(button, folder.id);
           button.focus();
@@ -3166,184 +2587,14 @@ function wireFolderControls(head, folderEl, folder) {
   });
 }
 
-function renderFolder(folder) {
-  const isTrash = folder.id === TRASH_ID;
-  const isUnsorted = folder.id === UNSORTED_ID;
-  const isSystem = isSystemFolder(folder.id);
-  const isSubfolder = Boolean(folder.parentId);
-  if (!isTrash) folder.color = normalizeFolderColor(folder.color);
-
-  const el = document.createElement("div");
-  el.className = `folder${folder.collapsed ? " collapsed" : ""}${isSubfolder ? " subfolder" : ""}`;
-  el.dataset.id = folder.id;
-
-  const visibleItems = folder.items.filter((id) => trackMatchesSearch(tracks[id]));
-  const head = document.createElement("div");
-  head.className = isUnsorted ? "folder-head system" : "folder-head";
-  if (!isTrash) head.style.setProperty("--folder-color", folder.color);
-
-  const folderIcon = isTrash
-    ? `<svg class="f-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>`
-    : `<svg class="f-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
-
-  head.innerHTML = `
-    ${isSystem ? "" : `<span class="f-grip" title="${esc(i18nT("folder.dragToReorder"))}">
-      <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true">
-        <circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/>
-        <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
-        <circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/>
-      </svg>
-    </span>`}
-    <svg class="f-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
-    ${folderIcon}
-    <span class="f-name">${esc(folderDisplayName(folder))}</span>
-    <span class="f-count">${visibleItems.length}</span>
-    ${isSystem ? "" : `
-      <button class="f-more" type="button" aria-haspopup="menu" aria-expanded="false" title="${esc(i18nT("trackMenu.open"))}" aria-label="${esc(i18nT("trackMenu.openTitle", { title: folderDisplayName(folder) }))}">
-        ${icon("more")}${ARM_TEXT_HTML}
-      </button>
-    `}
-  `;
-
-  const body = document.createElement("div");
-  body.className = "folder-body";
-
-  const childFolders = childFoldersOf(folder.id);
-
-  if (catalogSearchQuery && visibleItems.length === 0 && childFolders.length === 0) {
-    return null;
-  }
-
-  if (visibleItems.length === 0 && childFolders.length === 0) {
-    body.innerHTML = `<span class="folder-empty">${esc(i18nT("library.emptyFolder"))}</span>`;
-  } else {
-    for (const id of visibleItems) {
-      const item = renderTrackItem(id);
-      if (item) body.append(item, ...versionExtras(id));
-    }
-    for (const child of childFolders) {
-      const childEl = renderFolder(child);
-      if (childEl) body.appendChild(childEl);
-    }
-  }
-
-  el.append(head, body);
-  if (stillTooManySongs(folder)) head.after(tooManySongsError());
-
-  let folderClickTimer = null;
-
-  // Toggle folder collapse on single click.
-  head.addEventListener("click", (e) => {
-    if (e.target.closest(FOLDER_HEAD_CONTROLS)) return;
-    if (e.detail !== 1) return;
-    window.clearTimeout(folderClickTimer);
-    folderClickTimer = window.setTimeout(() => toggleFolderCollapsed(el), 180);
-  });
-
-  if (!isTrash) {
-    head.addEventListener("dblclick", function onFolderHeadDoubleClick(e) {
-      if (e.target.closest(FOLDER_HEAD_CONTROLS)) return;
-      window.clearTimeout(folderClickTimer);
-      e.stopPropagation();
-      openFolderEditor(folder.id, RENAME_FOLDER_TITLE_KEY);
-    });
-  }
-  if (!isSystem) wireFolderControls(head, el, folder);
-
-  // Folder drag handle — reorder folders.
-  const grip = head.querySelector(".f-grip");
-  if (grip) {
-    grip.draggable = true;
-    grip.addEventListener("dragstart", (e) => {
-      folderDragId = folder.id;
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData(FOLDER_DRAG_TYPE, folder.id);
-      e.stopPropagation();
-      requestAnimationFrame(() => el.classList.add("folder-dragging"));
-    });
-    grip.addEventListener("dragend", () => {
-      folderDragId = null;
-      el.classList.remove("folder-dragging");
-      for (const f of document.querySelectorAll(".folder.drop-before, .folder.drop-after, .folder.drop-into")) {
-        f.classList.remove("drop-before", "drop-after", "drop-into");
-      }
-    });
-  }
-
-  // Dragover: folder reorder/nest indicator OR track drop target.
-  el.addEventListener("dragover", (e) => {
-    if (folderDragId && folderDragId !== folder.id && !isTrash) {
-      if (isFolderDescendant(folderDragId, folder.id)) return; // prevent cycle
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-      const zone = folderDropZone(e, head, isUnsorted);
-      el.classList.toggle("drop-before", zone === "before");
-      el.classList.toggle("drop-into", zone === "into");
-      el.classList.toggle("drop-after", zone === "after");
-      return;
-    }
-    if (!isTrackDragEvent(e)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    el.classList.add("drop-target");
-  });
-  el.addEventListener("dragleave", (e) => {
-    if (!el.contains(e.relatedTarget)) {
-      el.classList.remove("drop-target", "drop-before", "drop-after", "drop-into");
-    }
-  });
-  el.addEventListener("drop", (e) => {
-    e.preventDefault();
-    if (folderDragId && folderDragId !== folder.id && !isTrash) {
-      const zone = folderDropZone(e, head, isUnsorted);
-      el.classList.remove("drop-before", "drop-after", "drop-into");
-      if (zone === "before") reorderFolder(folderDragId, folder.id, true);
-      else if (zone === "after") reorderFolder(folderDragId, folder.id, false);
-      else reparentFolder(folderDragId, folder.id);
-      return;
-    }
-    el.classList.remove("drop-target");
-    dropOnFolder(folder.id, getDraggedTrackId(e));
-  });
-
-  return el;
-}
-
-// Where a dragged folder lands relative to a folder row: the top quarter
-// reorders before it, the bottom quarter after it, the middle nests inside.
-// Unsorted takes no subfolders, so it splits into before/after only.
-function folderDropZone(e, head, noNesting) {
-  const rect = head.getBoundingClientRect();
-  const rel = (e.clientY - rect.top) / rect.height;
-  if (noNesting) return rel < 0.5 ? "before" : "after";
-  if (rel < 0.25) return "before";
-  if (rel >= 0.75) return "after";
-  return "into";
-}
-
-/** What a collapsed sidebar shows: a cover per song, newest first, the open one marked. */
-function renderStrip(strip) {
-  if (!strip) return;
-  const trashIds = new Set(getTrashFolder()?.items || []);
-  const songs = Object.entries(tracks)
-    .filter(([id]) => !trashIds.has(id))
-    .sort(([, a], [, b]) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-  for (const [trackId, track] of songs) {
-    strip.appendChild(makeStripItem({
-      className: trackId === _currentTrackId ? "active" : "",
-      id: trackId,
-      title: track.title,
-      html: thumbHtml(track),
-      trackId,
-    }));
-  }
-}
-
 function render() {
-  const saved = libraryRows?.remember();
   drawCatalog();
   paintOpenVersion(_currentTrackId);
-  libraryRows?.restore(saved);
+}
+
+/** `draw()` runs after every change to the library, to redraw a list built from it. */
+export function onLibraryDraw(draw) {
+  libraryDrawers.add(draw);
 }
 
 export function redrawLibrary() {
@@ -3368,18 +2619,6 @@ export function setVersionsExpanded(trackId, expanded) {
   render();
 }
 
-/** Open the folder holding a song, and every folder above it, so its row shows. */
-export function expandFoldersOf(trackId) {
-  let folder = folders.find((f) => f.id !== TRASH_ID && f.items.includes(trackId));
-  while (folder) {
-    folder.collapsed = false;
-    const { parentId } = folder;
-    folder = folders.find((f) => f.id === parentId);
-  }
-  saveState();
-  render();
-}
-
 /** Take the server's versions for a known song; whether anything changed. */
 function applyServerVersions(track, state) {
   if (!state.versions) return false;
@@ -3394,178 +2633,11 @@ function takeVersions(track, state) {
   track.openVersion = state.open_version;
 }
 
-/** The sidebar's view buttons, and the song tools' Lyrics button, show which view is on. */
-function paintViewButtons(shown) {
-  for (const [view, on] of Object.entries(shown)) {
-    const btn = document.querySelector(VIEW_BUTTONS[view]);
-    btn?.classList.toggle("active", on);
-    btn?.setAttribute("aria-pressed", String(on));
-  }
-}
-
 function drawCatalog() {
-  const list = document.getElementById("catalogList");
-  const strip = document.getElementById("catalogStrip");
-  const catalog = document.getElementById("catalogPanel");
-  const searchInput = document.getElementById("catalogSearch");
-  if (!list) return;
-  const openTags = openTrackTags();
-  _renderedTagsKey = openTags.join("\n");
-
-  list.innerHTML = "";
-  if (strip) strip.innerHTML = "";
-
-  const trash = getTrashFolder();
-  const trashIds = new Set(trash?.items || []);
-  for (const id of _trashSelection) if (!trashIds.has(id)) _trashSelection.delete(id);
-  updateTrashBadge(trashIds.size);
-  const songsCount = document.getElementById("libSongsCount");
-  if (songsCount) songsCount.textContent = String(visibleSongCount(trashIds));
-  const isTrashView = catalogView === "trash";
-  const isFavoritesView = catalogView === "favorites";
-  const isQueueView = catalogView === "queue";
-  const isLyricsView = catalogView === "lyrics";
-  const isLibraryView = !isTrashView && !isFavoritesView && !isQueueView && !isLyricsView;
-
-  catalog?.classList.toggle("trash-view", isTrashView);
-  catalog?.classList.toggle("favorites-view", isFavoritesView);
-  catalog?.classList.toggle("queue-view", isQueueView);
-  // The lyrics panel replaces the list rather than being rendered into it;
-  // daw.css swaps which of the two is shown.
-  catalog?.classList.toggle("lyrics-view", isLyricsView);
-  paintViewButtons({ lyrics: isLyricsView, library: isLibraryView, favorites: isFavoritesView, trash: isTrashView, queue: isQueueView });
-
-  if (searchInput) {
-    searchInput.placeholder = isTrashView
-      ? i18nT("search.placeholderTrash")
-      : isFavoritesView
-        ? i18nT("search.placeholderFavorites")
-        : i18nT("search.placeholderLibrary");
-  }
-
-  // ── Queue view ──
-  // Rendered from the queue snapshot, not the library: it shows what the
-  // backend is actually working on, in the order it will work on it.
-  if (isQueueView) {
-    renderQueueList(list);
-    renderStrip(strip);
-    updateQueueBadge();
-    return;
-  }
-
-  const nonTrash = topLevelFolders();
-
-  // ── Trash view ──
-  if (isTrashView) {
-    const visibleTrashItems = (trash?.items || []).filter((id) => trackMatchesSearch(tracks[id]));
-    if (!trash?.items.length) {
-      list.innerHTML = emptyStateHtml("trash", "trash.isEmptyState", "trash.emptyHint");
-    } else if (visibleTrashItems.length === 0) {
-      list.innerHTML = noMatchHtml("trash.noSearchMatch");
-    } else {
-      for (const id of visibleTrashItems) {
-        const item = renderTrackItem(id, { inTrash: true });
-        if (item) list.appendChild(item);
-      }
-    }
-    return;
-  }
-
-  // ── Favorites view ──
-  if (isFavoritesView) {
-    const favIds = Object.entries(tracks)
-      .filter(([id, t]) => !trashIds.has(id) && t.favorite && trackMatchesSearch(t))
-      .sort(([, a], [, b]) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
-      .map(([id]) => id);
-    if (!favIds.length) {
-      list.innerHTML = catalogSearchQuery
-        ? noMatchHtml("favorites.noSearchMatch")
-        : emptyStateHtml("favorites", "favorites.emptyTitle", "favorites.emptyHint");
-    } else {
-      for (const id of favIds) {
-        const item = renderRecentItem(id);
-        if (item) list.append(item, ...versionExtras(id));
-      }
-    }
-    renderStrip(strip);
-    return;
-  }
-
-  // ── Library view — Stem Collections · Tags ──
-  //
-  // There was a Recent section above the folders: the three newest tracks,
-  // every one of which is also in its folder, where a new import already lands
-  // at the top. It showed the same track twice for no gain, and with two
-  // imports of one song, four times in one panel (#656). Tracks still being
-  // processed show that in their own row, which is the useful part of it.
-
-  // Stem Collections section
-  const collectionsSection = makeSectionEl(i18nT("library.stemCollections"));
-  const newFolderBtn = document.createElement("button");
-  newFolderBtn.id = "newFolderBtn";
-  newFolderBtn.className = "new-folder-btn";
-  newFolderBtn.type = "button";
-  newFolderBtn.setAttribute("aria-label", i18nT("library.newFolder"));
-  newFolderBtn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v6 M9 14h6"/></svg>${esc(i18nT("library.newFolder"))}`;
-  newFolderBtn.addEventListener("click", function onNewFolderClick() { createFolder(); });
-  collectionsSection.querySelector(".lib-section-head").appendChild(newFolderBtn);
-  let hasCollections = false;
-  for (const folder of nonTrash) {
-    const el = renderFolder(folder);
-    if (!el) continue;
-    collectionsSection.appendChild(el);
-    hasCollections = true;
-  }
-  if (hasCollections) list.appendChild(collectionsSection);
-
-  // Empty state when search yields nothing
-  if (catalogSearchQuery && !hasCollections) {
-    list.innerHTML = noMatchHtml("library.noSearchMatch");
-    return;
-  }
-
-  // Tags section: the open track's tags only. Every tag in the library was a
-  // wall of chips with nothing to say which song they came from. The count is
-  // still library-wide, since it is how many tracks the chip's filter finds.
-  // setCurrentTrack() re-renders when the open track's tags change.
-  if (openTags.length) {
-    const counts = new Map(getAllTags(trashIds));
-    const section = makeSectionEl(i18nT("library.tags"));
-    section.classList.add("lib-tags-section");
-    const row = document.createElement("div");
-    row.className = "lib-tags-row";
-    const activeTag = catalogSearchQuery.startsWith("#") ? catalogSearchQuery.slice(1) : null;
-    for (const tag of openTags) {
-      const count = counts.get(tag) ?? 1;
-      const chip = document.createElement("button");
-      chip.className = `lib-tag-chip${activeTag === tag ? " active" : ""}`;
-      chip.type = "button";
-      chip.dataset.tag = tag;
-      chip.textContent = tag;
-      const countSpan = document.createElement("span");
-      countSpan.className = "lib-tag-count";
-      countSpan.textContent = String(count);
-      chip.appendChild(countSpan);
-      chip.addEventListener("click", () => {
-        const input = document.getElementById("catalogSearch");
-        if (catalogSearchQuery === `#${tag}`) {
-          catalogSearchQuery = "";
-          if (input) input.value = "";
-        } else {
-          catalogSearchQuery = `#${tag}`;
-          if (input) input.value = `#${tag}`;
-        }
-        if (input) syncSearchHasQuery(input);
-        render();
-      });
-      row.appendChild(chip);
-    }
-    section.appendChild(row);
-    list.appendChild(section);
-  }
-
-  renderStrip(strip);
-  updateQueueBadge();
+  const lyricsShown = catalogView === LYRICS_VIEW;
+  document.getElementById("catalogPanel")?.classList.toggle("lyrics-view", lyricsShown);
+  paintLyricsButton(lyricsShown);
+  for (const draw of libraryDrawers) draw();
   applyQueueDecorations();
 }
 
@@ -4182,8 +3254,8 @@ function renderQueueList(listEl, snap = getQueueSnapshot()) {
  *  (or their order) costs a rebuild; progress and stage text are written
  *  straight to the existing nodes, because this runs several times a second. */
 function updateQueueRows(snap = getQueueSnapshot()) {
-  const listEl = document.getElementById("catalogList");
-  if (!listEl || catalogView !== "queue") return;
+  const listEl = queueHost();
+  if (!listEl) return;
   // A frame landing mid-drag would rebuild the list and yank the row out
   // from under the cursor.
   if (isQueueDragging()) return;
@@ -4218,36 +3290,22 @@ function updateQueueRows(snap = getQueueSnapshot()) {
   });
 }
 
-/** The Queue button only exists while there is something to look at, and carries
- *  the count so the queue is legible without opening it. */
-function updateQueueBadge(snap = getQueueSnapshot()) {
-  const btn = document.querySelector(VIEW_BUTTONS.queue);
-  const badge = document.getElementById("queueBadge");
-  if (!btn) return;
-  const count = queueCount(snap);
-  const idle = count === 0 && catalogView !== "queue" && !queueBatchProgress(snap);
-  btn.classList.toggle("hidden", idle);
-  document.querySelector(STRIP_VIEW_BUTTONS.queue)?.classList.toggle("hidden", idle);
-  if (badge) {
-    badge.textContent = count > 99 ? "99+" : String(count);
-    badge.classList.toggle("hidden", count === 0);
-  }
+// Browse library's Import queue view, while it is on screen.
+const QUEUE_HOST_ID = "browseImportQueue";
+
+function queueHost() {
+  const host = document.getElementById(QUEUE_HOST_ID);
+  return host && isShown(host) ? host : null;
+}
+
+/** Draw the import queue into Browse library's Import queue view. */
+export function renderImportQueue(host) {
+  renderQueueList(host);
 }
 
 function onQueueFrame(snap) {
-  updateQueueBadge(snap);
-  if (catalogView !== "queue") {
-    applyQueueDecorations(snap);
-    return;
-  }
-  if (queueCount(snap) === 0 && !queueBatchProgress(snap)) {
-    // Nothing left to manage. Fall back to the library rather than leaving the
-    // user in a view that can only ever be empty from here. Deliberately not
-    // done inside updateQueueBadge, which render() calls -- that would recurse.
-    setCatalogView("library");
-    return;
-  }
-  updateQueueRows(snap);
+  if (queueHost()) updateQueueRows(snap);
+  else applyQueueDecorations(snap);
 }
 
 function applyQueueDecorations(snap = getQueueSnapshot()) {
@@ -4287,56 +3345,24 @@ export function isSidebarCollapsed() {
   return !!document.querySelector(".app")?.classList.contains("cat-collapsed");
 }
 
-function wireCatalogToggle() {
-  const toggle = document.getElementById("catalogToggle");
-  const collapseBtn = document.getElementById("sidebarCollapseBtn");
-  const app = document.querySelector(".app");
-  if (!app) return;
+function onSidebarCollapseClick() {
+  setSidebarCollapsed(!isSidebarCollapsed());
+}
 
-  const collapsed = localStorage.getItem("stemdeck.catalog.collapsed") === "1";
-  if (collapsed) {
-    app.classList.add("cat-collapsed");
+function wireCatalogToggle() {
+  const collapseBtn = document.getElementById("sidebarCollapseBtn");
+  if (localStorage.getItem("stemdeck.catalog.collapsed") === "1") {
+    document.querySelector(".app")?.classList.add("cat-collapsed");
     collapseBtn?.setAttribute("aria-pressed", "false");
   }
-
-  collapseBtn?.addEventListener("click", () => {
-    setSidebarCollapsed(!app.classList.contains("cat-collapsed"));
-  });
-
-  if (toggle) {
-    toggle.addEventListener("click", (e) => {
-      // Only expand from within the sidebar body.
-      if (!app.classList.contains("cat-collapsed")) return;
-      setSidebarCollapsed(false);
-      toggle.querySelector("input")?.focus();
-    });
-    toggle.addEventListener("keydown", (e) => {
-      if (e.code === "Enter" || e.code === "Space") { e.preventDefault(); toggle.click(); }
-    });
-  }
+  collapseBtn?.addEventListener("click", onSidebarCollapseClick);
 }
 
-function wireCatalogViewButtons() {
-  for (const [view, selector] of Object.entries(VIEW_BUTTONS)) {
-    document.querySelector(selector)?.addEventListener("click", function onViewButtonClick() {
-      setCatalogView(view);
-    });
-  }
-  for (const [view, selector] of Object.entries(STRIP_VIEW_BUTTONS)) {
-    document.querySelector(selector)?.addEventListener("click", function onStripViewClick() {
-      setSidebarCollapsed(false);
-      setCatalogView(view);
-      document.querySelector(VIEW_BUTTONS[view])?.focus();
-    });
-  }
-  document.getElementById("clearBinBtn")?.addEventListener("click", onEmptyTrashClick);
-}
-
-function onEmptyTrashClick(e) {
-  const btn = e.currentTarget;
+/** Empty trash on its second click; `label` shows what the armed click does. */
+export function armEmptyTrash(btn, label) {
   if (btn.disabled) return;
   confirmOnSecondClick(btn, {
-    label: btn.querySelector("[data-i18n]"),
+    label,
     armedText: i18nT("trash.emptyConfirm"),
     onConfirm: () => emptyTrash(btn),
   });
@@ -4377,77 +3403,6 @@ async function emptyTrash(btn) {
   } finally {
     btn.disabled = false;
   }
-}
-
-function wireCatalogSearch() {
-  const input = document.getElementById("catalogSearch");
-  if (!input || input.dataset.searchReady === "1") return;
-  input.dataset.searchReady = "1";
-
-  const suggest = document.getElementById("tagSuggest");
-
-  function hideSuggest() {
-    if (suggest) suggest.innerHTML = "";
-  }
-
-  function showTagSuggestions(prefix) {
-    if (!suggest) return;
-    suggest.innerHTML = "";
-    if (!prefix) { hideSuggest(); return; }
-    const trashIds = new Set(folders.find((f) => f.id === TRASH_ID)?.items || []);
-    const all = getAllTags(trashIds);
-    const matches = all.filter(([t]) => t.toLowerCase().includes(prefix));
-    if (!matches.length) { hideSuggest(); return; }
-    for (const [tag] of matches.slice(0, 8)) {
-      const li = document.createElement("li");
-      li.className = "tag-suggest-item";
-      li.setAttribute("role", "option");
-      li.textContent = `#${tag}`;
-      li.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        input.value = `#${tag}`;
-        catalogSearchQuery = `#${tag}`;
-        syncSearchHasQuery(input);
-        hideSuggest();
-        render();
-      });
-      suggest.appendChild(li);
-    }
-  }
-
-  input.addEventListener("input", () => {
-    catalogSearchQuery = normalizeSearch(input.value);
-    syncSearchHasQuery(input);
-    render();
-    const val = input.value;
-    if (val.startsWith("#")) {
-      showTagSuggestions(val.slice(1).toLowerCase());
-    } else {
-      hideSuggest();
-    }
-  });
-
-  input.addEventListener("blur", () => setTimeout(hideSuggest, 150));
-  input.addEventListener("keydown", (e) => {
-    if (!suggest?.children.length) return;
-    if (e.key === "Escape") { hideSuggest(); return; }
-    const items = [...suggest.querySelectorAll(".tag-suggest-item")];
-    const active = suggest.querySelector(".tag-suggest-item.focused");
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      const next = active ? (items[items.indexOf(active) + 1] || items[0]) : items[0];
-      active?.classList.remove("focused");
-      next.classList.add("focused");
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      const prev = active ? (items[items.indexOf(active) - 1] || items[items.length - 1]) : items[items.length - 1];
-      active?.classList.remove("focused");
-      prev.classList.add("focused");
-    } else if (e.key === "Enter" && active) {
-      e.preventDefault();
-      active.dispatchEvent(new MouseEvent("mousedown"));
-    }
-  });
 }
 
 // ─── Collapsible widgets ───
@@ -6974,14 +5929,9 @@ export async function initCatalog() {
   await loadState();
   window.addEventListener("storage", onLibraryStoredElsewhere);
   wireCatalogToggle();
-  wireCatalogViewButtons();
-  wireCatalogSearch();
+  document.querySelector(LYRICS_BUTTON)?.addEventListener("click", onLyricsButtonClick);
   wireWidgets();
   wireMainPanelDrop();
-  wireTrashButtonDrop();
-  wireLibraryButtonDrop();
-  wireLibraryDeleteKeys();
-  wireLibraryRows();
   initOpenSong();
   initVersions();
   wireAboutButton();
