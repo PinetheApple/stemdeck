@@ -37,7 +37,7 @@ const FAILURE_KEYS = {
 const PILL_ID = "npVersionBtn";
 const SUBLINE_CLASS = "np-subline";
 const ROW_SELECTOR = ".cat-version";
-// Built on use: libraryRows.js is part of an import cycle with this module.
+// Built on use: this module, libraryRows.js and catalog.js import each other in a cycle.
 const songRowSelector = () => `${IN_SONG_LISTS} .cat-item.has-versions`;
 
 export function esc(text) {

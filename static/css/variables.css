@@ -116,6 +116,7 @@
   --badge-h:      15px;
   --scrollbar-w:  8px;
   --s-0:          2px;
+  --line-w: 1px;
   --line-w-strong: 2px;
   --float-edge:   8px;
   --library-w:    clamp(232px, 15vw, 300px);

@@ -12,8 +12,8 @@
   align-content: flex-start;
   gap: var(--sidebar-browse-h) var(--s-2);
   overflow: hidden;
-  padding: calc((var(--sidebar-browse-h) - var(--icon)) / 2 - 1px) var(--s-3) 0;
-  border: 1px solid var(--line-strong);
+  padding: calc((var(--sidebar-browse-h) - var(--icon)) / 2 - var(--line-w)) var(--s-3) 0;
+  border: var(--line-w) solid var(--line-strong);
   border-radius: var(--r-2);
   background: var(--surface-2);
   color: var(--text);
