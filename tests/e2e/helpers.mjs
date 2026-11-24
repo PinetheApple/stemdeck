@@ -771,15 +771,15 @@ export async function uiText(page, key, vars = {}) {
 }
 
 /** Keys the specs press by name; the library's arrow keys are rovingRows.js's ROW_KEY. */
-// A point on the dimmed page, clear of any dialog card.
-export const OUTSIDE_DIALOG = Object.freeze({ x: 5, y: 5 });
-
 export const KEY = Object.freeze({
   TAB: "Tab",
   ENTER: "Enter",
   ESCAPE: "Escape",
   DELETE: "Delete",
 });
+
+// A point on the dimmed page, clear of any dialog card.
+export const OUTSIDE_DIALOG = Object.freeze({ x: 5, y: 5 });
 
 const ADDED_INPUT_ID = "e2e-added-input";
 

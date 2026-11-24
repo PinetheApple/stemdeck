@@ -27,6 +27,7 @@ let extractFor = null; // { trackId, chosen: Set<string>, refused: boolean, vers
 const runs = new Map(); // trackId → { view, mix, knownIds: Set<string> }
 let latestRequest = 0;
 let extractLayer = null;
+let extractOpener = null;
 
 // ─── The dialog ───
 
@@ -72,10 +73,14 @@ function shownSongRow(trackId) {
   return row?.getClientRects().length ? row : null;
 }
 
+// Opening a version at once redraws the library, which replaces the row that opened the dialog.
 function onExtractDialogClosed() {
+  const trackId = extractFor?.trackId;
   extractFor = null;
   extractLayer = null;
   document.querySelector(SCRIM_SELECTOR)?.remove();
+  if (!extractOpener?.isConnected) shownSongRow(trackId)?.focus();
+  extractOpener = null;
 }
 
 function openExtractScrim(opener) {
@@ -85,6 +90,7 @@ function openExtractScrim(opener) {
   scrim.setAttribute("aria-modal", "true");
   scrim.setAttribute("aria-label", t("versions.extractTitle"));
   document.body.append(scrim);
+  extractOpener = opener;
   extractLayer = openDialogLayer(scrim, {
     onClose: onExtractDialogClosed,
     opener,

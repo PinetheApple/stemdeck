@@ -153,6 +153,13 @@ test("with the song's row off screen, the dialog hands focus back to what opened
   await expect(opener).toBeFocused();
 });
 
+test("a version that opens at once hands focus back to the song row", async ({ page, request }) => {
+  await openOnTwoLanes(page, request);
+  await extractBass(page);
+  await expect.poll(() => lanes(page)).toEqual([...WITH_BASS].sort());
+  await expect(songRow(page)).toBeFocused();
+});
+
 test("the form says it takes minutes only when a chosen stem has no file", async ({ page, request }) => {
   await stubMissingFiles(page, FILELESS);
   await openOnTwoLanes(page, request);

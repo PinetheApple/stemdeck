@@ -55,13 +55,13 @@ class NetworkRestartDialog {
     this.overlay = document.createElement("div");
     this.overlay.className = "reset-confirm-backdrop";
     this.overlay.innerHTML = DIALOG_HTML;
-    this.overlay.querySelector(".reset-confirm-card").prepend(dialogHead({
+    this.card = this.overlay.querySelector(".reset-confirm-card");
+    this.card.prepend(dialogHead({
       titleClass: "reset-confirm-title",
       titleKey: "settings.network.restartTitle",
     }));
     applyTranslations(this.overlay);
     const find = (selector) => this.overlay.querySelector(selector);
-    this.card = find(".reset-confirm-card");
     this.title = find(".reset-confirm-title");
     this.body = find(".net-restart-body");
     this.msg = find(".reset-confirm-msg");
