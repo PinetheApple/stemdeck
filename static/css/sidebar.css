@@ -33,7 +33,6 @@
 }
 
 .sidebar-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 var(--s-2) var(--s-2); }
-.sidebar:is(.lyrics-view) .sidebar-list { display: none; }
 .sidebar-group[hidden] { display: none; }
 .sidebar-group-head {
   display: flex;

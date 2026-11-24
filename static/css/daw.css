@@ -3336,16 +3336,9 @@ input, textarea { font-family: inherit; }
 @property --lib-tags-fade { syntax: "<length>"; inherits: false; initial-value: 0px; }
 @keyframes lib-tags-fade-out { from { --lib-tags-fade: var(--s-3); } to { --lib-tags-fade: 0px; } }
 
-/* ── Lyrics tab (#699) ──
-   A view of the sidebar, like Favorites and Trash, but not a list: while it is
-   on, the search box and the library list step aside and the panel takes the
-   whole height, so the lyrics get the room and scroll on their own. */
+/* ── Lyrics tab ── shown only inside the right panel's Lyrics pane (inspector.css). */
 .lyrics-panel { display: none; }
 
-.sidebar.lyrics-view .lyrics-panel {
-  display: flex; flex-direction: column; gap: 8px;
-  flex: 1 1 auto; min-height: 0;
-}
 /* The EXTRACT label's type, like every other section head in the app. */
 .lyrics-title {
   margin: 0; font-size: 10px; font-weight: 600;
@@ -3594,8 +3587,6 @@ input, textarea { font-family: inherit; }
   margin-left: var(--s-2);
   font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--warn);
 }
-.sidebar.lyrics-view .lyrics-panel.lyrics-editing .lyrics-versions,
-.sidebar.lyrics-view .lyrics-panel.lyrics-editing .lyrics-body { display: none; }
 .lyrics-editor { display: flex; flex: 1 1 auto; min-height: 0; outline: none; }
 .lyrics-editor[hidden] { display: none; }
 .lyrics-editor-fields {

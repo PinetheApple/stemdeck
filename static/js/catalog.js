@@ -108,11 +108,6 @@ let _loadTrackToken = 0;
 // Imports submitted from the form, mapped to the load token at that moment. A
 // finished one opens in the studio only if nothing has been opened since (#747).
 const _autoOpenTokens = new Map();
-export const LYRICS_VIEW = "lyrics";
-/** Fired on document with { view } when the sidebar switches between its song list and Lyrics. */
-export const CATALOG_VIEW_EVENT = "catalogviewchange";
-const LIBRARY_VIEW = "library";
-let catalogView = LIBRARY_VIEW;
 // Each list drawn from the library (sidebar, Browse library) redraws through these.
 const libraryDrawers = new Set();
 
@@ -1471,28 +1466,6 @@ function putInTrash(ids) {
   if (ids.length) announceTrashChange(ids);
 }
 
-function setCatalogView(view) {
-  catalogView = view === LYRICS_VIEW ? LYRICS_VIEW : LIBRARY_VIEW;
-  if (catalogView === LYRICS_VIEW) setSidebarCollapsed(false);
-  render();
-  // The lyrics panel (lyrics.js) draws itself; this is how it learns it is on
-  // screen, without catalog.js importing it.
-  document.dispatchEvent(new CustomEvent(CATALOG_VIEW_EVENT, { detail: { view: catalogView } }));
-}
-
-/** Show the Lyrics view in the sidebar, as the song tools' Lyrics button does. */
-export function showLyricsView() {
-  setCatalogView(LYRICS_VIEW);
-}
-
-export function showLibraryView() {
-  if (catalogView !== LIBRARY_VIEW) setCatalogView(LIBRARY_VIEW);
-}
-
-export function isLyricsViewShown() {
-  return catalogView === LYRICS_VIEW;
-}
-
 // The default version alone plays the import's selection, read as before; the
 // server fills its stems with every stem when an old record has no selection.
 function playsVersionStems(track) {
@@ -2580,8 +2553,6 @@ function takeVersions(track, state) {
 }
 
 function drawCatalog() {
-  const lyricsShown = catalogView === LYRICS_VIEW;
-  document.getElementById("catalogPanel")?.classList.toggle("lyrics-view", lyricsShown);
   for (const draw of libraryDrawers) draw();
   applyQueueDecorations();
 }
