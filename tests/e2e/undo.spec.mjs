@@ -31,7 +31,10 @@ const TOAST = ".undo-toast";
 // Longer than the message stays up.
 const PAST_THE_TOAST_MS = 8000;
 const PLAY_SECONDS = 1;
-const SECONDS_TRASHED = 1.5;
+// Long enough in the Trash for a playhead left running to pass the slack below.
+const TRASHED_FOR_MS = 1500;
+// A reload Undo should not start would have begun by then.
+const NO_RELOAD_MS = 1000;
 // How far the playhead may move between reading it and the trash landing.
 const POSITION_SLACK_S = 0.75;
 const LOAD_TIMEOUT_MS = 20000;
@@ -169,6 +172,7 @@ test("Delete on a keyboard-reached row shows the same Undo", async ({ page }) =>
 
 /** Where the player's playhead is, in seconds. */
 const playhead = (page) => page.evaluate(() => import("/js/transport.js").then((m) => m.transport()?.getCurrentTime?.() ?? 0));
+const shownId = (page) => page.evaluate(() => import("/js/catalog.js").then((m) => m.shownTrackId()));
 const isPlaying = (page) => page.evaluate(() => import("/js/transport.js").then((m) => m.transport()?.isPlaying() === true));
 
 test("Undo after trashing the playing song opens it again, paused where it was", async ({ page }) => {
@@ -181,7 +185,7 @@ test("Undo after trashing the playing song opens it again, paused where it was",
   await page.locator("#songMoreBtn").click();
   await page.locator(".song-menu").getByRole("menuitem", { name: "Move to Trash" }).click();
   await expect(toast(page)).toContainText(movedText(TRACK_TITLE));
-  await page.waitForTimeout(SECONDS_TRASHED * 1000);
+  await page.waitForTimeout(TRASHED_FOR_MS);
 
   await toast(page).getByRole("button", { name: "Undo" }).click();
   await expect(page.locator("#title")).toHaveText(TRACK_TITLE, { timeout: LOAD_TIMEOUT_MS });
@@ -215,7 +219,27 @@ test("Undo after trashing the playing song leaves a song played since in the pla
   await toast(page).getByRole("button", { name: "Undo" }).click();
 
   await expect(page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first()).toBeVisible();
-  await page.waitForTimeout(SECONDS_TRASHED * 1000);
+  await page.waitForTimeout(NO_RELOAD_MS);
   await expect(page.locator("#title")).toHaveText(SIBLING_TITLE);
   expect(await isPlaying(page)).toBe(true);
+});
+
+test("Undo after trashing the playing song leaves a song shown since on screen", async ({ page }) => {
+  await stubServerTrash(page);
+  await openStudio(page);
+  await page.locator("#t-play").click();
+  await expect.poll(() => isPlaying(page), { timeout: LOAD_TIMEOUT_MS }).toBe(true);
+  await page.locator("#songMoreBtn").click();
+  await page.locator(".song-menu").getByRole("menuitem", { name: "Move to Trash" }).click();
+  await expect(toast(page)).toBeVisible();
+
+  await page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`).first().click();
+  await expect(page.locator("#title")).toHaveText(SIBLING_TITLE, { timeout: LOAD_TIMEOUT_MS });
+  const shownBefore = await shownId(page);
+  await toast(page).getByRole("button", { name: "Undo" }).click();
+
+  await expect(page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first()).toBeVisible();
+  await page.waitForTimeout(NO_RELOAD_MS);
+  await expect(page.locator("#title")).toHaveText(SIBLING_TITLE);
+  expect(await shownId(page)).toBe(shownBefore);
 });

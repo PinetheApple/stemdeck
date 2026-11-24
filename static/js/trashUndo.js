@@ -12,7 +12,6 @@ import { showUndo } from "./undoToast.js";
 import { t } from "./i18n.js";
 
 const NOT_QUEUED = -1;
-const READY_TIMEOUT_MS = 20000;
 
 /** Where the player stood on the song, or null when it was not the player's. */
 function playerPositionOf(trackId) {
@@ -20,11 +19,9 @@ function playerPositionOf(trackId) {
   return transport()?.getCurrentTime?.() ?? 0;
 }
 
-/** Run `then` once the player has `trackId` ready; returns how to give up waiting, which a timeout also does. */
+/** Run `then` once the player has `trackId` ready; returns how to give up waiting. */
 function whenReady(trackId, then) {
-  const timer = setTimeout(stopWaiting, READY_TIMEOUT_MS);
   function stopWaiting() {
-    clearTimeout(timer);
     document.removeEventListener(PLAYBACK_READY_EVENT, onPlaybackReady);
   }
   function onPlaybackReady(e) {
@@ -49,7 +46,9 @@ async function reopenPaused(trackId, seconds) {
   const stopWaiting = whenReady(trackId, function onReopened() {
     pauseAt(seconds);
   });
-  if (!(await loadTrackIntoStudio(trackId))) stopWaiting();
+  // A load can resolve before the engine is ready; the ready event then places it again.
+  if (await loadTrackIntoStudio(trackId)) pauseAt(seconds);
+  else stopWaiting();
 }
 
 export function trashWithUndo(trackId) {
