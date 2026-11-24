@@ -1,4 +1,9 @@
 /* ── Sidebar: Browse library, Importing, Favorites, Setlists, Recently played, Trash ── */
+:root {
+  --eqbar-w: 3px;
+  --eqbar-r: 1px;
+  --sidebar-count-pad-y: 1px;
+}
 .daw .sidebar-body { display: flex; flex-direction: column; padding: 0; gap: 0; }
 .sidebar-top { flex: none; padding: var(--s-3); }
 .sidebar-browse-btn {
@@ -74,7 +79,7 @@
 }
 .sidebar-setlist:hover,
 .importing-row:hover { background: var(--surface-2); }
-.sidebar-setlist.drop-target { outline: var(--line-w-strong) dashed var(--accent); outline-offset: -2px; }
+.sidebar-setlist.drop-target { outline: var(--line-w-strong) dashed var(--text-2); outline-offset: calc(-1 * var(--line-w-strong)); }
 .sidebar-setlist-open,
 .importing-row {
   flex: 1;
@@ -140,12 +145,12 @@
   cursor: pointer;
 }
 .sidebar-trash-btn:hover { background: var(--surface-2); color: var(--text); }
-.sidebar-trash-btn.drop-target { outline: var(--line-w-strong) dashed var(--accent); outline-offset: -2px; }
+.sidebar-trash-btn.drop-target { outline: var(--line-w-strong) dashed var(--text-2); outline-offset: calc(-1 * var(--line-w-strong)); }
 .sidebar-trash-btn .ic { width: var(--icon); height: var(--icon); flex: none; }
 .sidebar-count {
   margin-left: auto;
   min-width: var(--s-5);
-  padding: 1px var(--s-1);
+  padding: var(--sidebar-count-pad-y) var(--s-1);
   border-radius: var(--r-pill);
   background: var(--surface-4);
   color: var(--text-2);
@@ -168,9 +173,9 @@
   background: var(--scrim);
 }
 .eqbars i {
-  width: 3px;
+  width: var(--eqbar-w);
   height: var(--icon);
-  border-radius: 1px;
+  border-radius: var(--eqbar-r);
   background: var(--accent);
   transform-origin: bottom;
   animation: eqbar 0.9s ease-in-out infinite alternate;
