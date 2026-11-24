@@ -15,6 +15,7 @@ import {
   EXTRACT_OUTCOME, EXTRACT_STATE, failureKey, filelessStems, followExtract, runLabel, startExtract,
 } from "./extractRun.js";
 import { shownInSongLists } from "./libraryRows.js";
+import { TRACK_OPEN_EVENT } from "./trackEvents.js";
 
 const ROW_RUNNING = "running";
 const HEAD_LABEL_ID = "npExtracting";
@@ -273,6 +274,6 @@ async function followRun(trackId, run) {
 
 export function initExtractMore() {
   document.addEventListener(EXTRACT_REQUEST_EVENT, onExtractRequest);
-  document.addEventListener("trackopen", paintOpenSongLabels);
+  document.addEventListener(TRACK_OPEN_EVENT, paintOpenSongLabels);
   document.addEventListener(TRACK_SHOW_EVENT, paintOpenSongLabels);
 }

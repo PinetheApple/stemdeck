@@ -16,6 +16,7 @@ import {
   cancelSplit,
 } from "./vocalSplit.js";
 import { reportSplitFailure } from "./vocalSplitNotify.js";
+import { TRACK_OPEN_EVENT } from "./trackEvents.js";
 
 const PHASE_KEYS = {
   [SPLIT_PHASE.QUEUED]: "vocalSplit.queued",
@@ -173,7 +174,7 @@ function initVocalSplitPanel() {
   };
   ui.start.addEventListener("click", onStartClick);
   ui.cancel.addEventListener("click", onCancelClick);
-  document.addEventListener("trackopen", onTrackOpen);
+  document.addEventListener(TRACK_OPEN_EVENT, onTrackOpen);
   document.addEventListener(TRACK_SHOW_EVENT, onTrackOpen);
   document.addEventListener("playbackready", onPlaybackReady);
   onLanguageChange(onLanguageChanged);

@@ -7,6 +7,7 @@ import { icon } from "./libraryIcons.js";
 import { SONG_NAME_MAX_CHARS, fetchJson, iconButton, isNotFound, refusalReason, textInput } from "./libraryControls.js";
 import { FOLDER_MOVING_KEY, isFolderMovingError } from "./folderMoving.js";
 import { $ } from "./utils.js";
+import { TRACK_OPEN_EVENT } from "./trackEvents.js";
 
 let editor = null; // { trackId, close }
 
@@ -191,6 +192,6 @@ export function initSongRename() {
   headButton?.addEventListener("click", onHeadTitleClick);
   $("title")?.addEventListener("click", onHeadTitleClick);
   $("np-artist")?.addEventListener("click", onHeadArtistClick);
-  document.addEventListener("trackopen", onTrackOpen);
+  document.addEventListener(TRACK_OPEN_EVENT, onTrackOpen);
   document.addEventListener(TRACK_SHOW_EVENT, onTrackOpen);
 }

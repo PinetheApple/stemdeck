@@ -22,6 +22,7 @@ import {
   REC_PHASE, STOP_REASON, isLostUpload, onRecorderEvent, recordBlock, recordingTake, takeElapsedSec, toggleRecording,
 } from "./recorder.js";
 import { paintCountIn, paintRecordButton, paintStageMark, showRecNotice, wireRecordButton } from "./recorderUi.js";
+import { TRACK_OPEN_EVENT } from "./trackEvents.js";
 
 const EMPTY_LISTING = Object.freeze({ tracks: [], takes: [], open: [] });
 const LIVE_BARS_MAX = 200;
@@ -261,7 +262,7 @@ function paintTakeSolos() {
 
 function init() {
   loadRecorderPrefs();
-  document.addEventListener("trackopen", onTrackOpen);
+  document.addEventListener(TRACK_OPEN_EVENT, onTrackOpen);
   document.addEventListener(MIX_CHANGE_EVENT, paintTakeSolos);
   onRecorderEvent(onRecorder);
   onArmChange(render);

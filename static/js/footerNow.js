@@ -7,6 +7,7 @@ import { initSectionLine } from "./footerSections.js";
 import { onLanguageChange, t } from "./i18n.js";
 import { PLAYBACK_READY_EVENT } from "./player.js";
 import { $ } from "./utils.js";
+import { TRACK_OPEN_EVENT } from "./trackEvents.js";
 
 function paintCover(src) {
   const img = $("footerNowThumb");
@@ -45,7 +46,7 @@ export function initFooterNow() {
   if (!$("footerNow")) return;
   $("footerNowThumb").addEventListener("error", onCoverError);
   // Read here, not at import: catalog.js is still evaluating when this module loads.
-  for (const name of ["trackopen", "tracknames", PLAYBACK_READY_EVENT, TRACK_SHOW_EVENT]) {
+  for (const name of [TRACK_OPEN_EVENT, "tracknames", PLAYBACK_READY_EVENT, TRACK_SHOW_EVENT]) {
     document.addEventListener(name, paintPlayingSong);
   }
   onLanguageChange(paintPlayingSong);
