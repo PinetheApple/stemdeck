@@ -68,6 +68,7 @@ function removeFromUpNext(trackId) {
   renderUpNext();
 }
 
+/** Empties Up Next and returns what it held. */
 export function clearUpNext() {
   const removed = queue;
   queue = [];
@@ -76,11 +77,12 @@ export function clearUpNext() {
   return removed;
 }
 
-/** For an Undo: where a song stands in Up Next, counting songs that cannot play, and putting it back there. */
+/** A song's place in Up Next, counting songs that cannot play; -1 when it is not queued. */
 export function upNextIndexOf(trackId) {
   return queue.indexOf(trackId);
 }
 
+/** Put `trackId` at `at` in Up Next, unless it has left the library or is queued already. */
 export function insertUpNext(trackId, at) {
   if (!getLibraryTrack(trackId) || queue.includes(trackId)) return;
   queue.splice(at, 0, trackId);
