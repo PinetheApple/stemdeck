@@ -978,7 +978,6 @@ const en = {
   "track.extractAgain": "Extract",
   "track.extractAgainOf": "Extract {title} again",
   "track.moveToTrash": "Move to Trash",
-  "track.moveTitleToTrash": "Move {title} to Trash",
   "track.playTitle": "Play {title}",
   "track.favorite": "Add to Favorites",
   "track.unfavorite": "Remove from Favorites",
@@ -1300,8 +1299,6 @@ const en = {
   "sing.closeQueue": "Close Up Next",
   "sing.move": "Move",
   "help.addToUpNext": "Adds this song to Up Next, to play after the one that is open.",
-  "help.songMenu": "Add this song to a setlist, or rename it.",
-  "help.openSongMenu": "Add this song to a setlist, or move it to a folder.",
   "help.nextSong": "Skips to the next song in Up Next.",
   "help.stageMode": "A full-screen view to play along from: big controls, the section you are in, the time and the tempo. Press F or Esc to leave.",
   "help.inspectorTempo": "The click track and the beat grid for this song.",
@@ -1805,6 +1802,13 @@ const en = {
   "lib.help.browse": "Opens your whole library: every song, folder, setlist and the Trash. Ctrl K opens it too.",
   "lib.help.setlists": "Your setlists. Drop a song on one to add it; Play starts it from the top.",
   "lib.help.recent": "The songs you played last. See all opens the songs added most recently.",
+  "lib.restore": "Restore",
+  "lib.undo": "Undo",
+  "lib.movedToTrash": "Moved “{title}” to the Trash",
+  "lib.upNextCleared": "Up Next cleared",
+  "lib.removedFrom": "Removed from {name}",
+  "lib.renameSongHint": "Enter saves · Esc cancels. Emptying a field goes back to the detected name.",
+  "lib.help.songMenu": "Play, queue, favorite, rename, file or trash this song.",
 };
 
 const pl = {
@@ -2575,7 +2579,6 @@ const pl = {
   "track.extractAgain": "Wyodrębnij",
   "track.extractAgainOf": "Wyodrębnij ponownie {title}",
   "track.moveToTrash": "Przenieś do kosza",
-  "track.moveTitleToTrash": "Przenieś {title} do kosza",
   "track.playTitle": "Odtwórz {title}",
   "track.favorite": "Dodaj do ulubionych",
   "track.unfavorite": "Usuń z ulubionych",
@@ -2880,8 +2883,6 @@ const pl = {
   "sing.closeQueue": "Zamknij kolejkę",
   "sing.move": "Przenieś",
   "help.addToUpNext": "Dodaje ten utwór do kolejki, aby zagrał po tym, który jest otwarty.",
-  "help.songMenu": "Dodaj ten utwór do setlisty albo zmień jego nazwę.",
-  "help.openSongMenu": "Dodaj ten utwór do setlisty albo przenieś go do folderu.",
   "help.nextSong": "Przechodzi do następnego utworu w kolejce.",
   "help.stageMode": "Widok pełnoekranowy do grania razem z utworem: duże przyciski, bieżąca sekcja, czas i tempo. Naciśnij F lub Esc, aby wyjść.",
   "help.inspectorTempo": "Klik i siatka rytmiczna tego utworu.",
@@ -3407,6 +3408,13 @@ const pl = {
   "lib.help.browse": "Otwiera całą bibliotekę: utwory, foldery, setlisty i kosz. Otwiera ją też Ctrl K.",
   "lib.help.setlists": "Twoje setlisty. Upuść utwór na setlistę, aby go dodać; Odtwórz zaczyna od początku.",
   "lib.help.recent": "Ostatnio odtwarzane utwory. Pokaż wszystko otwiera ostatnio dodane.",
+  "lib.restore": "Przywróć",
+  "lib.undo": "Cofnij",
+  "lib.movedToTrash": "Przeniesiono „{title}” do kosza",
+  "lib.upNextCleared": "Kolejka wyczyszczona",
+  "lib.removedFrom": "Usunięto z {name}",
+  "lib.renameSongHint": "Enter zapisuje · Esc anuluje. Puste pole wraca do wykrytej nazwy.",
+  "lib.help.songMenu": "Odtwórz, dodaj do kolejki, do ulubionych, zmień nazwę, przenieś lub wyrzuć ten utwór.",
 };
 
 const ja = {
@@ -4168,7 +4176,6 @@ const ja = {
   "track.extractAgain": "抽出",
   "track.extractAgainOf": "{title} を再抽出",
   "track.moveToTrash": "ゴミ箱に移動",
-  "track.moveTitleToTrash": "{title}をゴミ箱に移動",
   "track.playTitle": "{title}を再生",
   "track.favorite": "お気に入りに追加",
   "track.unfavorite": "お気に入りから削除",
@@ -4454,8 +4461,6 @@ const ja = {
   "sing.closeQueue": "「次に再生」を閉じる",
   "sing.move": "移動",
   "help.addToUpNext": "この曲を「次に再生」に追加し、開いている曲の後に再生します。",
-  "help.songMenu": "この曲をセットリストに追加したり、名前を変更したりします。",
-  "help.openSongMenu": "この曲をセットリストに追加したり、フォルダに移動したりします。",
   "help.nextSong": "「次に再生」の次の曲へ進みます。",
   "help.stageMode": "合わせて演奏するための全画面表示です。大きな操作ボタン、今のセクション、時間、テンポが表示されます。F キーか Esc キーで戻ります。",
   "help.inspectorTempo": "この曲のクリックとビートグリッドです。",
@@ -4940,6 +4945,13 @@ const ja = {
   "lib.help.browse": "ライブラリ全体を開きます: すべての曲、フォルダ、セットリスト、ゴミ箱。Ctrl K でも開きます。",
   "lib.help.setlists": "セットリストです。曲をドロップすると追加され、再生で最初から始まります。",
   "lib.help.recent": "最近再生した曲です。「すべて表示」で最近追加した曲を開きます。",
+  "lib.restore": "復元",
+  "lib.undo": "元に戻す",
+  "lib.movedToTrash": "「{title}」をゴミ箱に移動しました",
+  "lib.upNextCleared": "次に再生をクリアしました",
+  "lib.removedFrom": "{name}から削除しました",
+  "lib.renameSongHint": "Enter で保存 · Esc でキャンセル。空欄にすると検出された名前に戻ります。",
+  "lib.help.songMenu": "この曲を再生、次に再生に追加、お気に入り、名前の変更、整理、ゴミ箱へ移動します。",
 };
 
 const zhHans = {
@@ -5701,7 +5713,6 @@ const zhHans = {
   "track.extractAgain": "提取",
   "track.extractAgainOf": "重新提取 {title}",
   "track.moveToTrash": "移到回收站",
-  "track.moveTitleToTrash": "将 {title} 移到回收站",
   "track.playTitle": "播放 {title}",
   "track.favorite": "添加到收藏",
   "track.unfavorite": "从收藏中移除",
@@ -5987,8 +5998,6 @@ const zhHans = {
   "sing.closeQueue": "关闭待播",
   "sing.move": "移动",
   "help.addToUpNext": "将这首歌加入待播，在当前打开的歌曲之后播放。",
-  "help.songMenu": "将这首歌加入曲目单，或重命名。",
-  "help.openSongMenu": "将这首歌加入曲目单，或移动到文件夹。",
   "help.nextSong": "跳到待播中的下一首。",
   "help.stageMode": "跟着演奏用的全屏视图：大按钮、当前段落、时间和速度。按 F 或 Esc 退出。",
   "help.inspectorTempo": "这首歌的节拍声和节拍网格。",
@@ -6473,6 +6482,13 @@ const zhHans = {
   "lib.help.browse": "打开整个曲库：所有歌曲、文件夹、歌单和回收站。也可按 Ctrl K 打开。",
   "lib.help.setlists": "你的歌单。把歌曲拖到歌单上即可添加；播放会从头开始。",
   "lib.help.recent": "你最近播放的歌曲。“查看全部”会打开最近添加的歌曲。",
+  "lib.restore": "恢复",
+  "lib.undo": "撤销",
+  "lib.movedToTrash": "已将“{title}”移到回收站",
+  "lib.upNextCleared": "已清空待播",
+  "lib.removedFrom": "已从{name}移除",
+  "lib.renameSongHint": "Enter 保存 · Esc 取消。清空字段会恢复为检测到的名称。",
+  "lib.help.songMenu": "播放、加入待播、收藏、重命名、归档或删除这首歌。",
 };
 
 const de = {
@@ -7239,7 +7255,6 @@ const de = {
   "track.extractAgain": "Extrahieren",
   "track.extractAgainOf": "{title} erneut extrahieren",
   "track.moveToTrash": "In den Papierkorb verschieben",
-  "track.moveTitleToTrash": "{title} in den Papierkorb verschieben",
   "track.playTitle": "{title} abspielen",
   "track.favorite": "Zu Favoriten hinzufügen",
   "track.unfavorite": "Aus Favoriten entfernen",
@@ -7532,8 +7547,6 @@ const de = {
   "sing.closeQueue": "„Als Nächstes“ schließen",
   "sing.move": "Verschieben",
   "help.addToUpNext": "Reiht diesen Song ein, damit er nach dem geöffneten läuft.",
-  "help.songMenu": "Fügt diesen Song einer Setlist hinzu oder benennt ihn um.",
-  "help.openSongMenu": "Fügt diesen Song einer Setlist hinzu oder verschiebt ihn in einen Ordner.",
   "help.nextSong": "Springt zum nächsten eingereihten Song.",
   "help.stageMode": "Eine Vollbildansicht zum Mitspielen: große Bedienelemente, der aktuelle Abschnitt, die Zeit und das Tempo. Drücke F oder Esc, um sie zu verlassen.",
   "help.inspectorTempo": "Der Klick und das Beat-Raster für diesen Song.",
@@ -8037,6 +8050,13 @@ const de = {
   "lib.help.browse": "Öffnet deine ganze Bibliothek: alle Songs, Ordner, Setlists und den Papierkorb. Auch mit Strg K.",
   "lib.help.setlists": "Deine Setlists. Zieh einen Song darauf, um ihn hinzuzufügen; Abspielen startet von vorn.",
   "lib.help.recent": "Die zuletzt gespielten Songs. Alle anzeigen öffnet die zuletzt hinzugefügten Songs.",
+  "lib.restore": "Wiederherstellen",
+  "lib.undo": "Rückgängig",
+  "lib.movedToTrash": "„{title}“ in den Papierkorb verschoben",
+  "lib.upNextCleared": "Als Nächstes geleert",
+  "lib.removedFrom": "Aus {name} entfernt",
+  "lib.renameSongHint": "Enter speichert · Esc bricht ab. Ein leeres Feld kehrt zum erkannten Namen zurück.",
+  "lib.help.songMenu": "Diesen Song abspielen, einreihen, favorisieren, umbenennen, einsortieren oder löschen.",
 };
 
 const pt = {
@@ -8803,7 +8823,6 @@ const pt = {
   "track.extractAgain": "Extrair",
   "track.extractAgainOf": "Extrair {title} novamente",
   "track.moveToTrash": "Mover para a lixeira",
-  "track.moveTitleToTrash": "Mover {title} para a lixeira",
   "track.playTitle": "Tocar {title}",
   "track.favorite": "Adicionar aos favoritos",
   "track.unfavorite": "Remover dos favoritos",
@@ -9098,8 +9117,6 @@ const pt = {
   "sing.closeQueue": "Fechar A seguir",
   "sing.move": "Mover",
   "help.addToUpNext": "Adiciona esta música à fila, para tocar depois da que está aberta.",
-  "help.songMenu": "Adiciona esta música a um setlist ou a renomeia.",
-  "help.openSongMenu": "Adiciona esta música a um setlist ou a move para uma pasta.",
   "help.nextSong": "Pula para a próxima música da fila.",
   "help.stageMode": "Uma visualização em tela cheia para tocar junto: controles grandes, a seção em que você está, o tempo e o andamento. Pressione F ou Esc para sair.",
   "help.inspectorTempo": "O clique e a grade de batidas desta música.",
@@ -9603,6 +9620,13 @@ const pt = {
   "lib.help.browse": "Abre toda a sua biblioteca: músicas, pastas, setlists e a lixeira. Ctrl K também abre.",
   "lib.help.setlists": "Suas setlists. Solte uma música numa delas para adicioná-la; Tocar começa do início.",
   "lib.help.recent": "As últimas músicas que você tocou. Ver tudo abre as adicionadas recentemente.",
+  "lib.restore": "Restaurar",
+  "lib.undo": "Desfazer",
+  "lib.movedToTrash": "“{title}” movida para a lixeira",
+  "lib.upNextCleared": "Fila A seguir limpa",
+  "lib.removedFrom": "Removida de {name}",
+  "lib.renameSongHint": "Enter salva · Esc cancela. Um campo vazio volta ao nome detectado.",
+  "lib.help.songMenu": "Toque, enfileire, favorite, renomeie, organize ou descarte esta música.",
 };
 
 const id = {
@@ -10364,7 +10388,6 @@ const id = {
   "track.extractAgain": "Ekstrak",
   "track.extractAgainOf": "Ekstrak ulang {title}",
   "track.moveToTrash": "Pindahkan ke Sampah",
-  "track.moveTitleToTrash": "Pindahkan {title} ke Sampah",
   "track.playTitle": "Putar {title}",
   "track.favorite": "Tambahkan ke favorit",
   "track.unfavorite": "Hapus dari favorit",
@@ -10650,8 +10673,6 @@ const id = {
   "sing.closeQueue": "Tutup Berikutnya",
   "sing.move": "Pindahkan",
   "help.addToUpNext": "Menambahkan lagu ini ke antrean, untuk diputar setelah lagu yang sedang dibuka.",
-  "help.songMenu": "Menambahkan lagu ini ke setlist atau mengganti namanya.",
-  "help.openSongMenu": "Menambahkan lagu ini ke setlist atau memindahkannya ke folder.",
   "help.nextSong": "Melompat ke lagu berikutnya di antrean.",
   "help.stageMode": "Tampilan layar penuh untuk bermain bersama: kontrol besar, bagian yang sedang berjalan, waktu, dan tempo. Tekan F atau Esc untuk keluar.",
   "help.inspectorTempo": "Ketukan klik dan grid ketukan untuk lagu ini.",
@@ -11136,6 +11157,13 @@ const id = {
   "lib.help.browse": "Membuka seluruh pustaka: semua lagu, folder, setlist, dan Tempat Sampah. Ctrl K juga membukanya.",
   "lib.help.setlists": "Setlist Anda. Letakkan lagu di salah satunya untuk menambahkan; Putar memulai dari awal.",
   "lib.help.recent": "Lagu yang terakhir Anda putar. Lihat semua membuka lagu yang baru ditambahkan.",
+  "lib.restore": "Pulihkan",
+  "lib.undo": "Urungkan",
+  "lib.movedToTrash": "“{title}” dipindahkan ke Sampah",
+  "lib.upNextCleared": "Berikutnya dikosongkan",
+  "lib.removedFrom": "Dihapus dari {name}",
+  "lib.renameSongHint": "Enter menyimpan · Esc membatalkan. Kolom yang dikosongkan kembali ke nama yang terdeteksi.",
+  "lib.help.songMenu": "Putar, antrekan, favoritkan, ganti nama, atur, atau buang lagu ini.",
 };
 
 const fr = {
@@ -11902,7 +11930,6 @@ const fr = {
   "track.extractAgain": "Extraire",
   "track.extractAgainOf": "Extraire à nouveau {title}",
   "track.moveToTrash": "Mettre à la corbeille",
-  "track.moveTitleToTrash": "Mettre {title} à la corbeille",
   "track.playTitle": "Lire {title}",
   "track.favorite": "Ajouter aux favoris",
   "track.unfavorite": "Retirer des favoris",
@@ -12197,8 +12224,6 @@ const fr = {
   "sing.closeQueue": "Fermer À suivre",
   "sing.move": "Déplacer",
   "help.addToUpNext": "Ajoute ce morceau à la file, pour le lire après celui qui est ouvert.",
-  "help.songMenu": "Ajoute ce morceau à une setlist ou le renomme.",
-  "help.openSongMenu": "Ajoute ce morceau à une setlist ou le déplace vers un dossier.",
   "help.nextSong": "Passe au morceau suivant de la file.",
   "help.stageMode": "Une vue plein écran pour jouer en même temps : grandes commandes, la section en cours, le temps et le tempo. Appuyez sur F ou Échap pour la quitter.",
   "help.inspectorTempo": "Le clic et la grille rythmique de ce morceau.",
@@ -12702,6 +12727,13 @@ const fr = {
   "lib.help.browse": "Ouvre toute votre bibliothèque : morceaux, dossiers, setlists et corbeille. Ctrl K l’ouvre aussi.",
   "lib.help.setlists": "Vos setlists. Déposez un morceau sur l’une pour l’ajouter ; Lecture la démarre depuis le début.",
   "lib.help.recent": "Les derniers morceaux écoutés. Tout voir ouvre les morceaux ajoutés récemment.",
+  "lib.restore": "Restaurer",
+  "lib.undo": "Annuler",
+  "lib.movedToTrash": "« {title} » mis à la corbeille",
+  "lib.upNextCleared": "À suivre vidé",
+  "lib.removedFrom": "Retiré de {name}",
+  "lib.renameSongHint": "Entrée enregistre · Échap annule. Un champ vidé revient au nom détecté.",
+  "lib.help.songMenu": "Lire, mettre en file, ajouter aux favoris, renommer, classer ou jeter ce morceau.",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -12934,7 +12966,6 @@ const ptPT = {
   "stage.playAlong": "Tocar em conjunto",
   "stage.singAlong": "Cantar em conjunto",
   "help.nextSong": "Salta para a próxima música da fila.",
-  "help.openSongMenu": "Adiciona esta música a um setlist ou move-a para uma pasta.",
   "help.stageMode": "Uma vista em ecrã inteiro para tocar em conjunto: controlos grandes, a secção em que está, o tempo e o andamento. Prima F ou Esc para sair.",
   "help.inspectorDetails": "Tom, andamento, volume, quanto de cada instrumento a música tem e de onde veio o ficheiro.",
   "setlists.saveUpNext": "Guardar como setlist",
@@ -13137,6 +13168,8 @@ const ptPT = {
   "lib.recentlyPlayed": "Reproduzidas recentemente",
   "lib.folderEmptyHint": "Arraste músicas para aqui ou use o menu ⋯ de uma música.",
   "lib.startHint": "Use Adicionar música para colar ligações, ou largue ficheiros ou uma pasta.",
+  "lib.renameSongHint": "Enter guarda · Esc cancela. Um campo vazio volta ao nome detetado.",
+  "lib.help.songMenu": "Reproduza, ponha na fila, marque como favorita, mude o nome, organize ou elimine esta música.",
 };
 
 const es = {
@@ -13904,7 +13937,6 @@ const es = {
   "track.extractAgain": "Extraer",
   "track.extractAgainOf": "Volver a extraer {title}",
   "track.moveToTrash": "Mover a la papelera",
-  "track.moveTitleToTrash": "Mover {title} a la papelera",
   "track.playTitle": "Reproducir {title}",
   "track.favorite": "Añadir a favoritos",
   "track.unfavorite": "Quitar de favoritos",
@@ -14210,8 +14242,6 @@ const es = {
   "sing.closeQueue": "Cerrar A continuación",
   "sing.move": "Mover",
   "help.addToUpNext": "Añade esta canción a la cola, para que suene después de la que está abierta.",
-  "help.songMenu": "Añade esta canción a un setlist o le cambia el nombre.",
-  "help.openSongMenu": "Añade esta canción a un setlist o la mueve a una carpeta.",
   "help.nextSong": "Salta a la siguiente canción de la cola.",
   "help.stageMode": "Una vista a pantalla completa para tocar encima: controles grandes, la sección en la que estás, el tiempo y el tempo. Pulsa F o Esc para salir.",
   "help.inspectorTempo": "El clic y el GRID de esta canción.",
@@ -14715,6 +14745,13 @@ const es = {
   "lib.help.browse": "Abre toda tu biblioteca: canciones, carpetas, setlists y la papelera. Ctrl K también la abre.",
   "lib.help.setlists": "Tus setlists. Suelta una canción en una para añadirla; Reproducir la empieza desde el principio.",
   "lib.help.recent": "Las últimas canciones que reprodujiste. Ver todo abre las añadidas recientemente.",
+  "lib.restore": "Restaurar",
+  "lib.undo": "Deshacer",
+  "lib.movedToTrash": "“{title}” se movió a la papelera",
+  "lib.upNextCleared": "Se vació A continuación",
+  "lib.removedFrom": "Quitada de {name}",
+  "lib.renameSongHint": "Intro guarda · Esc cancela. Un campo vacío vuelve al nombre detectado.",
+  "lib.help.songMenu": "Reproduce, pon en cola, marca como favorita, cambia el nombre, ordena o tira esta canción.",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -15485,7 +15522,6 @@ const ko = {
   "track.extractAgain": "추출",
   "track.extractAgainOf": "{title} 다시 추출",
   "track.moveToTrash": "휴지통으로 옮기기",
-  "track.moveTitleToTrash": "{title}을(를) 휴지통으로 옮기기",
   "track.playTitle": "{title} 재생",
   "track.favorite": "즐겨찾기에 추가",
   "track.unfavorite": "즐겨찾기에서 제거",
@@ -15771,8 +15807,6 @@ const ko = {
   "sing.closeQueue": "다음 곡 닫기",
   "sing.move": "이동",
   "help.addToUpNext": "이 곡을 다음 곡에 추가해서 지금 열린 곡 다음에 재생해요.",
-  "help.songMenu": "이 곡을 셋리스트에 추가하거나 이름을 바꿔요.",
-  "help.openSongMenu": "이 곡을 셋리스트에 추가하거나 폴더로 옮겨요.",
   "help.nextSong": "다음 곡 목록의 첫 곡으로 넘어가요.",
   "help.stageMode": "따라 연주하기 위한 전체 화면 보기예요. 큰 버튼, 지금 섹션, 시간, 템포가 보여요. F나 Esc를 누르면 나가요.",
   "help.inspectorTempo": "이 곡의 클릭과 비트 그리드예요.",
@@ -16257,6 +16291,13 @@ const ko = {
   "lib.help.browse": "라이브러리 전체를 엽니다: 모든 곡, 폴더, 세트리스트, 휴지통. Ctrl K로도 열립니다.",
   "lib.help.setlists": "세트리스트입니다. 곡을 끌어 놓으면 추가되고, 재생은 처음부터 시작합니다.",
   "lib.help.recent": "최근에 재생한 곡입니다. 모두 보기는 최근 추가한 곡을 엽니다.",
+  "lib.restore": "복원",
+  "lib.undo": "실행 취소",
+  "lib.movedToTrash": "“{title}”을(를) 휴지통으로 옮겼어요",
+  "lib.upNextCleared": "다음 곡을 비웠어요",
+  "lib.removedFrom": "{name}에서 뺐어요",
+  "lib.renameSongHint": "Enter로 저장 · Esc로 취소. 칸을 비우면 감지된 이름으로 돌아가요.",
+  "lib.help.songMenu": "이 곡을 재생하거나 대기열에 넣고, 즐겨찾기, 이름 바꾸기, 정리, 휴지통으로 옮기기를 해요.",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };

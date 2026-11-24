@@ -962,17 +962,6 @@ export function updateTrackStatus(trackId, status) {
   }
 }
 
-function hasTrackAnalysis(track) {
-  return Boolean(
-    track?.bpm
-    || track?.key
-    || track?.scale
-    || track?.keyConfidence != null
-    || track?.lufs != null
-    || track?.peakDb != null,
-  );
-}
-
 /**
  * The names a job's state gives a song: `title` is the user's title, else the
  * detected one, and `displayArtist` is the server's pick of which artist to show.
@@ -1431,9 +1420,20 @@ function applyServerFavorite(track, state) {
   return true;
 }
 
+/** Bin a song; returns how the library held it, for undoTrash. */
 export function moveTrackToTrash(trackId) {
-  if (!tracks[trackId]) return;
+  if (!tracks[trackId]) return null;
   binTrack(trackId);
+  saveState();
+  render();
+  return _placesBeforeTrash.get(trackId);
+}
+
+/** Take back a trash: the song returns to the places moveTrackToTrash gave, and the server is told. */
+export function undoTrash(trackId, place) {
+  if (!isInTrash(trackId)) return;
+  putBack(trackId, place);
+  syncTrashToServer(trackId, false);
   saveState();
   render();
 }
@@ -2093,7 +2093,7 @@ export function moveTrackToNewFolder(trackId) {
 export function folderChoices(trackId) {
   const choices = [];
   const visit = (folder, depth) => {
-    choices.push({ id: folder.id, name: folderDisplayName(folder), depth, current: folder.items.includes(trackId) });
+    choices.push({ id: folder.id, name: folderDisplayName(folder), depth, color: folder.color, current: folder.items.includes(trackId) });
     for (const child of childFoldersOf(folder.id)) visit(child, depth + 1);
   };
   for (const top of topLevelFolders()) visit(top, 0);
@@ -3344,7 +3344,6 @@ function wireWidgets() {
 
 const FALLBACK_VERSION = "0.1.0";
 let currentVersion = FALLBACK_VERSION;
-const REPO_URL = "https://github.com/stemdeckapp/stemdeck";
 const RELEASES_URL = "https://github.com/stemdeckapp/stemdeck/releases";
 // The releases LIST, not /releases/latest. GitHub defines "latest" as the most
 // recent NON-PRERELEASE release, so the moment a version ships with the

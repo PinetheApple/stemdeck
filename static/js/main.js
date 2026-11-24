@@ -40,6 +40,8 @@ import { initTempoTools, takeUnconfirmedTempo } from "./tempoTools.js";
 import { initSetlists } from "./setlists.js";
 import { initSongRename } from "./songRename.js";
 import { initTrackMenu } from "./trackMenu.js";
+import { initSongMenu } from "./songMenu.js";
+import { initUpNextUndo } from "./upNextUndo.js";
 import { initConnection } from "./connection.js";
 import { clearBatch, setImportPill, startFileBatch, wireBatchImport } from "./batchImport.js";
 import {
@@ -521,6 +523,8 @@ initBrowseLibrary();
 initLanesDrop();
 initSongRename();
 initTrackMenu();
+initSongMenu();
+initUpNextUndo();
 initStageMode();
 initSearchShortcut();
 initTempoTools();

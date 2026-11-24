@@ -36,6 +36,8 @@
     <link rel="stylesheet" href="/css/alerts.css" />
     <link rel="stylesheet" href="/css/sidebar.css" />
     <link rel="stylesheet" href="/css/browse.css" />
+    <link rel="stylesheet" href="/css/song-menu.css" />
+    <link rel="stylesheet" href="/css/toast.css" />
     <script type="module" src="/js/appearance.js"></script>
     <link rel="stylesheet" href="/css/add-song.css" />
   </head>
@@ -319,7 +321,7 @@
           <!-- Job progress -->
           <div id="error" class="error hidden" role="alert"></div>
 
-          <header class="song-head" id="songHead">
+          <header class="song-head" id="songHead" data-song-menu="head">
           <div class="footer-track-slot" id="nowPlayingPanel">
           <!-- Kept for screen readers; the song head's position says it. -->
           <span class="np-legend" data-i18n="track.nowPlaying">Now playing</span>

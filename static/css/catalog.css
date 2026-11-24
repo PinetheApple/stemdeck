@@ -293,33 +293,6 @@
 }
 @keyframes cat-pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
 
-.cat-del {
-  width: 20px;
-  height: 20px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--ink-faint);
-  cursor: pointer;
-  opacity: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  flex-shrink: 0;
-  transition: opacity 120ms, background 120ms, color 120ms;
-}
-
-.cat-item:hover .cat-del,
-.cat-del:focus-visible {
-  opacity: 1;
-}
-
-.cat-del:hover {
-  background: rgba(21,31,39,0.8);
-  color: var(--danger);
-}
-
 /* ─── Catalog footer ─── */
 .catalog-foot {
   display: flex;

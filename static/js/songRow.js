@@ -3,9 +3,11 @@
 
 import { t as i18nT } from "./i18n.js";
 import {
-  PROCESSING_STATUSES, extractStoppedTrack, getLibraryTrack, getPlayingTrackInfo, moveTrackToTrash,
-  restoreTracksFromTrash, retryFailedImport, toggleFavorite, wireSourceBlock,
+  PROCESSING_STATUSES, extractStoppedTrack, getLibraryTrack, getPlayingTrackInfo, restoreTracksFromTrash,
+  retryFailedImport, toggleFavorite, wireSourceBlock,
 } from "./catalog.js";
+import { trashWithUndo } from "./trashUndo.js";
+import { SONG_MENU_ATTR, openSongMenu } from "./songMenu.js";
 import { FAILED_STATUS, sourceKindOf } from "./importSource.js";
 import { icon } from "./libraryIcons.js";
 import { OUT_OF_TAB_ORDER, ROW_PLAY_CLASS } from "./rovingRows.js";
@@ -15,15 +17,14 @@ import { wireTrackDrag } from "./songDrag.js";
 import { isSongPlaying } from "./playState.js";
 import { togglePlayPause } from "./transport.js";
 import {
-  esc, failedRowHtml, isDone, labelledButton, restoreButtonHtml, showsVersionRows, songActionsHtml, thumbHtml,
-  titleOf, trackSublineHtml,
+  cardCoverButtonsHtml, esc, failedRowHtml, isDone, labelledButton, restoreButtonHtml, showsVersionRows,
+  songActionsHtml, thumbHtml, titleOf, trackSublineHtml,
 } from "./songRowParts.js";
 
 export const SONG_ROW_CLASS = "cat-item";
 export const SONG_CARD_CLASS = "song-card";
 const RESUME_CLASS = "cat-resume";
 const PLAYING_CLASS = "is-playing";
-const TRACK_MENU_EVENT = "trackmenu";
 const EQ_BARS_HTML = '<span class="eqbars" aria-hidden="true"><i></i><i></i><i></i></span>';
 
 function onRetryButton(trackId, button) {
@@ -36,16 +37,15 @@ function onExtractButton(trackId, button) {
   extractStoppedTrack(trackId);
 }
 
-// trackMenu.js draws the menu; an event, since it imports this module's importers.
 function onMoreButton(trackId, button) {
-  document.dispatchEvent(new CustomEvent(TRACK_MENU_EVENT, { detail: { id: trackId, anchor: button } }));
+  openSongMenu(trackId, { anchor: button });
 }
 
 const ROW_BUTTONS = [
-  [".cat-fav", toggleFavorite],
+  [".song-card-fav", toggleFavorite],
   [".cat-upnext", queueUpNext],
-  [".cat-more", onMoreButton],
-  [".cat-del, .import-fail-trash", moveTrackToTrash],
+  [".cat-more, .song-card-more", onMoreButton],
+  [".import-fail-trash", trashWithUndo],
   [".cat-extract", onExtractButton],
   [".cat-retry, .import-fail-primary", onRetryButton],
   [".cat-restore", (trackId) => restoreTracksFromTrash([trackId])],
@@ -106,6 +106,7 @@ function actionsHtml(track, { inTrash = false, actions = null } = {}) {
 }
 
 function wireSongEl(el, trackId, inTrash = false) {
+  el.setAttribute(SONG_MENU_ATTR, "");
   el.addEventListener("click", onSongRowButtonClick);
   wireVersionToggle(el);
   wireSourceBlock(el);
@@ -140,13 +141,13 @@ export function songCardEl(trackId) {
   el.className = rowClasses(trackId, track, { card: true });
   el.dataset.id = trackId;
   el.innerHTML = `
-    <div class="cat-thumb">${thumbHtml(track)}${coverActionHtml(trackId, track)}</div>
+    <div class="cat-thumb">${thumbHtml(track)}${coverActionHtml(trackId, track)}${cardCoverButtonsHtml(track)}</div>
     <div class="cat-meta">
       <div class="cat-title">${esc(titleOf(track))}</div>
       <div class="cat-sub">${trackSublineHtml(track)}</div>
     </div>
     <div class="cat-status${statusClass(track)}"></div>
-    ${actionsHtml(track)}`;
+    ${isDone(track) ? "" : actionsHtml(track)}`;
   wireSongEl(el, trackId);
   return el;
 }

@@ -3,9 +3,10 @@
 
 import { t } from "./i18n.js";
 import {
-  createFolder, dropTrackOnFolder, folderTrackIds, libraryFolderTree, libraryTrackIds, moveTrackToTrash,
-  openFolderEditor, getLibraryTrack, setFolderCollapsed, trashTrackIds, wireFolderRenameKey,
+  createFolder, dropTrackOnFolder, folderTrackIds, libraryFolderTree, libraryTrackIds, openFolderEditor,
+  getLibraryTrack, setFolderCollapsed, trashTrackIds, wireFolderRenameKey,
 } from "./catalog.js";
+import { trashWithUndo } from "./trashUndo.js";
 import { queueCount, getQueueSnapshot } from "./queue.js";
 import { addSongToSetlist, getSetlists, newSetlist } from "./setlists.js";
 import { icon } from "./libraryIcons.js";
@@ -118,7 +119,7 @@ function folderButton(folder) {
 function trashButton() {
   const btn = navButton(VIEW.TRASH, icon("trash"), t("nav.trash"), trashTrackIds().length);
   btn.classList.add("browse-nav-trash");
-  wireDropTarget(btn, moveTrackToTrash);
+  wireDropTarget(btn, trashWithUndo);
   return btn;
 }
 

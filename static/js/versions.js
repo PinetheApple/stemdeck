@@ -12,7 +12,7 @@ import { applyAllFx } from "./mixFx.js";
 import { plural, t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
 import { fetchJson, iconButton, textInput } from "./libraryControls.js";
-import { menuItem, menuSeparator, openMenu, placeBelow } from "./trackMenu.js";
+import { menuItem, menuSeparator, openMenu, placeBelow } from "./floatMenu.js";
 import { ARM_TEXT_CLASS, confirmOnSecondClick, isArmed } from "./armConfirm.js";
 import { notifyFailure } from "./notifications.js";
 import { OUT_OF_TAB_ORDER, ROW_PLAY_CLASS } from "./rovingRows.js";

@@ -150,9 +150,12 @@ export function setSetlistOpeners({ show, rename }) {
   renameSetlistAfter = rename;
 }
 
-function withSongAdded(trackId) {
-  return function addSong(ids) {
-    return ids.includes(trackId) ? null : [...ids, trackId];
+function withSongInserted(trackId, at) {
+  return function insertSong(ids) {
+    if (ids.includes(trackId)) return null;
+    const next = [...ids];
+    next.splice(at, 0, trackId);
+    return next;
   };
 }
 
@@ -175,7 +178,11 @@ function withSongRemoved(trackId) {
 }
 
 export function addSongToSetlist(setlistId, trackId) {
-  return changeSongs(setlistId, withSongAdded(trackId));
+  return changeSongs(setlistId, withSongInserted(trackId, Infinity));
+}
+
+export function insertSetlistSong(setlistId, trackId, at) {
+  return changeSongs(setlistId, withSongInserted(trackId, at));
 }
 
 export function moveSetlistSongUp(setlistId, trackId) {

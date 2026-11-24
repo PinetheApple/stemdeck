@@ -747,17 +747,8 @@ input, textarea { font-family: inherit; }
 .setlist-song:focus-visible { outline-offset: -2px; }
 .upnext-row:focus-visible { outline-offset: -2px; }
 .cat-item .cat-actions:has(.cat-upnext) { grid-template-columns: repeat(2, var(--target-min)); }
-.cat-item .cat-actions :is(.cat-upnext, .cat-more, .cat-fav, .cat-del) { width: var(--target-min); height: var(--target-min); }
+.cat-item .cat-actions :is(.cat-upnext, .cat-more) { width: var(--target-min); height: var(--target-min); }
 .cat-item .cat-extract { height: var(--target-min); }
-.cat-del, .cat-fav {
-  width: 20px; height: 20px; border: 0; border-radius: 5px;
-  background: transparent; color: var(--muted); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  padding: 0; flex-shrink: 0; transition: background var(--t-fast), color var(--t-fast);
-}
-.cat-del:hover { background: color-mix(in srgb, var(--surface-2) 80%, transparent); color: var(--danger); }
-.cat-fav:hover { background: color-mix(in srgb, var(--surface-2) 80%, transparent); color: var(--fg); }
-.cat-fav.active, .cat-fav.active:hover { color: var(--danger); }
 /* A stopped song (#748) offers Extract at rest: it is the row's only way on. */
 .cat-item.is-stopped .cat-actions { opacity: 1; pointer-events: auto; }
 

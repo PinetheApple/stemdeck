@@ -4,6 +4,7 @@
 import { test, expect } from "@playwright/test";
 
 import {
+  chooseFromSongMenu,
   JOB_ID,
   JOB_LIST_URL,
   SIBLING_JOB_ID,
@@ -126,7 +127,7 @@ test.describe("Up Next", () => {
     await expect(upNextRow(page, SIBLING_JOB_ID)).toBeVisible();
     await expect(page.locator("#t-next")).toBeEnabled();
 
-    await rowAction(page, SIBLING_JOB_ID, ".cat-del");
+    await chooseFromSongMenu(page, libraryRow(page, SIBLING_JOB_ID), "Move to Trash");
     await expect(upNextRow(page, SIBLING_JOB_ID)).toHaveCount(0);
     await expect(page.locator("#upNextCount")).toBeHidden();
     await expect(page.locator("#t-next")).toBeDisabled();

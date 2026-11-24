@@ -94,7 +94,7 @@ test("the menu lists every folder and subfolder, in tree order, then New folderâ
   const menu = await openRowMenu(page, JOB_ID);
   await expect(menu.locator(".lib-menu-label").filter({ hasText: await uiText(page, "trackMenu.moveToFolder") })).toBeVisible();
   expect(await folderItemNames(page, menu)).toEqual(TREE_ORDER);
-  await expect(menu.locator(".lib-menu-item").last()).toHaveText(await uiText(page, "trackMenu.newFolder"));
+  await expect(menu.locator(".lib-menu-item:not(.is-danger)").last()).toHaveText(await uiText(page, "trackMenu.newFolder"));
   await expect(folderItem(menu, "Trash")).toHaveCount(0);
 
   const indentOf = (name) => folderItem(menu, name).evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft));
@@ -210,5 +210,5 @@ test("the section reads in the chosen language", async ({ page }) => {
   await setLanguage(page, "de");
   const menu = await openRowMenu(page, JOB_ID);
   await expect(menu.locator(".lib-menu-label").filter({ hasText: GERMAN.moveToFolder })).toBeVisible();
-  await expect(menu.locator(".lib-menu-item").last()).toHaveText(GERMAN.newFolder);
+  await expect(menu.locator(".lib-menu-item:not(.is-danger)").last()).toHaveText(GERMAN.newFolder);
 });
