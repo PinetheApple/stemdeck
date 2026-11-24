@@ -15,7 +15,7 @@ import {
 const [FIRST_WAITING, SECOND_WAITING, THIRD_WAITING] = LONG_QUEUE_WAITING_IDS;
 const REDRAWS = 4;
 const LOWER_PART_OF_ROW = 0.8;
-const LIST = "#catalogList";
+const LIST = "#browseImportQueue";
 const DROP_BELOW = ".drop-below";
 
 async function openQueue(page) {

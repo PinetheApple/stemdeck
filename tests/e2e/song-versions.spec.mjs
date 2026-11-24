@@ -95,6 +95,13 @@ const versionGroup = (page) => page.locator(`#catalogList .cat-versions[aria-lab
 const versionRows = (page, id = JOB_ID) => page.locator(`#catalogList .cat-version[data-id="${id}"]`);
 const versionRow = (page, vid, id = JOB_ID) => page.locator(`#catalogList .cat-version[data-id="${id}"][data-version="${vid}"]`);
 
+const extractForm = (page) => page.locator(".extract-more-backdrop .cat-extract-more");
+
+async function closeBrowse(page) {
+  await page.keyboard.press(KEY.ESCAPE);
+  await expect(page.locator("#browseLibrary")).toBeHidden();
+}
+
 async function expandVersions(page) {
   const toggle = songRow(page).locator(".cat-versions-toggle");
   await toggle.click();
@@ -213,7 +220,7 @@ test("Extract more stems makes a version from the stems it adds, or opens the on
   await songRow(page).hover();
   await songRow(page).locator(".cat-more").click();
   await page.getByRole("menuitem", { name: "Extract more stems…" }).click();
-  const form = page.locator("#catalogList .cat-extract-more");
+  const form = extractForm(page);
   const chips = form.locator(".cat-extract-more-chip");
   await expect(chips).toHaveText(["Bass", "Guitar", "Piano", "Other"]);
   await chips.filter({ hasText: "Guitar" }).click();
@@ -224,6 +231,7 @@ test("Extract more stems makes a version from the stems it adds, or opens the on
   await expect(versionRows(page)).toHaveCount(3);
   await expect(page.locator("#npVersionBtn")).toHaveText("+ Bass, Other");
   await expect.poll(() => studioState(page)).toMatchObject({ lanes: ["bass", "drums", "other", "vocals"] });
+  await closeBrowse(page);
 
   await page.locator("#npVersionBtn").click();
   await page.getByRole("menuitemradio", { name: "Two lanes" }).click();
@@ -258,8 +266,8 @@ test("Extract more stems is offered in the row's menu and the open song's More m
 });
 
 async function expectExtractFormFocused(page) {
-  await expect(page.locator("#browseResults .cat-extract-more")).toBeVisible();
-  await expect(page.locator("#browseResults .cat-extract-more-go")).toBeFocused();
+  await expect(extractForm(page)).toBeVisible();
+  await expect(extractForm(page).locator(".cat-extract-more-go")).toBeFocused();
 }
 
 test("Extract more stems from Stage leaves Stage and opens the form on the song's row in Browse library", async ({ page, request }) => {

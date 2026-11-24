@@ -133,7 +133,9 @@ test.describe("song rows", () => {
     await songRow(page, SIBLING_JOB_ID).click();
     await expect(songRow(page, SIBLING_JOB_ID)).toHaveClass(SELECTED);
     await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
-    await expectDeleteUnarmed(page, trash, ROW_KEY.PREVIOUS, JOB_ID);
+    // Once in the player, the song heads the sidebar's list.
+    await expect(page.locator(SONG_ROW).first()).toHaveAttribute("data-id", SIBLING_JOB_ID);
+    await expectDeleteUnarmed(page, trash, ROW_KEY.NEXT, JOB_ID);
   });
 
   test("a double-click opens the song once and plays it", async ({ page }) => {
