@@ -102,7 +102,8 @@ async function open(page) {
 }
 
 async function openTrack(page) {
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
+  // A click opens the song paused; a double-click would also start it.
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
 }
 
