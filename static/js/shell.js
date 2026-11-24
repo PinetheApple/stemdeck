@@ -3,7 +3,8 @@
 
 import { t, onLanguageChange } from "./i18n.js";
 import { getQueueSnapshot, onQueueChange, queueCount } from "./queue.js";
-import { VIEW, openBrowse } from "./browseLibrary.js";
+import { openBrowse } from "./browseLibrary.js";
+import { VIEW } from "./browseViewNames.js";
 import { wireComposerDrawer } from "./composerDrawer.js";
 import { TOOLS_HIDDEN_CLASS, isToolsAutoHidden } from "./shellEdges.js";
 import { watchFloats } from "./shellFloat.js";

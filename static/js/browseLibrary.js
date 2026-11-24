@@ -2,8 +2,8 @@
 // player with the page dimmed.
 
 import { onLanguageChange } from "./i18n.js";
-import { importQueueShown, onLibraryDraw } from "./catalog.js";
-import { onQueueChange, getQueueSnapshot } from "./queue.js";
+import { onLibraryDraw } from "./catalog.js";
+import { onQueueChange, queueCount, getQueueSnapshot } from "./queue.js";
 import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
 import { storeGet, storeSet, $ } from "./utils.js";
 import { wireSongList } from "./libraryRows.js";
@@ -15,7 +15,6 @@ import { drawTagChips, wireBrowseSearch } from "./browseSearch.js";
 import { openSetlistRename } from "./setlistRenameDialog.js";
 import { LAYOUT, VIEW } from "./browseViewNames.js";
 
-export { VIEW, LAYOUT };
 const LAYOUT_KEY = "stemdeck.browse.layout";
 const OPEN_CLASS = "browse-open";
 
@@ -138,12 +137,12 @@ function onBrowseKeydown(e) {
   if (e.key === ESCAPE_KEY && escapeIsFor(LAYER.BROWSE)) closeBrowse();
 }
 
-// The nav's Import queue comes and goes with importQueueShown(); its view falls back to All songs.
+// Leaving the queue view once nothing imports; the nav's Import queue comes and goes.
 function onQueueFrame(snap = getQueueSnapshot()) {
   if (!isBrowseOpen()) return;
-  const shown = importQueueShown(snap);
-  if (shown === Boolean($("browseNav")?.querySelector(`[data-view="${VIEW.QUEUE}"]`))) return;
-  if (!shown && state.view === VIEW.QUEUE) state.view = VIEW.ALL;
+  const importing = queueCount(snap) > 0;
+  if (importing === Boolean($("browseNav")?.querySelector(`[data-view="${VIEW.QUEUE}"]`))) return;
+  if (!importing && state.view === VIEW.QUEUE) state.view = VIEW.ALL;
   renderBrowse();
 }
 

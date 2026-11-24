@@ -3,9 +3,8 @@
 
 import { t, plural, getLanguage } from "./i18n.js";
 import {
-  armEmptyTrash, folderErrorEl, folderNameOf, folderTrackIds, folderTreeTrackIds, getLibraryTrack, importQueueShown,
-  libraryFolderTree, libraryTrackIds, librarySearchFields, makeSetlistFromFolder, renderImportQueue, trashTrackIds,
-  wireFolderMenuButton,
+  armEmptyTrash, folderErrorEl, folderNameOf, folderTrackIds, folderTreeTrackIds, getLibraryTrack, libraryFolderTree, libraryTrackIds,
+  librarySearchFields, makeSetlistFromFolder, renderImportQueue, trashTrackIds, wireFolderMenuButton,
 } from "./catalog.js";
 import { songMatches } from "./librarySearch.js";
 import { songCells } from "./songColumns.js";
@@ -20,6 +19,7 @@ import { browseState, openBrowse, viewParts } from "./browseLibrary.js";
 import { LAYOUT, VIEW } from "./browseViewNames.js";
 import { drawSetlistView } from "./browseSetlist.js";
 import { getSetlist } from "./setlists.js";
+import { queueCount, getQueueSnapshot } from "./queue.js";
 
 const RECENT_LIMIT = 12;
 const COLUMNS = [
@@ -211,7 +211,7 @@ function trashView() {
 }
 
 function queueView() {
-  if (!importQueueShown()) return null;
+  if (!queueCount(getQueueSnapshot())) return null;
   const host = document.createElement("section");
   host.id = "browseImportQueue";
   host.className = "browse-queue";

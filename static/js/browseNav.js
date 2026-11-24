@@ -4,7 +4,7 @@
 import { t } from "./i18n.js";
 import {
   createFolder, dropTrackOnFolder, folderTrackIds, libraryFolderTree, libraryTrackIds, moveTrackToTrash,
-  openFolderEditor, getLibraryTrack, importQueueShown, setFolderCollapsed, trashTrackIds, wireFolderRenameKey,
+  openFolderEditor, getLibraryTrack, setFolderCollapsed, trashTrackIds, wireFolderRenameKey,
 } from "./catalog.js";
 import { queueCount, getQueueSnapshot } from "./queue.js";
 import { addSongToSetlist, getSetlists, newSetlist } from "./setlists.js";
@@ -12,7 +12,8 @@ import { icon } from "./libraryIcons.js";
 import { esc } from "./songRowParts.js";
 import { wireDropTarget } from "./songDrag.js";
 import { wireFolderDrag } from "./folderDrag.js";
-import { VIEW, browseState, openBrowse } from "./browseLibrary.js";
+import { browseState, openBrowse } from "./browseLibrary.js";
+import { VIEW } from "./browseViewNames.js";
 import { $ } from "./utils.js";
 
 const RENAME_TITLE_KEY = "folderEditor.renameTitle";
@@ -43,8 +44,8 @@ function viewButtons() {
     navButton(VIEW.FAVORITES, icon("heart"), t("nav.favorites"), favorites),
     navButton(VIEW.RECENT, icon("clock"), t("lib.recentlyAdded")),
   ];
-  const snap = getQueueSnapshot();
-  if (importQueueShown(snap)) buttons.push(navButton(VIEW.QUEUE, icon("download"), t("shell.importQueue"), queueCount(snap)));
+  const importing = queueCount(getQueueSnapshot());
+  if (importing) buttons.push(navButton(VIEW.QUEUE, icon("download"), t("shell.importQueue"), importing));
   return buttons;
 }
 

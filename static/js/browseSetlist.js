@@ -11,7 +11,8 @@ import { ARM_TEXT_CLASS, confirmOnSecondClick } from "./armConfirm.js";
 import { icon } from "./libraryIcons.js";
 import { songRowEl } from "./songRow.js";
 import { esc, labelledButton } from "./songRowParts.js";
-import { VIEW, closeBrowse, openBrowse } from "./browseLibrary.js";
+import { closeBrowse, openBrowse } from "./browseLibrary.js";
+import { VIEW } from "./browseViewNames.js";
 import { emptyStateEl, viewHeadEl } from "./browseViews.js";
 import { openSetlistRename } from "./setlistRenameDialog.js";
 
