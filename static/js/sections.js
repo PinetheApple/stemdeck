@@ -55,6 +55,9 @@ function _armedLoop() {
 
 onLanguageChange(() => _render());
 
+/** Fired on `document` whenever the section list or a section's name changes. */
+export const SECTIONS_CHANGED_EVENT = "sectionschanged";
+
 // ─── Public API ───────────────────────────────────────────
 
 export function initSections(trackId, sections, duration) {
@@ -105,6 +108,7 @@ export function destroySections() {
 // ─── Rendering ────────────────────────────────────────────
 
 function _render() {
+  document.dispatchEvent(new CustomEvent(SECTIONS_CHANGED_EVENT));
   // Before the container guard: the button lives in the header, not the
   // ribbon, so its state must stay correct even when the ribbon is absent.
   _refreshClearVisibility();

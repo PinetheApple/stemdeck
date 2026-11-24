@@ -1,7 +1,7 @@
 // When Add section cannot place a section it says why, and with no song open
 // it does nothing.
 import { test, expect } from "@playwright/test";
-import { openStudio, JOB_ID } from "./helpers.mjs";
+import { openStudio, JOB_ID, openLoopOptions } from "./helpers.mjs";
 
 // seed.py writes a 6 second fixture; these two sections cover all of it.
 const FULL_TRACK = [
@@ -24,6 +24,7 @@ async function seed(page, sections) {
 }
 
 async function armLoop(page, { start, end }) {
+  await openLoopOptions(page);
   await page.locator("#t-loop-end").fill(end);
   await page.locator("#t-loop-end").blur();
   await page.locator("#t-loop-start").fill(start);

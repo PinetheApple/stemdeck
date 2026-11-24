@@ -10,7 +10,6 @@ import {
 } from "./player.js";
 import { STEM_COLORS, STEM_DISPLAY } from "./constants.js";
 import { npThumb } from "./state.js";
-import { refitFooter } from "./footerFit.js";
 import { $ } from "./utils.js";
 
 const SHOWN_CLASS = "is-previewing";
@@ -62,13 +61,8 @@ function showThumb(src) {
   npThumb.classList.remove(LOADED_THUMB_CLASS);
 }
 
-/** The playing song's name in the footer's Playing line. */
-export function setPlayingTitle(title) {
-  $("footerPlayingTitle").textContent = title;
-}
-
-/** Draw a song's lanes over the loaded one's, and name the loaded one in the footer. */
-export function showOpenPreview({ stems, peaks, thumbnail, playingTitle }) {
+/** Draw a song's lanes over the loaded one's. */
+export function showOpenPreview({ stems, peaks, thumbnail }) {
   const layer = $("openPreview");
   if (!layer) return;
   const present = new Set(stems.map((stem) => stem.name));
@@ -78,9 +72,7 @@ export function showOpenPreview({ stems, peaks, thumbnail, playingTitle }) {
   layer.replaceChildren(...names.map((name) => laneRow(name, peaks[name], norm, bars)));
   if (!isOpenPreviewShown()) loadedSongThumb = npThumb.getAttribute("src");
   showThumb(thumbnail);
-  setPlayingTitle(playingTitle);
   appEl()?.classList.add(SHOWN_CLASS);
-  refitFooter();
 }
 
 /** Take the shown song away; the loaded one is on screen again. */
@@ -90,5 +82,4 @@ export function clearOpenPreview() {
   $("openPreview")?.replaceChildren();
   showThumb(loadedSongThumb);
   loadedSongThumb = null;
-  refitFooter();
 }

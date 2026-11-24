@@ -52,7 +52,6 @@
 
 /* ── Library ── */
 .sidebar {
-  width: calc(var(--rail-w) + var(--library-w));
   background: var(--surface-1);
   border-right-color: var(--line);
 }
@@ -82,21 +81,6 @@
 .library-resizer.is-dragging::after { background: var(--accent); }
 .daw.cat-collapsed .library-resizer,
 .daw.stage-mode .library-resizer { display: none; }
-.sidebar-rail { padding: var(--s-3) 0; gap: var(--s-1); }
-.rail-btn {
-  width: 48px;
-  height: 46px;
-  border-radius: var(--r-2);
-  font-size: var(--fs-2xs);
-  font-weight: var(--fw-semibold);
-  color: var(--text-3);
-}
-.rail-btn:hover { background: var(--surface-2); color: var(--text); }
-.rail-btn.active { background: var(--accent-soft); color: var(--accent); }
-.rail-badge { color: var(--accent-ink); }
-.rail-btn .ic { width: var(--icon-lg); height: var(--icon-lg); }
-.sidebar-rail .rail-btn { width: calc(var(--rail-w) - var(--s-1)); padding-inline: 0; }
-.sidebar-rail .rail-btn > span { max-width: 100%; }
 .sidebar-body { padding: var(--s-3); gap: var(--s-3); }
 .daw-search {
   height: var(--ctl-h);
@@ -269,96 +253,6 @@
 }
 .daw-sections-header .daw-label-title { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
 
-/* ── Transport bar ── */
-.footer-row-controls { align-items: center; padding: var(--s-2) var(--s-4); }
-/* Just wide enough for one row with Record: give back a spacing step so it fits with slack. */
-@media (min-width: 1240px) and (max-width: 1319px) {
-  .footer-row-controls { padding-inline: var(--s-3); }
-}
-/* The strip's overflow clips vertically, so this is the room focus rings need. */
-.footer-clusters { align-items: center; padding-block: var(--s-1); }
-.footer-clusters > .footer-group { flex-direction: row; align-items: center; gap: var(--s-2); }
-.footer-clusters .footer-group-label {
-  font: var(--fw-medium) var(--fs-sm) / 1 var(--font-sans);
-  letter-spacing: 0;
-  text-transform: none;
-  white-space: nowrap;
-  color: var(--text-3);
-}
-.footer-group-transport > .footer-group-label,
-.footer-group-position > .footer-group-label { display: none; }
-.footer-row-controls .footer-divider { height: var(--s-6); background: var(--line-strong); }
-
-.footer-group-transport .daw-iconbtn.btn-transport {
-  width: var(--ctl-h);
-  height: var(--ctl-h);
-  border-color: transparent;
-  border-radius: var(--r-2);
-  background: none;
-  color: var(--text-2);
-}
-.footer-group-transport .daw-iconbtn.btn-transport:hover { background: var(--surface-2); color: var(--text); }
-.footer-group-transport .daw-iconbtn.btn-transport.stopped { background: none; border-color: transparent; color: var(--accent); }
-.footer-group-transport .daw-iconbtn.btn-transport.stopped:hover { background: var(--surface-2); color: var(--accent); }
-#t-next:disabled { opacity: 0.35; cursor: default; background: none; }
-/* These can sit on the strip's edges, which would clip an outset ring. */
-#t-stop:focus-visible,
-#t-pitch-reset:focus-visible { outline-offset: -2px; }
-.footer-group-transport .daw-play-btn {
-  width: var(--play-size);
-  height: var(--play-size);
-  border-radius: 50%;
-  box-shadow: none;
-}
-.footer-group-transport .daw-play-btn:hover { box-shadow: none; filter: brightness(var(--hover-brightness)); }
-.footer-group-transport .daw-play-btn.playing,
-.footer-group-transport .daw-play-btn.playing:hover {
-  background: var(--accent);
-  color: var(--accent-ink);
-  box-shadow: none;
-}
-.btn-transport .ic { width: var(--icon); height: var(--icon); }
-.footer-group-transport .daw-play-btn .ic { width: var(--icon-lg); height: var(--icon-lg); }
-
-.footer-group-position .footer-group-body { gap: var(--s-4); align-items: center; }
-.footer-time { display: flex; align-items: baseline; gap: var(--s-1); }
-.footer-group-position .footer-elapsed,
-.footer-group-position .footer-total,
-.footer-group-position .footer-time-sep { line-height: 1; }
-.footer-elapsed { font-size: var(--fs-2xl); color: var(--text); }
-.footer-total,
-.footer-time-sep { font: var(--fw-regular) var(--fs-base) var(--font-mono); color: var(--text-3); }
-
-.footer-group-position .daw-iconbtn.btn-transport.loop {
-  flex-direction: row;
-  align-self: center;
-  width: auto;
-  height: var(--ctl-h);
-  margin-left: 0;
-  padding: 0 var(--s-3);
-  gap: var(--s-1);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-2);
-  background: var(--surface-2);
-  color: var(--text-2);
-}
-.footer-group-position .daw-iconbtn.btn-transport.loop:hover { background: var(--surface-3); color: var(--text); }
-.footer-group-position .daw-iconbtn.btn-transport.loop.active,
-.footer-group-position .daw-iconbtn.btn-transport.loop.active:hover {
-  border-color: var(--accent-line);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-.loop-btn-label { font: var(--fw-medium) var(--fs-base) / 1 var(--font-sans); }
-.footer-loop-times-wrap { gap: var(--s-1); margin-left: 0; }
-.footer-loop-hint {
-  font: var(--fw-medium) var(--fs-sm) / 1 var(--font-sans);
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--text-2);
-}
-.footer-loop-times { gap: var(--s-1); }
-.loop-times-sep { font-size: var(--fs-sm); color: var(--text-3); }
 .loop-time-input {
   padding: var(--s-1) var(--s-2);
   border-color: var(--line-strong);
@@ -417,10 +311,6 @@
 }
 .speed-fader-input:hover::-webkit-slider-thumb { filter: brightness(var(--hover-brightness)); }
 .speed-fader-input:hover::-moz-range-thumb { filter: brightness(var(--hover-brightness)); }
-/* Below 1x the thumb and the number turn coral, as Global key does when transposed. */
-.footer-group-speed.slowed .speed-fader-input::-webkit-slider-thumb { background: var(--accent); }
-.footer-group-speed.slowed .speed-fader-input::-moz-range-thumb { background: var(--accent); }
-.footer-group-speed.slowed .speed-value { color: var(--accent); }
 /* Inset by half a thumb, so each notch sits under the thumb's centre at its value. */
 .speed-notches {
   position: absolute;
@@ -438,33 +328,7 @@
   transform: translateX(-50%);
 }
 .speed-notch.major { height: var(--s-2); background: var(--text-3); }
-.speed-value { width: 5ch; cursor: text; }
 
-.pitch-group { display: flex; align-items: center; gap: var(--s-1); }
-.footer-group-key .daw-iconbtn {
-  width: var(--ctl-h);
-  height: var(--ctl-h);
-  border-color: transparent;
-  border-radius: var(--r-2);
-  color: var(--text-2);
-}
-.footer-group-key .daw-iconbtn:hover:not(:disabled) { background: var(--surface-2); border-color: transparent; color: var(--text); }
-.footer-group-key .daw-iconbtn:disabled:hover { background: none; border-color: transparent; color: var(--text-2); }
-.pitch-value {
-  min-width: var(--s-6);
-  padding: 0;
-  border: 0;
-  color: var(--text-2);
-  font: var(--fw-medium) var(--fs-base) / 1 var(--font-mono);
-}
-.pitch-value.active { background: none; color: var(--accent); }
-
-.footer-track-actions { margin-top: 0; }
-.footer-track-actions .track-chip {
-  height: var(--ctl-h);
-  border-radius: var(--r-2);
-  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
-}
 
 .stage-mode-btn {
   display: inline-flex;

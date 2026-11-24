@@ -7,7 +7,7 @@
 // not passable.
 
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, openStudio } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, openStudio, openSpeedOptions, openKeyOptions } from "./helpers.mjs";
 
 const down = (page) => page.locator("#t-pitch-down");
 const up = (page) => page.locator("#t-pitch-up");
@@ -124,10 +124,10 @@ async function seedMix(page, jobId, record) {
 }
 
 test.describe("transpose", () => {
-  test("the group is labelled as the global key", async ({ page }) => {
+  test("the footer's Key says it acts on every lane", async ({ page }) => {
     await openStudio(page);
-    // "Key" alone read as the only key control once the lanes gained their own.
-    await expect(page.locator("#t-pitch-label")).toHaveText(/global/i);
+    await expect(page.locator("#t-pitch-label")).toHaveText("Key");
+    await expect(page.locator("#t-key-btn")).toHaveAttribute("title", /every lane/i);
   });
 
   test("starts at zero and is not lit", async ({ page }) => {
@@ -202,6 +202,7 @@ test.describe("transpose", () => {
     await openStudio(page);
     const speed = page.locator("#t-speed-value");
     const appliedSpeed = () => page.evaluate(async () => (await import("/js/state.js")).playbackSpeed);
+    await openSpeedOptions(page);
     await speed.fill("0.75");
     await speed.press("Enter");
     await expect.poll(appliedSpeed).toBe(0.75);
@@ -410,6 +411,7 @@ test.describe("per-lane transpose", () => {
     await expect(laneValue(page, "vocals")).toHaveText("+3");
     await expect(laneValue(page, "bass")).toHaveText("+1");
 
+    await openKeyOptions(page);
     await reset(page).click();
     // Everything, not just the global control: once lanes have been moved
     // individually, stepping the global back to zero cannot undo them.

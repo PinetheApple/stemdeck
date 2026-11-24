@@ -11,6 +11,7 @@ import {
   openClickOptions,
   openStudio,
   waitForClickTrack,
+  openSpeedOptions,
 } from "./helpers.mjs";
 
 // A 1x1 PNG. data: is in the page's img-src, so it loads with no network.
@@ -419,6 +420,7 @@ test.describe("system media controls", () => {
 
     await runAction(page, "play");
     await expectPlaying(page, true);
+    await openSpeedOptions(page);
     await page.locator("#t-speed-value").fill("0.5");
     await page.locator("#t-speed-value").press("Enter");
     await expect.poll(async () => (await lastPosition(page))?.playbackRate).toBe(0.5);

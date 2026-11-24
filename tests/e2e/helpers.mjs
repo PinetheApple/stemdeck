@@ -495,6 +495,22 @@ export async function openClickOptions(page) {
   await openInspectorTab(page, "tempo");
 }
 
+/** Open a footer popover by its trigger and wait for the panel; a no-op when it is already open. */
+async function openFooterPanel(page, trigger, panel) {
+  if (await page.locator(panel).isVisible()) return;
+  await page.locator(trigger).click();
+  await page.locator(panel).waitFor({ state: "visible", timeout: 5000 });
+}
+
+/** The Loop options popover: the loop start and end fields. */
+export const openLoopOptions = (page) => openFooterPanel(page, "#t-loop-more", "#t-loop-panel");
+
+/** The Speed popover: the exact-speed box and the fader. */
+export const openSpeedOptions = (page) => openFooterPanel(page, "#t-speed-btn", "#t-speed-panel");
+
+/** The Key popover: Reset. */
+export const openKeyOptions = (page) => openFooterPanel(page, "#t-key-btn", "#t-key-panel");
+
 export const exportUi = (page) => ({
   button: page.locator("#t-export-btn"),
   panel: page.locator("#t-export-panel"),

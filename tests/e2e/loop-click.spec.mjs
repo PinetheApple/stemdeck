@@ -1,7 +1,7 @@
 // A click on the waveform seeks and turns the loop off, keeping its bounds;
 // only a drag selects a new loop.
 import { test, expect } from "@playwright/test";
-import { openStudio } from "./helpers.mjs";
+import { openStudio, openLoopOptions } from "./helpers.mjs";
 
 // seed.py writes a 6 second fixture.
 const LOOP_START = "02.000";
@@ -10,9 +10,10 @@ const CLICK_FRAC = 0.1;
 const DRAG_FROM_FRAC = 0.2;
 const DRAG_TO_FRAC = 0.5;
 const DRAG_STEPS = 8;
-const FIELDS_HINT = "Loop start/end · scroll";
+const FIELDS_HINT = "Loop start/end · scroll. Type a time, then Enter.";
 
 async function armLoop(page) {
+  await openLoopOptions(page);
   await page.locator("#t-loop-end").fill(LOOP_END);
   await page.locator("#t-loop-end").blur();
   await page.locator("#t-loop-start").fill(LOOP_START);
@@ -76,6 +77,7 @@ test.describe("waveform click and the loop", () => {
   test("the loop fields' label names them and says how to adjust", async ({ page }) => {
     await openStudio(page);
 
-    await expect(page.locator(".footer-loop-hint")).toHaveText(FIELDS_HINT);
+    await openLoopOptions(page);
+    await expect(page.locator("#t-loop-panel .ft-pop-hint")).toHaveText(FIELDS_HINT);
   });
 });

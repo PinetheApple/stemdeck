@@ -67,8 +67,8 @@ test.describe("a click opens a song over the one playing", () => {
     await expect(songRow(page, JOB_ID)).not.toHaveClass(SELECTED);
     await expect(songRow(page, SIBLING_JOB_ID)).toHaveClass(SELECTED);
     await expect(songRow(page, SIBLING_JOB_ID)).not.toHaveClass(ACTIVE);
-    await expect(page.locator("#footerPlaying")).toBeVisible();
-    await expect(page.locator("#footerPlayingTitle")).toHaveText(TRACK_TITLE);
+    await expect(page.locator(".ft-now-playing")).toBeVisible();
+    await expect(page.locator("#footerNowTitle")).toHaveText(TRACK_TITLE);
   });
 
   test("a click back on the playing song closes the open one without reloading", async ({ page }) => {

@@ -10,7 +10,7 @@
 // transport's own fields and read back from them, so nothing depends on a test
 // hook that could keep passing after the UI stopped working.
 import { test, expect } from "@playwright/test";
-import { openStudio, JOB_ID } from "./helpers.mjs";
+import { openStudio, JOB_ID, openLoopOptions } from "./helpers.mjs";
 
 // seed.py writes a 6 second fixture, so every span here stays inside it.
 const FIXTURE_SEC = 6;
@@ -28,6 +28,7 @@ const tc = (seconds) => {
 
 /** Arm the loop the way a user does: type both bounds, blur to commit. */
 async function armLoop(page, start, end) {
+  await openLoopOptions(page);
   await page.locator("#t-loop-end").fill(tc(end));
   await page.locator("#t-loop-end").blur();
   await page.locator("#t-loop-start").fill(tc(start));

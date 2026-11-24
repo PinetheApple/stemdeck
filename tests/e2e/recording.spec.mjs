@@ -1,7 +1,7 @@
 // Recording tracks and takes, on Chromium's fake microphone.
 import { test, expect } from "@playwright/test";
 import { SELECTED_ROW_CLASS } from "../../static/js/rovingRows.js";
-import { JOB_ID, SIBLING_JOB_ID, TRACK_TITLE, exportUi, openStudio } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, TRACK_TITLE, exportUi, openStudio, openSpeedOptions } from "./helpers.mjs";
 import { openSong } from "./saveRaces.mjs";
 
 test.use({
@@ -480,6 +480,7 @@ test("a song switch with nothing recording does not wait for a take", async ({ p
 test("Record is off at other speeds and says why", async ({ page }) => {
   await openStudio(page);
   await addArmedTrack(page);
+  await openSpeedOptions(page);
   await page.locator("#t-speed-value").fill(SLOW_SPEED);
   await page.locator("#t-speed-value").press("Enter");
   await expect(recordBtn(page)).toBeDisabled();

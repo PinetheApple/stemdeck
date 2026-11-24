@@ -31,11 +31,11 @@ const LONG_TITLE = "A song whose title is far too long to fit on one row of the 
 const NATIVE_CHECK = "__e2eCheckVisibility";
 // Three ways a rendered control can still be unseen: its own opacity, its
 // visibility, and a see-through ancestor.
-const HIDDEN_CONTROLS = ["t-loop", "t-stop", "t-pitch-reset"];
+const HIDDEN_CONTROLS = ["t-loop", "t-stop", "t-pitch-up"];
 const HIDDEN_CONTROLS_CSS = `
   #t-loop { opacity: 0; }
   #t-stop { visibility: hidden; }
-  :has(> #t-pitch-reset) { opacity: 0; }
+  :has(> #t-pitch-up) { opacity: 0; }
 `;
 const TRANSPORT_CONTROLS = '.daw-footer :is(button, input, select, [role="slider"])';
 const NO_TRACK_AREA_CSS = `${TRACK_AREA} { display: none !important; }`;

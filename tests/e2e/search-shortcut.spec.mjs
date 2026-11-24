@@ -1,7 +1,7 @@
 // Ctrl+K and ⌘K reach the library search; plain K stays the click track.
 
 import { test, expect } from "@playwright/test";
-import { openStudio, waitForClickTrack } from "./helpers.mjs";
+import { openStudio, waitForClickTrack, openLoopOptions } from "./helpers.mjs";
 
 const search = (page) => page.locator("#catalogSearch");
 const clickToggle = (page) => page.locator("#t-metro");
@@ -47,6 +47,7 @@ test.describe("library search shortcut", () => {
 
   test("Ctrl+K works while another input has focus", async ({ page }) => {
     await openTrackView(page);
+    await openLoopOptions(page);
     await page.locator("#t-loop-start").focus();
 
     await page.keyboard.press("Control+K");
