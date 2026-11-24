@@ -410,6 +410,8 @@ export async function openStudio(
   if (catalog) await seedCatalogState(page, catalog);
   else await seedLibrary(page, { trashed });
   const favoriteWrites = await stubFavorites(page, serverFavorites);
+  // After the favorites stub: the later route wins, and the startup sync would otherwise restore them.
+  if (trashed.length) await stubServerTrash(page, { trashed });
   if (tauri) await stubTauri(page);
   await stubExportEndpoints(page);
   await stubUpdateCheck(page, { available: updateAvailable });
