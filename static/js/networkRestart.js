@@ -3,15 +3,16 @@
 
 import { t as i18nT, applyTranslations } from "./i18n.js";
 import { JSON_MEDIA_TYPE } from "./catalog.js";
+import { openDialogLayer } from "./dialogLayer.js";
+import { dialogHeadHtml } from "./dialogHead.js";
 
 const SETTINGS_URL = "/api/settings";
 const QUEUE_URL = "/api/queue";
 const RESTART_COMMAND = "restart_backend";
-const ESCAPE_KEY = "Escape";
 
-const DIALOG_HTML = `
+const dialogHtml = () => `
   <div class="reset-confirm-card" role="dialog" aria-modal="true" tabindex="-1" aria-label="Restart StemDeck now?" data-i18n-aria-label="settings.network.restartTitle">
-    <div class="reset-confirm-title" data-i18n="settings.network.restartTitle">Restart StemDeck now?</div>
+    ${dialogHeadHtml({ titleClass: "reset-confirm-title", titleKey: "settings.network.restartTitle" })}
     <p class="reset-confirm-body net-restart-body" role="status" aria-live="polite"></p>
     <div class="reset-confirm-msg" role="alert" aria-live="polite"></div>
     <div class="reset-confirm-actions">
@@ -54,7 +55,7 @@ class NetworkRestartDialog {
     this.confirmed = false;
     this.overlay = document.createElement("div");
     this.overlay.className = "reset-confirm-backdrop";
-    this.overlay.innerHTML = DIALOG_HTML;
+    this.overlay.innerHTML = dialogHtml();
     applyTranslations(this.overlay);
     const find = (selector) => this.overlay.querySelector(selector);
     this.card = find(".reset-confirm-card");
@@ -65,8 +66,11 @@ class NetworkRestartDialog {
     this.goBtn = find(".net-restart-go");
     this.retryBtn = find(".net-restart-retry");
     this.continueBtn = find(".net-restart-continue");
-    this.onKeydown = this.onKeydown.bind(this);
+    this.closeBtn = find(".dialog-close");
+    this.layer = null;
     this.close = this.close.bind(this);
+    this.onClosed = this.onClosed.bind(this);
+    this.canClose = this.canClose.bind(this);
     this.onGo = this.onGo.bind(this);
     this.onRetry = this.onRetry.bind(this);
     this.onContinue = this.onContinue.bind(this);
@@ -74,12 +78,17 @@ class NetworkRestartDialog {
 
   open() {
     this.cancelBtn.addEventListener("click", this.close);
+    this.closeBtn.addEventListener("click", this.close);
     this.goBtn.addEventListener("click", this.onGo);
     this.retryBtn.addEventListener("click", this.onRetry);
     this.continueBtn.addEventListener("click", this.onContinue);
-    // Captured, so it is heard before Settings' own Esc closes everything behind it.
-    document.addEventListener("keydown", this.onKeydown, true);
+    const opener = document.activeElement;
     document.body.appendChild(this.overlay);
+    this.layer = openDialogLayer(this.overlay, {
+      onClose: this.onClosed,
+      canClose: this.canClose,
+      opener,
+    });
     this.begin();
   }
 
@@ -91,23 +100,24 @@ class NetworkRestartDialog {
     this.retryBtn.hidden = !retry;
     this.continueBtn.hidden = !moved;
     this.cancelBtn.hidden = !ask && !retry;
+    this.closeBtn.hidden = this.cancelBtn.hidden;
     this.body.textContent = text;
     this.msg.textContent = error;
     const shown = [this.goBtn, this.retryBtn, this.continueBtn].find((btn) => !btn.hidden);
     (shown || this.card).focus();
   }
 
-  close() {
-    document.removeEventListener("keydown", this.onKeydown, true);
-    this.overlay.remove();
-    this.resolve(this.saved);
+  canClose() {
+    return !this.cancelBtn.hidden;
   }
 
-  onKeydown(e) {
-    if (e.key !== ESCAPE_KEY) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (!this.cancelBtn.hidden) this.close();
+  close() {
+    this.layer?.close();
+  }
+
+  onClosed() {
+    this.overlay.remove();
+    this.resolve(this.saved);
   }
 
   onGo() {

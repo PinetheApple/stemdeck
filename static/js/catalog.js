@@ -58,6 +58,7 @@ import { t as i18nT, plural as i18nPlural, LANGUAGES, getLanguage, setLanguage, 
 import { applyNetworkSwitch, networkSwitchOn } from "./networkRestart.js";
 import { GPU_BACKEND_ROCM, gpuUnusedMessage } from "./gpuUnused.js";
 import { openDialogLayer } from "./dialogLayer.js";
+import { dialogHeadHtml } from "./dialogHead.js";
 import { DEFAULT_SETTINGS_TAB, SETTINGS_TAB, isSettingsTab, settingsNavHtml } from "./settingsNav.js";
 import { appearancePaneHtml, wireAppearancePane } from "./settingsAppearance.js";
 import { mountAboutPane, setAboutVersion } from "./settingsAbout.js";
@@ -5024,8 +5025,7 @@ function onAboutButtonClick() {
   openSettings(SETTINGS_TAB.ABOUT);
 }
 
-/** About is the last tab of Settings; the rail's About button opens Settings there. */
-function wireAboutDialog() {
+function wireAboutButton() {
   setAboutVersion(currentVersion);
   document.getElementById("aboutBtn")?.addEventListener("click", onAboutButtonClick);
 }
@@ -6321,7 +6321,7 @@ function openResetConfirm() {
   overlay.className = "reset-confirm-backdrop";
   overlay.innerHTML = `
     <div class="reset-confirm-card" role="dialog" aria-modal="true" aria-label="Reset app data" data-i18n-aria-label="resetConfirm.ariaLabel">
-      <div class="reset-confirm-title" data-i18n="resetConfirm.title">Reset app data?</div>
+      ${dialogHeadHtml({ titleClass: "reset-confirm-title", titleKey: "resetConfirm.title" })}
       <p class="reset-confirm-body" data-i18n="resetConfirm.body">This permanently deletes every track, job, and library entry. On a shared server this affects everyone who uses it. This cannot be undone.</p>
       <p class="reset-confirm-hint" data-i18n="resetConfirm.hint">Type <strong>RESET</strong> to confirm.</p>
       <input class="reset-confirm-input" type="text" autocomplete="off" spellcheck="false" aria-label="Type RESET to confirm" data-i18n-aria-label="resetConfirm.typeToConfirmAria" />
@@ -6342,6 +6342,7 @@ function openResetConfirm() {
     goBtn.disabled = input.value.trim() !== "RESET";
   });
   overlay.querySelector(".reset-confirm-cancel").addEventListener("click", closeResetConfirm);
+  overlay.querySelector(".dialog-close").addEventListener("click", closeResetConfirm);
 
   goBtn.addEventListener("click", async () => {
     goBtn.disabled = true;
@@ -6486,7 +6487,6 @@ function wireScrollCues(overlay) {
   }
 }
 
-/** Settings, open on `tab` (Appearance unless asked). */
 export function openSettings(tab = DEFAULT_SETTINGS_TAB) {
   openLibraryEditor(isSettingsTab(tab) ? tab : DEFAULT_SETTINGS_TAB);
 }
@@ -6981,7 +6981,7 @@ export async function initCatalog() {
   wireLibraryRows();
   initOpenSong();
   initVersions();
-  wireAboutDialog();
+  wireAboutButton();
   wireReleaseDialog();
   wireSettingsMenu();
   setDisplayedVersion(currentVersion);

@@ -1,6 +1,3 @@
-// Settings is one dialog with its tabs down the left, Appearance first and About
-// last, and it fits the smallest window the desktop app allows.
-
 import { test, expect } from "@playwright/test";
 import { seedLibrary, settleRoutes, stubUpdateCheck } from "./helpers.mjs";
 import { SETTINGS_TABS, openSettings } from "./settingsHelpers.mjs";
@@ -94,4 +91,11 @@ test("Settings fits a 1024 x 720 window on every tab, Done in reach", async ({ p
     expect(box.y + box.height, name).toBeLessThanOrEqual(SETTINGS_WINDOW.height);
     await expect(page.locator(".settings-done")).toBeInViewport();
   }
+});
+
+test("a version that arrives while About is open shows there at once", async ({ page }) => {
+  await openApp(page);
+  const about = await openSettings(page, "about");
+  await page.evaluate(() => import("/js/settingsAbout.js").then((m) => m.setAboutVersion("9.8.7")));
+  await expect(about.locator("#aboutVersion")).toHaveText("v9.8.7");
 });

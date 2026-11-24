@@ -193,6 +193,34 @@ test("Escape closes the question and leaves Settings open", async ({ page }) => 
   expect(await calls(page)).toEqual([]);
 });
 
+test("the question has the shared head row, and a press on the dimmed page closes it back into Settings", async ({ page }) => {
+  await desktopSettings(page, { listening: false });
+  await queue(page, "running");
+  await openNetworkSettings(page);
+  await toggle(page);
+  await expect(dialogText(page)).toContainText(/separation is running/i);
+  await expect(page.locator(".reset-confirm-card .dialog-head .dialog-close")).toBeVisible();
+
+  await page.mouse.click(5, 5);
+  await expect(dialogText(page)).toHaveCount(0);
+  await expect(page.locator(".library-editor")).toBeVisible();
+  await expect(sw(page)).toBeFocused();
+});
+
+test("while it restarts, neither Esc nor the dimmed page closes it", async ({ page }) => {
+  await desktopSettings(page, { listening: false });
+  await queue(page, "idle");
+  await openNetworkSettings(page);
+  await toggle(page);
+  await restartPending(page);
+
+  await page.keyboard.press("Escape");
+  await page.mouse.click(5, 5);
+  await expect(dialogText(page)).toBeVisible();
+  await expect(page.locator(".reset-confirm-card .dialog-close")).toBeHidden();
+  await expect(page.locator(".library-editor")).toBeVisible();
+});
+
 test("a failed restart says the choice is saved; Try again only restarts", async ({ page }) => {
   await desktopSettings(page, { listening: false });
   await queue(page, "idle");

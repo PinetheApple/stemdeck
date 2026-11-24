@@ -1,13 +1,12 @@
-// settingsAbout.js — Settings > About: the app's name, version, links, credits,
-// licence and "Where your data goes", cloned from <template id="aboutTemplate">.
-
 const TEMPLATE_ID = "aboutTemplate";
 const VERSION_ID = "aboutVersion";
 
-/** The version the About tab shows, set once the server has answered. */
+/** Into the template and into an About tab already showing, which is a clone of it. */
 export function setAboutVersion(version) {
-  const badge = document.getElementById(TEMPLATE_ID)?.content.getElementById(VERSION_ID);
-  if (badge) badge.textContent = `v${version}`;
+  const template = document.getElementById(TEMPLATE_ID)?.content;
+  for (const badge of [template?.getElementById(VERSION_ID), document.getElementById(VERSION_ID)]) {
+    if (badge) badge.textContent = `v${version}`;
+  }
 }
 
 export function mountAboutPane(pane) {

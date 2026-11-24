@@ -103,7 +103,6 @@ function requestExtract(page, id) {
   }, id);
 }
 
-/** The song the open Extract more dialog is for. */
 function formSong(page) {
   return extractDialog(page).getAttribute("data-id");
 }
@@ -135,6 +134,23 @@ test("Extract more stems is a dialog that dims the page, closes on Esc and hands
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
   await expect(songRow(page)).toBeFocused();
+});
+
+test("with the song's row off screen, the dialog hands focus back to what opened it", async ({ page, request }) => {
+  await openOnTwoLanes(page, request);
+  await page.locator("#catalogSearch").fill("zzzz");
+  await expect(songRow(page)).toHaveCount(0);
+  const opener = page.locator("#songMoreBtn");
+  await opener.focus();
+  await page.evaluate((trackId) => {
+    const anchor = document.getElementById("songMoreBtn");
+    document.dispatchEvent(new CustomEvent("versions:extract", { detail: { id: trackId, anchor } }));
+  }, JOB_ID);
+  await expect(extractDialog(page)).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(extractDialog(page)).toHaveCount(0);
+  await expect(opener).toBeFocused();
 });
 
 test("the form says it takes minutes only when a chosen stem has no file", async ({ page, request }) => {
