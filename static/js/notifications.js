@@ -13,8 +13,6 @@
 
 import { storeGet, storeSet } from "./utils.js";
 import { t, plural } from "./i18n.js";
-import { openDialogLayer } from "./dialogLayer.js";
-import { initAlertsPanel } from "./alertsPanel.js";
 
 const FAILURES_KEY = "stemdeck:failures";
 // Enough to cover a bad session without letting a crash loop fill the store.
@@ -461,6 +459,8 @@ async function openFailureDialog(record) {
   }
 
   if (!failureLayer) {
+    // Loaded on use: the layer pulls in the shell, which node tests of this module cannot load.
+    const { openDialogLayer } = await import("./dialogLayer.js");
     dialog.classList.remove("hidden");
     failureLayer = openDialogLayer(dialog, { onClose: onFailureDialogClosed });
   }
@@ -585,7 +585,9 @@ function wireFailureDialog() {
 export async function initNotifications({ diagnostics } = {}) {
   if (typeof diagnostics === "function") getDiagnostics = diagnostics;
   wireFailureDialog();
-  initAlertsPanel();
+  import("./alertsPanel.js").then(function onAlertsPanelLoaded(m) {
+    m.initAlertsPanel();
+  });
   const stored = await storeGet(FAILURES_KEY, []);
   // Merge rather than assign: reading the store is async, and a failure
   // recorded while it was in flight would otherwise be overwritten by the

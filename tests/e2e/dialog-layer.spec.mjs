@@ -42,15 +42,18 @@ test("Settings, Something failed, New release, About the song and a confirm card
   );
   await page.locator("#notifBtn").click();
   await page.locator(".daw-notif-error").first().click();
+  await expect(page.locator("#failureDialog")).toBeVisible();
   looks.failure = await dialogLook(page, "#failureDialog", "#failureDialog .about-card");
   await page.keyboard.press(KEY.ESCAPE);
 
   await page.locator("#notifReleaseCard").click();
+  await expect(page.locator("#releaseDialog")).toBeVisible();
   looks.release = await dialogLook(page, "#releaseDialog", "#releaseDialog .about-card");
   await page.keyboard.press(KEY.ESCAPE);
   await page.keyboard.press(KEY.ESCAPE);
 
   await page.locator("#np-details-btn").click();
+  await expect(page.locator("#artistDialog")).toBeVisible();
   looks.artist = await dialogLook(page, "#artistDialog", "#artistDialog .about-card");
   await page.keyboard.press(KEY.ESCAPE);
 
@@ -71,6 +74,7 @@ test("each dialog's head puts its title on the left and its close button on the 
   );
   await page.locator("#notifBtn").click();
   await page.locator(".daw-notif-error").first().click();
+  await expect(page.locator("#failureDialog")).toBeVisible();
   const title = await page.locator("#failureTitle").boundingBox();
   const close = await page.locator("#failureClose").boundingBox();
   const card = await page.locator("#failureDialog .about-card").boundingBox();
