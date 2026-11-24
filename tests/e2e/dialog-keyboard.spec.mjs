@@ -159,7 +159,7 @@ test.describe("more dialogs and Esc", () => {
       await openPlaylistReview(page);
       await close();
       await expect(page.locator("#batchReview")).toHaveCount(0);
-      await expect(page.locator("#url")).toBeFocused();
+      await expect(page.locator("#addSongBtn")).toBeFocused();
       await openComposer(page);
       await page.locator("#url").fill("");
     }
@@ -167,7 +167,7 @@ test.describe("more dialogs and Esc", () => {
     await openPlaylistReview(page);
     await page.locator("#batchReview .batch-queue").click();
     await expect(page.locator("#batchReview")).toHaveCount(0);
-    await expect(page.locator("#url")).toBeFocused();
+    await expect(page.locator("#addSongBtn")).toBeFocused();
     expect(created).toHaveLength(PLAYLIST_PREVIEW.items.length);
   });
 });

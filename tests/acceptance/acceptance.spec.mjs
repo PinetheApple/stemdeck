@@ -340,9 +340,10 @@ test(title("A3"), async ({ app }, testInfo) => {
 
 // ─── Now playing and song details ───────────────────────────────────────────
 
-// Steps: import any song and open it. Expect, left to right: the link field,
-// the Extract options, Extract stems, then the Now playing card with the
-// artwork, the heart on its left and the (i) on its right.
+// Steps: import any song and open it, then press Add song. Expect the link
+// field, the Extract options under it and Extract stems under them, in a
+// popover inside the window; and the Now playing card with the artwork, the
+// heart on its left and the (i) on its right.
 test(title("N1"), async ({ app }, testInfo) => {
   const { page } = app;
   await wideWindow(page);
@@ -357,19 +358,20 @@ test(title("N1"), async ({ app }, testInfo) => {
     const r = el.getBoundingClientRect();
     return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, visible: r.width > 0 && r.height > 0 };
   });
-  const url = await box(".daw-url-zone");
-  const extract = await box(".daw-stem-section");
-  const split = await box("#submit");
   const card = await box("#nowPlayingPanel");
-  for (const [name, b] of Object.entries({ url, extract, split, card })) expect(b.visible, `${name} is on screen`).toBe(true);
-  // The link field and the Extract options share the row's first column, the
-  // chips under the field; everything else follows them to the right.
-  const besideOrUnder = url.right <= extract.left || (Math.abs(extract.left - url.left) < 40 && extract.top >= url.bottom - 2);
-  expect(besideOrUnder, "the Extract options follow the link field").toBe(true);
-  expect(Math.max(url.right, extract.right) <= split.left, "Extract stems follows them").toBe(true);
-  expect(split.right <= card.left, "the card comes after Extract stems").toBe(true);
-  // One row: every one of them overlaps the card's height.
-  for (const b of [url, extract, split]) expect(b.top < card.bottom && b.bottom > card.top, "one row").toBe(true);
+  expect(card.visible, "card is on screen").toBe(true);
+  await page.locator("#addSongBtn").click();
+  const popover = await box("#composerDrawer");
+  const url = await box(".add-song-box");
+  const extract = await box(".add-song-extract");
+  const split = await box("#submit");
+  for (const [name, b] of Object.entries({ popover, url, extract, split })) expect(b.visible, `${name} is on screen`).toBe(true);
+  expect(extract.top >= url.bottom, "the Extract options sit under the link field").toBe(true);
+  expect(split.top >= extract.bottom, "Extract stems sits under them").toBe(true);
+  const view = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+  expect(popover.left >= 0 && popover.right <= view.width && popover.bottom <= view.height, "the popover is inside the window").toBe(true);
+  await shot(page, testInfo, "add-song", { locator: page.locator("#composerDrawer") });
+  await page.keyboard.press("Escape");
   await expect(page.locator("#nowPlayingPanel .np-legend")).toHaveText("Now playing");
   const heart = await box("#fav-btn");
   const art = await box("#np-art");
@@ -389,7 +391,6 @@ test(title("N1"), async ({ app }, testInfo) => {
   expect(art.right <= info.left + 1, "then the title").toBe(true);
   expect(Math.abs(details.right - card.right) < 6, "the (i) is on the card's right edge").toBe(true);
   expect(words <= details.left + 1, "the text stops before the (i)").toBe(true);
-  await shot(page, testInfo, "top-bar", { locator: page.locator(".daw-composer-stack") });
   await shot(page, testInfo, "studio");
 });
 

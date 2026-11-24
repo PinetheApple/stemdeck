@@ -14,6 +14,7 @@ export const OPEN_FLOATS = [
   "#stemOverflow.open",
   "#search-panel:not(.hidden)",
   ".ft-pop:not(.hidden)",
+  "#composerDrawer:not([hidden])",
 ].join(", ");
 const MODAL = 'dialog[open], [role="dialog"][aria-modal="true"]';
 const GUIDE_ON = "body.help-mode";

@@ -4,11 +4,21 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { test, expect } from "@playwright/test";
-import { uiText, openComposer } from "./helpers.mjs";
+import { KEY, uiText, openComposer } from "./helpers.mjs";
 import {
   GONE_COPY, HTTP_FULL, LINE, MAX_DURATION_SEC, PASTE, PLAYLIST_SONGS, PLAYLIST_TITLE, ROWS, TICKED_BY_DEFAULT,
   openBar, paste, pasteList, preview, queueButton, review, row, stubImports, stubPreview,
 } from "./batchImport.mjs";
+
+/** Detect structure lives in Add song, behind the modal review: close it, switch it on, reopen with Review N. */
+async function turnStructureOnBehindReview(page) {
+  await page.keyboard.press(KEY.ESCAPE);
+  await openComposer(page);
+  await page.locator("#autoSectionsBtn").click();
+  await expect(page.locator("#autoSectionsBtn")).toHaveAttribute("aria-pressed", "true");
+  await page.locator("#submit").click();
+  await expect(review(page)).toBeVisible();
+}
 
 test.describe("batch import", () => {
   test("a single link skips the review and queues as before", async ({ page }) => {
@@ -80,8 +90,7 @@ test.describe("batch import", () => {
   test("Queue N sends one import per ticked item, with its title and Detect structure", async ({ page }) => {
     await pasteList(page);
     const posts = await stubImports(page);
-    await page.locator("#autoSectionsBtn").click();
-    await expect(page.locator("#autoSectionsBtn")).toHaveAttribute("aria-pressed", "true");
+    await turnStructureOnBehindReview(page);
     await expect(review(page).locator(".batch-review-summary")).toContainText(await uiText(page, "batch.structureOn"));
 
     await queueButton(page).click();
@@ -91,6 +100,7 @@ test.describe("batch import", () => {
     await expect(review(page)).toHaveCount(0);
     await expect(page.locator("#filePill")).toBeHidden();
     await expect(page.locator(`.cat-item[data-id="e2e0b0000001"]`)).toContainText("Build My Life");
+    await openComposer(page);
     await page.locator("#autoSectionsBtn").click();
   });
 
@@ -112,14 +122,15 @@ test.describe("batch import", () => {
     await expect(review(page).locator(".batch-item-retry")).toHaveCount(TICKED_BY_DEFAULT - 1);
 
     // Detect structure turned on now does not reach a batch queued with it off.
-    await page.locator("#autoSectionsBtn").click();
-    await expect(page.locator("#autoSectionsBtn")).toHaveAttribute("aria-pressed", "true");
+    await turnStructureOnBehindReview(page);
     await row(page, "Firm Foundation").locator(".batch-item-retry").click();
     await expect.poll(() => posts.length).toBe(3);
     expect(posts[2].url).toBe(LINE.other);
     expect(posts[2].auto_sections).toBe(false);
     expect(posts[2].stems).toEqual(posts[0].stems);
     await expect(row(page, "Firm Foundation")).toHaveCount(0);
+    await page.keyboard.press(KEY.ESCAPE);
+    await openComposer(page);
     await page.locator("#autoSectionsBtn").click();
   });
 
@@ -139,11 +150,12 @@ test.describe("batch import", () => {
     await expect(review(page)).toHaveCount(0);
   });
 
-  test("Escape closes the review and gives the bar back its focus", async ({ page }) => {
+  test("Escape closes the review and gives Add song, which holds the batch, its focus", async ({ page }) => {
     await pasteList(page);
-    await page.keyboard.press("Escape");
+    await page.keyboard.press(KEY.ESCAPE);
     await expect(review(page)).toHaveCount(0);
-    await expect(page.locator("#submit")).toBeFocused();
+    await expect(page.locator("#addSongBtn")).toBeFocused();
+    await openComposer(page);
     await page.locator("#submit").click();
     await expect(review(page)).toBeVisible();
   });
@@ -230,7 +242,7 @@ test("a single playlist link opens the review and files its songs under its name
   await expect(queueButton(page)).toHaveText(await uiText(page, "batch.queue.other", { count: PLAYLIST_SONGS.length }));
   await queueButton(page).click();
   await expect.poll(() => posts.length).toBe(PLAYLIST_SONGS.length);
-  await expect(page.locator("#url")).toBeFocused();
+  await expect(page.locator("#addSongBtn")).toBeFocused();
   await expect(page.locator("#catalogList .folder-head", { hasText: PLAYLIST_TITLE })).toBeVisible();
 });
 

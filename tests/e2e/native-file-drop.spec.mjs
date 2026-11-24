@@ -19,6 +19,8 @@ import {
   stubExportEndpoints,
   stubUpdateCheck,
   uiText,
+  openComposer,
+  KEY,
 } from "./helpers.mjs";
 import {
   MAX_DURATION_SEC, TOO_LONG_SEC, filePreview, queueButton, review, row, stubImports, stubPreview, uploadedFile,
@@ -278,6 +280,7 @@ test.describe("a file dropped on the Linux desktop app", () => {
     await page.evaluate((files) => { window.__shell.picked = { kind: "drop", folder: true, files }; }, FOLDER);
 
     await expect(page.locator("#emptyStartFolder")).toBeVisible();
+    await openComposer(page);
     await page.locator("#addFolderBtn").click();
 
     await expect(review(page).locator(".batch-folder").first()).toHaveText("Rehearsal");
@@ -289,6 +292,7 @@ test.describe("a file dropped on the Linux desktop app", () => {
   test("a folder chooser that fails to open says so, not that a folder was unreadable", async ({ page }) => {
     await openDesktop(page);
     await page.evaluate(() => { window.__shell.pickFails = true; });
+    await openComposer(page);
     await page.locator("#addFolderBtn").click();
 
     await expect.poll(() => state(page).then((s) => s.error)).toBe(await uiText(page, "settings.stemsLocation.pickerFailed"));
@@ -374,6 +378,7 @@ test.describe("a file dropped on the Linux desktop app", () => {
       window.__shell.durations = { 4: long };
       window.__shell.picked = { kind: "drop", folder: true, files };
     }, { files: FOLDER, long: TOO_LONG_SEC });
+    await openComposer(page);
     await page.locator("#addFolderBtn").click();
 
     await expect(row(page, "c.m4a").locator(".batch-flag-block")).toBeVisible();
@@ -488,7 +493,9 @@ test.describe("a file dropped on the Linux desktop app", () => {
       { id: 2, name: "b.wav", size: 1000 },
     ]);
     await expect(row(page, "b.wav")).toBeVisible();
-    await page.locator("#fileClear").click({ force: true });
+    await page.keyboard.press(KEY.ESCAPE);
+    await openComposer(page);
+    await page.locator("#fileClear").click();
 
     await expect.poll(() => state(page).then((s) => s.released)).toEqual([1]);
   });

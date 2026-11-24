@@ -507,7 +507,6 @@ const en = {
   "notif.railLabel": "Alerts",
   "nav.settingsRail": "Settings",
   "start.title": "Start with a song",
-  "start.hint": "Paste a link or drop an audio file in the bar above, or pick a song from your library.",
   "start.upload": "Choose a file",
   "start.link": "Paste a link",
   "help.pill": "Help mode: point at anything to see what it does. Esc to leave.",
@@ -1560,7 +1559,7 @@ const en = {
   "help.version": "A version of this song, with its own stems and mix. Double-click to open it.",
   "help.extractMore": "Pick the stems to add. They are saved as a new version.",
   "help.versionPill": "The open version. Switch to another one or save a new one.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "Search, paste links, or drop files…",
   "batch.dropHere": "Drop files or a folder",
   "batch.addFiles": "Add files",
@@ -1568,7 +1567,6 @@ const en = {
   "batch.chooseFiles": "Choose files",
   "batch.chooseFolder": "Choose a folder",
   "batch.pasteLinks": "Paste links",
-  "batch.startHint": "Paste links, or drop files or a folder in the bar above.",
   "batch.emptyFolder": "That folder has no files in it.",
   "batch.folderUnreadable": "That folder couldn't be read.",
   "batch.review.one": "Review {count}",
@@ -1710,7 +1708,7 @@ const en = {
   "shell.help.sidebar": "Folds the sidebar into a strip of covers, or opens it again.",
   "shell.help.offline": "StemDeck's server can't be reached. Playback of what is loaded goes on; imports and saving wait until it is back.",
   "shell.help.importing": "The songs being imported and the ones waiting. Opens the import queue.",
-  "shell.help.addSong": "Opens the bar where you paste links, search, or add files and folders.",
+  "shell.help.addSong": "Opens Add songs: paste links, search, or add files and folders, then choose what to extract.",
   "shell.help.tools": "Hides the song tools on the right, or shows them again.",
   "shell.help.edge": "Drag to change the width. Double-click or Enter resets it; the arrow keys move it in steps.",
   "shell.help.strip": "A cover for each song. Click one to open it; the buttons above open the sidebar on a view.",
@@ -1761,6 +1759,11 @@ const en = {
   "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Mutes or unmutes {name}. M lights up while it is muted.",
   "studio.lane.helpMore": "EQ, key and download for {name} when the lane is too short to show them. A dot means its key or EQ is changed.",
+  "addsong.title": "Add songs",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "Paste links, or drop files or a folder anywhere in the window.",
+  "addsong.browseLibrary": "Browse library",
+  "addsong.help.reviewBadge": "A batch is waiting: opens its review.",
 };
 
 const pl = {
@@ -2051,7 +2054,6 @@ const pl = {
   "notif.railLabel": "Alerty",
   "nav.settingsRail": "Ustawienia",
   "start.title": "Zacznij od utworu",
-  "start.hint": "Wklej link lub upuść plik audio na pasku powyżej albo wybierz utwór z biblioteki.",
   "start.upload": "Wybierz plik",
   "start.link": "Wklej link",
   "help.pill": "Tryb pomocy: wskaż dowolny element, aby zobaczyć, co robi. Esc, aby wyjść.",
@@ -3100,7 +3102,7 @@ const pl = {
   "help.version": "Wersja tego utworu, z własnymi ścieżkami i miksem. Kliknij dwukrotnie, aby ją otworzyć.",
   "help.extractMore": "Wybierz ścieżki do dodania. Zostaną zapisane jako nowa wersja.",
   "help.versionPill": "Otwarta wersja. Przełącz na inną albo zapisz nową.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "Szukaj, wklej linki albo upuść pliki…",
   "batch.dropHere": "Upuść pliki lub folder",
   "batch.addFiles": "Dodaj pliki",
@@ -3108,7 +3110,6 @@ const pl = {
   "batch.chooseFiles": "Wybierz pliki",
   "batch.chooseFolder": "Wybierz folder",
   "batch.pasteLinks": "Wklej linki",
-  "batch.startHint": "Wklej linki albo upuść pliki lub folder na pasku powyżej.",
   "batch.emptyFolder": "Ten folder nie zawiera plików.",
   "batch.folderUnreadable": "Nie udało się odczytać tego folderu.",
   "batch.review.one": "Przejrzyj {count}",
@@ -3263,7 +3264,7 @@ const pl = {
   "shell.help.sidebar": "Zwija pasek boczny do paska okładek albo otwiera go ponownie.",
   "shell.help.offline": "Nie można połączyć się z serwerem StemDeck. Odtwarzanie tego, co jest wczytane, trwa dalej; importy i zapisywanie czekają na połączenie.",
   "shell.help.importing": "Utwory w trakcie importu i te oczekujące. Otwiera kolejkę importu.",
-  "shell.help.addSong": "Otwiera pasek, w którym wklejasz linki, wyszukujesz lub dodajesz pliki i foldery.",
+  "shell.help.addSong": "Otwiera Dodaj utwory: wklej linki, wyszukaj lub dodaj pliki i foldery, a potem wybierz, co wyodrębnić.",
   "shell.help.tools": "Ukrywa narzędzia utworu po prawej albo pokazuje je ponownie.",
   "shell.help.edge": "Przeciągnij, aby zmienić szerokość. Dwuklik lub Enter przywraca ją; strzałki przesuwają ją skokowo.",
   "shell.help.strip": "Okładka każdego utworu. Kliknij, aby go otworzyć; przyciski powyżej otwierają pasek boczny na danym widoku.",
@@ -3315,6 +3316,11 @@ const pl = {
   "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Wycisza lub włącza {name}. M świeci, gdy ścieżka jest wyciszona.",
   "studio.lane.helpMore": "EQ, tonacja i pobieranie dla {name}, gdy ścieżka jest za niska, by je pokazać. Kropka oznacza zmienioną tonację lub EQ.",
+  "addsong.title": "Dodaj utwory",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "Wklej linki albo upuść pliki lub folder w dowolnym miejscu okna.",
+  "addsong.browseLibrary": "Przeglądaj bibliotekę",
+  "addsong.help.reviewBadge": "Partia czeka: otwiera jej przegląd.",
 };
 
 const ja = {
@@ -3605,7 +3611,6 @@ const ja = {
   "notif.railLabel": "通知",
   "nav.settingsRail": "設定",
   "start.title": "曲から始めましょう",
-  "start.hint": "上のバーにリンクを貼り付けるか音声ファイルをドロップするか、ライブラリから曲を選んでください。",
   "start.upload": "ファイルを選択",
   "start.link": "リンクを貼り付け",
   "help.pill": "ヘルプモード：項目を指すと、その働きが表示されます。Esc で終了。",
@@ -4619,7 +4624,7 @@ const ja = {
   "help.version": "この曲のバージョン。パートとミックスを個別に持ちます。ダブルクリックで開きます。",
   "help.extractMore": "追加するパートを選びます。新しいバージョンとして保存されます。",
   "help.versionPill": "開いているバージョン。別のバージョンに切り替えるか、新しく保存できます。",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "検索、リンクを貼り付け、またはファイルをドロップ…",
   "batch.dropHere": "ファイルまたはフォルダをドロップ",
   "batch.addFiles": "ファイルを追加",
@@ -4627,7 +4632,6 @@ const ja = {
   "batch.chooseFiles": "ファイルを選択",
   "batch.chooseFolder": "フォルダを選択",
   "batch.pasteLinks": "リンクを貼り付け",
-  "batch.startHint": "上のバーにリンクを貼り付けるか、ファイルやフォルダをドロップしてください。",
   "batch.emptyFolder": "このフォルダにはファイルがありません。",
   "batch.folderUnreadable": "このフォルダを読み込めませんでした。",
   "batch.review.other": "{count}件を確認",
@@ -4756,7 +4760,7 @@ const ja = {
   "shell.help.sidebar": "サイドバーをジャケットの細い列にたたむか、もう一度開きます。",
   "shell.help.offline": "StemDeck のサーバーに接続できません。読み込み済みの再生は続きます。インポートと保存は接続が戻るまで待ちます。",
   "shell.help.importing": "インポート中と待機中の曲です。インポートキューを開きます。",
-  "shell.help.addSong": "リンクの貼り付け、検索、ファイルやフォルダーの追加を行うバーを開きます。",
+  "shell.help.addSong": "曲を追加を開きます。リンクの貼り付け、検索、ファイルやフォルダーの追加を行い、抽出する内容を選びます。",
   "shell.help.tools": "右側の曲のツールを隠すか、もう一度表示します。",
   "shell.help.edge": "ドラッグで幅を変更します。ダブルクリックまたは Enter で元に戻し、矢印キーで少しずつ動かします。",
   "shell.help.strip": "曲ごとのジャケットです。クリックで開きます。上のボタンはサイドバーをその表示で開きます。",
@@ -4806,6 +4810,11 @@ const ja = {
   "studio.lane.stateSeparator": "、",
   "studio.lane.helpName": "{name}をミュート/解除します。ミュート中は M が点灯します。",
   "studio.lane.helpMore": "レーンが低くて表示できないときの{name}の EQ、キー、ダウンロードです。点はキーか EQ が変更されていることを示します。",
+  "addsong.title": "曲を追加",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "リンクを貼り付けるか、ファイルやフォルダをウィンドウのどこかにドロップしてください。",
+  "addsong.browseLibrary": "ライブラリを見る",
+  "addsong.help.reviewBadge": "待機中のバッチがあります。確認画面を開きます。",
 };
 
 const zhHans = {
@@ -5096,7 +5105,6 @@ const zhHans = {
   "notif.railLabel": "通知",
   "nav.settingsRail": "设置",
   "start.title": "从一首歌开始",
-  "start.hint": "在上方栏中粘贴链接或拖入音频文件，或从资料库中选一首歌。",
   "start.upload": "选择文件",
   "start.link": "粘贴链接",
   "help.pill": "帮助模式：指向任何项目即可看到它的作用。按 Esc 退出。",
@@ -6110,7 +6118,7 @@ const zhHans = {
   "help.version": "这首歌的一个版本，有自己的音轨和混音。双击即可打开。",
   "help.extractMore": "选择要添加的音轨，它们会另存为新版本。",
   "help.versionPill": "当前打开的版本。可切换到其他版本，或另存为新版本。",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "搜索、粘贴链接，或拖放文件…",
   "batch.dropHere": "拖放文件或文件夹",
   "batch.addFiles": "添加文件",
@@ -6118,7 +6126,6 @@ const zhHans = {
   "batch.chooseFiles": "选择文件",
   "batch.chooseFolder": "选择文件夹",
   "batch.pasteLinks": "粘贴链接",
-  "batch.startHint": "在上方栏中粘贴链接，或拖入文件或文件夹。",
   "batch.emptyFolder": "该文件夹中没有文件。",
   "batch.folderUnreadable": "无法读取该文件夹。",
   "batch.review.other": "检查 {count} 项",
@@ -6247,7 +6254,7 @@ const zhHans = {
   "shell.help.sidebar": "将侧边栏收起为一列封面，或再次展开。",
   "shell.help.offline": "无法连接 StemDeck 服务器。已加载的内容继续播放；导入和保存会等到连接恢复。",
   "shell.help.importing": "正在导入和等待中的歌曲。打开导入队列。",
-  "shell.help.addSong": "打开用于粘贴链接、搜索或添加文件和文件夹的栏。",
+  "shell.help.addSong": "打开添加歌曲：粘贴链接、搜索或添加文件和文件夹，然后选择要提取的内容。",
   "shell.help.tools": "隐藏右侧的歌曲工具，或再次显示。",
   "shell.help.edge": "拖动以改变宽度。双击或按 Enter 恢复默认；方向键可逐步移动。",
   "shell.help.strip": "每首歌的封面。点击即可打开；上方的按钮会打开侧边栏并切换到对应视图。",
@@ -6297,6 +6304,11 @@ const zhHans = {
   "studio.lane.stateSeparator": "，",
   "studio.lane.helpName": "静音或取消静音{name}。静音时 M 会亮起。",
   "studio.lane.helpMore": "音轨太矮无法显示时，{name}的均衡器、调性和下载。圆点表示调性或均衡器已更改。",
+  "addsong.title": "添加歌曲",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "粘贴链接，或将文件或文件夹拖放到窗口中的任意位置。",
+  "addsong.browseLibrary": "浏览资料库",
+  "addsong.help.reviewBadge": "有一批正在等待：打开它的检查。",
 };
 
 const de = {
@@ -6587,7 +6599,6 @@ const de = {
   "notif.railLabel": "Hinweise",
   "nav.settingsRail": "Optionen",
   "start.title": "Mit einem Song beginnen",
-  "start.hint": "Füge oben einen Link ein oder zieh eine Audiodatei hinein, oder wähle einen Song aus deiner Bibliothek.",
   "start.upload": "Datei wählen",
   "start.link": "Link einfügen",
   "help.pill": "Hilfemodus: Zeig auf etwas, um zu sehen, was es tut. Esc zum Beenden.",
@@ -7616,7 +7627,7 @@ const de = {
   "help.version": "Eine Version dieses Songs mit eigenen Stems und eigenem Mix. Doppelklick öffnet sie.",
   "help.extractMore": "Wähle die Stems, die dazukommen. Sie werden als neue Version gespeichert.",
   "help.versionPill": "Die geöffnete Version. Wechsle zu einer anderen oder speichere eine neue.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "Suchen, Links einfügen oder Dateien ablegen…",
   "batch.dropHere": "Dateien oder einen Ordner ablegen",
   "batch.addFiles": "Dateien hinzufügen",
@@ -7624,7 +7635,6 @@ const de = {
   "batch.chooseFiles": "Dateien wählen",
   "batch.chooseFolder": "Ordner wählen",
   "batch.pasteLinks": "Links einfügen",
-  "batch.startHint": "Füge oben Links ein oder zieh Dateien oder einen Ordner in die Leiste.",
   "batch.emptyFolder": "Dieser Ordner enthält keine Dateien.",
   "batch.folderUnreadable": "Dieser Ordner konnte nicht gelesen werden.",
   "batch.review.one": "{count} prüfen",
@@ -7766,7 +7776,7 @@ const de = {
   "shell.help.sidebar": "Klappt die Seitenleiste zu einem Streifen aus Covern ein oder öffnet sie wieder.",
   "shell.help.offline": "Der StemDeck-Server ist nicht erreichbar. Was geladen ist, spielt weiter; Importe und Speichern warten, bis er wieder da ist.",
   "shell.help.importing": "Die Songs, die gerade importiert werden, und die wartenden. Öffnet die Import-Warteschlange.",
-  "shell.help.addSong": "Öffnet die Leiste, in der du Links einfügst, suchst oder Dateien und Ordner hinzufügst.",
+  "shell.help.addSong": "Öffnet Songs hinzufügen: Links einfügen, suchen oder Dateien und Ordner hinzufügen, dann wählen, was extrahiert wird.",
   "shell.help.tools": "Blendet die Song-Werkzeuge rechts aus oder wieder ein.",
   "shell.help.edge": "Ziehen ändert die Breite. Doppelklick oder Enter setzt sie zurück; die Pfeiltasten verschieben sie schrittweise.",
   "shell.help.strip": "Ein Cover pro Song. Ein Klick öffnet ihn; die Knöpfe darüber öffnen die Seitenleiste mit dieser Ansicht.",
@@ -7817,6 +7827,11 @@ const de = {
   "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Schaltet {name} stumm oder laut. M leuchtet, solange die Spur stumm ist.",
   "studio.lane.helpMore": "EQ, Tonart und Download für {name}, wenn die Spur zu niedrig ist, um sie zu zeigen. Ein Punkt heißt: Tonart oder EQ geändert.",
+  "addsong.title": "Songs hinzufügen",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "Füge Links ein oder zieh Dateien oder einen Ordner irgendwo ins Fenster.",
+  "addsong.browseLibrary": "Bibliothek durchsuchen",
+  "addsong.help.reviewBadge": "Ein Stapel wartet: öffnet seine Prüfung.",
 };
 
 const pt = {
@@ -8107,7 +8122,6 @@ const pt = {
   "notif.railLabel": "Avisos",
   "nav.settingsRail": "Ajustes",
   "start.title": "Comece com uma música",
-  "start.hint": "Cole um link ou solte um arquivo de áudio na barra acima, ou escolha uma música da sua biblioteca.",
   "start.upload": "Escolher arquivo",
   "start.link": "Colar link",
   "help.pill": "Modo ajuda: aponte para qualquer coisa para ver o que faz. Esc para sair.",
@@ -9138,7 +9152,7 @@ const pt = {
   "help.version": "Uma versão desta música, com seus próprios stems e mixagem. Clique duas vezes para abrir.",
   "help.extractMore": "Escolha os stems a adicionar. Eles são salvos como uma nova versão.",
   "help.versionPill": "A versão aberta. Mude para outra ou salve uma nova.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "Pesquise, cole links ou solte arquivos…",
   "batch.dropHere": "Solte arquivos ou uma pasta",
   "batch.addFiles": "Adicionar arquivos",
@@ -9146,7 +9160,6 @@ const pt = {
   "batch.chooseFiles": "Escolher arquivos",
   "batch.chooseFolder": "Escolher pasta",
   "batch.pasteLinks": "Colar links",
-  "batch.startHint": "Cole links ou solte arquivos ou uma pasta na barra acima.",
   "batch.emptyFolder": "Essa pasta não tem arquivos.",
   "batch.folderUnreadable": "Não foi possível ler essa pasta.",
   "batch.review.one": "Revisar {count}",
@@ -9288,7 +9301,7 @@ const pt = {
   "shell.help.sidebar": "Recolhe a barra lateral numa faixa de capas, ou abre-a de novo.",
   "shell.help.offline": "Não foi possível conectar ao servidor do StemDeck. O que está carregado continua tocando; importações e salvamentos esperam até ele voltar.",
   "shell.help.importing": "As músicas sendo importadas e as que estão esperando. Abre a fila de importação.",
-  "shell.help.addSong": "Abre a barra onde você cola links, pesquisa ou adiciona arquivos e pastas.",
+  "shell.help.addSong": "Abre Adicionar músicas: cole links, pesquise ou adicione arquivos e pastas e escolha o que extrair.",
   "shell.help.tools": "Oculta as ferramentas da música à direita, ou mostra de novo.",
   "shell.help.edge": "Arraste para mudar a largura. Clique duas vezes ou Enter para restaurar; as setas a movem aos poucos.",
   "shell.help.strip": "Uma capa por música. Clique numa para abri-la; os botões acima abrem a barra lateral nessa vista.",
@@ -9339,6 +9352,11 @@ const pt = {
   "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Silencia ou reativa {name}. O M acende enquanto estiver silenciado.",
   "studio.lane.helpMore": "EQ, tom e download de {name} quando a faixa é baixa demais para mostrá-los. Um ponto indica tom ou EQ alterado.",
+  "addsong.title": "Adicionar músicas",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "Cole links ou solte arquivos ou uma pasta em qualquer lugar da janela.",
+  "addsong.browseLibrary": "Explorar biblioteca",
+  "addsong.help.reviewBadge": "Um lote está esperando: abre a revisão dele.",
 };
 
 const id = {
@@ -9629,7 +9647,6 @@ const id = {
   "notif.railLabel": "Notifikasi",
   "nav.settingsRail": "Pengaturan",
   "start.title": "Mulai dengan sebuah lagu",
-  "start.hint": "Tempel tautan atau jatuhkan file audio di bilah atas, atau pilih lagu dari pustaka Anda.",
   "start.upload": "Pilih file",
   "start.link": "Tempel tautan",
   "help.pill": "Mode bantuan: arahkan ke apa saja untuk melihat fungsinya. Esc untuk keluar.",
@@ -10643,7 +10660,7 @@ const id = {
   "help.version": "Versi lagu ini, dengan stem dan mix sendiri. Klik dua kali untuk membukanya.",
   "help.extractMore": "Pilih stem yang ingin ditambahkan. Stem itu disimpan sebagai versi baru.",
   "help.versionPill": "Versi yang terbuka. Pindah ke versi lain atau simpan versi baru.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "Cari, tempel tautan, atau seret file…",
   "batch.dropHere": "Seret file atau folder",
   "batch.addFiles": "Tambah file",
@@ -10651,7 +10668,6 @@ const id = {
   "batch.chooseFiles": "Pilih file",
   "batch.chooseFolder": "Pilih folder",
   "batch.pasteLinks": "Tempel tautan",
-  "batch.startHint": "Tempel tautan, atau jatuhkan file atau folder di bilah atas.",
   "batch.emptyFolder": "Folder itu tidak berisi file.",
   "batch.folderUnreadable": "Folder itu tidak bisa dibaca.",
   "batch.review.other": "Tinjau {count}",
@@ -10780,7 +10796,7 @@ const id = {
   "shell.help.sidebar": "Melipat bilah samping menjadi deretan sampul, atau membukanya lagi.",
   "shell.help.offline": "Server StemDeck tidak dapat dihubungi. Yang sudah dimuat tetap diputar; impor dan penyimpanan menunggu sampai tersambung lagi.",
   "shell.help.importing": "Lagu yang sedang diimpor dan yang menunggu. Membuka antrean impor.",
-  "shell.help.addSong": "Membuka bilah untuk menempel tautan, mencari, atau menambahkan file dan folder.",
+  "shell.help.addSong": "Membuka Tambah lagu: tempel tautan, cari, atau tambahkan file dan folder, lalu pilih yang akan diekstrak.",
   "shell.help.tools": "Menyembunyikan alat lagu di kanan, atau menampilkannya lagi.",
   "shell.help.edge": "Seret untuk mengubah lebar. Klik dua kali atau Enter untuk mengatur ulang; tombol panah menggesernya bertahap.",
   "shell.help.strip": "Sampul untuk setiap lagu. Klik untuk membukanya; tombol di atas membuka bilah samping pada tampilan itu.",
@@ -10830,6 +10846,11 @@ const id = {
   "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Membisukan atau mengaktifkan {name}. M menyala selama dibisukan.",
   "studio.lane.helpMore": "EQ, nada, dan unduhan untuk {name} saat jalur terlalu pendek untuk menampilkannya. Titik berarti nada atau EQ diubah.",
+  "addsong.title": "Tambah lagu",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "Tempel tautan, atau jatuhkan file atau folder di mana saja di jendela.",
+  "addsong.browseLibrary": "Jelajahi pustaka",
+  "addsong.help.reviewBadge": "Ada kumpulan yang menunggu: membuka tinjauannya.",
 };
 
 const fr = {
@@ -11120,7 +11141,6 @@ const fr = {
   "notif.railLabel": "Alertes",
   "nav.settingsRail": "Paramètres",
   "start.title": "Commencez par un morceau",
-  "start.hint": "Collez un lien ou déposez un fichier audio dans la barre ci-dessus, ou choisissez un morceau dans votre bibliothèque.",
   "start.upload": "Choisir un fichier",
   "start.link": "Coller un lien",
   "help.pill": "Mode aide : pointez sur un élément pour voir ce qu'il fait. Échap pour quitter.",
@@ -12151,7 +12171,7 @@ const fr = {
   "help.version": "Une version de ce morceau, avec ses propres pistes et son mix. Double-cliquez pour l’ouvrir.",
   "help.extractMore": "Choisissez les pistes à ajouter. Elles sont enregistrées comme nouvelle version.",
   "help.versionPill": "La version ouverte. Passez à une autre ou enregistrez-en une nouvelle.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "Recherchez, collez des liens ou déposez des fichiers…",
   "batch.dropHere": "Déposez des fichiers ou un dossier",
   "batch.addFiles": "Ajouter des fichiers",
@@ -12159,7 +12179,6 @@ const fr = {
   "batch.chooseFiles": "Choisir des fichiers",
   "batch.chooseFolder": "Choisir un dossier",
   "batch.pasteLinks": "Coller des liens",
-  "batch.startHint": "Collez des liens ou déposez des fichiers ou un dossier dans la barre ci-dessus.",
   "batch.emptyFolder": "Ce dossier ne contient aucun fichier.",
   "batch.folderUnreadable": "Impossible de lire ce dossier.",
   "batch.review.one": "Vérifier {count}",
@@ -12301,7 +12320,7 @@ const fr = {
   "shell.help.sidebar": "Replie la barre latérale en une bande de pochettes, ou la rouvre.",
   "shell.help.offline": "Le serveur StemDeck est injoignable. Ce qui est chargé continue de jouer ; les imports et l'enregistrement attendent son retour.",
   "shell.help.importing": "Les morceaux en cours d'import et ceux en attente. Ouvre la file d'import.",
-  "shell.help.addSong": "Ouvre la barre où coller des liens, chercher, ou ajouter des fichiers et des dossiers.",
+  "shell.help.addSong": "Ouvre Ajouter des morceaux : collez des liens, cherchez, ou ajoutez des fichiers et des dossiers, puis choisissez quoi extraire.",
   "shell.help.tools": "Masque les outils du morceau à droite, ou les affiche de nouveau.",
   "shell.help.edge": "Faites glisser pour changer la largeur. Double-clic ou Entrée la rétablit ; les flèches la déplacent par pas.",
   "shell.help.strip": "Une pochette par morceau. Un clic l'ouvre ; les boutons au-dessus ouvrent la barre latérale sur cette vue.",
@@ -12352,6 +12371,11 @@ const fr = {
   "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Coupe ou rétablit {name}. M s’allume tant que la piste est coupée.",
   "studio.lane.helpMore": "EQ, ton et téléchargement de {name} quand la piste est trop basse pour les afficher. Un point signale un ton ou un EQ modifié.",
+  "addsong.title": "Ajouter des morceaux",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "Collez des liens ou déposez des fichiers ou un dossier n'importe où dans la fenêtre.",
+  "addsong.browseLibrary": "Parcourir la bibliothèque",
+  "addsong.help.reviewBadge": "Un lot attend : ouvre sa vérification.",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -12377,7 +12401,6 @@ const ptPT = {
   "favorites.emptyHint": "Clique no ♥ de uma música para a guardar aqui.",
   "queue.emptyTitle": "Nada a ser importado",
   "nav.settingsRail": "Definições",
-  "start.hint": "Cole uma ligação ou largue um ficheiro de áudio na barra acima, ou escolha uma música da sua biblioteca.",
   "start.upload": "Escolher ficheiro",
   "start.link": "Colar ligação",
   "speed.faderTitle": "Arraste, desloque a roda do rato ou use as setas. Faça duplo clique para alternar entre 1x e a sua velocidade lenta.",
@@ -12714,13 +12737,12 @@ const ptPT = {
   "help.version": "Uma versão desta música, com os seus próprios stems e mistura. Faça duplo clique para a abrir.",
   "help.extractMore": "Escolha os stems a adicionar. São guardados como uma nova versão.",
   "help.versionPill": "A versão aberta. Mude para outra ou guarde uma nova.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "Pesquise, cole ligações ou largue ficheiros…",
   "batch.dropHere": "Largue ficheiros ou uma pasta",
   "batch.addFiles": "Adicionar ficheiros",
   "batch.chooseFiles": "Escolher ficheiros",
   "batch.pasteLinks": "Colar ligações",
-  "batch.startHint": "Cole ligações ou largue ficheiros ou uma pasta na barra acima.",
   "batch.emptyFolder": "Essa pasta não tem ficheiros.",
   "batch.review.one": "Rever {count}",
   "batch.review.other": "Rever {count}",
@@ -12758,7 +12780,7 @@ const ptPT = {
   "shell.resizeToolsTitle": "Arraste para redimensionar as ferramentas da música. Clique duas vezes para repor.",
   "shell.help.offline": "Não foi possível ligar ao servidor do StemDeck. O que está carregado continua a tocar; as importações e o guardar esperam até ele voltar.",
   "shell.help.importing": "As músicas a ser importadas e as que estão à espera. Abre a fila de importação.",
-  "shell.help.addSong": "Abre a barra onde cola ligações, pesquisa ou adiciona ficheiros e pastas.",
+  "shell.help.addSong": "Abre Adicionar músicas: cole ligações, pesquise ou adicione ficheiros e pastas e escolha o que extrair.",
   "shell.help.edge": "Arraste para mudar a largura. Clique duas vezes ou Enter para repor; as setas movem-na aos poucos.",
   "studio.myPart.label": "A minha parte",
   "studio.myPart.pick": "A minha parte:",
@@ -12777,6 +12799,8 @@ const ptPT = {
   "settings.appearance.wash.desc": "Tinge o estúdio com as cores da capa da canção.",
   "studio.lane.faderTitle": "Arraste para ajustar. Faça duplo clique para repor.",
   "studio.lane.helpMore": "EQ, tom e transferência de {name} quando a faixa é demasiado baixa para os mostrar. Um ponto indica tom ou EQ alterado.",
+  "addsong.startHint": "Cole ligações ou largue ficheiros ou uma pasta em qualquer parte da janela.",
+  "addsong.help.reviewBadge": "Um lote está à espera: abre a sua revisão.",
 };
 
 const es = {
@@ -13067,7 +13091,6 @@ const es = {
   "notif.railLabel": "Avisos",
   "nav.settingsRail": "Ajustes",
   "start.title": "Empieza con una canción",
-  "start.hint": "Pega un enlace o suelta un archivo de audio en la barra de arriba, o elige una canción de tu biblioteca.",
   "start.upload": "Elegir archivo",
   "start.link": "Pegar enlace",
   "help.pill": "Modo ayuda: señala cualquier cosa para ver qué hace. Esc para salir.",
@@ -14110,7 +14133,7 @@ const es = {
   "help.version": "Una versión de esta canción, con sus propios stems y mezcla. Haz doble clic para abrirla.",
   "help.extractMore": "Elige los stems que añadir. Se guardan como una nueva versión.",
   "help.versionPill": "La versión abierta. Cambia a otra o guarda una nueva.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "Busca, pega enlaces o suelta archivos…",
   "batch.dropHere": "Suelta archivos o una carpeta",
   "batch.addFiles": "Añadir archivos",
@@ -14118,7 +14141,6 @@ const es = {
   "batch.chooseFiles": "Elegir archivos",
   "batch.chooseFolder": "Elegir carpeta",
   "batch.pasteLinks": "Pegar enlaces",
-  "batch.startHint": "Pega enlaces o suelta archivos o una carpeta en la barra de arriba.",
   "batch.emptyFolder": "Esa carpeta no tiene archivos.",
   "batch.folderUnreadable": "No se pudo leer esa carpeta.",
   "batch.review.one": "Revisar {count}",
@@ -14260,7 +14282,7 @@ const es = {
   "shell.help.sidebar": "Pliega la barra lateral en una tira de portadas, o la vuelve a abrir.",
   "shell.help.offline": "No se puede conectar con el servidor de StemDeck. Lo que está cargado sigue sonando; las importaciones y el guardado esperan a que vuelva.",
   "shell.help.importing": "Las canciones que se están importando y las que esperan. Abre la cola de importación.",
-  "shell.help.addSong": "Abre la barra donde pegas enlaces, buscas o añades archivos y carpetas.",
+  "shell.help.addSong": "Abre Añadir canciones: pega enlaces, busca o añade archivos y carpetas, y elige qué extraer.",
   "shell.help.tools": "Oculta las herramientas de la canción a la derecha, o las vuelve a mostrar.",
   "shell.help.edge": "Arrastra para cambiar el ancho. Doble clic o Intro lo restablece; las flechas lo mueven por pasos.",
   "shell.help.strip": "Una portada por canción. Haz clic en una para abrirla; los botones de arriba abren la barra lateral en esa vista.",
@@ -14311,6 +14333,11 @@ const es = {
   "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Silencia o activa {name}. La M se enciende mientras está silenciada.",
   "studio.lane.helpMore": "EQ, tono y descarga de {name} cuando la pista es demasiado baja para mostrarlos. Un punto indica tono o EQ cambiado.",
+  "addsong.title": "Añadir canciones",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "Pega enlaces o suelta archivos o una carpeta en cualquier parte de la ventana.",
+  "addsong.browseLibrary": "Explorar la biblioteca",
+  "addsong.help.reviewBadge": "Hay un lote esperando: abre su revisión.",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -14610,7 +14637,6 @@ const ko = {
   "notif.railLabel": "알림",
   "nav.settingsRail": "설정",
   "start.title": "곡으로 시작하세요",
-  "start.hint": "위쪽 바에 링크를 붙여 넣거나 오디오 파일을 끌어다 놓거나, 라이브러리에서 곡을 고르세요.",
   "start.upload": "파일 선택",
   "start.link": "링크 붙여넣기",
   "help.pill": "도움말 모드: 아무 항목이나 가리키면 하는 일을 보여 줘요. Esc로 나가요.",
@@ -15624,7 +15650,7 @@ const ko = {
   "help.version": "자체 스템과 믹스를 가진 이 곡의 버전이에요. 두 번 클릭하면 열려요.",
   "help.extractMore": "추가할 스템을 고르세요. 새 버전으로 저장돼요.",
   "help.versionPill": "열려 있는 버전이에요. 다른 버전으로 바꾸거나 새로 저장할 수 있어요.",
-  // ── Batch import: the bar, the review list and the queue's batch header ──
+  // ── Batch import: Add song's chip, the review dialog and the queue's batch header ──
   "batch.placeholder": "검색하거나 링크를 붙여넣거나 파일을 끌어다 놓으세요…",
   "batch.dropHere": "파일이나 폴더를 끌어다 놓으세요",
   "batch.addFiles": "파일 추가",
@@ -15632,7 +15658,6 @@ const ko = {
   "batch.chooseFiles": "파일 선택",
   "batch.chooseFolder": "폴더 선택",
   "batch.pasteLinks": "링크 붙여넣기",
-  "batch.startHint": "위 바에 링크를 붙여넣거나 파일이나 폴더를 끌어다 놓으세요.",
   "batch.emptyFolder": "이 폴더에는 파일이 없습니다.",
   "batch.folderUnreadable": "이 폴더를 읽을 수 없습니다.",
   "batch.review.other": "{count}개 검토",
@@ -15761,7 +15786,7 @@ const ko = {
   "shell.help.sidebar": "사이드바를 커버 줄로 접거나 다시 엽니다.",
   "shell.help.offline": "StemDeck 서버에 연결할 수 없습니다. 불러온 곡은 계속 재생되며, 가져오기와 저장은 연결이 돌아올 때까지 기다립니다.",
   "shell.help.importing": "가져오는 중인 곡과 대기 중인 곡입니다. 가져오기 대기열을 엽니다.",
-  "shell.help.addSong": "링크를 붙여넣거나 검색하거나 파일과 폴더를 추가하는 막대를 엽니다.",
+  "shell.help.addSong": "곡 추가를 엽니다. 링크를 붙여넣거나 검색하거나 파일과 폴더를 추가한 뒤 추출할 항목을 고르세요.",
   "shell.help.tools": "오른쪽의 곡 도구를 숨기거나 다시 표시합니다.",
   "shell.help.edge": "드래그하여 너비를 바꿉니다. 두 번 클릭하거나 Enter로 초기화하고, 화살표 키로 조금씩 움직입니다.",
   "shell.help.strip": "곡마다 커버가 하나씩 있습니다. 클릭하면 열리고, 위의 버튼은 사이드바를 해당 보기로 엽니다.",
@@ -15811,6 +15836,11 @@ const ko = {
   "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "{name}을(를) 음소거하거나 해제해요. 음소거 중에는 M이 켜져요.",
   "studio.lane.helpMore": "레인이 낮아 보이지 않을 때 {name}의 EQ, 키, 다운로드예요. 점은 키나 EQ가 바뀌었다는 뜻이에요.",
+  "addsong.title": "곡 추가",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "링크를 붙여넣거나 파일이나 폴더를 창 아무 곳에나 끌어다 놓으세요.",
+  "addsong.browseLibrary": "라이브러리 둘러보기",
+  "addsong.help.reviewBadge": "대기 중인 묶음이 있습니다. 검토를 엽니다.",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };

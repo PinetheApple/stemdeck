@@ -1,9 +1,6 @@
-// batchReviewPanel.js — the review list's frame: hung under the bar over a scrim,
-// and modal, so focus stays inside until it closes and then goes back.
-
 import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
+import { ADD_SONG_ID } from "./addSongIds.js";
 
-const PANEL_GAP_PX = 8;
 const FOCUSABLE = "button:not(:disabled), input:not(:disabled)";
 
 let panel = null;
@@ -35,13 +32,11 @@ export function mountPanel({ onChange, onClick, closed }) {
   panel.addEventListener("click", onClick);
   panel.addEventListener("keydown", onPanelKeydown);
   document.body.append(scrim, panel);
-  window.addEventListener("resize", placePanel);
   return panel;
 }
 
 export function closePanel({ refocus = true } = {}) {
   if (!panel) return;
-  window.removeEventListener("resize", placePanel);
   panel.remove();
   scrim.remove();
   panel = null;
@@ -50,26 +45,14 @@ export function closePanel({ refocus = true } = {}) {
   if (refocus) returnFocus();
 }
 
-/** Back to whatever opened the panel, or the bar when that is gone or hidden. */
+/** Back to whatever opened the panel, or to Add song, which holds the batch, when that is hidden. */
 export function returnFocus() {
-  const url = document.getElementById("url");
   if (isShown(opener)) opener.focus();
-  else if (isShown(url)) url.focus();
-  else document.getElementById("submit")?.focus();
+  else document.getElementById(ADD_SONG_ID)?.focus();
 }
 
 export function focusFirst() {
   panel?.querySelector(`.batch-review-list :is(${FOCUSABLE}), .batch-review-close`)?.focus();
-}
-
-export function placePanel() {
-  if (!panel) return;
-  const zone = document.querySelector(".url-wrap").getBoundingClientRect();
-  const composer = document.getElementById("job-form").getBoundingClientRect();
-  panel.style.left = `${zone.left}px`;
-  panel.style.top = `${composer.bottom + PANEL_GAP_PX}px`;
-  // The import bar stays usable above the scrim; the review always opens with it.
-  scrim.style.top = `${document.getElementById("composerDrawer").getBoundingClientRect().bottom}px`;
 }
 
 /** Which control has focus, by its row and class, so a redraw can give it back. */
