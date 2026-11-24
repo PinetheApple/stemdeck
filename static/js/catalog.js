@@ -3062,6 +3062,11 @@ function queueBatchProgress(snap) {
   return { ...progress, notQueued, total: progress.total + notQueued };
 }
 
+/** Whether Browse library offers the Import queue: while imports run, or a batch still has items to show. */
+export function importQueueShown(snap = getQueueSnapshot()) {
+  return queueCount(snap) > 0 || Boolean(queueBatchProgress(snap));
+}
+
 const batchSignature = (progress) => (progress ? JSON.stringify(progress) : "");
 const share = (part, total) => (total ? Math.round((part / total) * PERCENT) : 0);
 
@@ -3128,9 +3133,9 @@ function onBatchFailedRetryClick(e) {
 function onBatchFailedDropClick(e) {
   e.stopPropagation();
   dropFromBatch(e.currentTarget.closest(BATCH_FAILED_ROW).dataset.id);
-  const snap = getQueueSnapshot();
-  if (queueCount(snap) === 0 && !queueBatchProgress(snap)) setCatalogView("library");
-  else renderQueueList(document.getElementById("catalogList"), snap);
+  const host = queueHost();
+  if (host && importQueueShown()) renderQueueList(host);
+  else render();
 }
 
 /** Failed jobs retry as themselves; the items the queue did not take are sent again. */
@@ -3139,7 +3144,8 @@ async function onRetryFailedClick(e) {
   const failed = queueBatchProgress(getQueueSnapshot())?.failedIds ?? [];
   for (const id of failed) await retryFailedImport(id);
   await resendNotQueued();
-  renderQueueList(document.getElementById("catalogList"));
+  const host = queueHost();
+  if (host) renderQueueList(host);
 }
 
 function onEachClick(section, selector, handler) {

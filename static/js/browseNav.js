@@ -4,7 +4,7 @@
 import { t } from "./i18n.js";
 import {
   createFolder, dropTrackOnFolder, folderTrackIds, libraryFolderTree, libraryTrackIds, moveTrackToTrash,
-  openFolderEditor, getLibraryTrack, setFolderCollapsed, trashTrackIds, wireFolderRenameKey,
+  openFolderEditor, getLibraryTrack, importQueueShown, setFolderCollapsed, trashTrackIds, wireFolderRenameKey,
 } from "./catalog.js";
 import { queueCount, getQueueSnapshot } from "./queue.js";
 import { addSongToSetlist, getSetlists, newSetlist } from "./setlists.js";
@@ -43,8 +43,8 @@ function viewButtons() {
     navButton(VIEW.FAVORITES, icon("heart"), t("nav.favorites"), favorites),
     navButton(VIEW.RECENT, icon("clock"), t("lib.recentlyAdded")),
   ];
-  const importing = queueCount(getQueueSnapshot());
-  if (importing) buttons.push(navButton(VIEW.QUEUE, icon("download"), t("shell.importQueue"), importing));
+  const snap = getQueueSnapshot();
+  if (importQueueShown(snap)) buttons.push(navButton(VIEW.QUEUE, icon("download"), t("shell.importQueue"), queueCount(snap)));
   return buttons;
 }
 

@@ -204,5 +204,7 @@
   color: var(--text-2);
   cursor: pointer;
 }
+/* Restore is a Trash row's one way back, so it shows at rest, as a stopped song's Extract does. */
+.cat-item.in-trash .cat-actions { opacity: 1; pointer-events: auto; }
 .cat-restore .ic { width: var(--icon-sm); height: var(--icon-sm); }
 .cat-restore:hover { background: var(--surface-3); color: var(--text); }

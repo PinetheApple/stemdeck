@@ -2,8 +2,8 @@
 // player with the page dimmed.
 
 import { onLanguageChange } from "./i18n.js";
-import { onLibraryDraw } from "./catalog.js";
-import { onQueueChange, queueCount, getQueueSnapshot } from "./queue.js";
+import { importQueueShown, onLibraryDraw } from "./catalog.js";
+import { onQueueChange, getQueueSnapshot } from "./queue.js";
 import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
 import { storeGet, storeSet, $ } from "./utils.js";
 import { wireSongList } from "./libraryRows.js";
@@ -138,12 +138,12 @@ function onBrowseKeydown(e) {
   if (e.key === ESCAPE_KEY && escapeIsFor(LAYER.BROWSE)) closeBrowse();
 }
 
-// Leaving the queue view once nothing imports; the nav's Import queue comes and goes.
+// The nav's Import queue comes and goes with importQueueShown(); its view falls back to All songs.
 function onQueueFrame(snap = getQueueSnapshot()) {
   if (!isBrowseOpen()) return;
-  const importing = queueCount(snap) > 0;
-  if (importing === Boolean($("browseNav")?.querySelector(`[data-view="${VIEW.QUEUE}"]`))) return;
-  if (!importing && state.view === VIEW.QUEUE) state.view = VIEW.ALL;
+  const shown = importQueueShown(snap);
+  if (shown === Boolean($("browseNav")?.querySelector(`[data-view="${VIEW.QUEUE}"]`))) return;
+  if (!shown && state.view === VIEW.QUEUE) state.view = VIEW.ALL;
   renderBrowse();
 }
 
