@@ -171,6 +171,7 @@
   background: rgba(21,31,39,0.8);
   color: var(--ink);
 }
+.folder-editor-close .ic { width: var(--icon-sm); height: var(--icon-sm); }
 
 .folder-editor-field {
   display: grid;

@@ -40,6 +40,7 @@ import { KEYBOARD_FOCUS, OUT_OF_TAB_ORDER, ROW_KEY, isShown } from "./rovingRows
 // variable names for track objects and table rows in several scopes.
 import { icon } from "./libraryIcons.js";
 import { openFolderMenu } from "./folderMenu.js";
+import { editorDialogEl, nameFieldHtml } from "./editorDialog.js";
 import { HTTP_NOT_FOUND, SETLIST_MAX_SONGS, fetchJson, isNotFound } from "./libraryControls.js";
 import { MAX_FOLDER_NAME_LEN, folderNameFrom, isValidFolderName, uniqueName } from "./listNames.js";
 import { createSetlistFromFolder } from "./setlists.js";
@@ -2011,35 +2012,16 @@ export function openFolderEditor(folderId, requestedTitleKey = EDIT_FOLDER_TITLE
   const titleKey = colorOnly ? EDIT_FOLDER_TITLE_KEY : requestedTitleKey;
 
   let selectedColor = normalizeFolderColor(folder.color);
-  const overlay = document.createElement("div");
-  overlay.className = "folder-editor-backdrop";
-  overlay.innerHTML = `
-    <form class="folder-editor" role="dialog" aria-modal="true" aria-label="${esc(i18nT(titleKey))}" data-i18n-aria-label="${titleKey}">
-      <div class="folder-editor-head">
-        <span data-i18n="${titleKey}">${esc(i18nT(titleKey))}</span>
-        <button class="folder-editor-close" type="button" aria-label="Close" data-i18n-aria-label="folderEditor.closeAria">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M18 6 6 18M6 6l12 12"></path>
-          </svg>
-        </button>
-      </div>
-      <label class="folder-editor-field">
-        <span data-i18n="folderEditor.nameLabel">Name</span>
-        <input class="folder-editor-name" type="text" maxlength="100" autocomplete="off" spellcheck="false" />
-      </label>
+  const overlay = editorDialogEl({
+    titleKey,
+    fieldsHtml: `${nameFieldHtml(MAX_FOLDER_NAME_LEN)}
       <div class="folder-editor-field">
         <span data-i18n="folderEditor.colorLabel">Color</span>
         <div class="folder-editor-colors" role="group" aria-label="Folder color" data-i18n-aria-label="folderEditor.colorGroupAria">
           ${folderColorButtonsHtml(selectedColor)}
         </div>
-      </div>
-      <div class="folder-editor-msg" role="alert" aria-live="polite"></div>
-      <div class="folder-editor-actions">
-        <button class="folder-editor-cancel" type="button" data-i18n="folderEditor.cancel">Cancel</button>
-        <button class="folder-editor-save" type="submit" data-i18n="folderEditor.save">Save</button>
-      </div>
-    </form>
-  `;
+      </div>`,
+  });
   applyTranslations(overlay);
 
   const form = overlay.querySelector(".folder-editor");
