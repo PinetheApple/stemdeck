@@ -50,6 +50,17 @@ test.describe("Unsorted folder", () => {
     await expect(page.locator("#browseNewFolder")).toHaveCount(1);
   });
 
+  test("its row does not light up on hover, while a user folder's does", async ({ page }) => {
+    await open(page);
+    const background = (id) => navRow(page, id).evaluate((el) => getComputedStyle(el).backgroundColor);
+    const atRest = await background("f-unsorted");
+    await navRow(page, "f-unsorted").hover();
+    await expect.poll(() => background("f-unsorted")).toBe(atRest);
+    const mineAtRest = await background("f-mine");
+    await navRow(page, "f-mine").hover();
+    await expect.poll(() => background("f-mine")).not.toBe(mineAtRest);
+  });
+
   test("a user folder drags, and its view has Make a setlist and the … menu", async ({ page }) => {
     await open(page);
     await expect(navRow(page, "f-mine")).toHaveAttribute("draggable", "true");

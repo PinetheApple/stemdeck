@@ -113,7 +113,8 @@ test("the nav lists views, setlists, nested coloured folders and Trash with coun
   await expect(setlist).toContainText("Sunday");
   await expect(setlist.locator(".browse-nav-count")).toHaveText("2");
   await expect(navCount(page, "folder:f-gig")).toHaveText("1");
-  await expect(navButton(page, "folder:f-encore")).toHaveAttribute("style", /--folder-depth: 1/);
+  const dotX = async (view) => (await navButton(page, view).locator(".folder-dot").boundingBox()).x;
+  expect(await dotX("folder:f-encore")).toBeGreaterThan(await dotX("folder:f-gig"));
   const dot = navButton(page, "folder:f-gig").locator(".folder-dot");
   await expect(dot).toHaveCSS("background-color", "rgb(79, 157, 232)");
   await expect(navCount(page, "trash")).toHaveText("1");
@@ -125,6 +126,39 @@ test("the nav lists views, setlists, nested coloured folders and Trash with coun
   await expect(page.locator("#browseImportQueue")).toContainText("Incoming song");
   await queue.settle();
   await expect(navButton(page, "queue")).toHaveCount(0);
+});
+
+test("the nav's counts stay the library's while a search narrows the view", async ({ page, request }) => {
+  const { id } = await (await request.post(SETLISTS_PATH, { data: { name: "Sunday", song_ids: [JOB_ID, SIBLING_JOB_ID] } })).json();
+  await openLibrary(page, { tracks: { [JOB_ID]: { favorite: true }, [SIBLING_JOB_ID]: { favorite: true } } });
+  await openBrowse(page);
+  const views = ["all", "fav", "folder:f-gig", `setlist:${id}`, "trash"];
+  const counts = async () => Promise.all(views.map((view) => navCount(page, view).textContent()));
+  const before = await counts();
+  expect(before).toEqual(["2", "2", "1", "2", "0"]);
+
+  await search(page).fill(SIBLING_TITLE);
+  await expect(browseRow(page, JOB_ID)).toHaveCount(0);
+  expect(await counts()).toEqual(before);
+  await navButton(page, "fav").click();
+  await expect(page.locator("#browseResults .browse-head-count")).toHaveText("1 song");
+  expect(await counts()).toEqual(before);
+});
+
+test("Esc in the search clears it first, and only the next Esc closes Browse library", async ({ page }) => {
+  await openLibrary(page);
+  await openBrowse(page);
+  await search(page).fill(SIBLING_TITLE);
+  await expect(browseRow(page, JOB_ID)).toHaveCount(0);
+
+  await search(page).press("Escape");
+  await expect(overlay(page)).toBeVisible();
+  await expect(search(page)).toHaveValue("");
+  await expect(browseRow(page, JOB_ID)).toHaveCount(1);
+  await expect(search(page)).toBeFocused();
+
+  await search(page).press("Escape");
+  await expect(overlay(page)).toBeHidden();
 });
 
 test("grid and list both show; the list has Title, Artist, Key, Tempo, Length, Folder, Added", async ({ page }) => {
@@ -280,6 +314,27 @@ test("a Trash row restores to Unsorted with Restore; Empty trash needs a second 
   await expect(browseRow(page, SIBLING_JOB_ID)).toHaveCount(1);
   await empty.click();
   await expect(browseRow(page, SIBLING_JOB_ID)).toHaveCount(0);
+});
+
+test("the Trash lists plain rows with Restore in the grid layout too", async ({ page }) => {
+  await openLibrary(page, { folders: [], trashed: [JOB_ID, SIBLING_JOB_ID] });
+  await openBrowse(page);
+  await page.locator("#browseGridBtn").click();
+  await openBrowse(page, "trash");
+  await expect(page.locator("#browseResults .browse-grid")).toHaveCount(0);
+  await expect(page.locator("#browseResults .song-card")).toHaveCount(0);
+  const rows = page.locator("#browseResults .browse-list .cat-item.in-trash");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.locator(".cat-restore")).toHaveCount(2);
+});
+
+test("an empty Recently added shows its title and nothing more", async ({ page }) => {
+  await openLibrary(page, { folders: [], trashed: [JOB_ID, SIBLING_JOB_ID] });
+  await openBrowse(page, "recent");
+  await expect(page.locator("#browseResults .browse-head h2")).toHaveText("Recently added");
+  await expect(page.locator("#browseResults .browse-head-count")).toHaveText("0 songs");
+  await expect(page.locator("#browseResults .browse-empty")).toHaveCount(0);
+  await expect(page.locator("#browseResults .cat-item")).toHaveCount(0);
 });
 
 test("click shows, double-click / Enter / cover Play plays and closes; Delete trashes only a keyboard-reached row", async ({ page }) => {
