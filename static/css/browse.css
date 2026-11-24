@@ -1,15 +1,4 @@
 /* ── Browse library: over the player, the page dimmed ── */
-:root {
-  --browse-scrim-blur: 3px;
-  --folder-dot: 10px;
-  --folder-dot-lg: 14px;
-  --browse-tag-pad-y: 3px;
-  --col-key-w: 96px;
-  --col-num-w: 56px;
-  --col-folder-w: 150px;
-  --col-added-w: 104px;
-  --col-actions-w: 96px;
-}
 .browse-scrim {
   position: fixed;
   inset: 0;
@@ -50,8 +39,6 @@
 .browse-nav-btn .ic { width: var(--icon); height: var(--icon); flex: none; }
 .browse-nav-btn:hover,
 .browse-nav-btn[aria-current="page"] { background: var(--surface-3); color: var(--text); }
-/* Unsorted has nothing to drag, rename or delete, so hovering it does not light it up. */
-.browse-nav-folder.is-system:hover:not([aria-current="page"]) { background: none; color: var(--text-2); }
 .browse-nav-btn.drop-target,
 .browse-nav-btn.drop-into { outline: var(--line-w-strong) dashed var(--text-2); outline-offset: calc(-1 * var(--line-w-strong)); }
 .browse-nav-btn.drop-before { box-shadow: inset 0 var(--line-w-strong) 0 var(--text-2); }
@@ -249,7 +236,7 @@ button.browse-nav-chevron:hover { background: var(--surface-3); color: var(--tex
 .c-added { width: var(--col-added-w); }
 .c-acts { width: var(--col-actions-w); }
 .browse-list.is-table .cat-item .cat-actions { position: static; flex: none; width: var(--col-actions-w); justify-content: flex-end; transform: none; background: none; }
-/* The breakpoint of the stem column's narrowing in variables.css. */
+/* A media query can't read a variable, so this repeats the 1500px of variables.css. */
 @media (max-width: 1500px) {
   .c-folder,
   .c-added { display: none; }

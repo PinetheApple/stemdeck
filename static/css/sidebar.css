@@ -1,9 +1,4 @@
 /* ── Sidebar: Browse library, Importing, Favorites, Setlists, Recently played, Trash ── */
-:root {
-  --eqbar-w: 3px;
-  --eqbar-r: 1px;
-  --sidebar-count-pad-y: 1px;
-}
 .daw .sidebar-body { display: flex; flex-direction: column; padding: 0; gap: 0; }
 .sidebar-top { flex: none; padding: var(--s-3); }
 .sidebar-browse-btn {

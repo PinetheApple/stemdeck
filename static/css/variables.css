@@ -100,6 +100,18 @@
   --sidebar-browse-h: 40px;
   --browse-nav-w: 232px;
   --browse-card-min: 172px;
+  --browse-scrim-blur: 3px;
+  --folder-dot: 10px;
+  --folder-dot-lg: 14px;
+  --browse-tag-pad-y: 3px;
+  --col-key-w: 96px;
+  --col-num-w: 56px;
+  --col-folder-w: 150px;
+  --col-added-w: 104px;
+  --col-actions-w: 96px;
+  --eqbar-w: 3px;
+  --eqbar-r: 1px;
+  --sidebar-count-pad-y: 1px;
   --z-dialog: 400;
   --badge-h:      15px;
   --scrollbar-w:  8px;

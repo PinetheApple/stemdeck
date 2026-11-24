@@ -102,7 +102,6 @@ function folderButton(folder) {
   const dot = `<span class="folder-dot" style="background: ${folder.color}"></span>`;
   const btn = navButton(`${VIEW.FOLDER}:${folder.id}`, dot, folder.name, folderTrackIds(folder.id).length);
   btn.classList.add("browse-nav-folder");
-  btn.classList.toggle("is-system", folder.system);
   btn.dataset.folder = folder.id;
   btn.addEventListener("dblclick", function onFolderRowDoubleClick() {
     openFolderEditor(folder.id, RENAME_TITLE_KEY);
