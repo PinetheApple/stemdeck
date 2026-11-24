@@ -16,6 +16,7 @@ import { cancelPlayWhenLoaded, loadAndPlay, playWhenLoaded, upNextTakesOver } fr
 import { setPlayRedirect, togglePlayPause, transport } from "./transport.js";
 import { isStageMode } from "./stageMode.js";
 import { $ } from "./utils.js";
+import { shownInSongLists } from "./libraryRows.js";
 
 // The song whose engine said "playbackready" last, so Play can start it at once.
 let readyTrackId = null;
@@ -88,7 +89,7 @@ function onPlayingTitleClick() {
   const id = playingTrackId();
   if (!id) return;
   dropShownTrack();
-  $("catalogList")?.querySelector(`.cat-item[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest" });
+  shownInSongLists(`.cat-item[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest" });
 }
 
 export function initOpenSong() {

@@ -7,17 +7,13 @@ import { startRowRename } from "./songRename.js";
 import {
   TRACK_SHOW_EVENT,
   TRASH_CHANGE_EVENT,
-  expandFoldersOf,
   folderChoices,
   getCurrentTrackInfo,
   getPlayingTrackInfo,
   getLibraryTrack,
   isPlayableTrack,
-  isSidebarCollapsed,
   moveTrackToFolder,
   moveTrackToNewFolder,
-  setSidebarCollapsed,
-  showLibraryView,
 } from "./catalog.js";
 import { isStageMode, setStageMode } from "./stageMode.js";
 import { queueUpNext } from "./upNext.js";
@@ -25,10 +21,10 @@ import { t } from "./i18n.js";
 import { iconButton } from "./libraryControls.js";
 import { missingStems, openVersionOf } from "./versionModel.js";
 import { cancelExtract, isExtracting } from "./extractRun.js";
+import { revealSongRows } from "./browseLibrary.js";
 
 const MENU_GAP_PX = 4;
 const VIEWPORT_MARGIN_PX = 8;
-const LIBRARY_SEARCH_ID = "catalogSearch";
 
 let menu = null;
 let anchorEl = null;
@@ -95,27 +91,16 @@ function canExtractMore(trackId) {
   return track?.status === "done" && Boolean(open) && missingStems(open.stems).length > 0;
 }
 
-/** Empty the library search as the field's own clear button does, so its listeners redraw. */
-function clearLibrarySearch() {
-  const search = document.getElementById(LIBRARY_SEARCH_ID);
-  if (!search?.value) return;
-  search.value = "";
-  search.dispatchEvent(new Event("input"));
-}
-
-/** The song head and Stage offer Extract too, so the library and the song's row come on screen first. */
-function revealLibraryRow(trackId) {
+/** The song head and Stage offer Extract too, so Browse library and the song's row come on screen first. */
+function revealLibraryRow() {
   if (isStageMode()) setStageMode(false);
-  if (isSidebarCollapsed()) setSidebarCollapsed(false);
-  showLibraryView();
-  expandFoldersOf(trackId);
-  if (!document.querySelector(`#catalogList .cat-item[data-id="${CSS.escape(trackId)}"]`)) clearLibrarySearch();
+  revealSongRows();
 }
 
 // versions.js draws the form; an event, since it imports this module.
 function extractMoreItem(trackId, anchor) {
   return menuItem(t("versions.extractMore"), "plus", function onExtractMoreStems() {
-    revealLibraryRow(trackId);
+    revealLibraryRow();
     document.dispatchEvent(new CustomEvent("versions:extract", { detail: { id: trackId, anchor } }));
   });
 }
@@ -299,6 +284,8 @@ function wireOpenSongButtons() {
 
 export function initTrackMenu() {
   document.addEventListener("trackmenu", onTrackMenuRequest);
-  document.getElementById("catalogList")?.addEventListener("scroll", closeMenu, { passive: true });
+  for (const id of ["catalogList", "browseResults"]) {
+    document.getElementById(id)?.addEventListener("scroll", closeMenu, { passive: true });
+  }
   wireOpenSongButtons();
 }

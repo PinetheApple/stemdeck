@@ -393,6 +393,16 @@ export async function stubServerTrash(
   return server;
 }
 
+export const BROWSE_RESULTS = "#browseResults";
+export const browseRow = (page, id) => page.locator(`${BROWSE_RESULTS} .cat-item[data-id="${id}"]`);
+
+/** Open Browse library at `view` ("all", "fav", "recent", "queue", "trash", "folder:<id>", "setlist:<id>"). */
+export async function openBrowse(page, view = "all") {
+  if (!(await page.locator("#browseLibrary").isVisible())) await page.locator("#browseBtn").click();
+  await page.locator(`#browseNav .browse-nav-btn[data-view="${view}"]`).click();
+  await page.locator(`#browseNav .browse-nav-btn[data-view="${view}"][aria-current="page"]`).waitFor();
+}
+
 /** Open the Add song popover; a no-op when it is open. Not #url: a staged chip hides it. */
 export async function openComposer(page) {
   const popover = page.locator("#composerDrawer");

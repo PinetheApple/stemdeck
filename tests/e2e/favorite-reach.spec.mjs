@@ -7,7 +7,7 @@
 // compact form at narrow widths too since #735, so both hearts are on screen.
 
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, openStudio, readCatalogState } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, openStudio, readCatalogState, openBrowse, browseRow } from "./helpers.mjs";
 
 const row = (page, id) => page.locator(`#catalogList .cat-item[data-id="${id}"]`).first();
 const rowHeart = (page, id) => row(page, id).locator(".cat-fav");
@@ -36,12 +36,12 @@ test.describe("favourites at a narrow window", () => {
     await row(page, SIBLING_JOB_ID).hover();
     await rowHeart(page, SIBLING_JOB_ID).click();
 
-    await page.locator(".lib-nav-favorites").click();
-    await expect(row(page, SIBLING_JOB_ID)).toBeVisible();
-    await row(page, SIBLING_JOB_ID).hover();
-    await rowHeart(page, SIBLING_JOB_ID).click();
+    await openBrowse(page, "fav");
+    await expect(browseRow(page, SIBLING_JOB_ID)).toBeVisible();
+    await browseRow(page, SIBLING_JOB_ID).hover();
+    await browseRow(page, SIBLING_JOB_ID).locator(".cat-fav").click();
 
-    await expect(row(page, SIBLING_JOB_ID)).toHaveCount(0);
+    await expect(browseRow(page, SIBLING_JOB_ID)).toHaveCount(0);
     expect(await favoriteIn(page, SIBLING_JOB_ID)).toBe(false);
   });
 

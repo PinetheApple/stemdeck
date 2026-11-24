@@ -34,6 +34,8 @@
     <link rel="stylesheet" href="/css/settings.css" />
     <link rel="stylesheet" href="/css/cover-wash.css" />
     <link rel="stylesheet" href="/css/alerts.css" />
+    <link rel="stylesheet" href="/css/sidebar.css" />
+    <link rel="stylesheet" href="/css/browse.css" />
     <script type="module" src="/js/appearance.js"></script>
     <link rel="stylesheet" href="/css/add-song.css" />
   </head>
@@ -260,95 +262,53 @@
 
           <!-- Sidebar body -->
           <div class="sidebar-body">
-            <!-- Search -->
-            <div class="daw-search" id="catalogToggle" role="button" tabindex="0" aria-label="Search library" data-i18n-aria-label="search.ariaLabel">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
-              </svg>
-              <input id="catalogSearch" type="search" aria-keyshortcuts="Control+K Meta+K" placeholder="Search or #tag…" data-i18n-placeholder="search.placeholder" autocomplete="off" spellcheck="false" />
-              <ul class="tag-suggest" id="tagSuggest" role="listbox" aria-label="Tag suggestions" data-i18n-aria-label="search.tagSuggestions"></ul>
-              <span class="search-kbd" aria-hidden="true">⌘K</span>
-            </div>
-
-            <nav class="lib-nav" aria-label="Library views" data-i18n-aria-label="nav.libraryNav">
-            <button class="lib-nav-btn lib-nav-library" type="button" aria-pressed="true" title="Library" data-i18n-title="nav.library">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6 4 14" /> <path d="M12 6v14" /> <path d="M8 8v12" /> <path d="M4 4v16" /></svg>
-              <span data-i18n="nav.library">Library</span>
-            </button>
-            <button class="lib-nav-btn lib-nav-favorites" type="button" aria-pressed="false" title="Favorites" data-i18n-title="nav.favorites">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" /></svg>
-              <span data-i18n="nav.favorites">Favorites</span>
-            </button>
-            <button class="lib-nav-btn lib-nav-queue hidden" type="button" aria-pressed="false" title="Queue" data-i18n-title="nav.queue">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5h10" /> <path d="M11 12h10" /> <path d="M11 19h10" /> <path d="M4 4h1v5" /> <path d="M4 9h2" /> <path d="M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02" /></svg>
-              <span data-i18n="nav.queue">Queue</span>
-              <span class="lib-nav-count hidden" id="queueBadge" aria-hidden="true"></span>
-            </button>
-            <button class="lib-nav-btn lib-nav-trash" type="button" aria-pressed="false" title="Trash">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6" /> <path d="M14 11v6" /> <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /> <path d="M3 6h18" /> <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-              <span data-i18n="nav.trash">Trash</span>
-              <span class="lib-nav-count hidden" id="trashBadge" aria-hidden="true"></span>
-            </button>
-            </nav>
-
-            <div class="lib-tabs" role="tablist" aria-label="Library" data-i18n-aria-label="nav.library">
-              <button class="lib-tab" id="libTabSongs" type="button" role="tab" aria-selected="true" aria-controls="catalogList">
-                <span data-i18n="library.songsTab">Songs</span>
-                <span class="lib-tab-count num" id="libSongsCount">0</span>
-              </button>
-              <button class="lib-tab" id="libTabSetlists" type="button" role="tab" aria-selected="false" aria-controls="setlistsPanel" tabindex="-1">
-                <span data-i18n="setlists.title">Setlists</span>
-                <span class="lib-tab-count num" id="setlistsCount">0</span>
+            <div class="sidebar-top">
+              <button class="sidebar-browse-btn" id="browseBtn" type="button" aria-keyshortcuts="Control+K Meta+K" title="Browse library (Ctrl K)" data-i18n-title="lib.browseTitle">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6 4 14" /> <path d="M12 6v14" /> <path d="M8 8v12" /> <path d="M4 4v16" /></svg>
+                <span data-i18n="lib.browse">Browse library</span>
+                <kbd class="sidebar-kbd" aria-hidden="true">Ctrl K</kbd>
               </button>
             </div>
 
-
-            <!-- Clear bin (visible only in trash-view) -->
-            <div id="clearBinBar" class="clear-bin-bar">
-              <button id="clearBinBtn" class="clear-bin-btn" type="button">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                  <path d="M3 6h18 M8 6V4h8v2 M19 6l-1 14H6L5 6"/>
-                </svg>
-                <span data-i18n="trash.empty">Empty trash</span>
-              </button>
+            <div id="catalogList" class="sidebar-list">
+              <section class="sidebar-group" id="sidebarImporting" hidden>
+                <div class="sidebar-group-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /> <path d="m7 10 5 5 5-5" /></svg><span data-i18n="lib.importing">Importing</span><button class="sidebar-see-all" type="button" data-view="queue" data-i18n="lib.seeAll">See all</button></div>
+                <div class="sidebar-group-list"></div>
+              </section>
+              <section class="sidebar-group" id="sidebarFavorites">
+                <div class="sidebar-group-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" /></svg><span data-i18n="nav.favorites">Favorites</span><button class="sidebar-see-all" type="button" data-view="fav" data-i18n="lib.seeAll">See all</button></div>
+                <div class="sidebar-group-list"></div>
+              </section>
+              <section class="sidebar-group" id="sidebarSetlists">
+                <div class="sidebar-group-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/></svg><span data-i18n="setlists.title">Setlists</span><button class="sidebar-add" id="sidebarNewSetlist" type="button" title="New setlist" aria-label="New setlist" data-i18n-title="setlists.new" data-i18n-aria-label="setlists.new"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /> <path d="M12 5v14" /></svg></button></div>
+                <div class="sidebar-group-list"></div>
+                <p class="setlists-error" id="setlistsError" role="alert" hidden></p>
+              </section>
+              <section class="sidebar-group" id="sidebarRecent">
+                <div class="sidebar-group-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /> <path d="M12 6v6l4 2" /></svg><span data-i18n="lib.recentlyPlayed">Recently played</span><button class="sidebar-see-all" type="button" data-view="recent" data-i18n="lib.seeAll">See all</button></div>
+                <div class="sidebar-group-list"></div>
+              </section>
             </div>
-
-            <!-- Catalog list (JS populates) -->
-            <div id="catalogList" class="daw-lib-list" role="list"></div>
             <p class="lib-announce" id="libraryAnnounce" aria-live="polite"></p>
 
 
 
-            <section class="lib-setlists" id="setlistsPanel" role="tabpanel" aria-labelledby="libTabSetlists">
-              <div class="setlists-list" id="setlistsList"></div>
-              <div class="lib-setlists-empty lib-empty" id="setlistsEmpty">
-                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/></svg>
-                <strong data-i18n="setlists.empty">No setlists yet.</strong>
-                <span class="lib-empty-hint" data-i18n="setlists.emptyHint">Make one here, or add a song to one from its … menu in Songs.</span>
-              </div>
-              <p class="setlists-error" id="setlistsError" role="alert" hidden></p>
-              <button class="setlist-new-btn" id="setlistNewBtn" type="button">
-                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                <span data-i18n="setlists.new">New setlist</span>
+            <div class="sidebar-foot">
+              <button class="sidebar-trash-btn" id="trashBtn" type="button" title="Trash" aria-label="Trash">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6" /> <path d="M14 11v6" /> <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /> <path d="M3 6h18" /> <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                <span data-i18n="nav.trash">Trash</span>
+                <span class="sidebar-count hidden" id="trashBadge" aria-hidden="true"></span>
               </button>
-            </section>
+            </div>
           </div>
-          <!-- A collapsed sidebar: its views, then a cover per song. -->
-          <nav class="strip-nav" aria-label="Library navigation" data-i18n-aria-label="nav.libraryNav">
-            <button class="strip-nav-btn strip-nav-library" type="button" title="Library" aria-label="Library" data-i18n-title="nav.library" data-i18n-aria-label="nav.library">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6 4 14" /> <path d="M12 6v14" /> <path d="M8 8v12" /> <path d="M4 4v16" /></svg>
-            </button>
-            <button class="strip-nav-btn strip-nav-favorites" type="button" title="Favorites" aria-label="Favorites" data-i18n-title="nav.favorites" data-i18n-aria-label="nav.favorites">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" /></svg>
-            </button>
-            <button class="strip-nav-btn strip-nav-queue hidden" type="button" title="Queue" aria-label="Queue" data-i18n-title="nav.queue" data-i18n-aria-label="nav.queue">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5h10" /> <path d="M11 12h10" /> <path d="M11 19h10" /> <path d="M4 4h1v5" /> <path d="M4 9h2" /> <path d="M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02" /></svg>
-            </button>
-            <button class="strip-nav-btn strip-nav-trash" type="button" title="Trash" aria-label="Trash" data-i18n-title="nav.trash" data-i18n-aria-label="nav.trash">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6" /> <path d="M14 11v6" /> <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /> <path d="M3 6h18" /> <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-            </button>
-          </nav>
+          <!-- A collapsed sidebar: Browse library, a cover per song, then Trash. -->
+          <button class="strip-nav-btn strip-nav-browse" type="button" title="Browse library (Ctrl K)" aria-label="Browse library" data-i18n-title="lib.browseTitle" data-i18n-aria-label="lib.browse">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6 4 14" /> <path d="M12 6v14" /> <path d="M8 8v12" /> <path d="M4 4v16" /></svg>
+          </button>
           <div id="catalogStrip" class="cat-collapsed-strip"></div>
+          <button class="strip-nav-btn strip-nav-trash" type="button" title="Trash" aria-label="Trash">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6" /> <path d="M14 11v6" /> <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /> <path d="M3 6h18" /> <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+          </button>
         </aside>
         <div class="library-resizer" id="libraryResizer" role="separator" tabindex="0" aria-orientation="vertical" aria-controls="catalogPanel" title="Drag to resize the sidebar. Double-click to reset." aria-label="Resize sidebar" data-i18n-title="shell.resizeSidebarTitle" data-i18n-aria-label="shell.resizeSidebar"></div>
 
@@ -1477,7 +1437,33 @@
     </div><!-- /.daw -->
 
     <!-- The layer menus, popovers and dialogs are drawn in, above the whole app. -->
-    <div class="overlay-root" id="overlayRoot"></div>
+    <div class="overlay-root" id="overlayRoot">
+      <div class="browse-scrim" id="browseScrim" hidden></div>
+      <section class="browse" id="browseLibrary" role="dialog" aria-modal="true" aria-label="Library" data-i18n-aria-label="lib.dialogLabel" hidden>
+        <nav class="browse-nav" id="browseNav" aria-label="Library views" data-i18n-aria-label="nav.libraryNav"></nav>
+        <div class="browse-main">
+          <div class="browse-tools">
+            <label class="browse-search">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34" /> <circle cx="11" cy="11" r="8" /></svg>
+              <input id="browseSearch" type="search" placeholder="Search songs, artists, or #tag" data-i18n-placeholder="lib.searchPlaceholder"
+                     aria-label="Search library" data-i18n-aria-label="search.ariaLabel" autocomplete="off" spellcheck="false" />
+              <ul class="tag-suggest" id="tagSuggest" role="listbox" aria-label="Tag suggestions" data-i18n-aria-label="search.tagSuggestions"></ul>
+            </label>
+            <button class="browse-iconbtn" id="browseGridBtn" type="button" aria-pressed="true" title="Show as a grid" aria-label="Show as a grid" data-i18n-title="lib.showGrid" data-i18n-aria-label="lib.showGrid">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1" /> <rect width="7" height="7" x="14" y="3" rx="1" /> <rect width="7" height="7" x="14" y="14" rx="1" /> <rect width="7" height="7" x="3" y="14" rx="1" /></svg>
+            </button>
+            <button class="browse-iconbtn" id="browseListBtn" type="button" aria-pressed="false" title="Show as a list" aria-label="Show as a list" data-i18n-title="lib.showList" data-i18n-aria-label="lib.showList">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h.01" /> <path d="M3 12h.01" /> <path d="M3 19h.01" /> <path d="M8 5h13" /> <path d="M8 12h13" /> <path d="M8 19h13" /></svg>
+            </button>
+            <button class="browse-iconbtn" id="browseCloseBtn" type="button" title="Close (Esc)" aria-label="Close (Esc)" data-i18n-title="lib.close" data-i18n-aria-label="lib.close">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18" /> <path d="m6 6 12 12" /></svg>
+            </button>
+          </div>
+          <div class="browse-tags" id="browseTags"></div>
+          <div class="browse-results" id="browseResults"></div>
+        </div>
+      </section>
+    </div>
 
     <template id="aboutTemplate">
       <div class="settings-about">

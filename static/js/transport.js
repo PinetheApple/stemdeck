@@ -53,6 +53,7 @@ import { SPEED_MIN, SPEED_MAX, SPEED_STEP, SPEED_NOTCH, TIMES_SIGN, clampSpeed, 
 import { trackPlayhead, resumeFollowing } from "./autoScroll.js";
 import { MIN_WAVES_PX } from "./paneEdgeMath.js";
 import { startMediaAnchor, pauseMediaAnchor } from "./mediaSession.js";
+import { announcePlayState } from "./player.js";
 
 // Zoom range. 1 is the whole track fitted to the panel; there is nothing below
 // it to show, so it is the floor rather than a soft default.
@@ -551,6 +552,7 @@ function _unlightIfNotStarted(eng, start) {
     function unlightUnlessPlaying(started) {
       if (started || !stillSilent()) return;
       playBtn.classList.remove("playing");
+      announcePlayState(false);
       pauseMediaAnchor();
     },
     function warnPlayFailed(err) {
@@ -585,6 +587,7 @@ export function togglePlayPause() {
     // the play-button visual that the ws "pause" handler normally toggles must
     // be driven here directly.
     if (eng) playBtn.classList.remove("playing");
+    announcePlayState(false);
     return;
   }
   const ctx = tx.audioContext;
@@ -608,6 +611,7 @@ export function togglePlayPause() {
     const countBars = _recordCountInBars ?? metronomeCountInBars;
     _unlightIfNotStarted(eng, _armCountIn(eng, startPos, countBars) || eng.play());
     playBtn.classList.add("playing");
+    announcePlayState(true);
     stopBtn.classList.remove("stopped");
   } else {
     _playWhenReady();
@@ -634,6 +638,7 @@ export function stopTransport() {
   _dropCountIn(); // a count-in in progress must not outlive Stop
   if (!loadingMultitrack(tx)) tx.setTime(loopEnabled ? loopStart : 0); // engine: setTime → onTime → stop visual
   if (eng) playBtn.classList.remove("playing");
+  announcePlayState(false);
 }
 
 /** The footer's Previous: back to the start of the playing song. */

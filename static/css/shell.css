@@ -101,18 +101,9 @@
   padding: var(--s-3) 0;
   overflow-y: auto;
 }
-.strip-nav { display: none; }
-.daw.cat-collapsed .strip-nav {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--s-1);
-  padding: var(--s-2) 0;
-  border-bottom: 1px solid var(--line);
-}
+.strip-nav-btn { display: none; }
+.daw.cat-collapsed .strip-nav-btn { flex: none; display: grid; margin: var(--s-2) auto; }
 .strip-nav-btn {
-  display: grid;
   place-items: center;
   width: var(--ctl-h);
   height: var(--ctl-h);
@@ -123,7 +114,7 @@
   cursor: pointer;
 }
 .strip-nav-btn:hover { background: var(--surface-2); color: var(--text); }
-.strip-nav-btn.hidden { display: none; }
+.strip-nav-btn.drop-target { outline: var(--line-w-strong) dashed var(--accent); }
 .strip-nav-btn .ic { width: var(--icon-lg); height: var(--icon-lg); }
 
 .cat-collapsed-strip .strip-thumb {
@@ -142,54 +133,6 @@
 .cat-collapsed-strip .strip-thumb:hover { border-color: var(--line-strong); }
 .cat-collapsed-strip .strip-thumb.active { border-color: var(--accent); }
 .cat-collapsed-strip .strip-thumb :is(img, svg) { width: 100%; height: 100%; display: block; object-fit: cover; }
-
-.lib-nav {
-  flex: none;
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  gap: var(--s-1);
-  padding-bottom: var(--s-2);
-  border-bottom: 1px solid var(--line);
-}
-.lib-nav-btn {
-  position: relative;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--s-0);
-  padding: var(--s-1) var(--s-0);
-  border: 0;
-  border-radius: var(--r-1);
-  background: none;
-  color: var(--text-3);
-  font: inherit;
-  font-size: var(--fs-2xs);
-  font-weight: var(--fw-semibold);
-  cursor: pointer;
-}
-.lib-nav-btn > span:not(.lib-nav-count) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lib-nav-btn:hover { background: var(--surface-2); color: var(--text); }
-.lib-nav-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
-.lib-nav-btn.hidden { display: none; }
-.lib-nav-btn.drop-target { outline: var(--line-w-strong) dashed var(--accent); }
-.lib-nav-count {
-  position: absolute;
-  top: 0;
-  right: var(--s-1);
-  min-width: var(--badge-h);
-  height: var(--badge-h);
-  padding: 0 var(--s-1);
-  border-radius: var(--r-pill);
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-size: var(--fs-2xs);
-  line-height: var(--badge-h);
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-.lib-nav-count.hidden { display: none; }
 
 /* ── Pane edges: the stem controls column and the song tools ── */
 .daw-content { position: relative; }

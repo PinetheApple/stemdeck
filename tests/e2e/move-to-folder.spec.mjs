@@ -1,5 +1,5 @@
-// A song's … menu moves it to any folder, or to a new one, the way dragging
-// the row onto a folder does.
+// A song's … menu in Browse library moves it to any folder, or to a new one,
+// the way dragging the row onto a folder does.
 import { test, expect } from "@playwright/test";
 import {
   JOB_ID,
@@ -8,6 +8,7 @@ import {
   SIBLING_TITLE,
   TRACK_TITLE,
   fixtureTrack,
+  openBrowse,
   readCatalogState,
   seedCatalogState,
   stubFavorites,
@@ -42,14 +43,14 @@ async function openLibrary(page, { rehearsalCollapsed = false } = {}) {
   await stubFavorites(page);
   await stubUpdateCheck(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  await openBrowse(page);
+  await page.locator("#browseListBtn").click();
   await expect(rowOf(page, JOB_ID)).toBeVisible();
 }
 
-const rowOf = (page, id) => page.locator(`#catalogList .cat-item[data-id="${id}"]`).first();
-const folderOf = (page, id) => page.locator(`#catalogList .folder[data-id="${id}"]`);
-const countOf = (page, id) => folderOf(page, id).locator(":scope > .folder-head .f-count");
-const songIn = (page, folderId, trackId) =>
-  folderOf(page, folderId).locator(`:scope > .folder-body > .cat-item[data-id="${trackId}"]`);
+const rowOf = (page, id) => page.locator(`#browseResults .cat-item[data-id="${id}"]`);
+const folderNav = (page, id) => page.locator(`#browseNav .browse-nav-folder[data-folder="${id}"]`);
+const countOf = (page, id) => folderNav(page, id).locator(".browse-nav-count");
 const folderItem = (menu, name) => menu.getByRole("menuitem", { name, exact: true });
 const setLanguage = (page, code) => page.evaluate(async (c) => (await import("/js/i18n.js")).setLanguage(c), code);
 
@@ -72,9 +73,8 @@ async function folderItemNames(page, menu) {
   return texts.slice(start + 1, texts.indexOf(newFolder, start));
 }
 
-async function expectMoved(page, trackId, from, to) {
-  await expect(songIn(page, to.id, trackId)).toBeVisible();
-  await expect(songIn(page, from.id, trackId)).toHaveCount(0);
+async function expectMoved(page, trackId, to) {
+  await expect(rowOf(page, trackId).locator(".c-folder")).toHaveText(to.name);
   const state = await readCatalogState(page);
   const holders = state.folders.filter((f) => f.items.includes(trackId)).map((f) => f.id);
   expect(holders).toEqual([to.id]);
@@ -122,13 +122,13 @@ test("picking a folder moves the song out of its old one and updates the counts"
   const menu = await openRowMenu(page, JOB_ID);
   await folderItem(menu, WARMUPS.name).click();
   await expect(menu).toBeHidden();
-  await expectMoved(page, JOB_ID, UNSORTED, WARMUPS);
+  await expectMoved(page, JOB_ID, WARMUPS);
   await expect(countOf(page, UNSORTED.id)).toHaveText("0");
   await expect(countOf(page, WARMUPS.id)).toHaveText("1");
 
   const again = await openRowMenu(page, JOB_ID);
   await folderItem(again, UNSORTED.name).click();
-  await expectMoved(page, JOB_ID, WARMUPS, UNSORTED);
+  await expectMoved(page, JOB_ID, UNSORTED);
 });
 
 test("New folder… creates a folder and moves the song into it", async ({ page }) => {
@@ -142,12 +142,9 @@ test("New folder… creates a folder and moves the song into it", async ({ page 
   await dialog.locator(".folder-editor-save").click();
   await expect(dialog).toBeHidden();
 
-  const created = page.locator("#catalogList .folder").filter({
-    has: page.locator(":scope > .folder-head .f-name", { hasText: NEW_FOLDER_NAME }),
-  });
-  await expect(created.locator(`:scope > .folder-body > .cat-item[data-id="${JOB_ID}"]`)).toBeVisible();
-  await expect(created.locator(":scope > .folder-head .f-count")).toHaveText("1");
-  await expect(songIn(page, UNSORTED.id, JOB_ID)).toHaveCount(0);
+  const created = page.locator("#browseNav .browse-nav-folder", { hasText: NEW_FOLDER_NAME });
+  await expect(created.locator(".browse-nav-count")).toHaveText("1");
+  await expect(rowOf(page, JOB_ID).locator(".c-folder")).toHaveText(NEW_FOLDER_NAME);
   await expect(countOf(page, UNSORTED.id)).toHaveText("0");
 });
 
@@ -162,11 +159,11 @@ test("the keyboard opens the menu, arrows to a folder, picks it with Enter, and 
   await arrowTo(page, GIGS.name);
   await page.keyboard.press(KEY.ENTER);
   await expect(menu).toBeHidden();
-  await expectMoved(page, JOB_ID, UNSORTED, GIGS);
-  await expect(songIn(page, GIGS.id, JOB_ID)).toBeFocused();
+  await expectMoved(page, JOB_ID, GIGS);
+  await expect(rowOf(page, JOB_ID)).toBeFocused();
   // Focus put back by the move is not the keyboard's, so Delete stays unarmed.
   await page.keyboard.press(KEY.DELETE);
-  await expect(songIn(page, GIGS.id, JOB_ID)).toBeVisible();
+  await expect(rowOf(page, JOB_ID)).toBeVisible();
 
   const moreAgain = rowOf(page, JOB_ID).locator(".cat-more");
   await moreAgain.focus();
@@ -176,19 +173,20 @@ test("the keyboard opens the menu, arrows to a folder, picks it with Enter, and 
   await page.keyboard.press(KEY.ESCAPE);
   await expect(menu).toBeHidden();
   await expect(moreAgain).toBeFocused();
-  await expect(songIn(page, GIGS.id, JOB_ID)).toBeVisible();
+  await expectMoved(page, JOB_ID, GIGS);
 });
 
-test("a move into a folder hidden in a collapsed one focuses the nearest shown folder row", async ({ page }) => {
+test("a move into a folder hidden in a collapsed one keeps it collapsed and focus on the song", async ({ page }) => {
   await openLibrary(page, { rehearsalCollapsed: true });
+  await expect(folderNav(page, WARMUPS.id)).toHaveCount(0);
   await rowOf(page, JOB_ID).locator(".cat-more").focus();
   await page.keyboard.press(KEY.ENTER);
   await arrowTo(page, WARMUPS.name);
   await page.keyboard.press(KEY.ENTER);
   await expect(page.locator(".lib-menu")).toBeHidden();
-  await expect(songIn(page, WARMUPS.id, JOB_ID)).toHaveCount(1);
-  await expect(songIn(page, UNSORTED.id, JOB_ID)).toHaveCount(0);
-  await expect(folderOf(page, REHEARSAL.id).locator(":scope > .folder-head")).toBeFocused();
+  await expectMoved(page, JOB_ID, WARMUPS);
+  await expect(folderNav(page, WARMUPS.id)).toHaveCount(0);
+  await expect(rowOf(page, JOB_ID)).toBeFocused();
 });
 
 test.describe("on a touch screen", () => {
@@ -203,7 +201,7 @@ test.describe("on a touch screen", () => {
     await expect(menu).toBeVisible();
     await folderItem(menu, GIGS.name).tap();
     await expect(menu).toBeHidden();
-    await expectMoved(page, JOB_ID, UNSORTED, GIGS);
+    await expectMoved(page, JOB_ID, GIGS);
   });
 });
 

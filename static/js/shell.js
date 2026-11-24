@@ -3,7 +3,8 @@
 
 import { t, onLanguageChange } from "./i18n.js";
 import { getQueueSnapshot, onQueueChange, queueCount } from "./queue.js";
-import { showQueueView } from "./catalog.js";
+import { openBrowse } from "./browseLibrary.js";
+import { VIEW } from "./browseViewNames.js";
 import { wireComposerDrawer } from "./composerDrawer.js";
 import { TOOLS_HIDDEN_CLASS, isToolsAutoHidden } from "./shellEdges.js";
 import { watchFloats } from "./shellFloat.js";
@@ -20,7 +21,7 @@ function paintImporting(snap = getQueueSnapshot()) {
 }
 
 function onImportingClick() {
-  showQueueView();
+  openBrowse(VIEW.QUEUE);
 }
 
 // Shown means neither hidden by the user (inspector.js) nor stepped aside for the waveforms.

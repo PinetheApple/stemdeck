@@ -29,7 +29,7 @@ const SMALL_WINDOWS = [
   { name: "1366x768", size: { width: 1366, height: 768 }, collapsed: false },
   { name: "1024x768 with the sidebar collapsed", size: { width: 1024, height: 768 }, collapsed: true },
 ];
-const SHELL_CONTROLS = [...TOP_BAR_ORDER, ".lib-nav-library", ".lib-nav-favorites", ".lib-nav-trash"];
+const SHELL_CONTROLS = [...TOP_BAR_ORDER, "#browseBtn", "#trashBtn"];
 
 const reload = (page) => page.reload({ waitUntil: "domcontentloaded" });
 const boxOf = (page, selector) => page.locator(selector).first().boundingBox();
@@ -66,7 +66,7 @@ test.describe("top bar", () => {
     await expect(page.locator("#importingBtn")).toBeVisible();
     await expect(page.locator("#importingBtn")).toHaveText(await uiText(page, "shell.importing", { count: 1 }));
     await page.locator("#importingBtn").click();
-    await expect(page.locator("#catalogPanel")).toHaveClass(/queue-view/);
+    await expect(page.locator("#browseImportQueue")).toBeVisible();
   });
 
   test("Add song opens and closes today's import bar", async ({ page }) => {
@@ -102,8 +102,10 @@ test.describe("sidebar and song tools toggles", () => {
     await expect(toggle).toHaveAttribute("aria-pressed", "false");
     await expect.poll(async () => (await boxOf(page, "#catalogPanel")).width).toBe(STRIP_WIDTH);
     await expect(page.locator(`#catalogStrip .strip-thumb[data-id="${JOB_ID}"]`).first()).toBeVisible();
-    for (const view of ["library", "favorites", "trash"]) {
-      await expect(page.locator(`.strip-nav-${view}`)).toHaveAttribute("aria-label", /\S/);
+    for (const control of [".strip-nav-browse", ".strip-nav-trash"]) {
+      await expect(page.locator(control)).toBeVisible();
+      await expect(page.locator(control)).toHaveAttribute("title", /\S/);
+      await expect(page.locator(control)).toHaveAttribute("aria-label", /\S/);
     }
     await reload(page);
     await expect(page.locator("#sidebarCollapseBtn")).toHaveAttribute("aria-pressed", "false");
@@ -126,40 +128,31 @@ test.describe("sidebar and song tools toggles", () => {
 });
 
 test.describe("the rail's views are still reachable", () => {
-  test("Favorites, Trash and back to the library from the sidebar", async ({ page }) => {
+  test("Favorites and Trash from the sidebar open Browse library on that view", async ({ page }) => {
     await openStudio(page);
-    const panel = page.locator("#catalogPanel");
-    await page.locator(".lib-nav-favorites").click();
-    await expect(panel).toHaveClass(/favorites-view/);
-    await expect(page.locator(".lib-nav-favorites")).toHaveAttribute("aria-pressed", "true");
-    await page.locator(".lib-nav-trash").click();
-    await expect(panel).toHaveClass(/trash-view/);
-    await page.locator(".lib-nav-library").click();
-    await expect(panel).not.toHaveClass(/trash-view|favorites-view/);
+    await page.locator("#sidebarFavorites .sidebar-see-all").click();
+    await expect(page.locator('#browseNav [data-view="fav"]')).toHaveAttribute("aria-current", "page");
+    await page.keyboard.press("Escape");
+    await page.locator("#trashBtn").click();
+    await expect(page.locator('#browseNav [data-view="trash"]')).toHaveAttribute("aria-current", "page");
   });
 
-  test("Favorites, Trash and the queue from a collapsed sidebar, which opens on that view", async ({ page }) => {
+  test("Browse library and Trash from a collapsed sidebar", async ({ page }) => {
     await openStudio(page);
     await page.locator("#sidebarCollapseBtn").click();
-    await expect(page.locator(".strip-nav-queue")).toBeHidden();
-    await page.locator(".strip-nav-favorites").click();
-    await expect(page.locator("#catalogPanel")).toHaveClass(/favorites-view/);
-    await expect(page.locator("#sidebarCollapseBtn")).toHaveAttribute("aria-pressed", "true");
-    await page.locator("#sidebarCollapseBtn").click();
+    await page.locator(".strip-nav-browse").click();
+    await expect(page.locator('#browseNav [data-view="all"]')).toHaveAttribute("aria-current", "page");
+    await page.keyboard.press("Escape");
     await page.locator(".strip-nav-trash").click();
-    await expect(page.locator("#catalogPanel")).toHaveClass(/trash-view/);
-    await page.locator("#sidebarCollapseBtn").click();
-    await stubQueue(page, [QUEUED_ID]);
-    await page.locator(".strip-nav-queue").click();
-    await expect(page.locator("#catalogPanel")).toHaveClass(/queue-view/);
+    await expect(page.locator('#browseNav [data-view="trash"]')).toHaveAttribute("aria-current", "page");
   });
 
   test("the import queue from the sidebar while imports run", async ({ page }) => {
     await openStudio(page);
-    await expect(page.locator(".lib-nav-queue")).toBeHidden();
+    await expect(page.locator("#sidebarImporting")).toBeHidden();
     await stubQueue(page, [QUEUED_ID]);
-    await page.locator(".lib-nav-queue").click();
-    await expect(page.locator("#catalogPanel")).toHaveClass(/queue-view/);
+    await page.locator("#sidebarImporting .sidebar-see-all").click();
+    await expect(page.locator("#browseImportQueue")).toBeVisible();
   });
 
   test("Lyrics from the song tools, leaving a collapsed sidebar collapsed", async ({ page }) => {
@@ -173,7 +166,7 @@ test.describe("the rail's views are still reachable", () => {
 
   test("Trash keeps its count in its name after a language change", async ({ page }) => {
     await openStudio(page, { trashed: [SIBLING_JOB_ID] });
-    const trash = page.locator(".lib-nav-trash");
+    const trash = page.locator("#trashBtn");
     await expect(trash).toHaveAttribute("title", await uiText(page, "nav.trashWithCount", { count: 1 }));
     await page.evaluate(async () => (await import("/js/i18n.js")).setLanguage("de"));
     const german = await uiText(page, "nav.trashWithCount", { count: 1 });

@@ -499,40 +499,6 @@ input, textarea { font-family: inherit; }
   transition: opacity 0.15s ease;
 }
 
-/* Search */
-.daw-search {
-  height: 32px;
-  border: 1px solid var(--border);
-  background: var(--panel);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 10px;
-  color: var(--muted);
-  font-size: 12px;
-  flex-shrink: 0;
-  position: relative;
-}
-.daw-search svg { flex-shrink: 0; }
-.daw-search input {
-  flex: 1; min-width: 0;
-  border: none; outline: none;
-  background: transparent;
-  color: var(--fg);
-  font: inherit;
-}
-.daw-search input::placeholder { color: var(--muted); }
-.search-kbd {
-  font-size: 10px;
-  color: var(--muted-2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0 5px;
-  flex-shrink: 0;
-}
-.daw-search input:not(:placeholder-shown) ~ .search-kbd { display: none; }
-
 /* Lib header row */
 .daw-lib-header {
   display: flex;
@@ -548,47 +514,17 @@ input, textarea { font-family: inherit; }
   gap: 4px;
 }
 .daw-lib-count { color: var(--muted-2); font-weight: 500; margin-left: 4px; }
-.new-folder-btn {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 9px 3px 7px;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  color: var(--muted);
-  font-size: 11px; font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
-}
-.lib-section-head .new-folder-btn { min-height: var(--target-min); }
-.new-folder-btn:hover {
-  background: var(--panel);
-  color: var(--fg-2);
-  border-color: var(--border-2, rgba(255,255,255,0.15));
-}
-
-/* Lib list (JS populates with .lib-item, .folder, .cat-item) */
-.daw-lib-list {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
 
 /* Thin auto-hide scrollbar shared by the library list, the mixer column, the
    footer's control row and the waveform panel (both axes) — hidden until the
    area is hovered/focused, reserves no visible gutter. `.daw .wave-scroll`
    overrides the gold bar from waves.css. */
-.daw-lib-list,
 .mixer-column,
 .daw .wave-scroll {
   /* Firefox: thin overlay-style bar, fades to transparent track */
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
-.daw-lib-list:hover,
-.daw-lib-list:focus-within,
 .mixer-column:hover,
 .mixer-column:focus-within,
 .daw .wave-scroll:hover,
@@ -596,18 +532,15 @@ input, textarea { font-family: inherit; }
   scrollbar-color: color-mix(in srgb, var(--text-2) 40%, transparent) transparent;
 }
 /* WebKit (Chrome/Safari/WKWebView): thin thumb, hidden until hover/scroll */
-.daw-lib-list::-webkit-scrollbar,
 .mixer-column::-webkit-scrollbar,
 .daw .wave-scroll::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
-.daw-lib-list::-webkit-scrollbar-track,
 .mixer-column::-webkit-scrollbar-track,
 .daw .wave-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
-.daw-lib-list::-webkit-scrollbar-thumb,
 .mixer-column::-webkit-scrollbar-thumb,
 .daw .wave-scroll::-webkit-scrollbar-thumb {
   background: transparent;
@@ -615,8 +548,6 @@ input, textarea { font-family: inherit; }
   background-clip: padding-box;
   border-radius: 999px;
 }
-.daw-lib-list:hover::-webkit-scrollbar-thumb,
-.daw-lib-list:focus-within::-webkit-scrollbar-thumb,
 .mixer-column:hover::-webkit-scrollbar-thumb,
 .mixer-column:focus-within::-webkit-scrollbar-thumb,
 .daw .wave-scroll:hover::-webkit-scrollbar-thumb,
@@ -624,7 +555,6 @@ input, textarea { font-family: inherit; }
   background: color-mix(in srgb, var(--text-2) 40%, transparent);
   background-clip: padding-box;
 }
-.daw-lib-list::-webkit-scrollbar-thumb:hover,
 .mixer-column::-webkit-scrollbar-thumb:hover,
 .daw .wave-scroll::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--text-2) 60%, transparent);
@@ -814,8 +744,6 @@ input, textarea { font-family: inherit; }
 .cat-item:focus-within .cat-actions { opacity: 1; pointer-events: auto; }
 /* Inset, so the list's scroll box does not clip it. */
 .cat-item:focus-visible,
-.folder-head:focus-visible,
-.setlist-head:focus-visible,
 .setlist-song:focus-visible { outline-offset: -2px; }
 .upnext-row:focus-visible { outline-offset: -2px; }
 .cat-item .cat-actions:has(.cat-upnext) { grid-template-columns: repeat(2, var(--target-min)); }
@@ -833,31 +761,6 @@ input, textarea { font-family: inherit; }
 /* A stopped song (#748) offers Extract at rest: it is the row's only way on. */
 .cat-item.is-stopped .cat-actions { opacity: 1; pointer-events: auto; }
 
-/* Trash rows look like library rows. On hover the second line becomes the
-   hint, and a hold fills the row from the left over --hold-ms (set from
-   TRASH_HOLD_MS in catalog.js), then restores. */
-.cat-item.in-trash { user-select: none; -webkit-user-select: none; overflow: hidden; }
-.cat-item.in-trash .trash-hint { display: none; color: var(--fg-2); }
-.cat-item.in-trash:hover .trash-hint,
-.cat-item.in-trash:focus-visible .trash-hint,
-.cat-item.in-trash.holding .trash-hint { display: block; overflow: hidden; text-overflow: ellipsis; }
-.cat-item.in-trash:hover .cat-sub:not(.trash-hint),
-.cat-item.in-trash:focus-visible .cat-sub:not(.trash-hint),
-.cat-item.in-trash.holding .cat-sub:not(.trash-hint) { display: none; }
-.trash-hold { position: absolute; inset: 0; pointer-events: none; }
-.trash-hold::before {
-  content: ""; position: absolute; inset: 0;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  transform: scaleX(0); transform-origin: left center;
-}
-.cat-item.in-trash.holding .trash-hold::before {
-  transform: scaleX(1);
-  transition: transform var(--hold-ms, 1000ms) linear;
-}
-.cat-item.in-trash.selected {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-}
 .cat-extract {
   height: 20px; padding: 0 8px; border: 1px solid var(--accent); border-radius: 5px;
   background: transparent; color: var(--accent); cursor: pointer;
@@ -874,69 +777,12 @@ input, textarea { font-family: inherit; }
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
-/* Folder items (legacy catalog) */
-.folder { display: flex; flex-direction: column; }
-.folder-head {
-  --folder-color: var(--accent);
-  display: flex; align-items: center; gap: 7px;
-  padding: 6px 8px; border-radius: 7px;
-  cursor: pointer; color: var(--muted);
-  transition: background var(--t-fast), color var(--t-fast);
-  user-select: none;
-}
-/* Unsorted (.system) has no controls to reveal, so hovering it does not light it up (#695). */
-.folder-head:not(.system):hover { background: var(--panel); color: var(--fg); }
-.folder-head .f-chevron { width: 11px; height: 11px; transition: transform 180ms ease; flex-shrink: 0; color: var(--muted); }
-.folder.collapsed .folder-head .f-chevron { transform: rotate(-90deg); }
-.folder-head .f-icon { width: 13px; height: 13px; flex-shrink: 0; color: var(--folder-color); }
-.folder-head .f-name {
-  font-size: 12px; font-weight: 500; color: inherit;
-  flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  background: transparent; border: none; padding: 0; font-family: inherit; outline: none; cursor: inherit;
-}
-.folder-head .f-count { font-size: 10.5px; color: var(--muted); }
 .folder-color-dot {
   width: 13px; height: 13px; border: 1px solid rgba(255,255,255,0.22);
   border-radius: 999px; background: var(--folder-color); cursor: pointer; padding: 0;
   box-shadow: inset 0 0 0 1px rgba(0,0,0,0.22);
 }
-.folder-head .f-more {
-  width: 18px; height: 18px; border: none; background: transparent;
-  color: var(--muted); cursor: pointer; opacity: 0;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 4px; padding: 0; transition: opacity var(--t-fast), color var(--t-fast);
-  flex-shrink: 0;
-}
-.folder-head:hover .f-more,
-.folder-head:focus-within .f-more,
-.folder-head .f-more[aria-expanded="true"] { opacity: 1; }
-.folder-head > .f-more {
-  width: var(--target-min); height: var(--target-min);
-  margin-block: calc((var(--icon-lg) - var(--target-min)) / 2);
-}
-.folder-head .f-more:hover,
-.folder-head .f-more[aria-expanded="true"] { background: color-mix(in srgb, var(--surface-2) 80%, transparent); color: var(--fg-2); }
-.folder-head .f-more .ic { width: var(--icon-sm); height: var(--icon-sm); }
-/* Drag grip */
-.f-grip {
-  display: none; align-items: center; justify-content: center;
-  cursor: grab; color: var(--muted); flex-shrink: 0;
-  padding: 2px; border-radius: 3px;
-  transition: color var(--t-fast);
-}
-.f-grip:active { cursor: grabbing; }
-.folder-head:hover .f-grip { display: flex; }
-/* Drop indicators for folder reorder / nest */
-.folder.drop-before > .folder-head { box-shadow: 0 -2px 0 var(--accent); border-radius: 7px 7px 0 0; }
-.folder.drop-after > .folder-head { box-shadow: 0 2px 0 var(--accent); border-radius: 0 0 7px 7px; }
-.folder.drop-into > .folder-head { box-shadow: 0 0 0 1px var(--accent); background: var(--panel); }
-/* Folder being dragged */
-.folder.folder-dragging { opacity: 0.35; pointer-events: none; }
-/* Subfolder indentation */
-.folder.subfolder { margin-left: 12px; }
-.folder-body { display: flex; flex-direction: column; gap: 3px; padding: 3px 0 3px 14px; margin-left: 7px; border-left: 1px solid color-mix(in srgb, var(--text-2) 10%, transparent); }
-.folder.collapsed .folder-body { display: none; }
-.folder-empty { color: var(--muted); font-size: 11px; padding: 5px 8px; font-style: italic; }
+
 .folder-error { margin: 0; padding: var(--s-1) var(--s-2) var(--s-1) var(--s-6); font-size: var(--fs-xs); color: var(--danger); }
 
 /* Folder editor modal */
@@ -3489,59 +3335,10 @@ input, textarea { font-family: inherit; }
 
 @property --lib-tags-fade { syntax: "<length>"; inherits: false; initial-value: 0px; }
 @keyframes lib-tags-fade-out { from { --lib-tags-fade: var(--s-3); } to { --lib-tags-fade: 0px; } }
-/* Inline padding keeps the first and last chips' focus rings inside the scroll box. The fade
-   follows the scroll position, so it shows only while more tags sit below. */
-.lib-tags-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  max-height: var(--lib-tags-max-h);
-  padding: var(--s-1) var(--s-1) var(--s-2);
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--text-3) transparent;
-  mask-image: linear-gradient(to bottom, black calc(100% - var(--lib-tags-fade)), transparent);
-  animation: lib-tags-fade-out linear both;
-  animation-timeline: scroll(self);
-}
-.lib-tag-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 11px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  font-size: 12px;
-  color: var(--fg-2);
-  cursor: pointer;
-  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
-  white-space: nowrap;
-}
-.lib-tag-chip:hover {
-  background: var(--panel-2);
-  color: var(--fg);
-  border-color: rgba(255,255,255,0.15);
-}
-.lib-tag-chip.active {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-}
-.lib-tag-count { color: var(--muted); font-size: 11px; }
 
-/* ── Lyrics tab (#699) ──
-   A view of the sidebar, like Favorites and Trash, but not a list: while it is
-   on, the search box and the library list step aside and the panel takes the
-   whole height, so the lyrics get the room and scroll on their own. */
+/* ── Lyrics tab ── shown only inside the right panel's Lyrics pane (inspector.css). */
 .lyrics-panel { display: none; }
-.sidebar.lyrics-view .daw-search,
-.sidebar.lyrics-view .clear-bin-bar,
-.sidebar.lyrics-view .daw-lib-list { display: none !important; }
-.sidebar.lyrics-view .lyrics-panel {
-  display: flex; flex-direction: column; gap: 8px;
-  flex: 1 1 auto; min-height: 0;
-}
+
 /* The EXTRACT label's type, like every other section head in the app. */
 .lyrics-title {
   margin: 0; font-size: 10px; font-weight: 600;
@@ -3790,8 +3587,6 @@ input, textarea { font-family: inherit; }
   margin-left: var(--s-2);
   font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--warn);
 }
-.sidebar.lyrics-view .lyrics-panel.lyrics-editing .lyrics-versions,
-.sidebar.lyrics-view .lyrics-panel.lyrics-editing .lyrics-body { display: none; }
 .lyrics-editor { display: flex; flex: 1 1 auto; min-height: 0; outline: none; }
 .lyrics-editor[hidden] { display: none; }
 .lyrics-editor-fields {
@@ -4093,20 +3888,6 @@ input, textarea { font-family: inherit; }
 /* The text stops short of the segment. */
 #nowPlayingPanel .track-panel-info,
 #nowPlayingPanel .daw-track-meta-line { padding-right: calc(var(--np-fav) + 10px); }
-/* ── Clear bin bar (trash view only) ── */
-.clear-bin-bar { display: none; padding: 6px 10px 4px; }
-.sidebar.trash-view .clear-bin-bar { display: block; }
-.sidebar.trash-view .lib-section-head .new-folder-btn { display: none; }
-.sidebar.favorites-view .lib-section-head .new-folder-btn { display: none; }
-.clear-bin-btn {
-  display: flex; align-items: center; gap: 5px;
-  width: 100%; padding: 6px 10px; border-radius: 6px;
-  background: color-mix(in srgb, var(--danger) 12%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent);
-  color: var(--danger); font-size: 12px; font-weight: 500; cursor: pointer;
-  transition: background 150ms, border-color 150ms;
-}
-.clear-bin-btn:hover { background: color-mix(in srgb, var(--danger) 22%, transparent); border-color: color-mix(in srgb, var(--danger) 50%, transparent); }
-.clear-bin-btn:active { background: color-mix(in srgb, var(--danger) 32%, transparent); }
 
 /* ── App state classes (set by JS) ── */
 /* No track loaded: hide main waveform content */

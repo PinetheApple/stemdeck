@@ -191,7 +191,6 @@ test.describe("lyrics tab", () => {
     expect(asked[0].body.band).toEqual({ id: "Q162586", name: "Dream Theater", englishName: "Dream Theater" });
 
     // Kept, so coming back to the tab asks nothing more.
-    await page.locator(".lib-nav-library").click();
     await showLyricsTab(page);
     await expect(page.locator(".lyrics-line")).toHaveCount(3);
     expect(asked).toHaveLength(1);
@@ -255,7 +254,6 @@ test.describe("lyrics tab", () => {
     expect(await stored(page)).toBeNull();
 
     // The same offer again on coming back, without asking again.
-    await page.locator(".lib-nav-library").click();
     await showLyricsTab(page);
     await expect(page.locator(".lyrics-version")).toHaveCount(1);
     expect(asked).toHaveLength(1);

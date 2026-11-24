@@ -23,6 +23,7 @@ import { storeFlushPending, storeGet, storeSet } from "./utils.js";
 import {
   DEFAULT_VERSION_ID, hasVersionRows, mixStoreKey, nextVersionName, openVersionOf, sameLanes, versionLabel,
 } from "./versionModel.js";
+import { IN_SONG_LISTS, shownInSongLists } from "./libraryRows.js";
 
 // Mirrors VERSION_NAME_MAX_CHARS in app/core/config.py.
 const VERSION_NAME_MAX_CHARS = 60;
@@ -36,7 +37,8 @@ const FAILURE_KEYS = {
 const PILL_ID = "npVersionBtn";
 const SUBLINE_CLASS = "np-subline";
 const ROW_SELECTOR = ".cat-version";
-const SONG_ROW_SELECTOR = "#catalogList .cat-item.has-versions";
+// Built on use: this module, libraryRows.js and catalog.js import each other in a cycle.
+const songRowSelector = () => `${IN_SONG_LISTS} .cat-item.has-versions`;
 
 export function esc(text) {
   const span = document.createElement("span");
@@ -225,11 +227,11 @@ export function versionExtras(trackId) {
 
 /** The open song's open version wears the fill; its song row then only colours its title. */
 export function paintOpenVersion(openTrackId) {
-  for (const row of document.querySelectorAll(`#catalogList ${ROW_SELECTOR}`)) {
+  for (const row of document.querySelectorAll(`${IN_SONG_LISTS} ${ROW_SELECTOR}`)) {
     const track = getLibraryTrack(row.dataset.id);
     row.classList.toggle("active", row.dataset.id === openTrackId && openVersionOf(track)?.id === row.dataset.version);
   }
-  for (const row of document.querySelectorAll(SONG_ROW_SELECTOR)) {
+  for (const row of document.querySelectorAll(songRowSelector())) {
     const isOpen = row.dataset.id === openTrackId;
     const groupShown = row.nextElementSibling?.matches(".cat-versions:not([hidden])") ?? false;
     row.classList.toggle("active", isOpen && !groupShown);
@@ -335,7 +337,7 @@ function closeRename(row) {
 
 function startVersionRename(jobId, versionId) {
   const selector = `[data-id="${CSS.escape(jobId)}"][data-version="${CSS.escape(versionId)}"]`;
-  const row = document.querySelector(`#catalogList ${ROW_SELECTOR}${selector}`);
+  const row = shownInSongLists(`${ROW_SELECTOR}${selector}`);
   const version = findVersion(getLibraryTrack(jobId), versionId);
   if (!row || !version) return;
   const { form, input } = renameForm(jobId, version, row);

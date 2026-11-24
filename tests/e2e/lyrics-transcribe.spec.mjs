@@ -90,7 +90,6 @@ async function setUp(page, { transcribe = {}, started = running("queued", 0) } =
 }
 
 async function openTrack(page, id) {
-  await page.locator(".lib-nav-library").click();
   await page.locator(`.cat-item[data-id="${id}"]`).first().dblclick();
   await openInspectorTab(page, "lyrics");
 }

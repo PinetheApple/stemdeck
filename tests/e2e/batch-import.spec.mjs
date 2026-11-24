@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { test, expect } from "@playwright/test";
-import { KEY, uiText, openComposer } from "./helpers.mjs";
+import { KEY, uiText, openComposer, openBrowse } from "./helpers.mjs";
 import {
   GONE_COPY, HTTP_FULL, LINE, MAX_DURATION_SEC, PASTE, PLAYLIST_SONGS, PLAYLIST_TITLE, ROWS, TICKED_BY_DEFAULT,
   openBar, paste, pasteList, preview, queueButton, review, row, stubImports, stubPreview,
@@ -99,7 +99,9 @@ test.describe("batch import", () => {
     expect(posts.every((p) => p.auto_sections === true)).toBe(true);
     await expect(review(page)).toHaveCount(0);
     await expect(page.locator("#filePill")).toBeHidden();
-    await expect(page.locator(`.cat-item[data-id="e2e0b0000001"]`)).toContainText("Build My Life");
+    await openBrowse(page);
+    await expect(page.locator(`#browseResults .cat-item[data-id="e2e0b0000001"]`)).toContainText("Build My Life");
+    await page.locator("#browseCloseBtn").click();
     await openComposer(page);
     await page.locator("#autoSectionsBtn").click();
   });
@@ -243,7 +245,8 @@ test("a single playlist link opens the review and files its songs under its name
   await queueButton(page).click();
   await expect.poll(() => posts.length).toBe(PLAYLIST_SONGS.length);
   await expect(page.locator("#addSongBtn")).toBeFocused();
-  await expect(page.locator("#catalogList .folder-head", { hasText: PLAYLIST_TITLE })).toBeVisible();
+  await openBrowse(page);
+  await expect(page.locator("#browseNav .browse-nav-folder", { hasText: PLAYLIST_TITLE })).toBeVisible();
 });
 
 test("several loose files are reviewed with what is wrong with each", async ({ page }) => {

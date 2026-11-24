@@ -116,7 +116,6 @@ async function openLyrics(page) {
 
 /** Open a song from the library, then come back to its Lyrics tab, which reads them afresh. */
 async function openTrackFromLibrary(page, id) {
-  await page.locator(".lib-nav-library").click();
   await page.locator(`.cat-item[data-id="${id}"]`).first().dblclick();
   await openInspectorTab(page, "tempo");
   await openInspectorTab(page, "lyrics");
@@ -320,7 +319,6 @@ test.describe("the app's keys while editing", () => {
     await cancel(page).focus();
     await page.keyboard.press("Backspace");
     await expect(editor(page)).toBeVisible();
-    await page.locator(".lib-nav-library").click();
     await expect(page.locator(`.cat-item[data-id="${JOB_ID}"]`).first()).toBeVisible();
     await openInspectorTab(page, "lyrics");
     await rowAction(page, 0, "Delete this line").focus();
