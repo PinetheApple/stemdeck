@@ -1,8 +1,6 @@
 // The song tools' Lyrics button shows the sidebar's Lyrics view and back.
 
-import { isLyricsViewShown, showLibraryView, showLyricsView } from "./catalog.js";
-
-const LYRICS_VIEW = "lyrics";
+import { CATALOG_VIEW_EVENT, LYRICS_VIEW, isLyricsViewShown, showLibraryView, showLyricsView } from "./catalog.js";
 
 function lyricsButton() {
   return document.getElementById("songToolsLyricsBtn");
@@ -23,8 +21,8 @@ function onCatalogViewChange(e) {
   paintLyricsButton(e.detail?.view === LYRICS_VIEW);
 }
 
-export function initLyricsToggle() {
+export function initSongToolsLyrics() {
   lyricsButton()?.addEventListener("click", onLyricsButtonClick);
-  document.addEventListener("catalogviewchange", onCatalogViewChange);
+  document.addEventListener(CATALOG_VIEW_EVENT, onCatalogViewChange);
   paintLyricsButton(isLyricsViewShown());
 }

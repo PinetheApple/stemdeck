@@ -109,7 +109,9 @@ let _loadTrackToken = 0;
 // finished one opens in the studio only if nothing has been opened since (#747).
 const _autoOpenTokens = new Map();
 let catalogView = LIBRARY_VIEW;
-const LYRICS_VIEW = "lyrics";
+export const LYRICS_VIEW = "lyrics";
+/** Fired on document with { view } when the sidebar switches between its song list and Lyrics. */
+export const CATALOG_VIEW_EVENT = "catalogviewchange";
 const LIBRARY_VIEW = "library";
 // Each list drawn from the library (sidebar, Browse library) redraws through these.
 const libraryDrawers = new Set();
@@ -1474,7 +1476,7 @@ function setCatalogView(view) {
   render();
   // The lyrics panel (lyrics.js) draws itself; this is how it learns it is on
   // screen, without catalog.js importing it.
-  document.dispatchEvent(new CustomEvent("catalogviewchange", { detail: { view: catalogView } }));
+  document.dispatchEvent(new CustomEvent(CATALOG_VIEW_EVENT, { detail: { view: catalogView } }));
 }
 
 /** Show the Lyrics view in the sidebar, as the song tools' Lyrics button does. */
