@@ -286,16 +286,16 @@ const WAVEFORM_SEPARATOR_HEIGHT = 2;
 let visualRenderToken = 0;
 let visualAudioContext = null;
 let stemVuRafId = null;
-let _footerWavePeaks = null;
+let _songPeaks = null;
 export const WAVE_PEAKS_EVENT = "wavepeaks";
 export const DURATION_EVENT = "songduration";
 const announceWavePeaks = () => document.dispatchEvent(new CustomEvent(WAVE_PEAKS_EVENT));
 
 /** The open song's whole-song `[min, max]` peaks, or null until they load. Read-only. */
 export function getWavePeaks() {
-  return _footerWavePeaks;
+  return _songPeaks;
 }
-const _FOOTER_BARS = 300;
+const SONG_PEAK_BARS = 300;
 
 function isAudioBufferLike(value) {
   return value && typeof value.getChannelData === "function";
@@ -938,7 +938,7 @@ export function destroyPlayer() {
   playBtn.classList.remove("playing");
   stopBtn.classList.remove("stopped");
   loopRegionEl.classList.add("hidden");
-  _footerWavePeaks = null;
+  _songPeaks = null;
   updateFooterTrack({});
 }
 
@@ -1229,7 +1229,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
   updateFooterTrack({ thumbnail, stemCount: stems.filter((s) => s.name !== "original").length });
 
   // The whole-song peaks are re-populated below after the peaks fetch.
-  _footerWavePeaks = null;
+  _songPeaks = null;
   const waveformUrl = _mixUrl
     || stems.find((s) => s.name === "original")?.url
     || stems[0]?.url;
@@ -1239,7 +1239,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
   // its stem WAV fetches. This keeps peaks.json out of Safari's 6-connection-per-
   // origin window, preventing stem WAV queuing that causes buffer underruns.
   let precomputedPeaks = {};
-  const _footerStemName = stems.find((s) => s.name === "original") ? "original" : stems[0]?.name;
+  const peaksStemName = stems.find((s) => s.name === "original") ? "original" : stems[0]?.name;
   const _peaksPromise = peaksPromise ?? (jobId
     ? (() => {
         const ac = new AbortController();
@@ -1368,10 +1368,10 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
   _peaksPromise.then((peaks) => {
     if (token !== visualRenderToken) return;
     precomputedPeaks = peaks;
-    const footerPeaks = peaks[_footerStemName] || peaks[Object.keys(peaks)[0]];
-    if (footerPeaks?.length) {
-      const step = Math.ceil(footerPeaks.length / _FOOTER_BARS);
-      _footerWavePeaks = footerPeaks.filter((_, i) => i % step === 0).slice(0, _FOOTER_BARS);
+    const stemPeaks = peaks[peaksStemName] || peaks[Object.keys(peaks)[0]];
+    if (stemPeaks?.length) {
+      const step = Math.ceil(stemPeaks.length / SONG_PEAK_BARS);
+      _songPeaks = stemPeaks.filter((_, i) => i % step === 0).slice(0, SONG_PEAK_BARS);
       announceWavePeaks();
     } else if (waveformUrl) {
       loadWavePeaksFromStem(waveformUrl);
@@ -1733,7 +1733,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
 }
 
 // Decode-only, for the whole-song peaks when peaks.json has none. It never plays
-// anything, so a 192 kHz device would cost four times the buffer for nothing (#578).
+// anything, so a 192 kHz device would cost four times the buffer for nothing.
 async function loadWavePeaksFromStem(stemUrl) {
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtx) return;
@@ -1742,7 +1742,7 @@ async function loadWavePeaksFromStem(stemUrl) {
     const res = await fetch(stemUrl, { cache: "force-cache" });
     if (!res.ok) return;
     const buf = await visualAudioContext.decodeAudioData(await res.arrayBuffer());
-    _footerWavePeaks = bufferMinMaxPeaks(buf, _FOOTER_BARS);
+    _songPeaks = bufferMinMaxPeaks(buf, SONG_PEAK_BARS);
     announceWavePeaks();
   } catch (e) {
     console.warn("[player] whole-song peaks:", e);
