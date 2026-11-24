@@ -8,10 +8,7 @@ export const DATED_AFTER_DAYS = 30;
 const FINISHED_STATUS = "done";
 const BLANK_CELLS = Object.freeze({ key: "", tempo: "", length: "", folder: "", added: "" });
 
-/**
- * When a song was added (`createdAt` in seconds), as `words` say it:
- * { today, yesterday, daysAgo(n), dated(ms) }.
- */
+/** `createdAt` is in seconds; `words` is { today, yesterday, daysAgo(n), dated(ms) }. */
 export function addedLabel(createdAt, nowMs, words) {
   if (!Number.isFinite(createdAt)) return "";
   const days = Math.floor((nowMs / MS_PER_SECOND - createdAt) / SECONDS_PER_DAY);
@@ -21,9 +18,7 @@ export function addedLabel(createdAt, nowMs, words) {
   return words.dated(createdAt * MS_PER_SECOND);
 }
 
-/**
- * A song's cells. `format`: { now, words, folderName, keyLabel(key, scale), time(seconds) }.
- */
+/** `format` is { now, words, folderName, keyLabel(key, scale), time(seconds) }. */
 export function songCells(track, { now, words, folderName, keyLabel, time }) {
   if (track?.status !== FINISHED_STATUS) return { ...BLANK_CELLS };
   return {

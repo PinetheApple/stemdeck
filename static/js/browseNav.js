@@ -1,7 +1,5 @@
-// Browse library's left column: All songs, Favorites, Recently added, Import
-// queue while importing, each setlist, the folder tree and Trash, with counts.
-// Songs dropped on a folder, setlist or Trash go there; folders keep today's
-// gestures: a double-click or F2 renames, dragging one reorders or nests it.
+// Browse library's left column: the views, setlists, folder tree and Trash with counts.
+// Each row takes dropped songs; folder rows rename, fold, reorder and nest.
 
 import { t } from "./i18n.js";
 import {
@@ -91,7 +89,6 @@ function folderItem(folder) {
   return item;
 }
 
-/** The tree's folders that show: none under a collapsed folder. */
 function shownFolders(tree) {
   let hiddenBelow = Infinity;
   return tree.filter((folder) => {
@@ -124,7 +121,6 @@ function trashButton() {
   return btn;
 }
 
-/** Mark the nav row of the view shown. */
 export function paintCurrentView() {
   for (const btn of $("browseNav")?.querySelectorAll(".browse-nav-btn") ?? []) {
     if (btn.dataset.view === browseState().view) btn.setAttribute("aria-current", "page");

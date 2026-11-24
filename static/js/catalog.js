@@ -1481,7 +1481,6 @@ export function showLyricsView() {
   setCatalogView(LYRICS_VIEW);
 }
 
-/** Show the sidebar's song list rather than its Lyrics view. */
 export function showLibraryView() {
   if (catalogView !== LIBRARY_VIEW) setCatalogView(LIBRARY_VIEW);
 }
@@ -1871,7 +1870,6 @@ function folderEntry(folder, depth) {
   };
 }
 
-/** Fold or unfold a folder's subfolders in the folder tree; remembered with the library. */
 export function setFolderCollapsed(folderId, collapsed) {
   const folder = folders.find((f) => f.id === folderId);
   if (!folder || folder.collapsed === collapsed) return;
@@ -1891,7 +1889,6 @@ export function libraryFolderTree() {
   return tree;
 }
 
-/** The name of the folder holding a song, or "". */
 export function folderNameOf(trackId) {
   const folder = folders.find((f) => f.id !== TRASH_ID && f.items.includes(trackId));
   return folder ? folderDisplayName(folder) : "";
@@ -2113,7 +2110,6 @@ function placeTrackInFolder(folderId, id) {
   if (target && !target.items.includes(id)) target.items.push(id);
 }
 
-/** A song dropped on a folder goes there. */
 export function dropTrackOnFolder(folderId, trackId) {
   if (!tracks[trackId]) return;
   placeTrackInFolder(folderId, trackId);
@@ -2291,8 +2287,7 @@ export function displayTitle(title) {
   }
 }
 
-// A song stopped by the Trash keeps its files (#748). Restore brings it back
-// as it was, and its Extract button is the one way to run it again.
+// A song stopped by the Trash keeps its files, so Extract runs it again as it was.
 export async function extractStoppedTrack(trackId) {
   try {
     const res = await fetch(`/api/jobs/${encodeURIComponent(trackId)}/extract`, { method: "POST" });
@@ -2495,7 +2490,6 @@ export function makeSetlistFromFolder(folderId) {
   render();
 }
 
-/** The "too many songs for a setlist" message for this folder, or null. */
 export function folderErrorEl(folderId) {
   const folder = folders.find((f) => f.id === folderId);
   return folder && stillTooManySongs(folder) ? tooManySongsError() : null;
@@ -2517,7 +2511,6 @@ export function makeFolderFromSetlist(setlistName, songIds) {
 
 const RENAME_FOLDER_KEY = "F2";
 
-/** F2 on a user folder's row renames it. */
 export function wireFolderRenameKey(row, folderId) {
   if (isSystemFolder(folderId)) return;
   row.addEventListener("keydown", function onFolderRenameKey(e) {
@@ -3265,7 +3258,6 @@ function queueHost() {
   return host && isShown(host) ? host : null;
 }
 
-/** Draw the import queue into Browse library's Import queue view. */
 export function renderImportQueue(host) {
   renderQueueList(host);
 }

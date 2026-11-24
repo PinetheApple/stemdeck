@@ -1,6 +1,4 @@
-// The sidebar: Browse library, then Importing while imports run, Favorites
-// (with the playing song), Setlists and Recently played, and Trash at the foot.
-// Collapsed, it is a strip of the same songs' covers between Browse and Trash.
+// The sidebar's groups and Trash count; collapsed, a strip of the same songs' covers.
 
 import { t, onLanguageChange } from "./i18n.js";
 import {

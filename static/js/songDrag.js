@@ -34,7 +34,6 @@ function endDrag(itemEl) {
   for (const el of document.querySelectorAll(`.${DROP_TARGET_CLASS}`)) el.classList.remove(DROP_TARGET_CLASS);
 }
 
-/** Make `el` draggable as the song `trackId`. */
 export function wireTrackDrag(el, trackId) {
   el.draggable = true;
   el.addEventListener("dragstart", function onSongDragStart(e) {
@@ -45,10 +44,7 @@ export function wireTrackDrag(el, trackId) {
   });
 }
 
-/**
- * Let a dragged song be dropped on `el`: `onDrop(trackId)` takes it.
- * `accepts(event)`, when given, can refuse a drag; `effect` is the cursor's drop effect.
- */
+/** `accepts(event)`, when given, can refuse a drag; `effect` is the cursor's drop effect. */
 export function wireDropTarget(el, onDrop, { accepts = () => true, effect = "move" } = {}) {
   el.addEventListener("dragover", function onSongDragOver(e) {
     if (!isTrackDragEvent(e) || !accepts(e)) return;

@@ -1,6 +1,5 @@
-// Dragging a folder row in Browse library: the top quarter of another folder's
-// row places it before, the bottom quarter after, the middle nests it inside.
-// Unsorted takes no subfolders, so it splits into before and after only.
+// A folder row dropped on another's top quarter goes before it, the bottom quarter
+// after, the middle inside; Unsorted takes no subfolders, so it splits in two.
 
 import { isFolderDescendant, reorderFolder, reparentFolder } from "./catalog.js";
 

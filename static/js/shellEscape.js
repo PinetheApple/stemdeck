@@ -1,6 +1,5 @@
-// Esc closes the topmost open layer only: error box, menu or popover, dialog,
-// Browse library, Guide, then Stage mode. Each layer's own handler closes it;
-// handlers of lower layers ask escapeIsFor() first.
+// Esc closes the topmost open layer only (error, menu, dialog, Browse library,
+// Guide, Stage); each lower layer's handler asks escapeIsFor() first.
 
 export const ESCAPE_KEY = "Escape";
 export const LAYER = Object.freeze({

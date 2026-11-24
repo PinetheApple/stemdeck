@@ -1,6 +1,5 @@
-// One library song as a row (sidebar, Browse list, setlists) or as a card
-// (Browse grid). Rows keep the .cat-item / .cat-actions classes every list and
-// test reads; the cover shows Play, moving bars while it plays, or Resume.
+// One library song as a row or as a Browse grid card; the cover shows Play,
+// moving bars while it plays, or Resume.
 
 import { t as i18nT } from "./i18n.js";
 import {
@@ -113,10 +112,8 @@ function wireSongEl(el, trackId, inTrash) {
   if (!inTrash) wireTrackDrag(el, trackId);
 }
 
-/**
- * A song's row. `lead`: markup before the cover (a setlist position); `cells`: the
- * list view's columns; `actions`: markup that replaces the row's buttons; `sub`: text for the sub-line.
- */
+/** `lead` goes before the cover, `cells` are the list's columns; `actions` and `sub` replace
+ *  the row's buttons and sub-line. */
 export function songRowEl(trackId, { inTrash = false, lead = "", cells = "", actions = null, sub = null } = {}) {
   const track = getLibraryTrack(trackId);
   if (!track) return null;
@@ -136,7 +133,6 @@ export function songRowEl(trackId, { inTrash = false, lead = "", cells = "", act
   return el;
 }
 
-/** A song's card in the Browse grid: its cover with Play, then title and sub-line. */
 export function songCardEl(trackId, { inTrash = false } = {}) {
   const track = getLibraryTrack(trackId);
   if (!track) return null;

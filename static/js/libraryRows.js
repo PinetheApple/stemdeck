@@ -1,6 +1,5 @@
-// The keyboard and mouse model shared by every list of library songs (the
-// sidebar, Browse library): one Tab stop, a click shows a song, a double-click,
-// Enter or the cover's Play plays it, and Delete trashes a row reached by keyboard.
+// One keyboard and mouse model for every list of library songs: a click shows a
+// song, a double-click or Enter plays it, Delete trashes a row reached by keyboard.
 
 import { getLibraryTrack, isTextEditingTarget, moveTrackToTrash } from "./catalog.js";
 import { openSong, playSong, playVersion } from "./openSong.js";

@@ -1,6 +1,5 @@
 // Browse library: every song, folder, setlist, favorite and the Trash, over the
-// player with the page dimmed. Opened from the sidebar, a See all, the Trash
-// button, the top bar's Importing N, or Ctrl/Cmd+K, which also focuses its search.
+// player with the page dimmed.
 
 import { onLanguageChange } from "./i18n.js";
 import { onLibraryDraw } from "./catalog.js";

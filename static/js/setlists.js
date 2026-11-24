@@ -136,12 +136,10 @@ export function getSetlist(id) {
   return setlists.find((setlist) => setlist.id === id) ?? null;
 }
 
-/** The last save or load that failed, said in words, or "". */
 export function setlistsError() {
   return lastError;
 }
 
-/** `listener()` runs whenever the setlists or their error change. */
 export function onSetlistsChange(listener) {
   listeners.add(listener);
 }

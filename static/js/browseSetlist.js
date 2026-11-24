@@ -1,6 +1,5 @@
-// A setlist in Browse library: Play from the top, rename, Make a folder and
-// Delete (on a second click), then its songs in order, each with move up,
-// move down and remove. A song in the Trash keeps its place, greyed.
+// A setlist in Browse library: its head's actions, then its songs in order.
+// A song in the Trash keeps its place, greyed.
 
 import { t } from "./i18n.js";
 import { isInTrash } from "./catalog.js";
@@ -109,7 +108,6 @@ function errorEl() {
   return error;
 }
 
-/** The setlist view's children. */
 export function drawSetlistView(id) {
   const setlist = getSetlist(id);
   const lead = `<span class="set-tile set-tile-lg">${icon("listMusic")}</span>`;

@@ -6,7 +6,6 @@ export const TAG_PREFIX = "#";
 const normalize = (value) => String(value ?? "").trim().toLowerCase();
 const includes = (value, needle) => normalize(value).includes(needle);
 
-/** Whether `song` ({ title, artist, source, stems, tags }) matches the typed `query`. */
 export function songMatches(song, query) {
   const needle = normalize(query);
   if (!needle) return true;
