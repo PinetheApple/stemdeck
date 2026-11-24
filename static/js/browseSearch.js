@@ -2,7 +2,13 @@
 // the library's tags; a chip or a suggestion puts its #tag in the box, a second click clears it.
 
 import {
-  TRACK_OPEN_EVENT, TRACK_SHOW_EVENT, getCurrentTrackInfo, getLibraryTrack, isInTrash, libraryTrackIds, librarySearchFields,
+  TRACK_OPEN_EVENT,
+  TRACK_SHOW_EVENT,
+  getCurrentTrackInfo,
+  getLibraryTrack,
+  isInTrash,
+  libraryTrackIds,
+  librarySearchFields,
 } from "./catalog.js";
 import { TAG_PREFIX, chipTags, tagCounts, toggleTagQuery } from "./librarySearch.js";
 import { browseState, setBrowseQuery } from "./browseLibrary.js";
