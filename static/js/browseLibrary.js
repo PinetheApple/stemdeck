@@ -15,6 +15,7 @@ import { drawBrowseResults } from "./browseViews.js";
 import { drawTagChips, wireBrowseSearch } from "./browseSearch.js";
 import { openSetlistRename } from "./setlistRenameDialog.js";
 import { LAYOUT, VIEW } from "./browseViewNames.js";
+import { afterResultsDrawn, endPicking, initLibraryTools, leaveSelectOnEscape } from "./libraryTools.js";
 
 const LAYOUT_KEY = "stemdeck.browse.layout";
 const OPEN_CLASS = "browse-open";
@@ -36,6 +37,7 @@ export function closeBrowse() {
   const overlay = $("browseLibrary");
   if (!overlay || overlay.hidden) return;
   overlay.hidden = true;
+  endPicking();
   $("browseScrim").hidden = true;
   document.body.classList.remove(OPEN_CLASS);
   const back = opener?.isConnected ? opener : $("browseBtn");
@@ -60,6 +62,7 @@ export function renderResults() {
     state.view = drawn;
     drawBrowseNav();
   }
+  afterResultsDrawn($("browseResults"), currentViewKind());
   resultRows?.restore(saved);
 }
 
@@ -74,6 +77,7 @@ export function openBrowse(view = state.view) {
     $("browseScrim").hidden = false;
     document.body.classList.add(OPEN_CLASS);
   }
+  if (view !== state.view) endPicking();
   state.view = view;
   // A nav row's own click must not rebuild the nav: its double-click renames the folder.
   if (opening) renderBrowse();
@@ -126,6 +130,10 @@ function setLayout(layout) {
   renderResults();
 }
 
+function currentViewKind() {
+  return viewParts()[0];
+}
+
 function onGridClick() {
   setLayout(LAYOUT.GRID);
 }
@@ -135,7 +143,7 @@ function onListClick() {
 }
 
 function onBrowseKeydown(e) {
-  if (e.key === ESCAPE_KEY && escapeIsFor(LAYER.BROWSE)) closeBrowse();
+  if (e.key === ESCAPE_KEY && escapeIsFor(LAYER.BROWSE) && !leaveSelectOnEscape()) closeBrowse();
 }
 
 const queueNavEntry = () => $("browseNav")?.querySelector(`[data-view="${VIEW.QUEUE}"]`);
@@ -169,6 +177,7 @@ export function initBrowseLibrary() {
   const results = $("browseResults");
   if (!results) return;
   resultRows = wireSongList(results, { afterPlay: closeBrowse });
+  initLibraryTools(results, { redraw: renderResults, viewKind: currentViewKind });
   $("browseScrim")?.addEventListener("click", closeBrowse);
   $("browseCloseBtn")?.addEventListener("click", closeBrowse);
   $("browseGridBtn")?.addEventListener("click", onGridClick);

@@ -21,6 +21,7 @@ import { drawSetlistView } from "./browseSetlist.js";
 import { getSetlist } from "./setlists.js";
 import { LIST_KIND } from "./playContext.js";
 import { importQueueShown } from "./importQueueView.js";
+import { decorateSongEl, filteredOutEl, myOrderHintEls, sortableHeadEl, viewSongIds } from "./libraryTools.js";
 
 const RECENT_LIMIT = 12;
 const COLUMNS = [
@@ -75,52 +76,55 @@ function cellsHtml(trackId) {
   return CELL_CLASSES.map(([field, cls]) => `<span class="cell ${cls}">${esc(cells[field])}</span>`).join("");
 }
 
-function tableHeadEl() {
-  const head = document.createElement("div");
-  head.className = "browse-thead";
-  head.innerHTML = COLUMNS.map(([cls, key]) => `<span class="cell ${cls}">${esc(t(key))}</span>`).join("")
-    + '<span class="cell c-acts"></span>';
-  return head;
+function tableHeadEl(kind) {
+  return sortableHeadEl(COLUMNS, kind);
 }
 
-/** Songs as the chosen layout shows them: cards in a grid, or rows under column heads. */
-export function songListEls(ids) {
+/** Songs as the chosen layout shows them: cards in a grid, or rows under column heads.
+ *  `kind` is the view's, for sorting, picking and My order. */
+export function songListEls(ids, kind = null) {
   if (browseState().layout === LAYOUT.LIST) {
     const list = document.createElement("div");
     list.className = "browse-list is-table";
     for (const id of ids) {
-      const row = songRowEl(id, { cells: cellsHtml(id) });
+      const row = decorateSongEl(songRowEl(id, { cells: cellsHtml(id) }), kind);
       if (row) list.append(row, ...versionExtras(id));
     }
-    return [tableHeadEl(), list];
+    return [tableHeadEl(kind), list];
   }
   const grid = document.createElement("div");
   grid.className = "browse-grid";
-  grid.append(...ids.map((id) => songCardEl(id)).filter(Boolean));
+  grid.append(...ids.map((id) => decorateSongEl(songCardEl(id), kind)).filter(Boolean));
   return [grid];
 }
 
-function titledView(title, allIds, emptyEl = null) {
-  const ids = matching(allIds);
-  const empty = browseState().query ? noMatchEl() : emptyEl;
-  const body = ids.length ? songListEls(ids) : [empty].filter(Boolean);
-  return [viewHeadEl(title, ids.length), ...body];
+/** The view's songs under the My order hint, else the empty state that fits. */
+function songsBody(kind, ids, viewCount, emptyEl) {
+  if (ids.length) return [...myOrderHintEls(kind), ...songListEls(ids, kind)];
+  const empty = browseState().query ? noMatchEl() : filteredOutEl(kind, ids.length, viewCount) ?? emptyEl;
+  return [empty].filter(Boolean);
+}
+
+function titledView(kind, title, allIds, emptyEl = null) {
+  const matched = matching(allIds);
+  const ids = viewSongIds(kind, matched);
+  return [viewHeadEl(title, ids.length), ...songsBody(kind, ids, matched.length, emptyEl)];
 }
 
 const byAdded = (a, b) => (getLibraryTrack(b).createdAt ?? 0) - (getLibraryTrack(a).createdAt ?? 0);
 
 function allView() {
-  return titledView(t("lib.allSongs"), libraryTrackIds(), emptyStateEl("music", t("lib.startTitle"), t("lib.startHint")));
+  return titledView(VIEW.ALL, t("lib.allSongs"), libraryTrackIds(), emptyStateEl("music", t("lib.startTitle"), t("lib.startHint")));
 }
 
 function favoritesView() {
   const ids = favoriteTrackIds();
-  return titledView(t("nav.favorites"), ids, emptyStateEl("heart", t("favorites.emptyTitle"), t("favorites.emptyHint")));
+  return titledView(VIEW.FAVORITES, t("nav.favorites"), ids, emptyStateEl("heart", t("favorites.emptyTitle"), t("favorites.emptyHint")));
 }
 
 function recentView() {
   const ids = [...libraryTrackIds()].sort(byAdded).slice(0, RECENT_LIMIT);
-  return titledView(t("lib.recentlyAdded"), ids);
+  return titledView(VIEW.RECENT, t("lib.recentlyAdded"), ids);
 }
 
 function onMakeSetlistClick(e) {
@@ -172,7 +176,8 @@ function folderView(folderId) {
   const tree = libraryFolderTree();
   const folder = tree.find((f) => f.id === folderId);
   if (!folder) return null;
-  const ids = matching(folderTrackIds(folderId));
+  const matched = matching(folderTrackIds(folderId));
+  const ids = viewSongIds(VIEW.FOLDER, matched);
   const lead = `<span class="folder-dot folder-dot-lg" style="background: ${folder.color}"></span>`;
   const error = folderErrorEl(folderId);
   const empty = emptyStateEl("folder", t("library.emptyFolder"), t("lib.folderEmptyHint"));
@@ -180,7 +185,7 @@ function folderView(folderId) {
     viewHeadEl(folder.name, ids.length, { lead, actions: folderActions(folder) }),
     ...(error ? [error] : []),
     ...subfolderChips(tree, folderId),
-    ...(ids.length ? songListEls(ids) : [browseState().query ? noMatchEl() : empty]),
+    ...songsBody(VIEW.FOLDER, ids, matched.length, empty),
   ];
 }
 
@@ -192,7 +197,7 @@ function onEmptyTrashClick(e) {
 function trashListEl(ids) {
   const list = document.createElement("div");
   list.className = "browse-list";
-  list.append(...ids.map((id) => songRowEl(id, { inTrash: true })).filter(Boolean));
+  list.append(...ids.map((id) => decorateSongEl(songRowEl(id, { inTrash: true }), VIEW.TRASH)).filter(Boolean));
   return list;
 }
 
