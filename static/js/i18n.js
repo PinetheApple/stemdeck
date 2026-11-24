@@ -656,8 +656,6 @@ const en = {
   "sections.hideTitle": "Hide the sections bar. Collapse > Sections brings it back.",
   "help.sectionsHide": "Hides the sections bar. Press Sections next to Collapse to bring it back.",
 
-  "mixer.title": "Mixer",
-
   "panels.analysis": "Analysis",
 
   "panels.timeline": "Timeline",
@@ -670,7 +668,6 @@ const en = {
   "panels.collapse": "Collapse",
   "autoScroll.label": "Auto-scroll",
   "autoScroll.title": "Keep the playhead in view while playing when zoomed in",
-  "mixer.hint": "Drag fader · M/S",
   "stemsPanel.ariaLabel": "Stems",
 
   "beatgrid.toolbarAria": "Beat grid editor",
@@ -2156,8 +2153,6 @@ const pl = {
   "sections.hideTitle": "Ukryj pasek sekcji. Zwiń > Sekcje przywraca go.",
   "help.sectionsHide": "Ukrywa pasek sekcji. Aby go przywrócić, kliknij Sekcje obok Zwiń.",
 
-  "mixer.title": "Mikser",
-
   "panels.analysis": "Analiza",
 
   "panels.timeline": "Oś czasu",
@@ -2170,7 +2165,6 @@ const pl = {
   "panels.collapse": "Zwiń",
   "autoScroll.label": "Autoprzewijanie",
   "autoScroll.title": "Utrzymuj głowicę w widoku podczas odtwarzania po powiększeniu",
-  "mixer.hint": "Przeciągnij suwak · M/S",
   "stemsPanel.ariaLabel": "Ścieżki",
 
   "beatgrid.toolbarAria": "Edytor siatki rytmicznej",
@@ -3665,8 +3659,6 @@ const ja = {
   "sections.hideTitle": "セクションバーを隠します。折りたたむ > セクション で再表示できます。",
   "help.sectionsHide": "セクションバーを隠します。折りたたむ の横の セクション を押すと再表示されます。",
 
-  "mixer.title": "ミキサー",
-
   "panels.analysis": "解析",
 
   "panels.timeline": "タイムライン",
@@ -3679,7 +3671,6 @@ const ja = {
   "panels.collapse": "折りたたむ",
   "autoScroll.label": "自動スクロール",
   "autoScroll.title": "拡大中、再生中に再生位置を表示し続けます",
-  "mixer.hint": "フェーダーをドラッグ · M/S",
   "stemsPanel.ariaLabel": "パート",
 
   "beatgrid.toolbarAria": "ビートグリッドエディタ",
@@ -5113,8 +5104,6 @@ const zhHans = {
   "sections.hideTitle": "隐藏段落栏。折叠 > 段落 可将其恢复。",
   "help.sectionsHide": "隐藏段落栏。点按“折叠”旁的“段落”即可恢复。",
 
-  "mixer.title": "混音台",
-
   "panels.analysis": "分析",
 
   "panels.timeline": "时间轴",
@@ -5127,7 +5116,6 @@ const zhHans = {
   "panels.collapse": "折叠",
   "autoScroll.label": "自动滚动",
   "autoScroll.title": "放大时，播放中保持播放头可见",
-  "mixer.hint": "拖动推子 · M/S",
   "stemsPanel.ariaLabel": "音轨",
 
   "beatgrid.toolbarAria": "节拍网格编辑器",
@@ -6561,8 +6549,6 @@ const de = {
   "sections.hideTitle": "Abschnittsleiste ausblenden. Einklappen > Abschnitte holt sie zurück.",
   "help.sectionsHide": "Blendet die Abschnittsleiste aus. Mit Abschnitte neben Einklappen holst du sie zurück.",
 
-  "mixer.title": "Mixer",
-
   "panels.analysis": "Analyse",
 
   "panels.timeline": "Zeitleiste",
@@ -6575,7 +6561,6 @@ const de = {
   "panels.collapse": "Einklappen",
   "autoScroll.label": "Auto-Scroll",
   "autoScroll.title": "Beim Abspielen die Abspielposition im Blick behalten, wenn hineingezoomt ist",
-  "mixer.hint": "Fader ziehen · M/S",
   "stemsPanel.ariaLabel": "Stems",
 
   "beatgrid.toolbarAria": "Beat-Raster-Editor",
@@ -8037,8 +8022,6 @@ const pt = {
   "sections.hideTitle": "Ocultar a barra de seções. Recolher > Seções volta a mostrá-la.",
   "help.sectionsHide": "Oculta a barra de seções. Para mostrá-la de novo, clique em Seções, ao lado de Recolher.",
 
-  "mixer.title": "Mixer",
-
   "panels.analysis": "Análise",
 
   "panels.timeline": "Linha do tempo",
@@ -8051,7 +8034,6 @@ const pt = {
   "panels.collapse": "Recolher",
   "autoScroll.label": "Rolagem automática",
   "autoScroll.title": "Manter o cursor de reprodução à vista durante a reprodução com zoom",
-  "mixer.hint": "Arraste o fader · M/S",
   "stemsPanel.ariaLabel": "Stems",
 
   "beatgrid.toolbarAria": "Editor de grade de batidas",
@@ -9515,8 +9497,6 @@ const id = {
   "sections.hideTitle": "Sembunyikan bilah bagian. Ciutkan > Bagian menampilkannya kembali.",
   "help.sectionsHide": "Menyembunyikan bilah bagian. Tekan Bagian di samping Ciutkan untuk menampilkannya kembali.",
 
-  "mixer.title": "Mixer",
-
   "panels.analysis": "Analisis",
 
   "panels.timeline": "Lini masa",
@@ -9529,7 +9509,6 @@ const id = {
   "panels.collapse": "Ciutkan",
   "autoScroll.label": "Gulir otomatis",
   "autoScroll.title": "Jaga penanda putar tetap terlihat saat diputar dalam keadaan diperbesar",
-  "mixer.hint": "Seret fader · M/S",
   "stemsPanel.ariaLabel": "Stem",
 
   "beatgrid.toolbarAria": "Editor grid ketukan",
@@ -10963,8 +10942,6 @@ const fr = {
   "sections.hideTitle": "Masquer la barre de sections. Réduire > Sections la réaffiche.",
   "help.sectionsHide": "Masque la barre de sections. Cliquez sur Sections, à côté de Réduire, pour la réafficher.",
 
-  "mixer.title": "Mixage",
-
   "panels.analysis": "Analyse",
 
   "panels.timeline": "Chronologie",
@@ -10977,7 +10954,6 @@ const fr = {
   "panels.collapse": "Réduire",
   "autoScroll.label": "Défilement auto",
   "autoScroll.title": "Garder la tête de lecture visible pendant la lecture en mode zoomé",
-  "mixer.hint": "Glissez le fader · M/S",
   "stemsPanel.ariaLabel": "Pistes",
 
   "beatgrid.toolbarAria": "Éditeur de grille rythmique",
@@ -12853,8 +12829,6 @@ const es = {
   "sections.hideTitle": "Ocultar la barra de secciones. Contraer > Secciones la vuelve a mostrar.",
   "help.sectionsHide": "Oculta la barra de secciones. Pulsa Secciones, junto a Contraer, para volver a mostrarla.",
 
-  "mixer.title": "Mezclador",
-
   "panels.analysis": "Análisis",
 
   "panels.timeline": "Línea de tiempo",
@@ -12867,7 +12841,6 @@ const es = {
   "panels.collapse": "Contraer",
   "autoScroll.label": "Desplazamiento automático",
   "autoScroll.title": "Mantener el cursor de reproducción a la vista al reproducir con zoom",
-  "mixer.hint": "Arrastra el fader · M/S",
   "stemsPanel.ariaLabel": "Stems",
 
   "beatgrid.toolbarAria": "Editor de GRID",
@@ -14352,8 +14325,6 @@ const ko = {
   "sections.hideTitle": "구간 막대를 숨겨요. 접기 > 구간으로 다시 표시할 수 있어요.",
   "help.sectionsHide": "구간 막대를 숨겨요. 접기 옆의 구간을 누르면 다시 보여요.",
 
-  "mixer.title": "믹서",
-
   "panels.analysis": "분석",
 
   "panels.timeline": "타임라인",
@@ -14366,7 +14337,6 @@ const ko = {
   "panels.collapse": "접기",
   "autoScroll.label": "자동 스크롤",
   "autoScroll.title": "확대했을 때 재생 중 재생 위치를 화면에 유지해요",
-  "mixer.hint": "페이더 드래그 · M/S",
   "stemsPanel.ariaLabel": "스템",
 
   "beatgrid.toolbarAria": "비트 그리드 편집기",
