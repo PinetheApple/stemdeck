@@ -1,6 +1,6 @@
 /* ── The song menu, and a grid card's heart and ⋯ on its cover ── */
 .lib-menu.song-menu { width: var(--song-menu-w); max-width: calc(100vw - 2 * var(--float-edge)); }
-.lib-menu.song-menu .lib-menu-item span { flex: 1; }
+.lib-menu.song-menu .lib-menu-item span:not(.folder-dot) { flex: 1; }
 .lib-menu.song-menu .lib-menu-label {
   border-top: 0;
   font-size: var(--fs-2xs);
