@@ -165,7 +165,7 @@
 .cat-item.active .cat-actions { background: linear-gradient(to right, transparent, var(--row-bg) var(--s-2)); }
 /* Actions that stay up take their own room, so the title and artist end before them.
    No height of their own: the row keeps its height and the buttons overflow it evenly. */
-.cat-item:is(.is-selected, .is-stopped, :focus-within) .cat-actions {
+.cat-item:not(.song-card):is(.is-selected, .is-stopped, :focus-within) .cat-actions {
   position: static;
   height: 0;
   align-items: center;
