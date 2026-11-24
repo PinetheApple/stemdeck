@@ -159,7 +159,7 @@ test("the empty studio's buttons open Add song on their action", async ({ page }
   await expect(page.locator("#url")).toBeFocused();
 });
 
-test("Browse library sits beside them and opens the library from a collapsed sidebar", async ({ page }) => {
+test("Browse library sits beside them and opens Browse library from a collapsed sidebar", async ({ page }) => {
   await page.addInitScript((key) => localStorage.setItem(key, "1"), COLLAPSED_KEY);
   await openApp(page);
   await expect(page.locator(".app")).toHaveClass(/\bcat-collapsed\b/);
@@ -167,9 +167,8 @@ test("Browse library sits beside them and opens the library from a collapsed sid
   await expect(browse).toHaveText(await uiText(page, "addsong.browseLibrary"));
 
   await browse.click();
-  await expect(page.locator(".app")).not.toHaveClass(/\bcat-collapsed\b/);
-  await expect(page.locator(".lib-nav-library")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("#catalogSearch")).toBeFocused();
+  await expect(page.locator("#browseLibrary")).toBeVisible();
+  await expect(page.locator("#browseSearch")).toBeFocused();
 });
 
 /** Paste a list, then close its review with Esc so the batch waits. */
