@@ -101,21 +101,19 @@ test("a setlist is renamed from its dialog, and Esc keeps the old name", async (
 });
 
 test("Play from the top opens the first song and leaves Up Next as it was", async ({ page, request }) => {
-  await request.post("/api/setlists", { data: { name: "Gig", song_ids: [SIBLING_JOB_ID] } });
+  await request.post("/api/setlists", { data: { name: "Gig", song_ids: [JOB_ID] } });
   await openStudio(page);
   await openBrowse(page);
-  const row = page.locator(`#browseResults .cat-item[data-id="${JOB_ID}"]`);
-  await row.hover();
-  await row.locator(".cat-upnext").click();
+  await chooseFromSongMenu(page, page.locator(`#browseResults .cat-item[data-id="${SIBLING_JOB_ID}"]`), "Add to Up Next");
   await openSetlist(page, "Gig");
 
   await page.locator("#browseResults .browse-setlist-play").click();
   await expect(page.locator("#browseLibrary")).toBeHidden();
-  await expect(page.locator("#title")).toHaveText(SIBLING_TITLE, { timeout: 15000 });
+  await expect.poll(() => page.evaluate(async () => (await import("/js/state.js")).currentJobId)).toBe(JOB_ID);
   await openInspectorTab(page, "upnext");
   const queued = page.locator("#upNextList .upnext-row");
   await expect(queued).toHaveCount(1);
-  await expect(queued).toHaveAttribute("data-id", JOB_ID);
+  await expect(queued).toHaveAttribute("data-id", SIBLING_JOB_ID);
 });
 
 test("the sidebar's Play starts a setlist from the top too", async ({ page, request }) => {
