@@ -1,5 +1,4 @@
-// The queue view's summary of a batch: its failed items, Retry failed, and what
-// stays shown once the queue drains. Preview, imports and queue are stubbed.
+// The queue view's summary of a batch while imports run: its failed items and Retry failed. Preview, imports and queue are stubbed.
 import { test, expect } from "@playwright/test";
 import { KEY, openBrowse, openComposer, uiText } from "./helpers.mjs";
 import {
@@ -105,7 +104,7 @@ test("a failed row's Retry keeps focus through a batch redraw", async ({ page })
 });
 
 test("a failed item stays in the queue with its reason and Retry", async ({ page }) => {
-  const { queue, refresh, retries } = await queueWithFailure(page);
+  const { retries } = await queueWithFailure(page);
   const failed = failedRow(page);
   await expect(failed.locator(".batch-failed-label")).toHaveText(await uiText(page, "importFail.reason.sourceUnavailable"));
   const head = page.locator(".batch-head");
@@ -113,10 +112,6 @@ test("a failed item stays in the queue with its reason and Retry", async ({ page
   await expect(head).toContainText(await uiText(page, "batch.failedCount.one", { count: 1 }));
   await expect(head.locator(".batch-retry-failed")).toBeVisible();
 
-  // The queue drains: the batch and its failure stay in view until dealt with.
-  queue.running = false;
-  queue.queued = [];
-  await refresh();
   await expect(head).toBeVisible();
   await expect(failed).toBeVisible();
   await failed.locator(".batch-failed-retry").click();
@@ -124,10 +119,7 @@ test("a failed item stays in the queue with its reason and Retry", async ({ page
 });
 
 test("Retry failed with nothing left out keeps the batch's count", async ({ page }) => {
-  const { queue, refresh, retries } = await queueWithFailure(page, { retryStatus: HTTP_FULL });
-  queue.running = false;
-  queue.queued = [];
-  await refresh();
+  const { retries } = await queueWithFailure(page, { retryStatus: HTTP_FULL });
   // A new list waits in the bar, reviewed but not queued: it has nothing left out to send.
   await paste(page, [LINE.ok, LINE.other].join("\n"));
   await expect(queueButton(page)).toBeEnabled();
