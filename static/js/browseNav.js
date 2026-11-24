@@ -8,6 +8,7 @@ import {
 } from "./catalog.js";
 import { trashWithUndo } from "./trashUndo.js";
 import { queueCount, getQueueSnapshot } from "./queue.js";
+import { importQueueShown } from "./importQueueView.js";
 import { addSongToSetlist, getSetlists, newSetlist } from "./setlists.js";
 import { icon } from "./libraryIcons.js";
 import { esc } from "./songRowParts.js";
@@ -46,7 +47,7 @@ function viewButtons() {
     navButton(VIEW.RECENT, icon("clock"), t("lib.recentlyAdded")),
   ];
   const importing = queueCount(getQueueSnapshot());
-  if (importing) buttons.push(navButton(VIEW.QUEUE, icon("download"), t("shell.importQueue"), importing));
+  if (importQueueShown()) buttons.push(navButton(VIEW.QUEUE, icon("download"), t("shell.importQueue"), importing));
   return buttons;
 }
 

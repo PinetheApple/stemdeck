@@ -3030,7 +3030,7 @@ function mountQueueSection(listEl, section, saved) {
 
 const PERCENT = 100;
 
-function queueBatchProgress(snap) {
+export function queueBatchProgress(snap) {
   const { jobIds, notQueued } = getBatch();
   const progress = batchProgress(jobIds, snap, (id) => tracks[id]?.status);
   if (!batchStillShown(progress, notQueued)) return null;

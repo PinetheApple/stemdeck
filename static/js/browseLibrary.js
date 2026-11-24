@@ -3,7 +3,8 @@
 
 import { onLanguageChange } from "./i18n.js";
 import { onLibraryDraw } from "./catalog.js";
-import { onQueueChange, queueCount, getQueueSnapshot } from "./queue.js";
+import { onQueueChange, getQueueSnapshot } from "./queue.js";
+import { importQueueShown } from "./importQueueView.js";
 import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
 import { storeGet, storeSet, $ } from "./utils.js";
 import { wireSongList } from "./libraryRows.js";
@@ -140,7 +141,7 @@ function onBrowseKeydown(e) {
 // Leaving the queue view once nothing imports; the nav's Import queue comes and goes.
 function onQueueFrame(snap = getQueueSnapshot()) {
   if (!isBrowseOpen()) return;
-  const importing = queueCount(snap) > 0;
+  const importing = importQueueShown(snap);
   if (importing === Boolean($("browseNav")?.querySelector(`[data-view="${VIEW.QUEUE}"]`))) return;
   if (!importing && state.view === VIEW.QUEUE) state.view = VIEW.ALL;
   renderBrowse();
