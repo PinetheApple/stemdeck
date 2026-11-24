@@ -51,6 +51,7 @@ import { initUpNextButton } from "./footerTransport.js";
 import { paintSectionLine } from "./footerSections.js";
 import { SPEED_MIN, SPEED_MAX, SPEED_STEP, SPEED_NOTCH, TIMES_SIGN, clampSpeed, nextNotch, parseSpeedInput } from "./speedInput.js";
 import { trackPlayhead, resumeFollowing } from "./autoScroll.js";
+import { MIN_WAVES_PX } from "./paneEdgeMath.js";
 import { startMediaAnchor, pauseMediaAnchor } from "./mediaSession.js";
 
 // Zoom range. 1 is the whole track fitted to the panel; there is nothing below
@@ -78,9 +79,6 @@ const WAVE_ZOOM_STEP = 1.18;
 // pointer handler that calls preventDefault on their pointerdown stops that
 // drag before it starts. Excluded from both loop gestures for that reason.
 const DRAG_OUT_SELECTOR = "[data-loop-drag-out], [data-lane-drag-out]";
-// Below this visible width the waveform stops compressing to fit and instead
-// keeps a minimum size, overflowing horizontally so .wave-scroll can scroll.
-const WAVE_MIN_WIDTH = 720;
 // rulerTime is the canonical timeline reference for both click->time
 // and time->pixel mapping. The wave-editor lays the ruler and the
 // waveform body out so they should be horizontally aligned (both gutter
@@ -842,6 +840,12 @@ export function syncRulerScroll() {
   if (lyricsTrack) lyricsTrack.style.transform = shift;
 }
 
+// The shell keeps the wave panel, vertical scrollbar included, at MIN_WAVES_PX or wider.
+function minContentWidth(visibleWidth) {
+  const panel = waveScroll.closest(".daw-wave-panel");
+  return MIN_WAVES_PX - (panel ? panel.getBoundingClientRect().width - visibleWidth : 0);
+}
+
 export function applyWaveZoom() {
   const lanes = document.getElementById("lanes") || waveCanvas;
   const wavesColumn = document.querySelector(".waves-column");
@@ -854,7 +858,7 @@ export function applyWaveZoom() {
       // Two separate reasons the content can be wider than the viewport, and
       // they multiply rather than compete: the user's zoom, and the floor that
       // stops the whole track compressing into a sliver on a narrow window.
-      const contentWidth = Math.max(baseWidth * waveZoom, WAVE_MIN_WIDTH);
+      const contentWidth = Math.max(baseWidth * waveZoom, minContentWidth(baseWidth));
       const zoom = contentWidth / baseWidth;
       // Widen the container via --zoom FIRST. Then, after the browser has
       // reflowed it, zoom WaveSurfer to fit the container's *actual* width.
@@ -894,10 +898,8 @@ export function setWaveZoomLevel(next, anchorClientX = null) {
     ? Math.min(rect.width, Math.max(0, anchorClientX - rect.left))
     : (waveScroll ? waveScroll.clientWidth / 2 : 0);
   const contentX = (waveScroll?.scrollLeft ?? 0) + offsetX;
-  // Measured, not derived from the zoom ratio. WAVE_MIN_WIDTH floors the
-  // content width, so on a window narrower than 720px a zoom step can widen the
-  // content by less than its own factor -- or not at all -- and scaling by the
-  // ratio would slide the anchor out from under the pointer.
+  // Measured, not derived from the zoom ratio: under the width floor a step widens
+  // the content by less than its factor, and the ratio would slide the anchor.
   const beforeWidth = waveCanvas?.getBoundingClientRect().width || 0;
 
   setWaveZoom(clamped);
