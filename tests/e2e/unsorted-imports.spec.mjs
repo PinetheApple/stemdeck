@@ -3,6 +3,7 @@
 // when another tab with the old folder list saves (#228).
 import { test, expect } from "@playwright/test";
 import {
+  chooseFromSongMenu,
   JOB_ID,
   SIBLING_JOB_ID,
   SIBLING_TITLE,
@@ -117,7 +118,7 @@ test.describe("new imports go to Unsorted (#228)", () => {
 
     await expect(folderEl(stale, SUNDAY.id)).toHaveCount(0);
     await stale.keyboard.press("Escape");
-    await stale.locator(`#catalogList .cat-item[data-id="${JOB_ID}"] .cat-fav`).first().click({ force: true });
+    await chooseFromSongMenu(stale, stale.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first(), "Add to Favorites");
     await expect.poll(async () => (await readCatalogState(stale))?.tracks?.[JOB_ID]?.favorite).toBe(true);
 
     await page.reload({ waitUntil: "domcontentloaded" });

@@ -2,7 +2,7 @@
 // Browse library, filled from a song's … menu or from Up Next, and played by
 // loading the first song with the rest as Up Next.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, SIBLING_TITLE, openBrowse, openInspectorTab, openStudio } from "./helpers.mjs";
+import { chooseFromSongMenu, JOB_ID, SIBLING_JOB_ID, SIBLING_TITLE, openBrowse, openInspectorTab, openStudio } from "./helpers.mjs";
 
 // The e2e server lives for the whole run, so each test leaves no setlist behind.
 test.afterEach(async ({ request }) => {
@@ -26,7 +26,7 @@ async function openRowMenu(page, id) {
   await openBrowse(page);
   const row = page.locator(`#browseResults .cat-item[data-id="${id}"]`);
   await row.hover();
-  await row.locator(".cat-more").click();
+  await row.locator(".song-card-more").click();
   const menu = page.locator(".lib-menu");
   await expect(menu).toBeVisible();
   return menu;
@@ -66,6 +66,7 @@ test("a setlist is created, filled, reordered, trimmed and deleted", async ({ pa
   await songs.nth(1).locator(".setlist-song-remove").click();
   await expect.poll(() => serverSongIds(request)).toEqual([SIBLING_JOB_ID]);
   await expect(songs).toHaveCount(1);
+  await expect(page.locator(".undo-toast")).toContainText("Removed from Setlist 1");
 
   // Deleting takes two clicks: the first only arms the button.
   const remove = page.locator("#browseResults .browse-setlist-delete");
@@ -125,9 +126,7 @@ test("the sidebar's Play starts a setlist from the top too", async ({ page, requ
 test("Up Next is saved as a setlist, open song first, with its name asked for", async ({ page, request }) => {
   await openStudio(page);
   await openBrowse(page);
-  const row = page.locator(`#browseResults .cat-item[data-id="${SIBLING_JOB_ID}"]`);
-  await row.hover();
-  await row.locator(".cat-upnext").click();
+  await chooseFromSongMenu(page, page.locator(`#browseResults .cat-item[data-id="${SIBLING_JOB_ID}"]`), "Add to Up Next");
   await page.locator("#browseCloseBtn").click();
   await openInspectorTab(page, "upnext");
   await expect(page.locator("#upNextList .upnext-row")).toHaveCount(1);

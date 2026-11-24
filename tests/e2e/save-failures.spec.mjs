@@ -3,7 +3,7 @@
 
 import { test, expect } from "@playwright/test";
 
-import { failureMessages, seedLibrary, stubUpdateCheck, uiText, JOB_ID } from "./helpers.mjs";
+import { chooseFromSongMenu, failureMessages, seedLibrary, stubUpdateCheck, uiText, JOB_ID } from "./helpers.mjs";
 
 const LIBRARY_KEY = "stemdeck.folders";
 
@@ -56,12 +56,13 @@ test.describe("a library the device could not save", () => {
     await seedLibrary(page);
     await stubUpdateCheck(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    const heart = page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"] .cat-fav`).first();
-    await expect(heart).toBeAttached();
+    const row = page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first();
+    await expect(row).toBeAttached();
+    const isFavorite = () => row.evaluate((el) => el.classList.contains("is-fav"));
     const toggleHeart = async () => {
-      const pressed = await heart.getAttribute("aria-pressed");
-      await heart.click({ force: true });
-      await expect(heart).not.toHaveAttribute("aria-pressed", pressed);
+      const was = await isFavorite();
+      await chooseFromSongMenu(page, row, was ? "Remove from Favorites" : "Add to Favorites");
+      await expect.poll(isFavorite).toBe(!was);
     };
     const clearFailures = () => page.evaluate(() => document.getElementById("notifClearAll").click());
 

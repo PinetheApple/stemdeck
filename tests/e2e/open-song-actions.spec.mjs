@@ -1,7 +1,7 @@
 // The open song offers its library row's Up Next and setlist actions from the
 // song head and from Stage, where the library row is out of reach.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, openStudio, stubServerTrash, waitForPanesSettled } from "./helpers.mjs";
+import { JOB_ID, chooseFromSongMenu, openStudio, stubServerTrash, waitForPanesSettled } from "./helpers.mjs";
 
 const SETLIST_NAME = "Gig";
 const UP_NEXT_KEY = "stemdeck.upNext";
@@ -130,8 +130,7 @@ test("a trashed open song is offered to neither Up Next nor a setlist", async ({
   await openWithSetlist(page, request);
   for (const button of OPEN_SONG_BUTTONS) await expect(page.locator(button)).toBeEnabled();
 
-  await libraryRow(page).hover();
-  await libraryRow(page).locator(".cat-del").click();
+  await chooseFromSongMenu(page, libraryRow(page), "Move to Trash");
   for (const button of OPEN_SONG_BUTTONS) await expect(page.locator(button)).toBeDisabled();
   await clickEvery(page, OPEN_SONG_BUTTONS.slice(0, 2));
   await page.locator("#stageModeBtn").click();

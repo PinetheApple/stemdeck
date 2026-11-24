@@ -138,19 +138,14 @@ test.describe("song rows", () => {
     await page.keyboard.press(ROW_KEY.INTO);
     await expect(row.locator(".cat-upnext")).toBeFocused();
     await page.keyboard.press(ROW_KEY.INTO);
-    await expect(row.locator(".cat-more")).toBeFocused();
-    await page.keyboard.press(ROW_KEY.INTO);
-    const heart = row.locator(".cat-fav");
-    await expect(heart).toBeFocused();
-    const before = await heart.getAttribute("aria-pressed");
-    const flipped = String(before !== "true");
+    const more = row.locator(".cat-more");
+    await expect(more).toBeFocused();
     await page.keyboard.press(KEY.ENTER);
-    await expect(heart).toHaveAttribute("aria-pressed", flipped);
-    await expect(heart).toBeFocused();
-    await page.keyboard.press(KEY.ENTER);
-    await expect(heart).toHaveAttribute("aria-pressed", before);
+    await expect(page.locator(".lib-menu.song-menu")).toBeVisible();
+    await page.keyboard.press(KEY.ESCAPE);
+    await expect(more).toBeFocused();
 
-    for (let i = 0; i < 3; i++) await page.keyboard.press(ROW_KEY.BACK);
+    for (let i = 0; i < 2; i++) await page.keyboard.press(ROW_KEY.BACK);
     await expect(row).toBeFocused();
     await page.keyboard.press(ROW_KEY.INTO);
     await page.keyboard.press(ROW_KEY.NEXT);

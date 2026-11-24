@@ -8,7 +8,7 @@
 
 import { test, expect } from "@playwright/test";
 
-import { fixtureTrack, seedCatalogState, stubUpdateCheck, openBrowse, browseRow } from "./helpers.mjs";
+import { chooseFromSongMenu, fixtureTrack, seedCatalogState, stubUpdateCheck, openBrowse, browseRow } from "./helpers.mjs";
 
 const RUNNING_ID = "e2e0feedf00d";
 const RUNNING_TITLE = "Still Importing";
@@ -105,9 +105,7 @@ test("trashing an import that is still running refreshes the queue at once", asy
   await openBrowse(page, "all");
 
   // The row's actions only take the pointer on hover (#724).
-  const row = browseRow(page, RUNNING_ID);
-  await row.hover();
-  await row.locator(".cat-del").click();
+  await chooseFromSongMenu(page, browseRow(page, RUNNING_ID), "Move to Trash");
 
   await expect.poll(() => seen.queueReadsAfterTrash).toBeGreaterThan(0);
   // The stream is aborted, so only the refresh the trash asked for can have

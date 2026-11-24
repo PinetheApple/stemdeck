@@ -815,3 +815,12 @@ export async function focusAddedInput(page, type) {
   await input.focus();
   return input;
 }
+
+const SONG_MENU = ".lib-menu.song-menu";
+const RIGHT_BUTTON = "right";
+
+/** Choose `name` from a song's menu, opened with a right-click on its row or card. */
+export async function chooseFromSongMenu(page, row, name) {
+  await row.click({ button: RIGHT_BUTTON });
+  await page.locator(SONG_MENU).getByRole("menuitem", { name, exact: true }).click();
+}

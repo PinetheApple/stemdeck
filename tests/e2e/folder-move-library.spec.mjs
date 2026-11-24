@@ -2,6 +2,7 @@
 // while StemData moves: each is undone and says to wait for the move (#190).
 import { test, expect } from "@playwright/test";
 import {
+  chooseFromSongMenu,
   JOB_ID,
   SIBLING_JOB_ID,
   SIBLING_TITLE,
@@ -62,7 +63,7 @@ test.describe("studio", () => {
   test("a song binned during the move comes back and says to wait for it", async ({ page }) => {
     const moving = await openLibrary(page, null);
 
-    await page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"] .cat-fav`).first().focus();
+    await page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"] .cat-upnext`).first().focus();
     await page.keyboard.press("Delete");
 
     await expect.poll(() => failureMessages(page)).toEqual([moving]);
@@ -83,8 +84,7 @@ test.describe("studio", () => {
     const row = page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first();
     await expect(row).toHaveClass(/\bactive\b/);
 
-    await row.hover();
-    await row.locator(".cat-del").click();
+    await chooseFromSongMenu(page, row, "Move to Trash");
 
     await expect.poll(() => failureMessages(page)).toEqual([moving]);
     const folders = (await readCatalogState(page))?.folders ?? [];
@@ -104,8 +104,7 @@ test.describe("studio", () => {
     const binned = page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first();
     const opened = page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`).first();
 
-    await binned.hover();
-    await binned.locator(".cat-del").click();
+    await chooseFromSongMenu(page, binned, "Move to Trash");
     await opened.dblclick();
     await expect(opened).toHaveClass(/\bactive\b/);
     answer();

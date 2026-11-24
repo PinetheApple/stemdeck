@@ -1,6 +1,6 @@
 // A rename, a band pick or a heart refused while StemData moves says to wait for the move.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, failureMessages, openStudio, stubAudioTags, uiText } from "./helpers.mjs";
+import { chooseFromSongMenu, JOB_ID, SIBLING_JOB_ID, failureMessages, openStudio, stubAudioTags, uiText } from "./helpers.mjs";
 import { EDIT_FOLDER_MOVING_DETAIL, FOLDER_MOVING_KEY } from "../../static/js/folderMoving.js";
 import { HTTP_CONFLICT } from "../../static/js/lyricsTranscribe.js";
 
@@ -52,8 +52,7 @@ test("a heart refused for the move is taken back with one card saying to wait fo
   const moving = await uiText(page, FOLDER_MOVING_KEY);
   const row = page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`).first();
 
-  await row.hover();
-  await row.locator(".cat-fav").click();
+  await chooseFromSongMenu(page, row, "Add to Favorites");
 
   await expect(row).not.toHaveClass(/\bis-fav\b/);
   await expect.poll(() => failureMessages(page)).toEqual([moving]);

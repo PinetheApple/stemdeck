@@ -226,8 +226,6 @@ test.describe("target sizes", () => {
         "#browseResults .cat-item .cat-extract",
         "#browseResults .cat-item .cat-upnext",
         "#browseResults .cat-item .cat-more",
-        "#browseResults .cat-item .cat-fav",
-        "#browseResults .cat-item .cat-del",
       ]),
     ).toEqual(ALL_TARGETS_MET);
     await page.keyboard.press(KEY.ESCAPE);

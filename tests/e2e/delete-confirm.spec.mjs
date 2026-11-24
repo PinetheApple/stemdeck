@@ -199,7 +199,7 @@ test.describe("keyboard delete", () => {
     await page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"] .cat-title`).click();
     await page.locator("body").focus();
     await page.keyboard.press("Delete");
-    await page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"] .cat-fav`).focus();
+    await page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"] .cat-upnext`).focus();
     await page.keyboard.press("Backspace");
 
     await expect.poll(() => trashItems(page)).toEqual([SIBLING_JOB_ID]);
@@ -210,7 +210,7 @@ test.describe("keyboard delete", () => {
     const calls = await stubLibraryWrites(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
 
-    const fav = page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"] .cat-fav`);
+    const fav = page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"] .cat-upnext`);
     await fav.focus();
     // Shown the way the app shows it, without taking focus from the row.
     await page.evaluate(() => document.getElementById("failureDialog").classList.remove("hidden"));
