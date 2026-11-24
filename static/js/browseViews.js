@@ -82,25 +82,26 @@ function tableHeadEl() {
 }
 
 /** Songs as the chosen layout shows them: cards in a grid, or rows under column heads. */
-export function songListEls(ids, { inTrash = false } = {}) {
+export function songListEls(ids) {
   if (browseState().layout === LAYOUT.LIST) {
     const list = document.createElement("div");
     list.className = "browse-list is-table";
     for (const id of ids) {
-      const row = songRowEl(id, { inTrash, cells: cellsHtml(id) });
-      if (row) list.append(row, ...(inTrash ? [] : versionExtras(id)));
+      const row = songRowEl(id, { cells: cellsHtml(id) });
+      if (row) list.append(row, ...versionExtras(id));
     }
     return [tableHeadEl(), list];
   }
   const grid = document.createElement("div");
   grid.className = "browse-grid";
-  grid.append(...ids.map((id) => songCardEl(id, { inTrash })).filter(Boolean));
+  grid.append(...ids.map((id) => songCardEl(id)).filter(Boolean));
   return [grid];
 }
 
-function titledView(title, allIds, emptyEl) {
+function titledView(title, allIds, emptyEl = null) {
   const ids = matching(allIds);
-  const body = ids.length ? songListEls(ids) : [browseState().query ? noMatchEl() : emptyEl];
+  const empty = browseState().query ? noMatchEl() : emptyEl;
+  const body = ids.length ? songListEls(ids) : [empty].filter(Boolean);
   return [viewHeadEl(title, ids.length), ...body];
 }
 
@@ -117,7 +118,7 @@ function favoritesView() {
 
 function recentView() {
   const ids = [...libraryTrackIds()].sort(byAdded).slice(0, RECENT_LIMIT);
-  return titledView(t("lib.recentlyAdded"), ids, emptyStateEl("clock", t("lib.startTitle"), t("lib.startHint")));
+  return titledView(t("lib.recentlyAdded"), ids);
 }
 
 function onMakeSetlistClick(e) {
@@ -185,6 +186,14 @@ function onEmptyTrashClick(e) {
   armEmptyTrash(e.currentTarget, e.currentTarget.querySelector("span"));
 }
 
+// The Trash lists plain rows with Restore whatever the layout.
+function trashListEl(ids) {
+  const list = document.createElement("div");
+  list.className = "browse-list";
+  list.append(...ids.map((id) => songRowEl(id, { inTrash: true })).filter(Boolean));
+  return list;
+}
+
 function trashView() {
   const ids = matching(trashTrackIds());
   const empty = document.createElement("button");
@@ -195,7 +204,7 @@ function trashView() {
   empty.innerHTML = `${icon("trash")}<span>${esc(t("trash.empty"))}</span>`;
   empty.addEventListener("click", onEmptyTrashClick);
   const body = ids.length
-    ? songListEls(ids, { inTrash: true })
+    ? [trashListEl(ids)]
     : [browseState().query ? noMatchEl() : emptyStateEl("trash", t("trash.isEmptyState"), t("trash.emptyHint"))];
   return [viewHeadEl(t("nav.trash"), ids.length, { actions: [empty] }), ...body];
 }

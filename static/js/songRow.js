@@ -133,20 +133,20 @@ export function songRowEl(trackId, { inTrash = false, lead = "", cells = "", act
   return el;
 }
 
-export function songCardEl(trackId, { inTrash = false } = {}) {
+export function songCardEl(trackId) {
   const track = getLibraryTrack(trackId);
   if (!track) return null;
   const el = document.createElement("div");
-  el.className = rowClasses(trackId, track, { inTrash, card: true });
+  el.className = rowClasses(trackId, track, { inTrash: false, card: true });
   el.dataset.id = trackId;
   el.innerHTML = `
-    <div class="cat-thumb">${thumbHtml(track)}${coverActionHtml(trackId, track, inTrash)}</div>
+    <div class="cat-thumb">${thumbHtml(track)}${coverActionHtml(trackId, track, false)}</div>
     <div class="cat-meta">
       <div class="cat-title">${esc(titleOf(track))}</div>
-      <div class="cat-sub">${trackSublineHtml(track, { inTrash })}</div>
+      <div class="cat-sub">${trackSublineHtml(track, { inTrash: false })}</div>
     </div>
     <div class="cat-status${statusClass(track)}"></div>
-    ${actionsHtml(track, { inTrash, actions: null })}`;
-  wireSongEl(el, trackId, inTrash);
+    ${actionsHtml(track, { inTrash: false, actions: null })}`;
+  wireSongEl(el, trackId, false);
   return el;
 }

@@ -74,12 +74,22 @@ function moveSuggestionFocus(items, step) {
   next.classList.add(FOCUSED_CLASS);
 }
 
+// Esc takes back one thing at a time: the suggestions, then the text, then Browse library itself.
+function onSearchEscape(e, items) {
+  if (!items.length && !e.currentTarget.value) return;
+  e.stopPropagation();
+  if (items.length) hideSuggestions();
+  else setBrowseQuery("");
+}
+
 function onSearchKeydown(e) {
   const items = [...($("tagSuggest")?.children ?? [])];
-  if (!items.length) return;
   if (e.key === "Escape") {
-    hideSuggestions();
-  } else if (STEP[e.key]) {
+    onSearchEscape(e, items);
+    return;
+  }
+  if (!items.length) return;
+  if (STEP[e.key]) {
     e.preventDefault();
     moveSuggestionFocus(items, STEP[e.key]);
   } else if (e.key === "Enter") {
