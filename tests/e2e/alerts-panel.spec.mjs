@@ -1,6 +1,3 @@
-// The Alerts panel opens from whatever trigger asks for it, stays in the window,
-// closes on Esc or a click outside, and hands focus back to that trigger.
-
 import { test, expect } from "@playwright/test";
 import { KEY, seedLibrary, settleRoutes, stubUpdateCheck } from "./helpers.mjs";
 

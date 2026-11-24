@@ -579,7 +579,6 @@
 .cat-version.renaming-row .rename-form { flex: 1; min-width: 0; }
 .cat-version.renaming-row .rename-input { height: var(--ctl-h-sm); font-size: var(--fs-sm); }
 
-/* "Extract more stems": the stems the version lacks, in its own dialog. */
 .cat-extract-more {
   display: flex;
   flex-direction: column;

@@ -1,5 +1,3 @@
-// A stored appearance choice resolves to itself while it is on offer, otherwise to the default.
-
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {

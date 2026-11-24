@@ -217,7 +217,6 @@ function versionGroup(trackId, track) {
   return group;
 }
 
-/** What goes under a song's row: its versions. */
 export function versionExtras(trackId) {
   const track = getLibraryTrack(trackId);
   if (!track) return [];

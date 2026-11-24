@@ -1,5 +1,6 @@
-// appearanceModel.js — the theme, font and cover wash a device can choose, and
-// what a stored choice resolves to. No DOM, so node tests can import it.
+// No DOM here, so node tests can import it.
+
+export const APPEARANCE_KIND = Object.freeze({ THEME: "theme", FONT: "font", WASH: "wash" });
 
 export const THEMES = Object.freeze([
   { id: "ink-coral", labelKey: "settings.appearance.theme.inkCoral" },
@@ -22,24 +23,23 @@ export const WASH_ON = "on";
 export const WASH_OFF = "off";
 
 export const DEFAULT_APPEARANCE = Object.freeze({
-  theme: THEMES[0].id,
-  font: FONTS[0].id,
-  wash: WASH_ON,
+  [APPEARANCE_KIND.THEME]: THEMES[0].id,
+  [APPEARANCE_KIND.FONT]: FONTS[0].id,
+  [APPEARANCE_KIND.WASH]: WASH_ON,
 });
 
 export const APPEARANCE_STORE_KEYS = Object.freeze({
-  theme: "stemdeck.theme",
-  font: "stemdeck.font",
-  wash: "stemdeck.coverWash",
+  [APPEARANCE_KIND.THEME]: "stemdeck.theme",
+  [APPEARANCE_KIND.FONT]: "stemdeck.font",
+  [APPEARANCE_KIND.WASH]: "stemdeck.coverWash",
 });
 
 const CHOICES = {
-  theme: THEMES.map((theme) => theme.id),
-  font: FONTS.map((font) => font.id),
-  wash: [WASH_ON, WASH_OFF],
+  [APPEARANCE_KIND.THEME]: THEMES.map((theme) => theme.id),
+  [APPEARANCE_KIND.FONT]: FONTS.map((font) => font.id),
+  [APPEARANCE_KIND.WASH]: [WASH_ON, WASH_OFF],
 };
 
-/** The stored value when it is still on offer, otherwise the default. */
 export function resolveChoice(kind, stored) {
   return CHOICES[kind]?.includes(stored) ? stored : DEFAULT_APPEARANCE[kind];
 }

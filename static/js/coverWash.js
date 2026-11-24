@@ -1,7 +1,3 @@
-// coverWash.js — tints the studio and Stage with the open song's cover. The
-// cover is whatever the now-playing square shows; with no cover there is no wash.
-// Whether it shows at all is Settings > Appearance (data-wash on <html>).
-
 const WASH_CLASS = "cover-wash";
 const HAS_COVER_CLASS = "has-cover";
 const IMAGE_PROPERTY = "--cover-wash-image";

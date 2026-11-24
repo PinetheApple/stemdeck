@@ -1,17 +1,11 @@
-/* Themes and fonts a device can choose in Settings > Appearance (appearance.js
-   sets data-theme / data-font on <html>). Ink & coral and Manrope are the defaults
-   in variables.css; each block here overrides only what its choice changes. The
-   [data-*-preview] selectors let a Settings card show a choice before it is made. */
-
 :root {
   --font-sans-fallback: -apple-system, system-ui, 'Hiragino Sans', 'Noto Sans JP', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
 }
 
-/* The defaults again, for a preview card shown while another theme is on. */
 [data-theme-preview="ink-coral"] {
-  --bg: #0f1011;
-  --surface-2: #1e1f22;
-  --accent: #ff6f59;
+  --bg: var(--ink-coral-bg);
+  --surface-2: var(--ink-coral-surface-2);
+  --accent: var(--ink-coral-accent);
 }
 
 :root[data-theme="ink-ice"],
@@ -19,7 +13,7 @@
   --accent: #eef1f4;
   --accent-2: #d5dae0;
   --accent-hi: #ffffff;
-  --accent-ink: #0f1011;
+  --accent-ink: var(--ink-coral-bg);
 }
 
 :root[data-theme="dusk-coral"],

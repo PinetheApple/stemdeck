@@ -3,9 +3,12 @@
   color-scheme: dark;
 
   /* Palette */
-  --bg:            #0f1011;
+  --ink-coral-bg:        #0f1011;
+  --ink-coral-surface-2: #1e1f22;
+  --ink-coral-accent:    #ff6f59;
+  --bg:            var(--ink-coral-bg);
   --surface-1:     #161719;
-  --surface-2:     #1e1f22;
+  --surface-2:     var(--ink-coral-surface-2);
   --surface-3:     #292a2e;
   --surface-4:     #34353a;
   --line:          #222326;
@@ -16,7 +19,7 @@
   --text-3: #85817d;
   --text-4: #5f5c59;
 
-  --accent:      #ff6f59;
+  --accent:      var(--ink-coral-accent);
   --accent-2:    #e85a45;
   --accent-hi:   #ff8a77;
   --accent-ink:  #2a0700;

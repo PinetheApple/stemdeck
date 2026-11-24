@@ -1,6 +1,3 @@
-// Settings > About's "Where your data goes" section: closed until asked for, and
-// opening it keeps Settings on screen at the smallest supported window.
-
 import { test, expect } from "@playwright/test";
 import { openStudio } from "./helpers.mjs";
 

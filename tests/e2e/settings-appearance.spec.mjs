@@ -1,6 +1,3 @@
-// Settings > Appearance: a theme, a font and the cover colour wash, each applied
-// at once and remembered on this device.
-
 import { test, expect } from "@playwright/test";
 import { JOB_ID, fixtureTrack, openStudio, seedLibrary, settleRoutes, stubUpdateCheck } from "./helpers.mjs";
 import { openSettings } from "./settingsHelpers.mjs";

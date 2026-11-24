@@ -1,8 +1,4 @@
-// settingsAppearance.js — Settings > Appearance: theme, font and the cover
-// colour wash. Each choice applies at once and is kept on this device (appearance.js).
-// Labels are filled in by applyTranslations with the rest of Settings.
-
-import { FONTS, THEMES, WASH_OFF, WASH_ON } from "./appearanceModel.js";
+import { APPEARANCE_KIND, FONTS, THEMES, WASH_OFF, WASH_ON } from "./appearanceModel.js";
 import { chooseAppearance, currentAppearance } from "./appearance.js";
 
 function themeCard({ id, labelKey }) {
@@ -45,14 +41,16 @@ export function appearancePaneHtml() {
     </div>`;
 }
 
+const washOn = () => currentAppearance(APPEARANCE_KIND.WASH) !== WASH_OFF;
+
 function paintChoices(pane) {
   for (const card of pane.querySelectorAll("[data-theme-choice]")) {
-    card.setAttribute("aria-pressed", String(card.dataset.themeChoice === currentAppearance("theme")));
+    card.setAttribute("aria-pressed", String(card.dataset.themeChoice === currentAppearance(APPEARANCE_KIND.THEME)));
   }
   for (const card of pane.querySelectorAll("[data-font-choice]")) {
-    card.setAttribute("aria-pressed", String(card.dataset.fontChoice === currentAppearance("font")));
+    card.setAttribute("aria-pressed", String(card.dataset.fontChoice === currentAppearance(APPEARANCE_KIND.FONT)));
   }
-  pane.querySelector(".appearance-wash")?.setAttribute("aria-pressed", String(currentAppearance("wash") !== WASH_OFF));
+  pane.querySelector(".appearance-wash")?.setAttribute("aria-pressed", String(washOn()));
 }
 
 function onAppearanceClick(e) {
@@ -60,9 +58,9 @@ function onAppearanceClick(e) {
   const theme = e.target.closest("[data-theme-choice]");
   const font = e.target.closest("[data-font-choice]");
   const wash = e.target.closest(".appearance-wash");
-  if (theme) chooseAppearance("theme", theme.dataset.themeChoice);
-  else if (font) chooseAppearance("font", font.dataset.fontChoice);
-  else if (wash) chooseAppearance("wash", currentAppearance("wash") === WASH_OFF ? WASH_ON : WASH_OFF);
+  if (theme) chooseAppearance(APPEARANCE_KIND.THEME, theme.dataset.themeChoice);
+  else if (font) chooseAppearance(APPEARANCE_KIND.FONT, font.dataset.fontChoice);
+  else if (wash) chooseAppearance(APPEARANCE_KIND.WASH, washOn() ? WASH_OFF : WASH_ON);
   else return;
   paintChoices(pane);
 }

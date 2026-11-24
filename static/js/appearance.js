@@ -1,10 +1,11 @@
-// appearance.js — applies this device's theme, font and cover wash to <html>
-// as data-theme / data-font / data-wash, at load and whenever one is chosen.
-
 import { storeGet, storeSet } from "./utils.js";
-import { APPEARANCE_STORE_KEYS, resolveChoice } from "./appearanceModel.js";
+import { APPEARANCE_KIND, APPEARANCE_STORE_KEYS, resolveChoice } from "./appearanceModel.js";
 
-const ROOT_ATTRIBUTE = Object.freeze({ theme: "theme", font: "font", wash: "wash" });
+const ROOT_ATTRIBUTE = Object.freeze({
+  [APPEARANCE_KIND.THEME]: "theme",
+  [APPEARANCE_KIND.FONT]: "font",
+  [APPEARANCE_KIND.WASH]: "wash",
+});
 
 export function currentAppearance(kind) {
   return document.documentElement.dataset[ROOT_ATTRIBUTE[kind]];
@@ -14,7 +15,6 @@ function applyChoice(kind, value) {
   document.documentElement.dataset[ROOT_ATTRIBUTE[kind]] = resolveChoice(kind, value);
 }
 
-/** Applies at once and is remembered on this device. */
 export function chooseAppearance(kind, value) {
   applyChoice(kind, value);
   return storeSet(APPEARANCE_STORE_KEYS[kind], currentAppearance(kind));

@@ -1,5 +1,3 @@
-/* The Alerts panel sits under any dialog opened from it (its cards open dialogs). */
-
 :root {
   /* Above the studio and Stage, below every dialog (Settings is the lowest). */
   --alerts-layer: 75;

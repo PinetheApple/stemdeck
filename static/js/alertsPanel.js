@@ -1,7 +1,3 @@
-// alertsPanel.js — the Alerts panel, opened from whichever trigger asks (the top
-// bar's bell). It sits under its trigger inside the window, closes on Esc, its x or
-// a click outside, and hands focus back to the trigger.
-
 import { hasOpenDialog } from "./dialogLayer.js";
 import { keepInWindow } from "./shellFloat.js";
 import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
