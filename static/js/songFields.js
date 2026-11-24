@@ -12,14 +12,10 @@ const positive = (value) => {
   return Number.isFinite(number) && number > 0 ? number : null;
 };
 const text = (value) => (typeof value === "string" && value.trim() ? value.trim() : null);
-const trimmed = (value) => String(value || "").trim();
+export const trimmed = (value) => String(value || "").trim();
 
-/**
- * The work a job's state carries: the musical, film or series a soundtrack
- * or cast recording is from, found by the server while the job ran
- * (app/pipeline/work_lookup.py). { id, kind, name, englishName } with id a
- * Wikidata item, or null for anything else.
- */
+/** The musical, film or series a soundtrack is from, as { id, kind, name, englishName }
+ *  with id a Wikidata item; null for anything else. */
 export function libraryWork(work) {
   const artist = libraryArtist(work);
   if (!artist || !WORK_KINDS.has(work.kind)) return null;
@@ -41,8 +37,6 @@ export function nowPlayingTitle(track) {
     || "";
 }
 
-// The user's artist, else a soundtrack's show unless it repeats the title, else
-// the track's band, else display_artist.
 export function nowPlayingArtist(track) {
   if (trimmed(track?.userArtist)) return trimmed(track.userArtist);
   let work = trimmed(libraryWork(track?.work)?.name);

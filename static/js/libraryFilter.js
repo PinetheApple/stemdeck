@@ -4,6 +4,7 @@ export { KEY_MODES };
 export const SLOW_MAX_BPM = 90;
 export const FAST_MIN_BPM = 130;
 export const TEMPO_BANDS = Object.freeze({ SLOW: "slow", MEDIUM: "medium", FAST: "fast" });
+export const FILTER_FIELDS = Object.freeze({ FAVORITES_ONLY: "favoritesOnly", TEMPO: "tempo", MODE: "mode" });
 export const DEFAULT_FILTERS = Object.freeze({ favoritesOnly: false, tempo: null, mode: null });
 
 export const TEMPO_OPTIONS = Object.freeze([

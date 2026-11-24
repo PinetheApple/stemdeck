@@ -15,18 +15,18 @@ const SELECT_SCOPES = Object.freeze({
   [VIEW.TRASH]: SELECTION_SCOPES.TRASH,
 });
 
-const isFavorite = (song) => Boolean(song.favorite);
+const isFavoriteSong = (song) => Boolean(song.favorite);
 
 export const isArrangedView = (kind) => ARRANGED_VIEWS.has(kind);
 
 /** The bulk actions' scope in a view, or null where songs cannot be picked. */
 export const selectScopeOf = (kind) => SELECT_SCOPES[kind] ?? null;
 
-/** `ids` filtered and sorted as `view` asks, in the views that sort; other views keep their order. */
+/** `ids` through the library's filters and sort, in the views that sort; other views keep their order. */
 export function arrangeIds(kind, ids, songOf, { sort, dir, filters, myOrderIds }) {
   if (!isArrangedView(kind)) return ids;
   const songs = ids.map(songOf).filter(Boolean);
-  return sortSongs(filterSongs(songs, filters, isFavorite), { sort, dir }, myOrderIds).map(SONG_FIELDS.id);
+  return sortSongs(filterSongs(songs, filters, isFavoriteSong), { sort, dir }, myOrderIds).map(SONG_FIELDS.id);
 }
 
 export function showsMyOrder(kind, { sort }) {

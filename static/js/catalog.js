@@ -47,7 +47,7 @@ import { createSetlistFromFolder } from "./setlists.js";
 import { HTTP_CONFLICT } from "./lyricsTranscribe.js";
 import { FOLDER_MOVING_KEY, isFolderMovingError, noticeKey, refusedForFolderMove } from "./folderMoving.js";
 import { lookupArtist } from "./artistLookup.js";
-import { confidentIdentity, libraryWork, nowPlayingArtist, nowPlayingTitle } from "./songFields.js";
+import { confidentIdentity, libraryWork, nowPlayingArtist, nowPlayingTitle, trimmed } from "./songFields.js";
 import { HELD_DROP, HELD_SEND, HTTP_UNPROCESSABLE, heldBandAction, libraryArtist, mergedBand, sendHeldBand, uploadBands } from "./trackBand.js";
 import {
   CANCELLED_STATUS, REINSTATE_REPLACED, RELEASE_REPLACED, isServerTrashed, migrationTrashIds, replacedJobIds,
@@ -567,7 +567,6 @@ export function getCurrentTrackWork() {
   return libraryWork(tracks[studioTrackId()]?.work);
 }
 
-const trimmed = (value) => String(value || "").trim();
 
 /**
  * The song the open track is, for the head of the artist box: { title,
