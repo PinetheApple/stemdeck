@@ -11,6 +11,8 @@
   --add-song-check-w: 4px;
   --add-song-check-h: 8px;
   --drop-overlay-tint: 70%;
+  --add-song-badge: 18px;
+  --add-song-badge-overlap: 12px;
 }
 
 .add-song-pop {
@@ -241,3 +243,26 @@
 
 .empty-start-btn.is-primary { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
 .empty-start-btn.is-primary:hover { background: var(--accent-hi); }
+
+/* A sibling of Add song, not inside it, so the badge stays its own button; the negative margin lays it on the corner. */
+.add-song-badge {
+  position: relative;
+  z-index: 1;
+  align-self: flex-start;
+  min-width: var(--add-song-badge);
+  height: var(--add-song-badge);
+  margin: var(--s-1) 0 0 calc(-1 * var(--add-song-badge-overlap));
+  padding: 0 var(--s-1);
+  border: var(--line-w-strong) solid var(--bg);
+  border-radius: var(--r-pill);
+  background: var(--text);
+  color: var(--bg);
+  font: inherit;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.add-song-badge[hidden] { display: none; }
+.add-song-badge:hover { background: var(--text-2); }

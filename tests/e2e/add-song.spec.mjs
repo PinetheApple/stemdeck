@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { KEY, seedLibrary, stubUpdateCheck, uiText } from "./helpers.mjs";
-import { PASTE, paste, preview, review, stubPreview } from "./batchImport.mjs";
+import { PASTE, paste, preview, queueButton, review, stubImports, stubPreview } from "./batchImport.mjs";
 
 const SIZES = [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }];
 const COLLAPSED_KEY = "stemdeck.catalog.collapsed";
@@ -12,6 +12,7 @@ const TYPING_DELAY_MS = 25;
 const CENTRE_SLACK_PX = 1;
 
 const popover = (page) => page.locator("#composerDrawer");
+const badge = (page) => page.locator("#addSongReviewBadge");
 const addSong = (page) => page.locator("#addSongBtn");
 
 async function openApp(page, size = SIZES[0]) {
@@ -169,4 +170,49 @@ test("Browse library sits beside them and opens the library from a collapsed sid
   await expect(page.locator(".app")).not.toHaveClass(/\bcat-collapsed\b/);
   await expect(page.locator(".lib-nav-library")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#catalogSearch")).toBeFocused();
+});
+
+/** Paste a list, then close its review with Esc so the batch waits. */
+async function holdBatch(page) {
+  await stubPreview(page, preview());
+  await addSong(page).click();
+  await paste(page, PASTE);
+  await expect(queueButton(page)).toBeEnabled();
+  await expect(badge(page), "hidden while the review is open").toBeHidden();
+  await page.keyboard.press(KEY.ESCAPE);
+}
+
+test("a waiting batch shows its count on Add song's corner, and the badge reopens its review", async ({ page }) => {
+  await openApp(page);
+  const posts = await stubImports(page);
+  await expect(badge(page)).toBeHidden();
+  await holdBatch(page);
+
+  const held = preview().items.length;
+  const label = await uiText(page, "batch.review.other", { count: held });
+  await expect(badge(page)).toHaveText(String(held));
+  await expect(badge(page)).toHaveAttribute("title", label);
+  await expect(badge(page)).toHaveAttribute("aria-label", label);
+  const b = await badge(page).boundingBox();
+  const a = await addSong(page).boundingBox();
+  expect(b.x, "it straddles Add song's right edge").toBeLessThan(a.x + a.width);
+  expect(b.x + b.width).toBeGreaterThan(a.x + a.width);
+  expect(b.y, "on its top corner").toBeLessThan(a.y + a.height / 2);
+
+  await badge(page).click();
+  await expect(review(page)).toBeVisible();
+  await expect(badge(page)).toBeHidden();
+  await queueButton(page).click();
+  await expect.poll(() => posts.length).toBeGreaterThan(0);
+  await expect(review(page)).toHaveCount(0);
+  await expect(badge(page), "gone once the batch is imported").toBeHidden();
+});
+
+test("clearing the waiting batch's chip takes the badge away", async ({ page }) => {
+  await openApp(page);
+  await holdBatch(page);
+  await expect(badge(page)).toBeVisible();
+  await addSong(page).click();
+  await page.locator("#fileClear").click();
+  await expect(badge(page)).toBeHidden();
 });

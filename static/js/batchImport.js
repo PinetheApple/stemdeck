@@ -1,4 +1,4 @@
-import { t, plural } from "./i18n.js";
+import { t, plural, onLanguageChange } from "./i18n.js";
 import { selectedStems } from "./state.js";
 import {
   FileReadError, ITEM_KIND, ITEM_STATUS, MAX_BATCH_FILES, MAX_BATCH_LINKS, PATH_SEP, capEntries, capLines, fileItems,
@@ -12,6 +12,7 @@ import {
 import { addPlaylistToLibrary } from "./catalog.js";
 import { closeComposer, openComposer } from "./composerDrawer.js";
 import { looksLikePlaylist } from "./playlist.js";
+import { mountReviewBadge, paintReviewBadge } from "./reviewBadge.js";
 import { onResendNotQueued, recordBatch, setBatchNotQueued } from "./queue.js";
 import { icon } from "./libraryIcons.js";
 import { folderRow, groupRow, itemRow, moreRow, reviewShell, rowView } from "./batchReviewRows.js";
@@ -31,6 +32,12 @@ const urlInput = () => document.getElementById("url");
 const urlWrap = () => document.querySelector(".url-wrap");
 const structureOn = () => document.getElementById("autoSectionsBtn")?.getAttribute("aria-pressed") === "true";
 const isCurrent = (target) => batch === target;
+const waitingCount = () => (batch && !reviewPanel() ? batch.items.length : 0);
+
+function refreshBatchLabels() {
+  refreshSubmitLabel();
+  paintReviewBadge(waitingCount());
+}
 const liveChoice = () => ({
   stems: [...selectedStems],
   autoSections: structureOn(),
@@ -88,7 +95,7 @@ export function clearBatch() {
   replaceBatch(null);
   setBatchNotQueued(0);
   closePanel({ refocus: false });
-  refreshSubmitLabel();
+  refreshBatchLabels();
 }
 
 function finishBatch() {
@@ -148,7 +155,7 @@ export function startFileBatch(entries, { folder = null, readFile = null, measur
 
 function begin(fetchPreview) {
   refreshPill();
-  refreshSubmitLabel();
+  refreshBatchLabels();
   openReview();
   fetchPreview(batch);
 }
@@ -182,7 +189,7 @@ async function fetchLinkPreview(target) {
   }
   target.loading = false;
   refreshPill();
-  refreshSubmitLabel();
+  refreshBatchLabels();
   renderReview();
 }
 
@@ -268,6 +275,7 @@ async function readDurations(target) {
 export function openReview() {
   if (!batch) return;
   mountPanel({ onChange: onReviewChange, onClick: onReviewClick, closed: onReviewClosed });
+  paintReviewBadge(waitingCount());
   closeComposer();
   renderReview();
   focusFirst();
@@ -277,6 +285,7 @@ const stemObserver = new MutationObserver(renderFooter);
 
 function onReviewClosed() {
   stemObserver.disconnect();
+  paintReviewBadge(waitingCount());
 }
 
 function headText() {
@@ -478,7 +487,7 @@ function showWhatIsLeft(items) {
     return;
   }
   refreshPill();
-  refreshSubmitLabel();
+  refreshBatchLabels();
   renderReview();
 }
 
@@ -552,4 +561,6 @@ export function wireBatchImport() {
   interceptSubmit(interceptBatchSubmit);
   setIdleSubmitLabel(batchSubmitLabel);
   onResendNotQueued(resendLeftOut);
+  mountReviewBadge(openReview);
+  onLanguageChange(refreshBatchLabels);
 }
