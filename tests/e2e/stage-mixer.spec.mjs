@@ -139,10 +139,10 @@ test.describe("stage song overview", () => {
     await openStudio(page);
     await enterStage(page);
     const blocks = page.locator(".stage-sec");
-    await expect(blocks).toHaveText(SECTIONS.map((s) => s.name));
+    await expect(blocks.locator(".stage-sec-name")).toHaveText(SECTIONS.map((s) => s.name));
     await expect(blocks.nth(0)).toHaveAttribute("aria-current", "true");
 
-    await blocks.nth(1).click();
+    await blocks.nth(1).locator(".stage-sec-go").click();
     await expect.poll(() => currentTime(page)).toBeGreaterThanOrEqual(SECTIONS[1].start);
     expect(await currentTime(page)).toBeLessThan(SECTIONS[1].start + SEEK_TOLERANCE_SEC);
     await expect(blocks.nth(1)).toHaveAttribute("aria-current", "true");
@@ -166,7 +166,7 @@ test.describe("stage song overview", () => {
 });
 
 for (const size of WINDOWS) {
-  test(`stage fits ${size.width}x${size.height} with the mixer open and all four header buttons`, async ({ page }) => {
+  test(`stage fits ${size.width}x${size.height} over the footer with the mixer open and all four header buttons`, async ({ page }) => {
     await page.setViewportSize(size);
     await saveSections(page, SECTIONS);
     await openStudio(page);
@@ -176,17 +176,17 @@ for (const size of WINDOWS) {
       const view = document.getElementById("stageView");
       const viewRect = view.getBoundingClientRect();
       const mixer = rect("stageMixer");
-      const transport = document.querySelector(".stage-transport").getBoundingClientRect();
+      const footer = document.querySelector(".daw-footer").getBoundingClientRect();
       const overview = rect("stageOverview");
-      const header = ["stageMixBtn", "stageUpNextBtn", "stageMoreBtn", "stageExitBtn"].map(rect);
+      const header = ["stageUpNextBtn", "stageMoreBtn", "stageMixBtn", "stageExitBtn"].map(rect);
       const title = rect("stageTitle");
       return {
         headerInOrder: header.every((r, i) => i === 0 || header[i - 1].right <= r.left),
         headerClearOfTitle: title.right <= header[0].left,
         headerInside: header[3].right <= viewRect.right,
         overflows: view.scrollHeight > view.clientHeight || view.scrollWidth > view.clientWidth,
-        transportInside: transport.bottom <= viewRect.bottom,
-        overviewAboveTransport: overview.bottom <= transport.top,
+        footerBelow: viewRect.bottom <= footer.top && footer.bottom <= window.innerHeight,
+        overviewInside: overview.bottom <= viewRect.bottom,
         mixerBesideCentre: mixer.left >= overview.right,
         mixerInside: mixer.right <= viewRect.right && mixer.bottom <= viewRect.bottom,
       };
@@ -196,8 +196,8 @@ for (const size of WINDOWS) {
       headerClearOfTitle: true,
       headerInside: true,
       overflows: false,
-      transportInside: true,
-      overviewAboveTransport: true,
+      footerBelow: true,
+      overviewInside: true,
       mixerBesideCentre: true,
       mixerInside: true,
     });
@@ -230,8 +230,8 @@ test("a duration learnt after the song opened brings in its sections and total w
   await expect(page.locator("#stageTotal")).toHaveText("00:00");
 
   await learnDurationLate(page, FIXTURE_SECONDS);
-  await expect(page.locator("#stagePlayBtn")).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(".stage-sec")).toHaveText(SECTIONS.map((s) => s.name));
+  await expect(page.locator("#t-play")).not.toHaveClass(/playing/);
+  await expect(page.locator(".stage-sec-name")).toHaveText(SECTIONS.map((s) => s.name));
   await expect(page.locator("#stageTotal")).toHaveText(FIXTURE_TOTAL_TEXT);
   const wave = page.locator("#stageWave");
   const box = await wave.boundingBox();
@@ -276,11 +276,11 @@ for (const size of SIX_STEM_WINDOWS) {
         beats: box(document.getElementById("stageBeats")),
         mixer: box(document.getElementById("stageMixer")),
         overview: box(document.getElementById("stageOverview")),
-        transport: box(document.querySelector(".stage-transport")),
+        footer: box(document.querySelector(".daw-footer")),
       };
     });
     for (const shown of ["lyrics", "beats"]) {
-      for (const other of ["mixer", "overview", "transport"]) {
+      for (const other of ["mixer", "overview", "footer"]) {
         expect(overlaps(rects[shown], rects[other]), `${shown} clear of ${other}`).toBe(false);
       }
     }

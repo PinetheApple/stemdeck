@@ -58,12 +58,12 @@ async function expectAPausedWithBShown(page) {
 }
 
 test.describe("the player's own controls act on the playing song", () => {
-  test("Stage Play pauses and resumes the playing song, never the shown one", async ({ page }) => {
+  test("in Stage the footer's Play pauses and resumes the playing song, never the shown one", async ({ page }) => {
     await openSiblingOverPlaying(page);
     await page.locator("#stageModeBtn").click();
-    await page.locator("#stagePlayBtn").click();
+    await page.locator("#t-play").click();
     await expectAPausedWithBShown(page);
-    await page.locator("#stagePlayBtn").click();
+    await page.locator("#t-play").click();
     await expectPlaying(page, JOB_ID);
     expect(await shownId(page)).toBe(SIBLING_JOB_ID);
   });

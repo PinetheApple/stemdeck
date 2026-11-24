@@ -41,7 +41,6 @@ test.describe("sing along song end", () => {
     await endInSingAlong(page);
     await expect(page.locator("#singHandoffTitle")).toHaveText(SIBLING_TITLE);
     await expect(page.locator("#singRingNum")).toHaveText(COUNTDOWN_SECONDS);
-    await expect(page.locator("#singLyrics")).toBeHidden();
     await page.locator("#singStayBtn").click();
     await expect(card(page)).toBeHidden();
     await expectStillOnSong(page);
@@ -50,7 +49,7 @@ test.describe("sing along song end", () => {
   test("Play now starts the next song with focus on Play, and so does the countdown running out", async ({ page }) => {
     await endInSingAlong(page);
     await page.locator("#singPlayNowBtn").click();
-    await expect(page.locator("#stagePlayBtn")).toBeFocused();
+    await expect(page.locator("#t-play")).toBeFocused();
     await expect.poll(() => openSongId(page), { timeout: SONG_OPEN_TIMEOUT_MS }).toBe(SIBLING_JOB_ID);
     await expect(card(page)).toBeHidden();
 
@@ -58,7 +57,7 @@ test.describe("sing along song end", () => {
     await endSong(page, SIBLING_JOB_ID);
     await expect(card(page)).toBeVisible();
     await expect.poll(() => openSongId(page), { timeout: COUNTDOWN_RUNS_OUT_MS }).toBe(JOB_ID);
-    await expect(page.locator("#stagePlayBtn")).toBeFocused();
+    await expect(page.locator("#t-play")).toBeFocused();
   });
 
   test("Esc dismisses the countdown like Stay here, and a second Esc leaves Stage", async ({ page }) => {
@@ -81,10 +80,10 @@ test.describe("sing along song end", () => {
   test("the card follows Up Next: the next song changes with it, and an empty queue closes it", async ({ page }) => {
     await endInSingAlong(page, [SIBLING_JOB_ID, JOB_ID]);
     await expect(page.locator("#singHandoffTitle")).toHaveText(SIBLING_TITLE);
-    await page.locator("#singUpNextBtn").click();
-    await page.locator(`#singPanel .upnext-row[data-id="${SIBLING_JOB_ID}"] .upnext-remove`).click();
+    await page.locator("#stageQueueBtn").click();
+    await page.locator(`#stageQueuePanel .upnext-row[data-id="${SIBLING_JOB_ID}"] .upnext-remove`).click();
     await expect(page.locator("#singHandoffTitle")).toHaveText(TRACK_TITLE);
-    await page.locator("#singPanel #upNextClear").click();
+    await page.locator("#stageQueuePanel #upNextClear").click();
     await expect(card(page)).toBeHidden();
     await expectStillOnSong(page);
   });

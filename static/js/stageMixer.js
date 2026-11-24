@@ -1,4 +1,4 @@
-// Stage mode's mixer column: one strip per loaded stem, reading and driving the studio's own mix.
+// Stage mode's Mix panel: one row per loaded stem, reading and driving the studio's own mix.
 
 import { mixerState } from "./state.js";
 import {
@@ -22,6 +22,8 @@ const HIDDEN_CLASS = "mixer-hidden";
 const FADER_STEP = "0.01";
 const MUTE_LETTER = "M";
 const SOLO_LETTER = "S";
+const VU_SCALE = "--vu-scale";
+const studioMeter = (name) => document.querySelector(`.stem-list [data-stem="${name}"] .mini-meter`);
 
 let shownStems = "";
 let isShowing = () => false;
@@ -74,12 +76,16 @@ function makeStrip(name) {
   label.textContent = stemLabel(name);
   const value = document.createElement("span");
   value.className = "stage-strip-value num";
+  const meter = document.createElement("span");
+  meter.className = "stage-strip-meter";
+  meter.setAttribute("aria-hidden", "true");
   strip.append(
     label,
-    value,
-    stripFader(name),
     stripButton("mute", MUTE_LETTER, "aria.mute", name),
     stripButton("solo", SOLO_LETTER, "aria.solo", name),
+    stripFader(name),
+    value,
+    meter,
   );
   return strip;
 }
@@ -111,6 +117,14 @@ export function paintStageMixer() {
   const stems = stripStems(loadedLaneNames(), getLoadedStemNames());
   if (stems.join() !== shownStems) rebuildStrips(stems);
   $("stageMixerStrips")?.querySelectorAll(".stage-strip").forEach(paintStrip);
+}
+
+/** Each row's meter shows its studio lane's level, which player.js keeps as `--vu-scale`. */
+export function paintStageMeters() {
+  for (const meter of $("stageMixerStrips")?.querySelectorAll(".stage-strip-meter") ?? []) {
+    const level = studioMeter(stemOf(meter))?.style.getPropertyValue(VU_SCALE) ?? "";
+    if (meter.style.getPropertyValue(VU_SCALE) !== level) meter.style.setProperty(VU_SCALE, level);
+  }
 }
 
 /** Entering Stage, a new song or a new language: the next paint builds the strips anew. */

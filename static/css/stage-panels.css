@@ -1,0 +1,151 @@
+/* Stage's side panels: Mix in Play along, Up Next in either look, one at a time. */
+
+.stage-view {
+  --stage-side-w: clamp(300px, 22vw, 340px);
+  --stage-queue-w: clamp(320px, 24vw, 360px);
+  --stage-row-h: 44px;
+  --stage-row-name-w: 64px;
+  --stage-ms-size: 28px;
+  --stage-fader-track: 4px;
+  --stage-fader-thumb: 16px;
+  --stage-db-w: 4.5ch;
+  --stage-meter-w: 4px;
+  --stage-meter-h: 26px;
+  --stage-silent-opacity: 0.45;
+  --stage-grip-w: 12px;
+  --stage-grip-h: 18px;
+  --stage-grip-dot: 1.5px;
+  --stage-grip-step: 6px;
+  --stage-grip-edge: 0.5px;
+}
+.stage-side {
+  grid-column: 2;
+  grid-row: 2 / 4;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: var(--stage-side-w);
+  min-height: 0;
+  max-height: calc(100% - 2 * var(--s-3));
+  margin: var(--s-3) var(--stage-pad) var(--s-3) 0;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+  overflow-y: auto;
+}
+.stage-side[hidden],
+.stage-view.mixer-hidden .stage-mixer,
+.stage-view.queue-open .stage-mixer,
+.stage-view.sing .stage-mixer,
+.stage-view.sing #stageMixBtn { display: none; }
+.stage-side-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); min-height: var(--ctl-h-sm); }
+.stage-my-part { display: contents; }
+
+/* Mix: one row per stem, name, M, S, fader, dB and a thin meter. */
+.stage-mixer { align-self: start; }
+.stage-mixer-strips { display: flex; flex-direction: column; }
+.stage-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--stage-row-h);
+  border-top: 1px solid var(--line);
+}
+.stage-strip-name {
+  flex: none;
+  width: var(--stage-row-name-w);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-heavy);
+  color: var(--stem-color);
+}
+.stage-ms {
+  flex: none;
+  width: var(--stage-ms-size);
+  height: var(--stage-ms-size);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--text-3);
+  font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-mono);
+  cursor: pointer;
+}
+.stage-ms:hover { color: var(--text); background: var(--surface-3); }
+.stage-ms[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+.stage-strip-value { flex: none; width: var(--stage-db-w); text-align: right; font-size: var(--fs-xs); color: var(--text-3); }
+.stage-strip-meter {
+  flex: none;
+  width: var(--stage-meter-w);
+  height: var(--stage-meter-h);
+  border-radius: var(--r-pill);
+  background: linear-gradient(to top, var(--stem-color) calc(var(--vu-scale, 0) * 100%), var(--surface-3) 0);
+}
+.stage-strip.silent .stage-strip-name,
+.stage-strip.silent .stage-strip-fader,
+.stage-strip.silent .stage-strip-value { opacity: var(--stage-silent-opacity); }
+.stage-strip-fader {
+  flex: 1 1 auto;
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  height: var(--stage-ms-size);
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.stage-strip-fader::-webkit-slider-runnable-track {
+  height: var(--stage-fader-track);
+  border-radius: var(--r-pill);
+  background: linear-gradient(to right, var(--stem-color) var(--pos), var(--surface-4) var(--pos));
+}
+.stage-strip-fader::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: var(--stage-fader-thumb);
+  height: var(--stage-fader-thumb);
+  margin-top: calc((var(--stage-fader-track) - var(--stage-fader-thumb)) / 2);
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+}
+.stage-strip-fader::-moz-range-track { height: var(--stage-fader-track); border-radius: var(--r-pill); background: var(--surface-4); }
+.stage-strip-fader::-moz-range-progress { height: var(--stage-fader-track); border-radius: var(--r-pill); background: var(--stem-color); }
+.stage-strip-fader::-moz-range-thumb {
+  width: var(--stage-fader-thumb);
+  height: var(--stage-fader-thumb);
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+}
+
+/* Up Next: the studio's own list, lent while the panel is open. */
+.stage-queue-panel { width: var(--stage-queue-w); align-self: stretch; }
+.stage-borrow { display: contents; }
+.stage-queue-panel .upnext-list { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.stage-queue-panel .stage-queue-close { opacity: 1; }
+.stage-queue-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); margin-top: auto; padding-top: var(--s-2); border-top: 1px solid var(--line); }
+.stage-queue-panel .upnext-row::before {
+  content: "";
+  flex: none;
+  width: var(--stage-grip-w);
+  height: var(--stage-grip-h);
+  margin-left: var(--s-1);
+  background: radial-gradient(circle, var(--text-4) var(--stage-grip-dot), transparent calc(var(--stage-grip-dot) + var(--stage-grip-edge))) center / var(--stage-grip-step) var(--stage-grip-step);
+}
+.sing-keys { display: flex; align-items: center; gap: var(--s-1); color: var(--text-3); font-size: var(--fs-xs); }
+.sing-keys kbd {
+  padding: 1px var(--s-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-1);
+  color: var(--text-2);
+  font: var(--fs-2xs) var(--font-mono);
+}
+
+@media (max-width: 1500px) {
+  .stage-view { --stage-side-w: 300px; --stage-queue-w: 320px; }
+}
