@@ -8,6 +8,7 @@ import {
 } from "./catalog.js";
 import { trashWithUndo } from "./trashUndo.js";
 import { queueCount, getQueueSnapshot } from "./queue.js";
+import { importQueueShown } from "./importQueueView.js";
 import { addSongToSetlist, getSetlists, newSetlist } from "./setlists.js";
 import { icon } from "./libraryIcons.js";
 import { esc } from "./songRowParts.js";
@@ -18,13 +19,14 @@ import { VIEW } from "./browseViewNames.js";
 import { $ } from "./utils.js";
 
 const RENAME_TITLE_KEY = "folderEditor.renameTitle";
+export const NAV_COUNT_CLASS = "browse-nav-count";
 
 function navButton(view, iconHtml, label, count = null) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "browse-nav-btn";
   btn.dataset.view = view;
-  btn.innerHTML = `${iconHtml}<span class="browse-nav-label"></span>${count === null ? "" : `<span class="browse-nav-count num">${count}</span>`}`;
+  btn.innerHTML = `${iconHtml}<span class="browse-nav-label"></span>${count === null ? "" : `<span class="${NAV_COUNT_CLASS} num">${count}</span>`}`;
   btn.querySelector(".browse-nav-label").textContent = label;
   btn.title = label;
   if (browseState().view === view) btn.setAttribute("aria-current", "page");
@@ -45,8 +47,10 @@ function viewButtons() {
     navButton(VIEW.FAVORITES, icon("heart"), t("nav.favorites"), favorites),
     navButton(VIEW.RECENT, icon("clock"), t("lib.recentlyAdded")),
   ];
-  const importing = queueCount(getQueueSnapshot());
-  if (importing) buttons.push(navButton(VIEW.QUEUE, icon("download"), t("shell.importQueue"), importing));
+  const snap = getQueueSnapshot();
+  // A tracked batch alone keeps the entry with no count: nothing is importing.
+  const importing = queueCount(snap) || null;
+  if (importQueueShown(snap)) buttons.push(navButton(VIEW.QUEUE, icon("download"), t("shell.importQueue"), importing));
   return buttons;
 }
 

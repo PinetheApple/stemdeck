@@ -4,12 +4,13 @@
 import { onLanguageChange } from "./i18n.js";
 import { onLibraryDraw } from "./catalog.js";
 import { onQueueChange, queueCount, getQueueSnapshot } from "./queue.js";
+import { importQueueShown } from "./importQueueView.js";
 import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
 import { storeGet, storeSet, $ } from "./utils.js";
 import { wireSongList } from "./libraryRows.js";
 import { onSetlistsChange, setSetlistOpeners } from "./setlists.js";
 import { onPlayStateChange } from "./playState.js";
-import { drawBrowseNav, paintCurrentView, wireBrowseNav } from "./browseNav.js";
+import { NAV_COUNT_CLASS, drawBrowseNav, paintCurrentView, wireBrowseNav } from "./browseNav.js";
 import { drawBrowseResults } from "./browseViews.js";
 import { drawTagChips, wireBrowseSearch } from "./browseSearch.js";
 import { openSetlistRename } from "./setlistRenameDialog.js";
@@ -137,12 +138,19 @@ function onBrowseKeydown(e) {
   if (e.key === ESCAPE_KEY && escapeIsFor(LAYER.BROWSE)) closeBrowse();
 }
 
-// Leaving the queue view once nothing imports; the nav's Import queue comes and goes.
+const queueNavEntry = () => $("browseNav")?.querySelector(`[data-view="${VIEW.QUEUE}"]`);
+const queueNavCount = (entry) => Number(entry.querySelector(`.${NAV_COUNT_CLASS}`)?.textContent ?? 0);
+
+// The nav's Import queue entry comes and goes with the queue, and the view leaves with it.
 function onQueueFrame(snap = getQueueSnapshot()) {
   if (!isBrowseOpen()) return;
-  const importing = queueCount(snap) > 0;
-  if (importing === Boolean($("browseNav")?.querySelector(`[data-view="${VIEW.QUEUE}"]`))) return;
-  if (!importing && state.view === VIEW.QUEUE) state.view = VIEW.ALL;
+  const queueShown = importQueueShown(snap);
+  const entry = queueNavEntry();
+  if (queueShown === Boolean(entry)) {
+    if (entry && queueNavCount(entry) !== queueCount(snap)) drawBrowseNav();
+    return;
+  }
+  if (!queueShown && state.view === VIEW.QUEUE) state.view = VIEW.ALL;
   renderBrowse();
 }
 

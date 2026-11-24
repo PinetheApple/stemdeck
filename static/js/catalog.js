@@ -26,7 +26,7 @@ import {
 import { confirmDialog } from "./confirmDialog.js";
 import {
   batchProgress, batchStillShown, cancelQueuedJob, currentIds, dropFromBatch, getBatch, getQueueSnapshot,
-  isPaused, onJobSettled, onQueueChange, queueCount, queueRowStates, refreshQueue, reorderQueuedJob,
+  isPaused, onJobSettled, onQueueChange, queueRowStates, refreshQueue, reorderQueuedJob,
   resendNotQueued, runningLabel, startQueue, startQueueStream,
 } from "./queue.js";
 import { fmtTime, isReimportableSource, storeGet, storeSet } from "./utils.js";
@@ -3030,7 +3030,7 @@ function mountQueueSection(listEl, section, saved) {
 
 const PERCENT = 100;
 
-function queueBatchProgress(snap) {
+export function queueBatchProgress(snap) {
   const { jobIds, notQueued } = getBatch();
   const progress = batchProgress(jobIds, snap, (id) => tracks[id]?.status);
   if (!batchStillShown(progress, notQueued)) return null;

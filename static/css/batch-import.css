@@ -196,6 +196,7 @@
 .batch-btn-primary:hover:not(:disabled) { background: var(--accent-hi); }
 
 /* ── The queue view ── */
+.browse-queue .queue-section > .lib-section-head { padding: var(--s-1) var(--s-1) var(--s-3); color: var(--text); text-transform: none; }
 .batch-head { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-2); padding: var(--s-1) var(--s-2) var(--s-3); }
 .batch-head-text { display: flex; flex-direction: column; gap: 1px; font-size: var(--fs-xs); color: var(--text-3); }
 .batch-head-text b { font-size: var(--fs-sm); color: var(--text); }

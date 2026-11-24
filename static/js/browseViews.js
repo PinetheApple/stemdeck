@@ -20,7 +20,7 @@ import { LAYOUT, VIEW } from "./browseViewNames.js";
 import { drawSetlistView } from "./browseSetlist.js";
 import { getSetlist } from "./setlists.js";
 import { LIST_KIND } from "./playContext.js";
-import { queueCount, getQueueSnapshot } from "./queue.js";
+import { importQueueShown } from "./importQueueView.js";
 
 const RECENT_LIMIT = 12;
 const COLUMNS = [
@@ -212,7 +212,7 @@ function trashView() {
 }
 
 function queueView() {
-  if (!queueCount(getQueueSnapshot())) return null;
+  if (!importQueueShown()) return null;
   const host = document.createElement("section");
   host.id = "browseImportQueue";
   host.className = "browse-queue";
