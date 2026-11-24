@@ -26,6 +26,9 @@ const HTTP_SERVER_ERROR = 500;
 const PICKED = /is-picked/;
 const GIG = { id: "f-gig", name: "Gig", color: "#4f9de8", parentId: null };
 const UNDO_TOAST = ".undo-toast";
+const SELECTED = /is-selected/;
+const ACTIVE = /\bactive\b/;
+const PICK_BOX = ".pick-box";
 
 const rows = (page) => page.locator(`${BROWSE_RESULTS} .cat-item[data-id]`);
 const row = (page, song) => page.locator(`${BROWSE_RESULTS} .cat-item[data-id="${song.id}"]`);
@@ -215,9 +218,10 @@ test("in the Trash, Select all and Restore bring every song back", async ({ page
   await expect(sortButton(page)).toBeHidden();
 });
 
-test("Esc leaves Select without closing Browse library; a Ctrl click starts picking", async ({ page }) => {
+test("Esc leaves Select without closing Browse library", async ({ page }) => {
   await openSongs(page);
-  await pick(page, BRAVO, ["ControlOrMeta"]);
+  await selectButton(page).click();
+  await pick(page, BRAVO);
   await expect(bulkBar(page)).toBeVisible();
   await expect(row(page, BRAVO)).toHaveClass(PICKED);
   await page.keyboard.press(KEY.ESCAPE);
@@ -313,3 +317,32 @@ test("pick boxes and the sorted column say their state to assistive tech", async
   await bulkBar(page).getByRole("button", { name: await uiText(page, "settings.done") }).click();
   await expect(rows(page).first().locator(".pick-box")).toHaveCount(0);
 });
+
+async function expectNotPicking(page) {
+  await expect(bulkBar(page)).toBeHidden();
+  await expect(selectButton(page)).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(`${BROWSE_RESULTS} ${PICK_BOX}`)).toHaveCount(0);
+  await expect(page.locator(`${BROWSE_RESULTS} .is-picked`)).toHaveCount(0);
+}
+
+for (const modifier of ["ControlOrMeta", "Shift"]) {
+  test(`outside Select, a ${modifier} click shows the song as a plain click does`, async ({ page }) => {
+    await openSongs(page);
+    await pick(page, ALPHA);
+    await expect(row(page, ALPHA)).toHaveClass(SELECTED);
+    await expect(row(page, ALPHA)).toHaveClass(ACTIVE);
+    await pick(page, BRAVO, [modifier]);
+    await expect(row(page, BRAVO)).toHaveClass(SELECTED);
+    await expect(row(page, BRAVO)).toHaveClass(ACTIVE);
+    await expectNotPicking(page);
+  });
+}
+
+test("outside Select, Space on a row picks nothing", async ({ page }) => {
+  await openSongs(page);
+  await page.locator(`${BROWSE_RESULTS} .cat-item[tabindex="0"]`).focus();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Space");
+  await expectNotPicking(page);
+});
+

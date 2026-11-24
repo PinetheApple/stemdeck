@@ -94,7 +94,7 @@ function wireRowSelection({ selectableRow, rowOf, allRows, keyOf }) {
 
 function wireRowOpening(container, { selectableRowOf, openRow, showRow, focusRow }) {
   function onRowSingleClick(e) {
-    if (!showRow || e.detail >= SECOND_CLICK || hasModifier(e)) return;
+    if (!showRow || e.detail >= SECOND_CLICK) return;
     const row = selectableRowOf(e.target);
     if (row && !e.target.closest(NOT_THE_ROW)) showRow(row);
   }
