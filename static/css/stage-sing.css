@@ -1,11 +1,9 @@
-/* Sing along: Stage's second look, the lyrics scrolling through the middle of the view. */
-
 .stage-view {
   --sing-line-size: clamp(20px, 1.9vw, 32px);
   --sing-now-size: clamp(32px, min(3.8vw, 7vh), 68px);
   --sing-line-height: 1.15;
   --sing-tracking-tight: -0.03em;
-  --sing-list-mask: linear-gradient(transparent, #000 20%, #000 76%, transparent);
+  --sing-list-mask: linear-gradient(transparent, black 20%, black 76%, transparent);
   --sing-list-max: 1100px;
   --sing-list-pad: 40cqh;
   --sing-ring-size: 64px;
@@ -19,7 +17,6 @@
 .stage-view:not(.sing) .sing-only,
 .stage-view.sing :is(.stage-cue, .stage-lyrics) { display: none; }
 
-/* The look switch, after the song's actions. */
 .stage-look {
   display: inline-flex;
   flex: none;
@@ -49,7 +46,6 @@
 .sing-btn .ic,
 .stage-exit .ic { width: var(--icon); height: var(--icon); }
 
-/* Voices: in the top bar while singing. */
 .sing-voice { display: flex; align-items: center; gap: var(--s-1); padding-right: var(--s-2); margin-right: var(--s-1); border-right: 1px solid var(--line); }
 .sing-voice .stage-label { margin-right: var(--s-1); }
 .sing-switch {
@@ -92,7 +88,6 @@
 .sing-switch[aria-checked="true"] .sing-knob::after { background: var(--accent-ink); transform: translateX(calc(var(--sing-switch-w) - var(--sing-switch-h))); }
 .sing-switch:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
 
-/* The lyrics: every line, the one being sung large and filling word by word. */
 .stage-view.sing .stage-center { display: flex; align-items: stretch; position: relative; padding: 0; container-type: size; }
 .sing-lyrics {
   position: relative;
@@ -168,7 +163,6 @@
 .sing-btn.primary { border-color: transparent; background: var(--accent); color: var(--accent-ink); }
 .sing-btn.primary:hover { filter: brightness(var(--hover-brightness)); }
 
-/* Song end: a card over the dimmed stage with the next song and the seconds before it starts. */
 .stage-view.handoff::after {
   content: "";
   grid-column: 1 / -1;

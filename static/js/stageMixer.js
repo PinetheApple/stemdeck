@@ -13,6 +13,7 @@ import {
 import { getLoadedStemNames } from "./player.js";
 import { LANE_VOLUME_MAX, STEM_COLORS, STEM_DISPLAY } from "./constants.js";
 import { PERCENT, readChoice, saveChoice, stripStems } from "./stageModel.js";
+import { closeStageQueue, isStageQueueOpen } from "./stageUpNext.js";
 import { t } from "./i18n.js";
 import { $ } from "./utils.js";
 
@@ -33,13 +34,20 @@ const stemLabel = (name) => STEM_DISPLAY[name] || name;
 const readMixHidden = () => readChoice(HIDDEN_STORE_KEY) === HIDDEN_STORED;
 const saveMixHidden = (hidden) => saveChoice(HIDDEN_STORE_KEY, hidden ? HIDDEN_STORED : null);
 
+const isMixShown = () => !$("stageView")?.classList.contains(HIDDEN_CLASS) && !isStageQueueOpen();
+
+export function paintMixButton() {
+  $("stageMixBtn")?.setAttribute("aria-pressed", String(isMixShown()));
+}
+
 function showMixHidden(hidden) {
   $("stageView")?.classList.toggle(HIDDEN_CLASS, hidden);
-  $("stageMixBtn")?.setAttribute("aria-pressed", String(!hidden));
+  paintMixButton();
 }
 
 function onMixToggleClick() {
-  const hidden = !$("stageView")?.classList.contains(HIDDEN_CLASS);
+  const hidden = isMixShown();
+  closeStageQueue({ refocus: false });
   showMixHidden(hidden);
   saveMixHidden(hidden);
 }
@@ -119,7 +127,6 @@ export function paintStageMixer() {
   $("stageMixerStrips")?.querySelectorAll(".stage-strip").forEach(paintStrip);
 }
 
-/** Each row's meter shows its studio lane's level, which player.js keeps as `--vu-scale`. */
 export function paintStageMeters() {
   for (const meter of $("stageMixerStrips")?.querySelectorAll(".stage-strip-meter") ?? []) {
     const level = studioMeter(stemOf(meter))?.style.getPropertyValue(VU_SCALE) ?? "";

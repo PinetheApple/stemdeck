@@ -1,5 +1,3 @@
-/* Stage's side panels: Mix in Play along, Up Next in either look, one at a time. */
-
 .stage-view {
   --stage-side-w: clamp(300px, 22vw, 340px);
   --stage-queue-w: clamp(320px, 24vw, 360px);
@@ -43,7 +41,6 @@
 .stage-side-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); min-height: var(--ctl-h-sm); }
 .stage-my-part { display: contents; }
 
-/* Mix: one row per stem, name, M, S, fader, dB and a thin meter. */
 .stage-mixer { align-self: start; }
 .stage-mixer-strips { display: flex; flex-direction: column; }
 .stage-strip {
@@ -123,7 +120,6 @@
   cursor: pointer;
 }
 
-/* Up Next: the studio's own list, lent while the panel is open. */
 .stage-queue-panel { width: var(--stage-queue-w); align-self: stretch; }
 .stage-borrow { display: contents; }
 .stage-queue-panel .upnext-list { flex: 1 1 auto; min-height: 0; overflow: auto; }

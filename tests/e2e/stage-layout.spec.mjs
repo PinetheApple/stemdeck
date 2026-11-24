@@ -1,6 +1,3 @@
-// Stage mode over the shared footer: Stage covers the top bar and the studio, the footer's own
-// transport plays it, and its top bar, cue, lyric lines, section blocks and side panels follow the redesign.
-
 import { test, expect } from "@playwright/test";
 import { JOB_ID, SIBLING_JOB_ID, openStudio } from "./helpers.mjs";
 import { seedUpNext, seekTo } from "./singAlongHelpers.mjs";
@@ -89,6 +86,25 @@ test("Up Next opens from Play along in place of the Mix panel; Esc closes it, th
   await expect(page.locator("#stageView")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator("#stageView")).toBeHidden();
+});
+
+test("Mix reads as off while Up Next takes its panel, and pressing it brings the Mix panel back", async ({ page }) => {
+  await openStage(page);
+  const mix = page.locator("#stageMixBtn");
+  const border = () => mix.evaluate((el) => getComputedStyle(el).borderColor);
+  await expect(mix).toHaveAttribute("aria-pressed", "true");
+  const onBorder = await border();
+  await page.locator("#stageQueueBtn").click();
+  await expect(mix).toHaveAttribute("aria-pressed", "false");
+  expect(await border()).not.toBe(onBorder);
+  await page.keyboard.press("Escape");
+  await expect(mix).toHaveAttribute("aria-pressed", "true");
+  expect(await border()).toBe(onBorder);
+  await page.locator("#stageQueueBtn").click();
+  await mix.click();
+  await expect(page.locator("#stageQueuePanel")).toBeHidden();
+  await expect(page.locator("#stageMixer")).toBeVisible();
+  await expect(mix).toHaveAttribute("aria-pressed", "true");
 });
 
 test("an empty Up Next still shows the chip, and its panel says so", async ({ page }) => {

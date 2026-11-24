@@ -1,7 +1,4 @@
-// Stage mode: a play-along view over the top bar and the studio, played from the footer below it.
-// F toggles it, Esc leaves it.
-
-import { metronomeBeatsPerBar, npScrubFill } from "./state.js";
+import { loopBtn, metronomeBeatsPerBar, npScrubFill, playBtn } from "./state.js";
 import { transport } from "./transport.js";
 import { getPlayingTrackInfo, isTextEditingTarget } from "./catalog.js";
 import { shownBpm } from "./tempoTools.js";
@@ -10,7 +7,13 @@ import { buildBeatTable, beatAt } from "./stageBeats.js";
 import { ensureLyricsLoaded, getTimedLyricLines } from "./lyrics.js";
 import { currentLineIndex } from "./lyricsLookup.js";
 import { refitFooter } from "./footerFit.js";
-import { initStageMixer, paintStageMixer, paintStageMeters, forgetStageMixer } from "./stageMixer.js";
+import {
+  forgetStageMixer,
+  initStageMixer,
+  paintMixButton,
+  paintStageMeters,
+  paintStageMixer,
+} from "./stageMixer.js";
 import { initStageOverview, paintStageOverview, forgetStageOverview } from "./stageOverview.js";
 import { forgetCue, paintCue, readCueSections } from "./stageCue.js";
 import { closeStageQueue, focusStagePlay, initStageUpNext } from "./stageUpNext.js";
@@ -32,7 +35,6 @@ import { $ } from "./utils.js";
 
 const OPEN_MODAL = 'dialog[open], [role="dialog"][aria-modal="true"]';
 
-// Each lyric line Play along shows, by its distance from the line being sung.
 const LYRIC_LINES = Object.freeze({ stageLyricPrev: -1, stageLyric: 0, stageLyricNext: 1, stageLyricNext2: 2 });
 
 let frameId = 0;
@@ -171,10 +173,9 @@ function onDurationKnown() {
  */
 function watchPlayback() {
   playObserver ??= new MutationObserver(syncLoop);
-  const play = $("t-play");
-  if (play) playObserver.observe(play, { attributes: true, attributeFilter: ["class"] });
-  const loop = $("t-loop");
-  if (loop) playObserver.observe(loop, { attributes: true, attributeFilter: ["class"] });
+  for (const button of [playBtn, loopBtn]) {
+    if (button) playObserver.observe(button, { attributes: true, attributeFilter: ["class"] });
+  }
   if (npScrubFill) playObserver.observe(npScrubFill, { attributes: true, attributeFilter: ["style"] });
 }
 
@@ -247,7 +248,7 @@ export function initStageMode() {
   $("stageExitBtn")?.addEventListener("click", onStageExitClick);
   initStageMixer(isStageMode);
   initStageOverview(isStageMode);
-  initStageUpNext();
+  initStageUpNext({ panelToggled: paintMixButton });
   initSingAlong({ showing: isStageMode, redraw: redrawStage, leaveStage: onStageExitClick });
   window.addEventListener("keydown", onStageKeydown);
   document.addEventListener("trackopen", onSongChangeInStage);

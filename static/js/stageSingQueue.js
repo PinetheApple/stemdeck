@@ -1,5 +1,3 @@
-// Sing along's song end: a short countdown to the next song in Up Next.
-
 import { playNextInUpNext, setTrackEndOverride } from "./upNext.js";
 import { transport } from "./transport.js";
 import { countdownState } from "./stageSingModel.js";

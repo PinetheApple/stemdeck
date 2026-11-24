@@ -1,5 +1,3 @@
-/* Stage mode: covers the top bar and the studio; the footer below it stays and plays it. */
-
 .daw-main { position: relative; }
 .daw.stage-mode .daw-topbar,
 .daw.stage-mode .sidebar,
@@ -43,7 +41,6 @@
   color: var(--text-3);
 }
 
-/* Top bar: the song and its actions, the look, then Mix or Voices, Up Next and Exit. */
 .stage-top {
   grid-column: 1 / -1;
   display: flex;
@@ -94,7 +91,6 @@
 .stage-queue-next { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-3); font-weight: var(--fw-medium); }
 .stage-queue-next:empty { display: none; }
 
-/* Play along: the cue beside the lyric lines. */
 .stage-center {
   grid-column: 1;
   grid-row: 2;
@@ -163,7 +159,6 @@
 #stageLyricNext { color: var(--text-2); }
 .stage-lyric-far { opacity: var(--stage-far-opacity); }
 
-/* Under both looks: the sections over a whole-song waveform, the times at either end. */
 .stage-overview {
   grid-column: 1;
   grid-row: 3;

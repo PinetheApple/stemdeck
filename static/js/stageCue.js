@@ -1,5 +1,3 @@
-// Stage's cue in Play along: the section playing, what follows it and in how many bars, and the next section's time.
-
 import { totalDuration } from "./state.js";
 import { getSections, sectionDisplayName } from "./sections.js";
 import { barsUntil } from "./stageBeats.js";
@@ -10,12 +8,12 @@ import { t, plural } from "./i18n.js";
 import { $, fmtTime } from "./utils.js";
 
 const PLACEHOLDER = /\{(\w+)\}/;
+const KEY_SEPARATOR = "\u0000";
 
 let sections = [];
 let sectionsKey = "";
 const shown = { section: null, then: null, next: null };
 
-/** Reads the song's sections, drawing the overview's blocks again when they changed. */
 export function readCueSections() {
   const all = getSections();
   sections = all.map((s) => ({ start: s.start, end: s.end, name: sectionDisplayName(s, all) }));
@@ -51,7 +49,7 @@ function paintThen(time, next, beatTable) {
   const el = $("stageThen");
   const name = next?.name ?? t("stage.end");
   const count = sections.length ? barsUntil(beatTable, time, next?.start ?? totalDuration) : null;
-  const key = sections.length ? `${name}\u0000${count}` : "";
+  const key = sections.length ? `${name}${KEY_SEPARATOR}${count}` : "";
   if (!el || shown.then === key) return;
   shown.then = key;
   if (!sections.length) el.replaceChildren();
@@ -59,7 +57,6 @@ function paintThen(time, next, beatTable) {
   else fillTemplate(el, plural("stage.thenBars", count), { name, count });
 }
 
-/** One frame of the cue at `time`; returns the index of the section playing, or -1. */
 export function paintCue(time, beatTable) {
   const { at, current, next } = sectionsAt(time);
   setTextOnce(shown, "section", $("stageSection"), current?.name ?? "");
@@ -68,7 +65,6 @@ export function paintCue(time, beatTable) {
   return at;
 }
 
-/** Entering Stage, a new song or a new language: the next frame writes everything again. */
 export function forgetCue() {
   for (const key of Object.keys(shown)) shown[key] = null;
   sectionsKey = "";

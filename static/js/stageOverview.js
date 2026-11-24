@@ -12,10 +12,16 @@ const MIN_BAR_PX = 2;
 const WAVE_FILL = 0.8;
 const PLAYED_TOKEN = "--accent";
 const UNPLAYED_TOKEN = "--surface-4";
+const SECTION_CLASS = "stage-sec";
+const SECTION_GO_CLASS = "stage-sec-go";
+const SECTION_LOOP_CLASS = "stage-sec-loop";
+
+const freshWave = () => ({ canvasWidth: 0, playedBars: -1, peaks: null });
+const freshPainted = () => ({ current: null, elapsed: null, total: null, playhead: null, loop: null });
 
 let blocks = [];
-let wave = { canvasWidth: 0, playedBars: -1, peaks: null };
-let painted = { current: null, elapsed: null, total: null, playhead: null, loop: null };
+let wave = freshWave();
+let painted = freshPainted();
 let playedFraction = 0;
 let resizeObserver = null;
 let isShowing = () => false;
@@ -40,7 +46,7 @@ function blockButton(className, title) {
 }
 
 function goButton(span) {
-  const go = blockButton("stage-sec-go", t("stage.jumpTo", { name: span.name }));
+  const go = blockButton(SECTION_GO_CLASS, t("stage.jumpTo", { name: span.name }));
   const name = document.createElement("span");
   name.className = "stage-sec-name";
   name.textContent = span.name;
@@ -52,7 +58,7 @@ function goButton(span) {
 }
 
 function loopButton(span) {
-  const loop = blockButton("stage-sec-loop", t("stage.loopSection", { name: span.name }));
+  const loop = blockButton(SECTION_LOOP_CLASS, t("stage.loopSection", { name: span.name }));
   loop.setAttribute("aria-label", loop.title);
   loop.setAttribute("aria-pressed", "false");
   loop.append($("stageLoopIcon").content.cloneNode(true));
@@ -61,7 +67,7 @@ function loopButton(span) {
 
 function makeBlock(span) {
   const block = document.createElement("div");
-  block.className = "stage-sec";
+  block.className = SECTION_CLASS;
   block.dataset.start = String(span.start);
   block.dataset.end = String(span.end);
   block.style.left = `${span.left}%`;
@@ -79,7 +85,7 @@ function markLoop() {
   if (painted.loop === key) return;
   painted.loop = key;
   for (const block of blocks) {
-    block.querySelector(".stage-sec-loop").setAttribute("aria-pressed", String(isLooped(block)));
+    block.querySelector(`.${SECTION_LOOP_CLASS}`).setAttribute("aria-pressed", String(isLooped(block)));
   }
 }
 
@@ -137,14 +143,14 @@ export function paintStageOverview(time, currentIndex) {
 
 /** Entering Stage or a new song: paint everything again on the next frame. */
 export function forgetStageOverview() {
-  painted = { current: null, elapsed: null, total: null, playhead: null, loop: null };
-  wave = { canvasWidth: 0, playedBars: -1, peaks: null };
+  painted = freshPainted();
+  wave = freshWave();
 }
 
 function onSectionClick(e) {
-  const block = e.target.closest(".stage-sec");
+  const block = e.target.closest(`.${SECTION_CLASS}`);
   if (!block) return;
-  if (!e.target.closest(".stage-sec-loop")) setPlayheadTime(Number(block.dataset.start));
+  if (!e.target.closest(`.${SECTION_LOOP_CLASS}`)) setPlayheadTime(Number(block.dataset.start));
   else if (isLooped(block)) toggleLoop();
   else setLoopRange(Number(block.dataset.start), Number(block.dataset.end));
   markLoop();

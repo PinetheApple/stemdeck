@@ -1,6 +1,3 @@
-// Sing along's lyrics: every timed line in a centred scrolling list, the one being sung
-// filling word by word as the Lyrics tab draws it. A click on a line seeks to it.
-
 import { getPlayingTrackInfo } from "./catalog.js";
 import { setPlayheadTime } from "./transport.js";
 import { fillLine, tagLang, vocalEnvelope } from "./lyrics.js";
@@ -13,8 +10,10 @@ const LINE_CLASS = "sing-line";
 const NOW_CLASS = "now";
 const PAST_CLASS = "past";
 const WAITING_CLASS = "waiting";
+const SUNG_CLASS = "sung";
+const SINGING_CLASS = "singing";
 const FILL_PROPERTY = "--fill";
-const HALF = 2;
+const SIDES_OF_ROW = 2;
 
 let listed = null;
 let rows = [];
@@ -47,7 +46,8 @@ function buildList(lines) {
 function centre(row, smooth) {
   const list = $("singLyrics");
   if (!list || !row) return;
-  const top = row.offsetTop - (list.clientHeight - row.offsetHeight) / HALF;
+  const spare = list.clientHeight - row.offsetHeight;
+  const top = row.offsetTop - spare / SIDES_OF_ROW;
   list.scrollTo({ top, behavior: smooth ? "smooth" : "auto" });
 }
 
@@ -73,13 +73,12 @@ function fillNow(time) {
   }
   for (const word of nowLine.words) {
     const { sung, singing, fill } = wordFill(word, time);
-    word.el.classList.toggle("sung", sung);
-    word.el.classList.toggle("singing", singing);
+    word.el.classList.toggle(SUNG_CLASS, sung);
+    word.el.classList.toggle(SINGING_CLASS, singing);
     if (singing) word.el.style.setProperty(FILL_PROPERTY, `${fill}%`);
   }
 }
 
-/** Paints the list for `view` (stageSingModel's lyricWindow) at `time`. */
 export function paintSingLyrics(lines, view, time) {
   if (lines !== listed) buildList(lines);
   markNow(view.now);
@@ -87,7 +86,6 @@ export function paintSingLyrics(lines, view, time) {
   if (rows[nowIndex]) fillNow(time);
 }
 
-/** Entering Stage, a new song or a new language: the next frame lists the lines anew. */
 export function forgetSingLyrics() {
   listed = null;
 }

@@ -21,6 +21,10 @@ const PAST_COUNTDOWN_MS = 6000;
 const SEEK_BACK_SEC = 1;
 
 const card = (page) => page.locator("#singHandoff");
+const stageDimmed = (page) => page.locator("#stageView").evaluate((el) => {
+  const scrim = getComputedStyle(el, "::after");
+  return scrim.content !== "none" && scrim.backgroundColor !== "rgba(0, 0, 0, 0)";
+});
 
 async function endInSingAlong(page, queued = [SIBLING_JOB_ID]) {
   await serveLyrics(page);
@@ -41,8 +45,10 @@ test.describe("sing along song end", () => {
     await endInSingAlong(page);
     await expect(page.locator("#singHandoffTitle")).toHaveText(SIBLING_TITLE);
     await expect(page.locator("#singRingNum")).toHaveText(COUNTDOWN_SECONDS);
+    expect(await stageDimmed(page)).toBe(true);
     await page.locator("#singStayBtn").click();
     await expect(card(page)).toBeHidden();
+    expect(await stageDimmed(page)).toBe(false);
     await expectStillOnSong(page);
   });
 
