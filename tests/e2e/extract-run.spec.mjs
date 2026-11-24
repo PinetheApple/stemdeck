@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { JOB_ID, KEY, SIBLING_JOB_ID, failureMessages, openStudio } from "./helpers.mjs";
+import { JOB_ID, KEY, SIBLING_JOB_ID, failureMessages, openBrowse, openStudio } from "./helpers.mjs";
 import { DEFAULT_VERSION_ID as DEFAULT_ID } from "../../static/js/versionModel.js";
 import { SOURCE_GONE_DETAIL } from "../../static/js/extractRun.js";
 
@@ -16,8 +16,10 @@ const SLOW_HINT = "Saved as a new version. Takes a few minutes.";
 const versionsUrl = (id) => `/api/jobs/${id}/versions`;
 const versionKey = (vid) => `${MIX_KEY}:${vid}`;
 const laneMix = (drums) => ({ drums: { volume: drums, muted: false, soloed: false, pitch: 0 } });
-const songRow = (page) => page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first();
-const versionRows = (page) => page.locator(`#catalogList .cat-version[data-id="${JOB_ID}"]`);
+// Extract more brings Browse library up as a list, so the run shows on the song's row there.
+const songRow = (page) => page.locator(`#browseResults .cat-item[data-id="${JOB_ID}"]`).first();
+const sidebarRow = (page) => page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first();
+const versionRows = (page) => page.locator(`#browseResults .cat-version[data-id="${JOB_ID}"]`);
 const rowLabel = (page) => songRow(page).locator(".cat-queue-label");
 const rowBarFill = (page) => songRow(page).locator(".cat-progress-fill");
 const extractDialog = (page) => page.locator(".extract-more-backdrop");
@@ -70,6 +72,16 @@ async function openOnTwoLanes(page, request) {
   return v2;
 }
 
+async function showLibraryList(page) {
+  await openBrowse(page);
+  await page.locator("#browseListBtn").click();
+}
+
+async function closeBrowse(page) {
+  await page.keyboard.press(KEY.ESCAPE);
+  await expect(page.locator("#browseLibrary")).toBeHidden();
+}
+
 function lanes(page) {
   return page.evaluate(async () => [...(await import("/js/state.js")).selectedStems].sort());
 }
@@ -82,6 +94,7 @@ function playhead(page) {
 }
 
 async function openRowMenu(page) {
+  if (!(await songRow(page).isVisible())) await showLibraryList(page);
   await songRow(page).hover();
   await songRow(page).locator(".cat-more").click();
   return page.locator(".lib-menu");
@@ -126,7 +139,7 @@ test("Extract more stems is a dialog that dims the page, closes on Esc and hands
   await expect(dialog).toBeVisible();
   await expect(dialog).toHaveAttribute("role", "dialog");
   await expect(dialog).toHaveAttribute("aria-modal", "true");
-  await expect(page.locator("#catalogList .cat-extract-more")).toHaveCount(0);
+  await expect(page.locator("#browseResults .cat-extract-more")).toHaveCount(0);
   const scrim = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--scrim").trim());
   expect(await dialog.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(scrim);
   await expect(extractForm(page).locator(".cat-extract-more-go")).toBeFocused();
@@ -138,8 +151,8 @@ test("Extract more stems is a dialog that dims the page, closes on Esc and hands
 
 test("with the song's row off screen, the dialog hands focus back to what opened it", async ({ page, request }) => {
   await openOnTwoLanes(page, request);
-  await page.locator("#catalogSearch").fill("zzzz");
-  await expect(songRow(page)).toHaveCount(0);
+  await page.locator("#sidebarCollapseBtn").click();
+  await expect(sidebarRow(page)).toBeHidden();
   const opener = page.locator("#songMoreBtn");
   await opener.focus();
   await page.evaluate((trackId) => {
@@ -210,6 +223,7 @@ test("a run shows on the row and the song head, the song plays, and the new vers
   await expect(rowLabel(page)).toHaveText("Extracting 30%");
   await expect(rowBarFill(page)).toHaveAttribute("style", /width: 30%/);
   await expect(page.locator("#songHead #npExtracting")).toHaveText("Extracting 30%");
+  await closeBrowse(page);
   await expectStillPlays(page);
 
   const made = await request.post(versionsUrl(JOB_ID), { data: { name: "+ Bass", stems: WITH_BASS, open: true } });
@@ -218,6 +232,7 @@ test("a run shows on the row and the song head, the song plays, and the new vers
 
   await expect(page.locator("#npVersionBtn")).toHaveText("+ Bass");
   await expect.poll(() => lanes(page)).toEqual([...WITH_BASS].sort());
+  await showLibraryList(page);
   await expect(versionRows(page)).toHaveCount(3);
   await expect(rowLabel(page)).toHaveCount(0);
   await expect(page.locator("#npExtracting")).toHaveCount(0);
@@ -234,12 +249,15 @@ test("a failed run tells why in a notification and leaves the song as it was", a
   run.view = ended("failed", { error: "out-of-memory" });
   await expect(rowLabel(page)).toHaveCount(0);
   await expect.poll(() => failureMessages(page)).toEqual([OOM_SENTENCE]);
+  await closeBrowse(page);
   await page.locator("#notifBtn").click();
   await expect(page.locator(".daw-notif-card-title").first()).toHaveText("Stems not extracted");
   await expect(page.locator(".daw-notif-card-desc").first()).toContainText(OOM_SENTENCE);
   await page.keyboard.press(KEY.ESCAPE);
+  await showLibraryList(page);
   await expect(versionRows(page)).toHaveCount(2);
   await expect.poll(() => lanes(page)).toEqual([...TWO_STEMS].sort());
+  await closeBrowse(page);
   await expectStillPlays(page);
 });
 
@@ -261,6 +279,7 @@ test("Stop extracting takes Extract more's place in both menus and stops only th
   const run = await stubExtractRun(page, request, running("separating", 0.4));
   await extractBass(page);
   await expect(rowLabel(page)).toHaveText("Extracting 40%");
+  await closeBrowse(page);
 
   await page.locator("#songMoreBtn").click();
   const menu = page.locator(".lib-menu");
@@ -285,6 +304,7 @@ test("a re-download shows as Downloading, then Extracting, in the song head and 
   await expect(page.locator("#npExtracting")).toHaveText("Downloading 42%");
 
   run.view = running("separating", 0.42);
+  await closeBrowse(page);
   await page.locator("#stageModeBtn").click();
   await expect(page.locator("#stageView #stageExtracting")).toHaveText("Extracting 42%");
   run.view = ended("cancelled");
@@ -315,6 +335,7 @@ test("with another song shown over the playing one, the head shows that song's r
   const run = await stubExtractRun(page, request, running("separating", 0.3));
   await extractBass(page);
   await expect(page.locator("#npExtracting")).toHaveText("Extracting 30%");
+  await closeBrowse(page);
 
   await page.locator("#t-play").click();
   await page.evaluate(async (id) => (await import("/js/openSong.js")).openSong(id), SIBLING_JOB_ID);
