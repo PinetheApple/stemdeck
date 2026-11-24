@@ -1,6 +1,3 @@
-// Add song (#238): the import form in a popover under the top bar, the batch
-// review as a dialog over a dimmed page, the drop overlay over the window, and
-// the empty studio's buttons that open the popover on their action.
 import { test, expect } from "@playwright/test";
 import { KEY, seedLibrary, stubUpdateCheck, uiText } from "./helpers.mjs";
 import { PASTE, paste, preview, review, stubPreview } from "./batchImport.mjs";
@@ -9,6 +6,10 @@ const SIZES = [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }];
 const COLLAPSED_KEY = "stemdeck.catalog.collapsed";
 const SEARCH_ITEMS = [{ title: "The Best", duration: 250, uploader: "Tina Turner", thumbnail: null, too_long: false, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }];
 const AUDIO_NAME = "dropped.wav";
+const AUDIO_BYTES = 64;
+const MAX_DURATION_SEC = 1200;
+const TYPING_DELAY_MS = 25;
+const CENTRE_SLACK_PX = 1;
 
 const popover = (page) => page.locator("#composerDrawer");
 const addSong = (page) => page.locator("#addSongBtn");
@@ -23,17 +24,17 @@ async function openApp(page, size = SIZES[0]) {
 
 async function stubSearch(page) {
   await page.route("**/api/search", (route) => route.fulfill({
-    json: { items: SEARCH_ITEMS, max_duration_sec: 1200, cached: false },
+    json: { items: SEARCH_ITEMS, max_duration_sec: MAX_DURATION_SEC, cached: false },
   }));
 }
 
 /** A drag carrying one audio file, fired at the body: the gesture used anywhere in the window. */
 async function dragFile(page, type) {
-  await page.evaluate(([name, eventType]) => {
+  await page.evaluate(([name, bytes, eventType]) => {
     const data = new DataTransfer();
-    data.items.add(new File([new Uint8Array(64)], name, { type: "audio/wav" }));
+    data.items.add(new File([new Uint8Array(bytes)], name, { type: "audio/wav" }));
     document.body.dispatchEvent(new DragEvent(eventType, { dataTransfer: data, bubbles: true, cancelable: true }));
-  }, [AUDIO_NAME, type]);
+  }, [AUDIO_NAME, AUDIO_BYTES, type]);
 }
 
 const viewportBox = (page) => page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
@@ -83,7 +84,7 @@ test("Esc closes the search results first, then the popover", async ({ page }) =
   await stubSearch(page);
   await openApp(page);
   await addSong(page).click();
-  await page.locator("#url").pressSequentially("best ", { delay: 25 });
+  await page.locator("#url").pressSequentially("best ", { delay: TYPING_DELAY_MS });
   await expect(page.locator(".search-row").first()).toBeVisible();
 
   await page.locator(".search-tab").nth(1).click();
@@ -110,8 +111,8 @@ test("a pasted list opens the review as a dialog over the whole page, and Esc ke
   const view = await viewportBox(page);
   expect(await page.locator(".batch-scrim").boundingBox()).toEqual({ x: 0, y: 0, ...view });
   const box = await review(page).boundingBox();
-  expect(Math.abs(box.x + box.width / 2 - view.width / 2)).toBeLessThanOrEqual(1);
-  expect(Math.abs(box.y + box.height / 2 - view.height / 2)).toBeLessThanOrEqual(1);
+  expect(Math.abs(box.x + box.width / 2 - view.width / 2)).toBeLessThanOrEqual(CENTRE_SLACK_PX);
+  expect(Math.abs(box.y + box.height / 2 - view.height / 2)).toBeLessThanOrEqual(CENTRE_SLACK_PX);
 
   await expect(review(page).locator(".batch-queue")).toBeEnabled();
   await page.keyboard.press(KEY.ESCAPE);

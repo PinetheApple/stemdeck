@@ -1,6 +1,3 @@
-/* Add song: the popover under the top bar's button, the full-window drop
-   overlay, and the empty studio's start buttons. */
-
 :root {
   --add-song-w: 520px;
   --add-song-z: 60;
@@ -16,7 +13,6 @@
   --drop-overlay-tint: 70%;
 }
 
-/* ── The popover ── */
 .add-song-pop {
   position: fixed;
   z-index: var(--add-song-z);
@@ -31,7 +27,7 @@
 .add-song-form { display: flex; flex-direction: column; gap: var(--s-3); }
 .add-song-title { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-bold); color: var(--text); }
 
-/* The box's frame is the old bar's; search.js anchors its results under .daw-composer. */
+/* search.js anchors its results under .daw-composer, so the wrapper stays but draws nothing. */
 .add-song-pop .daw-composer {
   display: block;
   height: auto;
@@ -53,7 +49,7 @@
 .add-song-pop .add-song-box > svg { display: block; width: var(--icon); height: var(--icon); }
 .add-song-pop .add-song-box.batch-drop-target { color: var(--accent-hi); }
 
-.add-song-pickers { display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
+.add-song-pickers { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); min-width: 0; }
 .add-song-picker {
   flex: none;
   display: inline-flex;
@@ -75,15 +71,11 @@
 .add-song-picker[hidden] { display: none; }
 .add-song-picker .ic { width: var(--icon-sm); height: var(--icon-sm); }
 .add-song-formats {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
-/* ── Extract: chips wrap between chips, never inside one ── */
 .add-song-extract {
   display: flex;
   flex-direction: column;
@@ -155,7 +147,6 @@
 }
 .add-song-pop .vocal-mode-btn[aria-pressed="true"] { background: var(--surface-4); color: var(--text); }
 
-/* ── Foot: Detect structure, then Extract stems ── */
 .add-song-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); }
 .add-song-detect {
   display: inline-flex;
@@ -221,7 +212,6 @@
 .add-song-pop .add-song-submit > svg { display: block; }
 .add-song-pop .add-song-submit.loading > svg { display: none; }
 
-/* ── Files dragged anywhere over the window ── */
 .drop-overlay {
   position: fixed;
   inset: var(--s-3);
@@ -249,6 +239,5 @@
 .drop-overlay-card .ic { width: var(--ctl-h-sm); height: var(--ctl-h-sm); }
 .drop-overlay-card b { font-size: var(--fs-lg); color: var(--text); }
 
-/* ── The empty studio's Browse library ── */
 .empty-start-btn.is-primary { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
 .empty-start-btn.is-primary:hover { background: var(--accent-hi); }

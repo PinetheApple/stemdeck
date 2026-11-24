@@ -1,6 +1,3 @@
-// The full-window "Drop files or a folder" overlay while files are dragged over
-// the window. The drop itself is main.js's; this only shows that it will be taken.
-
 const OVERLAY_ID = "dropOverlay";
 const URL_ZONE = ".url-wrap";
 // main.js marks the box with it for the desktop shell's native drags, which carry no "Files".

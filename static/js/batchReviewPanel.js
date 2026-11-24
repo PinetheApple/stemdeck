@@ -1,9 +1,6 @@
-// batchReviewPanel.js — the review list's frame: a dialog over a dimmed page,
-// modal, so focus stays inside until it closes and then goes back.
-
 import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
+import { ADD_SONG_ID } from "./composerDrawer.js";
 
-const ADD_SONG_ID = "addSongBtn";
 const FOCUSABLE = "button:not(:disabled), input:not(:disabled)";
 
 let panel = null;

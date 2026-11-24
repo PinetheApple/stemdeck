@@ -1,7 +1,3 @@
-// The Extract chips fit the Add song popover in every language (#238): they
-// wrap between chips, never inside one, the Vocals group stays whole, and
-// nothing runs past the popover's edge. They used to fold into a "..." button
-// in the old bar; the popover has room for them on at most two rows.
 import { test, expect } from "@playwright/test";
 import { seedLibrary, stubUpdateCheck } from "./helpers.mjs";
 
@@ -10,6 +6,7 @@ const SIZES = [{ width: 1366, height: 768 }, { width: 1024, height: 768 }];
 const MAX_ROWS = 2;
 const HALF_PX = 0.5;
 const EVERY_LANGUAGE_MS = 180_000;
+const STEM_CHIPS = 6;
 
 /** How the chips sit: rows used, and anything cut, wrapped inside, split or past the edge. */
 const chipLayout = (page) => page.evaluate((slack) => {
@@ -57,5 +54,5 @@ test("the old overflow button is gone and every chip is in the popover", async (
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator("#addSongBtn").click();
   await expect(page.locator("#stemMoreBtn, #stemOverflow")).toHaveCount(0);
-  await expect(page.locator("#composerDrawer .stem-choice[data-stem]")).toHaveCount(6);
+  await expect(page.locator("#composerDrawer .stem-choice[data-stem]")).toHaveCount(STEM_CHIPS);
 });

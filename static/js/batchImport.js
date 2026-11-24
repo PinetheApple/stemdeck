@@ -1,6 +1,3 @@
-// batchImport.js — several songs at once. Add song holds the batch as a chip and a
-// review dialog says what each item is before anything is queued.
-
 import { t, plural } from "./i18n.js";
 import { selectedStems } from "./state.js";
 import {

@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { test, expect } from "@playwright/test";
-import { uiText, openComposer } from "./helpers.mjs";
+import { KEY, uiText, openComposer } from "./helpers.mjs";
 import {
   GONE_COPY, HTTP_FULL, LINE, MAX_DURATION_SEC, PASTE, PLAYLIST_SONGS, PLAYLIST_TITLE, ROWS, TICKED_BY_DEFAULT,
   openBar, paste, pasteList, preview, queueButton, review, row, stubImports, stubPreview,
@@ -12,7 +12,7 @@ import {
 
 /** Detect structure lives in Add song, behind the modal review: close it, switch it on, reopen with Review N. */
 async function turnStructureOnBehindReview(page) {
-  await page.keyboard.press("Escape");
+  await page.keyboard.press(KEY.ESCAPE);
   await openComposer(page);
   await page.locator("#autoSectionsBtn").click();
   await expect(page.locator("#autoSectionsBtn")).toHaveAttribute("aria-pressed", "true");
@@ -129,7 +129,7 @@ test.describe("batch import", () => {
     expect(posts[2].auto_sections).toBe(false);
     expect(posts[2].stems).toEqual(posts[0].stems);
     await expect(row(page, "Firm Foundation")).toHaveCount(0);
-    await page.keyboard.press("Escape");
+    await page.keyboard.press(KEY.ESCAPE);
     await openComposer(page);
     await page.locator("#autoSectionsBtn").click();
   });
@@ -152,7 +152,7 @@ test.describe("batch import", () => {
 
   test("Escape closes the review and gives Add song, which holds the batch, its focus", async ({ page }) => {
     await pasteList(page);
-    await page.keyboard.press("Escape");
+    await page.keyboard.press(KEY.ESCAPE);
     await expect(review(page)).toHaveCount(0);
     await expect(page.locator("#addSongBtn")).toBeFocused();
     await openComposer(page);

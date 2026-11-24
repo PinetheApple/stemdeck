@@ -1,6 +1,3 @@
-// Add song: the popover under the top bar's button that holds the import form.
-// It stays inside the window, and closes on Esc, a click outside it, or the button.
-
 import { keepInWindow } from "./shellFloat.js";
 import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
 import { closeSearch } from "./search.js";
@@ -8,7 +5,7 @@ import { wireEmptyStart } from "./addSongStart.js";
 import { wireDropOverlay } from "./dropOverlay.js";
 
 const DRAWER_ID = "composerDrawer";
-const ADD_SONG_ID = "addSongBtn";
+export const ADD_SONG_ID = "addSongBtn";
 const URL_FIELD_ID = "url";
 const SEARCH_PANEL_ID = "search-panel";
 const HIDDEN_CLASS = "hidden";

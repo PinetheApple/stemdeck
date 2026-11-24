@@ -1,6 +1,3 @@
-/* Batch import: Add song's folder button and chip, the review dialog over a
-   dimmed page, and the queue view's batch header. */
-
 :root {
   --batch-z-scrim: 49;
   --batch-z-review: 50;

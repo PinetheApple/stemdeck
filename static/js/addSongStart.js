@@ -1,9 +1,7 @@
-// The empty studio's start buttons. main.js gives each its action (file picker,
-// folder picker, focus the box); these open Add song around it.
-
 import { isSidebarCollapsed, setSidebarCollapsed, showLibraryView } from "./catalog.js";
 
-const OPENS_ADD_SONG = ["emptyStartUpload", "emptyStartFolder", "emptyStartLink"];
+// main.js opens the pickers from these; this opens Add song around them.
+const OPENS_ADD_SONG = ["emptyStartUpload", "emptyStartFolder"];
 const BROWSE_ID = "emptyStartBrowse";
 const LIBRARY_SEARCH_ID = "catalogSearch";
 
