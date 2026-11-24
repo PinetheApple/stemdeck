@@ -39,8 +39,9 @@ const wantedSilence = () => silencedVocals({ split: splitNow(), voiceOn, backing
 /** Keeps the chosen vocals quiet while Sing along is on screen, and gives them back after. */
 function applySilence() {
   if (!singShown() || !getPlayingTrackInfo()) {
-    if (silencing) clearSilencedStems();
+    const wasSilencing = silencing;
     silencing = false;
+    if (wasSilencing) clearSilencedStems();
     return;
   }
   silencing = true;
