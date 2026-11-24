@@ -115,7 +115,7 @@ test("the song head's ⋯ and right-click give the menu without Rename…", asyn
   await page.keyboard.press(KEY.ESCAPE);
   await expect(more).toBeFocused();
 
-  const fromRightClick = await rightClickLabels(page, page.locator("#np-art"));
+  const fromRightClick = await rightClickLabels(page, page.locator("#title"));
   expect(fromRightClick).toEqual(fromButton);
   expect(fromButton).not.toContain("Rename…");
   expect(fromButton).toEqual(expect.arrayContaining(["Play now", "About this song", "Move to Trash"]));
