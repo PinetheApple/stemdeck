@@ -1,4 +1,5 @@
-// The queue view's summary of a batch while imports run: its failed items and Retry failed. Preview, imports and queue are stubbed.
+// The queue view's summary of a batch: its failed items and Retry failed, which stay shown after the
+// queue drains until dealt with. Preview, imports and queue are stubbed.
 import { test, expect } from "@playwright/test";
 import { KEY, openBrowse, openComposer, uiText } from "./helpers.mjs";
 import {
