@@ -63,7 +63,7 @@ function onSongRowButtonClick(e) {
   }
 }
 
-function coverActionHtml(trackId, track, inTrash) {
+function coverActionHtml(trackId, track, inTrash = false) {
   if (inTrash) return "";
   if (track.status === FAILED_STATUS) return icon(sourceKindOf(track));
   const title = titleOf(track);
@@ -77,7 +77,7 @@ function coverActionHtml(trackId, track, inTrash) {
   return labelledButton(ROW_PLAY_CLASS, label, label, icon("play", { filled: true }), `tabindex="${OUT_OF_TAB_ORDER}"`);
 }
 
-function rowClasses(trackId, track, { inTrash, card }) {
+function rowClasses(trackId, track, { inTrash = false, card = false } = {}) {
   const isFailed = !inTrash && track.status === FAILED_STATUS;
   const playing = trackId === getPlayingTrackInfo()?.id;
   return [
@@ -98,14 +98,14 @@ function statusClass(track) {
   return track.status === "unavailable" ? " unavailable" : "";
 }
 
-function actionsHtml(track, { inTrash, actions }) {
+function actionsHtml(track, { inTrash = false, actions = null } = {}) {
   if (actions !== null) return `<div class="cat-actions">${actions}</div>`;
   if (inTrash) return `<div class="cat-actions">${restoreButtonHtml(track)}</div>`;
   if (track.status === FAILED_STATUS) return failedRowHtml(track);
   return `<div class="cat-actions">${songActionsHtml(track)}</div>`;
 }
 
-function wireSongEl(el, trackId, inTrash) {
+function wireSongEl(el, trackId, inTrash = false) {
   el.addEventListener("click", onSongRowButtonClick);
   wireVersionToggle(el);
   wireSourceBlock(el);
@@ -118,7 +118,7 @@ export function songRowEl(trackId, { inTrash = false, lead = "", cells = "", act
   const track = getLibraryTrack(trackId);
   if (!track) return null;
   const el = document.createElement("div");
-  el.className = rowClasses(trackId, track, { inTrash, card: false });
+  el.className = rowClasses(trackId, track, { inTrash });
   el.dataset.id = trackId;
   el.innerHTML = `${lead}
     <div class="cat-thumb">${thumbHtml(track)}${coverActionHtml(trackId, track, inTrash)}</div>
@@ -137,16 +137,16 @@ export function songCardEl(trackId) {
   const track = getLibraryTrack(trackId);
   if (!track) return null;
   const el = document.createElement("div");
-  el.className = rowClasses(trackId, track, { inTrash: false, card: true });
+  el.className = rowClasses(trackId, track, { card: true });
   el.dataset.id = trackId;
   el.innerHTML = `
-    <div class="cat-thumb">${thumbHtml(track)}${coverActionHtml(trackId, track, false)}</div>
+    <div class="cat-thumb">${thumbHtml(track)}${coverActionHtml(trackId, track)}</div>
     <div class="cat-meta">
       <div class="cat-title">${esc(titleOf(track))}</div>
-      <div class="cat-sub">${trackSublineHtml(track, { inTrash: false })}</div>
+      <div class="cat-sub">${trackSublineHtml(track)}</div>
     </div>
     <div class="cat-status${statusClass(track)}"></div>
-    ${actionsHtml(track, { inTrash: false, actions: null })}`;
-  wireSongEl(el, trackId, false);
+    ${actionsHtml(track)}`;
+  wireSongEl(el, trackId);
   return el;
 }

@@ -19,7 +19,7 @@ export function editorDialogEl({ titleKey, className = "", fieldsHtml }) {
   const close = esc(t(CLOSE_KEY));
   const backdrop = document.createElement("div");
   backdrop.className = "folder-editor-backdrop";
-  backdrop.innerHTML = `<form class="folder-editor ${className}" role="dialog" aria-modal="true" aria-label="${title}" data-i18n-aria-label="${titleKey}">
+  backdrop.innerHTML = `<form class="${["folder-editor", className].filter(Boolean).join(" ")}" role="dialog" aria-modal="true" aria-label="${title}" data-i18n-aria-label="${titleKey}">
       <div class="folder-editor-head">
         <span data-i18n="${titleKey}">${title}</span>
         <button class="folder-editor-close" type="button" title="${close}" aria-label="${close}" data-i18n-title="${CLOSE_KEY}" data-i18n-aria-label="${CLOSE_KEY}">${icon("x")}</button>
