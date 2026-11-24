@@ -48,7 +48,7 @@
   padding: var(--s-4) var(--s-4) var(--s-2) var(--s-5);
   flex-shrink: 0;
 }
-.dialog-title {
+.dialog-head .dialog-title {
   flex: 1; min-width: 0; margin: 0;
   font: var(--fw-heavy) var(--fs-lg) / 1.25 var(--font-sans);
   color: var(--text);

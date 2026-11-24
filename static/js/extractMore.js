@@ -2,7 +2,7 @@ import {
   ROW_PENDING, TRACK_SHOW_EVENT, applyVersionsState, getCurrentTrackInfo, getLibraryTrack, paintRunRow, setVersionsExpanded,
 } from "./catalog.js";
 import { openDialogLayer } from "./dialogLayer.js";
-import { dialogHeadHtml } from "./dialogHead.js";
+import { dialogHead } from "./dialogHead.js";
 import { currentJobId } from "./state.js";
 import { t } from "./i18n.js";
 import { fetchJson } from "./libraryControls.js";
@@ -51,14 +51,15 @@ function choiceHtml(track) {
 
 function refusedHtml() {
   return `<p class="cat-extract-more-error" role="alert">${esc(t("versions.sourceGone"))}</p>`
-    + `<div class="cat-extract-more-foot"><button class="cat-extract-more-cancel" type="button">${esc(t("artist.close"))}</button></div>`;
+    + `<div class="cat-extract-more-foot"><button class="cat-extract-more-cancel" type="button">${esc(t("panel.close"))}</button></div>`;
 }
 
 function extractCard(track) {
   const card = document.createElement("div");
   card.className = CARD_CLASS;
-  card.innerHTML = `${dialogHeadHtml()}<div class="cat-extract-more" role="group">`
+  card.innerHTML = `<div class="cat-extract-more" role="group">`
     + `${extractFor.refused ? refusedHtml() : choiceHtml(track)}</div>`;
+  card.prepend(dialogHead());
   card.querySelector(".dialog-title").textContent = t("versions.extractTitle");
   const go = card.querySelector(".cat-extract-more-go");
   if (go) go.disabled = extractFor.chosen.size === 0;
@@ -72,11 +73,9 @@ function shownSongRow(trackId) {
 }
 
 function onExtractDialogClosed() {
-  const trackId = extractFor?.trackId;
   extractFor = null;
   extractLayer = null;
   document.querySelector(SCRIM_SELECTOR)?.remove();
-  shownSongRow(trackId)?.focus();
 }
 
 function openExtractScrim(opener) {

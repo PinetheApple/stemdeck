@@ -4,15 +4,14 @@
 import { t as i18nT, applyTranslations } from "./i18n.js";
 import { JSON_MEDIA_TYPE } from "./catalog.js";
 import { openDialogLayer } from "./dialogLayer.js";
-import { dialogHeadHtml } from "./dialogHead.js";
+import { dialogHead } from "./dialogHead.js";
 
 const SETTINGS_URL = "/api/settings";
 const QUEUE_URL = "/api/queue";
 const RESTART_COMMAND = "restart_backend";
 
-const dialogHtml = () => `
+const DIALOG_HTML = `
   <div class="reset-confirm-card" role="dialog" aria-modal="true" tabindex="-1" aria-label="Restart StemDeck now?" data-i18n-aria-label="settings.network.restartTitle">
-    ${dialogHeadHtml({ titleClass: "reset-confirm-title", titleKey: "settings.network.restartTitle" })}
     <p class="reset-confirm-body net-restart-body" role="status" aria-live="polite"></p>
     <div class="reset-confirm-msg" role="alert" aria-live="polite"></div>
     <div class="reset-confirm-actions">
@@ -55,7 +54,11 @@ class NetworkRestartDialog {
     this.confirmed = false;
     this.overlay = document.createElement("div");
     this.overlay.className = "reset-confirm-backdrop";
-    this.overlay.innerHTML = dialogHtml();
+    this.overlay.innerHTML = DIALOG_HTML;
+    this.overlay.querySelector(".reset-confirm-card").prepend(dialogHead({
+      titleClass: "reset-confirm-title",
+      titleKey: "settings.network.restartTitle",
+    }));
     applyTranslations(this.overlay);
     const find = (selector) => this.overlay.querySelector(selector);
     this.card = find(".reset-confirm-card");

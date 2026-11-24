@@ -3,7 +3,7 @@
 
 import { t } from "./i18n.js";
 import { openDialogLayer } from "./dialogLayer.js";
-import { dialogHeadHtml } from "./dialogHead.js";
+import { dialogHead } from "./dialogHead.js";
 
 let openDialog = null;
 let dialogLayer = null;
@@ -37,7 +37,6 @@ function onDialogConfirm() {
 function dialogMarkup(body) {
   return `
     <div class="reset-confirm-card" role="dialog" aria-modal="true">
-      ${dialogHeadHtml({ titleClass: "reset-confirm-title" })}
       <p class="reset-confirm-body">
         <strong></strong><br />
         ${body}
@@ -75,7 +74,9 @@ function buildDialog({
   overlay.className = "reset-confirm-backdrop";
   addClass(overlay, className);
   overlay.innerHTML = dialogMarkup(body);
-  overlay.querySelector(".reset-confirm-card").setAttribute("aria-label", ariaLabel);
+  const card = overlay.querySelector(".reset-confirm-card");
+  card.setAttribute("aria-label", ariaLabel);
+  card.prepend(dialogHead({ titleClass: "reset-confirm-title" }));
   const titleEl = overlay.querySelector(".reset-confirm-title");
   titleEl.textContent = title;
   addClass(titleEl, titleClass);

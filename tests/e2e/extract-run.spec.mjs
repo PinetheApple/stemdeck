@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, failureMessages, openStudio } from "./helpers.mjs";
+import { JOB_ID, KEY, SIBLING_JOB_ID, failureMessages, openStudio } from "./helpers.mjs";
 import { DEFAULT_VERSION_ID as DEFAULT_ID } from "../../static/js/versionModel.js";
 import { SOURCE_GONE_DETAIL } from "../../static/js/extractRun.js";
 
@@ -131,7 +131,7 @@ test("Extract more stems is a dialog that dims the page, closes on Esc and hands
   expect(await dialog.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(scrim);
   await expect(extractForm(page).locator(".cat-extract-more-go")).toBeFocused();
 
-  await page.keyboard.press("Escape");
+  await page.keyboard.press(KEY.ESCAPE);
   await expect(dialog).toHaveCount(0);
   await expect(songRow(page)).toBeFocused();
 });
@@ -148,7 +148,7 @@ test("with the song's row off screen, the dialog hands focus back to what opened
   }, JOB_ID);
   await expect(extractDialog(page)).toBeVisible();
 
-  await page.keyboard.press("Escape");
+  await page.keyboard.press(KEY.ESCAPE);
   await expect(extractDialog(page)).toHaveCount(0);
   await expect(opener).toBeFocused();
 });
@@ -230,7 +230,7 @@ test("a failed run tells why in a notification and leaves the song as it was", a
   await page.locator("#notifBtn").click();
   await expect(page.locator(".daw-notif-card-title").first()).toHaveText("Stems not extracted");
   await expect(page.locator(".daw-notif-card-desc").first()).toContainText(OOM_SENTENCE);
-  await page.keyboard.press("Escape");
+  await page.keyboard.press(KEY.ESCAPE);
   await expect(versionRows(page)).toHaveCount(2);
   await expect.poll(() => lanes(page)).toEqual([...TWO_STEMS].sort());
   await expectStillPlays(page);
@@ -259,7 +259,7 @@ test("Stop extracting takes Extract more's place in both menus and stops only th
   const menu = page.locator(".lib-menu");
   await expect(menu.getByRole("menuitem", { name: "Stop extracting" })).toBeVisible();
   await expect(menu.getByRole("menuitem", { name: "Extract more stems…" })).toHaveCount(0);
-  await page.keyboard.press("Escape");
+  await page.keyboard.press(KEY.ESCAPE);
 
   await (await openRowMenu(page)).getByRole("menuitem", { name: "Stop extracting" }).click();
   await expect.poll(() => run.stops).toBe(1);
