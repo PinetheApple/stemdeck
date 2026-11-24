@@ -163,7 +163,7 @@ function onMixChange() {
 export function initStageMixer(showing) {
   isShowing = showing;
   showMixHidden(readMixHidden());
-  mountMyPart($("stageMixer"), $("stageMixerStrips"));
+  mountMyPart($("stageMyPart"));
   $("stageMixBtn")?.addEventListener("click", onMixToggleClick);
   $("stageMixerStrips")?.addEventListener("click", onStripClick);
   $("stageMixerStrips")?.addEventListener("input", onStripInput);

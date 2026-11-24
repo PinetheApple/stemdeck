@@ -15,7 +15,7 @@ const PRESET = Object.freeze({ FULL_BAND: "full", WITHOUT_ME: "without", ONLY_ME
 const PRESETS = Object.values(PRESET);
 
 const studioBar = (page) => page.locator("#myPartStudio");
-const stageBar = (page) => page.locator("#stageMixer .my-part");
+const stageBar = (page) => page.locator("#stageMyPart .my-part");
 const choice = (bar, preset) => bar.locator(`.my-part-choice[data-preset="${preset}"]`);
 const lane = (page, stem) => page.locator(`#mixer .lane-header[data-stem="${stem}"]`);
 const mixOf = (page) =>

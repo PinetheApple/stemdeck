@@ -69,4 +69,7 @@
 .my-part-reason { margin: 0; color: var(--text-3); font: var(--fw-medium) var(--fs-xs) / 1.3 var(--font-sans); }
 
 .my-part-tag { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.stage-mixer .my-part { padding: 0; }
+.stage-side-head:has(.my-part) { flex-wrap: wrap; }
+.stage-side-head .my-part { display: contents; }
+.stage-side-head .my-part-choices,
+.stage-side-head .my-part-reason { flex-basis: 100%; }

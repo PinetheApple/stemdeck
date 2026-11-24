@@ -150,10 +150,10 @@ function onChoiceClick(e) {
   setLaneMutes(mutesFor(button.dataset.preset, part, getLoadedStemNames()));
 }
 
-export function mountMyPart(host, before = null) {
+export function mountMyPart(host) {
   if (!host) return null;
   const bar = buildBar();
-  host.insertBefore(bar, before);
+  host.append(bar);
   bars.add(bar);
   paintBar(bar, getLoadedStemNames());
   return bar;
