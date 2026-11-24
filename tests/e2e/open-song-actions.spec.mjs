@@ -156,9 +156,12 @@ test("an open song that turns unavailable is offered to neither Up Next nor a se
 test("at 1024 with the library collapsed the title keeps its room and the Stage bar fits", async ({ page }) => {
   await page.setViewportSize(NARROW_WINDOW);
   await openStudio(page);
+  // At 1024 the shell keeps the sidebar open, so it is folded here.
+  await page.locator("#sidebarCollapseBtn").click();
   await waitForPanesSettled(page);
   await expect(page.locator(".app")).toHaveClass(/cat-collapsed/);
-  expect(await isCut(page.locator("#title"))).toBe(false);
+  // Polled: the song head widens over the sidebar's fold.
+  await expect.poll(() => isCut(page.locator("#title"))).toBe(false);
 
   await page.locator("#stageModeBtn").click();
   await expect(page.locator("#stageMoreBtn")).toBeVisible();

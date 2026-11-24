@@ -16,7 +16,7 @@ import {
   seedCatalogState,
   stubImportQueue,
   stubServerTrash,
-  stubUpdateCheck, openComposer } from "./helpers.mjs";
+  stubUpdateCheck, openComposer, openBrowse, browseRow } from "./helpers.mjs";
 
 const ROCK = "f-rock";
 const UNSORTED = "f-unsorted";
@@ -311,7 +311,8 @@ test.describe("the re-import request", () => {
       return route.fulfill({ status, json: status === 200 ? { job_id: NEW_ID } : { detail: "busy" } });
     });
     await open(page);
-    await page.locator(`#catalogList .cat-item[data-id="${LINKED_ID}"]`).first().dblclick();
+    await openBrowse(page, `folder:${ROCK}`);
+    await browseRow(page, LINKED_ID).dblclick();
     await page.locator(".reimport-confirm .playlist-confirm-go").click();
     await expect.poll(() => posted.length).toBe(1);
     return posted;
