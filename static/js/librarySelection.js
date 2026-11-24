@@ -1,5 +1,3 @@
-// Picking several library or Trash songs to change them together (#235).
-
 export const SELECTION_SCOPES = Object.freeze({ LIBRARY: "library", TRASH: "trash" });
 
 export const BULK_ACTION = Object.freeze({
@@ -31,6 +29,8 @@ export const BULK_ACTION_LABEL_KEYS = Object.freeze({
   [BULK_ACTION.RESTORE]: "libSort.restore",
 });
 
+export const SELECT_DONE_LABEL_KEY = "settings.done";
+
 function toggleIn(state, id) {
   if (state.picked.has(id)) state.picked.delete(id);
   else state.picked.add(id);
@@ -40,9 +40,19 @@ function toggleIn(state, id) {
 function pickRange(state, id, visibleIds, keepPicks) {
   const from = visibleIds.indexOf(state.anchor);
   const to = visibleIds.indexOf(id);
-  if (from < 0 || to < 0) return toggleIn(state, id);
+  if (from < 0 || to < 0) {
+    state.picked.add(id);
+    state.anchor = id;
+    return;
+  }
   if (!keepPicks) state.picked.clear();
   for (const rangeId of visibleIds.slice(Math.min(from, to), Math.max(from, to) + 1)) state.picked.add(rangeId);
+}
+
+function pickAll(state, visibleIds) {
+  state.picking = true;
+  state.picked = new Set(visibleIds);
+  state.anchor = visibleIds[0] ?? null;
 }
 
 function pruneTo(state, visibleIds) {
@@ -57,10 +67,8 @@ function reset(state, picking) {
   state.anchor = null;
 }
 
-/**
- * Picks in the order they were made. While picking a plain click toggles; Ctrl/Cmd toggles and Shift
- * picks the range from the last click, either starting picking. Returns false for a click it leaves alone.
- */
+// Picks keep the order they were made in. Ctrl or Shift starts picking even outside
+// Select mode, as in desktop file lists.
 export function createSelection() {
   const state = { picking: false, picked: new Set(), anchor: null };
   return {
@@ -75,7 +83,7 @@ export function createSelection() {
       else toggleIn(state, id);
       return true;
     },
-    selectAll: (visibleIds) => { state.picked = new Set(visibleIds); },
+    selectAll: (visibleIds) => pickAll(state, visibleIds),
     prune: (visibleIds) => pruneTo(state, visibleIds),
     has: (id) => state.picked.has(id),
     ids: () => [...state.picked],

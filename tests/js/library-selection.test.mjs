@@ -1,5 +1,3 @@
-// Library multi-select (#235): picking, Ctrl and Shift clicks, select all, prune, bulk actions.
-
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -63,6 +61,7 @@ test("Shift picks the range down from the anchor", () => {
 test("Shift picks the range up from the anchor, replacing earlier picks", () => {
   const selection = picking();
   selection.click("a", PLAIN, VISIBLE);
+  selection.click("e", PLAIN, VISIBLE);
   selection.click("d", PLAIN, VISIBLE);
   selection.click("b", SHIFT, VISIBLE);
   assert.deepEqual(selection.ids(), ["b", "c", "d"]);
@@ -80,6 +79,32 @@ test("Shift without an anchor picks the one song", () => {
   const selection = picking();
   selection.click("c", SHIFT, VISIBLE);
   assert.deepEqual(selection.ids(), ["c"]);
+});
+
+test("Shift without an anchor never unpicks the song", () => {
+  const selection = picking();
+  selection.click("c", PLAIN, VISIBLE);
+  selection.click("b", PLAIN, VISIBLE);
+  selection.prune(["a", "c", "d"]);
+  selection.click("c", SHIFT, VISIBLE);
+  assert.deepEqual(selection.ids(), ["c"]);
+});
+
+test("prune forgets an anchor that is no longer shown", () => {
+  const selection = picking();
+  selection.click("a", PLAIN, VISIBLE);
+  selection.click("b", PLAIN, VISIBLE);
+  selection.prune(["a", "c", "d"]);
+  selection.click("d", SHIFT, VISIBLE);
+  assert.deepEqual(selection.ids(), ["a", "d"]);
+});
+
+test("select all starts picking and anchors a Shift range at the first song", () => {
+  const selection = createSelection();
+  selection.selectAll(VISIBLE);
+  assert.equal(selection.picking, true);
+  selection.click("c", SHIFT, VISIBLE);
+  assert.deepEqual(selection.ids(), ["a", "b", "c"]);
 });
 
 test("select all picks every shown song, and prune drops hidden ones", () => {
