@@ -47,8 +47,8 @@ function stageBarEdges(page) {
     const box = (sel) => document.querySelector(sel).getBoundingClientRect();
     return {
       songRight: box(".stage-song").right,
-      actionsLeft: box(".stage-song-actions").left,
-      actionsRight: box(".stage-song-actions").right,
+      actionsLeft: box("#stageUpNextBtn").left,
+      actionsRight: box("#stageQueueBtn").right,
       exitLeft: box("#stageExitBtn").left,
       exitRight: box("#stageExitBtn").right,
       viewRight: box("#stageView").right,
@@ -97,7 +97,7 @@ test("Stage adds the open song to Up Next and to a setlist, and stays open", asy
   await expect(upNext).toHaveCSS("cursor", "pointer");
   await upNext.click();
   await expect.poll(() => storedUpNext(page)).toEqual([JOB_ID]);
-  await expect(page.locator("#stageNextBtn")).toBeEnabled();
+  await expect(page.locator("#t-next")).toBeEnabled();
 
   const more = page.locator("#stageMoreBtn");
   await expect(more).toHaveCSS("cursor", "pointer");

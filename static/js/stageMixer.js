@@ -1,4 +1,4 @@
-// Stage mode's mixer column: one strip per loaded stem, reading and driving the studio's own mix.
+// Stage mode's Mix panel: one row per loaded stem, reading and driving the studio's own mix.
 
 import { mixerState } from "./state.js";
 import {
@@ -13,6 +13,7 @@ import {
 import { getLoadedStemNames } from "./player.js";
 import { LANE_VOLUME_MAX, STEM_COLORS, STEM_DISPLAY } from "./constants.js";
 import { PERCENT, readChoice, saveChoice, stripStems } from "./stageModel.js";
+import { closeStageQueue, isStageQueueOpen } from "./stageUpNext.js";
 import { t } from "./i18n.js";
 import { $ } from "./utils.js";
 
@@ -22,6 +23,8 @@ const HIDDEN_CLASS = "mixer-hidden";
 const FADER_STEP = "0.01";
 const MUTE_LETTER = "M";
 const SOLO_LETTER = "S";
+const VU_SCALE = "--vu-scale";
+const studioMeter = (name) => document.querySelector(`.stem-list [data-stem="${name}"] .mini-meter`);
 
 let shownStems = "";
 let isShowing = () => false;
@@ -31,13 +34,20 @@ const stemLabel = (name) => STEM_DISPLAY[name] || name;
 const readMixHidden = () => readChoice(HIDDEN_STORE_KEY) === HIDDEN_STORED;
 const saveMixHidden = (hidden) => saveChoice(HIDDEN_STORE_KEY, hidden ? HIDDEN_STORED : null);
 
+const isMixShown = () => !$("stageView")?.classList.contains(HIDDEN_CLASS) && !isStageQueueOpen();
+
+export function paintMixButton() {
+  $("stageMixBtn")?.setAttribute("aria-pressed", String(isMixShown()));
+}
+
 function showMixHidden(hidden) {
   $("stageView")?.classList.toggle(HIDDEN_CLASS, hidden);
-  $("stageMixBtn")?.setAttribute("aria-pressed", String(!hidden));
+  paintMixButton();
 }
 
 function onMixToggleClick() {
-  const hidden = !$("stageView")?.classList.contains(HIDDEN_CLASS);
+  const hidden = isMixShown();
+  closeStageQueue({ refocus: false });
   showMixHidden(hidden);
   saveMixHidden(hidden);
 }
@@ -74,12 +84,16 @@ function makeStrip(name) {
   label.textContent = stemLabel(name);
   const value = document.createElement("span");
   value.className = "stage-strip-value num";
+  const meter = document.createElement("span");
+  meter.className = "stage-strip-meter";
+  meter.setAttribute("aria-hidden", "true");
   strip.append(
     label,
-    value,
-    stripFader(name),
     stripButton("mute", MUTE_LETTER, "aria.mute", name),
     stripButton("solo", SOLO_LETTER, "aria.solo", name),
+    stripFader(name),
+    value,
+    meter,
   );
   return strip;
 }
@@ -111,6 +125,13 @@ export function paintStageMixer() {
   const stems = stripStems(loadedLaneNames(), getLoadedStemNames());
   if (stems.join() !== shownStems) rebuildStrips(stems);
   $("stageMixerStrips")?.querySelectorAll(".stage-strip").forEach(paintStrip);
+}
+
+export function paintStageMeters() {
+  for (const meter of $("stageMixerStrips")?.querySelectorAll(".stage-strip-meter") ?? []) {
+    const level = studioMeter(stemOf(meter))?.style.getPropertyValue(VU_SCALE) ?? "";
+    if (meter.style.getPropertyValue(VU_SCALE) !== level) meter.style.setProperty(VU_SCALE, level);
+  }
 }
 
 /** Entering Stage, a new song or a new language: the next paint builds the strips anew. */

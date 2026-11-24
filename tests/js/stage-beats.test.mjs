@@ -1,7 +1,7 @@
 // The e2e fixture is a six-second 4/4 song, too short to reach a far first mark.
 // Run:  node tests/js/stage-beats.test.mjs
 
-import { buildBeatTable, beatAt } from '../../static/js/stageBeats.js';
+import { buildBeatTable, beatAt, barsUntil } from '../../static/js/stageBeats.js';
 
 let passed = 0;
 let failed = 0;
@@ -79,6 +79,17 @@ check(
   check('no grid builds an empty table', table, []);
   check('no grid has no entry at any time', beatAt(table, 1), null);
 }
+
+{
+  const table = buildBeatTable(grid(20), marks([{ beat: 0, beats_per_bar: 4 }]), FALLBACK);
+  check('on a downbeat, the bars up to a section four bars on', barsUntil(table, 0, 8), 4);
+  check('mid-bar, the bar playing counts as one', barsUntil(table, 0.75, 2), 1);
+  check('a section a hair before its downbeat still counts that bar', barsUntil(table, 0, 3.98), 2);
+  check('in the last bar, the song end is one bar away', barsUntil(table, 8.5, 10), 1);
+  check('a section already reached is one bar away, never none', barsUntil(table, 4, 4), 1);
+}
+
+check('no grid gives no bar count', barsUntil(buildBeatTable([], noMarks, FALLBACK), 0, 4), null);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

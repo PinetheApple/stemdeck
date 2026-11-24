@@ -1,20 +1,23 @@
-// Stage mode: a full-window play-along view drawn over the lanes, so the studio keeps its size.
-// F toggles it, Esc leaves it.
-
-import { metronomeBeatsPerBar, npScrubFill, totalDuration } from "./state.js";
-import { togglePlayPause, stopTransport, transport } from "./transport.js";
-import { getSections, sectionDisplayName } from "./sections.js";
+import { loopBtn, metronomeBeatsPerBar, npScrubFill, playBtn } from "./state.js";
+import { transport } from "./transport.js";
 import { getPlayingTrackInfo, isTextEditingTarget } from "./catalog.js";
-import { playNextInUpNext } from "./upNext.js";
 import { shownBpm } from "./tempoTools.js";
 import { isBeatGridEditing, getBeats, barPositionIndex, barLengthAt } from "./beatgrid.js";
 import { buildBeatTable, beatAt } from "./stageBeats.js";
 import { ensureLyricsLoaded, getTimedLyricLines } from "./lyrics.js";
 import { currentLineIndex } from "./lyricsLookup.js";
 import { refitFooter } from "./footerFit.js";
-import { initStageMixer, paintStageMixer, forgetStageMixer } from "./stageMixer.js";
-import { initStageOverview, paintStageOverview, paintStageSections, forgetStageOverview } from "./stageOverview.js";
-import { LYRIC_LEAD_SEC, setTextOnce } from "./stageModel.js";
+import {
+  forgetStageMixer,
+  initStageMixer,
+  paintMixButton,
+  paintStageMeters,
+  paintStageMixer,
+} from "./stageMixer.js";
+import { initStageOverview, paintStageOverview, forgetStageOverview } from "./stageOverview.js";
+import { forgetCue, paintCue, readCueSections } from "./stageCue.js";
+import { closeStageQueue, focusStagePlay, initStageUpNext } from "./stageUpNext.js";
+import { LYRIC_LEAD_SEC } from "./stageModel.js";
 import { lineText, setLyric } from "./stageLyricLine.js";
 import { DURATION_EVENT } from "./player.js";
 import {
@@ -25,46 +28,23 @@ import {
   singSongChange,
   singStageShown,
 } from "./stageSingAlong.js";
-import { closeSingPanel, dismissSingHandoff, singPlayheadAt, singQueueSettles } from "./stageSingQueue.js";
+import { dismissSingHandoff, singPlayheadAt, singQueueSettles } from "./stageSingQueue.js";
 import { EMPTY_VALUE } from "./constants.js";
 import { t, onLanguageChange } from "./i18n.js";
-import { $, fmtTime } from "./utils.js";
+import { $ } from "./utils.js";
 
 const OPEN_MODAL = 'dialog[open], [role="dialog"][aria-modal="true"]';
 
+const LYRIC_LINES = Object.freeze({ stageLyricPrev: -1, stageLyric: 0, stageLyricNext: 1, stageLyricNext2: 2 });
+
 let frameId = 0;
-let sections = [];
-let sectionsKey = "";
 let beatTable = [];
 let playObserver = null;
 // Last values written, so a frame that changes nothing writes nothing.
-const shown = {
-  section: null, next: null, playing: null,
-  dotCount: null, dotOn: null, hasLyrics: null, lyric: null, nextLyric: null,
-};
+const shown = { playing: null, dotCount: null, dotOn: null, hasLyrics: null };
 
 export function isStageMode() {
   return document.querySelector(".app")?.classList.contains("stage-mode") ?? false;
-}
-
-function readSections() {
-  const all = getSections();
-  sections = all.map((s) => ({ start: s.start, end: s.end, name: sectionDisplayName(s, all) }));
-  const key = JSON.stringify([totalDuration, sections]);
-  if (key === sectionsKey) return;
-  sectionsKey = key;
-  paintStageSections(sections);
-}
-
-function sectionsAt(time) {
-  const at = sections.findLastIndex((s) => s.start <= time);
-  return { at, current: sections[at] ?? null, next: sections[at + 1] ?? null };
-}
-
-function nextLabel(time, next) {
-  if (!sections.length) return EMPTY_VALUE;
-  if (!next) return t("stage.lastSection");
-  return t("stage.nextIn", { name: next.name, time: fmtTime(Math.max(0, next.start - time)) });
 }
 
 function readBeatTable() {
@@ -101,8 +81,9 @@ function paintLyrics(time) {
     $("stageLyrics").hidden = !hasLyrics;
   }
   const index = currentLineIndex(lines, time + LYRIC_LEAD_SEC);
-  setLyric(shown, "lyric", $("stageLyric"), lineText(lines[index]));
-  setLyric(shown, "nextLyric", $("stageLyricNext"), lineText(lines[index + 1]));
+  for (const [id, step] of Object.entries(LYRIC_LINES)) {
+    setLyric(shown, id, $(id), lineText(lines[index + step]));
+  }
 }
 
 function isPlaying() {
@@ -111,22 +92,16 @@ function isPlaying() {
 
 function paintFrame() {
   const time = transport()?.getCurrentTime?.() ?? 0;
-  const { at, current, next } = sectionsAt(time);
-  setTextOnce(shown, "section", $("stageSection"), current?.name ?? "");
-  setTextOnce(shown, "next", $("stageNext"), nextLabel(time, next));
-  paintStageOverview(time, at);
+  paintStageOverview(time, paintCue(time, beatTable));
   paintBeat(time);
   paintLyrics(time);
+  paintStageMeters();
   if (isSingAlong()) paintSingFrame(time);
   singPlayheadAt(time);
-
   const playing = isPlaying();
   if (shown.playing !== playing) {
     shown.playing = playing;
     if (playing) singQueueSettles();
-    const play = $("stagePlayBtn");
-    play?.classList.toggle("playing", playing);
-    play?.setAttribute("aria-pressed", String(playing));
   }
 }
 
@@ -144,12 +119,12 @@ function stopLoop() {
 function syncLoop() {
   if (isPlaying()) {
     if (frameId) return;
-    readSections();
+    readCueSections();
     tick();
     return;
   }
   stopLoop();
-  readSections();
+  readCueSections();
   paintFrame();
 }
 
@@ -158,7 +133,7 @@ function paintSong() {
   $("stageTitle").textContent = info?.displayTitle || EMPTY_VALUE;
   $("stageArtist").textContent = info?.artist ?? "";
   paintTempo();
-  readSections();
+  readCueSections();
   readBeatTable();
   ensureLyricsLoaded();
   paintStageMixer();
@@ -171,7 +146,7 @@ function paintTempo() {
 
 function forgetPainted() {
   for (const key of Object.keys(shown)) shown[key] = null;
-  sectionsKey = "";
+  forgetCue();
   forgetStageOverview();
   forgetStageMixer();
   forgetSingPainted();
@@ -193,13 +168,14 @@ function onDurationKnown() {
 }
 
 /**
- * The footer's play button and scrub fill carry every play, pause and seek, whoever caused it.
- * Not its time text, which stays put for a seek inside the same second.
+ * The footer's play button and scrub fill carry every play, pause and seek, whoever caused it, and
+ * its Loop button every loop change. Not its time text, which stays put for a seek inside the same second.
  */
 function watchPlayback() {
   playObserver ??= new MutationObserver(syncLoop);
-  const play = $("t-play");
-  if (play) playObserver.observe(play, { attributes: true, attributeFilter: ["class"] });
+  for (const button of [playBtn, loopBtn]) {
+    if (button) playObserver.observe(button, { attributes: true, attributeFilter: ["class"] });
+  }
   if (npScrubFill) playObserver.observe(npScrubFill, { attributes: true, attributeFilter: ["style"] });
 }
 
@@ -217,8 +193,9 @@ export function setStageMode(on) {
     paintSong();
     watchPlayback();
     syncLoop();
-    $("stagePlayBtn")?.focus();
+    focusStagePlay();
   } else {
+    closeStageQueue({ refocus: false });
     playObserver?.disconnect();
     stopLoop();
     $("stageModeBtn")?.focus();
@@ -242,7 +219,7 @@ function onStageKeydown(e) {
     e.preventDefault();
     setStageMode(!isStageMode());
   } else if (e.key === "Escape" && isStageMode()) {
-    if (!dismissSingHandoff() && !closeSingPanel()) setStageMode(false);
+    if (!dismissSingHandoff() && !closeStageQueue()) setStageMode(false);
   }
 }
 
@@ -266,25 +243,17 @@ function onSongChangeInStage() {
   redrawStage();
 }
 
-function onUpNextChange(e) {
-  const next = $("stageNextBtn");
-  if (next) next.disabled = !e.detail?.count;
-}
-
 export function initStageMode() {
   $("stageModeBtn")?.addEventListener("click", onStageToggleClick);
   $("stageExitBtn")?.addEventListener("click", onStageExitClick);
-  $("stagePlayBtn")?.addEventListener("click", togglePlayPause);
-  $("stageStopBtn")?.addEventListener("click", stopTransport);
-  $("stageNextBtn")?.addEventListener("click", playNextInUpNext);
   initStageMixer(isStageMode);
   initStageOverview(isStageMode);
+  initStageUpNext({ panelToggled: paintMixButton });
   initSingAlong({ showing: isStageMode, redraw: redrawStage, leaveStage: onStageExitClick });
   window.addEventListener("keydown", onStageKeydown);
   document.addEventListener("trackopen", onSongChangeInStage);
   document.addEventListener("tracktags", onSongChangeInStage);
   document.addEventListener("tracklookup", onSongChangeInStage);
-  document.addEventListener("upnext:change", onUpNextChange);
   document.addEventListener("tempochange", onTempoChange);
   document.addEventListener("lyricschange", onLyricsChange);
   document.addEventListener(DURATION_EVENT, onDurationKnown);

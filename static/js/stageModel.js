@@ -11,7 +11,7 @@ export function stripStems(laneNames, loadedNames) {
   return laneNames.filter((name) => loaded.has(name));
 }
 
-/** Each section's `left` and `width` as percentages of the song, its end clipped to the song's. */
+/** Each section's `end`, and its `left` and `width` as percentages of the song, its end clipped to the song's. */
 export function sectionSpans(sections, duration) {
   if (!(duration > 0)) return [];
   return sections.map((section, i) => {
@@ -19,6 +19,7 @@ export function sectionSpans(sections, duration) {
     const start = Math.min(duration, section.start);
     return {
       start: section.start,
+      end,
       name: section.name,
       left: (start / duration) * PERCENT,
       width: (Math.max(0, end - start) / duration) * PERCENT,

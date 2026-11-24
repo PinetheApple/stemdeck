@@ -266,7 +266,7 @@ test.describe("stage mode counter", () => {
     await page.locator("#t-speed-value").fill(String(SLOWED_SPEED));
     await page.locator("#t-speed-value").press("Enter");
     await enterStage(page);
-    await page.locator("#stagePlayBtn").click();
+    await page.locator("#t-play").click();
     const songTime = () => page.evaluate(async () => (await import("/js/transport.js")).transport().getCurrentTime());
     await expect.poll(songTime, { timeout: 15000 }).toBeGreaterThan(BAR_SEC);
 
@@ -320,7 +320,7 @@ test.describe("stage mode lyrics", () => {
     await setUp(page, { lyrics: { [JOB_ID]: SERVER_LYRICS } });
     await enterStage(page);
     await expect(ui(page).next).toHaveText("Line one");
-    await page.locator("#stagePlayBtn").click();
+    await page.locator("#t-play").click();
     await expect(ui(page).lyric).toHaveText("Line one", { timeout: 15000 });
   });
 
