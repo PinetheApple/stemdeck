@@ -258,7 +258,5 @@ button.browse-nav-chevron:hover { background: var(--surface-3); color: var(--tex
 .browse-empty span { max-width: 44ch; font-size: var(--fs-sm); }
 .browse-queue { display: flex; flex-direction: column; }
 
-/* Dialogs opened from Browse library sit above it. */
-.dialog-scrim,
-.folder-editor-backdrop,
-.reset-confirm-backdrop { z-index: var(--z-dialog); }
+/* A dialog opened while Browse library is open sits above it, on the one dialog layer. */
+.browse-open :is(.dialog-scrim, .folder-editor-backdrop, .reset-confirm-backdrop) { z-index: var(--z-dialog); }
