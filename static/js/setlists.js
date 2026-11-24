@@ -150,7 +150,6 @@ export function setSetlistOpeners({ show, rename }) {
   renameSetlistAfter = rename;
 }
 
-/** The order with `trackId` put in at `at`; the end when `at` is past it. */
 function withSongInserted(trackId, at) {
   return function insertSong(ids) {
     if (ids.includes(trackId)) return null;
@@ -182,7 +181,6 @@ export function addSongToSetlist(setlistId, trackId) {
   return changeSongs(setlistId, withSongInserted(trackId, Infinity));
 }
 
-/** Put a song back at its place in a setlist, for an Undo. */
 export function insertSetlistSong(setlistId, trackId, at) {
   return changeSongs(setlistId, withSongInserted(trackId, at));
 }

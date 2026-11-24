@@ -21,7 +21,7 @@ async function removeWithUndo(setlistId, trackId) {
   const setlist = getSetlist(setlistId);
   const at = setlist?.song_ids.indexOf(trackId) ?? -1;
   if (!(await removeSetlistSong(setlistId, trackId))) return;
-  showUndo(t("lib.removedFrom", { name: setlist.name }), function onUndoRemoveFromSetlist() {
+  showUndo(t("lib.removedFrom", { name: setlist?.name ?? "" }), function onUndoRemoveFromSetlist() {
     insertSetlistSong(setlistId, trackId, at);
   });
 }

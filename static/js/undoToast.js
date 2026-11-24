@@ -44,7 +44,6 @@ function toastEl(text, onUndo) {
   return el;
 }
 
-/** Say `text`, with an Undo that runs `undo()` once. */
 export function showUndo(text, undo) {
   dismissUndo();
   toast = toastEl(text, function onUndoClick() {

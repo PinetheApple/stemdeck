@@ -27,7 +27,7 @@
   background: none;
   cursor: pointer;
 }
-.undo-toast-undo { padding: 0 var(--s-3); color: var(--accent-hi); font: inherit; }
+.undo-toast-undo { padding: 0 var(--s-3); color: var(--text); font: inherit; }
 .undo-toast-dismiss { display: grid; place-items: center; width: var(--ctl-h-sm); padding: 0; color: var(--text-2); }
 .undo-toast-dismiss .ic { width: var(--icon-sm); height: var(--icon-sm); }
 .undo-toast-undo:hover,
