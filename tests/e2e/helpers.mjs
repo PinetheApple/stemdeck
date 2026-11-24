@@ -778,6 +778,9 @@ export const KEY = Object.freeze({
   DELETE: "Delete",
 });
 
+// A point on the dimmed page, clear of any dialog card.
+export const OUTSIDE_DIALOG = Object.freeze({ x: 5, y: 5 });
+
 const ADDED_INPUT_ID = "e2e-added-input";
 
 /** Add an `<input>` of `type` to the page and focus it, for a control the page has no visible copy of. */

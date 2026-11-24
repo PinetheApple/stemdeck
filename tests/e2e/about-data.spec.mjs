@@ -1,6 +1,3 @@
-// The About box's "Where your data goes" section: closed until asked for, and
-// opening it keeps the box on screen at the smallest supported window.
-
 import { test, expect } from "@playwright/test";
 import { openStudio } from "./helpers.mjs";
 
@@ -11,7 +8,7 @@ async function openAbout(page) {
   await page.setViewportSize(SMALL_WINDOW);
   await openStudio(page);
   await page.locator("#aboutBtn").click();
-  await expect(page.locator("#aboutDialog")).toBeVisible();
+  await expect(page.locator('.settings-pane[data-pane="about"]')).toBeVisible();
 }
 
 test("Where your data goes starts closed, opens to its list and closes again", async ({ page }) => {
@@ -35,10 +32,10 @@ test("Where your data goes starts closed, opens to its list and closes again", a
   await expect(items.first()).toBeHidden();
 });
 
-test("the open section keeps the About box inside a 1024 x 768 window", async ({ page }) => {
+test("the open section keeps Settings inside a 1024 x 768 window", async ({ page }) => {
   await openAbout(page);
   await page.locator("#aboutDataSummary").click();
-  const card = await page.locator("#aboutDialog .about-card").boundingBox();
+  const card = await page.locator(".library-editor").boundingBox();
   expect(card.y).toBeGreaterThanOrEqual(0);
   expect(card.y + card.height).toBeLessThanOrEqual(SMALL_WINDOW.height);
 

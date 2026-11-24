@@ -172,11 +172,11 @@ test(title("S2"), async ({ app }, testInfo) => {
   const expected = `v${process.env.STEMDECK_ACCEPTANCE_VERSION || built}`;
   writeState({ ...readState(), version: expected });
   await page.locator("#aboutBtn").click();
-  await expect(page.locator("#aboutDialog")).toBeVisible();
+  await expect(page.locator('.settings-pane[data-pane="about"]')).toBeVisible();
   await expect(page.locator("#aboutVersion")).toHaveText(expected);
   await shot(page, testInfo, "about");
-  await page.locator("#aboutClose").click();
-  await expect(page.locator("#aboutDialog")).toBeHidden();
+  await page.locator(".library-editor-close").click();
+  await expect(page.locator(".library-editor")).toHaveCount(0);
 
   // The update check runs at startup and must skip a dev build: no card in
   // Notifications offering another version, and no lit badge for one.

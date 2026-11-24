@@ -181,10 +181,10 @@ test.describe("the rail's views are still reachable", () => {
     await expect(trash).toHaveAttribute("aria-label", german);
   });
 
-  test("About from the top bar", async ({ page }) => {
+  test("About from the top bar opens Settings on its About tab", async ({ page }) => {
     await openStudio(page);
     await page.locator("#topbar #aboutBtn").click();
-    await expect(page.locator("#aboutDialog")).toBeVisible();
+    await expect(page.locator('.settings-pane[data-pane="about"]')).toBeVisible();
   });
 });
 

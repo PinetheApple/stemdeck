@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, failureMessages, openStudio } from "./helpers.mjs";
+import { JOB_ID, KEY, SIBLING_JOB_ID, failureMessages, openStudio } from "./helpers.mjs";
 import { DEFAULT_VERSION_ID as DEFAULT_ID } from "../../static/js/versionModel.js";
 import { SOURCE_GONE_DETAIL } from "../../static/js/extractRun.js";
 
@@ -20,6 +20,8 @@ const songRow = (page) => page.locator(`#catalogList .cat-item[data-id="${JOB_ID
 const versionRows = (page) => page.locator(`#catalogList .cat-version[data-id="${JOB_ID}"]`);
 const rowLabel = (page) => songRow(page).locator(".cat-queue-label");
 const rowBarFill = (page) => songRow(page).locator(".cat-progress-fill");
+const extractDialog = (page) => page.locator(".extract-more-backdrop");
+const extractForm = (page) => extractDialog(page).locator(".cat-extract-more");
 const storedMix = (page, key) => page.evaluate((k) => JSON.parse(window.localStorage.getItem(k) ?? "\"absent\""), key);
 
 const running = (phase, progress) => ({ state: "running", phase, progress, stems: ["bass"], error: null, version_id: null });
@@ -89,7 +91,7 @@ async function openRowMenu(page) {
 async function extractBass(page) {
   const menu = await openRowMenu(page);
   await menu.getByRole("menuitem", { name: "Extract more stems…" }).click();
-  const form = page.locator("#catalogList .cat-extract-more");
+  const form = extractForm(page);
   for (const name of ["Guitar", "Piano", "Other"]) await form.locator(".cat-extract-more-chip", { hasText: name }).click();
   await form.locator(".cat-extract-more-go").click();
   await expect(form).toHaveCount(0);
@@ -101,13 +103,8 @@ function requestExtract(page, id) {
   }, id);
 }
 
-/** The song whose row the open Extract more form sits under. */
 function formSong(page) {
-  return page.evaluate(() => {
-    let el = document.querySelector("#catalogList .cat-extract-more");
-    while (el && !el.matches(".cat-item")) el = el.previousElementSibling;
-    return el?.dataset.id ?? null;
-  });
+  return extractDialog(page).getAttribute("data-id");
 }
 
 function isInLibrary(page, id) {
@@ -121,12 +118,54 @@ async function expectStillPlays(page) {
   await page.locator("#t-play").click();
 }
 
+test("Extract more stems is a dialog that dims the page, closes on Esc and hands focus back", async ({ page, request }) => {
+  await openOnTwoLanes(page, request);
+  const menu = await openRowMenu(page);
+  await menu.getByRole("menuitem", { name: "Extract more stems…" }).click();
+  const dialog = extractDialog(page);
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAttribute("role", "dialog");
+  await expect(dialog).toHaveAttribute("aria-modal", "true");
+  await expect(page.locator("#catalogList .cat-extract-more")).toHaveCount(0);
+  const scrim = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--scrim").trim());
+  expect(await dialog.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(scrim);
+  await expect(extractForm(page).locator(".cat-extract-more-go")).toBeFocused();
+
+  await page.keyboard.press(KEY.ESCAPE);
+  await expect(dialog).toHaveCount(0);
+  await expect(songRow(page)).toBeFocused();
+});
+
+test("with the song's row off screen, the dialog hands focus back to what opened it", async ({ page, request }) => {
+  await openOnTwoLanes(page, request);
+  await page.locator("#catalogSearch").fill("zzzz");
+  await expect(songRow(page)).toHaveCount(0);
+  const opener = page.locator("#songMoreBtn");
+  await opener.focus();
+  await page.evaluate((trackId) => {
+    const anchor = document.getElementById("songMoreBtn");
+    document.dispatchEvent(new CustomEvent("versions:extract", { detail: { id: trackId, anchor } }));
+  }, JOB_ID);
+  await expect(extractDialog(page)).toBeVisible();
+
+  await page.keyboard.press(KEY.ESCAPE);
+  await expect(extractDialog(page)).toHaveCount(0);
+  await expect(opener).toBeFocused();
+});
+
+test("a version that opens at once hands focus back to the song row", async ({ page, request }) => {
+  await openOnTwoLanes(page, request);
+  await extractBass(page);
+  await expect.poll(() => lanes(page)).toEqual([...WITH_BASS].sort());
+  await expect(songRow(page)).toBeFocused();
+});
+
 test("the form says it takes minutes only when a chosen stem has no file", async ({ page, request }) => {
   await stubMissingFiles(page, FILELESS);
   await openOnTwoLanes(page, request);
   const menu = await openRowMenu(page);
   await menu.getByRole("menuitem", { name: "Extract more stems…" }).click();
-  const form = page.locator("#catalogList .cat-extract-more");
+  const form = extractForm(page);
   const hint = form.locator(".cat-extract-more-hint");
   await expect(hint).toHaveText("Saved as a new version. Takes a few minutes.");
   for (const name of ["Guitar", "Piano"]) await form.locator(".cat-extract-more-chip", { hasText: name }).click();
@@ -147,7 +186,7 @@ test("a slower answer for an earlier song does not take the form from a later on
 
   await requestExtract(page, SIBLING_JOB_ID);
   await requestExtract(page, JOB_ID);
-  const hint = page.locator("#catalogList .cat-extract-more-hint");
+  const hint = extractForm(page).locator(".cat-extract-more-hint");
   await expect(hint).toHaveText(SLOW_HINT);
   expect(await formSong(page)).toBe(JOB_ID);
 
@@ -198,7 +237,7 @@ test("a failed run tells why in a notification and leaves the song as it was", a
   await page.locator("#notifBtn").click();
   await expect(page.locator(".daw-notif-card-title").first()).toHaveText("Stems not extracted");
   await expect(page.locator(".daw-notif-card-desc").first()).toContainText(OOM_SENTENCE);
-  await page.keyboard.press("Escape");
+  await page.keyboard.press(KEY.ESCAPE);
   await expect(versionRows(page)).toHaveCount(2);
   await expect.poll(() => lanes(page)).toEqual([...TWO_STEMS].sort());
   await expectStillPlays(page);
@@ -227,7 +266,7 @@ test("Stop extracting takes Extract more's place in both menus and stops only th
   const menu = page.locator(".lib-menu");
   await expect(menu.getByRole("menuitem", { name: "Stop extracting" })).toBeVisible();
   await expect(menu.getByRole("menuitem", { name: "Extract more stems…" })).toHaveCount(0);
-  await page.keyboard.press("Escape");
+  await page.keyboard.press(KEY.ESCAPE);
 
   await (await openRowMenu(page)).getByRole("menuitem", { name: "Stop extracting" }).click();
   await expect.poll(() => run.stops).toBe(1);
@@ -257,7 +296,7 @@ test("a song whose audio was not kept is refused in the form, with nothing start
   await page.route(EXTRACT_PATH, (route) => route.fulfill({ status: 409, json: { detail: SOURCE_GONE_DETAIL } }));
   const menu = await openRowMenu(page);
   await menu.getByRole("menuitem", { name: "Extract more stems…" }).click();
-  const form = page.locator("#catalogList .cat-extract-more");
+  const form = extractForm(page);
   await form.locator(".cat-extract-more-go").click();
 
   await expect(form.locator(".cat-extract-more-error")).toHaveText(

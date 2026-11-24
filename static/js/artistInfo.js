@@ -51,9 +51,12 @@ import {
   getCurrentTrackSong,
   getCurrentTrackWork,
   isCurrentTrackTagsPending,
+  openSettings,
   setCurrentTrackArtist,
   setFoundTrackArtist,
 } from "./catalog.js";
+import { openDialogLayer } from "./dialogLayer.js";
+import { SETTINGS_TAB } from "./settingsNav.js";
 
 // One answer per language and name, for the life of the page. A band's
 // members do not change between two clicks, and asking again costs the user a
@@ -69,7 +72,7 @@ let closeButton = null;
 let current = null; // AbortController of the lookup in flight
 let lastQuery = "";
 let lastId = ""; // the saved band's Wikidata id, when the box opened on one
-let returnFocus = null;
+let layer = null;
 let searchShown = true;
 let waiting = false; // open on a track whose tags or band are still being found
 let searchGen = 0; // bumped by every search and by closing: a late answer checks it
@@ -525,10 +528,8 @@ function discogsTokenSet() {
 // closes first: Settings is a dialog of its own.
 function openDiscogsSettings() {
   close();
-  document.getElementById("settingsBtn")?.click();
-  const settings = document.querySelector(".library-editor-backdrop");
-  settings?.querySelector('.settings-tab[data-tab="details"]')?.click();
-  settings?.querySelector(".set-discogs-token")?.focus();
+  openSettings(SETTINGS_TAB.DETAILS);
+  document.querySelector(".library-editor .set-discogs-token")?.focus();
 }
 
 // The offer of a Discogs token, and the button to the setting.
@@ -914,9 +915,9 @@ function showFromTrack({ focus = true } = {}) {
 }
 
 function open() {
-  returnFocus = document.activeElement;
   tokenAsked = null;
   dialog.classList.remove("hidden");
+  layer = openDialogLayer(dialog, { onClose: onDialogClosed });
   showFromTrack();
 }
 
@@ -927,14 +928,17 @@ function settle() {
   showFromTrack({ focus: active === closeButton || !dialog.contains(active) });
 }
 
-function close() {
+function onDialogClosed() {
   current?.abort();
   current = null;
   searchGen += 1;
   waiting = false;
   dialog.classList.add("hidden");
-  returnFocus?.focus?.();
-  returnFocus = null;
+  layer = null;
+}
+
+function close() {
+  layer?.close();
 }
 
 // ─── The band from the file's tags ───
@@ -1037,8 +1041,6 @@ export function initArtistInfo() {
     search(input.value, { typed: true });
   });
   document.getElementById("artistClose")?.addEventListener("click", close);
-  dialog.addEventListener("mousedown", (e) => { if (e.target === dialog) close(); });
-  dialog.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
 
   // Section titles and messages are written by this module, not by
   // applyTranslations, so a language change while the box is open asks again

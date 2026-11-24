@@ -25,6 +25,7 @@ async function openSettings(page) {
   };
   page.on("request", trackSettingsRead);
   await page.locator("#settingsBtn").click();
+  await page.locator('.settings-tab[data-tab="general"]').click();
   await expect(formatSelect(page)).toBeVisible();
   await Promise.all(reads);
   page.off("request", trackSettingsRead);

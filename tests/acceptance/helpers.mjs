@@ -530,7 +530,6 @@ export async function tidy(page) {
     [".folder-editor-backdrop", ".folder-editor-cancel"],
     [".library-editor-backdrop", ".library-editor-backdrop .settings-done"],
     ["#artistDialog:not(.hidden)", "#artistClose"],
-    ["#aboutDialog:not(.hidden)", "#aboutClose"],
     ["#releaseDialog:not(.hidden)", "#releaseClose"],
     [".daw-notif-wrap.open, #notifBtn[aria-expanded=\"true\"]", ".daw-notif-close"],
   ];

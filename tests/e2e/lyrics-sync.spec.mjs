@@ -486,10 +486,10 @@ test.describe("syncing lyrics line by line", () => {
     await setUp(page);
     await openSync(page);
     await page.locator("#aboutBtn").click();
-    const about = page.locator("#aboutDialog");
+    const about = page.locator(".library-editor");
     await expect(about).toBeVisible();
     // The dialog takes Escape from inside it, as when using its close button.
-    await page.locator("#aboutClose").focus();
+    await page.locator(".library-editor-close").focus();
     await page.keyboard.press("Escape");
     // The dialog closed; Sync lines stayed open.
     await expect(about).toBeHidden();

@@ -1,0 +1,126 @@
+:root {
+  --dialog-blur: 3px;
+  --dialog-z: 100;
+  --dialog-margin: var(--s-6);
+  --dialog-w: 560px;
+  --dialog-confirm-w: 440px;
+}
+
+.dialog-scrim {
+  position: fixed; inset: 0; z-index: var(--dialog-z);
+  display: grid; place-items: center;
+}
+
+.dialog-scrim,
+.about-backdrop,
+.reset-confirm-backdrop,
+.library-editor-backdrop {
+  background: var(--scrim);
+  backdrop-filter: blur(var(--dialog-blur));
+}
+
+.dialog-card,
+.about-card,
+.reset-confirm-card,
+.library-editor {
+  max-width: calc(100vw - var(--dialog-margin));
+  max-height: calc(100vh - var(--dialog-margin));
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-3);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-panel);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+.dialog-card {
+  display: flex; flex-direction: column;
+  width: var(--dialog-w);
+  padding: 0;
+  gap: 0;
+  align-items: stretch;
+  text-align: left;
+  overflow: hidden;
+}
+
+.dialog-head {
+  display: flex; align-items: center; gap: var(--s-3);
+  padding: var(--s-4) var(--s-4) var(--s-2) var(--s-5);
+  flex-shrink: 0;
+}
+.dialog-head .dialog-title {
+  flex: 1; min-width: 0; margin: 0;
+  font: var(--fw-heavy) var(--fs-lg) / 1.25 var(--font-sans);
+  color: var(--text);
+}
+.dialog-icon { flex-shrink: 0; color: var(--text-2); }
+.dialog-head .about-version-badge { margin: 0; flex-shrink: 0; }
+
+.dialog-close,
+.dialog-head .about-close,
+.library-editor-close {
+  position: static; flex-shrink: 0;
+  width: var(--ctl-h-sm); height: var(--ctl-h-sm); padding: 0;
+  display: grid; place-items: center;
+  border: 0; border-radius: var(--r-1);
+  background: transparent; color: var(--text-2);
+  cursor: pointer;
+}
+.dialog-close:hover,
+.dialog-head .about-close:hover,
+.library-editor-close:hover { background: var(--surface-3); color: var(--text); }
+.dialog-close[hidden] { display: none; }
+.dialog-close .ic { width: var(--icon); height: var(--icon); }
+
+.dialog-body {
+  display: flex; flex-direction: column; gap: var(--s-2);
+  min-height: 0; overflow-y: auto;
+  padding: var(--s-2) var(--s-5) var(--s-4);
+  font-size: var(--fs-sm); line-height: 1.5; color: var(--text-2);
+}
+.dialog-body > p { margin: 0; }
+
+.about-primary-links.dialog-foot {
+  display: flex; justify-content: flex-end; gap: var(--s-2);
+  width: auto; margin: 0;
+  padding: var(--s-3) var(--s-5) var(--s-4);
+  flex-shrink: 0;
+}
+.dialog-foot .about-link { flex: 0 0 auto; height: var(--ctl-h); padding: 0 var(--s-4); font-size: var(--fs-sm); }
+.dialog-foot .about-link:not(.hidden) { cursor: pointer; }
+.dialog-foot .dialog-foot-start { margin-right: auto; }
+.dialog-foot .about-link-primary:last-of-type,
+.failure-card .dialog-foot #failureReport {
+  background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+}
+
+.dialog-body .failure-message,
+.dialog-body .failure-hint { margin: 0; text-align: left; }
+.dialog-body .failure-tech { margin: 0; }
+.dialog-body .failure-logs-btn {
+  min-height: var(--ctl-h-sm); margin: 0; padding: 0 var(--s-3);
+  border: 1px solid var(--line-strong); border-radius: var(--r-2);
+  background: transparent; color: var(--text-2);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
+}
+.dialog-body .failure-logs-btn:not(:disabled):hover { background: var(--surface-3); color: var(--text); }
+
+.reset-confirm-card {
+  width: min(var(--dialog-confirm-w), calc(100vw - var(--dialog-margin)));
+  padding: var(--s-4) var(--s-5);
+}
+.reset-confirm-title {
+  font: var(--fw-heavy) var(--fs-lg) / 1.25 var(--font-sans);
+  color: var(--text);
+  margin: 0;
+}
+.reset-confirm-card .dialog-head { padding: 0 0 var(--s-3); }
+.reset-confirm-body { font-size: var(--fs-sm); color: var(--text-2); }
+.reset-confirm-hint { font-size: var(--fs-xs); color: var(--text-3); }
+.reset-confirm-input { font-family: var(--font-sans); font-size: var(--fs-sm); }
+.reset-confirm-actions button {
+  min-height: var(--ctl-h); padding: 0 var(--s-4); border-radius: var(--r-2);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-sans);
+}
+
+.extract-more-card { width: var(--dialog-confirm-w); }

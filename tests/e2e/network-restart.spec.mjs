@@ -13,7 +13,7 @@
 // is reachable there.
 
 import { test, expect } from "@playwright/test";
-import { seedLibrary, settleRoutes, stubTauri } from "./helpers.mjs";
+import { KEY, OUTSIDE_DIALOG, seedLibrary, settleRoutes, stubTauri } from "./helpers.mjs";
 
 test.afterEach(settleRoutes);
 
@@ -186,11 +186,39 @@ test("Escape closes the question and leaves Settings open", async ({ page }) => 
   await toggle(page);
   await expect(dialogText(page)).toContainText(/separation is running/i);
 
-  await page.keyboard.press("Escape");
+  await page.keyboard.press(KEY.ESCAPE);
   await expect(dialogText(page)).toHaveCount(0);
   await expect(sw(page)).toBeVisible();
   await expect(sw(page)).toBeFocused();
   expect(await calls(page)).toEqual([]);
+});
+
+test("the question has the shared head row, and a press on the dimmed page closes it back into Settings", async ({ page }) => {
+  await desktopSettings(page, { listening: false });
+  await queue(page, "running");
+  await openNetworkSettings(page);
+  await toggle(page);
+  await expect(dialogText(page)).toContainText(/separation is running/i);
+  await expect(page.locator(".reset-confirm-card .dialog-head .dialog-close")).toBeVisible();
+
+  await page.mouse.click(OUTSIDE_DIALOG.x, OUTSIDE_DIALOG.y);
+  await expect(dialogText(page)).toHaveCount(0);
+  await expect(page.locator(".library-editor")).toBeVisible();
+  await expect(sw(page)).toBeFocused();
+});
+
+test("while it restarts, neither Esc nor the dimmed page closes it", async ({ page }) => {
+  await desktopSettings(page, { listening: false });
+  await queue(page, "idle");
+  await openNetworkSettings(page);
+  await toggle(page);
+  await restartPending(page);
+
+  await page.keyboard.press(KEY.ESCAPE);
+  await page.mouse.click(OUTSIDE_DIALOG.x, OUTSIDE_DIALOG.y);
+  await expect(dialogText(page)).toBeVisible();
+  await expect(page.locator(".reset-confirm-card .dialog-close")).toBeHidden();
+  await expect(page.locator(".library-editor")).toBeVisible();
 });
 
 test("a failed restart says the choice is saved; Try again only restarts", async ({ page }) => {
