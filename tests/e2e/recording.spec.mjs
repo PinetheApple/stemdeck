@@ -122,10 +122,13 @@ test("+ Track stays above the footer on a short window", async ({ page }) => {
   expect(add.y + add.height).toBeLessThanOrEqual(footer.y);
 });
 
+// Fractional heights (rows, the footer) leave sub-pixel rounding between boxes.
+const SUBPIXEL_PX = 0.5;
+
 // Every mixer row with its name, M, S and fader inside the row.
 const headersFit = (page) =>
-  page.evaluate(() => {
-    const inside = (r, box) => r.top >= box.top - 0.5 && r.bottom <= box.bottom + 0.5;
+  page.evaluate((tolerance) => {
+    const inside = (r, box) => r.top >= box.top - tolerance && r.bottom <= box.bottom + tolerance;
     const rows = [...document.querySelectorAll(".mixer-column .lane-header.mx-row:not(.rec-take-row)")]
       .filter((row) => row.offsetHeight);
     const clipped = rows.filter(function partClipped(row) {
@@ -134,15 +137,12 @@ const headersFit = (page) =>
       return parts.some((el) => !el || !inside(el.getBoundingClientRect(), box));
     });
     return { rows: rows.length, clipped: clipped.length };
-  });
+  }, SUBPIXEL_PX);
 
 const laneHeight = async (page) =>
   Number.parseFloat(
     await page.evaluate(() => getComputedStyle(document.querySelector(".app")).getPropertyValue("--lane-h")),
   );
-
-// The footer's fractional height leaves sub-pixel rounding between the two boxes.
-const SUBPIXEL_PX = 0.5;
 
 async function expectAddRowAboveFooter(page) {
   const add = await page.locator(".rec-add-row").boundingBox();

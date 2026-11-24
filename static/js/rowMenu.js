@@ -23,23 +23,28 @@ function textSpan(text, className = "") {
   return span;
 }
 
-function linkEntry(item) {
-  const { link } = item;
-  link.classList.add(ITEM_CLASS);
-  link.innerHTML = item.iconHtml ?? icon(item.icon);
-  link.append(textSpan(item.text));
-  return link;
+function plainButton() {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  return btn;
+}
+
+/** `el` filled as an entry with the item's own icon markup, or its named icon. */
+function markupEntry(el, item) {
+  el.classList.add(ITEM_CLASS);
+  el.innerHTML = item.iconHtml ?? icon(item.icon);
+  el.append(textSpan(item.text));
+  return el;
 }
 
 function buttonEntry(item) {
-  const btn = iconButton(ITEM_CLASS, item.icon, { text: item.text });
-  if (item.iconHtml) btn.firstElementChild.outerHTML = item.iconHtml;
-  return btn;
+  if (item.iconHtml) return markupEntry(plainButton(), item);
+  return iconButton(ITEM_CLASS, item.icon, { text: item.text });
 }
 
 /** An entry's element: its own `link` when it has one, else a button. */
 function entryEl(item) {
-  const el = item.link ? linkEntry(item) : buttonEntry(item);
+  const el = item.link ? markupEntry(item.link, item) : buttonEntry(item);
   if (item.danger) el.classList.add(DANGER_CLASS);
   if (item.hint) el.append(textSpan(item.hint, HINT_CLASS));
   if (item.title) el.title = item.title;
