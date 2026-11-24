@@ -7,7 +7,6 @@ import {
   SIBLING_JOB_ID,
   SIBLING_TITLE,
   TRACK_TITLE,
-  fixtureTrack,
   openBrowse,
   openInspectorTab,
   openStudio,
@@ -35,19 +34,6 @@ test.afterEach(async ({ request }) => {
   const res = await request.get("/api/setlists");
   for (const setlist of await res.json()) await request.delete(`/api/setlists/${setlist.id}`);
 });
-
-/** Both fixture songs in Unsorted, each with its own tag from `tags`. */
-function taggedLibrary(tags) {
-  const ids = [JOB_ID, SIBLING_JOB_ID];
-  const titles = { [JOB_ID]: TRACK_TITLE, [SIBLING_JOB_ID]: SIBLING_TITLE };
-  return {
-    folders: [
-      { id: "f-unsorted", name: "Unsorted", items: ids, color: null },
-      { id: "trash", name: "Trash", items: [], color: null },
-    ],
-    tracks: Object.fromEntries(ids.map((id) => [id, { ...fixtureTrack(id, titles[id]), tags: [tags[id]] }])),
-  };
-}
 
 const seek = (page, sec) => page.evaluate(async (at) => (await import("/js/transport.js")).setPlayheadTime(at), sec);
 
@@ -186,7 +172,7 @@ test("a favourite played from the sidebar follows Favorites, never the non-favou
 
 test("a song played from a searched Browse view still follows the whole list", async ({ page }) => {
   const tags = { [JOB_ID]: "e2e-one", [SIBLING_JOB_ID]: "e2e-two" };
-  await openStudio(page, { catalog: taggedLibrary(tags) });
+  await openStudio(page, { tracks: { [JOB_ID]: { tags: [tags[JOB_ID]] }, [SIBLING_JOB_ID]: { tags: [tags[SIBLING_JOB_ID]] } } });
   const [first, second] = await page.evaluate(async () => (await import("/js/catalog.js")).libraryTrackIds());
   await openBrowse(page, "all");
   await page.locator("#browseSearch").fill(`#${tags[first]}`);

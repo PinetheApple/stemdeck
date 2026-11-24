@@ -437,7 +437,7 @@ test.describe("system media controls", () => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     const row = page.locator(`.cat-item[data-id="${JOB_ID}"]`).first();
     await row.waitFor();
-    expect(await handlerKind(page, "previoustrack")).toBe("cleared");
+    await expect.poll(() => handlerKind(page, "previoustrack")).toBe("cleared");
     await row.click();
     await expect.poll(() => handlerKind(page, "previoustrack")).toBe("set");
   });

@@ -92,19 +92,22 @@ export async function readCatalogState(page) {
  *
  * Both, not just one. syncWithServer imports any server job the store does not
  * already know, so leaving one out would add it as a row of its own on every
- * page load in the suite. `trashed` lists the fixture ids to seed in the Trash instead.
+ * page load in the suite. `trashed` lists the ids to seed in the Trash instead;
+ * `tracks` adds songs, or changes fields of the fixture ones, by id.
  */
-export async function seedLibrary(page, { trashed = [] } = {}) {
-  const ids = [JOB_ID, SIBLING_JOB_ID];
+export async function seedLibrary(page, { trashed = [], tracks = {} } = {}) {
+  const library = {
+    [JOB_ID]: fixtureTrack(JOB_ID, TRACK_TITLE),
+    [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, SIBLING_TITLE),
+  };
+  for (const [id, fields] of Object.entries(tracks)) library[id] = { ...(library[id] ?? fixtureTrack(id, id)), ...fields };
+  const ids = Object.keys(library);
   await seedCatalogState(page, {
     folders: [
       { id: "f-unsorted", name: "Unsorted", items: ids.filter((id) => !trashed.includes(id)), color: null },
       { id: "trash", name: "Trash", items: ids.filter((id) => trashed.includes(id)), color: null },
     ],
-    tracks: {
-      [JOB_ID]: fixtureTrack(JOB_ID, TRACK_TITLE),
-      [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, SIBLING_TITLE),
-    },
+    tracks: library,
   });
 }
 
@@ -421,11 +424,12 @@ export async function openStudio(
     serverFavorites = {},
     catalog = null,
     trashed = [],
+    tracks = {},
     waitForDuration = true,
   } = {},
 ) {
   if (catalog) await seedCatalogState(page, catalog);
-  else await seedLibrary(page, { trashed });
+  else await seedLibrary(page, { trashed, tracks });
   const favoriteWrites = await stubFavorites(page, serverFavorites);
   // After the favorites stub: the later route wins, and the startup sync would otherwise restore them.
   if (trashed.length) await stubServerTrash(page, { trashed });

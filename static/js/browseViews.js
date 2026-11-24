@@ -3,7 +3,7 @@
 
 import { t, plural, getLanguage } from "./i18n.js";
 import {
-  armEmptyTrash, folderErrorEl, folderNameOf, folderTrackIds, folderTreeTrackIds, getLibraryTrack, libraryFolderTree, libraryTrackIds,
+  armEmptyTrash, favoriteTrackIds, folderErrorEl, folderNameOf, folderTrackIds, folderTreeTrackIds, getLibraryTrack, libraryFolderTree, libraryTrackIds,
   librarySearchFields, makeSetlistFromFolder, renderImportQueue, trashTrackIds, wireFolderMenuButton,
 } from "./catalog.js";
 import { songMatches } from "./librarySearch.js";
@@ -114,7 +114,7 @@ function allView() {
 }
 
 function favoritesView() {
-  const ids = libraryTrackIds().filter((id) => getLibraryTrack(id).favorite);
+  const ids = favoriteTrackIds();
   return titledView(t("nav.favorites"), ids, emptyStateEl("heart", t("favorites.emptyTitle"), t("favorites.emptyHint")));
 }
 

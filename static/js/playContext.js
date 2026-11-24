@@ -1,4 +1,4 @@
-import { folderTrackIds, getLibraryTrack, isPlayableTrack, libraryFolderTree, libraryTrackIds } from "./catalog.js";
+import { favoriteTrackIds, folderTrackIds, isPlayableTrack, libraryFolderTree, libraryTrackIds } from "./catalog.js";
 import { t } from "./i18n.js";
 import { cursorAt, songsAhead } from "./playOrder.js";
 import { onPlayStateChange } from "./playState.js";
@@ -13,7 +13,7 @@ const KIND_LABEL_KEYS = Object.freeze({
 });
 const LIST_SONGS = Object.freeze({
   [LIST_KIND.ALL]: () => libraryTrackIds(),
-  [LIST_KIND.FAVORITES]: () => libraryTrackIds().filter((trackId) => getLibraryTrack(trackId).favorite),
+  [LIST_KIND.FAVORITES]: () => favoriteTrackIds(),
   [LIST_KIND.FOLDER]: (id) => folderTrackIds(id),
   [LIST_KIND.SETLIST]: (id) => getSetlist(id)?.song_ids ?? [],
 });
@@ -33,8 +33,13 @@ function setList(next) {
 }
 
 // The whole list, whatever a search or the playing song adds to or hides from its rows.
+function listSongs(kind, id) {
+  if (!(kind in LIST_SONGS)) throw new Error(`playContext: unknown list kind "${kind}"; use LIST_KIND`);
+  return LIST_SONGS[kind](id);
+}
+
 function startList(kind, id, trackId) {
-  const ids = LIST_SONGS[kind](id);
+  const ids = listSongs(kind, id);
   setList({ kind, id, ids, at: cursorAt({ ids, at: NOT_STARTED }, trackId) });
 }
 
@@ -46,7 +51,7 @@ export function startPlayContextFromRow(row) {
 
 /** Play a list ({ kind, id }) from its first playable song, Up Next left as it is; false when none can play. */
 export async function playList({ kind, id = "" }) {
-  const first = LIST_SONGS[kind](id).find(isPlayableTrack);
+  const first = listSongs(kind, id).find(isPlayableTrack);
   if (!first) return false;
   startList(kind, id, first);
   await playNow(first);

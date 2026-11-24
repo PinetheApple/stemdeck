@@ -2,8 +2,8 @@
 
 import { t, onLanguageChange } from "./i18n.js";
 import {
-  displayTitle, getLibraryTrack, getPlayingTrackInfo, isInTrash, isPlayableTrack, libraryTrackIds, onLibraryDraw,
-  trashTrackIds,
+  displayTitle, favoriteTrackIds, getLibraryTrack, getPlayingTrackInfo, isInTrash, isPlayableTrack, libraryTrackIds,
+  onLibraryDraw, trashTrackIds,
 } from "./catalog.js";
 import { trashWithUndo } from "./trashUndo.js";
 import { SONG_MENU_ATTR } from "./songMenu.js";
@@ -48,7 +48,7 @@ function fillGroup(groupId, ids, emptyText = "") {
 
 /** Favorites, newest first, and the playing song when it is not one of them. */
 function favoriteIds() {
-  const ids = libraryTrackIds().filter((id) => getLibraryTrack(id).favorite);
+  const ids = favoriteTrackIds();
   const playing = getPlayingTrackInfo()?.id;
   return playing && !ids.includes(playing) && !isInTrash(playing) ? [...ids, playing] : ids;
 }
