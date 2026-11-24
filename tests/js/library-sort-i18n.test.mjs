@@ -1,5 +1,3 @@
-// Library sort, filter and select strings (#235) in every language.
-
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
@@ -10,7 +8,7 @@ globalThis.localStorage = { getItem: () => null, setItem: () => {} };
 const { LANGUAGES, TRANSLATIONS } = await import("../../static/js/i18n.js");
 const { SORT_KEYS, SORT_LABEL_KEYS } = await import("../../static/js/librarySort.js");
 const { KEY_MODE_OPTIONS, TEMPO_OPTIONS } = await import("../../static/js/libraryFilter.js");
-const { BULK_ACTION, BULK_ACTION_LABEL_KEYS } = await import("../../static/js/librarySelection.js");
+const { BULK_ACTION, BULK_ACTION_LABEL_KEYS, SELECT_DONE_LABEL_KEY } = await import("../../static/js/librarySelection.js");
 
 const PREFIX = "libSort.";
 const LOCALE_FALLBACK = { "pt-PT": "pt" };
@@ -28,24 +26,46 @@ function table(code) {
 }
 
 const placeholders = (text) => (text.match(PLACEHOLDERS) ?? []).sort();
+const DIGIT = /\d/;
+const labelKeys = () => [
+  ...Object.values(SORT_LABEL_KEYS),
+  ...TEMPO_OPTIONS.map((option) => option.label),
+  ...KEY_MODE_OPTIONS.map((option) => option.label),
+  ...Object.values(BULK_ACTION_LABEL_KEYS),
+  SELECT_DONE_LABEL_KEY,
+];
 
 test("every sort key, tempo, mode and bulk action has a label key in English", () => {
   assert.deepEqual(Object.keys(SORT_LABEL_KEYS).sort(), Object.values(SORT_KEYS).sort());
   assert.deepEqual(Object.keys(BULK_ACTION_LABEL_KEYS).sort(), Object.values(BULK_ACTION).sort());
-  const labels = [
-    ...Object.values(SORT_LABEL_KEYS),
-    ...TEMPO_OPTIONS.map((option) => option.label),
-    ...KEY_MODE_OPTIONS.map((option) => option.label),
-    ...Object.values(BULK_ACTION_LABEL_KEYS),
-  ];
-  for (const key of labels) assert.equal(typeof en[key], "string", key);
+  for (const key of labelKeys()) assert.equal(typeof en[key], "string", key);
 });
 
-test("the libSort strings sit in one block in English", () => {
-  const keys = Object.keys(en);
-  const first = keys.indexOf(ownKeys[0]);
+test("every label the library uses, reused keys included, exists in every language", () => {
+  for (const { code } of LANGUAGES) {
+    const own = table(code);
+    for (const key of labelKeys()) assert.ok(own[key]?.trim(), `${code}: ${key} missing`);
+  }
+});
+
+test("the tempo labels name no limits of their own, only the band placeholders", () => {
+  for (const { code } of LANGUAGES) {
+    for (const { label, vars } of TEMPO_OPTIONS.filter((option) => option.vars)) {
+      const text = table(code)[label];
+      assert.ok(!DIGIT.test(text), `${code}: ${label}`);
+      assert.deepEqual(placeholders(text), Object.keys(vars).map((name) => `{${name}}`).sort(), `${code}: ${label}`);
+    }
+  }
+});
+
+test("the libSort strings sit in one block in every language", () => {
   assert.ok(ownKeys.length > 30, String(ownKeys.length));
-  assert.deepEqual(keys.slice(first, first + ownKeys.length), ownKeys);
+  for (const code of Object.keys(TRANSLATIONS)) {
+    const keys = Object.keys(TRANSLATIONS[code]);
+    const block = keys.filter((key) => key.startsWith(PREFIX));
+    const first = keys.indexOf(block[0]);
+    assert.deepEqual(keys.slice(first, first + block.length), block, code);
+  }
 });
 
 test("every language has every libSort string with the same placeholders", () => {
