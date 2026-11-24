@@ -1,7 +1,7 @@
 // Stem headers, recording tracks, takes and + Track at every stem-column width the
 // layout allows: each row's parts inside the row, none on another, the dB readout first to go.
 import { test, expect } from "@playwright/test";
-import { openStudio } from "./helpers.mjs";
+import { TALL_WINDOW, openStudio } from "./helpers.mjs";
 import { PANE_LIMITS } from "../../static/js/paneEdgeMath.js";
 
 test.use({
@@ -14,7 +14,9 @@ const NARROWEST = PANE_LIMITS.stems.min;
 const WIDEST = PANE_LIMITS.stems.max;
 const COLUMN_WIDTHS = [NARROWEST, Math.round((NARROWEST + WIDEST) / 2), WIDEST];
 const COLUMN_VAR = "--daw-col-w";
-const WINDOWS = { tall: { width: 1600, height: 1000 }, short: { width: 1366, height: 768 } };
+const WINDOWS = { tall: TALL_WINDOW, short: { width: 1366, height: 768 } };
+// The widest column that gives up the dB readout, on any window height.
+const DB_HIDES_AT = 344;
 const RECORD_MS = 1200;
 const TAKES_URL_PART = "/takes";
 const ROW_PARTS = [
@@ -117,4 +119,15 @@ test("with ⋯ on the row, the dB readout is the first to go as the column narro
   await setColumnWidth(page, NARROWEST);
   await expect(shownStemDb(page)).toHaveCount(0);
   for (const sel of [".mx-name", ".mute", ".solo", ".lane-knob", ".lane-more"]) await expect(vocals.locator(sel)).toBeVisible();
+});
+
+test("on a tall window too, a column of 344 px or less gives up the dB readout first", async ({ page }) => {
+  await page.setViewportSize(WINDOWS.tall);
+  await openStudio(page);
+  await setColumnWidth(page, DB_HIDES_AT + 1);
+  await expect(shownStemDb(page).first()).toBeVisible();
+  await setColumnWidth(page, DB_HIDES_AT);
+  await expect(shownStemDb(page)).toHaveCount(0);
+  const vocals = page.locator('.lane-header[data-stem="vocals"]');
+  for (const sel of [".mx-name", ".mute", ".solo", ".lane-knob", ".lane-key", ".lane-dl"]) await expect(vocals.locator(sel)).toBeVisible();
 });

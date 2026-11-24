@@ -1,10 +1,12 @@
 // A stem's header: name, M, S, fader and level on one row, EQ, Key and Stem under them,
 // a thin meter at the right edge; a ⋯ menu instead of the second row when lanes are short.
 import { test, expect } from "@playwright/test";
-import { openStudio } from "./helpers.mjs";
+import { TALL_WINDOW, openStudio } from "./helpers.mjs";
 
-const TALL_WINDOW = { width: 1600, height: 1000 };
 const SHORT_WINDOW = { width: 1366, height: 768 };
+// Short enough that the lanes scroll.
+const SCROLLING_WINDOW = { width: 1366, height: 600 };
+const SCROLL_PX = 40;
 const MIN_MS_PX = 36;
 const MAX_METER_W_PX = 6;
 const METER_EDGE_PX = 10;
@@ -78,12 +80,17 @@ test.describe("a stem's header on a tall window", () => {
     await openStudio(page);
     const drums = header(page, "drums");
     const mute = drums.locator(".mute");
+    const name = drums.locator(".mx-name");
     const offLook = await mute.evaluate((el) => getComputedStyle(el).backgroundColor);
-    await drums.locator(".mx-name").click();
+    await expect(name).toHaveAttribute("aria-pressed", "false");
+    await name.click();
     await expect(mute).toHaveAttribute("aria-pressed", "true");
+    await expect(mute).toHaveClass(/\bactive\b/);
+    await expect(name).toHaveAttribute("aria-pressed", "true");
     await expect.poll(() => mute.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe(offLook);
-    await drums.locator(".mx-name").click();
+    await name.click();
     await expect(mute).toHaveAttribute("aria-pressed", "false");
+    await expect(name).toHaveAttribute("aria-pressed", "false");
   });
 
   test("a muted lane and a lane silenced by another's solo are greyed, header and waveform", async ({ page }) => {
@@ -125,15 +132,18 @@ test.describe("a stem's header on a short window", () => {
   test.use({ viewport: SHORT_WINDOW });
 
   const menu = (page) => page.getByRole("menu");
+  const entryTexts = (page) => menu(page).locator(".lib-menu-item > span:not(.row-menu-hint)");
+  const entryHints = (page) => menu(page).locator(".row-menu-hint");
 
   test("EQ, Key and Stem move into the lane's ⋯ menu", async ({ page }) => {
     await openStudio(page);
     const vocals = header(page, "vocals");
     await expect(vocals.locator(".lane-x")).toBeHidden();
     await vocals.locator(".lane-more").click();
-    await expect(menu(page).getByRole("menuitem")).toHaveText([
+    await expect(entryTexts(page)).toHaveText([
       "Vocals EQ", "Transpose up a semitone", "Transpose down a semitone", "Download Vocals",
     ]);
+    await expect(entryHints(page)).toHaveText(["EQ off", "Key 0", "Key 0"]);
     const m = await box(menu(page));
     expect(m.y + m.height).toBeLessThanOrEqual(SHORT_WINDOW.height);
     expect(m.x + m.width).toBeLessThanOrEqual(SHORT_WINDOW.width);
@@ -161,4 +171,53 @@ test.describe("a stem's header on a short window", () => {
     await expect(menu(page)).toHaveCount(0);
     await expect(more).toBeFocused();
   });
+
+  test("a transposed lane marks ⋯ and says so, and its menu shows the key", async ({ page }) => {
+    await openStudio(page);
+    const more = header(page, "vocals").locator(".lane-more");
+    await expect(more).not.toHaveClass(/\bis-changed\b/);
+    await expect(more).toHaveAttribute("aria-label", "More for Vocals");
+    await more.click();
+    await menu(page).getByRole("menuitem", { name: "Transpose up a semitone" }).click();
+    await more.click();
+    await menu(page).getByRole("menuitem", { name: "Transpose up a semitone" }).click();
+    await expect(more).toHaveClass(/\bis-changed\b/);
+    await expect(more).toHaveAttribute("aria-label", "More for Vocals: Key +2");
+    await more.click();
+    await expect(entryHints(page)).toHaveText(["EQ off", "Key +2", "Key +2"]);
+  });
+
+  test("the menu's download is a stem link like the header's, so it saves and drags out", async ({ page }) => {
+    await openStudio(page);
+    const headerLink = header(page, "bass").locator("a.lane-dl");
+    await header(page, "bass").locator(".lane-more").click();
+    const entry = menu(page).locator("a.lane-dl");
+    await expect(entry).toHaveRole("menuitem");
+    await expect(entry).not.toHaveAttribute("href", "#");
+    await expect(entry).toHaveAttribute("href", await headerLink.getAttribute("href"));
+    await expect(entry).toHaveAttribute("download", await headerLink.getAttribute("download"));
+    const download = page.waitForEvent("download");
+    await entry.click();
+    expect((await download).suggestedFilename()).toBe(await headerLink.getAttribute("download"));
+    await expect(menu(page)).toHaveCount(0);
+  });
+});
+
+test("the lane menu closes when the lanes scroll", async ({ page }) => {
+  await page.setViewportSize(SCROLLING_WINDOW);
+  await openStudio(page);
+  const more = header(page, "vocals").locator(".lane-more");
+  await more.click();
+  await expect(page.getByRole("menu")).toBeVisible();
+  const scrolled = await more.evaluate((btn, px) => {
+    for (let el = btn.parentElement; el; el = el.parentElement) {
+      if (el.scrollHeight > el.clientHeight && /auto|scroll/.test(getComputedStyle(el).overflowY)) {
+        el.scrollTop += px;
+        return el.scrollTop > 0;
+      }
+    }
+    return false;
+  }, SCROLL_PX);
+  expect(scrolled, "the lanes scroll").toBe(true);
+  await expect(page.getByRole("menu")).toHaveCount(0);
 });

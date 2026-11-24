@@ -7,10 +7,7 @@
 // not passable.
 
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, openStudio, openSpeedOptions, openKeyOptions } from "./helpers.mjs";
-
-// Tall enough that each lane shows its second row (EQ, Key, Stem) rather than its ⋯ menu.
-const TALL_WINDOW = { width: 1600, height: 1000 };
+import { JOB_ID, SIBLING_JOB_ID, TALL_WINDOW, openStudio, openSpeedOptions, openKeyOptions } from "./helpers.mjs";
 
 const down = (page) => page.locator("#t-pitch-down");
 const up = (page) => page.locator("#t-pitch-up");

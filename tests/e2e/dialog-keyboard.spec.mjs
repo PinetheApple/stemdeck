@@ -17,10 +17,8 @@ import {
   tabTo,
   openComposer,
   waitForPanesSettled,
+  TALL_WINDOW,
 } from "./helpers.mjs";
-
-// Tall enough that each lane shows its key stepper rather than its ⋯ menu.
-const TALL_WINDOW = { width: 1600, height: 1000 };
 
 const MIN_TARGET_PX = 24;
 const USER_FOLDER_ID = "f-live";

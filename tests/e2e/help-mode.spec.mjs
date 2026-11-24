@@ -5,10 +5,15 @@
 
 import { test, expect } from "@playwright/test";
 
-import { SIBLING_JOB_ID, openInspectorTab, openStudio, seedLibrary, stubUpdateCheck, uiText } from "./helpers.mjs";
-
-// Tall enough that each lane shows its second row (EQ, Key, Stem) rather than its ⋯ menu.
-const TALL_WINDOW = { width: 1600, height: 1000 };
+import {
+  SIBLING_JOB_ID,
+  TALL_WINDOW,
+  openInspectorTab,
+  openStudio,
+  seedLibrary,
+  stubUpdateCheck,
+  uiText,
+} from "./helpers.mjs";
 
 const tip = (page) => page.locator("#helpTip");
 // The pointer's ring is placed on whole pixels.
