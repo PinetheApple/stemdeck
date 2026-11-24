@@ -259,5 +259,6 @@ button.browse-nav-chevron:hover { background: var(--surface-3); color: var(--tex
 .browse-queue { display: flex; flex-direction: column; }
 
 /* Dialogs opened from Browse library sit above it. */
+.dialog-scrim,
 .folder-editor-backdrop,
 .reset-confirm-backdrop { z-index: var(--z-dialog); }
