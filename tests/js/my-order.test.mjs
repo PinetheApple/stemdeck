@@ -93,6 +93,7 @@ test("several songs move together, keeping their order", () => {
 
 test("no target moves to the end; a target among the moved changes nothing", () => {
   assert.deepEqual(moveBefore(["a", "b", "c"], ["a"], null), ["b", "c", "a"]);
+  assert.deepEqual(moveBefore(["a", "b", "c"], ["a"], undefined), ["b", "c", "a"]);
   assert.deepEqual(moveBefore(["a", "b", "c"], ["a", "b"], "b"), ["a", "b", "c"]);
 });
 

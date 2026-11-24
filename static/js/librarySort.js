@@ -1,5 +1,4 @@
-import { SONG_FIELDS, newestFirst } from "./songFields.js";
-import { KEY_MODES, songKey } from "./libraryFilter.js";
+import { KEY_MODES, SONG_FIELDS, newestFirst, songKey } from "./songFields.js";
 import { applyMyOrder } from "./myOrder.js";
 
 export const SORT_KEYS = Object.freeze({

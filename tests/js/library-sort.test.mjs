@@ -77,13 +77,20 @@ test("names a person gave a song come first", () => {
   assert.equal(SONG_FIELDS.artist(renamed), "Me");
 });
 
+const work = { id: "Q1", kind: "musical", name: "Hamilton" };
+
 test("the artist is the soundtrack's show, unless it repeats the song's name", () => {
-  const work = { name: "Hamilton" };
   const band = { name: "Cast" };
   assert.equal(SONG_FIELDS.artist({ title: "My Shot", work, artist: band }), "Hamilton");
   assert.equal(SONG_FIELDS.artist({ title: "hamilton", work, artist: band }), "Cast");
   assert.equal(SONG_FIELDS.artist({ title: "x", identity: { source: "musicbrainz", title: "Hamilton" }, work, artist: band }), "Cast");
   assert.equal(SONG_FIELDS.artist({ title: "x", displayArtist: "Uploader" }), "Uploader");
+});
+
+test("a work the library would not show is not the artist", () => {
+  const band = { name: "Cast" };
+  assert.equal(SONG_FIELDS.artist({ title: "x", work: { ...work, kind: "album" }, artist: band }), "Cast");
+  assert.equal(SONG_FIELDS.artist({ title: "x", work: { ...work, id: "" }, artist: band }), "Cast");
 });
 
 test("My order follows the saved ids and ignores the direction", () => {

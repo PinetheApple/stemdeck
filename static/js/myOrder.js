@@ -8,14 +8,14 @@ const IDS_FIELD = "song_ids";
 let lastSave = Promise.resolve();
 
 export async function loadMyOrder() {
-  const answer = await fetchJson(MY_ORDER_URL);
-  return answer[IDS_FIELD];
+  const body = await fetchJson(MY_ORDER_URL);
+  return body[IDS_FIELD];
 }
 
 // Chained so the last order sent is the one the server keeps.
 export function saveMyOrder(ids) {
   const send = () => fetchJson(MY_ORDER_URL, { method: SAVE_METHOD, body: { [IDS_FIELD]: ids } });
-  const save = lastSave.then(send, send).then((answer) => answer[IDS_FIELD]);
+  const save = lastSave.then(send, send).then((body) => body[IDS_FIELD]);
   lastSave = save;
   return save;
 }
@@ -33,7 +33,7 @@ export function applyMyOrder(songs, ids) {
 export function moveBefore(orderIds, movedIds, beforeId) {
   const moving = new Set(movedIds);
   const rest = orderIds.filter((id) => !moving.has(id));
-  const at = beforeId === null ? rest.length : rest.indexOf(beforeId);
+  const at = beforeId == null ? rest.length : rest.indexOf(beforeId);
   if (at < 0) return [...orderIds];
   const moved = orderIds.filter((id) => moving.has(id));
   return [...rest.slice(0, at), ...moved, ...rest.slice(at)];

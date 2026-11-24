@@ -67,8 +67,7 @@ function reset(state, picking) {
   state.anchor = null;
 }
 
-// Picks keep the order they were made in. Ctrl or Shift starts picking even outside
-// Select mode, as in desktop file lists.
+// Ctrl or Shift starts picking even outside Select mode, as in desktop file lists.
 export function createSelection() {
   const state = { picking: false, picked: new Set(), anchor: null };
   return {
