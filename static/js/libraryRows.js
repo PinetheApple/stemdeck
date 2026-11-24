@@ -4,6 +4,7 @@
 import { getLibraryTrack, isTextEditingTarget } from "./catalog.js";
 import { trashWithUndo } from "./trashUndo.js";
 import { openSong, playSong, playVersion } from "./openSong.js";
+import { startPlayContextFromRow } from "./playContext.js";
 import { ON_ROW, isShown, wireRovingRows } from "./rovingRows.js";
 import { isDialogOpen } from "./shellEscape.js";
 
@@ -50,6 +51,7 @@ function showSongRow(row) {
 
 function playSongRow(row) {
   if (row.matches(TRASH_ROW_SELECTOR)) return false;
+  startPlayContextFromRow(row);
   if (row.dataset.version) playVersion(row.dataset.id, row.dataset.version);
   else playSong(row.dataset.id);
   return true;

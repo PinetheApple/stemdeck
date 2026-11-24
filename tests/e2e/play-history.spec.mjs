@@ -2,7 +2,7 @@
 // was started from, and the song header steps Back and Forward through songs shown.
 
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, SIBLING_TITLE, TRACK_TITLE, openInspectorTab, openStudio } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, SIBLING_TITLE, TRACK_TITLE, openBrowse, openInspectorTab, openStudio } from "./helpers.mjs";
 import {
   LOAD_TIMEOUT_MS,
   SETTLE_MS,
@@ -40,10 +40,11 @@ async function expectInPlayer(page, id) {
 
 /** The sibling (2 s) first, then the fixture: a setlist played from the top. */
 async function playSetlist(page, request) {
-  await request.post("/api/setlists", { data: { name: SETLIST, song_ids: [SIBLING_JOB_ID, JOB_ID] } });
+  const res = await request.post("/api/setlists", { data: { name: SETLIST, song_ids: [SIBLING_JOB_ID, JOB_ID] } });
+  const { id } = await res.json();
   await openStudio(page);
-  await page.locator("#libTabSetlists").click();
-  await page.locator(".setlist-play").click();
+  await openBrowse(page, `setlist:${id}`);
+  await page.locator("#browseResults .browse-setlist-play").click();
   await expectPlaying(page, SIBLING_JOB_ID);
   await openInspectorTab(page, "upnext");
 }
@@ -52,7 +53,7 @@ test("Previous goes to the song played before it, and Next forward again", async
   await openStudio(page);
   await startPlayback(page);
   await songRow(page, SIBLING_JOB_ID).dblclick();
-  await expectInPlayer(page, SIBLING_JOB_ID);
+  await expectPlaying(page, SIBLING_JOB_ID);
 
   await page.locator("#t-prev").click();
   await expectInPlayer(page, JOB_ID);
@@ -124,14 +125,28 @@ test("a Next from song plays now and Up Next stays empty", async ({ page, reques
   await expect(page.locator("#upNextList .upnext-row")).toHaveCount(0);
 });
 
-test("a song played from the library makes All songs the list Next follows", async ({ page }) => {
-  await openStudio(page);
-  const rows = page.locator("#catalogList .cat-item[data-id]");
-  const [first, second] = await rows.evaluateAll((els) => els.map((el) => el.dataset.id));
+/** Play the first song shown in a Browse view, with `view` its nav entry. */
+async function playFirstInBrowse(page, view) {
+  await openBrowse(page, view);
+  const rows = page.locator("#browseResults .cat-item[data-id]");
+  const ids = await rows.evaluateAll((els) => els.map((el) => el.dataset.id));
   await rows.first().dblclick();
-  await expectInPlayer(page, first);
+  await expectInPlayer(page, ids[0]);
   await openInspectorTab(page, "upnext");
+  return ids;
+}
+
+test("a song played from All songs makes that the list Next follows", async ({ page }) => {
+  await openStudio(page);
+  const [, second] = await playFirstInBrowse(page, "all");
   await expect(page.locator("#upNextFromLabel")).toHaveText("Next from: All songs");
+  await expect(page.locator(FROM_ROWS)).toHaveAttribute("data-id", second);
+});
+
+test("a song played from a folder makes that folder the list Next follows", async ({ page }) => {
+  await openStudio(page);
+  const [, second] = await playFirstInBrowse(page, "folder:f-unsorted");
+  await expect(page.locator("#upNextFromLabel")).toHaveText("Next from: Unsorted");
   await expect(page.locator(FROM_ROWS)).toHaveAttribute("data-id", second);
 });
 

@@ -2,7 +2,7 @@ import { TRACK_OPEN_EVENT, TRASH_CHANGE_EVENT, getPlayingTrackInfo, isPlayableTr
 import { BACK, FORWARD, createStepHistory } from "./stepHistory.js";
 import { NEXT_SOURCE, nextSong, previousPlayedId, previousSongId } from "./playOrder.js";
 import { PLAY_CONTEXT_CHANGE_EVENT, nextInContext } from "./playContext.js";
-import { onSongPlayed } from "./songPlayed.js";
+import { onPlayStateChange } from "./playState.js";
 import { UP_NEXT_CHANGE_EVENT, firstInUpNext, playNextInUpNext, playNow } from "./upNext.js";
 import { restartSong, transport } from "./transport.js";
 import { onLanguageChange, t } from "./i18n.js";
@@ -82,15 +82,15 @@ function paintPreviousNext() {
   for (const listener of changeListeners) listener();
 }
 
-function onPlayed(trackId) {
-  played.visit(trackId);
+function onPlayState({ id, playing }) {
+  if (playing) played.visit(id);
   paintPreviousNext();
 }
 
 export function initPlayHistory() {
   $("t-prev")?.addEventListener("click", goToPrevious);
   $("t-next")?.addEventListener("click", goToNext);
-  onSongPlayed(onPlayed);
+  onPlayStateChange(onPlayState);
   for (const name of [TRACK_OPEN_EVENT, UP_NEXT_CHANGE_EVENT, PLAY_CONTEXT_CHANGE_EVENT, TRASH_CHANGE_EVENT]) {
     document.addEventListener(name, paintPreviousNext);
   }

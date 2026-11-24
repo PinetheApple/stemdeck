@@ -55,9 +55,9 @@ function favoriteIds() {
 
 /** The last songs played, then the newest playable ones, none listed above. */
 function recentRowIds(shown) {
-  const listed = (id) => Boolean(getLibraryTrack(id)) && !isInTrash(id) && !shown.has(id);
+  const listed = (id) => isPlayableTrack(id) && !shown.has(id);
   const played = recentIds(readRecentlyPlayed(), { isListed: listed, limit: RECENT_ROWS });
-  const fill = libraryTrackIds().filter((id) => isPlayableTrack(id) && listed(id) && !played.includes(id));
+  const fill = libraryTrackIds().filter((id) => listed(id) && !played.includes(id));
   return [...played, ...fill].slice(0, RECENT_ROWS);
 }
 

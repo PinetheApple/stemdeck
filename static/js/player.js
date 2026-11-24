@@ -1,4 +1,3 @@
-import { PLAYING_CLASS } from "./songPlayed.js";
 import Multitrack from "/vendor/multitrack.js";
 import { fmtTime } from "./utils.js";
 // job.js imports this module in turn. The cycle is pre-existing (catalog.js does
@@ -13,7 +12,7 @@ import {
 } from "./constants.js";
 import {
   mixerEl, multitrackContainer, bpmChip, keyChip, stemsChip, timeEl,
-  titleEl, npThumb, rulerTime, wavesGrid, playBtn,
+  titleEl, npThumb, rulerTime, wavesGrid, playBtn, PLAYING_CLASS,
   stopBtn, loopRegionEl,
   multitrack, currentJobId, trackIndex, totalDuration, loopEnabled,
   loopStart, loopEnd, trackAnalysers,

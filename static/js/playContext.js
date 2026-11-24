@@ -1,7 +1,7 @@
 import { isPlayableTrack } from "./catalog.js";
 import { t } from "./i18n.js";
 import { cursorAt, songsAhead } from "./playOrder.js";
-import { onSongPlayed } from "./songPlayed.js";
+import { onPlayStateChange } from "./playState.js";
 import { isInUpNext, playNow } from "./upNext.js";
 
 export const PLAY_CONTEXT_CHANGE_EVENT = "playcontext:change";
@@ -64,11 +64,11 @@ export function nextInContext() {
   return contextSongsAhead()[0] ?? null;
 }
 
-function onListSongPlayed(trackId) {
-  const at = cursorAt(list, trackId);
+function onPlayState({ id, playing }) {
+  const at = playing ? cursorAt(list, id) : list.at;
   if (at !== list.at) setList({ ...list, at });
 }
 
 export function initPlayContext() {
-  onSongPlayed(onListSongPlayed);
+  onPlayStateChange(onPlayState);
 }

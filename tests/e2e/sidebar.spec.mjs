@@ -108,3 +108,23 @@ test("a song dropped on a sidebar setlist or on Trash goes there", async ({ page
   await expect(page.locator("#trashBadge")).toHaveText("1");
   await expect(page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`)).toHaveCount(0);
 });
+
+test("Recently played skips a song that can no longer play", async ({ page }) => {
+  const goneId = "e2e0feed0bad";
+  await seedCatalogState(page, {
+    folders: [
+      { id: "f-unsorted", name: "Unsorted", items: [JOB_ID, SIBLING_JOB_ID, goneId], color: null },
+      { id: "trash", name: "Trash", items: [], color: null },
+    ],
+    tracks: {
+      [JOB_ID]: fixtureTrack(JOB_ID, TRACK_TITLE),
+      [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, SIBLING_TITLE),
+      [goneId]: { ...fixtureTrack(goneId, "Gone"), status: "unavailable" },
+    },
+  });
+  await page.addInitScript((ids) => window.localStorage.setItem("stemdeck.recentlyPlayed", JSON.stringify(ids)), [goneId, SIBLING_JOB_ID]);
+  await stubFavorites(page);
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(groupRow(page, "sidebarRecent", SIBLING_JOB_ID)).toBeVisible();
+  await expect(groupRow(page, "sidebarRecent", goneId)).toHaveCount(0);
+});

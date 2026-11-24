@@ -19,6 +19,7 @@ import { browseState, openBrowse, viewParts } from "./browseLibrary.js";
 import { LAYOUT, VIEW } from "./browseViewNames.js";
 import { drawSetlistView } from "./browseSetlist.js";
 import { getSetlist } from "./setlists.js";
+import { LIST_KIND } from "./playContext.js";
 import { queueCount, getQueueSnapshot } from "./queue.js";
 
 const RECENT_LIMIT = 12;
@@ -228,6 +229,32 @@ const VIEWS = {
   [VIEW.SETLIST]: (id) => (getSetlist(id) ? drawSetlistView(id) : null),
 };
 
+const PLAY_LIST_KINDS = Object.freeze({
+  [VIEW.ALL]: LIST_KIND.ALL,
+  [VIEW.FAVORITES]: LIST_KIND.FAVORITES,
+  [VIEW.FOLDER]: LIST_KIND.FOLDER,
+  [VIEW.SETLIST]: LIST_KIND.SETLIST,
+});
+
+function playListName(kind, id) {
+  if (kind === VIEW.FOLDER) return libraryFolderTree().find((folder) => folder.id === id)?.name ?? "";
+  if (kind === VIEW.SETLIST) return getSetlist(id)?.name ?? "";
+  return "";
+}
+
+// The list a song played from here becomes the one Next follows.
+function markPlayList(container, view) {
+  const [kind, id] = viewParts(view);
+  const listKind = PLAY_LIST_KINDS[kind];
+  if (!listKind) {
+    delete container.dataset.playList;
+    delete container.dataset.playListName;
+    return;
+  }
+  container.dataset.playList = listKind;
+  container.dataset.playListName = playListName(kind, id);
+}
+
 /** Draw the current view into `container`; a view that is gone falls back to All songs. Returns the view drawn. */
 export function drawBrowseResults(container) {
   if (!container) return browseState().view;
@@ -239,6 +266,7 @@ export function drawBrowseResults(container) {
     children = allView();
   }
   container.replaceChildren(...children);
+  markPlayList(container, view);
   const queueHost = container.querySelector("#browseImportQueue");
   if (queueHost) renderImportQueue(queueHost);
   return view;

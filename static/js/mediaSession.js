@@ -191,6 +191,7 @@ function onTrackOpen(e) {
   reported = null;
   motion = STILL;
   pauseMediaAnchor();
+  syncStepHandlers();
   syncMetadata();
   syncPlayback();
 }
@@ -202,7 +203,7 @@ function onUpNextChange(e) {
 function syncStepHandlers() {
   setActionHandler(
     ACTION.PREVIOUS_TRACK,
-    canGoPrevious() ? goToPrevious : null,
+    openTrackId && canGoPrevious() ? goToPrevious : null,
   );
   setActionHandler(
     ACTION.NEXT_TRACK,

@@ -2,7 +2,7 @@ import { $, fmtTime, fmtTickLabel, fmtTimeMs, parseTimecode, storeGet, storeSet 
 import { MIN_LOOP_SEC, loopDragResult } from "./loopRegion.js";
 import { tickStepAt } from "./rulerTicks.js";
 import {
-  playBtn, playMiniBtn, stopBtn, loopBtn, timeEl, masterFader,
+  playBtn, PLAYING_CLASS, playMiniBtn, stopBtn, loopBtn, timeEl, masterFader,
   speedFader,
   speedValueBox,
   speedReadout,
@@ -49,7 +49,6 @@ import { CLICK_STATE_EVENT, initFooterClick } from "./footerClick.js";
 import { initFooterPractice } from "./footerPractice.js";
 import { initUpNextButton } from "./footerTransport.js";
 import { initSongSteps } from "./songSteps.js";
-import { PLAYING_CLASS } from "./songPlayed.js";
 import { paintSectionLine } from "./footerSections.js";
 import { initFooterLoop, paintLoopName } from "./footerLoop.js";
 import { emitLoopChange, emitPlayheadMove } from "./studioSignals.js";
