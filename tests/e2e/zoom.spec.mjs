@@ -8,7 +8,7 @@
 // to avoid. Every assertion about "art" below is measuring that.
 
 import { test, expect } from "@playwright/test";
-import { openStudio, waitForPanesSettled, JOB_ID } from "./helpers.mjs";
+import { openStudio, waitForPanesSettled, SIBLING_JOB_ID } from "./helpers.mjs";
 
 const wheel = (page, dy, x = 900, y = 400) =>
   page.mouse.move(x, y).then(() => page.mouse.wheel(0, dy));
@@ -87,8 +87,9 @@ const waveSurferCanvases = (page) =>
   });
 
 // Deliberately wide: the bar-count maths only has room to prove itself when the
-// panel can hold a few hundred bars.
-test.use({ viewport: { width: 1600, height: 900 } });
+// panel can hold a few hundred bars, and a lanes column under the 720px floor
+// would open already widened past the fitted view.
+test.use({ viewport: { width: 1920, height: 1080 } });
 
 test.describe("waveform zoom", () => {
   test("a track opens fitted, with the loop tools available", async ({ page }) => {
@@ -342,7 +343,7 @@ test.describe("waveform zoom", () => {
     for (let i = 0; i < 10; i++) await wheel(page, -240);
     expect((await zoomState(page)).zoomVar).toBeGreaterThan(1);
 
-    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
+    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().click();
     await page.waitForTimeout(1500);
     const reopened = await zoomState(page);
     expect(reopened.zoomVar).toBeCloseTo(1, 2);
