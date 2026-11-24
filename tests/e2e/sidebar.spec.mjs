@@ -98,11 +98,13 @@ test("a song dropped on a sidebar setlist or on Trash goes there", async ({ page
   await stubServerTrash(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   const setlistRow = group(page, "sidebarSetlists").locator(`.sidebar-setlist[data-id="${id}"]`);
-  await groupRow(page, "sidebarRecent", JOB_ID).dragTo(setlistRow);
-  await expect.poll(async () => (await (await request.get(SETLISTS_PATH)).json()).find((s) => s.id === id)?.song_ids).toEqual([JOB_ID]);
+  // The song in the player heads Favorites, so the drags start from the other one, in Recently played.
+  const recentRow = groupRow(page, "sidebarRecent", SIBLING_JOB_ID);
+  await recentRow.dragTo(setlistRow);
+  await expect.poll(async () => (await (await request.get(SETLISTS_PATH)).json()).find((s) => s.id === id)?.song_ids).toEqual([SIBLING_JOB_ID]);
   await expect(setlistRow).toContainText("Setlist · 1 song");
 
-  await groupRow(page, "sidebarRecent", SIBLING_JOB_ID).dragTo(page.locator("#trashBtn"));
+  await recentRow.dragTo(page.locator("#trashBtn"));
   await expect(page.locator("#trashBadge")).toHaveText("1");
   await expect(page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`)).toHaveCount(0);
 });
