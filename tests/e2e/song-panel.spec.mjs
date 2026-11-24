@@ -120,12 +120,18 @@ test.describe("song tools panel", () => {
     await expect(pane(page, "details")).toBeVisible();
   });
 
-  test("the Up Next tab opens from elsewhere in the app, showing the panel", async ({ page }) => {
+  test("the footer's Up Next button opens the Up Next tab, also with the panel hidden", async ({ page }) => {
     await page.setViewportSize(WIDE_WINDOW);
     await openStudio(page);
+    const footerUpNext = page.locator("#t-upnext");
+    await footerUpNext.click();
+    await expect(tab(page, "upnext")).toHaveAttribute("aria-selected", "true");
+    await expect(pane(page, "upnext")).toBeVisible();
+
+    await tab(page, "tempo").click();
     await page.locator("#inspectorToggleBtn").click();
     await expect(page.locator("#inspector")).toBeHidden();
-    await page.evaluate(async () => (await import("/js/inspector.js")).openInspectorTab("upnext"));
+    await footerUpNext.click();
     await expect(pane(page, "upnext")).toBeVisible();
     await expect(page.locator("#inspectorToggleBtn")).toHaveAttribute("aria-pressed", "true");
   });

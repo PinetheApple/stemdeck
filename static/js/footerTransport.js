@@ -1,10 +1,10 @@
 // The footer's Up Next button: shows Up Next in the song tools, pressed while it is showing.
 
-import { openInspectorTab } from "./inspector.js";
+import { INSPECTOR_TABS, openInspectorTab } from "./inspector.js";
 import { TOOLS_HIDDEN_CLASS } from "./shellEdges.js";
 import { $ } from "./utils.js";
 
-const UP_NEXT_TAB = "upnext";
+const UP_NEXT_TAB = INSPECTOR_TABS.UP_NEXT;
 
 export function initUpNextButton() {
   const button = $("t-upnext");
