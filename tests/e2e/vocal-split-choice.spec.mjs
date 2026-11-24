@@ -50,8 +50,8 @@ async function importWithLeadAndBacking(page) {
   const queue = await stubImportQueue(page, JOB_ID, "Importing Song");
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
-  await page.locator('.vocal-mode-btn[data-mode="split"]').click();
   await openComposer(page);
+  await page.locator('.vocal-mode-btn[data-mode="split"]').click();
   await page.locator("#url").fill(SOURCE);
   await page.locator("#submit").click();
   await queue.run();

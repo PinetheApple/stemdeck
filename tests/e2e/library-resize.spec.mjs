@@ -161,6 +161,7 @@ test.describe("library pane width", () => {
     await reload(page);
     // Room is only weighed with a song open, so the tools step aside again before they are shown.
     await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
+    await expect(page.locator("#inspector")).toBeHidden();
     await showSongTools(page);
     await expect.poll(() => libraryWidth(page)).toBe(smallMax);
 
