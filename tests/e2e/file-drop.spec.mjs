@@ -62,7 +62,7 @@ test.describe("file drop", () => {
     await stubTauri(page);
     await stubUpdateCheck(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await page.waitForSelector(".url-wrap");
+    await page.locator("#addSongBtn").waitFor();
 
     expect((await pill(page)).visible).toBe(false);
 
@@ -80,7 +80,7 @@ test.describe("file drop", () => {
     await stubTauri(page);
     await stubUpdateCheck(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await page.waitForSelector(".url-wrap");
+    await page.locator("#addSongBtn").waitFor();
     await watchDropDefault(page);
 
     await dropOn(page, "body");
@@ -104,7 +104,7 @@ test.describe("file drop", () => {
     await stubTauri(page);
     await stubUpdateCheck(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await page.waitForSelector(".url-wrap");
+    await page.locator("#addSongBtn").waitFor();
     await watchDropDefault(page);
 
     await dropOn(page, "body", "notes.txt", Buffer.from("hello"));
@@ -136,7 +136,7 @@ test.describe("file drop", () => {
     await stubTauri(page);
     await stubUpdateCheck(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await page.waitForSelector(".url-wrap");
+    await page.locator("#addSongBtn").waitFor();
 
     await dropOn(page, "body", "notes.txt", Buffer.from("hello"));
     await expect(page.locator("#urlDropError")).toBeVisible();
@@ -153,7 +153,7 @@ test.describe("file drop", () => {
     await stubTauri(page);
     await stubUpdateCheck(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await page.waitForSelector(".url-wrap");
+    await page.locator("#addSongBtn").waitFor();
 
     await dropOn(page, "body", "notes.txt", Buffer.from("hello"));
     await expect(page.locator("#urlDropError")).toBeVisible();

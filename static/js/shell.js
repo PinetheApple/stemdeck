@@ -1,0 +1,47 @@
+// The top bar's own controls: Add song, Importing N and the song-tools toggle's
+// state. The sidebar toggle is catalog.js's; the edges are shellEdges.js's.
+
+import { t, onLanguageChange } from "./i18n.js";
+import { getQueueSnapshot, onQueueChange, queueCount } from "./queue.js";
+import { showQueueView } from "./catalog.js";
+import { wireComposerDrawer } from "./composerDrawer.js";
+import { TOOLS_HIDDEN_CLASS, isToolsAutoHidden } from "./shellEdges.js";
+import { watchFloats } from "./shellFloat.js";
+
+const HIDDEN_CLASS = "hidden";
+
+function paintImporting(snap = getQueueSnapshot()) {
+  const btn = document.getElementById("importingBtn");
+  const label = document.getElementById("importingLabel");
+  if (!btn || !label) return;
+  const count = snap ? queueCount(snap) : 0;
+  btn.classList.toggle(HIDDEN_CLASS, count === 0);
+  label.textContent = t("shell.importing", { count });
+}
+
+function onImportingClick() {
+  showQueueView();
+}
+
+// Shown means neither hidden by the user (inspector.js) nor stepped aside for the waveforms.
+function paintToolsToggle() {
+  const shown = !document.querySelector(".app")?.classList.contains(TOOLS_HIDDEN_CLASS) && !isToolsAutoHidden();
+  document.getElementById("inspectorToggleBtn")?.setAttribute("aria-pressed", String(shown));
+}
+
+function watchToolsToggle() {
+  const app = document.querySelector(".app");
+  if (!app) return;
+  new MutationObserver(paintToolsToggle).observe(app, { attributes: true, attributeFilter: ["class"] });
+  paintToolsToggle();
+}
+
+export function initShell() {
+  wireComposerDrawer();
+  document.getElementById("importingBtn")?.addEventListener("click", onImportingClick);
+  onQueueChange(paintImporting);
+  onLanguageChange(() => paintImporting());
+  paintImporting();
+  watchToolsToggle();
+  watchFloats();
+}

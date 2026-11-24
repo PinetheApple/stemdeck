@@ -15,8 +15,7 @@ import {
   seedCatalogState,
   stubImportQueue,
   stubServerTrash,
-  stubUpdateCheck,
-} from "./helpers.mjs";
+  stubUpdateCheck, openComposer } from "./helpers.mjs";
 
 const ROCK = "f-rock";
 const UNSORTED = "f-unsorted";
@@ -345,6 +344,7 @@ test.describe("a re-import from the import form", () => {
       posted.push(route.request().postDataJSON());
       return route.fulfill({ status, json: status === 200 ? { job_id: SIBLING_JOB_ID } : { detail: "busy" } });
     });
+    await openComposer(page);
     await page.locator("#url").fill(url);
     await page.locator("#submit").click();
     await expect.poll(() => posted.length).toBe(1);

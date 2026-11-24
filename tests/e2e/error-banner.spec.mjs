@@ -3,7 +3,7 @@
 // neither read nor closed when a failure gave it no "Try again".
 
 import { test, expect } from "@playwright/test";
-import { openStudio, waitForPanesSettled } from "./helpers.mjs";
+import { openStudio, showSongTools, waitForPanesSettled } from "./helpers.mjs";
 
 async function failAnExport(page) {
   await page.locator("#t-export-btn").click();
@@ -33,10 +33,12 @@ test.describe("the error box", () => {
     await expect(box).toBeHidden();
   });
 
-  for (const width of [620, 900]) {
+  // Both narrow enough, with the song tools kept open, for the lanes to stack the box above the song.
+  for (const width of [800, 900]) {
     test(`in a ${width} px window it sits above the song, covering no control`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await openStudio(page);
+      await showSongTools(page);
       await waitForPanesSettled(page);
       await page.evaluate(async () => (await import("/js/job.js")).showError("Something failed."));
       const box = page.locator("#error");

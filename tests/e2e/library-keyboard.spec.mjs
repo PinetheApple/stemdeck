@@ -237,7 +237,7 @@ test.describe("touch", () => {
 test.describe("other song lists", () => {
   test("Favourites rove the same way", async ({ page }) => {
     await openLibrary(page, { favorite: true });
-    await page.locator(".rail-favorites").click();
+    await page.locator(".lib-nav-favorites").click();
     await expect(songRow(page, JOB_ID)).toBeVisible();
     expect(await rowTabStops(page, LIBRARY_ROWS)).toBe(1);
 
@@ -263,7 +263,7 @@ test.describe("other song lists", () => {
 
   test("the Trash is one Tab stop and a held Enter still restores", async ({ page }) => {
     const { trash } = await openLibrary(page, { trashed: [JOB_ID, SIBLING_JOB_ID] });
-    await page.locator(".rail-trash").click();
+    await page.locator(".lib-nav-trash").click();
     await expect(songRow(page, SIBLING_JOB_ID)).toBeVisible();
     expect(await rowTabStops(page, SONG_ROW)).toBe(1);
 

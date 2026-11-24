@@ -1,0 +1,276 @@
+/* The desktop shell: top bar, sidebar, pane edges, scrim and scrollbars.
+   Loaded last, so it wins over the older layout rules in daw.css and studio.css. */
+
+/* ── Top bar: one row ── */
+.daw .topbar {
+  height: var(--topbar-h);
+  min-height: var(--topbar-h);
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 0 var(--s-3);
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-spacer { flex: 1; min-width: var(--s-2); }
+.topbar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-left: var(--s-1);
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-2);
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-heavy);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.topbar-brand:hover { background: var(--surface-2); }
+.topbar-brand img { display: block; width: var(--brand-mark); height: var(--brand-mark); }
+
+.topbar-iconbtn,
+.topbar-btn {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  height: var(--ctl-h);
+  border: 1px solid transparent;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.topbar-iconbtn { width: var(--ctl-h); padding: 0; }
+.topbar-iconbtn .ic { width: var(--icon-lg); height: var(--icon-lg); }
+.topbar-btn { padding: 0 var(--s-3); border-color: var(--line-strong); color: var(--text); }
+.topbar-btn.topbar-quiet { border-color: transparent; color: var(--text-2); }
+.topbar-iconbtn:hover,
+.topbar-btn:hover { background: var(--surface-2); color: var(--text); }
+.topbar-iconbtn[aria-pressed="true"],
+.topbar-iconbtn[aria-expanded="true"]:not([aria-pressed]),
+.topbar-btn[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); }
+.topbar .daw-notif-badge { top: var(--s-1); right: var(--s-1); }
+
+.topbar-offline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-pill);
+  color: var(--warn);
+  background: var(--warn-soft);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+}
+
+/* ── Import bar, under the top bar while Add song is on ── */
+.composer-drawer {
+  flex: none;
+  display: flex;
+  padding: var(--s-2) var(--s-3);
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.composer-drawer[hidden] { display: none; }
+.composer-drawer > .daw-composer-stack { flex: 1; min-width: 0; padding: 0; }
+
+/* ── Sidebar: the library, or a strip of covers when collapsed ── */
+.daw .sidebar { width: var(--library-w); flex-direction: column; }
+.daw .sidebar-body { flex: 1; min-height: 0; }
+.daw.cat-collapsed .sidebar { width: var(--sidebar-strip-w); }
+.daw.cat-collapsed .sidebar-body { display: none; }
+.daw.cat-collapsed .cat-collapsed-strip {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3) 0;
+  overflow-y: auto;
+}
+.strip-nav { display: none; }
+.daw.cat-collapsed .strip-nav {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+.strip-nav-btn {
+  display: grid;
+  place-items: center;
+  width: var(--ctl-h);
+  height: var(--ctl-h);
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.strip-nav-btn:hover { background: var(--surface-2); color: var(--text); }
+.strip-nav-btn.hidden { display: none; }
+.strip-nav-btn .ic { width: var(--icon-lg); height: var(--icon-lg); }
+
+.cat-collapsed-strip .strip-thumb {
+  flex: none;
+  width: var(--strip-cover);
+  height: var(--strip-cover);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: var(--line-w-strong) solid transparent;
+  border-radius: var(--r-1);
+  background: var(--surface-2);
+  color: var(--text-3);
+  cursor: pointer;
+}
+.cat-collapsed-strip .strip-thumb:hover { border-color: var(--line-strong); }
+.cat-collapsed-strip .strip-thumb.active { border-color: var(--accent); }
+.cat-collapsed-strip .strip-thumb :is(img, svg) { width: 100%; height: 100%; display: block; object-fit: cover; }
+
+.lib-nav {
+  flex: none;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--s-1);
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--line);
+}
+.lib-nav-btn {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-0);
+  padding: var(--s-1) var(--s-0);
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+.lib-nav-btn > span:not(.lib-nav-count) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-nav-btn:hover { background: var(--surface-2); color: var(--text); }
+.lib-nav-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.lib-nav-btn.hidden { display: none; }
+.lib-nav-btn.drop-target { outline: var(--line-w-strong) dashed var(--accent); }
+.lib-nav-count {
+  position: absolute;
+  top: 0;
+  right: var(--s-1);
+  min-width: var(--badge-h);
+  height: var(--badge-h);
+  padding: 0 var(--s-1);
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--fs-2xs);
+  line-height: var(--badge-h);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.lib-nav-count.hidden { display: none; }
+
+/* ── Pane edges: the stem controls column and the song tools ── */
+.daw-content { position: relative; }
+.pane-edge {
+  z-index: var(--z-pane-edge);
+  width: var(--pane-handle-w);
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+}
+.pane-edge::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: calc((var(--pane-handle-w) - var(--pane-handle-line)) / 2);
+  width: var(--pane-handle-line);
+  background: transparent;
+  transition: background var(--t-fast);
+}
+.pane-edge:hover::after,
+.pane-edge:focus-visible::after,
+.pane-edge.is-dragging::after { background: var(--accent); }
+.pane-edge:focus-visible { outline: none; }
+/* Above the lane headers and waveforms it sits between. */
+.stems-resizer {
+  z-index: var(--z-pane-edge-lanes);
+  position: absolute;
+  inset-block: 0;
+  left: calc(var(--daw-col-w) - var(--pane-handle-w) / 2);
+}
+.inspector-resizer {
+  position: relative;
+  flex: none;
+  margin-right: calc(-1 * var(--pane-handle-w));
+}
+.daw.inspector-hidden .inspector-resizer,
+.daw.tools-auto-hidden :is(.inspector, .inspector-resizer),
+.daw.stage-mode .pane-edge,
+.daw.no-track .stems-resizer { display: none; }
+.app.is-sizing .sidebar,
+.app.is-sizing .inspector { transition: none; }
+
+/* ── Song tools: the Lyrics button ── */
+.tools-lyrics-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  align-self: flex-start;
+  margin: 0 var(--s-3) var(--s-2);
+  padding: var(--s-1) var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+.tools-lyrics-btn:hover { background: var(--surface-2); color: var(--text); }
+.tools-lyrics-btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+
+/* ── Menus and popovers never run past the window; taller ones scroll ── */
+.shell-float {
+  max-height: calc(100vh - 2 * var(--float-edge));
+  overflow-y: auto;
+}
+
+/* ── Every dialog dims the page the same way ── */
+.about-backdrop,
+.library-editor-backdrop,
+.folder-editor-backdrop,
+.reset-confirm-backdrop,
+.batch-scrim { background: var(--scrim); }
+
+/* ── The layer for new menus, popovers and dialogs ── */
+.overlay-root { position: fixed; inset: 0; z-index: var(--z-overlay-root); pointer-events: none; }
+.overlay-root > * { pointer-events: auto; }
+
+/* ── Thin scrollbars without a track ── */
+* { scrollbar-width: thin; scrollbar-color: var(--surface-4) transparent; }
+::-webkit-scrollbar { width: var(--scrollbar-w); height: var(--scrollbar-w); }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface-4); border-radius: var(--r-pill); }

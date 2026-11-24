@@ -75,7 +75,7 @@ async function queueWithImport(page, sourceUrl) {
   const queue = await stubImportQueue(page, QUEUED_ID, "Importing", { sourceUrl });
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await queue.run();
-  await page.locator(".rail-queue").click();
+  await page.locator(".lib-nav-queue").click();
   const cancel = page.locator(`.queue-row[data-id="${QUEUED_ID}"] .queue-cancel`);
   await expect(cancel).toBeVisible();
   return { calls, cancel };
@@ -119,7 +119,7 @@ test.describe("Empty trash", () => {
     await stubServerTrash(page, { trashed: [JOB_ID, SIBLING_JOB_ID] });
     const calls = await stubLibraryWrites(page, { failDelete });
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await page.locator(".rail-trash").click();
+    await page.locator(".lib-nav-trash").click();
 
     const empty = page.locator("#clearBinBtn");
     await empty.click();
@@ -151,7 +151,7 @@ test("Empty trash says so when the device cannot record what it deleted", async 
   await stubServerTrash(page, { trashed: [SIBLING_JOB_ID] });
   await stubLibraryWrites(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator(".rail-trash").click();
+  await page.locator(".lib-nav-trash").click();
 
   const empty = page.locator("#clearBinBtn");
   await empty.click();

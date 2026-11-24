@@ -98,7 +98,7 @@ async function setUp(page, { server = SERVER, extra = {} } = {}) {
   await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
-  await page.locator(".rail-lyrics").click();
+  await page.locator("#songToolsLyricsBtn").click();
   if (server) await expect(page.locator(".lyrics-line")).toHaveCount(4);
   return { lrclib };
 }

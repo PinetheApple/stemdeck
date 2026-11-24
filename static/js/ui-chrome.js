@@ -3,6 +3,8 @@
 // Loaded as a module (deferred), so the DOM is parsed before this runs.
 
 import { disarmClearSections } from "./sections.js";
+import { keepInWindow } from "./shellFloat.js";
+import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
 
 // Upload button → trigger the hidden file input.
 document.getElementById("uploadFileBtn")?.addEventListener("click", () => {
@@ -14,30 +16,9 @@ const notifBtn = document.getElementById("notifBtn");
 const notifWrap = notifBtn?.closest(".daw-notif-wrap");
 const notifPanel = notifWrap?.querySelector(".daw-notif-panel");
 
-/**
- * Put the panel beside the bell, top edges level.
- *
- * It cannot simply hang off .daw-notif-wrap. The bell lives in the library
- * rail, .sidebar is overflow:hidden, and it narrows to the rail's 66px when
- * the library is collapsed, so an absolutely positioned panel is clipped to
- * nothing in that state. Fixed escapes the clip and pays for it by needing its
- * coordinates set here, which is the same trade the search dropdown and the
- * metronome popover already make.
- *
- * Measured while shown: a display:none panel has no height to clamp against.
- */
+/** Under the bell, inside the window; fixed so no ancestor's overflow clips it. */
 function placeNotifPanel() {
-  if (!notifBtn || !notifPanel) return;
-  const r = notifBtn.getBoundingClientRect();
-  // Clear of the rail, not of the button: the button is 40px centred in a 66px
-  // column, so measuring from its own right edge tucks the panel back under
-  // the rail by the leftover margin.
-  const column = notifBtn.closest(".sidebar-rail") || notifBtn;
-  notifPanel.style.left = `${Math.round(column.getBoundingClientRect().right + 10)}px`;
-  // Level with the bell, and only pulled up from there if the panel would
-  // otherwise hang off the bottom of a short window.
-  const lowest = window.innerHeight - notifPanel.offsetHeight - 12;
-  notifPanel.style.top = `${Math.round(Math.max(12, Math.min(r.top, lowest)))}px`;
+  if (notifBtn && notifPanel) keepInWindow(notifPanel, notifBtn);
 }
 
 function setNotifOpen(open) {
@@ -65,6 +46,15 @@ document.addEventListener("click", (e) => {
     setNotifOpen(false);
   }
 });
+
+function onNotifEscape(e) {
+  if (e.key !== ESCAPE_KEY || !notifWrap?.classList.contains("open") || !escapeIsFor(LAYER.FLOAT)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  setNotifOpen(false);
+  notifBtn?.focus();
+}
+document.addEventListener("keydown", onNotifEscape);
 
 // Panel toggles (#480). Each one hides a region that is useful but not useful
 // all the time, and hands its height to the mixer, which is the panel that

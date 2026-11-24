@@ -11,8 +11,7 @@ import {
   readCatalogState,
   seedCatalogState,
   stubUpdateCheck,
-  uiText,
-} from "./helpers.mjs";
+  uiText, openComposer } from "./helpers.mjs";
 import { YT, review, stubImports, stubPreview } from "./batchImport.mjs";
 
 const UNSORTED_ID = "f-unsorted";
@@ -61,6 +60,7 @@ async function dragFolderAbove(page, draggedId, targetId) {
 }
 
 async function importLink(page, link) {
+  await openComposer(page);
   await page.locator("#url").fill(link);
   await page.locator("#submit").click();
 }

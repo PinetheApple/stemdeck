@@ -81,7 +81,7 @@ test("a queue row cancels with an X, apart from the library's trash can", async 
   });
   await page.goto("/", { waitUntil: "domcontentloaded" });
 
-  await page.locator(".rail-queue").click();
+  await page.locator(".lib-nav-queue").click();
   const cancel = page.locator(`.queue-row[data-id="${RUNNING_ID}"] .queue-cancel`);
   await expect(cancel).toBeVisible();
   // Cancelling deletes the import's files and binning keeps them: the same
@@ -99,9 +99,9 @@ test("trashing an import that is still running refreshes the queue at once", asy
 
   // The first read has to have landed, or the page does not yet know the
   // track is in the queue and has no reason to refresh it.
-  await page.locator(".rail-queue").click();
+  await page.locator(".lib-nav-queue").click();
   await expect(page.locator(`.queue-row[data-id="${RUNNING_ID}"]`)).toBeVisible();
-  await page.locator(".rail-library").click();
+  await page.locator(".lib-nav-library").click();
 
   // The row's actions only take the pointer on hover (#724).
   const row = page.locator(`.cat-item[data-id="${RUNNING_ID}"]`);
@@ -111,28 +111,27 @@ test("trashing an import that is still running refreshes the queue at once", asy
   await expect.poll(() => seen.queueReadsAfterTrash).toBeGreaterThan(0);
   // The stream is aborted, so only the refresh the trash asked for can have
   // told the page the queue is empty, which hides the queue button.
-  await expect(page.locator(".rail-queue")).toHaveClass(/(^| )hidden( |$)/);
+  await expect(page.locator(".lib-nav-queue")).toHaveClass(/(^| )hidden( |$)/);
 });
 
-test("the queue button is named by the label it shows, in every language", async ({ page }) => {
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+test("the queue buttons are named by the label they show, in every language", async ({ page }) => {
   await seedRunningImport(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".rail-queue")).toBeVisible();
+  const button = page.locator(".lib-nav-queue");
+  const strip = page.locator(".strip-nav-queue");
+  await expect(button).toBeVisible();
+  const codes = await page.evaluate(async () => (await import("/js/i18n.js")).LANGUAGES.map(({ code }) => code));
 
   // Speech-input users say the label they see; the name has to start with it.
-  const mismatches = await page.evaluate(async () => {
-    const { LANGUAGES, setLanguage } = await import("/js/i18n.js");
-    const btn = document.querySelector(".rail-queue");
-    const found = [];
-    for (const { code } of LANGUAGES) {
-      await setLanguage(code);
-      const label = btn.querySelector("[data-i18n]").textContent.trim();
-      for (const attr of ["aria-label", "title"]) {
-        const name = btn.getAttribute(attr);
-        if (!name.startsWith(label)) found.push(`${code} ${attr}: "${name}" vs "${label}"`);
-      }
-    }
-    return found;
-  });
-  expect(mismatches).toEqual([]);
+  for (const code of codes) {
+    await page.evaluate(async (c) => (await import("/js/i18n.js")).setLanguage(c), code);
+    const label = (await button.locator("[data-i18n]").textContent()).trim();
+    const startsWithLabel = new RegExp(`^${escapeRegExp(label)}`);
+    await expect(button, code).toHaveAccessibleName(startsWithLabel);
+    await expect(button, code).toHaveAttribute("title", startsWithLabel);
+    await expect(strip, code).toHaveAttribute("aria-label", startsWithLabel);
+    await expect(strip, code).toHaveAttribute("title", startsWithLabel);
+  }
 });

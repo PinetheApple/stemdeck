@@ -16,8 +16,7 @@ import {
   seedCatalogState,
   stubExportEndpoints,
   stubImportQueue,
-  stubUpdateCheck,
-} from "./helpers.mjs";
+  stubUpdateCheck, openComposer } from "./helpers.mjs";
 
 test.use({ viewport: { width: 1600, height: 900 } });
 
@@ -42,6 +41,7 @@ async function startImport(page) {
   await stubUpdateCheck(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
+  await openComposer(page);
   await page.locator("#url").fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
   await page.locator("#submit").click();
   await queue.run();

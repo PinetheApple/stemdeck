@@ -26,6 +26,9 @@ import { initHelpMode } from "./helpMode.js";
 import { initAutoScroll } from "./autoScroll.js";
 import { initInspector } from "./inspector.js";
 import { initLibraryResize } from "./libraryResize.js";
+import { initShellEdges } from "./shellEdges.js";
+import { initShell } from "./shell.js";
+import { openComposer } from "./composerDrawer.js";
 import { initUpNext, renderUpNext } from "./upNext.js";
 import { initMediaSession } from "./mediaSession.js";
 import { initStageMode } from "./stageMode.js";
@@ -498,13 +501,14 @@ wireAutoSectionsToggle();
 wireFileDrop();
 wireBatchImport();
 wireEmptyStart();
-wireAppShellControls();
+initShell();
 initFooterFit();
 initArtistInfo();
 initLyrics();
 initHelpMode();
 initAutoScroll();
 initInspector();
+initShellEdges();
 initLibraryResize();
 // Before Up Next, which reports its first count as it starts.
 initMediaSession();
@@ -813,9 +817,7 @@ function wireEmptyStart() {
     document.getElementById("uploadFileBtn")?.click();
   });
   document.getElementById("emptyStartFolder")?.addEventListener("click", pickFolder);
-  document.getElementById("emptyStartLink")?.addEventListener("click", function onEmptyStartLink() {
-    document.getElementById("url")?.focus();
-  });
+  document.getElementById("emptyStartLink")?.addEventListener("click", openComposer);
 }
 
 // ─── Folders: picked, or dropped with their subfolders ───
@@ -892,6 +894,7 @@ function wireFileDrop() {
   let dropErrorTimer = null;
   function showDropError(message) {
     if (!dropError) return;
+    openComposer();
     dropError.textContent = message;
     dropError.classList.remove("hidden");
     urlWrap.classList.add("has-drop-error");
@@ -1191,24 +1194,6 @@ function wireFileDrop() {
     const bytes = await invoke("read_dropped_file", { id: description.id });
     return new File([bytes], description.name);
   }
-}
-
-// ─── App shell controls ───
-
-function wireAppShellControls() {
-  document.getElementById("appMenuBtn")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const app = document.querySelector(".app");
-    // In trash view: switch back to library.
-    if (document.querySelector(".sidebar.trash-view, .sidebar.favorites-view")) {
-      document.querySelector(".rail-library")?.click();
-    }
-    // If collapsed: open. Never collapse from the library button.
-    if (app?.classList.contains("cat-collapsed")) {
-      document.getElementById("catalogToggle")?.click();
-    }
-  });
-
 }
 
 // ─── Keyboard shortcuts ───

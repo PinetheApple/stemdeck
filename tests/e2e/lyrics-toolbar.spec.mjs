@@ -7,6 +7,7 @@ import {
   LYRICS_LOOKUP,
   fixtureTrack,
   seedCatalogState,
+  showSongTools,
   stubAudioTags,
   stubExportEndpoints,
   stubUpdateCheck,
@@ -63,7 +64,8 @@ async function setUp(page, { server = found(), viewport = WIDE, expectLine = tru
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
-  await page.locator(".rail-lyrics").click();
+  await showSongTools(page);
+  await page.locator("#songToolsLyricsBtn").click();
   if (expectLine) await expect(page.locator(".lyrics-line").first()).toHaveText("Server one");
   return { deletes };
 }

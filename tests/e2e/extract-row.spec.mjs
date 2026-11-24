@@ -9,7 +9,7 @@
 // (#658). These assert the row agrees with itself on the path a click never
 // touches.
 import { test, expect } from "@playwright/test";
-import { seedLibrary, stubExportEndpoints, stubUpdateCheck } from "./helpers.mjs";
+import { openComposer, seedLibrary, stubExportEndpoints, stubUpdateCheck } from "./helpers.mjs";
 
 const SEL_KEY = "stemdeck:selected-stems";
 
@@ -40,6 +40,7 @@ async function openWithStoredSelection(page, stems) {
     [SEL_KEY, stems],
   );
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  await openComposer(page);
   // The selection is restored asynchronously, so the row is only settled once
   // the chips show the stored value rather than the all-stems default.
   await expect

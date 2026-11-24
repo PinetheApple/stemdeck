@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openStudio, waitForClickTrack } from "./helpers.mjs";
+import { openStudio, showSongTools, waitForClickTrack } from "./helpers.mjs";
 
 const STORE_KEY = "stemdeck.inspector.hidden";
 const WIDE_WINDOW = { width: 1600, height: 900 };
@@ -37,13 +37,13 @@ async function openWide(page) {
 
 async function expectShown(page) {
   await expect(inspectorOf(page)).toBeVisible();
-  await expect(toggleOf(page)).toHaveAttribute("aria-expanded", "true");
+  await expect(toggleOf(page)).toHaveAttribute("aria-pressed", "true");
 }
 
 async function expectHidden(page) {
   await expect(inspectorOf(page)).toBeHidden();
   await expect(toggleOf(page)).toBeVisible();
-  await expect(toggleOf(page)).toHaveAttribute("aria-expanded", "false");
+  await expect(toggleOf(page)).toHaveAttribute("aria-pressed", "false");
 }
 
 async function stageRoundTrip(page) {
@@ -58,7 +58,7 @@ async function stageRoundTrip(page) {
 test.describe("inspector hide and show", () => {
   test("the toggle hides and shows it, keeping its name and state", async ({ page }) => {
     await openWide(page);
-    await expect(toggleOf(page)).toHaveAccessibleName("Toggle song tools");
+    await expect(toggleOf(page)).toHaveAccessibleName("Show or hide song tools");
     await expect(toggleOf(page)).toHaveAttribute("aria-controls", "inspector");
     await expectShown(page);
 
@@ -149,6 +149,7 @@ test.describe("inspector hide and show", () => {
         await page.setViewportSize(size);
         await openStudio(page);
         await waitForClickTrack(page);
+        await showSongTools(page);
 
         const cutOff = await page.evaluate(async ({ language, labels }) => {
           const { setLanguage } = await import("/js/i18n.js");
@@ -191,7 +192,7 @@ test.describe("inspector hide and show", () => {
         grid: t("click.grid"),
         nudge: t("tempo.nudgeAmount", { ms: 10 }),
         nudgeTitle: t("tempo.nudgeEarlierTitle", { ms: 10 }),
-        toggle: t("inspector.toggle"),
+        toggle: t("shell.toggleTools"),
       };
     });
     expect(strings.beatOne).not.toBe("Beat 1 here");

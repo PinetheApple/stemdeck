@@ -114,7 +114,7 @@ async function boot(page, { audioTags = TAGS, kept = null, lookups = null, keeps
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator(".cat-item").first().waitFor({ timeout: LIBRARY_SHOWN_MS });
   await openTrack(page, JOB_ID);
-  await page.locator(".rail-lyrics").click();
+  await page.locator("#songToolsLyricsBtn").click();
   return writes;
 }
 

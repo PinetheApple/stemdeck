@@ -1,5 +1,9 @@
-import { $, storeGet, storeSet, storeSetDebounced } from "./utils.js";
+// The sidebar's edge, and collapsing the sidebar when a song needs the room.
+
+import { $ } from "./utils.js";
 import { isSidebarCollapsed, setSidebarCollapsed } from "./catalog.js";
+import { PANE_LIMITS } from "./paneEdgeMath.js";
+import { FIT_ORDER, createShellEdge, queueShellFit, waveSpare } from "./shellEdges.js";
 
 const WIDTH_STORE_KEY = "stemdeck.library.width";
 // localStorage like the catalog's collapsed flag: both are read synchronously at startup,
@@ -8,31 +12,8 @@ const AUTO_COLLAPSED_KEY = "stemdeck.library.autoCollapsed";
 const AUTO_COLLAPSED_STORED = "1";
 const COLLAPSED_CLASS = "cat-collapsed";
 const WIDTH_VAR = "--library-w";
-const TRACK_LABELS_WIDTH_VAR = "--daw-col-w";
-const SIZING_CLASS = "is-sizing";
-const DRAGGING_CLASS = "is-dragging";
 
-// The floor of --library-w, so a pane on its default width can always go back to it.
-const MIN_WIDTH_PX = 232;
-const MAX_WIDTH_PX = 560;
-// A readable stretch of waveform beside the stem tracks' label column.
-const MIN_TIMELINE_WIDTH_PX = 360;
-const KEYBOARD_STEP_PX = 16;
-
-let handle = null;
-let panes = null;
 let sidebar = null;
-let rail = null;
-let inspector = null;
-
-// What the user chose; null means the token's default. Kept apart from the width on
-// screen so a window too small for it shrinks the pane without losing the choice.
-let preferredWidth = null;
-let fitQueued = false;
-let dragStartX = 0;
-let dragStartWidth = 0;
-let dragStartPreferred = null;
-let dragMoved = false;
 let app = null;
 let collapseWatcher = null;
 // Collapsing is only weighed once a song is open, so the library's own saved state lands first.
@@ -41,46 +22,8 @@ let hadRoom = true;
 let autoCollapsed = false;
 let userKeptOpen = false;
 
-function minTracksWidth() {
-  const labels = getComputedStyle(document.documentElement).getPropertyValue(TRACK_LABELS_WIDTH_VAR);
-  return parseFloat(labels) + MIN_TIMELINE_WIDTH_PX;
-}
-
-function roomForLibrary() {
-  return panes.clientWidth - rail.offsetWidth - inspector.offsetWidth - minTracksWidth();
-}
-
-function maxWidth() {
-  return Math.max(MIN_WIDTH_PX, Math.min(MAX_WIDTH_PX, roomForLibrary()));
-}
-
-function clampWidth(px) {
-  return Math.round(Math.max(MIN_WIDTH_PX, Math.min(maxWidth(), px)));
-}
-
-function measuredWidth() {
-  return sidebar.offsetWidth - rail.offsetWidth;
-}
-
-function renderWidth() {
-  const next = preferredWidth === null ? "" : `${clampWidth(preferredWidth)}px`;
-  if (sidebar.style.getPropertyValue(WIDTH_VAR) === next) return;
-  sidebar.classList.add(SIZING_CLASS);
-  sidebar.style.setProperty(WIDTH_VAR, next);
-  // Lays out now, while the width transition is off, so the pane tracks the pointer.
-  void sidebar.offsetWidth;
-  sidebar.classList.remove(SIZING_CLASS);
-}
-
-function syncAria() {
-  handle.setAttribute("aria-valuemin", String(MIN_WIDTH_PX));
-  handle.setAttribute("aria-valuemax", String(maxWidth()));
-  const handleShown = handle.getClientRects().length > 0;
-  if (handleShown) handle.setAttribute("aria-valuenow", String(measuredWidth()));
-}
-
 function hasRoomForLibrary() {
-  return roomForLibrary() >= MIN_WIDTH_PX;
+  return sidebar.offsetWidth + waveSpare() >= PANE_LIMITS.sidebar.min;
 }
 
 function readAutoCollapsed() {
@@ -102,23 +45,11 @@ function writeAutoCollapsed(collapsed) {
   }
 }
 
-function clearAutoCollapsed() {
-  if (autoCollapsed) writeAutoCollapsed(false);
-}
-
 // Drops this module's own class change, so only the user's toggles reach onCollapseChange.
 function setCollapsedForRoom(collapsed) {
   setSidebarCollapsed(collapsed);
   collapseWatcher.takeRecords();
   writeAutoCollapsed(collapsed);
-}
-
-function collapseForRoom() {
-  setCollapsedForRoom(true);
-}
-
-function reopenWithRoom() {
-  setCollapsedForRoom(false);
 }
 
 function onCollapseChange(records) {
@@ -127,133 +58,37 @@ function onCollapseChange(records) {
   if (collapsed === was) return;
   // The catalog restoring a collapse this module made, at startup, is not the user overruling it.
   if (collapsed && autoCollapsed && !watchingRoom) return;
-  clearAutoCollapsed();
+  if (autoCollapsed) writeAutoCollapsed(false);
   userKeptOpen = !collapsed && !hasRoomForLibrary();
 }
 
 function fitLibraryToRoom() {
+  // Stage mode hides the panes beside the lanes, which would inflate the room.
+  if (document.querySelector(".app.stage-mode")) return;
   const hasRoom = hasRoomForLibrary();
-  if (hasRoom && autoCollapsed) reopenWithRoom();
+  if (hasRoom && autoCollapsed) setCollapsedForRoom(false);
   if (!watchingRoom) return;
-  if (!hasRoom && hadRoom && !userKeptOpen && !isSidebarCollapsed()) collapseForRoom();
+  if (!hasRoom && hadRoom && !userKeptOpen && !isSidebarCollapsed()) setCollapsedForRoom(true);
   hadRoom = hasRoom;
-}
-
-function fitWidth() {
-  // Stage mode hides the rail and inspector, which would inflate maxWidth().
-  if (!rail.offsetWidth) return;
-  fitLibraryToRoom();
-  renderWidth();
-  syncAria();
 }
 
 function onFirstTrackOpen() {
   watchingRoom = true;
-  fitWidth();
-}
-
-function queueFit() {
-  if (fitQueued) return;
-  fitQueued = true;
-  requestAnimationFrame(() => {
-    fitQueued = false;
-    fitWidth();
-  });
-}
-
-function chooseWidth(px) {
-  preferredWidth = clampWidth(px);
-  fitWidth();
-}
-
-function saveWidthNow() {
-  storeSet(WIDTH_STORE_KEY, preferredWidth);
-  // Replaces a pending arrow-key write, which would otherwise land after this one.
-  storeSetDebounced(WIDTH_STORE_KEY, preferredWidth);
-}
-
-function onHandlePointerMove(e) {
-  const next = clampWidth(dragStartWidth + e.clientX - dragStartX);
-  dragMoved = next !== dragStartWidth;
-  preferredWidth = dragMoved ? next : dragStartPreferred;
-  fitWidth();
-}
-
-// Follows pointerup and pointercancel alike, so a cancelled drag still cleans up.
-function onHandleLostCapture() {
-  handle.removeEventListener("pointermove", onHandlePointerMove);
-  handle.removeEventListener("lostpointercapture", onHandleLostCapture);
-  handle.classList.remove(DRAGGING_CLASS);
-  if (dragMoved) saveWidthNow();
-}
-
-function onHandlePointerDown(e) {
-  if (e.button !== 0) return;
-  dragStartX = e.clientX;
-  dragStartWidth = measuredWidth();
-  dragStartPreferred = preferredWidth;
-  dragMoved = false;
-  handle.setPointerCapture(e.pointerId);
-  handle.classList.add(DRAGGING_CLASS);
-  handle.addEventListener("pointermove", onHandlePointerMove);
-  handle.addEventListener("lostpointercapture", onHandleLostCapture);
-}
-
-function resetWidth() {
-  preferredWidth = null;
-  fitWidth();
-  saveWidthNow();
-}
-
-function onHandleKeydown(e) {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    resetWidth();
-    return;
-  }
-  const direction = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
-  if (!direction) return;
-  e.preventDefault();
-  const current = measuredWidth();
-  if (clampWidth(current + direction * KEYBOARD_STEP_PX) === current) return;
-  chooseWidth(current + direction * KEYBOARD_STEP_PX);
-  storeSetDebounced(WIDTH_STORE_KEY, preferredWidth);
-}
-
-async function restoreWidth() {
-  const saved = await storeGet(WIDTH_STORE_KEY, null);
-  if (!Number.isFinite(saved)) return;
-  preferredWidth = saved;
-  fitWidth();
-}
-
-function watchCollapse() {
-  collapseWatcher = new MutationObserver(onCollapseChange);
-  collapseWatcher.observe(app, { attributes: true, attributeFilter: ["class"], attributeOldValue: true });
+  queueShellFit();
 }
 
 export function initLibraryResize() {
-  handle = $("libraryResizer");
-  panes = document.querySelector(".daw-panes");
+  const handle = $("libraryResizer");
   sidebar = $("catalogPanel");
-  rail = sidebar?.querySelector(".sidebar-rail");
-  inspector = $("inspector");
   app = document.querySelector(".app");
-  if (!handle || !panes || !sidebar || !rail || !inspector || !app) return;
-
-  handle.addEventListener("pointerdown", onHandlePointerDown);
-  handle.addEventListener("dblclick", resetWidth);
-  handle.addEventListener("keydown", onHandleKeydown);
+  if (!handle || !sidebar || !app) return;
+  createShellEdge({
+    order: FIT_ORDER.SIDEBAR, afterFit: fitLibraryToRoom, handle, cssVar: WIDTH_VAR, ...PANE_LIMITS.sidebar,
+    storeKey: WIDTH_STORE_KEY, measure: () => sidebar.offsetWidth,
+  });
   document.addEventListener("trackopen", onFirstTrackOpen, { once: true });
   autoCollapsed = readAutoCollapsed();
-  watchCollapse();
-
-  // The sidebar reports reopening and leaving Stage mode.
-  const observer = new ResizeObserver(queueFit);
-  observer.observe(panes);
-  observer.observe(sidebar);
-  observer.observe(inspector);
-
-  fitWidth();
-  restoreWidth().catch(console.error);
+  collapseWatcher = new MutationObserver(onCollapseChange);
+  collapseWatcher.observe(app, { attributes: true, attributeFilter: ["class"], attributeOldValue: true });
+  new ResizeObserver(queueShellFit).observe(sidebar);
 }

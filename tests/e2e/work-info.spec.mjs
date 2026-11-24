@@ -16,8 +16,7 @@ import {
   stubAudioTags,
   stubExportEndpoints,
   stubImportQueue,
-  stubUpdateCheck,
-} from "./helpers.mjs";
+  stubUpdateCheck, openComposer } from "./helpers.mjs";
 
 // Wide enough for the now-playing card, which the bar hides below 1460px.
 test.use({ viewport: { width: 1600, height: 900 } });
@@ -336,6 +335,7 @@ test.describe("the work a soundtrack is from", () => {
     const queue = await stubImportQueue(page, JOB_ID);
     const tagAsks = await openPage(page, { [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, "E2E Fixture Track (again)") });
 
+    await openComposer(page);
     await page.locator("#url").fill("https://www.youtube.com/watch?v=6Nn8rBmhDjE");
     await page.locator("#submit").click();
     await queue.run();

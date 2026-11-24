@@ -133,7 +133,7 @@ test.describe("studio", () => {
 
   test("a song restored during the move goes back to the Trash and says to wait for it", async ({ page }) => {
     const moving = await openLibrary(page, JOB_ID);
-    await page.locator(".rail-trash").click();
+    await page.locator(".lib-nav-trash").click();
     const row = page.locator(`#catalogList .cat-item.in-trash[data-id="${JOB_ID}"]`);
     const box = await row.boundingBox();
 
@@ -149,7 +149,7 @@ test.describe("studio", () => {
   test("Empty trash refused for the move keeps the songs and says to wait for it", async ({ page }) => {
     const moving = await openLibrary(page, JOB_ID);
     await page.route(JOB_URL, refuseDeletes);
-    await page.locator(".rail-trash").click();
+    await page.locator(".lib-nav-trash").click();
 
     await page.locator("#clearBinBtn").click();
     await page.locator("#clearBinBtn").click();

@@ -14,8 +14,7 @@ import {
   stubFavorites,
   stubLongQueue,
   stubUpdateCheck,
-  tabTo,
-} from "./helpers.mjs";
+  tabTo, openComposer } from "./helpers.mjs";
 
 const MIN_TARGET_PX = 24;
 const USER_FOLDER_ID = "f-live";
@@ -33,7 +32,7 @@ async function openLongQueue(page) {
   await stubLongQueue(page);
   await openApp(page);
   await page.evaluate(() => import("/js/queue.js").then((m) => m.refreshQueue()));
-  await page.locator(".rail-queue").click();
+  await page.locator(".lib-nav-queue").click();
   await expect(page.locator(".queue-top").first()).toBeAttached();
 }
 
@@ -116,6 +115,7 @@ const PLAYLIST_PREVIEW = {
 };
 
 async function openPlaylistReview(page) {
+  await openComposer(page);
   const url = page.locator("#url");
   await url.fill(PLAYLIST_URL);
   await url.press(KEY.ENTER);
@@ -155,6 +155,7 @@ test.describe("more dialogs and Esc", () => {
       await close();
       await expect(page.locator("#batchReview")).toHaveCount(0);
       await expect(page.locator("#url")).toBeFocused();
+      await openComposer(page);
       await page.locator("#url").fill("");
     }
 
