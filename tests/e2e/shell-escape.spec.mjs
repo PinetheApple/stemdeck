@@ -3,6 +3,7 @@
 
 import { test, expect } from "@playwright/test";
 import { openStudio } from "./helpers.mjs";
+import { openSettings } from "./settingsHelpers.mjs";
 
 const SHORT_WINDOW = { width: 1024, height: 240 };
 const EDGE_PX = 8;
@@ -38,9 +39,8 @@ async function stubQueue(page) {
 }
 
 async function openSettingsMenu(page) {
-  await page.locator("#settingsBtn").click();
-  await expect(settingsDialog(page)).toBeVisible();
-  await page.locator(".library-editor select.set-language").click();
+  const general = await openSettings(page);
+  await general.locator("select.set-language").click();
   await expect(listbox(page)).toBeVisible();
 }
 
