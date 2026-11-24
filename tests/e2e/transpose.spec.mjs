@@ -223,7 +223,7 @@ test.describe("transpose", () => {
     await expect(value(page)).toHaveText("+2");
 
     await clearRoutes(page);
-    // Dropped on the lanes, the open song loads again; a click or double-click on it would not.
+    // Only a drop on the lanes reloads the open song.
     await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dragTo(page.locator("#lanes"));
     await expect.poll(() => recentInputs(page)).toContain(ZERO_INPUT + 2);
     await expect(value(page)).toHaveText("+2");

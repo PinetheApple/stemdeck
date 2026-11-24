@@ -51,6 +51,7 @@ import { initUpNextButton } from "./footerTransport.js";
 import { paintSectionLine } from "./footerSections.js";
 import { SPEED_MIN, SPEED_MAX, SPEED_STEP, SPEED_NOTCH, TIMES_SIGN, clampSpeed, nextNotch, parseSpeedInput } from "./speedInput.js";
 import { trackPlayhead, resumeFollowing } from "./autoScroll.js";
+import { MIN_WAVES_PX } from "./paneEdgeMath.js";
 import { startMediaAnchor, pauseMediaAnchor } from "./mediaSession.js";
 
 // Zoom range. 1 is the whole track fitted to the panel; there is nothing below
@@ -80,7 +81,7 @@ const WAVE_ZOOM_STEP = 1.18;
 const DRAG_OUT_SELECTOR = "[data-loop-drag-out], [data-lane-drag-out]";
 // Below this visible width the waveform stops compressing to fit and instead
 // keeps a minimum size, overflowing horizontally so .wave-scroll can scroll.
-const WAVE_MIN_WIDTH = 720;
+const WAVE_MIN_WIDTH = MIN_WAVES_PX;
 // rulerTime is the canonical timeline reference for both click->time
 // and time->pixel mapping. The wave-editor lays the ruler and the
 // waveform body out so they should be horizontally aligned (both gutter
@@ -895,7 +896,7 @@ export function setWaveZoomLevel(next, anchorClientX = null) {
     : (waveScroll ? waveScroll.clientWidth / 2 : 0);
   const contentX = (waveScroll?.scrollLeft ?? 0) + offsetX;
   // Measured, not derived from the zoom ratio. WAVE_MIN_WIDTH floors the
-  // content width, so on a window narrower than 720px a zoom step can widen the
+  // content width, so on a window narrower than that a zoom step can widen the
   // content by less than its own factor -- or not at all -- and scaling by the
   // ratio would slide the anchor out from under the pointer.
   const beforeWidth = waveCanvas?.getBoundingClientRect().width || 0;

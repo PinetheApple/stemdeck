@@ -10,6 +10,9 @@
 import { test, expect } from "@playwright/test";
 import { openStudio, waitForPanesSettled, SIBLING_JOB_ID } from "./helpers.mjs";
 
+const BOTH_PANES_WINDOW = { width: 1600, height: 900 };
+const MAX_ZOOM = 10;
+
 const wheel = (page, dy, x = 900, y = 400) =>
   page.mouse.move(x, y).then(() => page.mouse.wheel(0, dy));
 
@@ -87,8 +90,7 @@ const waveSurferCanvases = (page) =>
   });
 
 // Deliberately wide: the bar-count maths only has room to prove itself when the
-// panel can hold a few hundred bars, and a lanes column under the 720px floor
-// would open already widened past the fitted view.
+// panel can hold a few hundred bars.
 test.use({ viewport: { width: 1920, height: 1080 } });
 
 test.describe("waveform zoom", () => {
@@ -99,6 +101,20 @@ test.describe("waveform zoom", () => {
     expect(s.content).toBe(s.viewport);
     expect(s.loopDisabled).toBe(false);
     expect(s.loopStartDisabled).toBe(false);
+  });
+
+  test("with the library and song tools open, a song still opens fitted and reaches 10x", async ({ page }) => {
+    await page.setViewportSize(BOTH_PANES_WINDOW);
+    await openStudio(page, { tauri: true });
+    await waitForPanesSettled(page);
+    await expect(page.locator(".app")).not.toHaveClass(/cat-collapsed/);
+    await expect(page.locator("#inspector")).toBeVisible();
+    const fitted = await zoomState(page);
+    expect(fitted.zoomVar).toBeCloseTo(1, 2);
+    expect(fitted.content).toBe(fitted.viewport);
+
+    for (let i = 0; i < 40; i++) await wheel(page, -240);
+    expect((await zoomState(page)).zoomVar).toBeCloseTo(MAX_ZOOM, 2);
   });
 
   test("scrolling up zooms in and scrolling down comes back", async ({ page }) => {
@@ -236,13 +252,13 @@ test.describe("waveform zoom", () => {
     expect(bounds.end - bounds.start).toBeLessThan(0.2);
   });
 
-  // WAVE_MIN_WIDTH floors the content width at 720px, so on a narrow window the
+  // WAVE_MIN_WIDTH floors the content width, so on a narrow window the
   // first zoom step can widen the content by less than its own factor, or not at
   // all. Deriving the scroll correction from the zoom ratio rather than the
   // measured width slides the anchor out from under the pointer exactly here.
-  // 1150px leaves the wave area narrower than that floor.
+  // 600px leaves the wave area narrower than that floor.
   test("the anchor holds where the minimum wave width floors the growth", async ({ page }) => {
-    await page.setViewportSize({ width: 1150, height: 800 });
+    await page.setViewportSize({ width: 600, height: 800 });
     await openStudio(page, { tauri: true });
     await waitForPanesSettled(page);
     const rect = await page.locator(".wave-scroll").boundingBox();
