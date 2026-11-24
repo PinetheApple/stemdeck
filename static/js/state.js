@@ -11,6 +11,7 @@ export const urlInput = $("url");
 export const submitBtn = $("submit");
 
 export const playBtn = $("t-play");
+export const PLAY_BUTTON_PLAYING_CLASS = "playing";
 export const playMiniBtn = $("t-play-mini");
 export const stopBtn = $("t-stop");
 export const loopBtn = $("t-loop");
@@ -22,6 +23,9 @@ export const timeEl = $("t-time");
 export const masterFader = $("t-master");
 export const speedFader = $("t-speed");
 export const speedValueBox = $("t-speed-value");
+export const speedReadout = $("t-speed-readout");
+export const speedDownBtn = $("t-speed-down");
+export const speedUpBtn = $("t-speed-up");
 export const pitchDownBtn = $("t-pitch-down");
 export const pitchUpBtn = $("t-pitch-up");
 export const pitchValueEl = $("t-pitch-value");
@@ -54,7 +58,6 @@ export const presenceRulerEl = $("presence-ruler");
 export const presencePlayheadEl = $("presence-playhead");
 export const footerTimeElapsed = $("footer-time-elapsed");
 export const footerTimeTotal = $("footer-time-total");
-export const footerWaveTicks = $("footer-wave-ticks");
 export const loopStartInput = $("t-loop-start");
 export const loopEndInput = $("t-loop-end");
 export const metroBtn = $("t-metro");
@@ -107,7 +110,7 @@ export let currentVersionId = DEFAULT_VERSION_ID;
 // another track must not break the running import's Cancel button.
 export let foregroundJobId = null;
 
-// `mixerState` is mutated in place (never reassigned). renderMixerRow's
+// `mixerState` is mutated in place (never reassigned). The lane headers'
 // closures capture each entry by reference, so on a new job we merge
 // localStorage values into the existing objects rather than replacing them.
 export const mixerState = {};
@@ -218,10 +221,6 @@ export function setWaveZoom(v) { waveZoom = v; }
 export function setVuRafId(v) { vuRafId = v; }
 export function setMasterBusGain(v) { masterBusGain = v; }
 export function setMasterLimiter(v) { masterLimiter = v; }
-
-// Footer waveform draw callback — set by player.js, called by transport.js
-export let footerWaveDrawFn = null;
-export function setFooterWaveDrawFn(fn) { footerWaveDrawFn = fn; }
 
 // Redraws the overview bars at the current zoom. Registered by player.js, which
 // owns the renderer, and called by transport.js, which owns the zoom. Passed as

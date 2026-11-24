@@ -337,15 +337,8 @@
 .rec-problem p { margin: 0; flex: 1; min-width: 0; font: var(--fw-medium) var(--fs-xs) / 1.35 var(--font-sans); color: var(--text); }
 .rec-problem .settings-btn { flex-shrink: 0; cursor: pointer; }
 
-/* Footer: Record sits in Transport after Next. Red dot idle; red pill with the time while recording. */
-.rec-btn.daw-iconbtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--s-1);
-  cursor: pointer;
-}
-.rec-btn.daw-iconbtn:disabled { cursor: not-allowed; }
+/* Footer: Record before the practice group. Red dot idle; red pill with the time while recording. */
+.rec-btn:disabled { cursor: not-allowed; }
 .rec-btn.is-saving .rec-btn-dot { animation: rec-saving-pulse var(--t-flash) ease-in-out infinite alternate; }
 @keyframes rec-saving-pulse { to { opacity: 0.35; } }
 .rec-btn .rec-btn-dot {
@@ -357,10 +350,10 @@
 }
 .rec-btn:disabled .rec-btn-dot { background: var(--text-4); }
 .rec-btn-time:empty { display: none; }
-.footer-group-transport .daw-iconbtn.btn-transport.rec-btn.is-recording,
-.footer-group-transport .daw-iconbtn.btn-transport.rec-btn.is-counting {
-  width: auto;
+.rec-btn.is-recording,
+.rec-btn.is-counting {
   padding: 0 var(--s-2);
+  border-color: transparent;
   border-radius: var(--r-pill);
   background: var(--rec-live);
   color: var(--accent-ink);
@@ -454,3 +447,13 @@
 .rec-menu .lib-menu-item:disabled .ic { color: var(--text-3); }
 .rec-menu .lib-menu-sep { height: 1px; margin: var(--s-1) 0; background: var(--line); }
 .rec-menu .lib-menu-item[aria-checked="true"] { color: var(--accent); }
+/* rowMenu.js keeps VIEWPORT_MARGIN_PX (--s-2) clear of each window edge; long entries ellipsize. */
+.rec-menu.lib-menu { max-width: calc(100vw - 2 * var(--s-2)); }
+.rec-menu a.lib-menu-item { text-decoration: none; }
+.rec-menu .row-menu-hint {
+  flex: none;
+  margin-left: auto;
+  padding-left: var(--s-3);
+  color: var(--text-3);
+  font: var(--fw-medium) var(--fs-xs) / 1 var(--font-mono);
+}

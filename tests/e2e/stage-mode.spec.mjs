@@ -14,6 +14,9 @@ import {
   LYRICS_LOOKUP,
   LYRICS_REMOVED,
   answerLyricsChoice,
+  openSpeedOptions,
+  openInspectorTab,
+  TAB_STORE_KEY,
 } from "./helpers.mjs";
 import { dblclickFrozen } from "./saveRaces.mjs";
 
@@ -263,10 +266,11 @@ test.describe("stage mode counter", () => {
   test("keeps to the song's own time at a slowed speed", async ({ page }) => {
     await setUp(page, { grid: gridAnswer(fixtureBeats(), [{ beat: 0, beats_per_bar: 4 }]) });
     await waitForGrid(page);
+    await openSpeedOptions(page);
     await page.locator("#t-speed-value").fill(String(SLOWED_SPEED));
     await page.locator("#t-speed-value").press("Enter");
     await enterStage(page);
-    await page.locator("#stagePlayBtn").click();
+    await page.locator("#t-play").click();
     const songTime = () => page.evaluate(async () => (await import("/js/transport.js")).transport().getCurrentTime());
     await expect.poll(songTime, { timeout: 15000 }).toBeGreaterThan(BAR_SEC);
 
@@ -320,7 +324,7 @@ test.describe("stage mode lyrics", () => {
     await setUp(page, { lyrics: { [JOB_ID]: SERVER_LYRICS } });
     await enterStage(page);
     await expect(ui(page).next).toHaveText("Line one");
-    await page.locator("#stagePlayBtn").click();
+    await page.locator("#t-play").click();
     await expect(ui(page).lyric).toHaveText("Line one", { timeout: 15000 });
   });
 
@@ -362,7 +366,7 @@ test.describe("stage mode lyrics", () => {
     await page.route("**/lyrics/user-synced", (route) => route.fulfill({ status: 200, json: {} }));
     const plain = { ...lyricsOf("Fixture Song", "", "Plain one\nPlain two"), source: "user" };
     await setUp(page, { lyrics: { [JOB_ID]: plain } });
-    await page.locator(".rail-lyrics").click();
+    await openInspectorTab(page, "lyrics");
     await page.locator(".lyrics-sync-toggle").click();
     await expect(page.locator("#lyricsSync")).toBeVisible();
     await enterStage(page);
@@ -394,7 +398,7 @@ test.describe("stage mode lyrics", () => {
   test("repaint while paused when the Align offset moves them", async ({ page }) => {
     await page.route("**/lyrics/offset", (route) => route.fulfill({ status: 200, json: {} }));
     await setUp(page, { lyrics: { [JOB_ID]: lyricsOf("Fixture Song", "[00:01.00] Line one\n[00:03.00] Line three") } });
-    await page.locator(".rail-lyrics").click();
+    await openInspectorTab(page, "lyrics");
     await page.locator(".lyrics-align-toggle").click();
     await enterStage(page);
     await seekShows(page, 1.2, ui(page).lyric, "Line one");
@@ -407,7 +411,7 @@ test.describe("stage mode lyrics", () => {
   test("repaint while paused when Sync lines moves them", async ({ page }) => {
     await page.route("**/lyrics/user-synced", (route) => route.fulfill({ status: 200, json: {} }));
     await setUp(page, { lyrics: { [JOB_ID]: lyricsOf("Fixture Song", "[00:01.00] Line one\n[00:03.00] Line three") } });
-    await page.locator(".rail-lyrics").click();
+    await openInspectorTab(page, "lyrics");
     await page.locator(".lyrics-sync-toggle").click();
     await enterStage(page);
     await seekShows(page, 1.2, ui(page).lyric, "Line one");
@@ -492,7 +496,7 @@ test.describe("stage mode and the Lyrics tab's load", () => {
     await expect(ui(page).next).toHaveText("Other one");
     await page.locator("#stageExitBtn").click();
 
-    await page.locator(".rail-lyrics").click();
+    await openInspectorTab(page, "lyrics");
     await expect(page.locator(".lyrics-line")).toHaveText(["Other one"]);
     await expect(page.locator(".lyrics-match-title")).toHaveText("Other Song");
     expect(errors).toEqual([]);
@@ -538,6 +542,8 @@ test.describe("stage mode and the Lyrics tab's load", () => {
   });
 
   test("a load left behind by a switch saves nothing under the new track, and runs again on return", async ({ page }) => {
+    // Another tab in the song tools, so Stage is what first reads the lyrics.
+    await page.addInitScript((key) => localStorage.setItem(key, JSON.stringify("tempo")), TAB_STORE_KEY);
     const firstLoad = heldPromise();
     let gate = Promise.resolve();
     const { choices } = await setUp(page, {
@@ -566,7 +572,7 @@ test.describe("stage mode and the Lyrics tab's load", () => {
   test("a version picked in the visible tab is saved to its track", async ({ page }) => {
     const live = { ...lyricsOf("Fixture Song", "", "Live words"), album: "Live", lrclib_id: 2 };
     const { choices } = await setUp(page, { lyrics: { [JOB_ID]: { ...SERVER_LYRICS, others: [live] } } });
-    await page.locator(".rail-lyrics").click();
+    await openInspectorTab(page, "lyrics");
     await page.locator(".lyrics-versions-toggle").click();
     await page.locator(".lyrics-version", { hasText: "Live" }).click();
 

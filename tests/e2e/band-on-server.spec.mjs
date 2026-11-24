@@ -11,6 +11,7 @@ import {
   stubAudioTags,
   stubExportEndpoints,
   stubUpdateCheck,
+  openBrowse,
 } from "./helpers.mjs";
 
 // Wide enough for the now-playing card, which the bar hides below 1460px.
@@ -152,7 +153,8 @@ async function boot(page) {
   await stubUpdateCheck(page);
   await stubAudioTags(page, null);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
+  // A song the server does not list is in no sidebar group, so the sidebar's first drawn entry will do.
+  await page.locator("#catalogList :is(.cat-item, .sidebar-empty)").first().waitFor({ timeout: 20000 });
 }
 
 async function reboot(page) {
@@ -653,10 +655,10 @@ test.describe("a band the upload left unsent", () => {
     await uploadFinished(page);
     expect(await heldBands(page)).toEqual({ [SIBLING_JOB_ID]: heldEntry });
 
-    await page.locator(".rail-trash").click();
+    await openBrowse(page, "trash");
     // Empty trash asks first: the second click deletes.
-    await page.locator("#clearBinBtn").click();
-    await page.locator("#clearBinBtn").click();
+    await page.locator("#browseEmptyTrash").click();
+    await page.locator("#browseEmptyTrash").click();
 
     await expect.poll(() => heldBands(page)).toEqual({});
   });

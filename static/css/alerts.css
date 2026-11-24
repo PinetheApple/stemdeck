@@ -1,0 +1,6 @@
+:root {
+  /* Above the studio and Stage, below every dialog (Settings is the lowest). */
+  --alerts-layer: 75;
+}
+
+.daw-notif-panel { z-index: var(--alerts-layer); }

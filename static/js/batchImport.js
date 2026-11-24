@@ -1,11 +1,8 @@
-// batchImport.js — several songs at once. The bar holds the batch as a chip and a
-// review list under it says what each item is before anything is queued.
-
-import { t, plural } from "./i18n.js";
+import { t, plural, onLanguageChange } from "./i18n.js";
 import { selectedStems } from "./state.js";
 import {
-  FileReadError, ITEM_KIND, ITEM_STATUS, MAX_BATCH_FILES, MAX_BATCH_LINKS, PATH_SEP, capEntries, capLines, fileItems,
-  formatBytes, isLoaded, isPastedList, isTickable, isUploadable, linkItems, lookingUpItems, markUnchecked,
+  FileReadError, ITEM_KIND, ITEM_STATUS, SOURCE, capEntries, capLines, fileItems,
+  formatBytes, isPastedList, isTickable, isUploadable, linkItems, lookingUpItems, markUnchecked,
   pastedLines, previewNames, queueItems, queuePlan, sendFileItem,
 } from "./batchImportModel.js";
 import {
@@ -13,19 +10,20 @@ import {
   readableError, refreshSubmitLabel, registerLinkRow, registerUploadRow, setIdleSubmitLabel,
 } from "./job.js";
 import { addPlaylistToLibrary } from "./catalog.js";
+import { closeComposer, openComposer } from "./composerDrawer.js";
 import { looksLikePlaylist } from "./playlist.js";
+import { mountReviewBadge, paintReviewBadge } from "./reviewBadge.js";
 import { onResendNotQueued, recordBatch, setBatchNotQueued } from "./queue.js";
 import { icon } from "./libraryIcons.js";
-import { folderRow, groupRow, itemRow, moreRow, reviewShell, rowView } from "./batchReviewRows.js";
+import { reviewShell } from "./batchReviewRows.js";
+import { headText, listRows, notes } from "./batchReviewContent.js";
+import { lengthOf } from "./batchDuration.js";
 import {
-  closePanel, focusFirst, focusedControl, mountPanel, placePanel, restoreFocus, returnFocus, reviewPanel,
+  closePanel, focusFirst, focusedControl, mountPanel, restoreFocus, returnFocus, reviewPanel,
 } from "./batchReviewPanel.js";
 
 const PREVIEW_URL = "/api/import/preview";
 const JSON_HEADERS = { "Content-Type": "application/json" };
-const SOURCE = Object.freeze({ LINKS: "links", FILES: "files", FOLDER: "folder" });
-const CHILDREN_SHOWN = 3;
-const DURATION_READ_TIMEOUT_MS = 5000;
 
 let batch = null;
 
@@ -33,6 +31,12 @@ const urlInput = () => document.getElementById("url");
 const urlWrap = () => document.querySelector(".url-wrap");
 const structureOn = () => document.getElementById("autoSectionsBtn")?.getAttribute("aria-pressed") === "true";
 const isCurrent = (target) => batch === target;
+const waitingCount = () => (batch && !reviewPanel() ? batch.items.length : 0);
+
+function refreshBatchLabels() {
+  refreshSubmitLabel();
+  paintReviewBadge(waitingCount());
+}
 const liveChoice = () => ({
   stems: [...selectedStems],
   autoSections: structureOn(),
@@ -51,6 +55,8 @@ export function setImportPill({ kind = null, name, size }) {
   document.getElementById("fileName").textContent = name;
   document.getElementById("fileSize").textContent = size;
   pill.classList.remove("hidden");
+  // One file is staged in Add song, so it opens; a batch is shown in its review instead.
+  if (!batch) openComposer();
   urlWrap()?.classList.add("has-file");
   urlInput().value = "";
   urlInput().removeAttribute("required");
@@ -88,7 +94,7 @@ export function clearBatch() {
   replaceBatch(null);
   setBatchNotQueued(0);
   closePanel({ refocus: false });
-  refreshSubmitLabel();
+  refreshBatchLabels();
 }
 
 function finishBatch() {
@@ -148,7 +154,7 @@ export function startFileBatch(entries, { folder = null, readFile = null, measur
 
 function begin(fetchPreview) {
   refreshPill();
-  refreshSubmitLabel();
+  refreshBatchLabels();
   openReview();
   fetchPreview(batch);
 }
@@ -182,7 +188,7 @@ async function fetchLinkPreview(target) {
   }
   target.loading = false;
   refreshPill();
-  refreshSubmitLabel();
+  refreshBatchLabels();
   renderReview();
 }
 
@@ -227,29 +233,6 @@ function retryPreview() {
   fetchFilePreview(batch);
 }
 
-function readDuration(file) {
-  return new Promise((resolve) => {
-    const audio = document.createElement("audio");
-    const src = URL.createObjectURL(file);
-    const timer = setTimeout(onDurationSettled, DURATION_READ_TIMEOUT_MS);
-    function onDurationSettled() {
-      clearTimeout(timer);
-      URL.revokeObjectURL(src);
-      resolve(Number.isFinite(audio.duration) ? audio.duration : null);
-      audio.removeAttribute("src");
-    }
-    audio.preload = "metadata";
-    audio.addEventListener("loadedmetadata", onDurationSettled, { once: true });
-    audio.addEventListener("error", onDurationSettled, { once: true });
-    audio.src = src;
-  });
-}
-
-const lengthOf = (target, file) => {
-  if (isLoaded(file)) return readDuration(file);
-  return target.measure ? target.measure(file) : null;
-};
-
 /** Length is checked here: the server only sees file names until upload. A file
  *  known only by its description is measured by `measure`, or not at all. */
 async function readDurations(target) {
@@ -268,6 +251,8 @@ async function readDurations(target) {
 export function openReview() {
   if (!batch) return;
   mountPanel({ onChange: onReviewChange, onClick: onReviewClick, closed: onReviewClosed });
+  paintReviewBadge(waitingCount());
+  closeComposer();
   renderReview();
   focusFirst();
 }
@@ -276,25 +261,7 @@ const stemObserver = new MutationObserver(renderFooter);
 
 function onReviewClosed() {
   stemObserver.disconnect();
-}
-
-function headText() {
-  if (batch.source === SOURCE.LINKS) {
-    const links = plural("batch.links", batch.linkCount);
-    const songs = plural("batch.songs", batch.items.length);
-    return { title: batch.loading ? links : t("batch.songsFromLinks", { songs, links }), sub: t("batch.pastedList") };
-  }
-  const files = plural("batch.files", batch.items.length);
-  if (batch.source === SOURCE.FILES) return { title: files, sub: "" };
-  const nested = batch.entries.some((e) => e.dir.includes(PATH_SEP));
-  return { title: t("batch.filesIn", { files, folder: batch.name }), sub: nested ? t("batch.subfolders") : "" };
-}
-
-function notes() {
-  const out = [];
-  if (batch.refused && batch.source === SOURCE.LINKS) out.push(plural("batch.overCap", batch.refused, { max: MAX_BATCH_LINKS }));
-  else if (batch.refused) out.push(plural("batch.overCapFiles", batch.refused, { max: MAX_BATCH_FILES }));
-  return out;
+  paintReviewBadge(waitingCount());
 }
 
 export function renderReview() {
@@ -306,41 +273,10 @@ export function renderReview() {
   );
   const focus = focusedControl();
   const error = batch.error && !batch.loading ? t("batch.previewFailed", { message: batch.error }) : null;
-  panel.replaceChildren(...reviewShell({ ...headText(), notes: notes(), error }));
-  panel.querySelector(".batch-review-list").append(...listRows());
+  panel.replaceChildren(...reviewShell({ ...headText(batch), notes: notes(batch), error }));
+  panel.querySelector(".batch-review-list").append(...listRows(batch));
   renderFooter();
-  placePanel();
   restoreFocus(focus);
-}
-
-function listRows() {
-  const rows = [];
-  const seenGroups = new Set();
-  let lastDir = null;
-  for (const item of batch.items) {
-    if (batch.source === SOURCE.FOLDER && item.dir !== lastDir) {
-      rows.push(folderRow(item.dir));
-      lastDir = item.dir;
-    }
-    if (!item.group) rows.push(itemRow(item, rowView(item, batch.maxDurationSec)));
-    else if (!seenGroups.has(item.group)) {
-      seenGroups.add(item.group);
-      rows.push(...groupRows(batch.groups.find((g) => g.key === item.group)));
-    }
-  }
-  return rows;
-}
-
-function groupRows(group) {
-  const children = batch.items.filter((i) => i.group === group.key);
-  const tickable = children.filter(isTickable);
-  const ticked = tickable.filter((i) => i.ticked).length;
-  const rows = [groupRow(group, { count: children.length, ticked, tickable: tickable.length })];
-  if (group.collapsed) return rows;
-  const shown = group.showAll ? children : children.slice(0, CHILDREN_SHOWN);
-  for (const child of shown) rows.push(itemRow(child, { ...rowView(child, batch.maxDurationSec), child: true }));
-  if (shown.length < children.length) rows.push(moreRow(group.key, children.length - shown.length));
-  return rows;
 }
 
 function renderFooter() {
@@ -478,7 +414,7 @@ function showWhatIsLeft(items) {
     return;
   }
   refreshPill();
-  refreshSubmitLabel();
+  refreshBatchLabels();
   renderReview();
 }
 
@@ -552,4 +488,6 @@ export function wireBatchImport() {
   interceptSubmit(interceptBatchSubmit);
   setIdleSubmitLabel(batchSubmitLabel);
   onResendNotQueued(resendLeftOut);
+  mountReviewBadge(openReview);
+  onLanguageChange(refreshBatchLabels);
 }

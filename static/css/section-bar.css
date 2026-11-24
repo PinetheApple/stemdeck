@@ -1,0 +1,99 @@
+/* Section blocks over the lanes, the columns that carry each one down through them, and the
+   lyric line under the blocks. Neutral tiles: coral marks only the section playing and the one looping. */
+
+:root {
+  --sec-gap: 2px;
+  --sec-loop-size: calc(var(--icon) + var(--s-2));
+  --sec-col-line: color-mix(in srgb, var(--text) 7%, transparent);
+  --sec-col-current: color-mix(in srgb, var(--text) 4%, transparent);
+  --sec-loop-hover: color-mix(in srgb, var(--text) 14%, transparent);
+  --sec-handle-hover: color-mix(in srgb, var(--text) 12%, transparent);
+  --sec-loop-ring: 2px;
+}
+
+.daw-sections-track .section-block {
+  top: var(--s-1);
+  bottom: var(--s-1);
+  gap: var(--s-1);
+  padding: 0 var(--s-1) 0 var(--s-2);
+  border: 0;
+  border-inline: var(--sec-gap) solid transparent;
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  background-clip: padding-box;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+  container-type: inline-size;
+}
+.daw-sections-track .section-block:hover { background: var(--surface-3); color: var(--text); }
+.daw-sections-track .section-block.is-current { background: var(--accent-soft); color: var(--accent-hi); }
+.daw-sections-track .section-block.is-looped { box-shadow: inset 0 0 0 var(--sec-loop-ring) var(--accent); }
+.daw-sections-track .section-block.sec-dragging,
+.daw-sections-track .section-block.sec-resizing { background: var(--surface-3); z-index: 1; }
+.daw-sections-track .section-block.sec-dragging { cursor: grabbing; }
+
+.daw-sections-track .section-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 0;
+  color: inherit;
+  font: var(--fw-bold) var(--fs-xs) / 1 var(--font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.section-time { flex: none; margin-left: auto; padding-right: var(--s-1); font-size: var(--fs-2xs); color: var(--text-3); }
+.section-lock-mark { flex: none; display: grid; place-items: center; color: var(--danger); }
+
+.section-loop {
+  flex: none;
+  display: none;
+  place-items: center;
+  width: var(--sec-loop-size);
+  height: var(--sec-loop-size);
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.section-loop .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.section-loop:hover { background: var(--sec-loop-hover); }
+.section-loop[aria-pressed="true"] { color: var(--accent); }
+.section-block:hover .section-loop,
+.section-block.is-looped .section-loop { display: grid; }
+.section-block:hover .section-time,
+.section-block.is-looped .section-time { display: none; }
+/* Below these widths the loop button, then the start time, give way so the name stays legible. */
+@container (max-width: 96px) {
+  .section-block:hover .section-loop,
+  .section-block.is-looped .section-loop { display: none; }
+}
+@container (max-width: 104px) {
+  .section-time { display: none; }
+}
+
+.daw-sections-track .section-handle:hover { background: var(--sec-handle-hover); }
+
+.section-cols { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.section-col { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--sec-col-line); }
+.section-col.is-current { background: var(--sec-col-current); }
+
+.daw-ruler-area { display: flex; flex-direction: column; }
+.daw-ruler-area .lanes-ruler { margin-top: auto; }
+.lyric-ticker {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-4);
+  min-width: 0;
+  margin: 0;
+  padding: var(--s-2) var(--s-3) 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.lyric-ticker-now,
+.lyric-ticker-next { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.lyric-ticker-now { flex: 0 1 auto; font: var(--fw-heavy) var(--fs-lg) / 1.3 var(--font-sans); color: var(--text); }
+.lyric-ticker-next { flex: 1 1 0; font-size: var(--fs-md); color: var(--text-3); }

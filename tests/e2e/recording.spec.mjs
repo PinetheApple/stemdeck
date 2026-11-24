@@ -1,7 +1,7 @@
 // Recording tracks and takes, on Chromium's fake microphone.
 import { test, expect } from "@playwright/test";
 import { SELECTED_ROW_CLASS } from "../../static/js/rovingRows.js";
-import { JOB_ID, SIBLING_JOB_ID, TRACK_TITLE, exportUi, openStudio } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, TRACK_TITLE, exportUi, openStudio, openSpeedOptions, waitForPanesSettled } from "./helpers.mjs";
 import { openSong } from "./saveRaces.mjs";
 
 test.use({
@@ -29,9 +29,7 @@ const IMPORT_JOB_ID = "e2eimport0001";
 const IMPORT_URL = "https://example.com/song";
 // player.js WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT: the floor no lane goes under.
 const STEM_FLOOR_PX = 72;
-// The 24 px minimum target, as dialog-keyboard.spec checks it.
-const MIN_TARGET_PX = 24;
-const ALL_ARROW_HITS = [true, true, true, true];
+const ALL_EDGE_HITS = [true, true, true, true];
 // Well under recorder.js's TEARDOWN_WAIT_MS (500), so a wait that ran would show.
 const FAST_PATH_MAX_MS = 100;
 const EXPORT_ROUTE = /\/(mixdown\.wav|stems\/all\.zip)\?/;
@@ -124,10 +122,13 @@ test("+ Track stays above the footer on a short window", async ({ page }) => {
   expect(add.y + add.height).toBeLessThanOrEqual(footer.y);
 });
 
+// Fractional heights (rows, the footer) leave sub-pixel rounding between boxes.
+const SUBPIXEL_PX = 0.5;
+
 // Every mixer row with its name, M, S and fader inside the row.
 const headersFit = (page) =>
-  page.evaluate(() => {
-    const inside = (r, box) => r.top >= box.top - 0.5 && r.bottom <= box.bottom + 0.5;
+  page.evaluate((tolerance) => {
+    const inside = (r, box) => r.top >= box.top - tolerance && r.bottom <= box.bottom + tolerance;
     const rows = [...document.querySelectorAll(".mixer-column .lane-header.mx-row:not(.rec-take-row)")]
       .filter((row) => row.offsetHeight);
     const clipped = rows.filter(function partClipped(row) {
@@ -136,7 +137,7 @@ const headersFit = (page) =>
       return parts.some((el) => !el || !inside(el.getBoundingClientRect(), box));
     });
     return { rows: rows.length, clipped: clipped.length };
-  });
+  }, SUBPIXEL_PX);
 
 const laneHeight = async (page) =>
   Number.parseFloat(
@@ -146,27 +147,27 @@ const laneHeight = async (page) =>
 async function expectAddRowAboveFooter(page) {
   const add = await page.locator(".rec-add-row").boundingBox();
   const footer = await page.locator(".daw-footer").boundingBox();
-  expect(add.y + add.height).toBeLessThanOrEqual(footer.y);
+  expect(add.y + add.height).toBeLessThanOrEqual(footer.y + SUBPIXEL_PX);
 }
 
-// As dialog-keyboard.spec: each arrow answers MIN_TARGET_PX away from the K, at its edge and at the far end.
-async function keyArrowHits(page, stem) {
-  const lane = page.locator(`.lane-key[data-stem="${stem}"]`);
+// A lane's ⋯ (EQ, Key and Stem on a short lane) answers across its whole box, not covered by + Track.
+async function moreButtonHits(page, stem) {
+  const more = page.locator(`.lane-header[data-stem="${stem}"] .lane-more`);
   // Centred, so the sticky + Track row is not over the lane being probed.
-  await lane.evaluate((el) => el.scrollIntoView({ block: "center" }));
-  const up = await lane.locator(".lane-key-step.up").boundingBox();
-  const down = await lane.locator(".lane-key-step.down").boundingBox();
-  const upYs = [up.y + up.height - 1, up.y + up.height - MIN_TARGET_PX + 1];
-  const downYs = [down.y + 1, down.y + MIN_TARGET_PX - 1];
+  await more.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  const box = await more.boundingBox();
+  const midX = box.x + box.width / 2;
+  const midY = box.y + box.height / 2;
+  // Edge midpoints: hit-testing follows the rounded corners.
+  const edges = [
+    [box.x + 1, midY],
+    [box.x + box.width - 1, midY],
+    [midX, box.y + 1],
+    [midX, box.y + box.height - 1],
+  ];
   return page.evaluate(
-    ({ upX, upYs, downX, downYs }) => {
-      const hit = (x, y, sel) => Boolean(document.elementFromPoint(x, y)?.closest(sel));
-      return [
-        ...upYs.map((y) => hit(upX, y, ".lane-key-step.up")),
-        ...downYs.map((y) => hit(downX, y, ".lane-key-step.down")),
-      ];
-    },
-    { upX: up.x + up.width / 2, upYs, downX: down.x + down.width / 2, downYs },
+    (points) => points.map(([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest(".lane-more"))),
+    edges,
   );
 }
 
@@ -186,7 +187,7 @@ test("a song with no tracks keeps the stems' lane height, + Track at the end of 
   await expectAddRowAboveFooter(page);
 });
 
-test("six stems and two recording tracks keep the lane floor and every K arrow's full target", async ({ page }) => {
+test("six stems and two recording tracks keep the lane floor and every lane's ⋯ in reach", async ({ page }) => {
   await page.setViewportSize(SHORT_WINDOW);
   await openStudio(page);
   await addArmedTrack(page);
@@ -200,7 +201,8 @@ test("six stems and two recording tracks keep the lane floor and every K arrow's
   expect(stems).toHaveLength(STEM_ROWS);
   const usable = stems.filter((lane) => lane.usable).map((lane) => lane.stem);
   expect(usable.length).toBeGreaterThan(0);
-  for (const stem of usable) expect(await keyArrowHits(page, stem), stem).toEqual(ALL_ARROW_HITS);
+  await waitForPanesSettled(page);
+  for (const stem of usable) await expect.poll(() => moreButtonHits(page, stem), { message: stem }).toEqual(ALL_EDGE_HITS);
 });
 
 test("Record waits for a recording track and says so", async ({ page }) => {
@@ -480,6 +482,7 @@ test("a song switch with nothing recording does not wait for a take", async ({ p
 test("Record is off at other speeds and says why", async ({ page }) => {
   await openStudio(page);
   await addArmedTrack(page);
+  await openSpeedOptions(page);
   await page.locator("#t-speed-value").fill(SLOW_SPEED);
   await page.locator("#t-speed-value").press("Enter");
   await expect(recordBtn(page)).toBeDisabled();

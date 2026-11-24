@@ -1,7 +1,7 @@
 // Section, grid and tempo saves that fail say so. A refused one goes back to what the
 // server keeps; a lost one stays, marked unsaved, until it reaches the server.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, openStudio, uiText } from "./helpers.mjs";
+import { JOB_ID, openStudio, addSection, uiText } from "./helpers.mjs";
 import { PROBE_INTERVAL_MS } from "../../static/js/connection.js";
 import {
   FAILED_SAVES,
@@ -51,7 +51,6 @@ async function failGridReloads(page) {
   });
 }
 
-const addSection = (page) => page.locator("#sectionsAddBtn").click();
 const sectionCount = (request) => savedSections(request, JOB_ID).then((s) => s.length);
 
 test.describe("sections", () => {

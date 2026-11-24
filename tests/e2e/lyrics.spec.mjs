@@ -23,6 +23,7 @@ import {
   stubUpdateCheck,
   stubLyricsLookup,
   LYRICS_LOOKUP,
+  openInspectorTab,
 } from "./helpers.mjs";
 
 const LRCLIB = LYRICS_LOOKUP;
@@ -102,11 +103,12 @@ async function open(page) {
 }
 
 async function openTrack(page) {
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
+  // A click opens the song paused; a double-click would also start it.
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
 }
 
-const showLyricsTab = (page) => page.locator(".rail-lyrics").click();
+const showLyricsTab = (page) => openInspectorTab(page, "lyrics");
 
 /** A tagged track, opened, with the tab showing its lyrics found. */
 async function lyricsShown(page) {
@@ -123,19 +125,18 @@ const stored = (page) =>
   page.evaluate((id) => JSON.parse(localStorage.getItem(`stemdeck.lyrics.${id}`) || "null"), JOB_ID);
 
 test.describe("lyrics tab", () => {
-  test("the rail button swaps the library list for the lyrics panel, which has no search box", async ({ page }) => {
+  test("the song tools' Lyrics tab shows the lyrics beside the library, with no search box", async ({ page }) => {
     await stubLrclib(page);
     await seedLibrary(page);
     await open(page);
     await showLyricsTab(page);
-    await expect(page.locator("#lyricsPanel")).toBeVisible();
-    await expect(page.locator("#catalogList")).toBeHidden();
-    await expect(page.locator(".rail-lyrics")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#inspector #lyricsPanel")).toBeVisible();
+    await expect(page.locator("#catalogList")).toBeVisible();
+    await expect(page.locator('.inspector-tab[data-tab="lyrics"]')).toHaveAttribute("aria-selected", "true");
     await expect(page.locator("#lyricsPanel input, #lyricsPanel form")).toHaveCount(0);
 
-    await page.locator(".rail-library").click();
+    await page.locator('.inspector-tab[data-tab="tempo"]').click();
     await expect(page.locator("#lyricsPanel")).toBeHidden();
-    await expect(page.locator("#catalogList")).toBeVisible();
   });
 
   test("with no track open it says to open one", async ({ page }) => {
@@ -190,7 +191,6 @@ test.describe("lyrics tab", () => {
     expect(asked[0].body.band).toEqual({ id: "Q162586", name: "Dream Theater", englishName: "Dream Theater" });
 
     // Kept, so coming back to the tab asks nothing more.
-    await page.locator(".rail-library").click();
     await showLyricsTab(page);
     await expect(page.locator(".lyrics-line")).toHaveCount(3);
     expect(asked).toHaveLength(1);
@@ -254,7 +254,6 @@ test.describe("lyrics tab", () => {
     expect(await stored(page)).toBeNull();
 
     // The same offer again on coming back, without asking again.
-    await page.locator(".rail-library").click();
     await showLyricsTab(page);
     await expect(page.locator(".lyrics-version")).toHaveCount(1);
     expect(asked).toHaveLength(1);
@@ -399,7 +398,7 @@ test.describe("lyrics tab", () => {
 
     await page.unroute(LRCLIB);
     await stubLrclib(page);
-    await page.locator(".rail-library").click();
+    await openInspectorTab(page, "tempo");
     await showLyricsTab(page);
     await expect(page.locator(".lyrics-line")).toHaveCount(3);
     expect(asked).toHaveLength(1);

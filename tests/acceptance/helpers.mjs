@@ -228,14 +228,17 @@ export async function waitForJob(id, { timeout = JOB_TIMEOUT_MS, label = id } = 
 
 /** Make the library the sidebar's view, as a fresh window has it. */
 export async function showLibrary(page) {
-  const lib = page.locator("#appMenuBtn");
+  const collapse = page.locator("#sidebarCollapseBtn");
+  if ((await collapse.getAttribute("aria-pressed")) !== "true") await collapse.click();
+  const lib = page.locator(".lib-nav-library");
   if ((await lib.getAttribute("aria-pressed")) !== "true") await lib.click();
   await expect(lib).toHaveAttribute("aria-pressed", "true");
 }
 
-/** Paste a link in the top bar's field and press Extract stems. Returns the job id. */
+/** Open the import bar, paste a link and press Extract stems. Returns the job id. */
 export async function importLink(page, url) {
   const field = page.locator("#url");
+  if (!(await field.isVisible())) await page.locator("#addSongBtn").click();
   await field.fill(url);
   const [res] = await Promise.all([
     page.waitForResponse((r) => new URL(r.url()).pathname === "/api/jobs" && r.request().method() === "POST", { timeout: 30_000 }),
@@ -459,10 +462,11 @@ export function aboutOutline(page) {
   });
 }
 
-/** Switch the sidebar to Lyrics and wait for it to settle on an answer. */
+/** Open the song tools' Lyrics tab and wait for it to settle on an answer. */
 export async function openLyrics(page) {
-  const rail = page.locator(".rail-lyrics");
-  if ((await rail.getAttribute("aria-pressed")) !== "true") await rail.click();
+  const lyrics = page.locator('.inspector-tab[data-tab="lyrics"]');
+  if (!(await lyrics.isVisible())) await page.locator("#inspectorToggleBtn").click();
+  if ((await lyrics.getAttribute("aria-selected")) !== "true") await lyrics.click();
   await expect(page.locator("#lyricsPanel")).toBeVisible();
   await expect.poll(
     () => page.evaluate(() => {
@@ -526,7 +530,6 @@ export async function tidy(page) {
     [".folder-editor-backdrop", ".folder-editor-cancel"],
     [".library-editor-backdrop", ".library-editor-backdrop .settings-done"],
     ["#artistDialog:not(.hidden)", "#artistClose"],
-    ["#aboutDialog:not(.hidden)", "#aboutClose"],
     ["#releaseDialog:not(.hidden)", "#releaseClose"],
     [".daw-notif-wrap.open, #notifBtn[aria-expanded=\"true\"]", ".daw-notif-close"],
   ];

@@ -82,6 +82,7 @@ import { editableRows, plainTexts, plainTimedLines, untimedRows } from "./lyrics
 import { toolButton, setToolLabel, keepOnePrimary, TOOL_QUIET } from "./lyricsToolbar.js";
 import { initLyricsTranscribe, checkTranscribe, resetTranscribe } from "./lyricsTranscribe.js";
 import { RUN_STATE } from "./lyricsRunState.js";
+import { INSPECTOR_TABS, INSPECTOR_TAB_SHOWN_EVENT } from "./inspector.js";
 import { FOLDER_MOVING_KEY, refusalKey, refusedForFolderMove } from "./folderMoving.js";
 
 // Set once every lyrics entry this browser kept is on the server (lyricsCarryOver.js).
@@ -184,7 +185,9 @@ function fmtLength(seconds) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-const announceLines = () => document.dispatchEvent(new CustomEvent("lyricschange"));
+/** Fired on `document` when the lyric lines change or are retimed. */
+export const LYRICS_CHANGE_EVENT = "lyricschange";
+const announceLines = () => document.dispatchEvent(new CustomEvent(LYRICS_CHANGE_EVENT));
 
 function clearLyrics() {
   closeSync(false, { keepOpen: true });
@@ -1808,9 +1811,10 @@ function fillWords(index, now) {
 }
 
 function setVisible(on) {
+  if (on === visible) return;
   visible = on;
-  // Sync lines works with the list in view; another view of the sidebar
-  // leaves it, and what it set is saved.
+  // Sync lines works with the lines in view; another tab or hiding the song
+  // tools leaves it, and what it set is saved.
   if (!on) closeSync(false);
   if (on) {
     loadForCurrentTrack();
@@ -1819,6 +1823,10 @@ function setVisible(on) {
     cancelAnimationFrame(frame);
     frame = 0;
   }
+}
+
+function onInspectorTabShown(e) {
+  setVisible(e.detail?.tab === INSPECTOR_TABS.LYRICS);
 }
 
 // A renamed song was looked up again (catalog.js), so what this session found is stale.
@@ -1872,7 +1880,7 @@ export function initLyrics() {
   });
   // Capture, on the window: ahead of the app's own keys (see onSyncKey).
   window.addEventListener("keydown", onSyncKey, true);
-  document.addEventListener("catalogviewchange", (e) => setVisible(e.detail?.view === "lyrics"));
+  document.addEventListener(INSPECTOR_TAB_SHOWN_EVENT, onInspectorTabShown);
   document.addEventListener("tracktags", (e) => {
     if (visible && nothingKnownFor && e.detail?.id === nothingKnownFor) loadForCurrentTrack();
   });

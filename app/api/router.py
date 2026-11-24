@@ -8,6 +8,7 @@ from app.api.config import router as config_router
 from app.api.discogs import router as discogs_router
 from app.api.events import router as events_router
 from app.api.jobs import router as jobs_router
+from app.api.library import router as library_router
 from app.api.mixdown_loudness import router as mixdown_loudness_router
 from app.api.playlist import router as playlist_router
 from app.api.qr import router as qr_router
@@ -39,4 +40,5 @@ router.include_router(batch_import_router, prefix="/import", tags=["import"])
 router.include_router(search_router, prefix="/search", tags=["search"])
 router.include_router(discogs_router, prefix="/discogs", tags=["discogs"])
 router.include_router(setlists_router, prefix="/setlists", tags=["setlists"])
+router.include_router(library_router, prefix="/library", tags=["library"])
 router.include_router(video_encoders_router, prefix="/video-encoders", tags=["video"])

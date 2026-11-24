@@ -3,6 +3,7 @@
 // when another tab with the old folder list saves (#228).
 import { test, expect } from "@playwright/test";
 import {
+  chooseFromSongMenu,
   JOB_ID,
   SIBLING_JOB_ID,
   SIBLING_TITLE,
@@ -12,6 +13,8 @@ import {
   seedCatalogState,
   stubUpdateCheck,
   uiText,
+  openComposer,
+  openBrowse,
 } from "./helpers.mjs";
 import { YT, review, stubImports, stubPreview } from "./batchImport.mjs";
 
@@ -22,8 +25,7 @@ const SONG_LINK = `${YT}eeeeeeeeeee`;
 const SONG_IN_PLAYLIST_LINK = `${SONG_LINK}&list=PLsundayset&index=3`;
 const TOP_EDGE_PX = 2;
 
-const folderEl = (page, id) => page.locator(`.folder[data-id="${id}"]`);
-const folderHead = (page, id) => folderEl(page, id).locator(":scope > .folder-head");
+const folderEl = (page, id) => page.locator(`#browseNav .browse-nav-folder[data-folder="${id}"]`);
 const storedFolders = async (page) => (await readCatalogState(page))?.folders ?? [];
 const storedFolder = async (page, id) => (await storedFolders(page)).find((f) => f.id === id);
 
@@ -42,15 +44,16 @@ async function seedWithSunday(page, { seedOnce = false } = {}) {
 async function openLibrary(page) {
   await stubUpdateCheck(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  await openBrowse(page);
   await expect(folderEl(page, SUNDAY.id)).toBeVisible();
 }
 
-/** Drop `draggedId`'s grip on the top edge of `targetId`'s row, which reorders it before that folder. */
+/** Drop `draggedId`'s row on the top edge of `targetId`'s row, which reorders it before that folder. */
 async function dragFolderAbove(page, draggedId, targetId) {
   await page.evaluate(({ draggedId, targetId, edge }) => {
-    const grip = document.querySelector(`.folder[data-id="${draggedId}"] > .folder-head .f-grip`);
-    const target = document.querySelector(`.folder[data-id="${targetId}"]`);
-    const head = target.querySelector(":scope > .folder-head").getBoundingClientRect();
+    const grip = document.querySelector(`#browseNav .browse-nav-folder[data-folder="${draggedId}"]`);
+    const target = document.querySelector(`#browseNav .browse-nav-folder[data-folder="${targetId}"]`);
+    const head = target.getBoundingClientRect();
     const dataTransfer = new DataTransfer();
     const at = { bubbles: true, cancelable: true, dataTransfer, clientX: head.left + edge, clientY: head.top + edge };
     grip.dispatchEvent(new DragEvent("dragstart", at));
@@ -61,6 +64,7 @@ async function dragFolderAbove(page, draggedId, targetId) {
 }
 
 async function importLink(page, link) {
+  await openComposer(page);
   await page.locator("#url").fill(link);
   await page.locator("#submit").click();
 }
@@ -73,6 +77,7 @@ test.describe("new imports go to Unsorted (#228)", () => {
     await openLibrary(page);
     await dragFolderAbove(page, SUNDAY.id, UNSORTED_ID);
     await expect.poll(async () => (await storedFolders(page)).map((f) => f.id)).toEqual([SUNDAY.id, UNSORTED_ID, "trash"]);
+    await page.keyboard.press("Escape");
 
     const posts = await stubImports(page);
     await importLink(page, SONG_LINK);
@@ -88,6 +93,7 @@ test.describe("new imports go to Unsorted (#228)", () => {
     const posts = await stubImports(page);
     await expect(page.locator("#submit")).toHaveText(await uiText(page, "process.extractStems"));
 
+    await page.keyboard.press("Escape");
     await importLink(page, SONG_IN_PLAYLIST_LINK);
     await expect.poll(() => posts.length).toBe(1);
     expect(posts[0].url).toBe(SONG_IN_PLAYLIST_LINK);
@@ -103,17 +109,20 @@ test.describe("new imports go to Unsorted (#228)", () => {
     const stale = await context.newPage();
     await openLibrary(stale);
 
-    await folderHead(page, SUNDAY.id).hover();
-    await folderHead(page, SUNDAY.id).locator(".f-more").click();
+    await openBrowse(page, `folder:${SUNDAY.id}`);
+    const more = page.locator("#browseResults .browse-folder-more");
+    await more.click();
     await page.locator(".lib-menu").getByRole("menuitem", { name: await uiText(page, "folder.deleteFolder") }).click();
-    await folderHead(page, SUNDAY.id).locator(".f-more").click();
+    await more.click();
     await expect(folderEl(page, SUNDAY.id)).toHaveCount(0);
 
     await expect(folderEl(stale, SUNDAY.id)).toHaveCount(0);
-    await folderHead(stale, UNSORTED_ID).locator(".f-name").click();
-    await expect.poll(async () => (await storedFolder(stale, UNSORTED_ID))?.collapsed).toBe(true);
+    await stale.keyboard.press("Escape");
+    await chooseFromSongMenu(stale, stale.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first(), "Add to Favorites");
+    await expect.poll(async () => (await readCatalogState(stale))?.tracks?.[JOB_ID]?.favorite).toBe(true);
 
     await page.reload({ waitUntil: "domcontentloaded" });
+    await openBrowse(page);
     await expect(folderEl(page, UNSORTED_ID)).toBeVisible();
     await expect(folderEl(page, SUNDAY.id)).toHaveCount(0);
     expect(await storedFolder(page, SUNDAY.id)).toBeUndefined();

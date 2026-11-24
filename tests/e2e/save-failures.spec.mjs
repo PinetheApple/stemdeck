@@ -3,7 +3,7 @@
 
 import { test, expect } from "@playwright/test";
 
-import { failureMessages, seedLibrary, stubUpdateCheck, uiText } from "./helpers.mjs";
+import { chooseFromSongMenu, failureMessages, seedLibrary, stubUpdateCheck, uiText, JOB_ID } from "./helpers.mjs";
 
 const LIBRARY_KEY = "stemdeck.folders";
 
@@ -13,6 +13,7 @@ async function openGeneralSettings(page) {
   await stubUpdateCheck(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator("#settingsBtn").click();
+  await page.locator('.settings-tab[data-tab="general"]').click();
   await expect(page.locator(".set-playlist-max")).not.toHaveValue("");
 }
 
@@ -55,28 +56,29 @@ test.describe("a library the device could not save", () => {
     await seedLibrary(page);
     await stubUpdateCheck(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    const head = page.locator('.folder[data-id="f-unsorted"] > .folder-head');
-    await expect(head).toBeVisible();
-    const toggleFolder = async () => {
-      const collapsed = await page.locator('.folder[data-id="f-unsorted"]').getAttribute("class");
-      await head.click();
-      await expect(page.locator('.folder[data-id="f-unsorted"]')).not.toHaveAttribute("class", collapsed);
+    const row = page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first();
+    await expect(row).toBeAttached();
+    const isFavorite = () => row.evaluate((el) => el.classList.contains("is-fav"));
+    const toggleHeart = async () => {
+      const was = await isFavorite();
+      await chooseFromSongMenu(page, row, was ? "Remove from Favorites" : "Add to Favorites");
+      await expect.poll(isFavorite).toBe(!was);
     };
     const clearFailures = () => page.evaluate(() => document.getElementById("notifClearAll").click());
 
     await page.evaluate(() => { window.__e2eStoreFull = true; });
-    await toggleFolder();
+    await toggleHeart();
     await expect.poll(() => failureMessages(page)).toEqual([await uiText(page, "notif.storageFull")]);
 
     await clearFailures();
-    await toggleFolder();
+    await toggleHeart();
     await page.waitForTimeout(300);
     expect(await failureMessages(page)).toEqual([]);
 
     await page.evaluate(() => { window.__e2eStoreFull = false; });
-    await toggleFolder();
+    await toggleHeart();
     await page.evaluate(() => { window.__e2eStoreFull = true; });
-    await toggleFolder();
+    await toggleHeart();
     await expect.poll(() => failureMessages(page)).toEqual([await uiText(page, "notif.storageFull")]);
   });
 });

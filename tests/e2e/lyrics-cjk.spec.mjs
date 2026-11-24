@@ -26,6 +26,7 @@ import {
   stubUpdateCheck,
   stubLyricsLookup,
   LYRICS_LOOKUP,
+  openInspectorTab,
 } from "./helpers.mjs";
 
 const WIKIMEDIA = /^https:\/\/((www|query)\.wikidata\.org|[a-z-]+\.wikipedia\.org)\//;
@@ -98,7 +99,7 @@ async function setUp(page, { server = SERVER, extra = {} } = {}) {
   await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
-  await page.locator(".rail-lyrics").click();
+  await openInspectorTab(page, "lyrics");
   if (server) await expect(page.locator(".lyrics-line")).toHaveCount(4);
   return { lrclib };
 }

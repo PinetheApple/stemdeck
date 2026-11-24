@@ -78,6 +78,6 @@ test("a healthy page shows no banner", async ({ page }) => {
   // Guards the obvious regression: a banner that appears when nothing is wrong
   // would be worse than no banner at all.
   await page.goto("/");
-  await expect(page.locator("#url")).toBeVisible();
+  await expect(page.locator("#addSongBtn")).toBeVisible();
   await expect(page.locator(BANNER)).toHaveCount(0);
 });

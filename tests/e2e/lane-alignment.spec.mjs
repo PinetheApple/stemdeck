@@ -26,11 +26,14 @@ async function geometry(page) {
     return {
       mixTops: mixRows.map((e) => mid(e).top),
       waveTops: waveRows.map((e) => mid(e).top),
-      // The label the user actually reads, against the middle of the waveform
-      // it belongs to.
+      // The controls the user reads (one row, or two with EQ, Key and Stem),
+      // against the middle of the waveform they belong to.
       nameMids: mixRows.map((e) => {
-        const n = e.querySelector(".mx-name");
-        return n ? mid(n).mid : null;
+        const rows = [...e.querySelectorAll(".lane-main, .lane-x")].filter((r) => r.getClientRects().length);
+        if (!rows.length) return null;
+        const top = rows[0].getBoundingClientRect().top;
+        const bottom = rows.at(-1).getBoundingClientRect().bottom;
+        return Math.round((top + bottom) / 2);
       }),
       waveMids: waveRows.map((e) => mid(e).mid),
       column: Math.round(document.querySelector(".waves-column").getBoundingClientRect().height),
@@ -56,7 +59,7 @@ test.describe("lane alignment", () => {
       // One pixel of rounding is fine; a row is 72px or more, so anything the
       // eye can see is far larger.
       const worstRow = Math.max(...rowDrift);
-      // The name and its waveform share a centre line. Two pixels covers the
+      // The controls and their waveform share a centre line. Two pixels covers the
       // rounding in both measurements.
       const nameDrift = g.nameMids.map((m, i) => (m === null ? 0 : Math.abs((g.waveMids[i] ?? m) - m)));
       const worstName = Math.max(...nameDrift);
@@ -84,15 +87,13 @@ test.describe("lane alignment", () => {
     }
   });
 
-  test("a stem name sits on its waveform centre line, not above it", async ({ page }) => {
+  test("a stem's controls sit on its waveform centre line, not above it", async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 1013 });
     await openStudio(page, { tauri: true });
     await waitForClickTrack(page);
     const g = await geometry(page);
 
-    // The name and its meter are stacked and centred as a pair, which put the
-    // name half a meter above the row's centre while the waveform beside it was
-    // centred on that line. Invisible at 72px rows, obvious once a lane grows.
+    // The header's rows are centred as a block on the waveform's centre line.
     for (const [i, nameMid] of g.nameMids.entries()) {
       if (nameMid === null) continue;
       expect(Math.abs(nameMid - g.waveMids[i])).toBeLessThanOrEqual(2);

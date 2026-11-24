@@ -20,19 +20,22 @@ import {
   seedLibrary,
   stubExportEndpoints,
   stubUpdateCheck,
+  openBrowse,
+  browseRow,
 } from "./helpers.mjs";
 
+// Browse library lists every song, those still importing or failed included.
 const rowText = (page, id) =>
   page
-    .locator(`.cat-item[data-id="${id}"] .cat-sub`)
-    .first()
+    .locator(`#browseResults .cat-item[data-id="${id}"] .cat-sub`)
     .evaluate((el) => el.textContent.replace(/\s+/g, " ").trim());
 
 async function open(page) {
   await stubExportEndpoints(page);
   await stubUpdateCheck(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
+  await page.locator("#catalogList .cat-item").first().waitFor({ timeout: 20000 });
+  await openBrowse(page);
 }
 
 // Both fixture jobs, as seedLibrary has them, with the first one changed; the
@@ -83,8 +86,8 @@ test.describe("library rows", () => {
 
     expect(await rowText(page, JOB_ID)).not.toContain("Extracted");
 
-    await page.locator("#catalogSearch, .cat-search input, input[type=search]").first().fill("Extracted");
-    await expect(page.locator(`.cat-item[data-id="${JOB_ID}"]`)).toHaveCount(0);
+    await page.locator("#browseSearch").fill("Extracted");
+    await expect(browseRow(page, JOB_ID)).toHaveCount(0);
   });
 
   // The library asks the server where every "processing" row stands on load
@@ -145,9 +148,8 @@ test.describe("library rows", () => {
     await seedLibrary(page);
     await open(page);
 
-    await expect(page.locator(`.cat-item[data-id="${JOB_ID}"]`)).toHaveCount(1);
-    await expect(page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`)).toHaveCount(1);
-    await expect(page.locator(".lib-section-head", { hasText: /^Recent$/i })).toHaveCount(0);
+    await expect(page.locator(`#browseResults .cat-item[data-id="${JOB_ID}"]`)).toHaveCount(1);
+    await expect(page.locator(`#browseResults .cat-item[data-id="${SIBLING_JOB_ID}"]`)).toHaveCount(1);
   });
 
   test("a search that matches nothing says so in the chosen language", async ({ page }) => {
@@ -157,7 +159,8 @@ test.describe("library rows", () => {
     await seedLibrary(page);
     await open(page);
 
-    await page.locator("#catalogSearch, .cat-search input, input[type=search]").first().fill("zzzz-nothing");
+    await openBrowse(page);
+    await page.locator("#browseSearch").fill("zzzz-nothing");
     await expect(page.getByText("Keine Titel entsprechen deiner Suche")).toBeVisible();
   });
 });

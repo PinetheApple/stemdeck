@@ -57,13 +57,13 @@ const withVocalsAs = (names) => (state) => {
 };
 
 test.describe("sing along", () => {
-  test("the chosen look is remembered, and Sing along hides the mixer and the overview", async ({ page }) => {
+  test("the chosen look is remembered, and Sing along hides the mixer but keeps the overview", async ({ page }) => {
     await serveLyrics(page);
     await openStudio(page);
     await enterSingAlong(page);
     await expect(page.locator("#stageLookSing")).toHaveAttribute("aria-checked", "true");
     await expect(page.locator("#stageMixer")).toBeHidden();
-    await expect(page.locator("#stageOverview")).toBeHidden();
+    await expect(page.locator("#stageOverview")).toBeVisible();
     await expect(page.locator("#stageMixBtn")).toBeHidden();
     expect(await page.evaluate((k) => localStorage.getItem(k), LOOK_KEY)).toBe("sing");
 
@@ -151,13 +151,14 @@ test.describe("sing along", () => {
     await enterSingAlong(page);
     await expect(page.locator("#singIntro")).toBeVisible();
     await expect(page.locator("#singIntroTime")).toHaveText("0:02");
-    await expect(page.locator("#singLineNow")).toHaveText(FIRST_LINE);
+    const now = page.locator("#singLyrics .sing-line.now");
+    await expect(now).toHaveText(FIRST_LINE);
 
     await seekTo(page, MID_FIRST_LINE_SEC);
     await expect(page.locator("#singIntro")).toBeHidden();
-    await expect(page.locator("#singLineNear")).toHaveText(NEXT_LINE);
-    await expect(page.locator("#singLineNow .lw.sung").first()).toBeVisible();
-    await expect(page.locator("#singLineNow .lw:not(.sung)").first()).toBeVisible();
+    await expect(page.locator("#singLyrics .sing-line.now + .sing-line")).toHaveText(NEXT_LINE);
+    await expect(now.locator(".lw.sung").first()).toBeVisible();
+    await expect(now.locator(".lw:not(.sung)").first()).toBeVisible();
   });
 
   test("a song with no lyrics says so, and Open lyrics leaves Stage for the Lyrics tab", async ({ page }) => {
@@ -168,7 +169,8 @@ test.describe("sing along", () => {
     await expect(page.locator("#singLyrics")).toBeHidden();
     await page.locator("#singOpenLyricsBtn").click();
     await expect(page.locator("#stageView")).toBeHidden();
-    await expect(page.locator(".rail-lyrics")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator('.inspector-tab[data-tab="lyrics"]')).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator("#lyricsPanel")).toBeVisible();
   });
 
   test("untimed lyrics say they are not timed, with Open lyrics and no Transcribe", async ({ page }) => {
@@ -201,17 +203,17 @@ test.describe("sing along", () => {
     await seedUpNext(page, [SIBLING_JOB_ID, JOB_ID]);
     await openStudio(page);
     await enterSingAlong(page);
-    const chip = page.locator("#singUpNextBtn");
-    await expect(page.locator("#singUpNextCount")).toHaveText("2");
+    const chip = page.locator("#stageQueueBtn");
+    await expect(page.locator("#stageQueueCount")).toHaveText("2");
     await chip.click();
-    await expect(page.locator("#singPanel #upNextList .upnext-row")).toHaveCount(2);
+    await expect(page.locator("#stageQueuePanel #upNextList .upnext-row")).toHaveCount(2);
     await expect(chip).toBeVisible();
     await expect(chip).toHaveAttribute("aria-expanded", "true");
-    await page.locator(`#singPanel .upnext-row[data-id="${SIBLING_JOB_ID}"]`).focus();
+    await page.locator(`#stageQueuePanel .upnext-row[data-id="${SIBLING_JOB_ID}"]`).focus();
     await page.keyboard.press("Alt+ArrowDown");
     await expect.poll(() => stored(page, UP_NEXT_KEY)).toEqual([JOB_ID, SIBLING_JOB_ID]);
     await page.keyboard.press("Escape");
-    await expect(page.locator("#singPanel")).toBeHidden();
+    await expect(page.locator("#stageQueuePanel")).toBeHidden();
     await expect(chip).toHaveAttribute("aria-expanded", "false");
     await expect(page.locator("#stageView")).toBeVisible();
     await expect(page.locator("#inspectorPaneUpNext #upNextList")).toHaveCount(1);
@@ -231,38 +233,35 @@ for (const size of WINDOWS) {
     await openStudio(page);
     await enterSingAlong(page);
     await seekTo(page, MID_FIRST_LINE_SEC);
-    await page.locator("#singUpNextBtn").click();
+    await page.locator("#stageQueueBtn").click();
     const fit = await page.evaluate(() => {
       const rect = (id) => document.getElementById(id).getBoundingClientRect();
       const view = document.getElementById("stageView");
       const viewRect = view.getBoundingClientRect();
-      const transport = document.querySelector(".stage-transport").getBoundingClientRect();
+      const footer = document.querySelector(".daw-footer").getBoundingClientRect();
       const lyrics = rect("singLyrics");
-      const panel = rect("singPanel");
-      const header = ["stageUpNextBtn", "stageMoreBtn", "stageLook", "stageExitBtn"].map(rect);
-      const chip = rect("singUpNextBtn");
+      const panel = rect("stageQueuePanel");
+      const header = ["stageUpNextBtn", "stageMoreBtn", "stageLook", "singVoiceBtn", "singBackingBtn", "stageQueueBtn", "stageExitBtn"].map(rect);
       return {
         overflows: view.scrollHeight > view.clientHeight || view.scrollWidth > view.clientWidth,
         headerInOrder: header.every((r, i) => i === 0 || header[i - 1].right <= r.left),
         headerClearOfTitle: rect("stageTitle").right <= header[0].left,
-        lyricsAboveTransport: lyrics.bottom <= transport.top,
+        headerInside: header.at(-1).right <= viewRect.right,
+        lyricsAboveOverview: lyrics.bottom <= rect("stageOverview").top,
         lyricsBesidePanel: lyrics.right <= panel.left,
         panelInside: panel.right <= viewRect.right && panel.bottom <= viewRect.bottom,
-        transportInside: transport.bottom <= viewRect.bottom,
-        voiceClearOfButtons: rect("singBackingBtn").right <= rect("stageStopBtn").left,
-        chipClearOfButtons: rect("stageNextBtn").right <= chip.left && chip.right <= panel.left,
+        footerBelow: viewRect.bottom <= footer.top && footer.bottom <= window.innerHeight,
       };
     });
     expect(fit).toEqual({
       overflows: false,
       headerInOrder: true,
       headerClearOfTitle: true,
-      lyricsAboveTransport: true,
+      headerInside: true,
+      lyricsAboveOverview: true,
       lyricsBesidePanel: true,
       panelInside: true,
-      transportInside: true,
-      voiceClearOfButtons: true,
-      chipClearOfButtons: true,
+      footerBelow: true,
     });
   });
 }

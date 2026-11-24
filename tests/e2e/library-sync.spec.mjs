@@ -4,6 +4,7 @@
 import { test, expect } from "@playwright/test";
 
 import {
+  chooseFromSongMenu,
   JOB_ID,
   SIBLING_JOB_ID,
   SIBLING_TITLE,
@@ -15,8 +16,7 @@ import {
   seedCatalogState,
   stubImportQueue,
   stubServerTrash,
-  stubUpdateCheck,
-} from "./helpers.mjs";
+  stubUpdateCheck, openComposer, openBrowse, browseRow } from "./helpers.mjs";
 
 const ROCK = "f-rock";
 const UNSORTED = "f-unsorted";
@@ -71,9 +71,7 @@ const bothTracks = () => ({
 });
 
 async function trashRow(page, id) {
-  const row = page.locator(`#catalogList .cat-item[data-id="${id}"]`).first();
-  await row.hover();
-  await row.locator(".cat-del").click();
+  await chooseFromSongMenu(page, page.locator(`#catalogList .cat-item[data-id="${id}"]`).first(), "Move to Trash");
 }
 
 /** Add an import to the library the way job.js does when one starts. */
@@ -313,7 +311,8 @@ test.describe("the re-import request", () => {
       return route.fulfill({ status, json: status === 200 ? { job_id: NEW_ID } : { detail: "busy" } });
     });
     await open(page);
-    await page.locator(`#catalogList .cat-item[data-id="${LINKED_ID}"]`).first().dblclick();
+    await openBrowse(page, `folder:${ROCK}`);
+    await browseRow(page, LINKED_ID).dblclick();
     await page.locator(".reimport-confirm .playlist-confirm-go").click();
     await expect.poll(() => posted.length).toBe(1);
     return posted;
@@ -345,6 +344,7 @@ test.describe("a re-import from the import form", () => {
       posted.push(route.request().postDataJSON());
       return route.fulfill({ status, json: status === 200 ? { job_id: SIBLING_JOB_ID } : { detail: "busy" } });
     });
+    await openComposer(page);
     await page.locator("#url").fill(url);
     await page.locator("#submit").click();
     await expect.poll(() => posted.length).toBe(1);
@@ -399,8 +399,7 @@ test.describe("a favourite the server refuses", () => {
     await openStudio(page);
     await page.route("**/api/jobs/*/favorite", (route) => route.fulfill({ status: 500, json: { detail: "stubbed" } }));
     const row = page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`).first();
-    await row.hover();
-    await row.locator(".cat-fav").click();
+    await chooseFromSongMenu(page, row, "Add to Favorites");
 
     await expect(row).not.toHaveClass(/\bis-fav\b/);
     expect((await readCatalogState(page)).tracks[SIBLING_JOB_ID].favorite).toBe(false);

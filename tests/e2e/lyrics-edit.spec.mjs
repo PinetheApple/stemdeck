@@ -12,6 +12,7 @@ import {
   stubUpdateCheck,
   answerLyricsChoice,
   LYRICS_REMOVED,
+  openInspectorTab,
 } from "./helpers.mjs";
 
 const WIKIMEDIA = /^https:\/\/((www|query)\.wikidata\.org|[a-z-]+\.wikipedia\.org)\//;
@@ -107,15 +108,17 @@ async function setUp(page, { server = found(), original = found(), onPut = null,
 async function openLyrics(page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
+  // A click opens the song paused; a double-click would also start it.
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
-  await page.locator(".rail-lyrics").click();
+  await openInspectorTab(page, "lyrics");
 }
 
+/** Open a song from the library, then come back to its Lyrics tab, which reads them afresh. */
 async function openTrackFromLibrary(page, id) {
-  await page.locator(".rail-library").click();
   await page.locator(`.cat-item[data-id="${id}"]`).first().dblclick();
-  await page.locator(".rail-lyrics").click();
+  await openInspectorTab(page, "tempo");
+  await openInspectorTab(page, "lyrics");
 }
 
 const editLink = (page) => page.locator(".lyrics-edit-open");
@@ -316,9 +319,8 @@ test.describe("the app's keys while editing", () => {
     await cancel(page).focus();
     await page.keyboard.press("Backspace");
     await expect(editor(page)).toBeVisible();
-    await page.locator(".rail-library").click();
     await expect(page.locator(`.cat-item[data-id="${JOB_ID}"]`).first()).toBeVisible();
-    await page.locator(".rail-lyrics").click();
+    await openInspectorTab(page, "lyrics");
     await rowAction(page, 0, "Delete this line").focus();
     await page.keyboard.press("Space");
     await expect(page.locator(".lyrics-edit-input")).toHaveCount(2);
@@ -494,7 +496,7 @@ test.describe("the user's lyrics come first", () => {
     await expect(shownText(page)).toHaveText(["Mine one", "Mine two"]);
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
-    await page.locator(".rail-lyrics").click();
+    await openInspectorTab(page, "lyrics");
     await expect(shownText(page)).toHaveText(["Mine one", "Mine two"]);
     expect(await stored(page)).toBeNull();
   });

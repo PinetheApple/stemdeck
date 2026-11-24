@@ -2,8 +2,21 @@
 // Extract more stems and delete, each version keeping its own lanes and mix.
 import { test, expect } from "@playwright/test";
 import {
-  JOB_ID, KEY, SIBLING_JOB_ID, SIBLING_TITLE, TRACK_TITLE, failureMessages, fixtureTrack, openStudio, readCatalogState,
-  resetVersions, seedLibrary, stubServerTrash, versionsUrl,
+  JOB_ID,
+  KEY,
+  SIBLING_JOB_ID,
+  SIBLING_TITLE,
+  TRACK_TITLE,
+  failureMessages,
+  fixtureTrack,
+  openStudio,
+  readCatalogState,
+  resetVersions,
+  seedLibrary,
+  stubServerTrash,
+  versionsUrl,
+  openBrowse,
+  browseRow,
 } from "./helpers.mjs";
 import { STEM_NAMES as ALL_STEMS } from "../../static/js/constants.js";
 import { DEFAULT_VERSION_ID as DEFAULT_ID } from "../../static/js/versionModel.js";
@@ -82,6 +95,13 @@ const versionGroup = (page) => page.locator(`#catalogList .cat-versions[aria-lab
 const versionRows = (page, id = JOB_ID) => page.locator(`#catalogList .cat-version[data-id="${id}"]`);
 const versionRow = (page, vid, id = JOB_ID) => page.locator(`#catalogList .cat-version[data-id="${id}"][data-version="${vid}"]`);
 
+const extractForm = (page) => page.locator(".extract-more-backdrop .cat-extract-more");
+
+async function closeBrowse(page) {
+  await page.keyboard.press(KEY.ESCAPE);
+  await expect(page.locator("#browseLibrary")).toBeHidden();
+}
+
 async function expandVersions(page) {
   const toggle = songRow(page).locator(".cat-versions-toggle");
   await toggle.click();
@@ -131,7 +151,7 @@ test("version rows open, close and follow the library keyboard", async ({ page, 
   await expect(versionRow(page, v2.id)).toBeFocused();
   await page.keyboard.press(KEY.DELETE);
   await expect(songRow(page)).toBeVisible();
-  await expect(page.locator(".rail-trash")).toHaveAttribute("aria-label", "Trash");
+  await expect(page.locator("#trashBtn")).toHaveAttribute("aria-label", "Trash");
 
   await page.keyboard.press(KEY.ENTER);
   await expect.poll(() => studioState(page)).toMatchObject({ versionId: v2.id, lanes: [...TWO_STEMS].sort() });
@@ -200,7 +220,7 @@ test("Extract more stems makes a version from the stems it adds, or opens the on
   await songRow(page).hover();
   await songRow(page).locator(".cat-more").click();
   await page.getByRole("menuitem", { name: "Extract more stems…" }).click();
-  const form = page.locator("#catalogList .cat-extract-more");
+  const form = extractForm(page);
   const chips = form.locator(".cat-extract-more-chip");
   await expect(chips).toHaveText(["Bass", "Guitar", "Piano", "Other"]);
   await chips.filter({ hasText: "Guitar" }).click();
@@ -211,6 +231,7 @@ test("Extract more stems makes a version from the stems it adds, or opens the on
   await expect(versionRows(page)).toHaveCount(3);
   await expect(page.locator("#npVersionBtn")).toHaveText("+ Bass, Other");
   await expect.poll(() => studioState(page)).toMatchObject({ lanes: ["bass", "drums", "other", "vocals"] });
+  await closeBrowse(page);
 
   await page.locator("#npVersionBtn").click();
   await page.getByRole("menuitemradio", { name: "Two lanes" }).click();
@@ -245,17 +266,14 @@ test("Extract more stems is offered in the row's menu and the open song's More m
 });
 
 async function expectExtractFormFocused(page) {
-  await expect(page.locator("#catalogList .cat-extract-more")).toBeVisible();
-  await expect(page.locator("#catalogList .cat-extract-more-go")).toBeFocused();
+  await expect(extractForm(page)).toBeVisible();
+  await expect(extractForm(page).locator(".cat-extract-more-go")).toBeFocused();
 }
 
-test("Extract more stems from Stage leaves Stage and opens the form in the song's collapsed folder", async ({ page, request }) => {
+test("Extract more stems from Stage leaves Stage and opens the form on the song's row in Browse library", async ({ page, request }) => {
   await createVersion(request, JOB_ID, { name: "Two lanes", stems: TWO_STEMS, open: true });
   await openStudio(page);
   await expect.poll(() => studioState(page)).toMatchObject({ lanes: [...TWO_STEMS].sort() });
-  const folder = page.locator('#catalogList .folder[data-id="f-unsorted"]');
-  await folder.locator(".folder-head").click();
-  await expect(folder).toHaveClass(/\bcollapsed\b/);
 
   await page.locator("#stageModeBtn").click();
   await page.locator("#stageMoreBtn").click();
@@ -264,7 +282,7 @@ test("Extract more stems from Stage leaves Stage and opens the form in the song'
   await extract.click();
 
   await expect(page.locator("#stageView")).toBeHidden();
-  await expect(folder).not.toHaveClass(/\bcollapsed\b/);
+  await expect(browseRow(page, JOB_ID)).toBeVisible();
   await expectExtractFormFocused(page);
 });
 
@@ -278,27 +296,15 @@ const SUBFOLDER_CATALOG = {
   tracks: TAGS_CHECKED_CATALOG.tracks,
 };
 
-const folderEl = (page, id) => page.locator(`#catalogList .folder[data-id="${id}"]`);
-
-async function collapseFolder(page, id) {
-  await folderEl(page, id).locator(":scope > .folder-head").click();
-  await expect(folderEl(page, id)).toHaveClass(/\bcollapsed\b/);
-}
-
-test("Extract more stems opens a collapsed subfolder and its collapsed parent to show the song", async ({ page, request }) => {
+test("Extract more stems shows a song filed in a subfolder", async ({ page, request }) => {
   await createVersion(request, JOB_ID, { name: "Two lanes", stems: TWO_STEMS, open: true });
   await openStudio(page, { catalog: SUBFOLDER_CATALOG });
   await expect.poll(() => studioState(page)).toMatchObject({ lanes: [...TWO_STEMS].sort() });
-  await collapseFolder(page, "f-sub");
-  await collapseFolder(page, "f-parent");
-  await expect(songRow(page)).toBeHidden();
 
   await page.locator("#songMoreBtn").click();
   await page.getByRole("menuitem", { name: "Extract more stems…" }).click();
 
-  await expect(folderEl(page, "f-parent")).not.toHaveClass(/\bcollapsed\b/);
-  await expect(folderEl(page, "f-sub")).not.toHaveClass(/\bcollapsed\b/);
-  await expect(songRow(page)).toBeVisible();
+  await expect(browseRow(page, JOB_ID)).toBeVisible();
   await expectExtractFormFocused(page);
 });
 
@@ -306,15 +312,17 @@ test("Extract more stems from the song head clears a search that hides the song'
   await createVersion(request, JOB_ID, { name: "Two lanes", stems: TWO_STEMS, open: true });
   await openStudio(page);
   await expect.poll(() => studioState(page)).toMatchObject({ lanes: [...TWO_STEMS].sort() });
-  const search = page.locator("#catalogSearch");
+  await openBrowse(page);
+  const search = page.locator("#browseSearch");
   await search.fill("again");
-  await expect(songRow(page)).toHaveCount(0);
+  await expect(browseRow(page, JOB_ID)).toHaveCount(0);
+  await page.locator("#browseCloseBtn").click();
 
   await page.locator("#songMoreBtn").click();
   await page.getByRole("menuitem", { name: "Extract more stems…" }).click();
 
   await expect(search).toHaveValue("");
-  await expect(songRow(page)).toBeVisible();
+  await expect(browseRow(page, JOB_ID)).toBeVisible();
   await expectExtractFormFocused(page);
 });
 
@@ -341,14 +349,13 @@ test("a setlist and Up Next play the version opened last", async ({ page, reques
   const setlist = await (await request.post("/api/setlists", { data: { name: "Gig", song_ids: [SIBLING_JOB_ID, JOB_ID] } })).json();
   try {
     await openStudio(page);
-    await page.locator("#libTabSetlists").click();
-    await page.locator(".setlist-play").click();
+    await openBrowse(page, `setlist:${setlist.id}`);
+    await page.locator(".browse-setlist-play").click();
     await expect(page.locator("#title")).toContainText("again");
     await page.locator("#t-next").click();
     await expect(page.locator("#title")).toHaveText(TRACK_TITLE);
     await expect.poll(() => studioState(page)).toMatchObject({ lanes: [...TWO_STEMS].sort() });
 
-    await page.locator("#libTabSongs").click();
     await songRow(page, SIBLING_JOB_ID).dblclick();
     await expect(page.locator("#title")).toContainText("again");
     await songRow(page).hover();
@@ -371,11 +378,11 @@ test("emptying the Trash forgets the mixes of the song's other versions", async 
   await seedMixes(page, { [key]: laneMix(V2_DRUMS) });
   await seedLibrary(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".rail-trash")).toHaveAttribute("aria-label", "Trash (1)");
+  await expect(page.locator("#trashBtn")).toHaveAttribute("aria-label", "Trash (1)");
 
-  await page.locator(".rail-trash").click();
-  await page.locator("#clearBinBtn").click();
-  await page.locator("#clearBinBtn").click();
+  await openBrowse(page, "trash");
+  await page.locator("#browseEmptyTrash").click();
+  await page.locator("#browseEmptyTrash").click();
   await expect.poll(() => storedMix(page, key)).toBeNull();
 });
 
@@ -384,9 +391,9 @@ test("Trash shows no version rows", async ({ page, request }) => {
   await stubServerTrash(page, { trashed: [SIBLING_JOB_ID] });
   await seedLibrary(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator(".rail-trash").click();
-  await expect(page.locator(`#catalogList .cat-item.in-trash[data-id="${SIBLING_JOB_ID}"]`)).toBeVisible();
-  await expect(page.locator("#catalogList .cat-versions-toggle, #catalogList .cat-version")).toHaveCount(0);
+  await openBrowse(page, "trash");
+  await expect(page.locator(`#browseResults .cat-item.in-trash[data-id="${SIBLING_JOB_ID}"]`)).toBeVisible();
+  await expect(page.locator("#browseResults .cat-versions-toggle, #browseResults .cat-version")).toHaveCount(0);
 });
 
 test("a finished import opens on its own mix, not under the version open before it", async ({ page, request }) => {

@@ -1,10 +1,8 @@
 // A locked section is pinned against editing: it cannot be dragged, resized or
-// renamed, and its padlock turns red so a locked one is obvious without
-// hovering every block to find it (#573).
-//
-// Looping over one still works. That reads the section without changing it.
+// renamed, and a red padlock shows on it so a locked one is obvious at rest.
+// Lock position lives in Edit section, which a double-click opens.
 import { test, expect } from "@playwright/test";
-import { openStudio, JOB_ID } from "./helpers.mjs";
+import { openStudio, sectionEditDialog, JOB_ID } from "./helpers.mjs";
 
 test.afterEach(async ({ page }) => {
   await page.request.patch(`/api/jobs/${JOB_ID}/sections`, { data: { sections: [] } });
@@ -32,18 +30,23 @@ async function dragBy(page, dx) {
   await page.mouse.up();
 }
 
+async function toggleLockInEditor(page) {
+  await page.locator('.section-block[data-id="s1"]').dblclick();
+  await page.locator("#sectionEditLock").click();
+  await page.locator("#sectionEditSave").click();
+  await expect(sectionEditDialog(page)).toBeHidden();
+}
+
 test.describe("locking a section", () => {
   test("the padlock is red, and visible without hovering", async ({ page }) => {
     await seed(page, [LOCKED]);
     await openStudio(page);
 
-    const lock = page.locator('.section-block[data-id="s1"] .section-lock');
-    // Visible at rest: an unlocked padlock only appears on hover, so a locked
-    // one that did the same would be indistinguishable until you went looking.
+    const lock = page.locator('.section-block[data-id="s1"] .section-lock-mark');
     await expect(lock).toBeVisible();
 
     const { locked, danger } = await page.evaluate(() => ({
-      locked: getComputedStyle(document.querySelector(".section-block.sec-locked .section-lock")).color,
+      locked: getComputedStyle(document.querySelector(".section-block.sec-locked .section-lock-mark")).color,
       danger: getComputedStyle(document.documentElement).getPropertyValue("--danger").trim(),
     }));
     expect(danger, "--danger must be defined for this to mean anything").not.toBe("");
@@ -64,6 +67,7 @@ test.describe("locking a section", () => {
     await openStudio(page);
 
     await expect(page.locator('.section-block[data-id="s1"]')).not.toHaveClass(/sec-locked/);
+    await expect(page.locator('.section-block[data-id="s1"] .section-lock-mark')).toHaveCount(0);
   });
 
   test("a locked section refuses to be dragged", async ({ page }) => {
@@ -105,11 +109,7 @@ test.describe("locking a section", () => {
     await seed(page, [UNLOCKED]);
     await openStudio(page);
 
-    // On an unlocked section the padlock only appears on hover, exactly like
-    // the delete cross beside it. Once locked it stays visible, which is what
-    // the first test in this file asserts.
-    await page.locator('.section-block[data-id="s1"]').hover();
-    await page.locator('.section-block[data-id="s1"] .section-lock').click();
+    await toggleLockInEditor(page);
     await expect(page.locator('.section-block[data-id="s1"]')).toHaveClass(/sec-locked/);
     await expect.poll(async () => (await savedSections(page))[0]?.locked).toBe(true);
 
@@ -120,11 +120,11 @@ test.describe("locking a section", () => {
     await expect(page.locator('.section-block[data-id="s1"]')).toHaveClass(/sec-locked/);
   });
 
-  test("clicking the padlock again unlocks it", async ({ page }) => {
+  test("Lock position again unlocks it", async ({ page }) => {
     await seed(page, [LOCKED]);
     await openStudio(page);
 
-    await page.locator('.section-block[data-id="s1"] .section-lock').click();
+    await toggleLockInEditor(page);
 
     await expect(page.locator('.section-block[data-id="s1"]')).not.toHaveClass(/sec-locked/);
     await expect.poll(async () => (await savedSections(page))[0]?.locked).toBe(false);

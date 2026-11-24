@@ -8,11 +8,11 @@ import { t, onLanguageChange } from "./i18n.js";
 import { playWithCountIn } from "./transport.js";
 import { HTTP_NOT_FOUND, HttpError } from "./libraryControls.js";
 import { buildTrackViews, laneSpace, nextName } from "./takesState.js";
-import { renderTakeRows, paintTrackMeter } from "./takesRows.js";
+import { TRACK_ROW_SELECTOR, paintTrackMeter, paintTrackSolo, renderTakeRows } from "./takesRows.js";
 import { renderTakeLanes, paintLiveClip } from "./takesLanes.js";
 import { setTakeLaneSpace } from "./takesLayout.js";
 import { loadTakeMix, setMixTracks, takeMixEntry } from "./takesMix.js";
-import { applyMix } from "./mixer.js";
+import { MIX_CHANGE_EVENT, applyMix } from "./mixer.js";
 import { setTakeLanes } from "./takesPlayback.js";
 import { fetchTakePeaks, listTakes } from "./takesApi.js";
 import * as actions from "./takesActions.js";
@@ -22,6 +22,7 @@ import {
   REC_PHASE, STOP_REASON, isLostUpload, onRecorderEvent, recordBlock, recordingTake, takeElapsedSec, toggleRecording,
 } from "./recorder.js";
 import { paintCountIn, paintRecordButton, paintStageMark, showRecNotice, wireRecordButton } from "./recorderUi.js";
+import { TRACK_OPEN_EVENT } from "./trackEvents.js";
 
 const EMPTY_LISTING = Object.freeze({ tracks: [], takes: [], open: [] });
 const LIVE_BARS_MAX = 200;
@@ -253,9 +254,16 @@ function frame() {
   paintFooter();
 }
 
+function paintTakeSolos() {
+  for (const row of mixerEl.querySelectorAll(TRACK_ROW_SELECTOR)) {
+    paintTrackSolo(row, takeMixEntry(row.dataset.recTrack).soloed);
+  }
+}
+
 function init() {
   loadRecorderPrefs();
-  document.addEventListener("trackopen", onTrackOpen);
+  document.addEventListener(TRACK_OPEN_EVENT, onTrackOpen);
+  document.addEventListener(MIX_CHANGE_EVENT, paintTakeSolos);
   onRecorderEvent(onRecorder);
   onArmChange(render);
   onLanguageChange(render);

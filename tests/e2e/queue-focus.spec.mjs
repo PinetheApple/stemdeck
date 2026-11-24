@@ -12,6 +12,7 @@ import {
   stubLongQueue,
   stubUpdateCheck,
   tabTo,
+  openBrowse,
 } from "./helpers.mjs";
 
 const [FIRST_WAITING, SECOND_WAITING, THIRD_WAITING] = LONG_QUEUE_WAITING_IDS;
@@ -28,7 +29,7 @@ async function openQueue(page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.locator(`.cat-item[data-id="${JOB_ID}"]`)).toBeVisible();
   await page.evaluate(() => import("/js/queue.js").then((m) => m.refreshQueue()));
-  await page.locator(".rail-queue").click();
+  await openBrowse(page, "queue");
   await expect(page.locator(EXTRACT_NEXT).first()).toBeAttached();
   return queue;
 }

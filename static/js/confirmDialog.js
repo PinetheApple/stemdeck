@@ -2,28 +2,28 @@
 // shared confirm card (the reset-confirm-* styles).
 
 import { t } from "./i18n.js";
+import { openDialogLayer } from "./dialogLayer.js";
+import { dialogHead } from "./dialogHead.js";
 
 let openDialog = null;
-let dialogOpener = null;
+let dialogLayer = null;
 let settleDialog = null;
 
-function closeDialog() {
+// Esc and the dimmed page close through the layer, which answers no.
+function onDialogClosed() {
   openDialog?.remove();
   openDialog = null;
-  document.removeEventListener("keydown", onDialogKeydown);
-  if (dialogOpener?.isConnected) dialogOpener.focus();
-  dialogOpener = null;
+  dialogLayer = null;
+  const settle = settleDialog;
+  settleDialog = null;
+  settle?.(false);
 }
 
 function finishDialog(confirmed) {
   const settle = settleDialog;
   settleDialog = null;
-  closeDialog();
+  dialogLayer?.close();
   settle?.(confirmed);
-}
-
-function onDialogKeydown(e) {
-  if (e.code === "Escape") finishDialog(false);
 }
 
 function onDialogCancel() {
@@ -34,14 +34,9 @@ function onDialogConfirm() {
   finishDialog(true);
 }
 
-function onDialogBackdrop(e) {
-  if (e.target === openDialog) finishDialog(false);
-}
-
 function dialogMarkup(body) {
   return `
     <div class="reset-confirm-card" role="dialog" aria-modal="true">
-      <div class="reset-confirm-title"></div>
       <p class="reset-confirm-body">
         <strong></strong><br />
         ${body}
@@ -79,7 +74,9 @@ function buildDialog({
   overlay.className = "reset-confirm-backdrop";
   addClass(overlay, className);
   overlay.innerHTML = dialogMarkup(body);
-  overlay.querySelector(".reset-confirm-card").setAttribute("aria-label", ariaLabel);
+  const card = overlay.querySelector(".reset-confirm-card");
+  card.setAttribute("aria-label", ariaLabel);
+  card.prepend(dialogHead({ titleClass: "reset-confirm-title" }));
   const titleEl = overlay.querySelector(".reset-confirm-title");
   titleEl.textContent = title;
   addClass(titleEl, titleClass);
@@ -91,6 +88,7 @@ function buildDialog({
   const confirm = overlay.querySelector(".reset-confirm-actions button:last-child");
   confirm.textContent = confirmLabel;
   confirm.classList.add(confirmClass);
+  overlay.querySelector(".dialog-close").addEventListener("click", onDialogCancel);
   return { overlay, cancel, confirm };
 }
 
@@ -102,12 +100,13 @@ export function confirmDialog(options) {
   const { overlay, cancel, confirm } = buildDialog(settings);
   cancel.addEventListener("click", onDialogCancel);
   confirm.addEventListener("click", onDialogConfirm);
-  overlay.addEventListener("mousedown", onDialogBackdrop);
-  document.addEventListener("keydown", onDialogKeydown);
-
-  dialogOpener = document.activeElement;
+  const opener = document.activeElement;
   document.body.appendChild(overlay);
   openDialog = overlay;
+  dialogLayer = openDialogLayer(overlay, {
+    onClose: onDialogClosed,
+    opener,
+  });
   (settings.focusCancel ? cancel : confirm).focus();
   return new Promise((resolve) => {
     settleDialog = resolve;

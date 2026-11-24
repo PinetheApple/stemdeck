@@ -12,7 +12,9 @@
 //    window.__TAURI__ so the desktop branch runs, and so the test decides when
 //    an export finishes rather than racing a real one.
 
+import { expect } from "@playwright/test";
 import { DEFAULT_VERSION_ID } from "../../static/js/versionModel.js";
+import { MIN_WAVES_PX } from "../../static/js/paneEdgeMath.js";
 
 export const JOB_ID = "e2e0deadbeef";
 export const TRACK_TITLE = "E2E Fixture Track";
@@ -23,9 +25,10 @@ export const SIBLING_JOB_ID = "e2e0cafebabe";
 export const SIBLING_TITLE = "E2E Fixture Track (again)";
 export const SOURCE_URL = "local:e2e-fixture";
 
-// libraryResize.js keeps at least this much waveform beside the stem labels.
-export const MIN_TIMELINE_WIDTH = 360;
+export const MIN_TIMELINE_WIDTH = MIN_WAVES_PX;
 export const LOAD_TIMEOUT_MS = 20000;
+// Tall enough that each lane shows its second row (EQ, Key, Stem) rather than its ⋯ menu.
+export const TALL_WINDOW = Object.freeze({ width: 1600, height: 1000 });
 
 const STORAGE_KEY = "stemdeck.folders";
 const STORAGE_VERSION = 2;
@@ -89,18 +92,22 @@ export async function readCatalogState(page) {
  *
  * Both, not just one. syncWithServer imports any server job the store does not
  * already know, so leaving one out would add it as a row of its own on every
- * page load in the suite.
+ * page load in the suite. `trashed` lists the ids to seed in the Trash instead;
+ * `tracks` adds songs, or changes fields of the fixture ones, by id.
  */
-export async function seedLibrary(page) {
+export async function seedLibrary(page, { trashed = [], tracks = {} } = {}) {
+  const library = {
+    [JOB_ID]: fixtureTrack(JOB_ID, TRACK_TITLE),
+    [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, SIBLING_TITLE),
+  };
+  for (const [id, fields] of Object.entries(tracks)) library[id] = { ...(library[id] ?? fixtureTrack(id, id)), ...fields };
+  const ids = Object.keys(library);
   await seedCatalogState(page, {
     folders: [
-      { id: "f-unsorted", name: "Unsorted", items: [JOB_ID, SIBLING_JOB_ID], color: null },
-      { id: "trash", name: "Trash", items: [], color: null },
+      { id: "f-unsorted", name: "Unsorted", items: ids.filter((id) => !trashed.includes(id)), color: null },
+      { id: "trash", name: "Trash", items: ids.filter((id) => trashed.includes(id)), color: null },
     ],
-    tracks: {
-      [JOB_ID]: fixtureTrack(JOB_ID, TRACK_TITLE),
-      [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, SIBLING_TITLE),
-    },
+    tracks: library,
   });
 }
 
@@ -279,6 +286,7 @@ export async function stubUpdateCheck(page, { available = false } = {}) {
 
 // A read still in flight when the test ends: its response is gone and the
 // request can no longer be answered.
+const OPEN_RETRY_MS = 1000;
 const TEARDOWN_ERROR = /Response has been disposed|Target page, context or browser has been closed/;
 
 /** Open the fixture track in the studio and wait until the transport is live. */
@@ -388,6 +396,26 @@ export async function stubServerTrash(
   return server;
 }
 
+export const BROWSE_RESULTS = "#browseResults";
+export const browseRow = (page, id) => page.locator(`${BROWSE_RESULTS} .cat-item[data-id="${id}"]`);
+
+/** Open Browse library at `view` ("all", "fav", "recent", "queue", "trash", "folder:<id>", "setlist:<id>"). */
+export async function openBrowse(page, view = "all") {
+  if (!(await page.locator("#browseLibrary").isVisible())) await page.locator("#browseBtn").click();
+  await page.locator(`#browseNav .browse-nav-btn[data-view="${view}"]`).click();
+  await page.locator(`#browseNav .browse-nav-btn[data-view="${view}"][aria-current="page"]`).waitFor();
+}
+
+/** Open the Add song popover; a no-op when it is open. Not #url: a staged chip hides it. */
+export async function openComposer(page) {
+  const popover = page.locator("#composerDrawer");
+  // Retried: a click that lands before the shell has wired the button opens nothing.
+  await expect(async function clickAddSongUntilOpen() {
+    if (!(await popover.isVisible())) await page.locator("#addSongBtn").click();
+    await expect(popover).toBeVisible({ timeout: OPEN_RETRY_MS });
+  }).toPass();
+}
+
 export async function openStudio(
   page,
   {
@@ -395,12 +423,16 @@ export async function openStudio(
     updateAvailable = false,
     serverFavorites = {},
     catalog = null,
+    trashed = [],
+    tracks = {},
     waitForDuration = true,
   } = {},
 ) {
   if (catalog) await seedCatalogState(page, catalog);
-  else await seedLibrary(page);
+  else await seedLibrary(page, { trashed, tracks });
   const favoriteWrites = await stubFavorites(page, serverFavorites);
+  // After the favorites stub: the later route wins, and the startup sync would otherwise restore them.
+  if (trashed.length) await stubServerTrash(page, { trashed });
   if (tauri) await stubTauri(page);
   await stubExportEndpoints(page);
   await stubUpdateCheck(page, { available: updateAvailable });
@@ -458,8 +490,19 @@ export async function waitForClickTrack(page, { revealOptions = true } = {}) {
   if (revealOptions) await openClickOptions(page);
 }
 
-/** Show one of the inspector's tabs: "tempo", "upnext" or "details". */
+/** Bring the song tools back where a narrow window put them aside. */
+export async function showSongTools(page) {
+  const tools = page.locator("#inspector");
+  if (!(await tools.isVisible())) await page.locator("#inspectorToggleBtn").click();
+  await tools.waitFor({ state: "visible" });
+}
+
+/** Where the song tools remember their last tab (inspector.js). */
+export const TAB_STORE_KEY = "stemdeck.inspector.tab";
+
+/** Show one of the song tools' tabs: "lyrics", "upnext", "tempo", "eq" or "details". */
 export async function openInspectorTab(page, name) {
+  await showSongTools(page);
   const tab = page.locator(`.inspector-tab[data-tab="${name}"]`);
   if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
   await page.locator(`.inspector-pane[data-pane="${name}"]`).waitFor({ state: "visible", timeout: 5000 });
@@ -474,6 +517,41 @@ export async function openInspectorTab(page, name) {
  */
 export async function openClickOptions(page) {
   await openInspectorTab(page, "tempo");
+}
+
+/** Open a footer popover by its trigger and wait for the panel; a no-op when it is already open. */
+async function openFooterPanel(page, trigger, panel) {
+  if (await page.locator(panel).isVisible()) return;
+  await page.locator(trigger).click();
+  await page.locator(panel).waitFor({ state: "visible", timeout: 5000 });
+}
+
+/** The Loop options popover: the loop start and end fields. */
+export const openLoopOptions = (page) => openFooterPanel(page, "#t-loop-more", "#t-loop-panel");
+
+/** The Speed popover: the exact-speed box and the fader. */
+export const openSpeedOptions = (page) => openFooterPanel(page, "#t-speed-btn", "#t-speed-panel");
+
+/** The Key popover: Reset. */
+export const openKeyOptions = (page) => openFooterPanel(page, "#t-key-btn", "#t-key-panel");
+
+/** The Sections popover over the lanes: Add section, Clear, Hide the sections bar. */
+export const openSectionsMenu = (page) => openFooterPanel(page, "#sectionsMenuBtn", "#sectionsPanel");
+
+/** The View popover over the lanes: Auto-scroll, Sections bar, Beat grid. */
+export const openViewMenu = (page) => openFooterPanel(page, "#viewMenuBtn", "#viewPanel");
+
+/** The Edit section dialog that a double-click on a section block opens. */
+export const sectionEditDialog = (page) => page.getByRole("dialog", { name: "Edit section" });
+
+/** Add a section from the Sections popover and leave the Edit section dialog it opens. */
+export async function addSection(page) {
+  await openSectionsMenu(page);
+  await page.locator("#sectionsAddBtn").click();
+  const dialog = sectionEditDialog(page);
+  await dialog.waitFor({ state: "visible", timeout: 5000 });
+  await page.keyboard.press("Escape");
+  await dialog.waitFor({ state: "hidden", timeout: 5000 });
 }
 
 export const exportUi = (page) => ({
@@ -740,6 +818,9 @@ export const KEY = Object.freeze({
   DELETE: "Delete",
 });
 
+// A point on the dimmed page, clear of any dialog card.
+export const OUTSIDE_DIALOG = Object.freeze({ x: 5, y: 5 });
+
 const ADDED_INPUT_ID = "e2e-added-input";
 
 /** Add an `<input>` of `type` to the page and focus it, for a control the page has no visible copy of. */
@@ -756,4 +837,13 @@ export async function focusAddedInput(page, type) {
   const input = page.locator(`#${ADDED_INPUT_ID}`);
   await input.focus();
   return input;
+}
+
+const SONG_MENU = ".lib-menu.song-menu";
+const RIGHT_BUTTON = "right";
+
+/** Choose `name` from a song's menu, opened with a right-click on its row or card. */
+export async function chooseFromSongMenu(page, row, name) {
+  await row.click({ button: RIGHT_BUTTON });
+  await page.locator(SONG_MENU).getByRole("menuitem", { name, exact: true }).click();
 }

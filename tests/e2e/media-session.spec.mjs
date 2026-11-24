@@ -10,7 +10,11 @@ import {
   fixtureTrack,
   openClickOptions,
   openStudio,
+  seedCatalogState,
+  stubFavorites,
+  stubUpdateCheck,
   waitForClickTrack,
+  openSpeedOptions,
 } from "./helpers.mjs";
 
 // A 1x1 PNG. data: is in the page's img-src, so it loads with no network.
@@ -419,9 +423,23 @@ test.describe("system media controls", () => {
 
     await runAction(page, "play");
     await expectPlaying(page, true);
+    await openSpeedOptions(page);
     await page.locator("#t-speed-value").fill("0.5");
     await page.locator("#t-speed-value").press("Enter");
     await expect.poll(async () => (await lastPosition(page))?.playbackRate).toBe(0.5);
+  });
+
+  test("the OS Previous key is off with no song open and on once one is", async ({ page }) => {
+    await recordMediaSession(page);
+    await seedCatalogState(page, library());
+    await stubFavorites(page);
+    await stubUpdateCheck(page);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    const row = page.locator(`.cat-item[data-id="${JOB_ID}"]`).first();
+    await row.waitFor();
+    await expect.poll(() => handlerKind(page, "previoustrack")).toBe("cleared");
+    await row.click();
+    await expect.poll(() => handlerKind(page, "previoustrack")).toBe("set");
   });
 
   test("closing the song clears what the OS shows", async ({ page }) => {

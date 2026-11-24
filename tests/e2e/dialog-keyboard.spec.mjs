@@ -15,6 +15,11 @@ import {
   stubLongQueue,
   stubUpdateCheck,
   tabTo,
+  openComposer,
+  waitForPanesSettled,
+  TALL_WINDOW,
+  openBrowse,
+  browseRow,
 } from "./helpers.mjs";
 
 const MIN_TARGET_PX = 24;
@@ -26,27 +31,27 @@ async function openApp(page, { updateAvailable = false, seed = seedLibrary } = {
   await stubExportEndpoints(page);
   await stubUpdateCheck(page, { available: updateAvailable });
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(`.cat-item[data-id="${JOB_ID}"]`)).toBeVisible();
+  await expect(page.locator("#catalogList .cat-item").first()).toBeVisible();
 }
 
 async function openLongQueue(page) {
   await stubLongQueue(page);
   await openApp(page);
   await page.evaluate(() => import("/js/queue.js").then((m) => m.refreshQueue()));
-  await page.locator(".rail-queue").click();
+  await openBrowse(page, "queue");
   await expect(page.locator(".queue-top").first()).toBeAttached();
 }
 
 test.describe("dialogs and Esc", () => {
-  test("About opens on Enter, closes on Esc and hands focus back", async ({ page }) => {
+  test("About opens Settings on its About tab on Enter, closes on Esc and hands focus back", async ({ page }) => {
     await openApp(page);
     await page.locator("#aboutBtn").focus();
     await page.keyboard.press(KEY.ENTER);
-    await expect(page.locator("#aboutDialog")).toBeVisible();
-    await expect(page.locator("#aboutClose")).toBeFocused();
+    await expect(page.locator('.settings-tab[aria-selected="true"]')).toHaveAttribute("data-tab", "about");
+    await expect(page.locator('.settings-pane[data-pane="about"]')).toBeVisible();
 
     await page.keyboard.press(KEY.ESCAPE);
-    await expect(page.locator("#aboutDialog")).toBeHidden();
+    await expect(page.locator(".library-editor")).toHaveCount(0);
     await expect(page.locator("#aboutBtn")).toBeFocused();
   });
 
@@ -76,6 +81,7 @@ test.describe("dialogs and Esc", () => {
   test("Esc in the reset confirmation closes only it, after typing", async ({ page }) => {
     await openApp(page);
     await page.locator("#settingsBtn").click();
+    await page.locator('.settings-tab[data-tab="general"]').click();
     const reset = page.locator(".settings-reset-btn");
     await reset.scrollIntoViewIfNeeded();
     await reset.click();
@@ -91,13 +97,15 @@ test.describe("dialogs and Esc", () => {
 
   test("the folder editor closes on Esc and hands focus back to the folder", async ({ page }) => {
     await openApp(page, { seed: seedFolderAndStoppedSong });
-    const head = page.locator(`.folder[data-id="${USER_FOLDER_ID}"] > .folder-head`);
-    await head.dblclick();
+    await openBrowse(page);
+    const row = page.locator(`#browseNav .browse-nav-folder[data-folder="${USER_FOLDER_ID}"]`);
+    await row.dblclick();
     await expect(page.locator(".folder-editor-name")).toBeFocused();
 
     await page.keyboard.press(KEY.ESCAPE);
     await expect(page.locator(".folder-editor")).toHaveCount(0);
-    await expect(page.locator(`.folder[data-id="${USER_FOLDER_ID}"] > .folder-head`)).toBeFocused();
+    await expect(page.locator("#browseLibrary")).toBeVisible();
+    await expect(row).toBeFocused();
   });
 });
 
@@ -116,6 +124,7 @@ const PLAYLIST_PREVIEW = {
 };
 
 async function openPlaylistReview(page) {
+  await openComposer(page);
   const url = page.locator("#url");
   await url.fill(PLAYLIST_URL);
   await url.press(KEY.ENTER);
@@ -154,14 +163,15 @@ test.describe("more dialogs and Esc", () => {
       await openPlaylistReview(page);
       await close();
       await expect(page.locator("#batchReview")).toHaveCount(0);
-      await expect(page.locator("#url")).toBeFocused();
+      await expect(page.locator("#addSongBtn")).toBeFocused();
+      await openComposer(page);
       await page.locator("#url").fill("");
     }
 
     await openPlaylistReview(page);
     await page.locator("#batchReview .batch-queue").click();
     await expect(page.locator("#batchReview")).toHaveCount(0);
-    await expect(page.locator("#url")).toBeFocused();
+    await expect(page.locator("#addSongBtn")).toBeFocused();
     expect(created).toHaveLength(PLAYLIST_PREVIEW.items.length);
   });
 });
@@ -204,25 +214,24 @@ function seedFolderAndStoppedSong(page) {
 test.describe("target sizes", () => {
   test("row, folder, transpose and About buttons are at least 24 px", async ({ page }) => {
     await openApp(page, { seed: seedFolderAndStoppedSong });
-    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).hover();
-    await expect(page.locator(".cat-item .cat-extract")).toBeVisible();
+    expect(await smallTargets(page, ["#t-pitch-down", "#t-pitch-up", "#t-key-btn"])).toEqual(ALL_TARGETS_MET);
+    await openBrowse(page, `folder:${USER_FOLDER_ID}`);
+    expect(await smallTargets(page, ["#browseNewFolder", ".browse-folder-more"])).toEqual(ALL_TARGETS_MET);
+    await openBrowse(page);
+    await page.locator("#browseListBtn").click();
+    await browseRow(page, SIBLING_JOB_ID).hover();
+    await expect(page.locator("#browseResults .cat-item .cat-extract")).toBeVisible();
     expect(
       await smallTargets(page, [
-        "#newFolderBtn",
-        ".folder-head .f-more",
-        ".cat-item .cat-extract",
-        ".cat-item .cat-upnext",
-        ".cat-item .cat-more",
-        ".cat-item .cat-fav",
-        ".cat-item .cat-del",
-        "#t-pitch-down",
-        "#t-pitch-up",
-        "#t-pitch-reset",
+        "#browseResults .cat-item .cat-extract",
+        "#browseResults .cat-item .cat-upnext",
+        "#browseResults .cat-item .cat-more",
       ]),
     ).toEqual(ALL_TARGETS_MET);
+    await page.keyboard.press(KEY.ESCAPE);
 
     await page.locator("#aboutBtn").click();
-    expect(await smallTargets(page, ["#aboutClose", ".about-social-btn"])).toEqual(ALL_TARGETS_MET);
+    expect(await smallTargets(page, [".library-editor-close", ".about-social-btn"])).toEqual(ALL_TARGETS_MET);
   });
 
   test("an import's cancel and extract-next buttons are at least 24 px", async ({ page }) => {
@@ -230,16 +239,24 @@ test.describe("target sizes", () => {
     expect(await smallTargets(page, [".queue-cancel", ".queue-top"])).toEqual(ALL_TARGETS_MET);
   });
 
-  test("a lane's transpose arrows take a 24 px hit, reaching away from the K", async ({ page }) => {
+  test("a lane's transpose arrows take a 24 px hit", async ({ page }) => {
+    await page.setViewportSize(TALL_WINDOW);
     await openStudio(page);
-    const up = page.locator('.lane-key[data-stem="vocals"] .lane-key-step.up');
-    await expect(up).toBeVisible();
-    const box = await up.boundingBox();
-    const hits = await page.evaluate(
-      ({ x, ys }) => ys.map((y) => Boolean(document.elementFromPoint(x, y)?.closest(".lane-key-step.up"))),
-      { x: box.x + box.width / 2, ys: [box.y + box.height - 1, box.y + box.height - MIN_TARGET_PX + 1] },
-    );
-    expect(hits).toEqual([true, true]);
+    await waitForPanesSettled(page);
+    for (const step of ["up", "down"]) {
+      const sel = `.lane-key[data-stem="vocals"] .lane-key-step.${step}`;
+      await expect.poll(async () => {
+        const box = await page.locator(sel).boundingBox();
+        const midX = box.x + box.width / 2;
+        const midY = box.y + box.height / 2;
+        // Edge midpoints: hit-testing follows the rounded corners.
+        const edges = [[box.x + 1, midY], [box.x + MIN_TARGET_PX - 1, midY], [midX, box.y + 1], [midX, box.y + MIN_TARGET_PX - 1]];
+        return page.evaluate(
+          ({ points, selector }) => points.map(([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest(selector))),
+          { points: edges, selector: sel },
+        );
+      }, { message: step }).toEqual([true, true, true, true]);
+    }
   });
 });
 

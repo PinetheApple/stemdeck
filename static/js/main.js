@@ -6,12 +6,13 @@ import {
 } from "./state.js";
 import { STEM_NAMES, SEEK_STEP_SEC, syncStemNamesFromAPI } from "./constants.js";
 import { refreshStemChoiceVisuals } from "./stemChoice.js";
-import { renderEmptyShell, buildStripStems, downloadCurrentMix, downloadCurrentVideo, downloadAllStemsZip, downloadSongBundle, downloadRegionMix, drawFooterPlaceholder, regionDragPayload, stemRegionDragPayload, prewarmRegionMix } from "./player.js";
+import { renderEmptyShell, downloadCurrentMix, downloadCurrentVideo, downloadAllStemsZip, downloadSongBundle, downloadRegionMix, regionDragPayload, stemRegionDragPayload, prewarmRegionMix } from "./player.js";
 import { wireJobForm, showError } from "./job.js";
 import { initSearch } from "./search.js";
 import { wireTransportButtons } from "./transport.js";
 import { wireBeatGridUi } from "./beatgridUi.js";
-import { togglePlayPauseFromTransport, updateLoopRegionVisual, toggleMetronome, transport, setPlayheadTime, setLoopRange } from "./transport.js";
+import { togglePlayPauseFromTransport, updateLoopRegionVisual, toggleMetronome, transport, setPlayheadTime } from "./transport.js";
+import { LOOP_EDGE_MIN_SEC } from "./footerLoop.js";
 import { setSectionsLoopBridge, saveSectionsOnPageClose } from "./sections.js";
 import { saveBeatGridOnPageClose } from "./beatgrid.js";
 import { wireStemListControls, wireMixerToolbar, laneDragIcon } from "./mixer.js";
@@ -19,13 +20,19 @@ import { initCatalog, collectDiagnostics, isNativeSpaceTarget, isTextEditingTarg
 import { initNotifications, notifyFailure, dismissFailuresByJobId } from "./notifications.js";
 import { runStoreMigrationIfNeeded, onStoreUnavailable, onStoreLost } from "./utils.js";
 import { initI18n, applyTranslations, t, onLanguageChange } from "./i18n.js";
-import { initFooterFit, refitFooter } from "./footerFit.js";
 import { initArtistInfo } from "./artistInfo.js";
 import { initLyrics } from "./lyrics.js";
 import { initHelpMode } from "./helpMode.js";
 import { initAutoScroll } from "./autoScroll.js";
 import { initInspector } from "./inspector.js";
 import { initLibraryResize } from "./libraryResize.js";
+import { initShellEdges } from "./shellEdges.js";
+import { initShell } from "./shell.js";
+import { initSidebar } from "./sidebar.js";
+import { initBrowseLibrary } from "./browseLibrary.js";
+import { initLibraryRows } from "./libraryRows.js";
+import { initLanesDrop } from "./lanesDrop.js";
+import { openComposer } from "./composerDrawer.js";
 import { initUpNext, renderUpNext } from "./upNext.js";
 import { initMediaSession } from "./mediaSession.js";
 import { initStageMode } from "./stageMode.js";
@@ -34,6 +41,8 @@ import { initTempoTools, takeUnconfirmedTempo } from "./tempoTools.js";
 import { initSetlists } from "./setlists.js";
 import { initSongRename } from "./songRename.js";
 import { initTrackMenu } from "./trackMenu.js";
+import { initSongMenu } from "./songMenu.js";
+import { initUpNextUndo } from "./upNextUndo.js";
 import { initConnection } from "./connection.js";
 import { clearBatch, setImportPill, startFileBatch, wireBatchImport } from "./batchImport.js";
 import {
@@ -101,7 +110,6 @@ function wireVocalModeToggle() {
       }
       saveSelectedStems();
       refreshStemChoiceVisuals();
-      buildStripStems();
     });
   }
 }
@@ -207,7 +215,6 @@ function handleStemChoiceClick(stem) {
 
   saveSelectedStems();
   refreshStemChoiceVisuals();
-  buildStripStems();
 }
 
 function wireStemChoiceButtons() {
@@ -215,192 +222,6 @@ function wireStemChoiceButtons() {
   for (const btn of document.querySelectorAll(".stem-choice[data-stem]")) {
     btn.addEventListener("click", () => handleStemChoiceClick(btn.dataset.stem));
   }
-}
-
-// ─── Extract chips: what happens when they stop fitting ───
-//
-// The row never wraps. Whichever chips no longer fit move into a panel behind
-// a three-dot button, one at a time, from the end of the row.
-//
-// Wrapping was the alternative and it is the wrong one: the bar went from 96px
-// tall to 168 and then 236 as the chips spilled onto further lines, growing
-// exactly as the window shrank, and leaving the controls on the right stranded
-// at the top of a column stretched by chips they have nothing to do with.
-//
-// The order is fixed once, at wiring time, because the measuring below puts
-// everything back inline before it decides and the DOM order is the only
-// record of where each chip belongs.
-
-let _stemChipOrder = null;
-
-/**
- * Move whatever does not fit into the overflow panel, and nothing more.
- *
- * Measured from the row's own clientWidth rather than from a breakpoint: the
- * chips are seven different widths in ten languages, so the width at which the
- * fifth one stops fitting is not a number anyone can write down.
- *
- * Everything goes back inline first. Deciding from the current, already
- * collapsed state would mean the row could only ever lose chips and never get
- * them back as the window grew, which is the same trap the footer's own fit
- * logic documents.
- */
-function fitStemChips() {
-  const row = document.getElementById("stemChips");
-  const panel = document.getElementById("stemOverflow");
-  const btn = document.getElementById("stemMoreBtn");
-  if (!row || !panel || !btn || !_stemChipOrder) return;
-
-  for (const el of _stemChipOrder) row.appendChild(el);
-  // Both measurements below are taken against a row that is not paying for the
-  // button yet, so it starts hidden and is revealed only once the answer is
-  // known to need it.
-  btn.hidden = true;
-
-  // Measured after everything is back, so the number is what the row can have
-  // rather than what it was left with. A hidden row has no width to fit
-  // anything into, and measuring one would move every chip for nothing.
-  let budget = row.clientWidth;
-  if (!budget) return;
-
-  const gap = parseFloat(getComputedStyle(row).gap) || 0;
-  // A margin is part of what a chip costs the row. The Vocals group carries a
-  // right margin to set it apart from Drums, and a rect is measured without
-  // it, so the sum came up short by exactly that margin and the last chip sat
-  // a pixel past the edge with the fitter reporting everything fitted (#673).
-  const widths = _stemChipOrder.map((el) => {
-    const cs = getComputedStyle(el);
-    return (
-      el.getBoundingClientRect().width +
-      (parseFloat(cs.marginLeft) || 0) +
-      (parseFloat(cs.marginRight) || 0)
-    );
-  });
-  const total = widths.reduce((a, w, i) => a + w + (i ? gap : 0), 0);
-
-  // Half a pixel of rounding is not an overflow; the row is overflow: hidden
-  // and a chip that fits within a pixel is drawn whole.
-  const fits = (used) => used <= budget + 0.5;
-
-  let keep = _stemChipOrder.length;
-  if (!fits(total)) {
-    // Something has to fold, so the button is going to be on screen, and it
-    // takes its width out of this row rather than out of the bar. Deciding
-    // against a budget measured without it is what made the fold stop one chip
-    // short every time it folded at all: the row lost the button's width the
-    // moment the answer was applied, and the chip that had just been measured
-    // as fitting no longer did (#673).
-    btn.hidden = false;
-    budget = row.clientWidth;
-
-    let used = 0;
-    keep = 0;
-    for (let i = 0; i < _stemChipOrder.length; i++) {
-      used += widths[i] + (i ? gap : 0);
-      if (!fits(used)) break;
-      keep = i + 1;
-    }
-  }
-
-  for (let i = keep; i < _stemChipOrder.length; i++) panel.appendChild(_stemChipOrder[i]);
-  btn.hidden = keep === _stemChipOrder.length;
-
-  // Then look at what that did, because the answer can invalidate itself.
-  //
-  // The row sits in a grid track sized from its own content, so the width it
-  // is given depends on what is in it. Folding a chip out shrinks the column,
-  // which can leave the chips that stayed overflowing a row that genuinely had
-  // room for them when they were measured. A single pass cannot see that, and
-  // Chinese at 1024 is where it showed: five chips folded, and the two left
-  // over hung 4px past an edge that had moved underneath them (#673).
-  //
-  // So fold, look again, fold again. Each turn only removes a chip, and the
-  // counter is the belt to the loop's braces.
-  let guard = _stemChipOrder.length;
-  while (keep > 0 && row.scrollWidth > row.clientWidth + 1 && guard-- > 0) {
-    keep -= 1;
-    btn.hidden = false;
-    panel.insertBefore(_stemChipOrder[keep], panel.firstChild);
-  }
-
-  btn.hidden = keep === _stemChipOrder.length;
-  if (btn.hidden) closeStemOverflow();
-}
-
-function closeStemOverflow() {
-  const panel = document.getElementById("stemOverflow");
-  const btn = document.getElementById("stemMoreBtn");
-  if (!panel || !btn) return;
-  panel.classList.remove("open");
-  btn.setAttribute("aria-expanded", "false");
-}
-
-// Fixed positioning, placed from the button's own rect, because the panel has
-// to escape the bar it is anchored in.
-function wireStemChipsPopover() {
-  const row = document.getElementById("stemChips");
-  const panel = document.getElementById("stemOverflow");
-  const btn = document.getElementById("stemMoreBtn");
-  if (!row || !panel || !btn) return;
-
-  _stemChipOrder = [...row.children];
-
-  const isOpen = () => btn.getAttribute("aria-expanded") === "true";
-
-  btn.addEventListener("click", (e) => {
-    // Stops the document handler below reading the press that opened the panel
-    // as the click away that shuts it.
-    e.stopPropagation();
-    if (isOpen()) return closeStemOverflow();
-    panel.classList.add("open");
-    btn.setAttribute("aria-expanded", "true");
-    const r = btn.getBoundingClientRect();
-    panel.style.left = `${Math.max(8, Math.min(Math.round(r.left), window.innerWidth - panel.offsetWidth - 8))}px`;
-    panel.style.top = `${Math.round(r.bottom + 6)}px`;
-  });
-
-  // A click on a chip is a click on a control, not a click away from it: the
-  // selection is meant to be changed several times with the panel open.
-  panel.addEventListener("click", (e) => e.stopPropagation());
-  document.addEventListener("click", closeStemOverflow);
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && isOpen()) {
-      closeStemOverflow();
-      btn.focus();
-    }
-  });
-
-  // Watch the composer, not the chip row.
-  //
-  // The row is what this function moves things out of, and the column it sits
-  // in is sized by its content, so emptying it shrinks it: at a narrow window
-  // the row collapsed to 127px, and widening the window never widened it back
-  // because the chips that would have done so were in the panel. The observer
-  // then had nothing to report and the chips never came home. Measuring the
-  // thing you are changing.
-  //
-  // The composer's width tracks the window and the sidebar without depending
-  // on where any chip currently lives, so it is the honest trigger. The window
-  // resize below is a belt-and-braces second one.
-  //
-  // Coalesced because a drag on the window edge fires this every frame.
-  let queued = false;
-  const refit = () => {
-    if (queued) return;
-    queued = true;
-    requestAnimationFrame(() => {
-      queued = false;
-      fitStemChips();
-    });
-  };
-  const composer = row.closest(".daw-composer") || row;
-  if (typeof ResizeObserver === "function") new ResizeObserver(refit).observe(composer);
-  window.addEventListener("resize", () => {
-    closeStemOverflow();
-    refit();
-  });
-
-  fitStemChips();
 }
 
 function wireAllButton() {
@@ -416,7 +237,6 @@ function wireAllButton() {
     }
     saveSelectedStems();
     refreshStemChoiceVisuals();
-    buildStripStems();
   });
 
   // No second listener on the stem chips, and no sync of its own. The button
@@ -454,7 +274,7 @@ onStoreLost(showStoreLost);
 // static/index.html always ships pre-rendered in English).
 const i18nReady = initI18n().then(() => applyTranslations(document));
 
-syncStemNamesFromAPI().then(() => buildStripStems());
+syncStemNamesFromAPI();
 wireJobForm();
 // Live search on the topbar box. Picking a result fills the box and stops
 // there: extraction is minutes of work, so it stays behind the deliberate
@@ -482,49 +302,42 @@ wireTransportButtons();
 // loadable without a DOM. This is the one place that owns both.
 setSectionsLoopBridge({
   getLoop: () => ({ enabled: loopEnabled, start: loopStart, end: loopEnd }),
-  setLoopRange,
 });
 wireBeatGridUi();
 window.addEventListener("pagehide", saveEditsOnPageClose);
 wireFooterControls();
-requestAnimationFrame(drawFooterPlaceholder);
 wireStemListControls();
 wireMixerToolbar();
 wireStemChoiceButtons();
 wireAllButton();
 wireVocalModeToggle();
-wireStemChipsPopover();
 wireAutoSectionsToggle();
 wireFileDrop();
 wireBatchImport();
 wireEmptyStart();
-wireAppShellControls();
-initFooterFit();
+initShell();
 initArtistInfo();
 initLyrics();
 initHelpMode();
 initAutoScroll();
 initInspector();
+initShellEdges();
 initLibraryResize();
 // Before Up Next, which reports its first count as it starts.
 initMediaSession();
 initUpNext();
 initSetlists();
+initLibraryRows();
+initSidebar();
+initBrowseLibrary();
+initLanesDrop();
 initSongRename();
 initTrackMenu();
+initSongMenu();
+initUpNextUndo();
 initStageMode();
 initSearchShortcut();
 initTempoTools();
-// Re-measure after a language switch. Measured across en/fr/de/pl the strip
-// came out the same width in all four, because the group labels are 10px
-// uppercase and narrower than the controls under them, so this is not the
-// reason the fit is computed rather than written as a breakpoint (that is the
-// sidebar, see footerFit.js). It is here because select options and button
-// text do vary, and re-measuring costs one frame.
-onLanguageChange(refitFooter);
-// Every chip's label changes width with the language, so the count that fits
-// changes with it too.
-onLanguageChange(fitStemChips);
 
 (async () => {
   await i18nReady;
@@ -813,9 +626,7 @@ function wireEmptyStart() {
     document.getElementById("uploadFileBtn")?.click();
   });
   document.getElementById("emptyStartFolder")?.addEventListener("click", pickFolder);
-  document.getElementById("emptyStartLink")?.addEventListener("click", function onEmptyStartLink() {
-    document.getElementById("url")?.focus();
-  });
+  document.getElementById("emptyStartLink")?.addEventListener("click", openComposer);
 }
 
 // ─── Folders: picked, or dropped with their subfolders ───
@@ -892,6 +703,7 @@ function wireFileDrop() {
   let dropErrorTimer = null;
   function showDropError(message) {
     if (!dropError) return;
+    openComposer();
     dropError.textContent = message;
     dropError.classList.remove("hidden");
     urlWrap.classList.add("has-drop-error");
@@ -1193,24 +1005,6 @@ function wireFileDrop() {
   }
 }
 
-// ─── App shell controls ───
-
-function wireAppShellControls() {
-  document.getElementById("appMenuBtn")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const app = document.querySelector(".app");
-    // In trash view: switch back to library.
-    if (document.querySelector(".sidebar.trash-view, .sidebar.favorites-view")) {
-      document.querySelector(".rail-library")?.click();
-    }
-    // If collapsed: open. Never collapse from the library button.
-    if (app?.classList.contains("cat-collapsed")) {
-      document.getElementById("catalogToggle")?.click();
-    }
-  });
-
-}
-
 // ─── Keyboard shortcuts ───
 
 document.addEventListener("keydown", function onStudioShortcutKey(e) {
@@ -1243,11 +1037,11 @@ document.addEventListener("keydown", function onStudioShortcutKey(e) {
     e.preventDefault();
     // multitrack.getCurrentTime() is pinned at 0 on the engine path, so "set
     // loop in at playhead" always wrote 0 regardless of where the playhead was.
-    setLoopStart(Math.min(transport().getCurrentTime(), loopEnd - 0.5));
+    setLoopStart(Math.min(transport().getCurrentTime(), loopEnd - LOOP_EDGE_MIN_SEC));
     updateLoopRegionVisual();
   } else if (e.code === "KeyO" && loopEnabled) {
     e.preventDefault();
-    setLoopEnd(Math.max(transport().getCurrentTime(), loopStart + 0.5));
+    setLoopEnd(Math.max(transport().getCurrentTime(), loopStart + LOOP_EDGE_MIN_SEC));
     updateLoopRegionVisual();
   }
 });
@@ -1412,7 +1206,3 @@ window.addEventListener("error", (e) => {
 window.addEventListener("unhandledrejection", (e) => {
   console.error("[app:unhandledrejection]", e.reason?.message ?? e.reason, "\n", e.reason?.stack ?? "");
 });
-
-// ─── Bootstrap ───
-
-buildStripStems();

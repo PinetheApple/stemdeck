@@ -6,7 +6,7 @@
 // the endpoint itself is covered by tests/test_jobs_favorite.py.
 
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, openStudio, readCatalogState, stubFavorites } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, chooseFromSongMenu, openStudio, readCatalogState, stubFavorites } from "./helpers.mjs";
 
 const row = (page, id) => page.locator(`#catalogList .cat-item[data-id="${id}"]`).first();
 
@@ -15,8 +15,7 @@ test.describe("studio", () => {
 
   test("a heart pressed in the studio is saved on the server", async ({ page }) => {
     const { favoriteWrites } = await openStudio(page);
-    await row(page, SIBLING_JOB_ID).hover();
-    await row(page, SIBLING_JOB_ID).locator(".cat-fav").click();
+    await chooseFromSongMenu(page, row(page, SIBLING_JOB_ID), "Add to Favorites");
     await expect.poll(() => favoriteWrites).toContainEqual({ id: SIBLING_JOB_ID, favorite: true });
   });
 

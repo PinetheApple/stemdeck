@@ -1,7 +1,7 @@
-// The queue view's summary of a batch: its failed items, Retry failed, and what
-// stays shown once the queue drains. Preview, imports and queue are stubbed.
+// The queue view's summary of a batch: its failed items and Retry failed, which stay shown after the
+// queue drains until dealt with. Preview, imports and queue are stubbed.
 import { test, expect } from "@playwright/test";
-import { uiText } from "./helpers.mjs";
+import { KEY, openBrowse, openComposer, uiText } from "./helpers.mjs";
 import {
   HTTP_FULL, LINE, PASTE, TICKED_BY_DEFAULT, linkItem, openBar, paste, pasteList, preview, queueButton, review,
   stubImports, stubPreview,
@@ -50,13 +50,21 @@ async function queueWithFailure(page, { retryStatus = 200 } = {}) {
 
   const refresh = () => page.evaluate(async () => (await import("/js/queue.js")).refreshQueue());
   await refresh();
-  await page.locator(".rail-queue").click();
+  await openBrowse(page, "queue");
   queue.queued = [WAITING_ID];
   await refresh();
   return { queue, refresh, retries };
 }
 
 const failedRow = (page) => page.locator(`.batch-failed-row[data-id="${FAILED_ID}"]`);
+const queueNavEntry = (page) => page.locator('#browseNav [data-view="queue"]');
+const sidebarQueue = (page) => page.locator("#catalogList .queue-section");
+
+async function drainQueue(queue, refresh) {
+  queue.running = false;
+  queue.queued = [];
+  await refresh();
+}
 
 /** Count the list's child insertions and removals from here on; read them with `redrawCount`. */
 async function countRedraws(page) {
@@ -64,7 +72,7 @@ async function countRedraws(page) {
     window.queueRedraws = 0;
     new MutationObserver(function countRedraw(records) {
       window.queueRedraws += records.length;
-    }).observe(document.getElementById("catalogList"), { childList: true, subtree: true });
+    }).observe(document.getElementById("browseResults"), { childList: true, subtree: true });
   });
 }
 
@@ -112,22 +120,43 @@ test("a failed item stays in the queue with its reason and Retry", async ({ page
   await expect(head).toContainText(await uiText(page, "batch.doneOf", { done: 0, total: 3 }));
   await expect(head).toContainText(await uiText(page, "batch.failedCount.one", { count: 1 }));
   await expect(head.locator(".batch-retry-failed")).toBeVisible();
+  await expect(queueNavEntry(page).locator(".browse-nav-count")).toHaveText("2");
 
   // The queue drains: the batch and its failure stay in view until dealt with.
-  queue.running = false;
-  queue.queued = [];
-  await refresh();
+  await drainQueue(queue, refresh);
   await expect(head).toBeVisible();
   await expect(failed).toBeVisible();
+  await expect(queueNavEntry(page)).toHaveAttribute("aria-current", "page");
+  await expect(queueNavEntry(page).locator(".browse-nav-count")).toHaveCount(0);
   await failed.locator(".batch-failed-retry").click();
   await expect.poll(() => retries.length).toBe(1);
 });
 
+test("× on the last failed row redraws Browse, not the sidebar, and goes back to All songs", async ({ page }) => {
+  const { queue, refresh } = await queueWithFailure(page);
+  await drainQueue(queue, refresh);
+  await failedRow(page).locator(".batch-failed-drop").click();
+
+  await expect(failedRow(page)).toHaveCount(0);
+  await expect(sidebarQueue(page)).toHaveCount(0);
+  await expect(page.locator("#catalogList #sidebarRecent")).toBeAttached();
+  await expect(queueNavEntry(page)).toHaveCount(0);
+  await expect(page.locator('#browseNav [data-view="all"]')).toHaveAttribute("aria-current", "page");
+});
+
+test("Retry failed redraws the queue view, not the sidebar", async ({ page }) => {
+  const { retries } = await queueWithFailure(page);
+  await page.locator(".batch-head .batch-retry-failed").click();
+
+  await expect.poll(() => retries.length).toBe(1);
+  await expect(page.locator("#browseImportQueue .queue-section")).toBeVisible();
+  await expect(sidebarQueue(page)).toHaveCount(0);
+  await expect(page.locator("#catalogList #sidebarRecent")).toBeAttached();
+});
+
 test("Retry failed with nothing left out keeps the batch's count", async ({ page }) => {
   const { queue, refresh, retries } = await queueWithFailure(page, { retryStatus: HTTP_FULL });
-  queue.running = false;
-  queue.queued = [];
-  await refresh();
+  await drainQueue(queue, refresh);
   // A new list waits in the bar, reviewed but not queued: it has nothing left out to send.
   await paste(page, [LINE.ok, LINE.other].join("\n"));
   await expect(queueButton(page)).toBeEnabled();
@@ -163,7 +192,7 @@ test("Retry failed in the queue sends again what the queue did not take", async 
   await expect(review(page).locator(".batch-item-retry").first()).toBeVisible();
   await page.keyboard.press("Escape");
   await page.evaluate(async () => (await import("/js/queue.js")).refreshQueue());
-  await page.locator(".rail-queue").click();
+  await openBrowse(page, "queue");
 
   const head = page.locator(".batch-head");
   await expect(head).toContainText(await uiText(page, "batch.notQueuedCount.other", { count: TICKED_BY_DEFAULT - 1 }));
@@ -186,9 +215,12 @@ test("clearing the chip while the batch is being sent leaves nothing broken", as
   });
   await queueButton(page).click();
   await expect.poll(() => posts.length).toBe(1);
+  await page.keyboard.press(KEY.ESCAPE);
+  await openComposer(page);
   await page.locator("#fileClear").click();
   release();
   await expect.poll(() => posts.length).toBe(TICKED_BY_DEFAULT);
-  await expect(page.locator('.cat-item[data-id="e2e0b0000001"]')).toBeVisible();
+  await openBrowse(page);
+  await expect(page.locator('#browseResults .cat-item[data-id="e2e0b0000001"]')).toBeVisible();
   expect(errors).toEqual([]);
 });

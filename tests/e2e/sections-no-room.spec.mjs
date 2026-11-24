@@ -1,7 +1,7 @@
 // When Add section cannot place a section it says why, and with no song open
 // it does nothing.
 import { test, expect } from "@playwright/test";
-import { openStudio, JOB_ID } from "./helpers.mjs";
+import { openStudio, JOB_ID, openLoopOptions, openSectionsMenu } from "./helpers.mjs";
 
 // seed.py writes a 6 second fixture; these two sections cover all of it.
 const FULL_TRACK = [
@@ -24,6 +24,7 @@ async function seed(page, sections) {
 }
 
 async function armLoop(page, { start, end }) {
+  await openLoopOptions(page);
   await page.locator("#t-loop-end").fill(end);
   await page.locator("#t-loop-end").blur();
   await page.locator("#t-loop-start").fill(start);
@@ -41,6 +42,7 @@ test("Add on a fully covered track says there is no room", async ({ page }) => {
   await openStudio(page);
   await expect(page.locator(".section-block")).toHaveCount(FULL_TRACK.length);
 
+  await openSectionsMenu(page);
   await page.locator("#sectionsAddBtn").click();
 
   expect(await blockIds(page)).toEqual(["s1", "s2"]);
@@ -52,6 +54,7 @@ test("Add on a loop shorter than a section says the loop is too short", async ({
   await openStudio(page);
   await armLoop(page, SHORT_LOOP);
 
+  await openSectionsMenu(page);
   await page.locator("#sectionsAddBtn").click();
 
   expect(await blockIds(page)).toEqual(["s1", "s2"]);
@@ -63,8 +66,10 @@ test("Add with no song open does nothing and says nothing", async ({ page }) => 
   // reset() is the studio's own close path, the one a re-import runs.
   await page.evaluate(async (path) => (await import(path)).reset(), STUDIO_MODULE);
 
-  // The ribbon takes no pointer input with no song, but the button still
-  // takes the keyboard.
+  // The Sections button takes no pointer input with no song, but it and Add
+  // still take the keyboard.
+  await page.locator("#sectionsMenuBtn").focus();
+  await page.keyboard.press("Enter");
   await page.locator("#sectionsAddBtn").focus();
   await page.keyboard.press("Enter");
 

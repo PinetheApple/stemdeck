@@ -8,7 +8,9 @@ export const SPEED_STEP = 1 / HUNDREDTHS;
 export const SPEED_NOTCH = NOTCH_HUNDREDTHS / HUNDREDTHS;
 // A bare number this big can only mean a percentage: nobody types 83 for 83x.
 const PERCENT_FROM = 10;
-const TYPED_SPEED = /^(\d+(?:\.\d*)?|\.\d+)\s*([x%]?)$/i;
+/** How a speed is written: "0.85×". */
+export const TIMES_SIGN = "×";
+const TYPED_SPEED = /^(\d+(?:\.\d*)?|\.\d+)\s*([x×%]?)$/i;
 const PERCENT_SIGN = "%";
 
 /** `rate` within the fader's range, to the hundredth. */
@@ -17,7 +19,7 @@ export function clampSpeed(rate) {
   return Math.round(inRange * HUNDREDTHS) / HUNDREDTHS;
 }
 
-/** The speed in "0.83", "0,83", "0.83x", "83" or "83%", clamped; null when it is not a number. */
+/** The speed in "0.83", "0,83", "0.83x", "0.83×", "83" or "83%", clamped; null when it is not a number. */
 export function parseSpeedInput(text) {
   const match = TYPED_SPEED.exec(String(text).trim().replace(",", "."));
   if (!match) return null;

@@ -2,6 +2,7 @@
 // Songs are queued through queueUpNext (UP_NEXT_ADD_EVENT); player.js reports "trackended" and "playbackready".
 
 import {
+  TRACK_OPEN_EVENT,
   TRASH_CHANGE_EVENT,
   getPlayingTrackInfo,
   getLibraryTrack,
@@ -68,8 +69,24 @@ function removeFromUpNext(trackId) {
   renderUpNext();
 }
 
-function clearUpNext() {
+/** Empties Up Next and returns what it held. */
+export function clearUpNext() {
+  const removed = queue;
   queue = [];
+  persist();
+  renderUpNext();
+  return removed;
+}
+
+/** A song's place in Up Next, counting songs that cannot play; -1 when it is not queued. */
+export function upNextIndexOf(trackId) {
+  return queue.indexOf(trackId);
+}
+
+/** Put `trackId` at `at` in Up Next, unless it has left the library or is queued already. */
+export function insertUpNext(trackId, at) {
+  if (!getLibraryTrack(trackId) || queue.includes(trackId)) return;
+  queue.splice(at, 0, trackId);
   persist();
   renderUpNext();
 }
@@ -102,6 +119,14 @@ async function playFromUpNext(trackId) {
   await loadAndPlay(trackId);
 }
 
+export function isInUpNext(trackId) {
+  return queue.includes(trackId);
+}
+
+export function firstInUpNext() {
+  return playableQueue()[0] ?? null;
+}
+
 /** The song in the player, when it can be played, then what is queued after it. */
 export function getNowAndUpNextIds() {
   const current = getPlayingTrackInfo()?.id;
@@ -109,20 +134,14 @@ export function getNowAndUpNextIds() {
   return [...new Set([...now, ...playableQueue()])];
 }
 
-/** Open the first playable song and start it, with the rest as Up Next. */
-export async function playSongs(trackIds) {
-  const [first, ...rest] = trackIds.filter(isPlayableTrack);
-  if (!first) return false;
-  queue = rest;
-  persist();
-  renderUpNext();
+/** Stop what plays, then open `trackId` and start it; Up Next stays as it is. */
+export async function playNow(trackId) {
   if (transport()?.isPlaying()) stopTransport();
-  await loadAndPlay(first);
-  return true;
+  await loadAndPlay(trackId);
 }
 
 export function playNextInUpNext() {
-  const [next] = playableQueue();
+  const next = firstInUpNext();
   if (!next) return;
   if (transport()?.isPlaying()) stopTransport();
   playFromUpNext(next);
@@ -169,6 +188,7 @@ function onPlaybackReady(e) {
 }
 
 export const UP_NEXT_ADD_EVENT = "upnext:add";
+export const UP_NEXT_CHANGE_EVENT = "upnext:change";
 
 /** Queue a song from anywhere, without importing this module's state. */
 export function queueUpNext(trackId) {
@@ -178,6 +198,10 @@ export function queueUpNext(trackId) {
 function onAddRequest(e) {
   const id = e.detail?.id;
   if (id) addToUpNext(id);
+}
+
+export function songTitle(trackId) {
+  return displayTitle(libraryTitle(getLibraryTrack(trackId)));
 }
 
 function thumbEl(track) {
@@ -209,36 +233,45 @@ function songText(track) {
   return text;
 }
 
-function queueRow(trackId, position) {
+export function upNextButton(className, title, label = null) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = className;
+  button.title = title;
+  if (label) button.setAttribute("aria-label", label);
+  return button;
+}
+
+export function upNextRowEl(trackId, { lead = [], onPlay, action }) {
   const track = getLibraryTrack(trackId);
   const li = document.createElement("li");
   li.className = "upnext-row";
   li.dataset.id = trackId;
-  li.draggable = true;
+  const play = upNextButton("upnext-play", t("upNext.playNow"));
+  play.append(...lead, thumbEl(track), songText(track));
+  play.addEventListener("click", onPlay);
+  li.append(play, action);
+  return li;
+}
 
-  const play = document.createElement("button");
-  play.type = "button";
-  play.className = "upnext-play";
-  play.title = t("upNext.playNow");
+function queueRow(trackId, position) {
+  const title = songTitle(trackId);
   const index = document.createElement("span");
   index.className = "upnext-index num";
   index.textContent = String(position);
-  play.append(index, thumbEl(track), songText(track));
-  play.addEventListener("click", function onPlayQueuedSong() {
-    playFromUpNext(trackId);
-  });
-
-  const remove = document.createElement("button");
-  remove.type = "button";
-  remove.className = "upnext-remove";
-  remove.title = t("upNext.remove");
-  remove.setAttribute("aria-label", t("upNext.removeTitle", { title: displayTitle(libraryTitle(track)) }));
+  const remove = upNextButton("upnext-remove", t("upNext.remove"), t("upNext.removeTitle", { title }));
   remove.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
   remove.addEventListener("click", function onRemoveQueuedSong() {
     removeFromUpNext(trackId);
   });
-
-  li.append(play, remove);
+  const li = upNextRowEl(trackId, {
+    lead: [index],
+    onPlay: function onPlayQueuedSong() {
+      playFromUpNext(trackId);
+    },
+    action: remove,
+  });
+  li.draggable = true;
   return li;
 }
 
@@ -280,10 +313,8 @@ export function renderUpNext() {
     count.textContent = String(ids.length);
     count.hidden = empty;
   }
-  const next = $("t-next");
-  if (next) next.disabled = empty;
   renderNowPlaying();
-  document.dispatchEvent(new CustomEvent("upnext:change", { detail: { count: ids.length, nextId: ids[0] ?? null } }));
+  document.dispatchEvent(new CustomEvent(UP_NEXT_CHANGE_EVENT, { detail: { count: ids.length, nextId: ids[0] ?? null } }));
 }
 
 /** Songs queued before the stored list arrived stay queued, after it. */
@@ -390,12 +421,10 @@ function wireUpNextRows() {
 
 export function initUpNext() {
   wireUpNextRows();
-  $("upNextClear")?.addEventListener("click", clearUpNext);
-  $("t-next")?.addEventListener("click", playNextInUpNext);
   document.addEventListener(UP_NEXT_ADD_EVENT, onAddRequest);
   document.addEventListener("trackended", onTrackEnded);
   document.addEventListener("playbackready", onPlaybackReady);
-  document.addEventListener("trackopen", renderUpNext);
+  document.addEventListener(TRACK_OPEN_EVENT, renderUpNext);
   document.addEventListener("tracknames", renderUpNext);
   document.addEventListener(TRASH_CHANGE_EVENT, renderUpNext);
   onLanguageChange(renderUpNext);

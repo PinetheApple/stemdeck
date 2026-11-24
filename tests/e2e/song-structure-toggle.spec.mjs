@@ -9,7 +9,7 @@
 // assertion here checks both.
 
 import { test, expect } from "@playwright/test";
-import { openStudio, seedLibrary, stubExportEndpoints, stubUpdateCheck, JOB_ID } from "./helpers.mjs";
+import { KEY, openComposer, openStudio, openViewMenu, seedLibrary, stubExportEndpoints, stubUpdateCheck, SIBLING_JOB_ID } from "./helpers.mjs";
 
 const button = (page) => page.locator("#autoSectionsBtn");
 
@@ -47,30 +47,32 @@ test.describe("song structure toggle", () => {
     await openStudio(page, { tauri: true });
     await expect(button(page)).toHaveAttribute("aria-pressed", "false");
 
+    await openComposer(page);
     await button(page).click();
     await expect(button(page)).toHaveAttribute("aria-pressed", "true");
     // It has to survive long enough to be used: this is the state an import
     // submitted right now would capture.
     await expect.poll(() => setting(page)).toBe(true);
 
-    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
+    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().dblclick();
     await expect(button(page)).toHaveAttribute("aria-pressed", "false");
     await expect.poll(() => setting(page)).toBe(false);
   });
 
   // Two controls, one word between them. This one runs a pass at import time;
-  // the sections bar is shown and hidden by "Sections" in the Collapse row. A
-  // reporter read the first as the second, clicked it on an open track, and saw
-  // a button change colour while nothing else moved (#634).
+  // the sections bar is shown and hidden by View > Sections bar. A reporter read
+  // the first as the second, clicked it on an open track, and saw a button
+  // change colour while nothing else moved (#634).
   test("it does not show or hide the sections bar, which has its own control", async ({ page }) => {
     await openStudio(page, { tauri: true });
     const app = page.locator(".app");
     const ribbon = page.locator(".daw-section-ribbon");
-    const panelToggle = page.locator('.daw-panel-toggle[data-panel="sections"]');
+    const panelToggle = page.locator("#viewSectionsBtn");
 
     await expect(ribbon).toBeVisible();
 
     // Both directions: the bar is still there whether the toggle goes on or off.
+    await openComposer(page);
     await button(page).click();
     await expect(button(page)).toHaveAttribute("aria-pressed", "true");
     await expect(ribbon).toBeVisible();
@@ -78,7 +80,9 @@ test.describe("song structure toggle", () => {
     await expect(button(page)).toHaveAttribute("aria-pressed", "false");
     await expect(ribbon).toBeVisible();
 
-    // And the control that does own the bar still owns it.
+    // And the control that does own the bar still owns it, once Add song is out of its way.
+    await page.keyboard.press(KEY.ESCAPE);
+    await openViewMenu(page);
     await panelToggle.click();
     await expect(app).toHaveClass(/panel-sections-off/);
     await panelToggle.click();

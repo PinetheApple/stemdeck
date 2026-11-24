@@ -8,7 +8,11 @@
 // to avoid. Every assertion about "art" below is measuring that.
 
 import { test, expect } from "@playwright/test";
-import { openStudio, waitForPanesSettled, JOB_ID } from "./helpers.mjs";
+import { openStudio, waitForPanesSettled, SIBLING_JOB_ID } from "./helpers.mjs";
+
+const BOTH_PANES_WINDOW = { width: 1600, height: 900 };
+const NOTCHES_TO_MAX = 40;
+const maxZoom = (page) => page.evaluate(async () => (await import("/js/transport.js")).WAVE_ZOOM_MAX);
 
 const wheel = (page, dy, x = 900, y = 400) =>
   page.mouse.move(x, y).then(() => page.mouse.wheel(0, dy));
@@ -88,7 +92,7 @@ const waveSurferCanvases = (page) =>
 
 // Deliberately wide: the bar-count maths only has room to prove itself when the
 // panel can hold a few hundred bars.
-test.use({ viewport: { width: 1600, height: 900 } });
+test.use({ viewport: { width: 1920, height: 1080 } });
 
 test.describe("waveform zoom", () => {
   test("a track opens fitted, with the loop tools available", async ({ page }) => {
@@ -98,6 +102,20 @@ test.describe("waveform zoom", () => {
     expect(s.content).toBe(s.viewport);
     expect(s.loopDisabled).toBe(false);
     expect(s.loopStartDisabled).toBe(false);
+  });
+
+  test("with the library and song tools open, a song still opens fitted and reaches 10x", async ({ page }) => {
+    await page.setViewportSize(BOTH_PANES_WINDOW);
+    await openStudio(page, { tauri: true });
+    await waitForPanesSettled(page);
+    await expect(page.locator(".app")).not.toHaveClass(/cat-collapsed/);
+    await expect(page.locator("#inspector")).toBeVisible();
+    const fitted = await zoomState(page);
+    expect(fitted.zoomVar).toBeCloseTo(1, 2);
+    expect(fitted.content).toBe(fitted.viewport);
+
+    for (let i = 0; i < NOTCHES_TO_MAX; i++) await wheel(page, -240);
+    expect((await zoomState(page)).zoomVar).toBeCloseTo(await maxZoom(page), 2);
   });
 
   test("scrolling up zooms in and scrolling down comes back", async ({ page }) => {
@@ -135,7 +153,7 @@ test.describe("waveform zoom", () => {
     await openStudio(page, { tauri: true });
     const fitted = await zoomState(page);
 
-    for (let i = 0; i < 40; i++) await wheel(page, -240);
+    for (let i = 0; i < NOTCHES_TO_MAX; i++) await wheel(page, -240);
     const maxed = await zoomState(page);
     expect(maxed.content / fitted.content).toBeCloseTo(10, 1);
 
@@ -235,13 +253,10 @@ test.describe("waveform zoom", () => {
     expect(bounds.end - bounds.start).toBeLessThan(0.2);
   });
 
-  // WAVE_MIN_WIDTH floors the content width at 720px, so on a narrow window the
-  // first zoom step can widen the content by less than its own factor, or not at
-  // all. Deriving the scroll correction from the zoom ratio rather than the
-  // measured width slides the anchor out from under the pointer exactly here.
-  // 1150px leaves the wave area narrower than that floor.
+  // 600px is deliberately below any supported window, so the width floor applies and a
+  // step widens the content by less than its factor; only the measured width holds the anchor.
   test("the anchor holds where the minimum wave width floors the growth", async ({ page }) => {
-    await page.setViewportSize({ width: 1150, height: 800 });
+    await page.setViewportSize({ width: 600, height: 800 });
     await openStudio(page, { tauri: true });
     await waitForPanesSettled(page);
     const rect = await page.locator(".wave-scroll").boundingBox();
@@ -262,21 +277,17 @@ test.describe("waveform zoom", () => {
     expect(Math.abs(held(after) - target)).toBeLessThan(0.01);
   });
 
-  test("the ruler gets finer as you zoom, and the footer strip does not", async ({ page }) => {
+  test("the ruler gets finer as you zoom", async ({ page }) => {
     await openStudio(page, { tauri: true });
     const base = await zoomState(page);
-    const footerBefore = await page.locator("#footer-wave-ticks .tick").count();
 
-    for (let i = 0; i < 40; i++) await wheel(page, -240);
+    for (let i = 0; i < NOTCHES_TO_MAX; i++) await wheel(page, -240);
     const zoomed = await zoomState(page);
 
     // Same ticks spread over five screen widths would be a worse ruler the
     // further in you went. More of them, at a finer step.
     expect(zoomed.ticks).toBeGreaterThan(base.ticks);
     expect(zoomed.tickLabels[1]).not.toBe(base.tickLabels[1]);
-
-    // The footer strip always shows the whole track, so its ticks must not move.
-    expect(await page.locator("#footer-wave-ticks .tick").count()).toBe(footerBefore);
   });
 
   test("shift-scroll pans instead of zooming", async ({ page }) => {
@@ -323,7 +334,7 @@ test.describe("waveform zoom", () => {
     const canvasesBefore = await waveSurferCanvases(page);
     expect(canvasesBefore.length).toBeGreaterThan(0);
 
-    for (let i = 0; i < 40; i++) await wheel(page, -240);
+    for (let i = 0; i < NOTCHES_TO_MAX; i++) await wheel(page, -240);
     await page.waitForTimeout(1200);
 
     const after = await zoomState(page);
@@ -346,7 +357,7 @@ test.describe("waveform zoom", () => {
     for (let i = 0; i < 10; i++) await wheel(page, -240);
     expect((await zoomState(page)).zoomVar).toBeGreaterThan(1);
 
-    await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
+    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).first().click();
     await page.waitForTimeout(1500);
     const reopened = await zoomState(page);
     expect(reopened.zoomVar).toBeCloseTo(1, 2);

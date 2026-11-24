@@ -11,6 +11,7 @@ import {
   stubExportEndpoints,
   stubUpdateCheck,
   waitForPanesSettled,
+  openInspectorTab,
 } from "./helpers.mjs";
 
 const JSON_TYPE = "application/json";
@@ -63,7 +64,7 @@ async function setUp(page, { server = found(), viewport = WIDE, expectLine = tru
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
-  await page.locator(".rail-lyrics").click();
+  await openInspectorTab(page, "lyrics");
   if (expectLine) await expect(page.locator(".lyrics-line").first()).toHaveText("Server one");
   return { deletes };
 }
@@ -132,7 +133,7 @@ test.describe("the lyrics toolbar", () => {
     expect(deletes).toEqual(["DELETE"]);
   });
 
-  test("wraps inside the sidebar at 1024 px", async ({ page }) => {
+  test("wraps inside the song tools at 1024 px", async ({ page }) => {
     await setUp(page, { viewport: NARROW });
     await waitForPanesSettled(page);
     const bar = await toolbar(page).boundingBox();

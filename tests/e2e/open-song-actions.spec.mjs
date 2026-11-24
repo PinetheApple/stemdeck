@@ -1,7 +1,7 @@
 // The open song offers its library row's Up Next and setlist actions from the
 // song head and from Stage, where the library row is out of reach.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, openStudio, stubServerTrash, waitForPanesSettled } from "./helpers.mjs";
+import { JOB_ID, chooseFromSongMenu, openStudio, stubServerTrash, waitForPanesSettled } from "./helpers.mjs";
 
 const SETLIST_NAME = "Gig";
 const UP_NEXT_KEY = "stemdeck.upNext";
@@ -47,8 +47,8 @@ function stageBarEdges(page) {
     const box = (sel) => document.querySelector(sel).getBoundingClientRect();
     return {
       songRight: box(".stage-song").right,
-      actionsLeft: box(".stage-song-actions").left,
-      actionsRight: box(".stage-song-actions").right,
+      actionsLeft: box("#stageUpNextBtn").left,
+      actionsRight: box("#stageQueueBtn").right,
       exitLeft: box("#stageExitBtn").left,
       exitRight: box("#stageExitBtn").right,
       viewRight: box("#stageView").right,
@@ -97,7 +97,7 @@ test("Stage adds the open song to Up Next and to a setlist, and stays open", asy
   await expect(upNext).toHaveCSS("cursor", "pointer");
   await upNext.click();
   await expect.poll(() => storedUpNext(page)).toEqual([JOB_ID]);
-  await expect(page.locator("#stageNextBtn")).toBeEnabled();
+  await expect(page.locator("#t-next")).toBeEnabled();
 
   const more = page.locator("#stageMoreBtn");
   await expect(more).toHaveCSS("cursor", "pointer");
@@ -130,8 +130,7 @@ test("a trashed open song is offered to neither Up Next nor a setlist", async ({
   await openWithSetlist(page, request);
   for (const button of OPEN_SONG_BUTTONS) await expect(page.locator(button)).toBeEnabled();
 
-  await libraryRow(page).hover();
-  await libraryRow(page).locator(".cat-del").click();
+  await chooseFromSongMenu(page, libraryRow(page), "Move to Trash");
   for (const button of OPEN_SONG_BUTTONS) await expect(page.locator(button)).toBeDisabled();
   await clickEvery(page, OPEN_SONG_BUTTONS.slice(0, 2));
   await page.locator("#stageModeBtn").click();
@@ -157,9 +156,12 @@ test("an open song that turns unavailable is offered to neither Up Next nor a se
 test("at 1024 with the library collapsed the title keeps its room and the Stage bar fits", async ({ page }) => {
   await page.setViewportSize(NARROW_WINDOW);
   await openStudio(page);
+  // At 1024 the shell keeps the sidebar open, so it is folded here.
+  await page.locator("#sidebarCollapseBtn").click();
   await waitForPanesSettled(page);
   await expect(page.locator(".app")).toHaveClass(/cat-collapsed/);
-  expect(await isCut(page.locator("#title"))).toBe(false);
+  // Polled: the song head widens over the sidebar's fold.
+  await expect.poll(() => isCut(page.locator("#title"))).toBe(false);
 
   await page.locator("#stageModeBtn").click();
   await expect(page.locator("#stageMoreBtn")).toBeVisible();

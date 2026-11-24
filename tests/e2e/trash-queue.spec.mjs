@@ -8,7 +8,7 @@
 
 import { test, expect } from "@playwright/test";
 
-import { fixtureTrack, seedCatalogState, stubUpdateCheck } from "./helpers.mjs";
+import { chooseFromSongMenu, fixtureTrack, seedCatalogState, stubUpdateCheck, openBrowse, browseRow } from "./helpers.mjs";
 
 const RUNNING_ID = "e2e0feedf00d";
 const RUNNING_TITLE = "Still Importing";
@@ -81,7 +81,7 @@ test("a queue row cancels with an X, apart from the library's trash can", async 
   });
   await page.goto("/", { waitUntil: "domcontentloaded" });
 
-  await page.locator(".rail-queue").click();
+  await openBrowse(page, "queue");
   const cancel = page.locator(`.queue-row[data-id="${RUNNING_ID}"] .queue-cancel`);
   await expect(cancel).toBeVisible();
   // Cancelling deletes the import's files and binning keeps them: the same
@@ -99,40 +99,36 @@ test("trashing an import that is still running refreshes the queue at once", asy
 
   // The first read has to have landed, or the page does not yet know the
   // track is in the queue and has no reason to refresh it.
-  await page.locator(".rail-queue").click();
+  await openBrowse(page, "queue");
   await expect(page.locator(`.queue-row[data-id="${RUNNING_ID}"]`)).toBeVisible();
-  await page.locator(".rail-library").click();
+  await page.locator("#browseListBtn").click();
+  await openBrowse(page, "all");
 
   // The row's actions only take the pointer on hover (#724).
-  const row = page.locator(`.cat-item[data-id="${RUNNING_ID}"]`);
-  await row.hover();
-  await row.locator(".cat-del").click();
+  await chooseFromSongMenu(page, browseRow(page, RUNNING_ID), "Move to Trash");
 
   await expect.poll(() => seen.queueReadsAfterTrash).toBeGreaterThan(0);
   // The stream is aborted, so only the refresh the trash asked for can have
-  // told the page the queue is empty, which hides the queue button.
-  await expect(page.locator(".rail-queue")).toHaveClass(/(^| )hidden( |$)/);
+  // told the page the queue is empty, which hides Importing and the Import queue entry.
+  await expect(page.locator("#sidebarImporting")).toBeHidden();
+  await expect(page.locator('#browseNav [data-view="queue"]')).toHaveCount(0);
 });
 
-test("the queue button is named by the label it shows, in every language", async ({ page }) => {
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+test("the Import queue entry is named by the label it shows, in every language", async ({ page }) => {
   await seedRunningImport(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".rail-queue")).toBeVisible();
+  await openBrowse(page, "queue");
+  const entry = page.locator('#browseNav [data-view="queue"]');
+  const codes = await page.evaluate(async () => (await import("/js/i18n.js")).LANGUAGES.map(({ code }) => code));
 
   // Speech-input users say the label they see; the name has to start with it.
-  const mismatches = await page.evaluate(async () => {
-    const { LANGUAGES, setLanguage } = await import("/js/i18n.js");
-    const btn = document.querySelector(".rail-queue");
-    const found = [];
-    for (const { code } of LANGUAGES) {
-      await setLanguage(code);
-      const label = btn.querySelector("[data-i18n]").textContent.trim();
-      for (const attr of ["aria-label", "title"]) {
-        const name = btn.getAttribute(attr);
-        if (!name.startsWith(label)) found.push(`${code} ${attr}: "${name}" vs "${label}"`);
-      }
-    }
-    return found;
-  });
-  expect(mismatches).toEqual([]);
+  for (const code of codes) {
+    await page.evaluate(async (c) => (await import("/js/i18n.js")).setLanguage(c), code);
+    const label = (await entry.locator(".browse-nav-label").textContent()).trim();
+    const startsWithLabel = new RegExp(`^${escapeRegExp(label)}`);
+    await expect(entry, code).toHaveAccessibleName(startsWithLabel);
+    await expect(entry, code).toHaveAttribute("title", startsWithLabel);
+  }
 });

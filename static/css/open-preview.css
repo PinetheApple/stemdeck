@@ -1,13 +1,6 @@
 :root {
   /* Above the lanes' own layers (loading overlay at 10), below Stage mode (40). */
   --open-preview-z: 11;
-  --playing-title-max-w: 220px;
-  --playing-mark-bar-w: 3px;
-  --playing-mark-gap: 2px;
-  --playing-mark-bar-radius: 1px;
-  --playing-mark-bar-1-h: 60%;
-  --playing-mark-bar-2-h: 100%;
-  --playing-mark-bar-3-h: 40%;
 }
 
 .song-play-btn {
@@ -30,7 +23,7 @@
 .app.is-previewing .np-legend { display: none; }
 
 /* These marks belong to the song in the player, not to the one shown. */
-.app.is-previewing :is(.playhead-marker, .lanes-ruler-time, .daw-sections-track, .sections-header-actions, .daw-lyrics-ribbon) {
+.app.is-previewing :is(.playhead-marker, .lanes-ruler-time, .daw-sections-track, .section-cols, .lyric-ticker, .sections-save-indicator, .daw-lyrics-ribbon) {
   visibility: hidden;
 }
 
@@ -71,41 +64,3 @@
   flex: 1;
   min-width: 0;
 }
-
-.app:not(.is-previewing) :is(.footer-group-playing, .footer-playing-divider) { display: none; }
-.footer-group-playing { min-width: 0; max-width: var(--playing-title-max-w); }
-.footer-group-playing .footer-group-body { gap: var(--s-2); min-width: 0; }
-.playing-mark {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: var(--playing-mark-gap);
-  height: var(--icon-sm);
-  flex: none;
-}
-.playing-mark i {
-  width: var(--playing-mark-bar-w);
-  border-radius: var(--playing-mark-bar-radius);
-  background: var(--accent);
-}
-.playing-mark i:nth-child(1) { height: var(--playing-mark-bar-1-h); }
-.playing-mark i:nth-child(2) { height: var(--playing-mark-bar-2-h); }
-.playing-mark i:nth-child(3) { height: var(--playing-mark-bar-3-h); }
-.footer-clusters:has(#t-play:not(.playing)) .playing-mark i { background: var(--text-3); }
-.playing-title {
-  min-width: 0;
-  max-width: var(--playing-title-max-w);
-  overflow: hidden;
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-semibold);
-  color: var(--text);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 0;
-  border: 0;
-  background: none;
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.playing-title:hover { text-decoration: underline; }
-.playing-title:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--radius-sm); }

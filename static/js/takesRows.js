@@ -3,18 +3,22 @@
 
 import { t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
-import { LANE_VOLUME_MAX } from "./constants.js";
+import {
+  LANE_VOLUME_MAX,
+  FADER_STEP,
+  FADER_UNITY,
+  WHEEL_STEP,
+  WHEEL_STEP_COARSE,
+} from "./constants.js";
 import { updateLaneKnobVisual } from "./mixer.js";
 import { ROW_ELSEWHERE, ROW_TAKE, ROW_UNFINISHED } from "./takesState.js";
 import { fmtTickLabel } from "./utils.js";
 import { vuLevel } from "./vuScale.js";
 
 export const REC_ROW_SELECTOR = ".rec-row, .rec-take-row, .rec-add-row";
-
-const FADER_STEP = 0.01;
-const WHEEL_STEP = 0.04;
-const WHEEL_STEP_FINE = 0.2;
-const UNITY = 1;
+export const TRACK_ROW_SELECTOR = ".rec-row[data-rec-track]";
+const SOLO_CLASS = "solo";
+const ACTIVE_CLASS = "active";
 
 function button(className, { text = "", label = "", iconName = "" } = {}) {
   const el = document.createElement("button");
@@ -44,11 +48,11 @@ function fader(view, mix, on) {
     on.volume(view.id, parseFloat(input.value), wrap);
   });
   wrap.addEventListener("dblclick", function onTakeFaderReset() {
-    on.volume(view.id, UNITY, wrap);
+    on.volume(view.id, FADER_UNITY, wrap);
   });
   wrap.addEventListener("wheel", function onTakeFaderWheel(e) {
     e.preventDefault();
-    const step = e.shiftKey ? WHEEL_STEP_FINE : WHEEL_STEP;
+    const step = e.shiftKey ? WHEEL_STEP_COARSE : WHEEL_STEP;
     on.volume(view.id, mix.volume - Math.sign(e.deltaY) * step, wrap);
   }, { passive: false });
   wrap.append(input);
@@ -95,17 +99,28 @@ function leftColumn(view, inputLabel, on) {
   return left;
 }
 
+function paintSolo(solo, soloed) {
+  solo.classList.toggle(ACTIVE_CLASS, soloed);
+  solo.setAttribute("aria-pressed", String(soloed));
+}
+
+export function paintTrackSolo(row, soloed) {
+  const solo = row.querySelector(`.${SOLO_CLASS}`);
+  if (solo) paintSolo(solo, soloed);
+}
+
 function toggles(view, mix, armed, on) {
   const arm = button("rec-arm mx-btn", { label: t("rec.arm", { name: view.name }) });
   arm.setAttribute("aria-pressed", String(armed));
   arm.addEventListener("click", function onArmClick() { on.arm(view.id); });
-  const mute = button(`lane-icon-toggle mx-btn mute${mix.muted ? "" : " active"}`, { text: "M" });
+  const mute = button("lane-icon-toggle mx-btn mute", { text: "M" });
+  mute.classList.toggle(ACTIVE_CLASS, mix.muted);
   mute.setAttribute("aria-label", t("aria.mute", { name: view.name }));
   mute.setAttribute("aria-pressed", String(mix.muted));
   mute.addEventListener("click", function onTakeMuteClick() { on.mute(view.id); });
-  const solo = button(`solo ms-btn mx-btn${mix.soloed ? " active" : ""}`, { text: "S" });
+  const solo = button(`${SOLO_CLASS} ms-btn mx-btn`, { text: "S" });
   solo.setAttribute("aria-label", t("aria.solo", { name: view.name }));
-  solo.setAttribute("aria-pressed", String(mix.soloed));
+  paintSolo(solo, mix.soloed);
   solo.addEventListener("click", function onTakeSoloClick() { on.solo(view.id); });
   const more = button("lane-dl mx-btn rec-track-more", { iconName: "more", label: t("rec.trackOptions", { name: view.name }) });
   more.setAttribute("aria-haspopup", "menu");

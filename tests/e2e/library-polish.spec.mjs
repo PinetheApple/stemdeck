@@ -1,7 +1,7 @@
-// The library pane's finish: counts that follow the search, one empty-state
-// look, rail labels that fit and say what each entry is, dialog titles that
-// match the action, row menus and icons that leave the rows readable, and a
-// main area that says how to start when no song is open.
+// The library's finish: a view's count follows the search while the nav's counts
+// do not, one empty-state look, labels that fit, dialog titles that match the
+// action, row menus that leave the rows readable, and a main area that says how
+// to start when no song is open.
 import { test, expect } from "@playwright/test";
 import {
   JOB_ID,
@@ -15,6 +15,7 @@ import {
   stubFavorites,
   stubUpdateCheck,
   uiText,
+  openBrowse,
 } from "./helpers.mjs";
 
 const EMPTY_FOLDER_ID = "f-empty";
@@ -51,17 +52,19 @@ async function seedWithEmptyFolder(page) {
 }
 
 async function search(page, query) {
-  await page.locator("#catalogSearch").fill(query);
+  await page.locator("#browseSearch").fill(query);
 }
 
-/** An empty list says so with the Setlists look: an icon, a heading and a hint. */
+const headCount = (page) => page.locator("#browseResults .browse-head-count");
+const navCount = (page, view) => page.locator(`#browseNav .browse-nav-btn[data-view="${view}"] .browse-nav-count`);
+
+/** An empty list says so with the one look: an icon, a heading and a hint. */
 async function expectEmptyState(page, headingKey, hintKey) {
-  const empty = page.locator("#catalogList .lib-empty");
+  const empty = page.locator("#browseResults .browse-empty");
   await expect(empty).toHaveCount(1);
   await expect(empty.locator("svg")).toBeVisible();
   await expect(empty.locator("strong")).toHaveText(await uiText(page, headingKey));
-  await expect(empty.locator(".lib-empty-hint")).toHaveText(await uiText(page, hintKey));
-  await expect(page.locator("#catalogList .folder-empty")).toHaveCount(0);
+  await expect(empty.locator("span")).toHaveText(await uiText(page, hintKey));
 }
 
 const LOOK_PROPS = ["display", "flexDirection", "alignItems", "gap", "padding", "textAlign", "color", "fontSize"];
@@ -84,115 +87,108 @@ const startsWithText = (text) => new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]
 
 const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
-test("the Songs count is the number of songs the search leaves", async ({ page }) => {
-  await openLibrary(page);
-  const count = page.locator("#libSongsCount");
-  await expect(count).toHaveText("2");
-
-  await search(page, "again");
-  await expect(page.locator("#catalogList .cat-item")).toHaveCount(1);
-  await expect(count).toHaveText("1");
-  await expect(page.locator(`.folder[data-id="${UNSORTED_ID}"] .f-count`)).toHaveText("1");
-
-  await search(page, NO_MATCH_QUERY);
-  await expect(count).toHaveText("0");
-
-  await search(page, "");
-  await expect(count).toHaveText("2");
-});
-
 const SETLISTS = [
   { id: "sl-gig", name: "Gig", song_ids: [JOB_ID] },
-  { id: "sl-practice", name: "Practice", song_ids: [SIBLING_JOB_ID] },
+  { id: "sl-practice", name: "Practice", song_ids: [] },
 ];
 
-test("the Setlists count stays the number of setlists while a search runs", async ({ page }) => {
+test("a view's count follows the search; the nav's counts stay the library's", async ({ page }) => {
   await page.route("**/api/setlists", (route) => route.fulfill({ json: SETLISTS }));
   await openLibrary(page);
-  const count = page.locator("#setlistsCount");
-  await expect(count).toHaveText(String(SETLISTS.length));
+  await openBrowse(page);
+  await expect(headCount(page)).toHaveText("2 songs");
 
   await search(page, "again");
-  await expect(page.locator("#libSongsCount")).toHaveText("1");
-  await expect(count).toHaveText(String(SETLISTS.length));
+  await expect(page.locator("#browseResults .cat-item")).toHaveCount(1);
+  await expect(headCount(page)).toHaveText("1 song");
+  await expect(navCount(page, "all")).toHaveText("2");
+  await expect(navCount(page, "setlist:sl-gig")).toHaveText("1");
 
   await search(page, NO_MATCH_QUERY);
-  await expect(page.locator("#libSongsCount")).toHaveText("0");
-  await expect(count).toHaveText(String(SETLISTS.length));
+  await expect(headCount(page)).toHaveText("0 songs");
+  await expect(navCount(page, "all")).toHaveText("2");
 });
 
 test("Trash, Favorites and a search with no match share one empty state", async ({ page }) => {
   await openLibrary(page);
+  await openBrowse(page);
   await search(page, NO_MATCH_QUERY);
   await expectEmptyState(page, "library.noSearchMatch", "search.noMatchHint");
 
   await search(page, "");
-  await page.locator(".rail-trash").click();
+  await openBrowse(page, "trash");
   await expectEmptyState(page, "trash.isEmptyState", "trash.emptyHint");
 
-  await page.locator(".rail-favorites").click();
+  await openBrowse(page, "fav");
   await expectEmptyState(page, "favorites.emptyTitle", "favorites.emptyHint");
   await search(page, NO_MATCH_QUERY);
-  await expectEmptyState(page, "favorites.noSearchMatch", "search.noMatchHint");
+  await expectEmptyState(page, "library.noSearchMatch", "search.noMatchHint");
 });
 
-test("the empty states look like the Setlists one", async ({ page }) => {
+test("the empty states look like the empty setlist's", async ({ page }) => {
+  await page.route("**/api/setlists", (route) => route.fulfill({ json: SETLISTS }));
   await openLibrary(page);
-  await page.locator(".rail-trash").click();
-  const trashLook = await lookOf(page.locator("#catalogList .lib-empty"));
-  await page.locator(".rail-library").click();
-  await page.locator("#libTabSetlists").click();
-  expect(trashLook).toEqual(await lookOf(page.locator("#setlistsEmpty")));
+  await openBrowse(page, "trash");
+  const trashLook = await lookOf(page.locator("#browseResults .browse-empty"));
+  await openBrowse(page, "setlist:sl-practice");
+  expect(trashLook).toEqual(await lookOf(page.locator("#browseResults .browse-empty")));
 });
 
 test("an empty folder says so in the app's language", async ({ page }) => {
   await openLibrary(page, { emptyFolder: true });
-  const folder = page.locator(`.folder[data-id="${EMPTY_FOLDER_ID}"]`);
-  await expect(folder.locator(".folder-empty")).toHaveText(await uiText(page, "library.emptyFolder"));
+  await openBrowse(page, `folder:${EMPTY_FOLDER_ID}`);
+  await expect(page.locator("#browseResults .browse-empty strong")).toHaveText(await uiText(page, "library.emptyFolder"));
 });
 
-test("every rail label fits its button, in every language", async ({ page }) => {
+const FIXED_LABELS = [
+  "#browseBtn > span",
+  "#trashBtn > span[data-i18n]",
+  ...["all", "fav", "recent", "trash"].map((view) => `#browseNav [data-view="${view}"] .browse-nav-label`),
+];
+
+test("every library view label fits its button, in every language", async ({ page }) => {
   await openLibrary(page);
+  await openBrowse(page);
   for (const code of LANGUAGES) {
     await setLanguage(page, code);
-    const cut = await page.evaluate(() => [...document.querySelectorAll(".sidebar-rail .rail-btn > span[data-i18n]")]
-      .filter((label) => label.offsetParent)
+    const cut = await page.evaluate((selectors) => selectors
+      .map((selector) => document.querySelector(selector))
+      .filter((label) => label?.offsetParent)
       .filter((label) => {
         const box = label.getBoundingClientRect();
-        const button = label.closest(".rail-btn").getBoundingClientRect();
+        const button = label.closest("button").getBoundingClientRect();
         return label.scrollWidth > label.clientWidth || box.left < button.left || box.right > button.right;
       })
-      .map((label) => label.textContent));
+      .map((label) => label.textContent), FIXED_LABELS);
     expect(cut, `cut short in ${code}`).toEqual([]);
   }
 });
 
-const RAIL_BUTTONS_NAMED_BY_LABEL = ["#helpModeBtn", "#notifBtn", "#settingsBtn", "#aboutBtn"];
+const TOP_BAR_ICON_BUTTONS = ["#helpModeBtn", "#notifBtn", "#settingsBtn", "#aboutBtn"];
 
-test("a rail button's name starts with the word it shows, in every language", async ({ page }) => {
+test("a top-bar icon button is named and has a tooltip, in every language", async ({ page }) => {
   await openLibrary(page);
   for (const code of LANGUAGES) {
     await setLanguage(page, code);
-    for (const selector of RAIL_BUTTONS_NAMED_BY_LABEL) {
+    for (const selector of TOP_BAR_ICON_BUTTONS) {
       const button = page.locator(selector);
-      const label = (await button.locator("span[data-i18n]").textContent()).trim();
-      await expect(button, `${selector} in ${code}`).toHaveAccessibleName(startsWithText(label));
+      await expect(button, `${selector} in ${code}`).toHaveAccessibleName(/\S/);
+      await expect(button, `${selector} in ${code}`).toHaveAttribute("title", /\S/);
     }
   }
 });
 
-test("Guide and About are told apart by label and tooltip, and do different things", async ({ page }) => {
+test("Guide and About are told apart by name and tooltip, and do different things", async ({ page }) => {
   await openLibrary(page);
   const guide = page.locator("#helpModeBtn");
   const about = page.locator("#aboutBtn");
-  await expect(about.locator("span")).toHaveText(await uiText(page, "nav.about"));
   await expect(about).toHaveAttribute("title", await uiText(page, "nav.aboutTitle"));
   await expect(about).toHaveAccessibleName(await uiText(page, "nav.about"));
-  expect(await guide.locator("span").textContent()).not.toBe(await about.locator("span").textContent());
+  expect(await guide.getAttribute("aria-label")).not.toBe(await about.getAttribute("aria-label"));
   expect(await guide.getAttribute("title")).not.toBe(await about.getAttribute("title"));
 
   await about.click();
-  await expect(page.locator("#aboutDialog")).toBeVisible();
+  await expect(page.locator('.settings-pane[data-pane="about"]')).toBeVisible();
   await page.keyboard.press("Escape");
   await guide.click();
   await expect(guide).toHaveAttribute("aria-pressed", "true");
@@ -200,14 +196,15 @@ test("Guide and About are told apart by label and tooltip, and do different thin
 
 test("New folder opens a dialog titled New folder; editing one says Edit folder", async ({ page }) => {
   await openLibrary(page);
-  await page.locator("#newFolderBtn").click();
+  await openBrowse(page);
+  await page.locator("#browseNewFolder").click();
   const dialog = page.locator(".folder-editor");
   const newTitle = await uiText(page, "library.newFolder");
   await expect(dialog.locator(".folder-editor-head > span")).toHaveText(newTitle);
   await expect(dialog).toHaveAttribute("aria-label", newTitle);
   await dialog.locator(".folder-editor-cancel").click();
 
-  await page.locator(`.folder[data-id="${UNSORTED_ID}"] > .folder-head .f-name`).dblclick();
+  await page.locator(`#browseNav .browse-nav-folder[data-folder="${UNSORTED_ID}"]`).dblclick();
   await expect(dialog.locator(".folder-editor-head > span")).toHaveText(await uiText(page, "folderEditor.title"));
 });
 
@@ -228,10 +225,13 @@ test("the row menu opens beside the row and covers none of the list", async ({ p
 
 // Too narrow beside any row, and tall enough for room both above and below the
 // fixture rows once unavailable rows pad the list around them.
-const NARROW_TALL_WINDOW = { width: 480, height: 900 };
+const NARROW_TALL_WINDOW = { width: 400, height: 900 };
 const PADDING_ROWS = 4;
 
 const paddingIds = (side) => Array.from({ length: PADDING_ROWS }, (_, i) => `pad-${side}-${i}`);
+
+// Favorites, so the sidebar lists every one of them, in this order.
+const favoriteTrack = (id, title) => ({ ...fixtureTrack(id, title), favorite: true });
 
 async function seedPaddedList(page) {
   const padding = [...paddingIds("above"), ...paddingIds("below")];
@@ -241,9 +241,9 @@ async function seedPaddedList(page) {
       { id: "trash", name: "Trash", items: [], color: null },
     ],
     tracks: {
-      ...Object.fromEntries(padding.map((id) => [id, fixtureTrack(id, id)])),
-      [JOB_ID]: fixtureTrack(JOB_ID, TRACK_TITLE),
-      [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, SIBLING_TITLE),
+      ...Object.fromEntries(padding.map((id) => [id, favoriteTrack(id, id)])),
+      [JOB_ID]: favoriteTrack(JOB_ID, TRACK_TITLE),
+      [SIBLING_JOB_ID]: favoriteTrack(SIBLING_JOB_ID, SIBLING_TITLE),
     },
   });
   await loadSeededLibrary(page);
@@ -318,57 +318,6 @@ test("with no song open the main area says how to start", async ({ page }) => {
   await start.getByRole("button", { name: await uiText(page, "batch.chooseFiles") }).click();
   await chooser;
 
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).dblclick();
-  await expect(start).toBeHidden();
-});
-
-const CHIP_TAG = "rock";
-const searchBox = (page) => page.locator("#catalogToggle");
-
-// `has-query` pins the hint's state because WebKit does not refresh
-// `:placeholder-shown` when code sets the value.
-async function expectSearchState(page, hasText) {
-  const hint = page.locator(".search-kbd");
-  if (hasText) await expect(searchBox(page)).toHaveClass(/\bhas-query\b/);
-  else await expect(searchBox(page)).not.toHaveClass(/\bhas-query\b/);
-  await expect(hint).toBeVisible({ visible: !hasText });
-  const value = await page.locator("#catalogSearch").inputValue();
-  expect(value !== "", "the clear button shows when the field has text").toBe(hasText);
-}
-
-test("typing hides the ⌘K hint and clearing brings it back", async ({ page }) => {
-  await openLibrary(page);
-  await expectSearchState(page, false);
-
-  await search(page, TRACK_TITLE);
-  await expectSearchState(page, true);
-  await search(page, "");
-  await expectSearchState(page, false);
-
-  await page.locator("#catalogSearch").pressSequentially("Fix");
-  await expectSearchState(page, true);
-  await page.locator("#catalogSearch").press("Escape");
-  await expectSearchState(page, false);
-});
-
-test("a tag chip that sets or clears the search moves the ⌘K hint with it", async ({ page }) => {
-  await seedCatalogState(page, {
-    folders: [
-      { id: UNSORTED_ID, name: "Unsorted", items: [JOB_ID], color: null },
-      { id: "trash", name: "Trash", items: [], color: null },
-    ],
-    tracks: { [JOB_ID]: { ...fixtureTrack(JOB_ID, TRACK_TITLE), tags: [CHIP_TAG] } },
-  });
-  await stubFavorites(page);
-  await stubUpdateCheck(page);
-  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
-  const chip = page.locator(`.lib-tag-chip[data-tag="${CHIP_TAG}"]`);
-  await expect(chip).toBeVisible({ timeout: 20000 });
-
-  await chip.click();
-  await expect(page.locator("#catalogSearch")).toHaveValue(`#${CHIP_TAG}`);
-  await expectSearchState(page, true);
-  await page.locator(`.lib-tag-chip[data-tag="${CHIP_TAG}"]`).click();
-  await expectSearchState(page, false);
+  await expect(start).toBeHidden();
 });

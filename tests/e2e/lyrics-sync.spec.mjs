@@ -19,6 +19,7 @@ import {
   stubAudioTags,
   stubExportEndpoints,
   stubUpdateCheck,
+  openInspectorTab,
 } from "./helpers.mjs";
 
 const LRCLIB = /^https:\/\/lrclib\.net\//;
@@ -132,9 +133,10 @@ async function setUp(page, { server = version(), retime = [], retimed = null, en
 async function openLyrics(page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
-  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().dblclick();
+  // A click opens the song paused; a double-click would also start it.
+  await page.locator(`.cat-item[data-id="${JOB_ID}"]`).first().click();
   await expect(page.locator(".app")).not.toHaveClass(/no-track/, { timeout: 15000 });
-  await page.locator(".rail-lyrics").click();
+  await openInspectorTab(page, "lyrics");
   await expect(page.locator(".lyrics-line, .lyrics-text").first()).toBeVisible();
 }
 
@@ -454,8 +456,10 @@ test.describe("syncing lyrics line by line", () => {
   test("leaving the Lyrics tab leaves Sync lines, and hides the lane", async ({ page }) => {
     await setUp(page);
     await openSync(page);
-    await page.locator(".rail-library").click();
+    await openInspectorTab(page, "tempo");
     await expect(lane(page)).toBeHidden();
+    await openInspectorTab(page, "lyrics");
+    await expect(panel(page)).toBeHidden();
   });
 
   test("Escape goes to a menu open over Sync lines, and only then to Sync lines", async ({ page }) => {
@@ -482,10 +486,10 @@ test.describe("syncing lyrics line by line", () => {
     await setUp(page);
     await openSync(page);
     await page.locator("#aboutBtn").click();
-    const about = page.locator("#aboutDialog");
+    const about = page.locator(".library-editor");
     await expect(about).toBeVisible();
     // The dialog takes Escape from inside it, as when using its close button.
-    await page.locator("#aboutClose").focus();
+    await page.locator(".library-editor-close").focus();
     await page.keyboard.press("Escape");
     // The dialog closed; Sync lines stayed open.
     await expect(about).toBeHidden();
@@ -494,10 +498,11 @@ test.describe("syncing lyrics line by line", () => {
     await expect(panel(page)).toBeHidden();
   });
 
-  test("an open select list outside the Lyrics panel keeps its keys from Sync lines", async ({ page }) => {
+  test("a Tempo select list opened from Sync lines leaves it, and keeps its own keys", async ({ page }) => {
     await setUp(page);
     await openSync(page);
     await openClickOptions(page);
+    await expect(lane(page)).toBeHidden();
     const accent = page.locator("#t-metro-bar");
     await accent.click();
     const list = page.locator("#select-menu-list");
@@ -505,10 +510,8 @@ test.describe("syncing lyrics line by line", () => {
 
     await page.keyboard.press("ArrowDown");
     await expect(list.getByRole("option", { name: "Off", exact: true })).toHaveClass(/active/);
-    await expect(page.locator(".lyrics-sync-next-text")).toHaveText("Server one");
     await page.keyboard.press("Enter");
     await expect(list).toHaveCount(0);
     await expect(accent).toHaveValue("0");
-    await expect(page.locator(".lyrics-sync-next-text")).toHaveText("Server one");
   });
 });

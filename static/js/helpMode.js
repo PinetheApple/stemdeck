@@ -1,4 +1,4 @@
-// Help mode: Guide in the rail, below Trash, turns the studio into its own manual.
+// Help mode: Guide in the top bar turns the studio into its own manual.
 // Pointing at any control listed in HELP, or clicking it, outlines it and shows
 // what it does; a pill at the bottom says help mode is on. Clicks are taken by help mode while it is on,
 // so exploring never starts an extraction or deletes a song. Esc or Guide
@@ -8,6 +8,7 @@
 // already translates, and its text comes from the help.* keys in i18n.js.
 
 import { t } from "./i18n.js";
+import { ESCAPE_KEY, LAYER, escapeIsFor } from "./shellEscape.js";
 import {
   BIG_AREA_SHARE,
   TRACK_AREA,
@@ -29,7 +30,15 @@ const presenceName = (el) => t(`stem.${el.dataset.stem}`);
 // Order matters only where selectors overlap: the first match wins.
 const HELP = [
   ["#helpModeBtn", "help.helpMode"],
-  [".daw-brand a", "help.website"],
+  [".topbar-brand", "help.website"],
+  ["#sidebarCollapseBtn", "shell.help.sidebar"],
+  ["#connStatus", "shell.help.offline"],
+  ["#importingBtn", "shell.help.importing"],
+  ["#addSongBtn", "shell.help.addSong"],
+  ["#addSongReviewBadge", "addsong.help.reviewBadge"],
+  ["#inspectorToggleBtn", "shell.help.tools"],
+  ["#libraryResizer, #stemsResizer, #inspectorResizer", "shell.help.edge"],
+  ['.inspector-tab[data-tab="lyrics"]', "help.lyrics"],
   ["#uploadFileBtn", "help.upload"],
   ["#url", "help.search"],
   ["#stemAllBtn", "help.stemAll"],
@@ -43,30 +52,33 @@ const HELP = [
   ["#fav-btn", "help.favorite"],
   ["#np-details-btn", "help.songDetails"],
   ["#songUpNextBtn", "help.addToUpNext"],
-  ["#songMoreBtn", "help.openSongMenu"],
-  ["#sidebarCollapseBtn", "help.toggleLibrary"],
-  [".rail-favorites", "help.favorites"],
-  [".rail-library", "help.library"],
-  [".rail-lyrics", "help.lyrics"],
+  ["#songMoreBtn", "lib.help.songMenu"],
+  ["#browseBtn, .strip-nav-browse", "lib.help.browse"],
+  ["#sidebarFavorites .sidebar-group-head", "help.favorites"],
+  ["#sidebarSetlists .sidebar-group-head, .sidebar-setlist", "lib.help.setlists"],
+  ["#sidebarRecent .sidebar-group-head", "lib.help.recent"],
+  ["#catalogStrip .strip-thumb, #catalogStrip", "shell.help.strip"],
   [".lyrics-edit-open", "help.lyricsEdit"],
   [".lyrics-supply-open", "help.lyricsSupply"],
-  [".rail-trash", "help.trash"],
-  [".rail-queue", "help.queue"],
+  ["#trashBtn, .strip-nav-trash", "help.trash"],
+  ["#sidebarImporting .sidebar-group-head, .importing-row", "help.queue"],
   ["#notifBtn", "help.notifications"],
   ["#settingsBtn", "settings"],
   ["#aboutBtn", "help.about"],
-  ["#catalogSearch", "help.searchLibrary"],
-  ["#newFolderBtn", "help.newFolder"],
+  ["#browseSearch", "help.searchLibrary"],
+  ["#browseNewFolder", "help.newFolder"],
   ["#catalogList .cat-versions-toggle", "help.versions"],
   ["#catalogList .cat-version", "help.version"],
   [".cat-extract-more", "help.extractMore"],
   ["#npVersionBtn", "help.versionPill"],
   ["#catalogList .cat-upnext", "help.addToUpNext"],
-  ["#catalogList .cat-more", "help.songMenu"],
+  ["#catalogList .cat-more", "lib.help.songMenu"],
   ["#catalogList .cat-item.in-trash", "help.trashedSong"],
   ["#catalogList .cat-item", "help.song"],
   ["#sectionsAddBtn", "help.addSection"],
   ["#sectionsHideBtn", "help.sectionsHide"],
+  ["#sectionsMenuBtn", "studio.help.sectionsMenu"],
+  ["#viewMenuBtn", "studio.help.viewMenu"],
   [".mx-fader", "help.volume", laneName],
   [".lane-key-step.up", "help.laneKeyUp", laneName],
   [".lane-key-step.down", "help.laneKeyDown", laneName],
@@ -74,6 +86,8 @@ const HELP = [
   [".mx-btn.mute", "help.mute", laneName],
   [".mx-btn.solo", "help.solo", laneName],
   [".lane-dl", "help.download", laneName],
+  [".lane-name", "studio.lane.helpName", laneName],
+  [".lane-more", "studio.lane.helpMore", laneName],
   ['.daw-meta-card[data-meta="key"]', "help.meta.key"],
   ['.daw-meta-card[data-meta="bpm"]', "help.meta.bpm"],
   ['.daw-meta-card[data-meta="lufs"]', "help.meta.lufs"],
@@ -85,15 +99,21 @@ const HELP = [
   [".waves-column", "help.waves", null, "help.wavesTitle"],
   ["#t-stop", "help.stop"],
   ["#t-play", "help.play"],
-  ["#t-next", "help.nextSong"],
+  ["#t-next", "studio.help.next"],
+  ["#t-prev", "studio.help.previous"],
+  ["#t-upnext", "studio.help.upNext"],
   ["#t-loop", "help.loop"],
+  ["#t-loop-more", "studio.help.loopOptions"],
   ["#t-loop-start", "help.loopStart"],
   ["#t-loop-end", "help.loopEnd"],
-  ["#t-speed, #t-speed-value", "help.speed", null, "speed.group"],
-  ["#t-pitch-down", "help.keyDown"],
-  ["#t-pitch-up", "help.keyUp"],
+  ["#t-speed, #t-speed-value, #t-speed-down, #t-speed-up, #t-speed-btn", "help.speed", null, "speed.group"],
+  ["#t-key-btn", "studio.help.keyValue"],
+  ["#t-pitch-down, #t-key-panel-down", "help.keyDown"],
+  ["#t-pitch-up, #t-key-panel-up", "help.keyUp"],
   ["#t-pitch-reset", "help.keyReset"],
-  ["#t-metro", "help.click"],
+  ["#t-metro, #t-click", "help.click"],
+  ["#t-click-more", "help.clickMore"],
+  ["#t-countin", "studio.help.countIn"],
   ["#t-metro-vol-btn", "help.clickVolume"],
   ["#t-metro-more", "help.clickMore"],
   ["#t-metro-sound", "help.clickSound", null, "click.soundAria"],
@@ -411,7 +431,7 @@ function onFocus(e) {
 }
 
 function onKey(e) {
-  if (e.key === "Escape") {
+  if (e.key === ESCAPE_KEY && escapeIsFor(LAYER.GUIDE)) {
     e.preventDefault();
     e.stopPropagation();
     setHelpMode(false);

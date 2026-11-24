@@ -16,8 +16,7 @@ import {
   stubAudioTags,
   stubExportEndpoints,
   stubImportQueue,
-  stubUpdateCheck,
-} from "./helpers.mjs";
+  stubUpdateCheck, openComposer } from "./helpers.mjs";
 
 // Wide enough for the now-playing card, which the bar hides below 1460px.
 test.use({ viewport: { width: 1600, height: 900 } });
@@ -336,6 +335,7 @@ test.describe("the work a soundtrack is from", () => {
     const queue = await stubImportQueue(page, JOB_ID);
     const tagAsks = await openPage(page, { [SIBLING_JOB_ID]: fixtureTrack(SIBLING_JOB_ID, "E2E Fixture Track (again)") });
 
+    await openComposer(page);
     await page.locator("#url").fill("https://www.youtube.com/watch?v=6Nn8rBmhDjE");
     await page.locator("#submit").click();
     await queue.run();
@@ -355,10 +355,10 @@ test.describe("the work a soundtrack is from", () => {
   });
 });
 
-test("the About box credits the licensed sources", async ({ page }) => {
+test("the About tab credits the licensed sources", async ({ page }) => {
   await openPage(page, { [JOB_ID]: fixtureTrack(JOB_ID, "E2E Fixture Track") });
   await page.evaluate(() => document.getElementById("aboutBtn")?.click());
-  const credits = page.locator("#aboutDialog .about-credits");
+  const credits = page.locator('.settings-pane[data-pane="about"] .about-credits');
   await expect(credits).toBeVisible();
   for (const name of ["Wikipedia (CC BY-SA)", "MusicBrainz and Wikidata (CC0)", "Whisper (MIT)"]) {
     await expect(credits).toContainText(name);

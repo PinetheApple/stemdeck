@@ -1,5 +1,6 @@
 // A folder or subfolder takes a new name from the "Rename folder" dialog, opened by a
-// double-click, F2 or its row's … menu. Unsorted keeps its name and changes colour only.
+// double-click or F2 on its Browse library row, or its view's … menu. Unsorted keeps
+// its name and changes colour only.
 import { test, expect } from "@playwright/test";
 import { ROW_KEY } from "../../static/js/rovingRows.js";
 import {
@@ -9,6 +10,7 @@ import {
   SIBLING_TITLE,
   TRACK_TITLE,
   fixtureTrack,
+  openBrowse,
   readCatalogState,
   seedCatalogState,
   stubFavorites,
@@ -27,7 +29,7 @@ const WHITESPACE_ONLY = "   ";
 const RENAME_KEY = "F2";
 const EDITOR = ".folder-editor";
 const EDITOR_TITLE = `${EDITOR}-head > span`;
-const MORE = ".f-more";
+const MORE = "#browseResults .browse-folder-more";
 const MENU = ".lib-menu";
 const UNPICKED_DOT = ".folder-color-dot:not(.active)";
 
@@ -48,11 +50,11 @@ async function openLibrary(page, { unsortedName = UNSORTED.name } = {}) {
   await stubFavorites(page);
   await stubUpdateCheck(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first()).toBeVisible();
+  await openBrowse(page);
 }
 
-const headOf = (page, id) => page.locator(`#catalogList .folder[data-id="${id}"] > .folder-head`);
-const nameOf = (page, id) => headOf(page, id).locator(".f-name");
+const headOf = (page, id) => page.locator(`#browseNav .browse-nav-folder[data-folder="${id}"]`);
+const nameOf = (page, id) => headOf(page, id).locator(".browse-nav-label");
 
 async function storedFolder(page, id) {
   const state = await readCatalogState(page);
@@ -63,6 +65,7 @@ const storedName = async (page, id) => (await storedFolder(page, id))?.name;
 
 async function expectNameAfterReload(page, id, name) {
   await page.reload({ waitUntil: "domcontentloaded" });
+  await openBrowse(page);
   await expect(nameOf(page, id)).toHaveText(name);
   expect(await storedName(page, id)).toBe(name);
 }
@@ -114,9 +117,8 @@ test("a folder's new colour is saved and survives a reload", async ({ page }) =>
   expect((await storedFolder(page, REHEARSAL.id)).color).toBe(color);
   await page.reload({ waitUntil: "domcontentloaded" });
   expect((await storedFolder(page, REHEARSAL.id)).color).toBe(color);
-  await expect
-    .poll(() => headOf(page, REHEARSAL.id).evaluate((el) => el.style.getPropertyValue("--folder-color")))
-    .toBe(color);
+  await openBrowse(page);
+  await expect(headOf(page, REHEARSAL.id).locator(".folder-dot")).toHaveAttribute("style", new RegExp(color));
 });
 
 test("a whitespace-only name is refused with a message and the old name stays", async ({ page }) => {
@@ -179,10 +181,14 @@ test("an Unsorted renamed by an older build still reads Unsorted, in the app's l
   await expect(nameOf(page, UNSORTED.id)).toHaveText(await uiText(page, "folder.unsorted"));
 });
 
+async function openFolderView(page, id) {
+  await headOf(page, id).click();
+  await expect(headOf(page, id)).toHaveAttribute("aria-current", "page");
+}
+
 async function openFolderMenuByKeyboard(page, id) {
-  await headOf(page, id).focus();
-  await page.keyboard.press(ROW_KEY.INTO);
-  await expect(headOf(page, id).locator(MORE)).toBeFocused();
+  await openFolderView(page, id);
+  await page.locator(MORE).focus();
   await page.keyboard.press(KEY.ENTER);
   const menu = page.locator(MENU);
   await expect(menu).toBeVisible();
@@ -210,8 +216,8 @@ test("the … menu's Rename, reached by keyboard, saves the new name with Enter"
 test("the … menu's Rename, opened by a click, is cancelled by Escape", async ({ page }) => {
   await openLibrary(page);
 
-  await headOf(page, REHEARSAL.id).hover();
-  await headOf(page, REHEARSAL.id).locator(MORE).click();
+  await openFolderView(page, REHEARSAL.id);
+  await page.locator(MORE).click();
   await chooseRename(page, page.locator(MENU));
   await page.keyboard.type(RENAMED);
   await page.keyboard.press(KEY.ESCAPE);
@@ -228,7 +234,7 @@ test("Escape on the … menu closes it and gives focus back to the … button", 
   await page.keyboard.press(KEY.ESCAPE);
 
   await expect(page.locator(MENU)).toHaveCount(0);
-  await expect(headOf(page, REHEARSAL.id).locator(MORE)).toBeFocused();
+  await expect(page.locator(MORE)).toBeFocused();
 });
 
 test("the … menu's Delete, by keyboard, arms the … button and a second Enter deletes", async ({ page }) => {
@@ -239,12 +245,12 @@ test("the … menu's Delete, by keyboard, arms the … button and a second Enter
   await expect(menu.getByRole("menuitem", { name: await uiText(page, "folder.deleteFolder") })).toBeFocused();
   await page.keyboard.press(KEY.ENTER);
 
-  const more = headOf(page, WARMUPS.id).locator(MORE);
+  const more = page.locator(MORE);
   await expect(more).toHaveAttribute("data-armed", "1");
   await expect(more).toBeFocused();
   await page.keyboard.press(KEY.ENTER);
 
-  await expect(page.locator(`#catalogList .folder[data-id="${WARMUPS.id}"]`)).toHaveCount(0);
+  await expect(headOf(page, WARMUPS.id)).toHaveCount(0);
   expect(await storedFolder(page, WARMUPS.id)).toBeUndefined();
 });
 
@@ -257,15 +263,19 @@ test("the … menu's New subfolder adds a named folder inside this one", async (
   await page.keyboard.type(RENAMED_SUBFOLDER);
   await page.keyboard.press(KEY.ENTER);
 
-  const child = page.locator(`#catalogList .folder[data-id="${REHEARSAL.id}"] .folder .f-name`, { hasText: RENAMED_SUBFOLDER });
+  const child = page.locator("#browseNav .browse-nav-folder", { hasText: RENAMED_SUBFOLDER });
   await expect(child).toBeVisible();
+  const dotX = async (row) => (await row.locator(".folder-dot").boundingBox()).x;
+  expect(await dotX(child)).toBeGreaterThan(await dotX(headOf(page, REHEARSAL.id)));
   const state = await readCatalogState(page);
   expect(state.folders.find((f) => f.name === RENAMED_SUBFOLDER)?.parentId).toBe(REHEARSAL.id);
 });
 
-test("Unsorted's row has no … menu, while a user folder's row has one", async ({ page }) => {
+test("Unsorted's view has no … menu, while a user folder's view has one", async ({ page }) => {
   await openLibrary(page);
 
-  await expect(headOf(page, REHEARSAL.id).locator(MORE)).toHaveCount(1);
-  await expect(headOf(page, UNSORTED.id).locator(MORE)).toHaveCount(0);
+  await openFolderView(page, REHEARSAL.id);
+  await expect(page.locator(MORE)).toHaveCount(1);
+  await openFolderView(page, UNSORTED.id);
+  await expect(page.locator(MORE)).toHaveCount(0);
 });

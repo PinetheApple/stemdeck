@@ -70,6 +70,7 @@ let _anchors = new Set();  // beat indices the user has explicitly positioned
 
 let _editing = false;
 let _shown = false;
+let _viewOn = true;
 let _rate = 1;
 let _drawn = [];
 let _tool = "move";        // move | insert | delete | bar
@@ -746,7 +747,7 @@ export function destroyBeatGrid() {
 
 function _syncCanvas() {
   if (!_canvas) return;
-  _canvas.classList.toggle("hidden", !(_shown || _editing));
+  _canvas.classList.toggle("hidden", !((_shown && _viewOn) || _editing));
   _canvas.style.pointerEvents = _editing ? "auto" : "none";
 }
 
@@ -763,6 +764,12 @@ export function setBeatGridShown(on) {
   _shown = !!on;
   _syncCanvas();
   _render();
+}
+
+/** View > Beat grid: off keeps the shown grid away; the editor still draws. */
+export function setBeatGridViewOn(on) {
+  _viewOn = !!on;
+  _syncCanvas();
 }
 
 /** The click's rate (0.5, 1 or 2), so the shown grid draws the beats it plays. */

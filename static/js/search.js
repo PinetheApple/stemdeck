@@ -19,6 +19,7 @@
 // backspacing does constantly) mostly does not hit the network at all.
 
 import { t, applyTranslations, onLanguageChange } from "./i18n.js";
+import { clampIntoWindow } from "./shellFloat.js";
 
 // A pause long enough to mean "stopped typing".
 const IDLE_MS = 450;
@@ -107,6 +108,7 @@ function position() {
 function open() {
   position();
   panel.classList.remove("hidden");
+  clampIntoWindow(panel);
   input.setAttribute("aria-expanded", "true");
 }
 

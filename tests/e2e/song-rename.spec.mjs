@@ -1,6 +1,6 @@
 // Renaming a song's title and artist (PATCH /api/jobs/{id}), in the song head
-// and in its library row. A saved rename asks the server to look the song up
-// again by the new names (POST .../audio-tags).
+// and from the song menu's Rename this song dialog. A saved rename asks the
+// server to look the song up again by the new names (POST .../audio-tags).
 import { test, expect } from "@playwright/test";
 import { JOB_ID, SIBLING_JOB_ID, TRACK_TITLE, openStudio, stubAudioTags } from "./helpers.mjs";
 
@@ -87,7 +87,7 @@ test("restore goes back to the detected names", async ({ page, request }) => {
   expect(state.user_artist).toBeNull();
 });
 
-test("a library row renames its song from the … menu", async ({ page, request }) => {
+test("a library row renames its song from the … menu, in the Rename this song dialog", async ({ page, request }) => {
   const asked = await stubAudioTags(page, null);
   await openStudio(page);
   const row = page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`).first();
@@ -95,14 +95,45 @@ test("a library row renames its song from the … menu", async ({ page, request 
   await row.locator(".cat-more").click();
   await page.locator(".lib-menu").getByRole("menuitem", { name: "Rename…" }).click();
 
-  const title = row.locator(".rename-title");
+  const dialog = page.getByRole("dialog", { name: "Rename this song" });
+  const title = dialog.locator(".rename-title");
   await expect(title).toBeFocused();
   await title.fill("Row Renamed");
   await title.press("Enter");
 
+  await expect(dialog).toHaveCount(0);
   await expect(row.locator(".cat-title")).toHaveText("Row Renamed");
+  // The rows were drawn again for the new name, so focus lands on the song's new row.
+  await expect(row).toBeFocused();
   expect((await jobState(request, SIBLING_JOB_ID)).user_title).toBe("Row Renamed");
   await expect.poll(() => asked.includes(SIBLING_JOB_ID)).toBe(true);
   // The open song is another one, so the song head keeps its name.
   await expect(page.locator("#title")).toHaveText(TRACK_TITLE);
+});
+
+test("Esc closes the Rename this song dialog and sends nothing", async ({ page }) => {
+  await stubAudioTags(page, null);
+  const sent = recordRenames(page);
+  await openStudio(page);
+  const row = page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`).first();
+  await row.click({ button: "right" });
+  await page.locator(".lib-menu").getByRole("menuitem", { name: "Rename…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Rename this song" });
+  await dialog.locator(".rename-title").fill("Not saved");
+  await page.keyboard.press("Escape");
+
+  await expect(dialog).toHaveCount(0);
+  await expect(row).toBeFocused();
+  expect(sent).toEqual([]);
+});
+
+test("closing the Rename this song dialog gives focus back to the ⋯ it was opened from", async ({ page }) => {
+  await stubAudioTags(page, null);
+  await openStudio(page);
+  const row = page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`).first();
+  await row.hover();
+  await row.locator(".cat-more").click();
+  await page.locator(".lib-menu").getByRole("menuitem", { name: "Rename…" }).click();
+  await page.getByRole("dialog", { name: "Rename this song" }).locator(".folder-editor-cancel").click();
+  await expect(row.locator(".cat-more")).toBeFocused();
 });

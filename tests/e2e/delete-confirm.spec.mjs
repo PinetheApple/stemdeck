@@ -14,6 +14,7 @@ import {
   TRACK_TITLE,
   failureMessages,
   fixtureTrack,
+  openBrowse,
   openStudio,
   readCatalogState,
   seedCatalogState,
@@ -75,7 +76,7 @@ async function queueWithImport(page, sourceUrl) {
   const queue = await stubImportQueue(page, QUEUED_ID, "Importing", { sourceUrl });
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await queue.run();
-  await page.locator(".rail-queue").click();
+  await openBrowse(page, "queue");
   const cancel = page.locator(`.queue-row[data-id="${QUEUED_ID}"] .queue-cancel`);
   await expect(cancel).toBeVisible();
   return { calls, cancel };
@@ -119,9 +120,9 @@ test.describe("Empty trash", () => {
     await stubServerTrash(page, { trashed: [JOB_ID, SIBLING_JOB_ID] });
     const calls = await stubLibraryWrites(page, { failDelete });
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await page.locator(".rail-trash").click();
+    await openBrowse(page, "trash");
 
-    const empty = page.locator("#clearBinBtn");
+    const empty = page.locator("#browseEmptyTrash");
     await empty.click();
     await expect(empty).toHaveAttribute("data-armed", "1");
     await expect(empty).toContainText("Delete permanently?");
@@ -129,7 +130,7 @@ test.describe("Empty trash", () => {
 
     await empty.click();
     await expect.poll(() => trashItems(page)).toEqual([JOB_ID]);
-    await expect(page.locator(`.cat-item.in-trash[data-id="${JOB_ID}"]`)).toBeVisible();
+    await expect(page.locator(`#browseResults .cat-item.in-trash[data-id="${JOB_ID}"]`)).toBeVisible();
     await expect.poll(() => failureMessages(page)).toEqual([await uiText(page, "library.deleteFailed", { count: 1 })]);
 
     failDelete.clear();
@@ -151,9 +152,9 @@ test("Empty trash says so when the device cannot record what it deleted", async 
   await stubServerTrash(page, { trashed: [SIBLING_JOB_ID] });
   await stubLibraryWrites(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator(".rail-trash").click();
+  await openBrowse(page, "trash");
 
-  const empty = page.locator("#clearBinBtn");
+  const empty = page.locator("#browseEmptyTrash");
   await empty.click();
   await empty.click();
 
@@ -170,20 +171,20 @@ test.describe("deleting a folder", () => {
     ]);
     const calls = await stubLibraryWrites(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
+    await openBrowse(page, "folder:f-band");
 
-    const head = page.locator('.folder[data-id="f-band"] > .folder-head');
-    await head.hover();
-    const more = head.locator(".f-more");
+    const navRow = (id) => page.locator(`#browseNav .browse-nav-folder[data-folder="${id}"]`);
+    const more = page.locator("#browseResults .browse-folder-more");
     await more.click();
     await page.locator(".lib-menu").getByRole("menuitem", { name: await uiText(page, "folder.deleteFolder") }).click();
     await expect(more).toHaveAttribute("data-armed", "1");
     await expect(more).toContainText(await uiText(page, "folder.deleteConfirm"));
-    await expect(page.locator('.folder[data-id="f-band"]')).toHaveCount(1);
+    await expect(navRow("f-band")).toHaveCount(1);
     expect(calls.trashed).toEqual([]);
 
     await more.click();
-    await expect(page.locator('.folder[data-id="f-band"]')).toHaveCount(0);
-    await expect(page.locator('.folder[data-id="f-live"]')).toHaveCount(0);
+    await expect(navRow("f-band")).toHaveCount(0);
+    await expect(navRow("f-live")).toHaveCount(0);
     await expect.poll(async () => (await trashItems(page)).sort()).toEqual([JOB_ID, SIBLING_JOB_ID].sort());
     await expect.poll(() => [...calls.trashed].sort()).toEqual([JOB_ID, SIBLING_JOB_ID].sort());
   });
@@ -195,10 +196,10 @@ test.describe("keyboard delete", () => {
     await stubLibraryWrites(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
 
-    await page.locator(`.cat-item[data-id="${JOB_ID}"] .cat-title`).click();
+    await page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"] .cat-title`).click();
     await page.locator("body").focus();
     await page.keyboard.press("Delete");
-    await page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"] .cat-fav`).focus();
+    await page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"] .cat-upnext`).focus();
     await page.keyboard.press("Backspace");
 
     await expect.poll(() => trashItems(page)).toEqual([SIBLING_JOB_ID]);
@@ -209,11 +210,11 @@ test.describe("keyboard delete", () => {
     const calls = await stubLibraryWrites(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
 
-    const fav = page.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"] .cat-fav`);
+    const fav = page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"] .cat-upnext`);
     await fav.focus();
     // Shown the way the app shows it, without taking focus from the row.
-    await page.evaluate(() => document.getElementById("aboutDialog").classList.remove("hidden"));
-    await expect(page.locator("#aboutDialog")).toBeVisible();
+    await page.evaluate(() => document.getElementById("failureDialog").classList.remove("hidden"));
+    await expect(page.locator("#failureDialog")).toBeVisible();
     await expect(fav).toBeFocused();
     await page.keyboard.press("Delete");
 
@@ -233,6 +234,7 @@ test.describe("keyboard delete", () => {
     await expect(page.locator(".app")).not.toHaveClass(/stage-mode/);
 
     await page.locator("#settingsBtn").click();
+    await page.locator('.settings-tab[data-tab="general"]').click();
     await expect(page.locator(".auto-delete-input")).toBeAttached();
     await page.keyboard.press("Backspace");
 

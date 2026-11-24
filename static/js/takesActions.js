@@ -2,9 +2,9 @@
 // the open song: { jobId, listing, ui, refresh(), render() }.
 
 import { t } from "./i18n.js";
-import { applyMix, updateLaneKnobVisual } from "./mixer.js";
+import { announceMixChange, applyMix, updateLaneKnobVisual } from "./mixer.js";
 import { confirmDialog } from "./confirmDialog.js";
-import { openTakesMenu } from "./takesMenu.js";
+import { openRowMenu } from "./rowMenu.js";
 import { nextName } from "./takesState.js";
 import { setTakeVolume, takeMixEntry, toggleTakeMute, toggleTakeSolo } from "./takesMix.js";
 import { ARM_PROBLEM_SILENT, armTrack, armedTrack, disarm } from "./recorderArm.js";
@@ -38,7 +38,7 @@ function rearmIfArmed(session, trackId) {
 }
 
 export function addTrack(session, anchor) {
-  openTakesMenu(anchor, t("rec.addTrack"), [
+  openRowMenu(anchor, t("rec.addTrack"), [
     {
       text: t("rec.audioTrack"),
       icon: "mic",
@@ -86,7 +86,7 @@ export async function chooseInput(session, trackId, anchor) {
   const devices = await listInputs().catch(() => []);
   const entries = devices.flatMap((device, i) => channelEntries(session, trackId, device, i));
   if (!entries.length) entries.push({ text: t("rec.problem.noDevice"), icon: "alert", disabled: true });
-  openTakesMenu(anchor, t("rec.inputFor", { name: trackOf(session, trackId)?.name ?? "" }), entries);
+  openRowMenu(anchor, t("rec.inputFor", { name: trackOf(session, trackId)?.name ?? "" }), entries);
 }
 
 export function toggleArm(session, trackId) {
@@ -114,6 +114,7 @@ export function toggleSolo(session, trackId) {
   toggleTakeSolo(trackId);
   applyMix();
   session.render();
+  announceMixChange();
 }
 
 // The track's own input, so the latency test measures what this track records.
@@ -144,7 +145,7 @@ async function removeTrack(session, trackId) {
 }
 
 export function trackMenu(session, trackId, anchor) {
-  openTakesMenu(anchor, t("rec.trackOptions", { name: trackOf(session, trackId)?.name ?? "" }), [
+  openRowMenu(anchor, t("rec.trackOptions", { name: trackOf(session, trackId)?.name ?? "" }), [
     {
       text: t("rec.rename"),
       icon: "pencil",

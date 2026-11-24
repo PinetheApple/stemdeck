@@ -10,50 +10,128 @@
     <link rel="stylesheet" href="/css/waves.css" />
     <link rel="stylesheet" href="/css/daw.css" />
     <link rel="stylesheet" href="/css/studio.css" />
-    <link rel="stylesheet" href="/css/footer-fit.css" />
+    <link rel="stylesheet" href="/css/footer.css" />
     <link rel="stylesheet" href="/css/inspector.css" />
+    <link rel="stylesheet" href="/css/inspector-tabs.css" />
     <link rel="stylesheet" href="/css/library.css" />
     <link rel="stylesheet" href="/css/stage-mode.css" />
     <link rel="stylesheet" href="/css/recording.css" />
     <link rel="stylesheet" href="/css/stage-sing.css" />
+    <link rel="stylesheet" href="/css/stage-panels.css" />
 <link rel="stylesheet" href="/css/eq.css" />
+<link rel="stylesheet" href="/css/lanes.css" />
 <link rel="stylesheet" href="/css/mastering.css" />
     <link rel="stylesheet" href="/css/open-preview.css" />
     <link rel="stylesheet" href="/css/vocal-split.css" />
     <link rel="stylesheet" href="/css/forms.css" />
 <link rel="stylesheet" href="/css/import-source.css" />
-    <link rel="stylesheet" href="/css/autoscroll.css" />
+    <link rel="stylesheet" href="/css/section-bar.css" />
+    <link rel="stylesheet" href="/css/studio-menus.css" />
+    <link rel="stylesheet" href="/css/my-part.css" />
+    <link rel="stylesheet" href="/css/song-steps.css" />
     <link rel="stylesheet" href="/css/batch-import.css" />
+    <link rel="stylesheet" href="/css/shell.css" />
+    <link rel="stylesheet" href="/css/themes.css" />
+    <link rel="stylesheet" href="/css/dialogs.css" />
+    <link rel="stylesheet" href="/css/settings.css" />
+    <link rel="stylesheet" href="/css/cover-wash.css" />
+    <link rel="stylesheet" href="/css/alerts.css" />
+    <link rel="stylesheet" href="/css/sidebar.css" />
+    <link rel="stylesheet" href="/css/browse.css" />
+    <link rel="stylesheet" href="/css/song-menu.css" />
+    <link rel="stylesheet" href="/css/toast.css" />
+    <link rel="stylesheet" href="/css/library-tools.css" />
+    <script type="module" src="/js/appearance.js"></script>
+    <link rel="stylesheet" href="/css/add-song.css" />
   </head>
   <body>
 
     <div class="app daw" id="app">
 
-      <!-- ══ TOPBAR ══ -->
-      <div class="daw-topbar">
-        <!-- Brand. Sized to the rail's width, so the bar starts where the
-             library does and the divider is the rail's own. -->
-        <div class="daw-brand">
-          <!-- An anchor rather than a click handler: the document-level
-               a[target="_blank"] listener in main.js already sends these to the
-               system browser through Tauri's open_url on the desktop, and leaves
-               them to the browser everywhere else. A handler here would have to
-               repeat that, and would get the desktop case wrong by opening the
-               site inside the app's own window. -->
-          <a href="https://stemdeck.app" target="_blank" rel="noopener noreferrer"
-             title="Open stemdeck.app" data-i18n-title="topbar.website"
-             aria-label="Open stemdeck.app" data-i18n-aria-label="topbar.website">
-            <img src="/img/stemdeck-waveform-symbol.svg" alt="StemDeck" width="52" height="52" />
-          </a>
-        </div>
+      <!-- ══ TOP BAR ══ -->
+      <header class="topbar daw-topbar" id="topbar">
+        <button class="topbar-iconbtn" id="sidebarCollapseBtn" type="button" aria-pressed="true" aria-controls="catalogPanel"
+                title="Show or hide the sidebar" aria-label="Show or hide the sidebar"
+                data-i18n-title="shell.toggleSidebar" data-i18n-aria-label="shell.toggleSidebar">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /> <path d="M9 3v18" /></svg>
+        </button>
+        <!-- An anchor: main.js sends target="_blank" links to the system browser on the desktop. -->
+        <a class="topbar-brand" href="https://stemdeck.app" target="_blank" rel="noopener noreferrer"
+           title="Open stemdeck.app" data-i18n-title="topbar.website"
+           aria-label="Open stemdeck.app" data-i18n-aria-label="topbar.website">
+          <img src="/img/stemdeck-waveform-symbol.svg" alt="" width="28" height="28" />
+          <span>StemDeck</span>
+        </a>
+        <div class="topbar-spacer"></div>
+          <div class="topbar-offline hidden" id="connStatus" role="status" title="Can't reach StemDeck" aria-label="Can't reach StemDeck" data-i18n-title="conn.offline" data-i18n-aria-label="conn.offline">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 5 3-3" /> <path d="m2 22 3-3" /> <path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z" /> <path d="M7.5 13.5 10 11" /> <path d="M10.5 16.5 13 14" /> <path d="m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z" /></svg>
+            <span data-i18n="conn.offlineShort">Offline</span>
+          </div>
+        <button class="topbar-btn topbar-quiet hidden" id="importingBtn" type="button" title="Import queue" data-i18n-title="shell.importQueue">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /> <path d="m7 10 5 5 5-5" /></svg>
+          <span id="importingLabel"></span>
+        </button>
+        <button class="topbar-btn" id="addSongBtn" type="button" aria-expanded="false" aria-controls="composerDrawer"
+                title="Add songs from a link, a search or your files" data-i18n-title="shell.addSongTitle">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /> <path d="M12 5v14" /></svg>
+          <span data-i18n="shell.addSong">Add song</span>
+        </button>
+          <div class="daw-notif-wrap">
+            <button class="topbar-iconbtn" id="notifBtn" title="Alerts: failures and new releases" type="button" aria-label="Alerts" aria-expanded="false" data-i18n-title="notif.railTitle" data-i18n-aria-label="notif.railLabel">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0" /> <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" /></svg>
+              <span class="daw-notif-badge hidden" id="notifBadge" aria-hidden="true"></span>
+            </button>
+            <div class="daw-notif-panel" role="menu" aria-label="Notifications" data-i18n-aria-label="notif.title">
+              <div class="daw-notif-header">
+                <span class="uplabel" data-i18n="notif.title">Notifications</span>
+                <button class="daw-notif-clear" id="notifClearAll" type="button" data-i18n="notif.clearAll">Clear all</button>
+                <button class="daw-notif-close" type="button" aria-label="Close notifications" data-i18n-aria-label="notif.close">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+              <div class="daw-notif-list" id="notifList">
+                <div class="daw-notif-card daw-notif-release hidden" id="notifReleaseCard">
+                  <div class="daw-notif-card-icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+                  </div>
+                  <div class="daw-notif-card-body">
+                    <div class="daw-notif-card-title" data-i18n="notif.newRelease">New release available</div>
+                    <div class="daw-notif-card-desc" id="notifReleaseDesc"></div>
+                  </div>
+                  <button class="daw-notif-dismiss" id="notifReleaseDismiss" type="button" aria-label="Dismiss notification" data-i18n-aria-label="notif.dismiss">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                  </button>
+                </div>
+                <p class="daw-notif-empty" id="notifEmpty" data-i18n="notif.empty">No new notifications</p>
+              </div>
+            </div>
+          </div>
+          <button class="topbar-iconbtn topbar-guide" type="button" id="helpModeBtn" aria-pressed="false"
+                  title="Explain the screen" aria-label="Guide"
+                  data-i18n-title="help.button" data-i18n-aria-label="help.railLabel">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14" /> <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></svg>
+          </button>
+          <button class="topbar-iconbtn" id="aboutBtn" type="button" title="About StemDeck: website, community and credits" aria-label="About" data-i18n-title="nav.aboutTitle" data-i18n-aria-label="nav.about">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /> <path d="M12 16v-4" /> <path d="M12 8h.01" /></svg>
+          </button>
+          <button class="topbar-iconbtn" id="settingsBtn" type="button" title="Settings" data-i18n-title="nav.settingsRail" aria-label="Settings" aria-haspopup="dialog" data-i18n-aria-label="nav.settingsRail">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /> <circle cx="12" cy="12" r="3" /></svg>
+          </button>
+        <button class="topbar-iconbtn inspector-toggle" id="inspectorToggleBtn" type="button" aria-pressed="true" aria-controls="inspector"
+                title="Show or hide song tools" aria-label="Show or hide song tools"
+                data-i18n-title="shell.toggleTools" data-i18n-aria-label="shell.toggleTools">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /> <path d="M15 3v18" /></svg>
+        </button>
+      </header>
 
-        <!-- Composer pill -->
-        <div class="daw-composer-stack">
-        <form id="job-form" class="daw-composer">
+      <div class="add-song-pop" id="composerDrawer" role="dialog" aria-labelledby="addSongTitle" hidden>
+        <form id="job-form" class="add-song-form">
+          <h2 class="add-song-title" id="addSongTitle" data-i18n="addsong.title">Add songs</h2>
 
-          <!-- URL zone (JS uses .url-wrap for drag events) -->
-          <div class="daw-url-zone url-wrap">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.8" style="flex-shrink:0" aria-hidden="true">
+          <!-- .daw-composer is what search.js hangs its results under; .url-wrap takes drags. -->
+          <div class="daw-composer">
+          <div class="daw-url-zone url-wrap add-song-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
               <path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1 M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>
             </svg>
             <!-- type="text", not "url": this box takes a search query as well as a
@@ -83,7 +161,7 @@
               <span class="batch-pill-ic" data-kind-icon="folder" data-batch-icon="folder"></span>
               <span class="file-name" id="fileName"></span>
               <span class="file-size" id="fileSize"></span>
-              <button class="file-clear" id="fileClear" type="button" aria-label="Remove file" data-i18n-aria-label="topbar.removeFile">×</button>
+              <button class="file-clear" id="fileClear" type="button" title="Remove file" aria-label="Remove file" data-i18n-title="topbar.removeFile" data-i18n-aria-label="topbar.removeFile">×</button>
             </div>
             <!-- The open track, when it is one the button acts on directly.
                  The box is kept for new imports, so a link track's URL never
@@ -97,23 +175,26 @@
               </svg>
               <span class="file-name" id="trackPillName"></span>
             </div>
-            <button class="daw-upload-btn" type="button" title="Add files" id="uploadFileBtn" aria-label="Add files" data-i18n-title="batch.addFiles" data-i18n-aria-label="batch.addFiles">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /> <path d="m17 8-5-5-5 5" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /></svg>
-            </button>
-            <input id="fileInput" type="file" multiple accept=".mp3,.wav,.flac,.mp4,.m4a,.ogg,.opus,audio/mpeg,audio/wav,audio/flac,video/mp4,audio/mp4,audio/ogg,audio/opus" style="display:none" aria-hidden="true" />
-            <button class="daw-upload-btn batch-folder-btn" type="button" title="Add a folder" id="addFolderBtn" aria-label="Add a folder" data-i18n-title="batch.addFolder" data-i18n-aria-label="batch.addFolder">
-              <span class="batch-icon-slot" data-batch-icon="folder"></span>
-            </button>
-            <input id="folderInput" type="file" multiple webkitdirectory style="display:none" aria-hidden="true" />
+          </div>
           </div>
 
-          <!-- Divider -->
-          <div class="daw-composer-sep"></div>
+          <div class="add-song-pickers">
+            <button class="add-song-picker" type="button" title="Add files" id="uploadFileBtn" data-i18n-title="batch.addFiles">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /> <path d="m17 8-5-5-5 5" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /></svg>
+              <span data-i18n="batch.addFiles">Add files</span>
+            </button>
+            <input id="fileInput" type="file" multiple accept=".mp3,.wav,.flac,.mp4,.m4a,.ogg,.opus,audio/mpeg,audio/wav,audio/flac,video/mp4,audio/mp4,audio/ogg,audio/opus" style="display:none" aria-hidden="true" />
+            <button class="add-song-picker batch-folder-btn" type="button" title="Add a folder" id="addFolderBtn" data-i18n-title="batch.addFolder">
+              <span class="batch-icon-slot" data-batch-icon="folder"></span>
+              <span data-i18n="batch.addFolder">Add a folder</span>
+            </button>
+            <input id="folderInput" type="file" multiple webkitdirectory style="display:none" aria-hidden="true" />
+            <span class="add-song-formats" data-i18n="addsong.formats">MP3, WAV, FLAC, MP4, M4A, OGG, Opus</span>
+          </div>
 
-          <!-- Stem selection -->
-          <div class="daw-stem-section">
-            <span class="daw-extract-label" data-i18n="extract.label">Extract</span>
-            <div class="daw-stem-chips" id="stemChips">
+          <div class="add-song-extract">
+            <span class="add-song-label" data-i18n="extract.label">Extract</span>
+            <div class="add-song-chips" id="stemChips">
               <button class="stem-choice stem-choice-all" type="button" id="stemAllBtn" aria-pressed="true" data-i18n="extract.all">All</button>
               <!-- Vocals and the two things that describe it, in one group.
                    Loose in the row, the mode buttons read as peers of Drums and
@@ -152,52 +233,28 @@
                 <span data-i18n="stem.other">Other</span>
               </button>
             </div>
-            <button class="stem-more-btn" id="stemMoreBtn" type="button" aria-haspopup="true" aria-expanded="false"
-                    aria-controls="stemOverflow" title="More stems" data-i18n-title="extract.moreAria"
-                    aria-label="More stems" data-i18n-aria-label="extract.moreAria" hidden>
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-                <circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/>
-              </svg>
-            </button>
-            <!-- Holds whichever chips no longer fit, and nothing else. It
-                 appears the moment the first one has to move and grows as the
-                 window narrows, so the row never wraps and the bar never gets
-                 taller. See fitStemChips in main.js. -->
-            <div class="stem-overflow" id="stemOverflow" role="group" aria-label="More stems" data-i18n-aria-label="extract.moreAria"></div>
           </div>
 
-          <!-- Experimental automatic song-structure detection. Off makes the
-               pipeline skip the inference stage entirely; the backend reads
-               the setting once per job, so a change applies to the next import
-               without a restart.
-
-               It is named for the work it does at import time, not for the
-               sections bar. Called "Song structure" it read as the switch that
-               shows and hides that bar, so clicking it on an open track looked
-               broken: nothing moved, because nothing it controls belongs to a
-               track that has already been separated (#634). The bar has its
-               own control, "Sections" in the Collapse row. -->
-          <button class="stem-choice structure-toggle" type="button" id="autoSectionsBtn" aria-pressed="false" title="Experimental. Labels intro, verse and chorus while a track is imported. Applies to the next import, not to a track that is already open. To hide the sections bar, use Collapse > Sections." aria-label="Detect song structure on import (experimental)" data-i18n-title="structure.toggleTitle" data-i18n-aria-label="structure.toggleAria">
-            <span class="structure-toggle-main">
+          <div class="add-song-foot">
+            <!-- Off makes the pipeline skip structure detection; the backend reads it once per job,
+                 so it applies to the next import. The sections bar has its own control. -->
+            <button class="add-song-detect" type="button" id="autoSectionsBtn" aria-pressed="false" title="Experimental. Labels intro, verse and chorus while a track is imported. Applies to the next import, not to a track that is already open. To hide the sections bar, use View &gt; Sections bar." aria-label="Detect song structure on import (experimental)" data-i18n-title="structure.toggleTitle" data-i18n-aria-label="structure.toggleAria">
+              <span class="add-song-switch" aria-hidden="true"></span>
               <span data-i18n="structure.toggle">Detect structure</span>
-            </span>
-            <span class="structure-toggle-note" data-i18n="structure.experimental">Experimental</span>
-          </button>
-
-          <!-- Process button -->
-          <button id="submit" class="daw-process-btn" type="submit">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M13 2 3 14h7l-1 8 10-12h-7z"/>
-            </svg>
-            <span data-i18n="process.extractStems">Extract stems</span>
-          </button>
+              <span class="add-song-tag" data-i18n="structure.experimental">Experimental</span>
+            </button>
+            <button id="submit" class="daw-process-btn add-song-submit" type="submit">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>
+              <span data-i18n="process.extractStems">Extract stems</span>
+            </button>
+          </div>
         </form>
+      </div>
 
-
-        </div><!-- /.daw-composer-stack -->
-        <!-- Hidden collapsed strip (JS compatibility) -->
-        <div class="hidden" id="appbarStrip" aria-hidden="true" style="display:none!important">
-          <div><div class="strip-sq-stems" id="appbarStripStems"></div></div>
+      <div class="drop-overlay" id="dropOverlay" aria-hidden="true" hidden>
+        <div class="drop-overlay-card">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /> <path d="m17 8-5-5-5 5" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /></svg>
+          <b data-i18n="batch.dropHere">Drop files or a folder</b>
         </div>
       </div>
 
@@ -207,176 +264,75 @@
 
         <!-- ── Sidebar / Catalog ── -->
         <aside class="sidebar" id="catalogPanel">
-          <!-- Rail -->
-          <nav class="sidebar-rail" aria-label="Library navigation" data-i18n-aria-label="nav.libraryNav">
-            <button class="rail-btn rail-collapse" id="sidebarCollapseBtn" type="button" title="Toggle library" aria-label="Toggle library" aria-expanded="true" data-i18n-title="nav.toggleLibrary" data-i18n-aria-label="nav.toggleLibrary">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /> <path d="M9 3v18" /></svg>
-            </button>
-            <button class="rail-btn rail-favorites" type="button" title="Favorites" aria-label="Favorites" aria-pressed="false" data-i18n-title="nav.favorites" data-i18n-aria-label="nav.favorites">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" /></svg>
-              <span data-i18n="nav.favorites">Favorites</span>
-            </button>
-            <button class="rail-btn rail-library active" id="appMenuBtn" type="button" title="Library" aria-label="Library" aria-pressed="true" data-i18n-title="nav.library" data-i18n-aria-label="nav.library">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6 4 14" /> <path d="M12 6v14" /> <path d="M8 8v12" /> <path d="M4 4v16" /></svg>
-              <span data-i18n="nav.library">Library</span>
-            </button>
-            <!-- Lyrics for the open track (#699): a view of the sidebar, like
-                 Favorites and Trash, drawn by lyrics.js. -->
-            <button class="rail-btn rail-lyrics" type="button" title="Lyrics" aria-label="Lyrics" aria-pressed="false" data-i18n-title="nav.lyrics" data-i18n-aria-label="nav.lyrics">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 7.601-5.994 8.19a1 1 0 0 0 .1 1.298l.817.818a1 1 0 0 0 1.314.087L15.09 12" /> <path d="M16.5 21.174C15.5 20.5 14.372 20 13 20c-2.058 0-3.928 2.356-6 2-2.072-.356-2.775-3.369-1.5-4.5" /> <circle cx="16" cy="7" r="5" /></svg>
-              <span data-i18n="nav.lyrics">Lyrics</span>
-            </button>
-            <button class="rail-btn rail-queue hidden" type="button" title="Queue" aria-label="Queue" aria-pressed="false" data-i18n-title="nav.queue" data-i18n-aria-label="nav.queue">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5h10" /> <path d="M11 12h10" /> <path d="M11 19h10" /> <path d="M4 4h1v5" /> <path d="M4 9h2" /> <path d="M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02" /></svg>
-              <span data-i18n="nav.queue">Queue</span>
-              <span class="rail-badge hidden" id="queueBadge" aria-hidden="true"></span>
-            </button>
-            <button class="rail-btn rail-trash" type="button" title="Trash" aria-label="Trash" aria-pressed="false">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6" /> <path d="M14 11v6" /> <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /> <path d="M3 6h18" /> <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-              <span data-i18n="nav.trash">Trash</span>
-              <span class="rail-badge hidden" id="trashBadge" aria-hidden="true"></span>
-            </button>
-            <!-- Help mode: the screen explains itself while this is pressed. -->
-            <button class="rail-btn rail-guide" type="button" id="helpModeBtn" aria-pressed="false"
-                    title="Explain the screen" aria-label="Guide"
-                    data-i18n-title="help.button" data-i18n-aria-label="help.railLabel">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14" /> <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></svg>
-              <span data-i18n="help.railLabel">Guide</span>
-            </button>
-            <div style="flex:1"></div>
-            <!-- Shown by connection.js while the server can't be reached. -->
-            <div class="rail-btn rail-conn hidden" id="connStatus" role="status" title="Can't reach StemDeck" aria-label="Can't reach StemDeck" data-i18n-title="conn.offline" data-i18n-aria-label="conn.offline">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 5 3-3" /> <path d="m2 22 3-3" /> <path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z" /> <path d="M7.5 13.5 10 11" /> <path d="M10.5 16.5 13 14" /> <path d="m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z" /></svg>
-              <span data-i18n="conn.offlineShort">Offline</span>
-            </div>
-            <!-- Notifications (#636). In the rail rather than at the end
-                 of the top bar: that row is the import and split controls, so
-                 a bell parked on it read as part of that job. Everything else
-                 here is app-wide rather than track-wide, which is what a
-                 notification is. -->
-            <div class="daw-notif-wrap">
-              <button class="rail-btn" id="notifBtn" title="Alerts: failures and new releases" type="button" aria-label="Alerts" aria-expanded="false" data-i18n-title="notif.railTitle" data-i18n-aria-label="notif.railLabel">
-                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0" /> <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" /></svg>
-                <span data-i18n="notif.railLabel">Alerts</span>
-                <span class="daw-notif-badge hidden" id="notifBadge" aria-hidden="true"></span>
-              </button>
-              <div class="daw-notif-panel" role="menu" aria-label="Notifications" data-i18n-aria-label="notif.title">
-                <div class="daw-notif-header">
-                  <span class="uplabel" data-i18n="notif.title">Notifications</span>
-                  <button class="daw-notif-clear" id="notifClearAll" type="button" data-i18n="notif.clearAll">Clear all</button>
-                  <button class="daw-notif-close" type="button" aria-label="Close notifications" data-i18n-aria-label="notif.close">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
-                  </button>
-                </div>
-                <div class="daw-notif-list" id="notifList">
-                  <div class="daw-notif-card daw-notif-release hidden" id="notifReleaseCard">
-                    <div class="daw-notif-card-icon">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
-                    </div>
-                    <div class="daw-notif-card-body">
-                      <div class="daw-notif-card-title" data-i18n="notif.newRelease">New release available</div>
-                      <div class="daw-notif-card-desc" id="notifReleaseDesc"></div>
-                    </div>
-                    <button class="daw-notif-dismiss" id="notifReleaseDismiss" type="button" aria-label="Dismiss notification" data-i18n-aria-label="notif.dismiss">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
-                    </button>
-                  </div>
-                  <p class="daw-notif-empty" id="notifEmpty" data-i18n="notif.empty">No new notifications</p>
-                </div>
-              </div>
-            </div>
-            <button class="rail-btn" id="settingsBtn" type="button" aria-label="Settings" aria-haspopup="dialog" data-i18n-aria-label="nav.settingsRail">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /> <circle cx="12" cy="12" r="3" /></svg>
-              <span data-i18n="nav.settingsRail">Settings</span>
-            </button>
-            <button class="rail-btn" id="aboutBtn" type="button" title="About StemDeck: website, community and credits" aria-label="About" data-i18n-title="nav.aboutTitle" data-i18n-aria-label="nav.about">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /> <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /> <path d="M12 17h.01" /></svg>
-              <span data-i18n="nav.about">About</span>
-            </button>
-          </nav>
 
           <!-- Sidebar body -->
           <div class="sidebar-body">
-            <!-- Search -->
-            <div class="daw-search" id="catalogToggle" role="button" tabindex="0" aria-label="Search library" data-i18n-aria-label="search.ariaLabel">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
-              </svg>
-              <input id="catalogSearch" type="search" aria-keyshortcuts="Control+K Meta+K" placeholder="Search or #tag…" data-i18n-placeholder="search.placeholder" autocomplete="off" spellcheck="false" />
-              <ul class="tag-suggest" id="tagSuggest" role="listbox" aria-label="Tag suggestions" data-i18n-aria-label="search.tagSuggestions"></ul>
-              <span class="search-kbd" aria-hidden="true">⌘K</span>
-            </div>
-
-            <div class="lib-tabs" role="tablist" aria-label="Library" data-i18n-aria-label="nav.library">
-              <button class="lib-tab" id="libTabSongs" type="button" role="tab" aria-selected="true" aria-controls="catalogList">
-                <span data-i18n="library.songsTab">Songs</span>
-                <span class="lib-tab-count num" id="libSongsCount">0</span>
-              </button>
-              <button class="lib-tab" id="libTabSetlists" type="button" role="tab" aria-selected="false" aria-controls="setlistsPanel" tabindex="-1">
-                <span data-i18n="setlists.title">Setlists</span>
-                <span class="lib-tab-count num" id="setlistsCount">0</span>
+            <div class="sidebar-top">
+              <button class="sidebar-browse-btn" id="browseBtn" type="button" aria-keyshortcuts="Control+K Meta+K" title="Browse library (Ctrl K)" data-i18n-title="lib.browseTitle">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6 4 14" /> <path d="M12 6v14" /> <path d="M8 8v12" /> <path d="M4 4v16" /></svg>
+                <span data-i18n="lib.browse">Browse library</span>
+                <kbd class="sidebar-kbd" aria-hidden="true">Ctrl K</kbd>
               </button>
             </div>
 
-
-            <!-- Clear bin (visible only in trash-view) -->
-            <div id="clearBinBar" class="clear-bin-bar">
-              <button id="clearBinBtn" class="clear-bin-btn" type="button">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                  <path d="M3 6h18 M8 6V4h8v2 M19 6l-1 14H6L5 6"/>
-                </svg>
-                <span data-i18n="trash.empty">Empty trash</span>
-              </button>
+            <div id="catalogList" class="sidebar-list">
+              <section class="sidebar-group" id="sidebarImporting" hidden>
+                <div class="sidebar-group-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /> <path d="m7 10 5 5 5-5" /></svg><span data-i18n="lib.importing">Importing</span><button class="sidebar-see-all" type="button" data-view="queue" data-i18n="lib.seeAll">See all</button></div>
+                <div class="sidebar-group-list"></div>
+              </section>
+              <section class="sidebar-group" id="sidebarFavorites" data-play-list="favorites">
+                <div class="sidebar-group-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" /></svg><span data-i18n="nav.favorites">Favorites</span><button class="sidebar-see-all" type="button" data-view="fav" data-i18n="lib.seeAll">See all</button></div>
+                <div class="sidebar-group-list"></div>
+              </section>
+              <section class="sidebar-group" id="sidebarSetlists">
+                <div class="sidebar-group-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/></svg><span data-i18n="setlists.title">Setlists</span><button class="sidebar-add" id="sidebarNewSetlist" type="button" title="New setlist" aria-label="New setlist" data-i18n-title="setlists.new" data-i18n-aria-label="setlists.new"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /> <path d="M12 5v14" /></svg></button></div>
+                <div class="sidebar-group-list"></div>
+                <p class="setlists-error" id="setlistsError" role="alert" hidden></p>
+              </section>
+              <section class="sidebar-group" id="sidebarRecent">
+                <div class="sidebar-group-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /> <path d="M12 6v6l4 2" /></svg><span data-i18n="lib.recentlyPlayed">Recently played</span><button class="sidebar-see-all" type="button" data-view="recent" data-i18n="lib.seeAll">See all</button></div>
+                <div class="sidebar-group-list"></div>
+              </section>
             </div>
-
-            <!-- Catalog list (JS populates) -->
-            <div id="catalogList" class="daw-lib-list" role="list"></div>
             <p class="lib-announce" id="libraryAnnounce" aria-live="polite"></p>
 
-            <!-- Collapsed strip (JS compat) -->
-            <div id="catalogStrip" class="cat-collapsed-strip"></div>
 
-            <!-- Lyrics tab (#699). Shown instead of the list while the Lyrics
-                 view is on (.lyrics-view on #catalogPanel); lyrics.js fills it
-                 by itself, from the file's tags or the band saved on the track.
-                 There is no search box: what it looks up is what the track
-                 says it is, not what someone types. -->
-            <section class="lyrics-panel" id="lyricsPanel" aria-labelledby="lyricsTitle">
-              <h2 class="lyrics-title" id="lyricsTitle" data-i18n="lyrics.title">Lyrics</h2>
-              <p class="lyrics-status" id="lyricsStatus" aria-live="polite"></p>
-              <div class="lyrics-versions" id="lyricsVersions"></div>
-              <div class="lyrics-body" id="lyricsBody"></div>
-            </section>
 
-            <section class="lib-setlists" id="setlistsPanel" role="tabpanel" aria-labelledby="libTabSetlists">
-              <div class="setlists-list" id="setlistsList"></div>
-              <div class="lib-setlists-empty lib-empty" id="setlistsEmpty">
-                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/></svg>
-                <strong data-i18n="setlists.empty">No setlists yet.</strong>
-                <span class="lib-empty-hint" data-i18n="setlists.emptyHint">Make one here, or add a song to one from its … menu in Songs.</span>
-              </div>
-              <p class="setlists-error" id="setlistsError" role="alert" hidden></p>
-              <button class="setlist-new-btn" id="setlistNewBtn" type="button">
-                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                <span data-i18n="setlists.new">New setlist</span>
+            <div class="sidebar-foot">
+              <button class="sidebar-trash-btn" id="trashBtn" type="button" title="Trash" aria-label="Trash">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6" /> <path d="M14 11v6" /> <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /> <path d="M3 6h18" /> <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                <span data-i18n="nav.trash">Trash</span>
+                <span class="sidebar-count hidden" id="trashBadge" aria-hidden="true"></span>
               </button>
-            </section>
+            </div>
           </div>
+          <!-- A collapsed sidebar: Browse library, a cover per song, then Trash. -->
+          <button class="strip-nav-btn strip-nav-browse" type="button" title="Browse library (Ctrl K)" aria-label="Browse library" data-i18n-title="lib.browseTitle" data-i18n-aria-label="lib.browse">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6 4 14" /> <path d="M12 6v14" /> <path d="M8 8v12" /> <path d="M4 4v16" /></svg>
+          </button>
+          <div id="catalogStrip" class="cat-collapsed-strip"></div>
+          <button class="strip-nav-btn strip-nav-trash" type="button" title="Trash" aria-label="Trash">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6" /> <path d="M14 11v6" /> <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /> <path d="M3 6h18" /> <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+          </button>
         </aside>
-        <div class="library-resizer" id="libraryResizer" role="separator" tabindex="0" aria-orientation="vertical" aria-controls="catalogPanel" title="Drag to resize. Double-click to reset." aria-label="Resize library" data-i18n-title="nav.resizeLibraryTitle" data-i18n-aria-label="nav.resizeLibrary"></div>
+        <div class="library-resizer" id="libraryResizer" role="separator" tabindex="0" aria-orientation="vertical" aria-controls="catalogPanel" title="Drag to resize the sidebar. Double-click to reset." aria-label="Resize sidebar" data-i18n-title="shell.resizeSidebarTitle" data-i18n-aria-label="shell.resizeSidebar"></div>
 
         <!-- ── Main area ── -->
-        <div class="daw-main-col">
+        <div class="daw-main-col" id="main">
         <div id="lanes" class="daw-main">
 
           <!-- Job progress -->
           <div id="error" class="error hidden" role="alert"></div>
 
-          <header class="song-head" id="songHead">
+          <header class="song-head" id="songHead" data-song-menu="head">
           <div class="footer-track-slot" id="nowPlayingPanel">
           <!-- Kept for screen readers; the song head's position says it. -->
           <span class="np-legend" data-i18n="track.nowPlaying">Now playing</span>
           <div class="track-panel-head">
+            <div class="song-steps">
+              <button class="song-steps-btn" type="button" id="songBackBtn" disabled aria-keyshortcuts="Alt+ArrowLeft" title="Back to the song you looked at before (Alt ←)" aria-label="Back to the song you looked at before" data-i18n-title="studio.songSteps.back" data-i18n-aria-label="studio.songSteps.backLabel"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+              <button class="song-steps-btn" type="button" id="songForwardBtn" disabled aria-keyshortcuts="Alt+ArrowRight" title="Forward (Alt →)" aria-label="Forward to the song you looked at next" data-i18n-title="studio.songSteps.forward" data-i18n-aria-label="studio.songSteps.forwardLabel"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+            </div>
             <div class="daw-cover track-panel-cover" id="np-art">
               <div class="np-art-placeholder" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -417,53 +373,89 @@
             <span id="t-time"></span><span id="t-bpm"></span><span id="t-key"></span><span id="track-artist"></span>
           </div>
           </div>
-        <!-- Panel toggles (#480): a way to put a panel away, kept outside the
-             panel so the way back is always on screen. -->
-        <div class="daw-panel-toggles">
-          <span class="daw-panel-toggles-label" data-i18n="panels.collapse">Collapse</span>
-          <button class="daw-panel-toggle" type="button" data-panel="sections" aria-pressed="true"
-                  title="Show or hide the sections bar" data-i18n-title="panels.sectionsTitle" data-i18n-aria-label="panels.sectionsTitle">
-            <span data-i18n="sections.title">Sections</span>
-          </button>
-        </div>
-          <button class="autoscroll-toggle" id="autoScrollBtn" type="button" aria-pressed="true"
-                  title="Keep the playhead in view while playing when zoomed in" data-i18n-title="autoScroll.title">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 17 5-5-5-5"/><path d="m13 17 5-5-5-5"/></svg>
-            <span data-i18n="autoScroll.label">Auto-scroll</span>
-          </button>
+          <div class="track-chip-wrap" id="footer-export-wrap">
+            <button class="track-chip" id="t-export-btn" type="button" title="Export Mix" data-i18n-title="export.mix" aria-haspopup="menu" aria-expanded="false" aria-controls="t-export-panel">
+              <svg class="export-dl-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <svg class="export-spinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" stroke-opacity="0.25"/><path d="M21 12a9 9 0 0 0-9-9"/>
+              </svg>
+              <span class="export-btn-label" id="t-export-label" data-i18n="export.mix">Export Mix</span>
+              <svg class="export-caret" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <div class="track-chip-panel chip-panel-export hidden" id="t-export-panel" role="menu" aria-label="Export options" data-i18n-aria-label="export.optionsAria">
+              <div class="export-format-toggle" role="radiogroup" aria-label="Export format" data-i18n-aria-label="export.formatAria">
+                <button class="export-fmt active" id="t-fmt-wav" type="button" role="radio" aria-checked="true">WAV</button>
+                <button class="export-fmt" id="t-fmt-mp3" type="button" role="radio" aria-checked="false">MP3</button>
+                <button class="export-fmt" id="t-fmt-flac" type="button" role="radio" aria-checked="false">FLAC</button>
+                <button class="export-fmt" id="t-fmt-ogg" type="button" role="radio" aria-checked="false">OGG</button>
+                <button class="export-fmt export-fmt-video" id="t-fmt-mp4" type="button" role="radio" aria-checked="false">MP4</button>
+              </div>
+              <div class="export-video-failed" role="status" data-i18n="export.videoFailed">MP4 export is unavailable: the video could not be fetched for this track. The audio stems are unaffected.</div>
+              <label class="export-click-opt" id="t-export-click-wrap" title="Mix the click track into the exported file" data-i18n-title="export.includeClickTitle">
+                <input type="checkbox" id="t-export-click">
+                <span data-i18n="export.includeClick">Include click track</span>
+              </label>
+              <label class="export-click-opt" id="t-export-count-in-wrap" title="Prepend one bar of count-in click before the audio" data-i18n-title="export.addCountInTitle">
+                <input type="checkbox" id="t-export-count-in">
+                <span data-i18n="export.addCountIn">Add count-in (1 bar)</span>
+              </label>
+              <label class="export-click-opt master-export-opt" id="t-export-master-wrap" title="Master the exported mix to this loudness" data-i18n-title="export.masterTitle">
+                <input type="checkbox" id="t-export-master">
+                <span data-i18n="export.master">Master</span>
+                <span class="master-export-preset num" id="t-export-master-preset"></span>
+              </label>
+              <button class="chip-panel-item export-item" id="t-export-mix" type="button" role="menuitem">
+                <span class="chip-item-icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><line x1="4" y1="9" x2="4" y2="15"/><line x1="9" y1="5" x2="9" y2="19"/><line x1="14" y1="8" x2="14" y2="16"/><line x1="19" y1="4" x2="19" y2="20"/></svg>
+                </span>
+                <span class="chip-item-text">
+                  <span class="chip-item-title" data-i18n="export.mix">Export Mix</span>
+                  <span class="chip-item-desc export-mix-video-desc" data-i18n="export.mixDescVideo">With the original video</span>
+                </span>
+                <svg class="chip-item-check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+              </button>
+              <button class="chip-panel-item export-item" id="t-export-stems" type="button" role="menuitem">
+                <span class="chip-item-icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><polygon points="12 2 22 8.5 12 15 2 8.5 12 2"/><polyline points="2 15.5 12 22 22 15.5"/></svg>
+                </span>
+                <span class="chip-item-text">
+                  <span class="chip-item-title" data-i18n="export.allStems">Export All Stems</span>
+                  <span class="chip-item-desc" data-i18n="export.allStemsDesc">All stems as a .zip</span>
+                </span>
+              </button>
+              <button class="chip-panel-item export-item" id="t-export-bundle" type="button" role="menuitem">
+                <span class="chip-item-icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+                </span>
+                <span class="chip-item-text">
+                  <span class="chip-item-title" data-i18n="export.bundle">Export for Another Player</span>
+                  <span class="chip-item-desc" data-i18n="export.bundleDesc">Stems, beats, lyrics and mix in one file</span>
+                </span>
+              </button>
+              <button class="chip-panel-item export-item" id="t-export-region" type="button" role="menuitem" aria-disabled="true">
+                <span class="chip-item-icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+                </span>
+                <span class="chip-item-text">
+                  <span class="chip-item-title" data-i18n="export.currentRegion">Export Current Region</span>
+                </span>
+              </button>
+            </div>
+          </div>
           <button class="stage-mode-btn" id="stageModeBtn" type="button" aria-pressed="false" title="Full-screen view to play along from (F)" data-i18n-title="stage.enterTitle">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/></svg>
             <span data-i18n="stage.enter">Stage mode</span>
-          </button>
-          <button class="daw-iconbtn inspector-toggle" id="inspectorToggleBtn" type="button" title="Toggle song tools" aria-label="Toggle song tools" aria-expanded="true" aria-controls="inspector" data-i18n-title="inspector.toggle" data-i18n-aria-label="inspector.toggle">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></svg>
           </button>
           </header>
 
           <!-- Sections bar -->
           <div class="daw-section-ribbon">
             <div class="daw-mixer-label daw-sections-header">
-              <span class="daw-sections-title-group">
-                <span class="daw-label-title" data-i18n="sections.title">Sections</span>
-              </span>
-              <span class="sections-header-actions">
-                <span class="sections-save-indicator hidden" id="sectionsSaveIndicator" aria-live="polite" aria-label="Saving sections" data-i18n-aria-label="sections.savingAria"></span>
-                <!-- Clearing every marker at once is not undoable and an
-                     automatic set costs a whole re-import to regenerate, so the
-                     button arms on the first click and only clears on the
-                     second. Hidden entirely while there is nothing to clear. -->
-                <button class="sections-add-btn-label sections-clear-btn hidden" id="sectionsClearBtn" type="button" title="Clear all sections" aria-label="Clear all sections" data-i18n-title="sections.clearAria" data-i18n-aria-label="sections.clearAria">
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>
-                  <span class="sections-clear-label" data-i18n="sections.clear">Clear</span>
-                </button>
-                <button class="sections-add-btn-label" id="sectionsAddBtn" type="button" title="Add section" aria-label="Add section" data-i18n-title="sections.addAria" data-i18n-aria-label="sections.addAria">
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                  <span data-i18n="sections.add">Add</span>
-                </button>
-                <button class="sections-add-btn-label sections-hide-btn" id="sectionsHideBtn" type="button" title="Hide the sections bar. Collapse &gt; Sections brings it back." aria-label="Hide the sections bar" data-i18n-title="sections.hideTitle" data-i18n-aria-label="sections.hideAria">
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></svg>
-                </button>
-              </span>
+              <span class="sections-save-indicator hidden" id="sectionsSaveIndicator" aria-live="polite" aria-label="Saving sections" data-i18n-aria-label="sections.savingAria"></span>
             </div>
             <!-- The inner track is what carries the sections. It is the width
                  of the zoomed waveform rather than the width of the window, so
@@ -494,11 +486,30 @@
 
           <!-- Waveform header / ruler -->
           <div class="daw-wave-header">
-            <div class="daw-wave-label">
-              <span class="daw-label-title" data-i18n="mixer.title">Mixer</span>
-              <span class="uplabel daw-label-sub" data-i18n="mixer.hint">Drag fader · M/S</span>
+            <div class="daw-wave-label" id="myPartStudio">
+              <div class="studio-tools">
+                <button class="studio-tool-btn" id="sectionsMenuBtn" type="button" aria-haspopup="dialog" aria-controls="sectionsPanel" title="Add, clear or hide sections" data-i18n-title="studio.sections.menuTitle"><span data-i18n="studio.sections.menu">Sections</span></button>
+                <div class="ft-pop studio-pop hidden" id="sectionsPanel" role="dialog" aria-labelledby="sectionsPanelTitle">
+                  <h3 class="ft-pop-title" id="sectionsPanelTitle" data-i18n="studio.sections.menu">Sections</h3>
+                  <div class="studio-pop-row">
+                    <button class="ft-pop-btn" id="sectionsAddBtn" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg><span data-i18n="sections.addAria">Add section</span></button>
+                    <button class="ft-pop-btn sections-clear-btn hidden" id="sectionsClearBtn" type="button" title="Clear all sections" aria-label="Clear all sections" data-i18n-title="sections.clearAria" data-i18n-aria-label="sections.clearAria"><span class="sections-clear-label" data-i18n="sections.clear">Clear</span></button>
+                  </div>
+                  <p class="ft-pop-hint" data-i18n="studio.sections.addHint">Add uses the loop when Loop is on; otherwise it goes in the first free gap.</p>
+                  <p class="ft-pop-hint" data-i18n="studio.sections.editHint">Double-click a section to rename it, lock its position or delete it. Drag a section to move it, or its edge to resize it.</p>
+                  <button class="ft-pop-btn sections-bar-hide" id="sectionsHideBtn" type="button" title="Hide the sections bar. View &gt; Sections bar brings it back." data-i18n-title="studio.sections.hideTitle"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></svg><span data-i18n="sections.hideAria">Hide the sections bar</span></button>
+                  <button class="ft-pop-btn sections-bar-show daw-panel-toggle" id="sectionsShowBtn" type="button" data-panel="sections" aria-pressed="true"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="studio.sections.show">Show the sections bar</span></button>
+                </div>
+                <button class="studio-tool-btn" id="viewMenuBtn" type="button" aria-haspopup="dialog" aria-controls="viewPanel" title="What the lanes show" data-i18n-title="studio.view.menuTitle"><span data-i18n="studio.view.menu">View</span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+                <div class="ft-pop ft-menu studio-pop hidden" id="viewPanel" role="dialog" aria-label="View" data-i18n-aria-label="studio.view.menu">
+                  <button class="ft-menu-item view-toggle" id="autoScrollBtn" type="button" aria-pressed="true" title="Keep the playhead in view while playing when zoomed in" data-i18n-title="autoScroll.title"><svg class="ic ft-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="autoScroll.label">Auto-scroll</span><small data-i18n="studio.view.autoScrollHint">when zoomed in</small></button>
+                  <button class="ft-menu-item view-toggle daw-panel-toggle" id="viewSectionsBtn" type="button" data-panel="sections" aria-pressed="true" title="Show or hide the sections bar" data-i18n-title="panels.sectionsTitle"><svg class="ic ft-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="studio.view.sectionsBar">Sections bar</span></button>
+                  <button class="ft-menu-item view-toggle" id="beatGridViewBtn" type="button" aria-pressed="true" title="Show the beat grid over the lanes while the click plays" data-i18n-title="studio.view.beatGridTitle"><svg class="ic ft-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="studio.view.beatGrid">Beat grid</span><small data-i18n="studio.view.beatGridHint">with the click on</small></button>
+                </div>
+              </div>
             </div>
             <div class="daw-ruler-area">
+              <p class="lyric-ticker" id="lyricTicker"><b class="lyric-ticker-now"></b><span class="lyric-ticker-next"></span></p>
               <div class="lanes-ruler" data-position="top">
                 <div class="lanes-ruler-time" id="ruler-time">
                   <div class="playhead-marker" aria-hidden="true">
@@ -515,7 +526,7 @@
           <section class="empty-start" id="emptyStart" aria-labelledby="emptyStartTitle">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
             <strong id="emptyStartTitle" data-i18n="start.title">Start with a song</strong>
-            <span data-i18n="batch.startHint">Paste links, or drop files or a folder in the bar above.</span>
+            <span data-i18n="addsong.startHint">Paste links, or drop files or a folder anywhere in the window.</span>
             <div class="empty-start-actions">
               <button class="empty-start-btn" id="emptyStartUpload" type="button">
                 <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /> <path d="m17 8-5-5-5 5" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /></svg>
@@ -529,6 +540,10 @@
                 <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                 <span data-i18n="batch.pasteLinks">Paste links</span>
               </button>
+              <button class="empty-start-btn is-primary" id="emptyStartBrowse" type="button">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6 4 14" /> <path d="M12 6v14" /> <path d="M8 8v12" /> <path d="M4 4v16" /></svg>
+                <span data-i18n="addsong.browseLibrary">Browse library</span>
+              </button>
             </div>
           </section>
 
@@ -536,6 +551,7 @@
           <div class="daw-content">
 
             <div class="open-preview" id="openPreview"></div>
+            <div class="pane-edge stems-resizer" id="stemsResizer" role="separator" tabindex="0" aria-orientation="vertical" title="Drag to resize the stem controls. Double-click to reset." aria-label="Resize stem controls" data-i18n-title="shell.resizeStemsTitle" data-i18n-aria-label="shell.resizeStems"></div>
 
             <!-- Stems panel (left — M/S controls per stem) -->
             <div class="daw-stems-panel" aria-label="Stems" data-i18n-aria-label="stemsPanel.ariaLabel">
@@ -709,6 +725,7 @@
               <div class="wave-scroll" id="wave-scroll">
                 <div class="wave-canvas" id="wave-canvas">
                   <div class="waves-column">
+                    <div id="sectionCols" class="section-cols" aria-hidden="true"></div>
                     <div id="waves-grid" class="waves-grid" aria-hidden="true"></div>
                     <div id="multitrack-container"></div>
                     <div id="loop-region" class="loop-region hidden" aria-hidden="true"><div class="loop-handle loop-handle-start" data-loop-handle="start"></div><div class="loop-handle loop-handle-end" data-loop-handle="end"></div><div class="loop-grip" data-loop-drag-out draggable="true" data-i18n-title="loop.dragOut" title="Drag this region into a DAW or folder"></div></div>
@@ -727,27 +744,20 @@
           </div><!-- /.daw-content -->
 
 
-          <!-- Stage mode: drawn over the lanes, so the studio keeps its size underneath. -->
           <section class="stage-view" id="stageView" hidden aria-label="Stage mode" data-i18n-aria-label="stage.aria">
             <header class="stage-top">
               <div class="stage-song">
                 <div class="stage-title" id="stageTitle">—</div>
                 <div class="stage-artist" id="stageArtist"></div>
                 <div class="stage-artist np-extracting" id="stageExtracting" hidden></div>
-                <span class="rec-stage-mark" id="stageRecMark" role="status" hidden></span>
               </div>
-              <div class="stage-song-actions">
-                <button class="stage-exit" id="stageMixBtn" type="button" aria-pressed="true" aria-controls="stageMixer" title="Show or hide the mixer" data-i18n-title="stage.mixTitle">
-                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg>
-                  <span data-i18n="stage.mix">Mix</span>
-                </button>
-                <button class="stage-exit stage-icon-btn" id="stageUpNextBtn" type="button" title="Add to Up Next" aria-label="Add to Up Next" data-i18n-title="upNext.add" data-i18n-aria-label="upNext.add">
-                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M16 19H3"/><path d="M18 9v6"/><path d="M21 12h-6"/></svg>
-                </button>
-                <button class="stage-exit stage-icon-btn" id="stageMoreBtn" type="button" title="More" aria-label="More" aria-haspopup="menu" aria-expanded="false" data-i18n-title="trackMenu.open" data-i18n-aria-label="trackMenu.open">
-                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-                </button>
-              </div>
+              <button class="stage-exit stage-icon-btn" id="stageUpNextBtn" type="button" title="Add to Up Next" aria-label="Add to Up Next" data-i18n-title="upNext.add" data-i18n-aria-label="upNext.add">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M16 19H3"/><path d="M18 9v6"/><path d="M21 12h-6"/></svg>
+              </button>
+              <button class="stage-exit stage-icon-btn" id="stageMoreBtn" type="button" title="More" aria-label="More" aria-haspopup="menu" aria-expanded="false" data-i18n-title="trackMenu.open" data-i18n-aria-label="trackMenu.open">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+              </button>
+              <span class="rec-stage-mark" id="stageRecMark" role="status" hidden></span>
               <div class="stage-look" id="stageLook" role="radiogroup" aria-label="Stage view" data-i18n-aria-label="stage.look">
                 <button type="button" role="radio" id="stageLookPlay" aria-checked="true">
                   <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 11.4V9.1"/><path d="m12 17 6.59-6.59"/><path d="m15.05 5.7-.218-.691a3 3 0 0 0-5.663 0L4.418 19.695A1 1 0 0 0 5.37 21h13.253a1 1 0 0 0 .951-1.31L18.45 16.2"/><circle cx="20" cy="9" r="2"/></svg>
@@ -758,40 +768,54 @@
                   <span data-i18n="stage.singAlong">Sing along</span>
                 </button>
               </div>
-              <button class="stage-exit" id="stageExitBtn" type="button" title="Exit stage (Esc)" data-i18n-title="stage.exitTitle">
+              <span class="stage-top-gap" aria-hidden="true"></span>
+              <button class="stage-exit" id="stageMixBtn" type="button" aria-pressed="true" aria-controls="stageMixer" title="Show or hide the mixer" data-i18n-title="stage.mixTitle">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg>
+                <span data-i18n="stage.mix">Mix</span>
+              </button>
+              <div class="sing-voice sing-only" role="group" aria-label="Voices" data-i18n-aria-label="sing.voices">
+                <span class="stage-label" data-i18n="sing.voices">Voices</span>
+                <button class="sing-switch" id="singVoiceBtn" type="button" role="switch" aria-checked="false"><span class="sing-knob" aria-hidden="true"></span><span data-i18n="sing.voice">Voice</span></button>
+                <button class="sing-switch" id="singBackingBtn" type="button" role="switch" aria-checked="true" title="Backing vocals" data-i18n-title="sing.backingTitle"><span class="sing-knob" aria-hidden="true"></span><span data-i18n="sing.backing">Backing</span></button>
+              </div>
+              <button class="stage-exit stage-queue-chip" id="stageQueueBtn" type="button" aria-expanded="false" aria-controls="stageQueuePanel" title="Up Next: show or hide the list" data-i18n-title="stage.queueTitle">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/></svg>
+                <span data-i18n="inspector.upNext">Up Next</span>
+                <span class="num stage-queue-count" id="stageQueueCount">0</span>
+                <span class="stage-queue-next" id="stageQueueTitle"></span>
+              </button>
+              <button class="stage-exit" id="stageExitBtn" type="button" title="Back to the studio (Esc)" data-i18n-title="stage.exitTitle">
                 <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/></svg>
                 <span data-i18n="stage.exit">Exit stage</span>
               </button>
             </header>
             <div class="stage-center">
-              <div class="stage-meta">
+              <div class="stage-cue">
+                <span class="stage-label stage-now" data-i18n="stage.now">Now</span>
                 <div class="stage-section" id="stageSection"></div>
-                <div class="stage-count">
-                  <span class="stage-beats" id="stageBeats" aria-hidden="true"></span>
-                </div>
+                <div class="stage-then" id="stageThen"></div>
+                <span class="stage-beats" id="stageBeats" title="Beats of the bar; the first is the downbeat" data-i18n-title="stage.beatsTitle"></span>
+                <dl class="stage-facts">
+                  <div class="stage-fact">
+                    <dt class="stage-label" data-i18n="stage.tempo">Tempo</dt>
+                    <dd class="num" id="stageTempo">—</dd>
+                  </div>
+                  <div class="stage-fact">
+                    <dt class="stage-label" data-i18n="stage.next">Next</dt>
+                    <dd id="stageNext">—</dd>
+                  </div>
+                </dl>
               </div>
+              <div class="stage-lyrics" id="stageLyrics" hidden>
+                <p class="stage-lyric stage-lyric-near" id="stageLyricPrev"></p>
+                <p class="stage-lyric" id="stageLyric"></p>
+                <p class="stage-lyric stage-lyric-near" id="stageLyricNext"></p>
+                <p class="stage-lyric stage-lyric-far" id="stageLyricNext2"></p>
+              </div>
+              <div class="sing-lyrics sing-only" id="singLyrics" hidden></div>
               <div class="sing-intro sing-only" id="singIntro" hidden>
-                <span data-i18n="sing.vocalsIn">Vocals in</span>
+                <span class="stage-label" data-i18n="sing.vocalsIn">Vocals in</span>
                 <span class="num" id="singIntroTime"></span>
-              </div>
-              <div class="sing-lyrics sing-only" id="singLyrics" hidden>
-                <p class="sing-line past" id="singLinePast"></p>
-                <p class="sing-line now" id="singLineNow"></p>
-                <p class="sing-line near" id="singLineNear"></p>
-                <p class="sing-line far" id="singLineFar"></p>
-              </div>
-              <div class="sing-handoff sing-only" id="singHandoff" hidden>
-                <span class="sing-handoff-label" data-i18n="upNext.heading">Up next</span>
-                <span class="sing-handoff-title" id="singHandoffTitle"></span>
-                <span class="stage-artist" id="singHandoffArtist"></span>
-                <div class="sing-ring" id="singRing" role="timer">
-                  <svg viewBox="0 0 112 112" aria-hidden="true"><circle class="track" cx="56" cy="56" r="50"/><circle class="left" id="singRingLeft" cx="56" cy="56" r="50" pathLength="1"/></svg>
-                  <span class="num" id="singRingNum" aria-hidden="true"></span>
-                </div>
-                <div class="sing-actions">
-                  <button class="sing-btn primary" id="singPlayNowBtn" type="button" data-i18n="upNext.playNow">Play now</button>
-                  <button class="sing-btn" id="singStayBtn" type="button" data-i18n="sing.stay">Stay here</button>
-                </div>
               </div>
               <div class="sing-empty sing-only" id="singEmpty" hidden>
                 <span id="singEmptyText"></span>
@@ -803,78 +827,59 @@
                   <button class="sing-btn" id="singOpenLyricsBtn" type="button" data-i18n="sing.openLyrics">Open lyrics</button>
                 </div>
               </div>
-              <div class="stage-lyrics" id="stageLyrics" hidden>
-                <p class="stage-lyric" id="stageLyric"></p>
-                <p class="stage-lyric stage-lyric-next" id="stageLyricNext"></p>
-              </div>
-              <dl class="stage-facts">
-                <div class="stage-fact">
-                  <dt data-i18n="stage.tempo">Tempo</dt>
-                  <dd class="num" id="stageTempo">—</dd>
-                </div>
-                <div class="stage-fact">
-                  <dt data-i18n="stage.next">Next</dt>
-                  <dd id="stageNext">—</dd>
-                </div>
-              </dl>
             </div>
             <div class="stage-overview" id="stageOverview" role="group" aria-label="Song overview" data-i18n-aria-label="stage.overview">
               <div class="stage-sections" id="stageSections"></div>
               <span class="stage-time stage-time-elapsed num" id="stageElapsed"></span>
-              <div class="stage-wave" id="stageWave" aria-hidden="true">
+              <div class="stage-wave" id="stageWave" aria-hidden="true" title="Click to move the playhead" data-i18n-title="stage.seekTitle">
                 <canvas id="stageWaveCanvas"></canvas>
                 <div class="stage-playhead" id="stagePlayhead"></div>
               </div>
               <span class="stage-time stage-time-total num" id="stageTotal"></span>
             </div>
-            <div class="stage-transport">
-              <div class="sing-voice sing-only" role="group" aria-label="Voices" data-i18n-aria-label="sing.voices">
-                <button class="sing-switch" id="singVoiceBtn" type="button" role="switch" aria-checked="false"><span class="sing-knob" aria-hidden="true"></span><span data-i18n="sing.voice">Voice</span></button>
-                <button class="sing-switch" id="singBackingBtn" type="button" role="switch" aria-checked="true" title="Backing vocals" data-i18n-title="sing.backingTitle"><span class="sing-knob" aria-hidden="true"></span><span data-i18n="sing.backing">Backing</span></button>
+            <template id="stageLoopIcon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg></template>
+            <aside class="stage-side stage-mixer" id="stageMixer" aria-label="Mix" data-i18n-aria-label="stage.mix">
+              <div class="stage-side-head">
+                <span class="stage-label" data-i18n="stage.mix">Mix</span>
+                <div class="stage-my-part" id="stageMyPart"></div>
               </div>
-              <div class="stage-transport-btns">
-                <button class="stage-btn" id="stageStopBtn" type="button" title="Stop" aria-label="Stop" data-i18n-title="transport.stop" data-i18n-aria-label="transport.stop">
-                  <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
-                </button>
-                <button class="stage-play" id="stagePlayBtn" type="button" aria-label="Play / Pause" data-i18n-aria-label="transport.playPause" aria-pressed="false">
-                  <svg class="ic ic-fill stage-play-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>
-                  <svg class="ic ic-fill stage-pause-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></svg>
-                </button>
-                <button class="stage-btn" id="stageNextBtn" type="button" title="Play the next song in Up Next" aria-label="Play the next song in Up Next" data-i18n-title="upNext.nextTitle" data-i18n-aria-label="upNext.nextTitle" disabled>
-                  <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4v16"/><path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z"/></svg>
-                </button>
-              </div>
-              <div class="sing-up-next sing-only">
-                <button class="sing-chip" id="singUpNextBtn" type="button" aria-expanded="false" aria-controls="singPanel" title="Up Next" data-i18n-title="inspector.upNext" hidden>
-                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/></svg>
-                  <span class="num" id="singUpNextCount"></span>
-                  <span class="sing-chip-title" id="singUpNextTitle"></span>
-                </button>
-              </div>
-            </div>
-            <aside class="sing-panel sing-only" id="singPanel" aria-label="Up next" data-i18n-aria-label="upNext.heading" hidden>
-              <div class="sing-panel-head">
-                <span class="inspector-label" data-i18n="upNext.heading">Up next</span>
+              <div class="stage-mixer-strips" id="stageMixerStrips"></div>
+            </aside>
+            <aside class="stage-side stage-queue-panel" id="stageQueuePanel" aria-label="Up next" data-i18n-aria-label="upNext.heading" hidden>
+              <div class="stage-side-head">
+                <span class="stage-label" data-i18n="upNext.heading">Up next</span>
                 <span class="upnext-actions">
                   <span class="stage-borrow" data-borrow="upNextClear"></span>
-                  <button class="upnext-remove sing-panel-close" id="singPanelClose" type="button" title="Close" aria-label="Close" data-i18n-title="sing.closeQueue" data-i18n-aria-label="sing.closeQueue">
+                  <button class="upnext-remove stage-queue-close" id="stageQueueClose" type="button" title="Close" aria-label="Close" data-i18n-title="sing.closeQueue" data-i18n-aria-label="sing.closeQueue">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                   </button>
                 </span>
               </div>
-              <span class="inspector-label" data-i18n="upNext.nowPlaying">Now playing</span>
+              <span class="stage-label" data-i18n="upNext.nowPlaying">Now playing</span>
               <span class="stage-borrow" data-borrow="upNextNow"></span>
-              <span class="stage-borrow sing-panel-list" data-borrow="upNextList"></span>
+              <span class="stage-borrow stage-queue-list" data-borrow="upNextList"></span>
               <span class="stage-borrow" data-borrow="upNextEmpty"></span>
-              <div class="sing-panel-foot">
+              <div class="stage-queue-foot">
                 <span class="sing-keys"><kbd>Alt</kbd><kbd>↑</kbd><kbd>↓</kbd><span data-i18n="sing.move">Move</span></span>
                 <span class="stage-borrow" data-borrow="upNextSave"></span>
               </div>
             </aside>
-            <aside class="stage-mixer" id="stageMixer" aria-label="Mix" data-i18n-aria-label="stage.mix">
-              <span class="stage-mixer-label" data-i18n="stage.mix">Mix</span>
-              <div class="stage-mixer-strips" id="stageMixerStrips"></div>
-            </aside>
+            <div class="sing-handoff sing-only" id="singHandoff" role="alertdialog" aria-labelledby="singHandoffLabel" hidden>
+              <span class="stage-label" id="singHandoffLabel" data-i18n="upNext.heading">Up next</span>
+              <span class="sing-handoff-title" id="singHandoffTitle"></span>
+              <span class="stage-artist" id="singHandoffArtist"></span>
+              <div class="sing-ring-row">
+                <div class="sing-ring" id="singRing" role="timer">
+                  <svg viewBox="0 0 112 112" aria-hidden="true"><circle class="track" cx="56" cy="56" r="50"/><circle class="left" id="singRingLeft" cx="56" cy="56" r="50" pathLength="1"/></svg>
+                  <span class="num" id="singRingNum" aria-hidden="true"></span>
+                </div>
+                <span class="sing-starts" id="singStartsIn"></span>
+              </div>
+              <div class="sing-actions">
+                <button class="sing-btn" id="singStayBtn" type="button" data-i18n="sing.stay">Stay here</button>
+                <button class="sing-btn primary" id="singPlayNowBtn" type="button" data-i18n="upNext.playNow">Play now</button>
+              </div>
+            </div>
           </section>
 
         </div><!-- /#lanes -->
@@ -882,28 +887,42 @@
 
         </div><!-- /.daw-main-col -->
 
+        <div class="pane-edge inspector-resizer" id="inspectorResizer" role="separator" tabindex="0" aria-orientation="vertical" aria-controls="inspector" title="Drag to resize the song tools. Double-click to reset." aria-label="Resize song tools" data-i18n-title="shell.resizeToolsTitle" data-i18n-aria-label="shell.resizeTools"></div>
         <aside class="inspector" id="inspector" aria-label="Song tools" data-i18n-aria-label="inspector.aria">
-          <div class="inspector-tabs" role="tablist" aria-label="Song tools" data-i18n-aria-label="inspector.aria">
-            <button class="inspector-tab" type="button" role="tab" id="inspectorTabTempo" data-tab="tempo" aria-controls="inspectorPaneTempo" aria-selected="true">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 11.4V9.1"/><path d="m12 17 6.59-6.59"/><path d="m15.05 5.7-.218-.691a3 3 0 0 0-5.663 0L4.418 19.695A1 1 0 0 0 5.37 21h13.253a1 1 0 0 0 .951-1.31L18.45 16.2"/><circle cx="20" cy="9" r="2"/></svg>
-              <span data-i18n="inspector.tempo">Tempo</span>
-            </button>
-            <button class="inspector-tab" type="button" role="tab" id="inspectorTabUpNext" data-tab="upnext" aria-controls="inspectorPaneUpNext" aria-selected="false" tabindex="-1">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/></svg>
-              <span data-i18n="inspector.upNext">Up Next</span>
-              <span class="inspector-count num" id="upNextCount" hidden>0</span>
-            </button>
-            <button class="inspector-tab" type="button" role="tab" id="inspectorTabDetails" data-tab="details" aria-controls="inspectorPaneDetails" aria-selected="false" tabindex="-1">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-              <span data-i18n="inspector.details">Details</span>
-            </button>
-            <button class="inspector-tab" type="button" role="tab" id="inspectorTabEq" data-tab="eq" aria-controls="inspectorPaneEq" aria-selected="false" tabindex="-1">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg>
-              <span data-i18n="inspector.eq">EQ</span>
+          <div class="inspector-tabbar">
+            <div class="inspector-tabs" role="tablist" aria-label="Song tools" data-i18n-aria-label="inspector.aria">
+              <button class="inspector-tab" type="button" role="tab" id="inspectorTabLyrics" data-tab="lyrics" aria-controls="inspectorPaneLyrics" aria-selected="true">
+                <span data-i18n="lyrics.title">Lyrics</span>
+              </button>
+              <button class="inspector-tab" type="button" role="tab" id="inspectorTabUpNext" data-tab="upnext" aria-controls="inspectorPaneUpNext" aria-selected="false" tabindex="-1">
+                <span data-i18n="inspector.upNext">Up Next</span>
+                <span class="inspector-count num" id="upNextCount" hidden>0</span>
+              </button>
+              <button class="inspector-tab" type="button" role="tab" id="inspectorTabTempo" data-tab="tempo" aria-controls="inspectorPaneTempo" aria-selected="false" tabindex="-1">
+                <span data-i18n="inspector.tempo">Tempo</span>
+              </button>
+              <button class="inspector-tab" type="button" role="tab" id="inspectorTabEq" data-tab="eq" aria-controls="inspectorPaneEq" aria-selected="false" tabindex="-1">
+                <span data-i18n="inspector.eq">EQ</span>
+              </button>
+              <button class="inspector-tab" type="button" role="tab" id="inspectorTabDetails" data-tab="details" aria-controls="inspectorPaneDetails" aria-selected="false" tabindex="-1">
+                <span data-i18n="inspector.details">Details</span>
+              </button>
+            </div>
+            <button class="inspector-more" id="inspectorMoreBtn" type="button" aria-haspopup="menu" aria-expanded="false" hidden>
+              <span data-i18n="panel.more">More</span>
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </button>
           </div>
 
-          <section class="inspector-pane" id="inspectorPaneTempo" role="tabpanel" aria-labelledby="inspectorTabTempo" data-pane="tempo">
+          <section class="inspector-pane lyrics-pane" id="inspectorPaneLyrics" role="tabpanel" aria-labelledby="inspectorTabLyrics" data-pane="lyrics">
+            <div class="lyrics-panel" id="lyricsPanel">
+              <p class="lyrics-status" id="lyricsStatus" aria-live="polite"></p>
+              <div class="lyrics-versions" id="lyricsVersions"></div>
+              <div class="lyrics-body" id="lyricsBody"></div>
+            </div>
+          </section>
+
+          <section class="inspector-pane" id="inspectorPaneTempo" role="tabpanel" aria-labelledby="inspectorTabTempo" data-pane="tempo" hidden>
             <div class="inspector-card tempo-card">
               <div class="tempo-card-head">
                 <span class="inspector-label" data-i18n="tempo.readout">Tempo</span>
@@ -1058,6 +1077,12 @@
                 <strong data-i18n="upNext.empty">Up Next is empty</strong>
                 <span data-i18n="upNext.emptyHint">Choose Add to Up Next from a song's … menu in the library.</span>
               </div>
+              <p class="upnext-hint" id="upNextNothingQueued" data-i18n="studio.upNext.nothingQueued" hidden>Nothing queued. Press + on a song to play it next.</p>
+            </div>
+            <div class="upnext-block" id="upNextFrom" hidden>
+              <span class="inspector-label" id="upNextFromLabel"></span>
+              <ol class="upnext-list" id="upNextFromList"></ol>
+              <p class="upnext-hint" id="upNextFromMore" hidden></p>
             </div>
           </section>
 
@@ -1280,343 +1305,299 @@
         </aside>
       </div><!-- /.daw-panes -->
 
-      <!-- ══ FOOTER: the transport, full width under all three panes ══ -->
-      <footer class="daw-footer">
-
-        <!-- Everything time-related, aligned with the lanes. The track identity
-             that used to sit to the left of this now lives at the bottom of the
-             library sidebar; the footer keeps that column's width as padding so
-             a position still reads at the same x here as in the lanes above. -->
-        <div class="footer-main">
-
-        <!-- Every playback and click control, in labelled clusters -->
-        <div class="footer-row-controls">
-          <div class="footer-clusters">
-          <div class="footer-group footer-group-playing" id="footerPlaying">
-            <span class="footer-group-label" data-i18n="transport.playingGroup">Playing</span>
-            <div class="footer-group-body">
-              <span class="playing-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-              <button class="playing-title" id="footerPlayingTitle" type="button" title="Show the playing song" aria-label="Show the playing song" data-i18n-title="transport.showPlaying" data-i18n-aria-label="transport.showPlaying"></button>
-            </div>
+      <!-- ══ FOOTER: what is playing, the transport over the seek bar, Record and the practice group ══ -->
+      <footer class="daw-footer" id="footer">
+        <div class="ft">
+          <div class="ft-now" id="footerNow">
+            <span class="ft-now-cover"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg><img id="footerNowThumb" alt="" referrerpolicy="no-referrer" hidden></span>
+            <span class="ft-now-text">
+              <span class="ft-now-line"><span class="ft-now-playing" data-i18n="transport.playingGroup">Playing</span><span class="ft-now-title" id="footerNowTitle"></span></span>
+              <span class="ft-now-sections" id="footerNowSections"></span>
+            </span>
           </div>
-          <span class="footer-divider footer-playing-divider" aria-hidden="true"></span>
-          <div class="footer-group footer-group-transport">
-            <span class="footer-group-label" data-i18n="transport.group">Transport</span>
-            <div class="footer-group-body">
-              <button class="daw-iconbtn btn-transport" id="t-stop" type="button" title="Stop" aria-label="Stop" data-i18n-title="transport.stop" data-i18n-aria-label="transport.stop">
-                <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /></svg>
-              </button>
-              <button class="daw-play-btn btn-transport" id="t-play" type="button" aria-label="Play / Pause" data-i18n-aria-label="transport.playPause">
-                <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" /></svg>
-                <svg class="ic ic-fill pause-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none"><rect x="14" y="3" width="5" height="18" rx="1" /> <rect x="5" y="3" width="5" height="18" rx="1" /></svg>
-              </button>
-              <button class="daw-iconbtn btn-transport" id="t-next" type="button" title="Play the next song in Up Next" aria-label="Play the next song in Up Next" data-i18n-title="upNext.nextTitle" data-i18n-aria-label="upNext.nextTitle" disabled>
-                <svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4v16"/><path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z"/></svg>
-              </button>
-              <button class="daw-iconbtn btn-transport rec-btn" id="t-rec" type="button" title="Add a recording track" aria-label="Add a recording track" aria-pressed="false" data-i18n-title="rec.hint.addTrack" data-i18n-aria-label="rec.hint.addTrack" disabled>
-                <span class="rec-btn-dot" aria-hidden="true"></span><span class="rec-btn-time"></span>
-              </button>
+          <button class="ft-now" id="footerPlayingTitle" type="button" title="Show the playing song" aria-label="Show the playing song" data-i18n-title="transport.showPlaying" data-i18n-aria-label="transport.showPlaying" hidden></button>
+
+          <div class="ft-transport">
+            <div class="ft-buttons">
+              <button class="ft-iconbtn btn-transport" id="t-stop" type="button" title="Stop" aria-label="Stop" data-i18n-title="transport.stop" data-i18n-aria-label="transport.stop"><svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /></svg></button>
+              <button class="ft-iconbtn" id="t-prev" type="button" title="Back to the start" aria-label="Back to the start" disabled><svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.971 4.285A2 2 0 0 1 21 6v12a2 2 0 0 1-3.029 1.715l-9.997-5.998a2 2 0 0 1-.003-3.432z"/><path d="M3 20V4"/></svg></button>
+              <button class="daw-play-btn btn-transport" id="t-play" type="button" aria-label="Play / Pause" data-i18n-aria-label="transport.playPause"><svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" /></svg><svg class="ic ic-fill pause-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none"><rect x="14" y="3" width="5" height="18" rx="1" /> <rect x="5" y="3" width="5" height="18" rx="1" /></svg></button>
+              <button class="ft-iconbtn" id="t-next" type="button" title="Next song: forward again after going back, otherwise the next in Up Next or in the list it was played from" aria-label="Next song" data-i18n-title="studio.footer.next" data-i18n-aria-label="studio.footer.nextLabel" disabled><svg class="ic ic-fill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4v16"/><path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z"/></svg></button>
+              <button class="ft-iconbtn" id="t-upnext" type="button" aria-pressed="false" title="Show Up Next" aria-label="Show Up Next" data-i18n-title="studio.footer.showUpNext" data-i18n-aria-label="studio.footer.showUpNext"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15V6"/><path d="M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/><path d="M12 12H3"/><path d="M16 6H3"/><path d="M12 18H3"/></svg></button>
             </div>
-          </div>
-
-          <!-- Loop lives with the readout it acts on: the loop is a position,
-               not a transport mode (design 1b). -->
-          <div class="footer-group footer-group-position">
-            <span class="footer-group-label" data-i18n="position.group">Position</span>
-            <div class="footer-group-body">
-              <div class="footer-time">
-                <span class="num footer-elapsed" id="footer-time-elapsed">00:00</span>
-                <span class="footer-time-sep">/</span>
-                <span class="num footer-total" id="footer-time-total">00:00</span>
-              </div>
-              <span class="footer-divider" aria-hidden="true"></span>
-              <button class="daw-iconbtn btn-transport loop" id="t-loop" type="button" title="Loop the selected position (L)" aria-label="Loop" data-i18n-title="position.loopTitle">
-                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4" /> <path d="M3 11v-1a4 4 0 0 1 4-4h14" /> <path d="m7 22-4-4 4-4" /> <path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg>
-                <span class="loop-btn-label" data-i18n="position.loopLabel">Loop</span>
-              </button>
-              <div class="footer-loop-times-wrap">
-                <!-- The hint sits with the fields it describes: wheel
-                     adjustment is invisible until you try it. It is a label,
-                     not a control, so nothing here looks pressable. -->
-                <span class="footer-loop-hint" data-i18n="position.loopScrollHint">Loop start/end · scroll</span>
-                <div class="footer-loop-times" title="Exact loop start / end (mm:ss.mmm or seconds)" data-i18n-title="position.loopExactTitle">
-                  <input type="text" id="t-loop-start" class="loop-time-input num" inputmode="decimal" spellcheck="false" autocomplete="off" aria-label="Loop start" data-i18n-aria-label="position.loopStartAria" value="00.000">
-                  <span class="loop-times-sep" aria-hidden="true">-</span>
-                  <input type="text" id="t-loop-end" class="loop-time-input num" inputmode="decimal" spellcheck="false" autocomplete="off" aria-label="Loop end" data-i18n-aria-label="position.loopEndAria" value="00.000">
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <span class="footer-divider" aria-hidden="true"></span>
-
-          <div class="footer-group footer-group-speed">
-            <span class="footer-group-label" id="t-speed-label" data-i18n="speed.group">Speed</span>
-            <div class="footer-group-body">
-              <div class="speed-fader" id="t-speed-wrap">
-                <input type="range" class="speed-fader-input" id="t-speed" aria-labelledby="t-speed-label" title="Drag, scroll or use the arrow keys. Double-click to switch between 1x and your slow speed." data-i18n-title="speed.faderTitle">
-                <div class="speed-notches" aria-hidden="true">
-                  <span class="speed-notch major" style="--i: 0"></span>
-                  <span class="speed-notch" style="--i: 1"></span>
-                  <span class="speed-notch" style="--i: 2"></span>
-                  <span class="speed-notch" style="--i: 3"></span>
-                  <span class="speed-notch" style="--i: 4"></span>
-                  <span class="speed-notch major" style="--i: 5"></span>
-                  <span class="speed-notch" style="--i: 6"></span>
-                  <span class="speed-notch" style="--i: 7"></span>
-                  <span class="speed-notch" style="--i: 8"></span>
-                  <span class="speed-notch" style="--i: 9"></span>
-                  <span class="speed-notch major" style="--i: 10"></span>
-                </div>
-              </div>
-              <input type="text" class="loop-time-input num speed-value" id="t-speed-value" inputmode="decimal" spellcheck="false" autocomplete="off" aria-label="Exact playback speed" data-i18n-aria-label="speed.exactAria" title="Type a speed from 0.50 to 1.00" data-i18n-title="speed.exactTitle">
-            </div>
-          </div>
-
-          <span class="footer-divider" aria-hidden="true"></span>
-
-          <div class="footer-group footer-group-key">
-            <span class="footer-group-label" id="t-pitch-label" data-i18n="pitch.group">Global key</span>
-            <div class="footer-group-body">
-              <div class="pitch-group" id="t-pitch-wrap" role="group" aria-labelledby="t-pitch-label">
-                <button class="daw-iconbtn pitch-btn" id="t-pitch-down" type="button" title="Transpose down a semitone" aria-label="Transpose down a semitone" data-i18n-title="pitch.downTitle" data-i18n-aria-label="pitch.downTitle" disabled><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
-                <output class="pitch-value" id="t-pitch-value" for="t-pitch-down t-pitch-up" aria-labelledby="t-pitch-label" aria-live="polite">0</output>
-                <button class="daw-iconbtn pitch-btn" id="t-pitch-up" type="button" title="Transpose up a semitone" aria-label="Transpose up a semitone" data-i18n-title="pitch.upTitle" data-i18n-aria-label="pitch.upTitle" disabled><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
-              </div>
-              <button class="daw-iconbtn pitch-reset" id="t-pitch-reset" type="button" title="Put every lane back in the original key" aria-label="Put every lane back in the original key" data-i18n-title="pitch.resetTitle" data-i18n-aria-label="pitch.resetTitle" disabled><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
-            </div>
-          </div>
-
-          </div><!-- /.footer-clusters -->
-
-          <!-- Pinned to the right, outside the scrolling cluster strip: these
-               act on the track rather than on playback, and they have to stay
-               reachable when the clusters are too wide for the window. -->
-          <div class="footer-track-actions">
-            <div class="track-chip-wrap" id="footer-export-wrap">
-              <button class="track-chip track-chip-primary" id="t-export-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="t-export-panel">
-                <svg class="export-dl-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                <svg class="export-spinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
-                  <circle cx="12" cy="12" r="9" stroke-opacity="0.25"/><path d="M21 12a9 9 0 0 0-9-9"/>
-                </svg>
-                <span class="export-btn-label" id="t-export-label" data-i18n="export.mix">Export Mix</span>
-                <svg class="export-caret" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
-              </button>
-              <div class="track-chip-panel chip-panel-export hidden" id="t-export-panel" role="menu" aria-label="Export options" data-i18n-aria-label="export.optionsAria">
-                <div class="export-format-toggle" role="radiogroup" aria-label="Export format" data-i18n-aria-label="export.formatAria">
-                  <button class="export-fmt active" id="t-fmt-wav" type="button" role="radio" aria-checked="true">WAV</button>
-                  <button class="export-fmt" id="t-fmt-mp3" type="button" role="radio" aria-checked="false">MP3</button>
-                  <button class="export-fmt" id="t-fmt-flac" type="button" role="radio" aria-checked="false">FLAC</button>
-                  <button class="export-fmt" id="t-fmt-ogg" type="button" role="radio" aria-checked="false">OGG</button>
-                  <button class="export-fmt export-fmt-video" id="t-fmt-mp4" type="button" role="radio" aria-checked="false">MP4</button>
-                </div>
-                <div class="export-video-failed" role="status" data-i18n="export.videoFailed">MP4 export is unavailable: the video could not be fetched for this track. The audio stems are unaffected.</div>
-                <label class="export-click-opt" id="t-export-click-wrap" title="Mix the click track into the exported file" data-i18n-title="export.includeClickTitle">
-                  <input type="checkbox" id="t-export-click">
-                  <span data-i18n="export.includeClick">Include click track</span>
-                </label>
-                <label class="export-click-opt" id="t-export-count-in-wrap" title="Prepend one bar of count-in click before the audio" data-i18n-title="export.addCountInTitle">
-                  <input type="checkbox" id="t-export-count-in">
-                  <span data-i18n="export.addCountIn">Add count-in (1 bar)</span>
-                </label>
-                <label class="export-click-opt master-export-opt" id="t-export-master-wrap" title="Master the exported mix to this loudness" data-i18n-title="export.masterTitle">
-                  <input type="checkbox" id="t-export-master">
-                  <span data-i18n="export.master">Master</span>
-                  <span class="master-export-preset num" id="t-export-master-preset"></span>
-                </label>
-                <button class="chip-panel-item export-item" id="t-export-mix" type="button" role="menuitem">
-                  <span class="chip-item-icon" aria-hidden="true">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><line x1="4" y1="9" x2="4" y2="15"/><line x1="9" y1="5" x2="9" y2="19"/><line x1="14" y1="8" x2="14" y2="16"/><line x1="19" y1="4" x2="19" y2="20"/></svg>
-                  </span>
-                  <span class="chip-item-text">
-                    <span class="chip-item-title" data-i18n="export.mix">Export Mix</span>
-                    <span class="chip-item-desc export-mix-video-desc" data-i18n="export.mixDescVideo">With the original video</span>
-                  </span>
-                  <svg class="chip-item-check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-                </button>
-                <button class="chip-panel-item export-item" id="t-export-stems" type="button" role="menuitem">
-                  <span class="chip-item-icon" aria-hidden="true">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><polygon points="12 2 22 8.5 12 15 2 8.5 12 2"/><polyline points="2 15.5 12 22 22 15.5"/></svg>
-                  </span>
-                  <span class="chip-item-text">
-                    <span class="chip-item-title" data-i18n="export.allStems">Export All Stems</span>
-                    <span class="chip-item-desc" data-i18n="export.allStemsDesc">All stems as a .zip</span>
-                  </span>
-                </button>
-                <button class="chip-panel-item export-item" id="t-export-bundle" type="button" role="menuitem">
-                  <span class="chip-item-icon" aria-hidden="true">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-                  </span>
-                  <span class="chip-item-text">
-                    <span class="chip-item-title" data-i18n="export.bundle">Export for Another Player</span>
-                    <span class="chip-item-desc" data-i18n="export.bundleDesc">Stems, beats, lyrics and mix in one file</span>
-                  </span>
-                </button>
-                <button class="chip-panel-item export-item" id="t-export-region" type="button" role="menuitem" aria-disabled="true">
-                  <span class="chip-item-icon" aria-hidden="true">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
-                  </span>
-                  <span class="chip-item-text">
-                    <span class="chip-item-title" data-i18n="export.currentRegion">Export Current Region</span>
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div><!-- /.footer-row-controls -->
-
-        <!-- The timeline the clusters above act on -->
-        <div class="footer-wave-region">
-
-          <!-- The gutter beside the timeline, under Transport and Position.
-               It exists because the timeline's left edge has to land on the
-               lane waveforms' left edge; the loaded track's identity fills it
-               rather than leaving 300px of nothing under the controls. -->
-
-
-          <div class="footer-wave-col">
-          <div class="footer-wave-panel">
-            <div class="footer-wave-ticks" id="footer-wave-ticks" aria-hidden="true"></div>
-            <div class="footer-wave-bar">
-              <canvas id="footer-waveform" aria-hidden="true"></canvas>
+            <div class="ft-seek">
+              <span class="num ft-time" id="footer-time-elapsed">00:00</span>
               <div class="footer-scrub" id="footer-scrub" role="slider" aria-label="Seek" data-i18n-aria-label="footer.seekAria" tabindex="0">
                 <div class="footer-scrub-fill" id="footer-scrub-fill"></div>
               </div>
+              <span class="num ft-time" id="footer-time-total">00:00</span>
             </div>
           </div>
-          </div><!-- /.footer-wave-col -->
+
+          <div class="ft-right">
+            <button class="rec-btn" id="t-rec" type="button" title="Add a recording track" aria-label="Add a recording track" aria-pressed="false" data-i18n-title="rec.hint.addTrack" data-i18n-aria-label="rec.hint.addTrack" disabled>
+              <span class="rec-btn-dot" aria-hidden="true"></span><span class="rec-btn-label" data-i18n="rec.record">Record</span><span class="rec-btn-time"></span>
+            </button>
+
+            <div class="ft-practice">
+              <div class="ft-seg" id="footerLoop">
+                <button class="ft-seg-main" id="t-loop" type="button" aria-pressed="false" title="Loop the selected position (L)" data-i18n-title="position.loopTitle"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4" /> <path d="M3 11v-1a4 4 0 0 1 4-4h14" /> <path d="m7 22-4-4 4-4" /> <path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg><span id="t-loop-name">Loop</span></button>
+                <button class="ft-seg-more" id="t-loop-more" type="button" aria-haspopup="dialog" aria-controls="t-loop-panel" title="Loop options" aria-label="Loop options" data-i18n-title="studio.footer.loopOptions" data-i18n-aria-label="studio.footer.loopOptions"><svg class="ic ft-more-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
+                <div class="ft-pop hidden" id="t-loop-panel" role="dialog" aria-labelledby="t-loop-panel-title">
+                  <h3 class="ft-pop-title" id="t-loop-panel-title" data-i18n="position.loopLabel">Loop</h3>
+                  <div class="ft-pair" title="Exact loop start / end (mm:ss.mmm or seconds)" data-i18n-title="position.loopExactTitle">
+                    <label class="ft-field"><span data-i18n="position.loopStartAria">Loop start</span>
+                      <input type="text" id="t-loop-start" class="loop-time-input num" inputmode="decimal" spellcheck="false" autocomplete="off" aria-label="Loop start" data-i18n-aria-label="position.loopStartAria" value="00.000"></label>
+                    <label class="ft-field"><span data-i18n="position.loopEndAria">Loop end</span>
+                      <input type="text" id="t-loop-end" class="loop-time-input num" inputmode="decimal" spellcheck="false" autocomplete="off" aria-label="Loop end" data-i18n-aria-label="position.loopEndAria" value="00.000"></label>
+                  </div>
+                  <p class="ft-pop-hint" data-i18n="studio.footer.loopHint">Loop start/end · scroll. Type a time, then Enter.</p>
+                  <div class="studio-pop-row">
+                    <button class="ft-pop-btn" id="t-loop-start-here" type="button"><span data-i18n="studio.footer.loopStartHere">Set start here</span><kbd>I</kbd></button>
+                    <button class="ft-pop-btn" id="t-loop-end-here" type="button"><span data-i18n="studio.footer.loopEndHere">Set end here</span><kbd>O</kbd></button>
+                  </div>
+                  <button class="ft-pop-btn" id="t-loop-clear" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span data-i18n="studio.footer.loopClear">Clear loop</span></button>
+                </div>
+              </div>
+
+              <div class="ft-step" id="footerSpeed">
+                <button class="ft-step-btn" id="t-speed-down" type="button" title="Speed down" aria-label="Speed down" data-i18n-title="studio.footer.speedDown" data-i18n-aria-label="studio.footer.speedDown"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+                <button class="ft-step-value" id="t-speed-btn" type="button" aria-haspopup="dialog" aria-controls="t-speed-panel" title="Click to type an exact speed. Double-click to switch between 1x and your slow speed" data-i18n-title="studio.footer.speedValueTitle"><span data-i18n="speed.group">Speed</span><b class="num" id="t-speed-readout">1.00×</b></button>
+                <button class="ft-step-btn" id="t-speed-up" type="button" title="Speed up" aria-label="Speed up" data-i18n-title="studio.footer.speedUp" data-i18n-aria-label="studio.footer.speedUp"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+                <div class="ft-pop hidden" id="t-speed-panel" role="dialog" aria-labelledby="t-speed-panel-title">
+                  <h3 class="ft-pop-title" id="t-speed-panel-title" data-i18n="speed.group">Speed</h3>
+                  <label class="ft-field"><span data-i18n="studio.footer.exactSpeed">Exact speed</span>
+                    <input type="text" class="loop-time-input num speed-value" id="t-speed-value" inputmode="decimal" spellcheck="false" autocomplete="off" aria-label="Exact playback speed" data-i18n-aria-label="speed.exactAria" title="Type a speed from 0.50 to 1.00" data-i18n-title="speed.exactTitle"></label>
+                  <div class="speed-fader" id="t-speed-wrap">
+                    <input type="range" class="speed-fader-input" id="t-speed" aria-labelledby="t-speed-panel-title" title="Drag, scroll or use the arrow keys. Double-click to switch between 1x and your slow speed." data-i18n-title="speed.faderTitle">
+                    <div class="speed-notches" aria-hidden="true">
+                <span class="speed-notch major" style="--i: 0"></span>
+                <span class="speed-notch" style="--i: 1"></span>
+                <span class="speed-notch" style="--i: 2"></span>
+                <span class="speed-notch" style="--i: 3"></span>
+                <span class="speed-notch" style="--i: 4"></span>
+                <span class="speed-notch major" style="--i: 5"></span>
+                <span class="speed-notch" style="--i: 6"></span>
+                <span class="speed-notch" style="--i: 7"></span>
+                <span class="speed-notch" style="--i: 8"></span>
+                <span class="speed-notch" style="--i: 9"></span>
+                <span class="speed-notch major" style="--i: 10"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="ft-step" id="t-pitch-wrap" role="group" aria-labelledby="t-pitch-label">
+                <button class="ft-step-btn" id="t-pitch-down" type="button" title="Transpose down a semitone" aria-label="Transpose down a semitone" data-i18n-title="pitch.downTitle" data-i18n-aria-label="pitch.downTitle" disabled><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+                <button class="ft-step-value" id="t-key-btn" type="button" aria-haspopup="dialog" aria-controls="t-key-panel" title="Click for key options. Double-click to put every lane back in the original key" data-i18n-title="studio.footer.keyValueTitle"><span id="t-pitch-label" data-i18n="studio.footer.key">Key</span><output class="num" id="t-pitch-value" aria-labelledby="t-pitch-label" aria-live="polite">0</output></button>
+                <button class="ft-step-btn" id="t-pitch-up" type="button" title="Transpose up a semitone" aria-label="Transpose up a semitone" data-i18n-title="pitch.upTitle" data-i18n-aria-label="pitch.upTitle" disabled><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+                <div class="ft-pop hidden" id="t-key-panel" role="dialog" aria-labelledby="t-key-panel-title">
+                  <h3 class="ft-pop-title" id="t-key-panel-title" data-i18n="studio.footer.key">Key</h3>
+                  <div class="ft-pop-key">
+                    <button class="ft-step-btn" id="t-key-panel-down" type="button" title="Transpose down a semitone" aria-label="Transpose down a semitone" data-i18n-title="pitch.downTitle" data-i18n-aria-label="pitch.downTitle" disabled><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+                    <output class="num ft-pop-key-value" id="t-key-panel-value" aria-labelledby="t-key-panel-title">0</output>
+                    <button class="ft-step-btn" id="t-key-panel-up" type="button" title="Transpose up a semitone" aria-label="Transpose up a semitone" data-i18n-title="pitch.upTitle" data-i18n-aria-label="pitch.upTitle" disabled><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+                    <span class="ft-pop-key-name" id="t-key-panel-name"></span>
+                  </div>
+                  <button class="ft-pop-btn" id="t-pitch-reset" type="button" title="Put every lane back in the original key" data-i18n-title="pitch.resetTitle" disabled><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg><span data-i18n="studio.footer.keyReset">Reset</span></button>
+                </div>
+              </div>
+
+              <div class="ft-seg" id="footerClick">
+                <button class="ft-seg-main" id="t-click" type="button" aria-pressed="false" title="Click track (K)" data-i18n-title="click.toggleTitle" disabled><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 11.4V9.1"/><path d="m12 17 6.59-6.59"/><path d="m15.05 5.7-.218-.691a3 3 0 0 0-5.663 0L4.418 19.695A1 1 0 0 0 5.37 21h13.253a1 1 0 0 0 .951-1.31L18.45 16.2"/><circle cx="20" cy="9" r="2"/></svg><span data-i18n="studio.footer.click">Click</span></button>
+                <button class="ft-seg-more" id="t-click-more" type="button" aria-haspopup="dialog" aria-controls="t-click-panel" title="Click track options" aria-label="Click track options" data-i18n-title="click.optionsAria" data-i18n-aria-label="click.optionsAria"><svg class="ic ft-more-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
+                <div class="ft-pop hidden" id="t-click-panel" role="dialog" aria-labelledby="t-click-panel-title">
+                  <h3 class="ft-pop-title" id="t-click-panel-title" data-i18n="click.group">Click track</h3>
+                  <label class="ft-field"><span><span data-i18n="click.volumeAria">Click volume</span> <b class="num" id="t-click-vol-label"></b></span>
+                    <input type="range" id="t-click-vol" min="0" max="1" step="0.05" aria-label="Click volume" data-i18n-aria-label="click.volumeAria"></label>
+                  <div class="ft-pair">
+                    <label class="ft-field"><span data-i18n="studio.footer.accent">Accent</span>
+                      <select id="t-click-accent" aria-label="Accent every N beats" data-i18n-aria-label="click.barAccentAria"></select></label>
+                    <label class="ft-field" hidden><span data-i18n="click.barCustomTitle">Beats between accents</span>
+                      <input type="number" id="t-click-custom" min="1" max="32" step="1"></label>
+                  </div>
+                  <label class="ft-field" hidden><span data-i18n="studio.footer.groups">Groups</span>
+                    <input type="text" id="t-click-groups" inputmode="numeric" autocomplete="off" title="How the bar divides, e.g. 3+2+2. Blank uses the usual grouping for the meter." data-i18n-title="click.groupTitle"></label>
+                  <label class="ft-field"><span data-i18n="studio.footer.sound">Sound</span>
+                    <select id="t-click-sound" aria-label="Click sound" data-i18n-aria-label="click.soundAria"></select></label>
+                  <p class="ft-pop-hint" id="t-click-note"></p>
+                </div>
+              </div>
+
+              <div class="ft-seg" id="footerCountIn">
+                <button class="ft-seg-main" id="t-countin" type="button" aria-haspopup="menu" aria-controls="t-countin-menu" title="Bars of click before the song starts when you press play. Plays even with the click track off." data-i18n-title="click.countInTitle"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg><span id="t-countin-label">Count-in</span></button>
+                <div class="ft-pop ft-menu hidden" id="t-countin-menu" role="menu" aria-label="Count-in" data-i18n-aria-label="click.countIn">
+                  <h3 class="ft-pop-title" data-i18n="click.countIn">Count-in</h3>
+            <button class="ft-menu-item" type="button" role="menuitemradio" aria-checked="true" data-bars="0"><svg class="ic ft-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="click.countInOff">Count-in: off</span></button>
+            <button class="ft-menu-item" type="button" role="menuitemradio" aria-checked="false" data-bars="1"><svg class="ic ft-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="click.countIn1">Count-in: 1 bar</span></button>
+            <button class="ft-menu-item" type="button" role="menuitemradio" aria-checked="false" data-bars="2"><svg class="ic ft-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="click.countIn2">Count-in: 2 bars</span></button>
+            <button class="ft-menu-item" type="button" role="menuitemradio" aria-checked="false" data-bars="3"><svg class="ic ft-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="click.countIn3">Count-in: 3 bars</span></button>
+            <button class="ft-menu-item" type="button" role="menuitemradio" aria-checked="false" data-bars="4"><svg class="ic ft-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="click.countIn4">Count-in: 4 bars</span></button>
+                  <p class="ft-pop-hint" data-i18n="click.countInHint">Plays even with the click track off</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-
-        </div><!-- /.footer-main -->
-
       </footer>
 
       </div><!-- /.daw-body -->
 
     </div><!-- /.daw -->
 
-    <!-- About dialog -->
-    <div class="about-backdrop hidden" id="aboutDialog" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
-      <div class="about-card app-about-card">
-        <button class="about-close" id="aboutClose" type="button" aria-label="Close about dialog" data-i18n-aria-label="about.closeAria">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
-        </button>
-
-        <div class="about-logo" aria-hidden="true">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <rect x="2" y="10" width="3" height="8" rx="1.5" fill="currentColor" opacity=".5"/>
-            <rect x="7" y="6" width="3" height="16" rx="1.5" fill="currentColor" opacity=".7"/>
-            <rect x="12" y="2" width="4" height="24" rx="2" fill="currentColor"/>
-            <rect x="18" y="6" width="3" height="16" rx="1.5" fill="currentColor" opacity=".7"/>
-            <rect x="23" y="10" width="3" height="8" rx="1.5" fill="currentColor" opacity=".5"/>
-          </svg>
+    <!-- The layer menus, popovers and dialogs are drawn in, above the whole app. -->
+    <div class="overlay-root" id="overlayRoot">
+      <div class="browse-scrim" id="browseScrim" hidden></div>
+      <section class="browse" id="browseLibrary" role="dialog" aria-modal="true" aria-label="Library" data-i18n-aria-label="lib.dialogLabel" hidden>
+        <nav class="browse-nav" id="browseNav" aria-label="Library views" data-i18n-aria-label="nav.libraryNav"></nav>
+        <div class="browse-main">
+          <div class="browse-tools">
+            <label class="browse-search">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34" /> <circle cx="11" cy="11" r="8" /></svg>
+              <input id="browseSearch" type="search" placeholder="Search songs, artists, or #tag" data-i18n-placeholder="lib.searchPlaceholder"
+                     aria-label="Search library" data-i18n-aria-label="search.ariaLabel" autocomplete="off" spellcheck="false" />
+              <ul class="tag-suggest" id="tagSuggest" role="listbox" aria-label="Tag suggestions" data-i18n-aria-label="search.tagSuggestions"></ul>
+            </label>
+            <button class="browse-btn" id="librarySortBtn" type="button" aria-haspopup="menu" aria-expanded="false" title="Sort the library" data-i18n-title="libSort.sortTitle" hidden></button>
+            <button class="browse-btn" id="libraryFilterBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-pressed="false" title="Filter the library" data-i18n-title="libSort.filterTitle" hidden></button>
+            <button class="browse-btn" id="librarySelectBtn" type="button" aria-pressed="false" title="Select several songs to change them together" data-i18n-title="libSort.selectTitle" hidden></button>
+            <button class="browse-iconbtn" id="browseGridBtn" type="button" aria-pressed="true" title="Show as a grid" aria-label="Show as a grid" data-i18n-title="lib.showGrid" data-i18n-aria-label="lib.showGrid">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1" /> <rect width="7" height="7" x="14" y="3" rx="1" /> <rect width="7" height="7" x="14" y="14" rx="1" /> <rect width="7" height="7" x="3" y="14" rx="1" /></svg>
+            </button>
+            <button class="browse-iconbtn" id="browseListBtn" type="button" aria-pressed="false" title="Show as a list" aria-label="Show as a list" data-i18n-title="lib.showList" data-i18n-aria-label="lib.showList">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h.01" /> <path d="M3 12h.01" /> <path d="M3 19h.01" /> <path d="M8 5h13" /> <path d="M8 12h13" /> <path d="M8 19h13" /></svg>
+            </button>
+            <button class="browse-iconbtn" id="browseCloseBtn" type="button" title="Close (Esc)" aria-label="Close (Esc)" data-i18n-title="lib.close" data-i18n-aria-label="lib.close">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18" /> <path d="m6 6 12 12" /></svg>
+            </button>
+          </div>
+          <div class="browse-tags" id="browseTags"></div>
+          <div class="browse-results" id="browseResults">
+            <div class="library-bulk" id="libraryBulkBar" role="toolbar" hidden></div>
+          </div>
         </div>
-
-        <h2 id="aboutTitle" data-i18n="about.title">StemDeck</h2>
-        <p class="about-tagline" data-i18n="about.tagline">Open source. No subscriptions.</p>
-        <span class="about-version-badge" id="aboutVersion">…</span>
-
-        <div class="about-primary-links">
-          <a class="about-link about-link-primary" href="https://stemdeck.app" target="_blank" rel="noopener noreferrer">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-            <span data-i18n="about.website">Website</span>
-          </a>
-          <a class="about-link about-link-secondary" href="https://github.com/PinetheApple/stemdeck" target="_blank" rel="noopener noreferrer">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
-            GitHub
-          </a>
-        </div>
-
-        <div class="about-divider"></div>
-
-        <div class="about-socials">
-          <a class="about-social-btn" href="https://discord.gg/YhCKsjhcwB" target="_blank" rel="noopener noreferrer" title="Discord" aria-label="Discord">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
-          </a>
-          <a class="about-social-btn" href="https://www.reddit.com/r/StemDeckApp/" target="_blank" rel="noopener noreferrer" title="Reddit" aria-label="Reddit">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z"/></svg>
-          </a>
-          <a class="about-social-btn" href="https://www.instagram.com/stemdeck" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg>
-          </a>
-          <a class="about-social-btn" href="https://x.com/StemDeckApp" target="_blank" rel="noopener noreferrer" title="X" aria-label="X">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-          </a>
-        </div>
-        <p class="about-credits" data-i18n="about.credits">Wikipedia (CC BY-SA), MusicBrainz and Wikidata (CC0), Whisper (MIT).</p>
-        <p class="about-license"><span data-i18n="about.license">StemDeck is free software under the GNU AGPL-3.0.</span> <a href="https://github.com/PinetheApple/stemdeck" target="_blank" rel="noopener noreferrer" data-i18n="about.source">Source code</a></p>
-        <details class="about-data" id="aboutData">
-          <summary class="about-data-summary" id="aboutDataSummary" data-i18n="about.data.summary">Where your data goes</summary>
-          <ul class="about-data-list" id="aboutDataList">
-            <li data-i18n="about.data.audio">Separation, analysis and transcription run on the computer running StemDeck, and your audio is never uploaded.</li>
-            <li data-i18n="about.data.names">MusicBrainz, Wikidata, Wikipedia and LRCLIB get the artist, song and album or show names when a track is imported or opened.</li>
-            <li data-i18n="about.data.search">Wikidata and Wikipedia get a band name you search for in About this song.</li>
-            <li data-i18n="about.data.acoustid">AcoustID gets an audio fingerprint on import, only if you saved an AcoustID key.</li>
-            <li data-i18n="about.data.discogs">Discogs gets the same names, or a name you type, when Wikipedia lacks the band's details, only if you saved a Discogs token.</li>
-            <li data-i18n="about.data.commons">Wikimedia Commons gets a photo's file name and your IP when About this song shows a band or work photo.</li>
-            <li data-i18n="about.data.import">YouTube, or the site you import from, gets the link or search text you enter.</li>
-            <li data-i18n="about.data.github">GitHub gets your IP when StemDeck checks for updates as it opens.</li>
-            <li data-i18n="about.data.models">Model files download once, at desktop setup or on first use, sending only your IP.</li>
-          </ul>
-        </details>
-      </div>
+      </section>
     </div>
+
+    <template id="aboutTemplate">
+      <div class="settings-about">
+      <div class="about-logo" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect x="2" y="10" width="3" height="8" rx="1.5" fill="currentColor" opacity=".5"/>
+          <rect x="7" y="6" width="3" height="16" rx="1.5" fill="currentColor" opacity=".7"/>
+          <rect x="12" y="2" width="4" height="24" rx="2" fill="currentColor"/>
+          <rect x="18" y="6" width="3" height="16" rx="1.5" fill="currentColor" opacity=".7"/>
+          <rect x="23" y="10" width="3" height="8" rx="1.5" fill="currentColor" opacity=".5"/>
+        </svg>
+      </div>
+
+      <h2 id="aboutTitle" data-i18n="about.title">StemDeck</h2>
+      <p class="about-tagline" data-i18n="about.tagline">Open source. No subscriptions.</p>
+      <span class="about-version-badge" id="aboutVersion">…</span>
+
+      <div class="about-primary-links">
+        <a class="about-link about-link-primary" href="https://stemdeck.app" target="_blank" rel="noopener noreferrer">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          <span data-i18n="about.website">Website</span>
+        </a>
+        <a class="about-link about-link-secondary" href="https://github.com/PinetheApple/stemdeck" target="_blank" rel="noopener noreferrer">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+          GitHub
+        </a>
+      </div>
+
+      <div class="about-divider"></div>
+
+      <div class="about-socials">
+        <a class="about-social-btn" href="https://discord.gg/YhCKsjhcwB" target="_blank" rel="noopener noreferrer" title="Discord" aria-label="Discord">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+        </a>
+        <a class="about-social-btn" href="https://www.reddit.com/r/StemDeckApp/" target="_blank" rel="noopener noreferrer" title="Reddit" aria-label="Reddit">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z"/></svg>
+        </a>
+        <a class="about-social-btn" href="https://www.instagram.com/stemdeck" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg>
+        </a>
+        <a class="about-social-btn" href="https://x.com/StemDeckApp" target="_blank" rel="noopener noreferrer" title="X" aria-label="X">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        </a>
+      </div>
+      <p class="about-credits" data-i18n="about.credits">Wikipedia (CC BY-SA), MusicBrainz and Wikidata (CC0), Whisper (MIT).</p>
+      <p class="about-license"><span data-i18n="about.license">StemDeck is free software under the GNU AGPL-3.0.</span> <a href="https://github.com/PinetheApple/stemdeck" target="_blank" rel="noopener noreferrer" data-i18n="about.source">Source code</a></p>
+      <details class="about-data" id="aboutData">
+        <summary class="about-data-summary" id="aboutDataSummary" data-i18n="about.data.summary">Where your data goes</summary>
+        <ul class="about-data-list" id="aboutDataList">
+          <li data-i18n="about.data.audio">Separation, analysis and transcription run on the computer running StemDeck, and your audio is never uploaded.</li>
+          <li data-i18n="about.data.names">MusicBrainz, Wikidata, Wikipedia and LRCLIB get the artist, song and album or show names when a track is imported or opened.</li>
+          <li data-i18n="about.data.search">Wikidata and Wikipedia get a band name you search for in About this song.</li>
+          <li data-i18n="about.data.acoustid">AcoustID gets an audio fingerprint on import, only if you saved an AcoustID key.</li>
+          <li data-i18n="about.data.discogs">Discogs gets the same names, or a name you type, when Wikipedia lacks the band's details, only if you saved a Discogs token.</li>
+          <li data-i18n="about.data.commons">Wikimedia Commons gets a photo's file name and your IP when About this song shows a band or work photo.</li>
+          <li data-i18n="about.data.import">YouTube, or the site you import from, gets the link or search text you enter.</li>
+          <li data-i18n="about.data.github">GitHub gets your IP when StemDeck checks for updates as it opens.</li>
+          <li data-i18n="about.data.models">Model files download once, at desktop setup or on first use, sending only your IP.</li>
+        </ul>
+      </details>
+      </div>
+    </template>
 
     <!-- Artist box (#699), opened from the now-playing card. Filled by
          artistInfo.js from Wikidata and Wikipedia, only after a click. -->
     <div class="about-backdrop hidden" id="artistDialog" role="dialog" aria-modal="true" aria-labelledby="artistTitle">
-      <div class="about-card artist-card">
-        <button class="about-close" id="artistClose" type="button" aria-label="Close" data-i18n-aria-label="artist.close">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-        </button>
-        <h2 id="artistTitle" data-i18n="artist.dialogAria">About the song</h2>
-        <form class="artist-search" id="artistSearch" role="search">
-          <input id="artistQuery" type="text" autocomplete="off" spellcheck="false"
-                 placeholder="Search for a band or artist" data-i18n-placeholder="artist.searchPlaceholder"
-                 aria-label="Band or artist to look up" data-i18n-aria-label="artist.searchAria" />
-          <button type="submit" class="artist-search-btn" data-i18n="artist.search">Search</button>
-        </form>
-        <div class="artist-body" id="artistBody" aria-live="polite"></div>
+      <div class="about-card dialog-card artist-card">
+        <div class="dialog-head">
+          <h2 class="dialog-title" id="artistTitle" data-i18n="artist.dialogAria">About the song</h2>
+          <button class="about-close" id="artistClose" type="button" title="Close" aria-label="Close" data-i18n-title="panel.close" data-i18n-aria-label="panel.close">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="dialog-body">
+          <form class="artist-search" id="artistSearch" role="search">
+            <input id="artistQuery" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="Search for a band or artist" data-i18n-placeholder="artist.searchPlaceholder"
+                   aria-label="Band or artist to look up" data-i18n-aria-label="artist.searchAria" />
+            <button type="submit" class="artist-search-btn" data-i18n="artist.search">Search</button>
+          </form>
+          <div class="artist-body" id="artistBody" aria-live="polite"></div>
+        </div>
       </div>
     </div>
 
     <!-- Release notes dialog (opened from the "New release available" card) -->
     <div class="about-backdrop hidden" id="releaseDialog" role="dialog" aria-modal="true" aria-labelledby="releaseTitle">
-      <div class="about-card release-card">
-        <button class="about-close" id="releaseClose" type="button" aria-label="Close release dialog" data-i18n-aria-label="release.closeAria">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
-        </button>
-        <div class="about-logo" aria-hidden="true">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+      <div class="about-card dialog-card release-card">
+        <div class="dialog-head">
+          <svg class="dialog-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+          <h2 class="dialog-title" id="releaseTitle" data-i18n="release.title">New release available</h2>
+          <span class="about-version-badge" id="releaseVersion">…</span>
+          <button class="about-close" id="releaseClose" type="button" title="Close release dialog" aria-label="Close release dialog" data-i18n-title="release.closeAria" data-i18n-aria-label="release.closeAria">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
         </div>
-        <h2 id="releaseTitle" data-i18n="release.title">New release available</h2>
-        <span class="about-version-badge" id="releaseVersion">…</span>
-        <div class="release-notes" id="releaseNotes"></div>
-        <!-- Server/Docker mode: updating means pulling a new image, not a file download. -->
-        <div class="release-docker hidden" id="releaseDocker">
-          <p class="release-docker-label" data-i18n="release.updateServer">Update your server</p>
-          <p class="release-docker-text" data-i18n="release.pullImage">Pull the new image and restart the container:</p>
-          <pre class="release-docker-cmd"><code id="releaseDockerCmd"></code></pre>
-          <p class="release-docker-note" data-i18n="release.unraidNote">On Unraid, update via the Community Applications template instead.</p>
-        </div>
-        <!-- Windows desktop only: download + apply in place instead of a browser download. -->
-        <div class="release-inapp hidden" id="releaseInapp">
-          <div class="release-inapp-progress hidden" id="releaseInappProgress">
-            <div class="release-inapp-progress-bar"><div class="release-inapp-progress-fill" id="releaseInappProgressFill"></div></div>
-            <p class="release-inapp-progress-text" id="releaseInappProgressText"></p>
+        <div class="dialog-body">
+          <div class="release-notes" id="releaseNotes"></div>
+          <!-- Server/Docker mode: updating means pulling a new image, not a file download. -->
+          <div class="release-docker hidden" id="releaseDocker">
+            <p class="release-docker-label" data-i18n="release.updateServer">Update your server</p>
+            <p class="release-docker-text" data-i18n="release.pullImage">Pull the new image and restart the container:</p>
+            <pre class="release-docker-cmd"><code id="releaseDockerCmd"></code></pre>
+            <p class="release-docker-note" data-i18n="release.unraidNote">On Unraid, update via the Community Applications template instead.</p>
           </div>
-          <p class="release-inapp-error hidden" id="releaseInappError"></p>
+          <!-- Windows desktop only: download + apply in place instead of a browser download. -->
+          <div class="release-inapp hidden" id="releaseInapp">
+            <div class="release-inapp-progress hidden" id="releaseInappProgress">
+              <div class="release-inapp-progress-bar"><div class="release-inapp-progress-fill" id="releaseInappProgressFill"></div></div>
+              <p class="release-inapp-progress-text" id="releaseInappProgressText"></p>
+            </div>
+            <p class="release-inapp-error hidden" id="releaseInappError"></p>
+          </div>
+          <p class="release-full-download hidden" id="releaseFullDownload" data-i18n="release.fullDownload">Press Download, unzip it, and run it. Your library stays as it is.</p>
         </div>
-        <p class="release-full-download hidden" id="releaseFullDownload" data-i18n="release.fullDownload">Press Download, unzip it, and run it. Your library stays as it is.</p>
-        <div class="about-primary-links">
+        <div class="dialog-foot about-primary-links">
+          <a class="about-link about-link-secondary dialog-foot-start" id="releaseAllLink" href="https://github.com/stemdeckapp/stemdeck/releases" target="_blank" rel="noopener noreferrer" data-i18n="release.allReleases">All releases</a>
           <a class="about-link about-link-primary" id="releaseDownload" href="#" target="_blank" rel="noopener noreferrer" data-i18n="release.download">Download</a>
           <button class="about-link about-link-accent hidden" id="releaseDownloadApp" type="button" data-i18n="release.updateNow">Update now</button>
           <button class="about-link about-link-accent hidden" id="releaseApplyUpdate" type="button" data-i18n="release.restartUpdate">Restart to update</button>
-          <a class="about-link about-link-secondary" id="releaseAllLink" href="https://github.com/stemdeckapp/stemdeck/releases" target="_blank" rel="noopener noreferrer" data-i18n="release.allReleases">All releases</a>
         </div>
       </div>
     </div>
@@ -1625,24 +1606,23 @@
          link is a plain external anchor: the global handler in main.js routes
          it through Tauri's open_url on desktop and a new tab in a browser. -->
     <div class="about-backdrop hidden" id="failureDialog" role="dialog" aria-modal="true" aria-labelledby="failureTitle">
-      <div class="about-card failure-card">
-        <button class="about-close" id="failureClose" type="button" aria-label="Close failure dialog" data-i18n-aria-label="failure.closeAria">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
-        </button>
-        <div class="about-logo failure-logo" aria-hidden="true">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <path d="M12 9v4 M12 17h.01 M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
-          </svg>
+      <div class="about-card dialog-card failure-card">
+        <div class="dialog-head">
+          <h2 class="dialog-title" id="failureTitle" data-i18n="failure.title">Something failed</h2>
+          <span class="about-version-badge failure-when" id="failureWhen"></span>
+          <button class="about-close" id="failureClose" type="button" title="Close failure dialog" aria-label="Close failure dialog" data-i18n-title="failure.closeAria" data-i18n-aria-label="failure.closeAria">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
         </div>
-        <h2 id="failureTitle" data-i18n="failure.title">Something failed</h2>
-        <span class="about-version-badge failure-when" id="failureWhen"></span>
-        <p class="failure-message" id="failureMessage"></p>
-        <p class="failure-hint" data-i18n="failure.hint">Add the track title and source link if they help. Reporting copies these details to your clipboard.</p>
-        <pre class="failure-tech"><code id="failureTech"></code></pre>
-        <button class="failure-logs-btn" id="failureIncludeLogs" type="button" data-i18n="failure.includeLogs">Include recent logs</button>
-        <div class="about-primary-links">
-          <a class="about-link about-link-primary" id="failureReport" target="_blank" rel="noopener noreferrer" data-i18n="failure.reportGithub">Report on GitHub</a>
+        <div class="dialog-body">
+          <p class="failure-message" id="failureMessage"></p>
+          <p class="failure-hint" data-i18n="failure.hint">Add the track title and source link if they help. Reporting copies these details to your clipboard.</p>
+          <pre class="failure-tech"><code id="failureTech"></code></pre>
+          <button class="failure-logs-btn" id="failureIncludeLogs" type="button" data-i18n="failure.includeLogs">Include recent logs</button>
+        </div>
+        <div class="dialog-foot about-primary-links">
           <a class="about-link about-link-secondary" id="failureReportDiscord" target="_blank" rel="noopener noreferrer" data-i18n="failure.reportDiscord">Report on Discord</a>
+          <a class="about-link about-link-primary" id="failureReport" target="_blank" rel="noopener noreferrer" data-i18n="failure.reportGithub">Report on GitHub</a>
         </div>
       </div>
     </div>
@@ -1655,6 +1635,9 @@
     <script type="module" src="/js/vocalSplitPanel.js"></script>
     <script type="module" src="/js/selectMenu.js"></script>
     <script type="module" src="/js/takes.js"></script>
+    <script type="module" src="/js/myPartBar.js"></script>
+<script type="module" src="/js/studioSections.js"></script>
     <script type="module" src="/js/eq/eqTab.js"></script>
+    <script type="module" src="/js/coverWash.js"></script>
   </body>
 </html>

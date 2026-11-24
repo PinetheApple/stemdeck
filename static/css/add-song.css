@@ -1,0 +1,270 @@
+:root {
+  --add-song-w: 520px;
+  --add-song-z: 60;
+  --drop-overlay-z: 400;
+  --add-song-switch-w: 30px;
+  --add-song-switch-h: 17px;
+  --add-song-knob: 13px;
+  --add-song-knob-travel: 13px;
+  --add-song-chip-h: 28px;
+  --add-song-mode-h: 22px;
+  --add-song-check-w: 4px;
+  --add-song-check-h: 8px;
+  --drop-overlay-tint: 70%;
+  --add-song-badge: 18px;
+  --add-song-badge-overlap: 12px;
+  --add-song-badge-z: 1;
+}
+
+.add-song-pop {
+  position: fixed;
+  z-index: var(--add-song-z);
+  width: min(var(--add-song-w), calc(100vw - 2 * var(--float-edge)));
+  padding: var(--s-4) var(--s-4) var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-panel);
+}
+.add-song-pop[hidden] { display: none; }
+.add-song-form { display: flex; flex-direction: column; gap: var(--s-3); }
+.add-song-title { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-bold); color: var(--text); }
+
+/* search.js anchors its results under .daw-composer, so the wrapper stays but draws nothing. */
+.add-song-pop .daw-composer {
+  display: block;
+  height: auto;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.add-song-pop .daw-composer > .add-song-box {
+  margin: 0;
+  height: var(--ctl-h);
+  min-height: var(--ctl-h);
+  padding: 0 var(--s-2) 0 var(--s-3);
+  gap: var(--s-2);
+  color: var(--text-3);
+}
+.add-song-pop .add-song-box > svg { display: block; width: var(--icon); height: var(--icon); }
+.add-song-pop .add-song-box.batch-drop-target { color: var(--accent-hi); }
+
+.add-song-pickers { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); min-width: 0; }
+.add-song-picker {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--ctl-h-sm);
+  padding: var(--s-1) var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  text-align: start;
+  cursor: pointer;
+}
+.add-song-picker:hover { background: var(--surface-3); }
+.add-song-picker[hidden] { display: none; }
+.add-song-picker .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.add-song-formats {
+  min-width: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.add-song-extract {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+}
+.add-song-label {
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.add-song-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.add-song-pop .stem-choice {
+  flex: none;
+  height: var(--add-song-chip-h);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.add-song-pop .stem-choice:hover { background: var(--surface-3); color: var(--text); }
+.add-song-pop .stem-choice[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--surface-4);
+  color: var(--text);
+}
+.add-song-pop .stem-choice[aria-pressed="true"]::before {
+  content: "";
+  width: var(--add-song-check-w);
+  height: var(--add-song-check-h);
+  margin: 0 var(--s-0) var(--s-0) 0;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.add-song-pop .stem-group {
+  flex: none;
+  gap: var(--s-0);
+  margin: 0;
+  padding: var(--s-0);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+}
+.add-song-pop .stem-group .stem-choice[data-stem="vocals"] { height: var(--add-song-mode-h); border-radius: var(--r-pill); }
+.add-song-pop .stem-group .vocal-mode-toggle,
+.add-song-pop .stem-group:has(.stem-choice[data-stem="vocals"][aria-pressed="true"]) .vocal-mode-toggle {
+  height: var(--add-song-mode-h);
+  border: 0;
+  border-radius: var(--r-pill);
+  overflow: visible;
+}
+.add-song-pop .vocal-mode-btn,
+.add-song-pop .stem-group:has(.stem-choice[data-stem="vocals"][aria-pressed="true"]) .vocal-mode-btn + .vocal-mode-btn {
+  padding: 0 var(--s-2);
+  border: 0;
+  border-radius: var(--r-pill);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.add-song-pop .vocal-mode-btn[aria-pressed="true"] { background: var(--surface-4); color: var(--text); }
+
+.add-song-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); }
+.add-song-detect {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1) var(--s-1) var(--s-1) 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.add-song-switch {
+  position: relative;
+  flex: none;
+  width: var(--add-song-switch-w);
+  height: var(--add-song-switch-h);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  transition: background var(--t-fast);
+}
+.add-song-switch::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: var(--add-song-knob);
+  height: var(--add-song-knob);
+  border-radius: 50%;
+  background: var(--text-2);
+  transition: translate var(--t-fast);
+}
+.add-song-detect[aria-pressed="true"] .add-song-switch { border-color: var(--accent); background: var(--accent); }
+.add-song-detect[aria-pressed="true"] .add-song-switch::after {
+  translate: var(--add-song-knob-travel) 0;
+  background: var(--accent-ink);
+}
+.add-song-tag {
+  padding: 1px var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+}
+.add-song-pop .add-song-submit {
+  margin-left: auto;
+  min-width: 0;
+  height: var(--ctl-h);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-2);
+  background: var(--accent);
+  box-shadow: none;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+.add-song-pop .add-song-submit:hover:not(:disabled) { background: var(--accent-hi); }
+.add-song-pop .add-song-submit > svg { display: block; }
+.add-song-pop .add-song-submit.loading > svg { display: none; }
+
+.drop-overlay {
+  position: fixed;
+  inset: var(--s-3);
+  z-index: var(--drop-overlay-z);
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: var(--r-3);
+  background: color-mix(in srgb, var(--bg) var(--drop-overlay-tint), transparent);
+  pointer-events: none;
+}
+.drop-overlay[hidden] { display: none; }
+.drop-overlay-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-5) var(--s-6);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-panel);
+  color: var(--accent-hi);
+}
+.drop-overlay-card .ic { width: var(--ctl-h-sm); height: var(--ctl-h-sm); }
+.drop-overlay-card b { font-size: var(--fs-lg); color: var(--text); }
+
+.empty-start-btn.is-primary { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.empty-start-btn.is-primary:hover { background: var(--accent-hi); }
+
+/* A sibling of Add song, not inside it: a button may not hold another button. */
+.add-song-badge {
+  position: relative;
+  z-index: var(--add-song-badge-z);
+  align-self: flex-start;
+  min-width: var(--add-song-badge);
+  height: var(--add-song-badge);
+  margin: var(--s-1) 0 0 calc(-1 * var(--add-song-badge-overlap));
+  padding: 0 var(--s-1);
+  border: var(--line-w-strong) solid var(--bg);
+  border-radius: var(--r-pill);
+  background: var(--text);
+  color: var(--bg);
+  font: inherit;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.add-song-badge[hidden] { display: none; }
+.add-song-badge:hover { background: var(--text-2); }

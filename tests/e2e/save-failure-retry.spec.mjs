@@ -1,7 +1,7 @@
 // A lost section, grid or tempo save across song switches, reconnects and later edits: it stays
 // with its own song, goes again once the server is back, and is dropped only by a newer edit.
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, openStudio, uiText } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, openStudio, addSection, uiText } from "./helpers.mjs";
 import {
   FAILED_SAVES,
   beatsUrl,
@@ -34,7 +34,6 @@ const GRID_KIND = "beatgrid";
 
 test.afterEach(resetSongs);
 
-const addSection = (page) => page.locator("#sectionsAddBtn").click();
 const sectionCount = (request, id = JOB_ID) => savedSections(request, id).then((s) => s.length);
 const gridCards = async (page) => (await notifications(page)).filter((card) => card.kind === GRID_KIND);
 

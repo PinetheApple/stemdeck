@@ -10,7 +10,7 @@
 // transport's own fields and read back from them, so nothing depends on a test
 // hook that could keep passing after the UI stopped working.
 import { test, expect } from "@playwright/test";
-import { openStudio, JOB_ID } from "./helpers.mjs";
+import { openStudio, JOB_ID, openLoopOptions, openSectionsMenu } from "./helpers.mjs";
 
 // seed.py writes a 6 second fixture, so every span here stays inside it.
 const FIXTURE_SEC = 6;
@@ -28,6 +28,7 @@ const tc = (seconds) => {
 
 /** Arm the loop the way a user does: type both bounds, blur to commit. */
 async function armLoop(page, start, end) {
+  await openLoopOptions(page);
   await page.locator("#t-loop-end").fill(tc(end));
   await page.locator("#t-loop-end").blur();
   await page.locator("#t-loop-start").fill(tc(start));
@@ -53,6 +54,12 @@ const savedSections = async (page) => {
   return (await res.json()).sections ?? [];
 };
 
+async function pressLoopButton(page, id) {
+  const block = page.locator(`.section-block[data-id="${id}"]`);
+  await block.hover();
+  await block.locator(".section-loop").click();
+}
+
 const blockIds = (page) =>
   page.evaluate(() =>
     [...document.querySelectorAll(".section-block")].map((el) => el.dataset.id),
@@ -65,6 +72,7 @@ test.describe("sections and the loop", () => {
     await openStudio(page);
     await armLoop(page, 2, 4);
 
+    await openSectionsMenu(page);
     await page.locator("#sectionsAddBtn").click();
 
     await expect.poll(async () => (await savedSections(page)).length).toBe(1);
@@ -77,6 +85,7 @@ test.describe("sections and the loop", () => {
   test("Add still finds a gap when no loop is armed", async ({ page }) => {
     await openStudio(page);
 
+    await openSectionsMenu(page);
     await page.locator("#sectionsAddBtn").click();
 
     await expect.poll(async () => (await savedSections(page)).length).toBe(1);
@@ -91,6 +100,7 @@ test.describe("sections and the loop", () => {
     await expect(page.locator(".section-block")).toHaveCount(1);
 
     await armLoop(page, 2, 4); // straddles s1
+    await openSectionsMenu(page);
     await page.locator("#sectionsAddBtn").click();
 
     // Refused rather than built somewhere else, and rather than displacing a
@@ -101,11 +111,11 @@ test.describe("sections and the loop", () => {
     await expect(notice).not.toBeEmpty();
   });
 
-  test("clicking a section loops over it", async ({ page }) => {
+  test("a section's loop button loops over it", async ({ page }) => {
     await seed(page, [{ id: "s1", name: "Chorus", start: 1, end: 3, color: "#4a7fff" }]);
     await openStudio(page);
 
-    await page.locator('.section-block[data-id="s1"]').click();
+    await pressLoopButton(page, "s1");
 
     expect(await loopState(page)).toEqual({
       enabled: true,
@@ -114,7 +124,7 @@ test.describe("sections and the loop", () => {
     });
   });
 
-  test("a locked section can still be clicked to loop", async ({ page }) => {
+  test("a locked section can still be looped", async ({ page }) => {
     await seed(page, [
       { id: "s1", name: "Chorus", start: 1, end: 3, color: "#4a7fff", locked: true },
     ]);
@@ -122,7 +132,7 @@ test.describe("sections and the loop", () => {
 
     const block = page.locator('.section-block[data-id="s1"]');
     await expect(block).toHaveClass(/sec-locked/);
-    await block.click();
+    await pressLoopButton(page, "s1");
 
     // Lock is about position. Refusing to loop a locked section would be a
     // second rule nobody asked for.

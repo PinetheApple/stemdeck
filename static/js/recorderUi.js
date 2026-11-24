@@ -5,7 +5,6 @@ import { t } from "./i18n.js";
 import { icon } from "./libraryIcons.js";
 import { fmtTime } from "./utils.js";
 import { NORMAL_SPEED, RECORD_BLOCK, REC_PHASE } from "./recorder.js";
-import { refitFooter } from "./footerFit.js";
 
 const BLOCK_HINT = {
   [RECORD_BLOCK.speed]: "rec.hint.speed",
@@ -38,7 +37,6 @@ export function paintRecordButton({ hasTracks, phase, block, elapsedSec, canDisc
   const lang = document.documentElement.lang;
   const key = `${hasTracks}|${phase}|${block}|${Math.floor(elapsedSec)}|${canDiscard}|${lang}`;
   if (!btn || key === painted) return;
-  const phaseChanged = !painted.includes(`|${phase}|`);
   painted = key;
   btn.classList.toggle("is-counting", phase === REC_PHASE.counting);
   btn.classList.toggle("is-recording", phase === REC_PHASE.recording);
@@ -50,7 +48,6 @@ export function paintRecordButton({ hasTracks, phase, block, elapsedSec, canDisc
   btn.setAttribute("aria-label", hint);
   const time = btn.querySelector(".rec-btn-time");
   if (time) time.textContent = phase === REC_PHASE.recording ? fmtTime(elapsedSec) : "";
-  if (phaseChanged) refitFooter();
 }
 
 let countInEl = null;

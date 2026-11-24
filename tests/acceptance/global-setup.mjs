@@ -79,7 +79,7 @@ export default async function globalSetup() {
     // First run downloads CUDA torch (2.5 GB), FFmpeg and the models, so the
     // wait here is long. Later runs reach the studio in well under a minute.
     const { browser, page } = await connect(chromium, { timeout: 60 * 60_000 });
-    await page.locator("#url").waitFor({ timeout: 5 * 60_000 });
+    await page.locator("#addSongBtn").waitFor({ timeout: 5 * 60_000 });
     const studioAt = Date.now();
     const setupLog = fs.readFileSync(path.join(RESULTS_DIR, "app-stdout.log"), "utf8").slice(-4000);
     writeState({

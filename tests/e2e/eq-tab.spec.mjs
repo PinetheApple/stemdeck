@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
-import { JOB_ID, SIBLING_JOB_ID, openStudio, openInspectorTab } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, TALL_WINDOW, openStudio, openInspectorTab } from "./helpers.mjs";
+
+test.use({ viewport: TALL_WINDOW });
 
 const SUGGEST_EQ = /\/api\/jobs\/[a-f0-9]{12}\/suggest\/eq\?/;
 const SUGGESTED = {

@@ -2,12 +2,14 @@
 // while StemData moves: each is undone and says to wait for the move (#190).
 import { test, expect } from "@playwright/test";
 import {
+  chooseFromSongMenu,
   JOB_ID,
   SIBLING_JOB_ID,
   SIBLING_TITLE,
   TRACK_TITLE,
   failureMessages,
   fixtureTrack,
+  openBrowse,
   openStudio,
   readCatalogState,
   seedCatalogState,
@@ -21,7 +23,6 @@ import { HTTP_CONFLICT } from "../../static/js/lyricsTranscribe.js";
 
 const TRASH_OR_RESTORE = /\/api\/jobs\/[a-f0-9]{12}\/(trash|restore)$/;
 const JOB_URL = /\/api\/jobs\/[a-f0-9]{12}$/;
-const RESTORE_HOLD_MS = 1300;
 
 const refuse = (route) => route.fulfill({
   status: HTTP_CONFLICT,
@@ -62,7 +63,7 @@ test.describe("studio", () => {
   test("a song binned during the move comes back and says to wait for it", async ({ page }) => {
     const moving = await openLibrary(page, null);
 
-    await page.locator(`.cat-item[data-id="${JOB_ID}"] .cat-fav`).first().focus();
+    await page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"] .cat-upnext`).first().focus();
     await page.keyboard.press("Delete");
 
     await expect.poll(() => failureMessages(page)).toEqual([moving]);
@@ -83,8 +84,7 @@ test.describe("studio", () => {
     const row = page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first();
     await expect(row).toHaveClass(/\bactive\b/);
 
-    await row.hover();
-    await row.locator(".cat-del").click();
+    await chooseFromSongMenu(page, row, "Move to Trash");
 
     await expect.poll(() => failureMessages(page)).toEqual([moving]);
     const folders = (await readCatalogState(page))?.folders ?? [];
@@ -104,8 +104,7 @@ test.describe("studio", () => {
     const binned = page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`).first();
     const opened = page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`).first();
 
-    await binned.hover();
-    await binned.locator(".cat-del").click();
+    await chooseFromSongMenu(page, binned, "Move to Trash");
     await opened.dblclick();
     await expect(opened).toHaveClass(/\bactive\b/);
     answer();
@@ -118,9 +117,8 @@ test.describe("studio", () => {
 
   test("songs of a folder deleted during the move come back to the library", async ({ page }) => {
     const moving = await openLibrary(page, null, [JOB_ID, SIBLING_JOB_ID]);
-    const doomed = page.locator(`.folder[data-id="${DOOMED_FOLDER}"] > .folder-head`);
-    const more = doomed.locator(".f-more");
-    await doomed.hover();
+    await openBrowse(page, `folder:${DOOMED_FOLDER}`);
+    const more = page.locator("#browseResults .browse-folder-more");
     await more.click();
     await page.locator(".lib-menu").getByRole("menuitem", { name: await uiText(page, "folder.deleteFolder") }).click();
     await more.click();
@@ -133,14 +131,8 @@ test.describe("studio", () => {
 
   test("a song restored during the move goes back to the Trash and says to wait for it", async ({ page }) => {
     const moving = await openLibrary(page, JOB_ID);
-    await page.locator(".rail-trash").click();
-    const row = page.locator(`#catalogList .cat-item.in-trash[data-id="${JOB_ID}"]`);
-    const box = await row.boundingBox();
-
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down();
-    await page.waitForTimeout(RESTORE_HOLD_MS);
-    await page.mouse.up();
+    await openBrowse(page, "trash");
+    await page.locator(`#browseResults .cat-item.in-trash[data-id="${JOB_ID}"] .cat-restore`).click();
 
     await expect.poll(() => failureMessages(page)).toEqual([moving]);
     expect(await trashItems(page)).toEqual([JOB_ID]);
@@ -149,10 +141,10 @@ test.describe("studio", () => {
   test("Empty trash refused for the move keeps the songs and says to wait for it", async ({ page }) => {
     const moving = await openLibrary(page, JOB_ID);
     await page.route(JOB_URL, refuseDeletes);
-    await page.locator(".rail-trash").click();
+    await openBrowse(page, "trash");
 
-    await page.locator("#clearBinBtn").click();
-    await page.locator("#clearBinBtn").click();
+    await page.locator("#browseEmptyTrash").click();
+    await page.locator("#browseEmptyTrash").click();
 
     await expect.poll(() => failureMessages(page)).toEqual([moving]);
     expect(await trashItems(page)).toEqual([JOB_ID]);
@@ -161,14 +153,10 @@ test.describe("studio", () => {
   test("a setlist made during the move says to wait for it", async ({ page }) => {
     await openStudio(page);
     await page.route("**/api/setlists", (route) => (route.request().method() === "POST" ? refuse(route) : route.fallback()));
-    await page.locator("#libTabSetlists").click();
-
-    await page.locator("#setlistNewBtn").click();
-    await page.locator(".setlist-name-input").fill("Sunday");
-    await page.locator(".setlist-name-input").press("Enter");
+    await page.locator("#sidebarNewSetlist").click();
 
     await expect(page.locator("#setlistsError")).toHaveText(await uiText(page, FOLDER_MOVING_KEY));
-    await expect(page.locator(".setlist")).toHaveCount(0);
+    await expect(page.locator("#sidebarSetlists .sidebar-setlist")).toHaveCount(0);
   });
 });
 

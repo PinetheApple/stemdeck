@@ -11,10 +11,6 @@ input, textarea { font-family: inherit; }
 
 /* ── Root ── */
 .daw {
-  /* The rail's width, as a variable: the topbar's logo cell is sized from the
-     same number, so the divider under the logo is the one the rail already
-     draws, and the bar proper starts where the library does. */
-  --rail-w: 66px;
   width: 100vw;
   height: 100vh;
   background: var(--bg);
@@ -68,50 +64,6 @@ input, textarea { font-family: inherit; }
   padding: 0 16px 0 0;
   gap: 14px;
 }
-.daw-topbar > .daw-composer-stack { padding: 10px 0; }
-
-/* Logo cell.
- *
- * The top-left corner, exactly as wide as the rail below it and closed by the
- * same border, so the bar proper begins where the library does. It was the
- * full 390px of the library at first, which put 330px of empty bar beside the
- * logo and cost the composer the width it was short of. The rail's width is
- * the part that has something in it, and it does not move when the library
- * collapses, so the cell needs no transition of its own. */
-.daw-brand {
-  align-self: stretch;
-  box-sizing: border-box;
-  width: var(--rail-w);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  border-right: 1px solid var(--border);
-  overflow: hidden;
-}
-/* Lined up with the rail buttons below it, which means lined up by the bars,
-   not by the file. The symbol's artboard is not centred on its own artwork:
-   the bars run x110-x452 of a 512 box, so their middle sits 25 units right of
-   the middle of the image. Centring the image would therefore push the bars
-   2.5px right of the rail's centre line, which is exactly what it looked like.
-   4px is what puts the bars' middle on 32.5px, the centre of the 65px cell.
-   52px, not the 40px of a rail button: that same padding means the bars
-   themselves land at about 35px. */
-/* The logo is the link, so the anchor has to be the flex item the cell
-   centres, not an inline box that would add a line box's worth of height
-   around a 52px image. */
-.daw-brand a {
-  display: flex;
-  align-items: center;
-  text-decoration: none;
-}
-.daw-brand img {
-  width: 52px;
-  height: 52px;
-  margin-left: 4px;
-  margin-right: auto;
-  display: block;
-  flex-shrink: 0;
-}
 
 /* ── Composer pill ── */
 .daw-composer {
@@ -157,23 +109,6 @@ input, textarea { font-family: inherit; }
   letter-spacing: -0.005em;
 }
 .daw-url-zone #url::placeholder { color: var(--muted); }
-
-/* Upload button inside URL zone */
-.daw-upload-btn {
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--muted);
-  cursor: pointer;
-  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
-}
-.daw-upload-btn:hover { background: var(--panel-2); color: var(--fg-2); border-color: var(--border-strong); }
 
 /* File pill (shown when file selected) */
 .file-pill {
@@ -242,32 +177,6 @@ input, textarea { font-family: inherit; }
    costs one line in the handler and works in every engine. */
 .daw-url-zone.has-drop-error #url { display: none; }
 
-/* Composer vertical divider */
-.daw-composer-sep {
-  width: 1px;
-  background: var(--border);
-  align-self: stretch;
-  margin: 6px 0;
-  flex-shrink: 0;
-}
-
-/* Stem section */
-.daw-stem-section {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 14px;
-  flex-shrink: 0;
-}
-.daw-extract-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.daw-stem-chips { display: flex; gap: 4px; }
-
 /* Stem choice buttons */
 .stem-choice {
   height: 30px;
@@ -290,34 +199,6 @@ input, textarea { font-family: inherit; }
   border-color: color-mix(in srgb, var(--color) 60%, transparent);
   background: color-mix(in srgb, var(--color) 14%, transparent);
   color: var(--color);
-}
-/* Automatic song-structure detection. It sits at the end of the composer next
-   to Extract stems and matches its footprint, so the pair reads as two segments
-   of one bar rather than a chip loose beside a button. Colour still separates
-   them: the timeline blue, never the amber the primary action owns. */
-.structure-toggle {
-  --color: var(--accent);
-  min-width: var(--composer-action-w);
-  height: auto;
-  align-self: stretch;
-  margin-left: 0;
-  justify-content: center;
-  border-radius: 0;
-  border: none;
-  border-left: 1px solid var(--border-strong);
-  flex-direction: column;
-  gap: 2px;
-  line-height: 1.15;
-}
-.structure-toggle-main { display: inline-flex; align-items: center; gap: 6px; }
-/* Says what the feature is, quietly and where the choice is actually made,
-   rather than as a badge on the results after the fact. */
-.structure-toggle-note {
-  font-size: 8.5px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  opacity: 0.62;
 }
 
 /* "All" toggle */
@@ -361,8 +242,7 @@ input, textarea { font-family: inherit; }
 /* Process button */
 .daw-process-btn {
   height: auto;
-  /* Shared with .structure-toggle so the two end segments are the same width.
-     A min rather than a fixed width, because a longer translation must be
+  /* A min rather than a fixed width, because a longer translation must be
      allowed to grow instead of being clipped. */
   min-width: var(--composer-action-w);
   justify-content: center;
@@ -420,13 +300,8 @@ input, textarea { font-family: inherit; }
 .daw-iconbtn:active { transform: scale(0.96); }
 
 /* Notification panel */
-/* The wrapper is still the badge's anchor; the panel is not anchored to it.
-   .sidebar is overflow:hidden and narrows to the rail's 66px when the library
-   is collapsed, so an absolutely positioned panel would be clipped to nothing
-   in that state. Fixed escapes the clip, and placeNotifPanel in ui-chrome.js
-   sets left/top from the bell's rect, the same way the search dropdown and the
-   metronome popover are placed. No coordinates here on purpose: the only code
-   that shows this panel is the code that positions it. */
+/* Fixed, and placed by keepInWindow (shellFloat.js) from the bell's rect, so it
+   stays inside the window. No coordinates here: the code that shows it places it. */
 .daw-notif-wrap { position: relative; }
 .daw-notif-panel {
   display: none;
@@ -538,64 +413,6 @@ input, textarea { font-family: inherit; }
   transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Rail */
-.sidebar-rail {
-  width: var(--rail-w);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px 0;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.rail-btn {
-  width: 40px; height: 40px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  border-radius: 8px;
-  color: var(--muted);
-  font-size: 9px;
-  font-family: var(--font-sans);
-  cursor: pointer;
-  transition: background var(--t-fast), color var(--t-fast);
-  border: none;
-  background: none;
-  /* remove old pseudo-element strip */
-}
-.rail-btn::before { display: none !important; }
-.rail-btn:hover { background: var(--panel); color: var(--fg-2); }
-.rail-btn.active { color: var(--accent); background: var(--panel); }
-.rail-btn svg { flex-shrink: 0; }
-/* max-width + ellipsis: a translated label (e.g. Polish "Ustawienia") can run
-   longer than English at this 9px size inside the fixed 40px button. The
-   full text is still reachable via the button's title/aria-label; this just
-   guarantees the label itself can never visually overflow the rail column. */
-.rail-btn > span { white-space: nowrap; max-width: 56px; overflow: hidden; text-overflow: ellipsis; }
-
-/* Queue rail button. Only present while something is importing, so the rail
-   stays as it is today for anyone not using the queue. The Trash button wears
-   the same badge, with how many songs are in it (#749). */
-.rail-queue, .rail-trash { position: relative; }
-.rail-badge {
-  position: absolute; top: 2px; right: 2px;
-  min-width: 15px; height: 15px; padding: 0 4px;
-  border-radius: 8px;
-  background: var(--accent); color: #1a1a1a;
-  font-size: 9px; font-weight: 700; line-height: 15px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  pointer-events: none;
-}
-
-/* The offline mark: a rail item in looks only, so no hover and no pointer. */
-.rail-btn.rail-conn,
-.rail-btn.rail-conn:hover { cursor: default; background: none; color: var(--danger); }
-
 /* Sidebar body */
 .sidebar-body {
   flex: 1;
@@ -608,40 +425,6 @@ input, textarea { font-family: inherit; }
   opacity: 1;
   transition: opacity 0.15s ease;
 }
-
-/* Search */
-.daw-search {
-  height: 32px;
-  border: 1px solid var(--border);
-  background: var(--panel);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 10px;
-  color: var(--muted);
-  font-size: 12px;
-  flex-shrink: 0;
-  position: relative;
-}
-.daw-search svg { flex-shrink: 0; }
-.daw-search input {
-  flex: 1; min-width: 0;
-  border: none; outline: none;
-  background: transparent;
-  color: var(--fg);
-  font: inherit;
-}
-.daw-search input::placeholder { color: var(--muted); }
-.search-kbd {
-  font-size: 10px;
-  color: var(--muted-2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0 5px;
-  flex-shrink: 0;
-}
-.daw-search input:not(:placeholder-shown) ~ .search-kbd { display: none; }
 
 /* Lib header row */
 .daw-lib-header {
@@ -658,93 +441,48 @@ input, textarea { font-family: inherit; }
   gap: 4px;
 }
 .daw-lib-count { color: var(--muted-2); font-weight: 500; margin-left: 4px; }
-.new-folder-btn {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 9px 3px 7px;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  color: var(--muted);
-  font-size: 11px; font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
-}
-.lib-section-head .new-folder-btn { min-height: var(--target-min); }
-.new-folder-btn:hover {
-  background: var(--panel);
-  color: var(--fg-2);
-  border-color: var(--border-2, rgba(255,255,255,0.15));
-}
-
-/* Lib list (JS populates with .lib-item, .folder, .cat-item) */
-.daw-lib-list {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
 
 /* Thin auto-hide scrollbar shared by the library list, the mixer column, the
    footer's control row and the waveform panel (both axes) — hidden until the
    area is hovered/focused, reserves no visible gutter. `.daw .wave-scroll`
    overrides the gold bar from waves.css. */
-.daw-lib-list,
 .mixer-column,
-.footer-row-controls,
 .daw .wave-scroll {
   /* Firefox: thin overlay-style bar, fades to transparent track */
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
-.daw-lib-list:hover,
-.daw-lib-list:focus-within,
 .mixer-column:hover,
 .mixer-column:focus-within,
-.footer-row-controls:hover,
-.footer-row-controls:focus-within,
 .daw .wave-scroll:hover,
 .daw .wave-scroll:focus-within {
   scrollbar-color: color-mix(in srgb, var(--text-2) 40%, transparent) transparent;
 }
 /* WebKit (Chrome/Safari/WKWebView): thin thumb, hidden until hover/scroll */
-.daw-lib-list::-webkit-scrollbar,
 .mixer-column::-webkit-scrollbar,
-.footer-row-controls::-webkit-scrollbar,
 .daw .wave-scroll::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
-.daw-lib-list::-webkit-scrollbar-track,
 .mixer-column::-webkit-scrollbar-track,
-.footer-row-controls::-webkit-scrollbar-track,
 .daw .wave-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
-.daw-lib-list::-webkit-scrollbar-thumb,
 .mixer-column::-webkit-scrollbar-thumb,
-.footer-row-controls::-webkit-scrollbar-thumb,
 .daw .wave-scroll::-webkit-scrollbar-thumb {
   background: transparent;
   border: 2px solid transparent;
   background-clip: padding-box;
   border-radius: 999px;
 }
-.daw-lib-list:hover::-webkit-scrollbar-thumb,
-.daw-lib-list:focus-within::-webkit-scrollbar-thumb,
 .mixer-column:hover::-webkit-scrollbar-thumb,
 .mixer-column:focus-within::-webkit-scrollbar-thumb,
-.footer-row-controls:hover::-webkit-scrollbar-thumb,
-.footer-row-controls:focus-within::-webkit-scrollbar-thumb,
 .daw .wave-scroll:hover::-webkit-scrollbar-thumb,
 .daw .wave-scroll:focus-within::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--text-2) 40%, transparent);
   background-clip: padding-box;
 }
-.daw-lib-list::-webkit-scrollbar-thumb:hover,
 .mixer-column::-webkit-scrollbar-thumb:hover,
-.footer-row-controls::-webkit-scrollbar-thumb:hover,
 .daw .wave-scroll::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--text-2) 60%, transparent);
   background-clip: padding-box;
@@ -933,50 +671,14 @@ input, textarea { font-family: inherit; }
 .cat-item:focus-within .cat-actions { opacity: 1; pointer-events: auto; }
 /* Inset, so the list's scroll box does not clip it. */
 .cat-item:focus-visible,
-.folder-head:focus-visible,
-.setlist-head:focus-visible,
 .setlist-song:focus-visible { outline-offset: -2px; }
 .upnext-row:focus-visible { outline-offset: -2px; }
 .cat-item .cat-actions:has(.cat-upnext) { grid-template-columns: repeat(2, var(--target-min)); }
-.cat-item .cat-actions :is(.cat-upnext, .cat-more, .cat-fav, .cat-del) { width: var(--target-min); height: var(--target-min); }
+.cat-item .cat-actions :is(.cat-upnext, .cat-more) { width: var(--target-min); height: var(--target-min); }
 .cat-item .cat-extract { height: var(--target-min); }
-.cat-del, .cat-fav {
-  width: 20px; height: 20px; border: 0; border-radius: 5px;
-  background: transparent; color: var(--muted); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  padding: 0; flex-shrink: 0; transition: background var(--t-fast), color var(--t-fast);
-}
-.cat-del:hover { background: color-mix(in srgb, var(--surface-2) 80%, transparent); color: var(--danger); }
-.cat-fav:hover { background: color-mix(in srgb, var(--surface-2) 80%, transparent); color: var(--fg); }
-.cat-fav.active, .cat-fav.active:hover { color: var(--danger); }
 /* A stopped song (#748) offers Extract at rest: it is the row's only way on. */
 .cat-item.is-stopped .cat-actions { opacity: 1; pointer-events: auto; }
 
-/* Trash rows look like library rows. On hover the second line becomes the
-   hint, and a hold fills the row from the left over --hold-ms (set from
-   TRASH_HOLD_MS in catalog.js), then restores. */
-.cat-item.in-trash { user-select: none; -webkit-user-select: none; overflow: hidden; }
-.cat-item.in-trash .trash-hint { display: none; color: var(--fg-2); }
-.cat-item.in-trash:hover .trash-hint,
-.cat-item.in-trash:focus-visible .trash-hint,
-.cat-item.in-trash.holding .trash-hint { display: block; overflow: hidden; text-overflow: ellipsis; }
-.cat-item.in-trash:hover .cat-sub:not(.trash-hint),
-.cat-item.in-trash:focus-visible .cat-sub:not(.trash-hint),
-.cat-item.in-trash.holding .cat-sub:not(.trash-hint) { display: none; }
-.trash-hold { position: absolute; inset: 0; pointer-events: none; }
-.trash-hold::before {
-  content: ""; position: absolute; inset: 0;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  transform: scaleX(0); transform-origin: left center;
-}
-.cat-item.in-trash.holding .trash-hold::before {
-  transform: scaleX(1);
-  transition: transform var(--hold-ms, 1000ms) linear;
-}
-.cat-item.in-trash.selected {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-}
 .cat-extract {
   height: 20px; padding: 0 8px; border: 1px solid var(--accent); border-radius: 5px;
   background: transparent; color: var(--accent); cursor: pointer;
@@ -993,69 +695,12 @@ input, textarea { font-family: inherit; }
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
-/* Folder items (legacy catalog) */
-.folder { display: flex; flex-direction: column; }
-.folder-head {
-  --folder-color: var(--accent);
-  display: flex; align-items: center; gap: 7px;
-  padding: 6px 8px; border-radius: 7px;
-  cursor: pointer; color: var(--muted);
-  transition: background var(--t-fast), color var(--t-fast);
-  user-select: none;
-}
-/* Unsorted (.system) has no controls to reveal, so hovering it does not light it up (#695). */
-.folder-head:not(.system):hover { background: var(--panel); color: var(--fg); }
-.folder-head .f-chevron { width: 11px; height: 11px; transition: transform 180ms ease; flex-shrink: 0; color: var(--muted); }
-.folder.collapsed .folder-head .f-chevron { transform: rotate(-90deg); }
-.folder-head .f-icon { width: 13px; height: 13px; flex-shrink: 0; color: var(--folder-color); }
-.folder-head .f-name {
-  font-size: 12px; font-weight: 500; color: inherit;
-  flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  background: transparent; border: none; padding: 0; font-family: inherit; outline: none; cursor: inherit;
-}
-.folder-head .f-count { font-size: 10.5px; color: var(--muted); }
 .folder-color-dot {
   width: 13px; height: 13px; border: 1px solid rgba(255,255,255,0.22);
   border-radius: 999px; background: var(--folder-color); cursor: pointer; padding: 0;
   box-shadow: inset 0 0 0 1px rgba(0,0,0,0.22);
 }
-.folder-head .f-more {
-  width: 18px; height: 18px; border: none; background: transparent;
-  color: var(--muted); cursor: pointer; opacity: 0;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 4px; padding: 0; transition: opacity var(--t-fast), color var(--t-fast);
-  flex-shrink: 0;
-}
-.folder-head:hover .f-more,
-.folder-head:focus-within .f-more,
-.folder-head .f-more[aria-expanded="true"] { opacity: 1; }
-.folder-head > .f-more {
-  width: var(--target-min); height: var(--target-min);
-  margin-block: calc((var(--icon-lg) - var(--target-min)) / 2);
-}
-.folder-head .f-more:hover,
-.folder-head .f-more[aria-expanded="true"] { background: color-mix(in srgb, var(--surface-2) 80%, transparent); color: var(--fg-2); }
-.folder-head .f-more .ic { width: var(--icon-sm); height: var(--icon-sm); }
-/* Drag grip */
-.f-grip {
-  display: none; align-items: center; justify-content: center;
-  cursor: grab; color: var(--muted); flex-shrink: 0;
-  padding: 2px; border-radius: 3px;
-  transition: color var(--t-fast);
-}
-.f-grip:active { cursor: grabbing; }
-.folder-head:hover .f-grip { display: flex; }
-/* Drop indicators for folder reorder / nest */
-.folder.drop-before > .folder-head { box-shadow: 0 -2px 0 var(--accent); border-radius: 7px 7px 0 0; }
-.folder.drop-after > .folder-head { box-shadow: 0 2px 0 var(--accent); border-radius: 0 0 7px 7px; }
-.folder.drop-into > .folder-head { box-shadow: 0 0 0 1px var(--accent); background: var(--panel); }
-/* Folder being dragged */
-.folder.folder-dragging { opacity: 0.35; pointer-events: none; }
-/* Subfolder indentation */
-.folder.subfolder { margin-left: 12px; }
-.folder-body { display: flex; flex-direction: column; gap: 3px; padding: 3px 0 3px 14px; margin-left: 7px; border-left: 1px solid color-mix(in srgb, var(--text-2) 10%, transparent); }
-.folder.collapsed .folder-body { display: none; }
-.folder-empty { color: var(--muted); font-size: 11px; padding: 5px 8px; font-style: italic; }
+
 .folder-error { margin: 0; padding: var(--s-1) var(--s-2) var(--s-1) var(--s-6); font-size: var(--fs-xs); color: var(--danger); }
 
 /* Folder editor modal */
@@ -1143,9 +788,7 @@ input, textarea { font-family: inherit; }
 
 /* Tabs: the library's segmented bar (.lib-tabs), sized to their labels so a
    long translation widens its own tab instead of being cut. */
-.settings-tabs { margin-bottom: var(--s-2); }
 .settings-subtabs { margin-bottom: var(--s-3); }
-.settings-tabs > .settings-tab,
 .settings-subtabs > .settings-subtab { flex: 1 1 auto; padding: 0 var(--s-2); white-space: nowrap; }
 
 /* Every pane fills the fixed dialog body and scrolls inside it: a pane that
@@ -1438,9 +1081,6 @@ input, textarea { font-family: inherit; }
 
 /* Collapsed sidebar strip */
 .cat-collapsed-strip { display: none; }
-.daw.cat-collapsed .sidebar { width: var(--rail-w); }
-.daw.cat-collapsed .sidebar-body { opacity: 0; pointer-events: none; visibility: hidden; }
-.daw.cat-collapsed .cat-collapsed-strip { display: flex; flex-direction: column; gap: 8px; align-items: center; padding: 8px 0; overflow-y: auto; }
 
 /* ═══════════════════════════════════
    MAIN AREA (#lanes)
@@ -1927,10 +1567,6 @@ input, textarea { font-family: inherit; }
 .daw-label-title { font-size: 12px; font-weight: 600; }
 .daw-label-sub { font-size: 9px; }
 .daw-sections-header { justify-content: space-between; gap: var(--s-2); }
-.daw-sections-title-group { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; }
-/* Clear and Add belong together. The header is space-between, so without this
-   group each control drifts to its own corner and Clear ends up marooned. */
-.sections-header-actions { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .daw-sections-area {
   flex: 1;
   position: relative;
@@ -1968,17 +1604,12 @@ input, textarea { font-family: inherit; }
   position: absolute;
   top: 4px; bottom: 4px;
   box-sizing: border-box;
-  border: 1px solid var(--sc, var(--accent));
   border-radius: 4px;
   display: flex;
   align-items: center;
   overflow: hidden;
   cursor: grab;
-  transition: filter 80ms;
 }
-.section-block:hover { filter: brightness(1.15); }
-.section-block.sec-dragging { cursor: grabbing; filter: brightness(1.2); z-index: 10; }
-.section-block.sec-resizing { filter: brightness(1.2); z-index: 10; }
 
 .section-label {
   flex: 1;
@@ -1987,55 +1618,13 @@ input, textarea { font-family: inherit; }
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--sc, var(--accent));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   pointer-events: auto;
 }
 
-.section-del {
-  display: none;
-  flex-shrink: 0;
-  width: 16px; height: 16px;
-  margin-right: 4px;
-  border: none; background: none;
-  color: var(--sc, var(--accent));
-  font-size: 13px; line-height: 1;
-  cursor: pointer; border-radius: 3px;
-  align-items: center; justify-content: center;
-  opacity: 0.7;
-}
-.section-del:hover { opacity: 1; background: rgba(0,0,0,0.3); }
-.section-block:hover .section-del { display: flex; }
-
-.section-lock {
-  display: none;
-  flex-shrink: 0;
-  width: 16px; height: 16px;
-  margin-right: 2px;
-  border: none; background: none;
-  color: var(--sc, var(--accent));
-  cursor: pointer; border-radius: 3px;
-  align-items: center; justify-content: center;
-  opacity: 0.7;
-  padding: 0;
-}
-.section-lock:hover { opacity: 1; background: rgba(0,0,0,0.3); }
-.section-block:hover .section-lock { display: flex; }
-/* A locked section shows its padlock without being hovered, and in red. Hiding
-   it would make locked and unlocked look identical at rest, and the only way to
-   find a locked one would be to try to drag it. Red because the padlock is the
-   one control that is saying no to the others. */
-.section-block.sec-locked .section-lock {
-  display: flex;
-  opacity: 1;
-  color: var(--danger);
-}
-.section-block.sec-locked .section-lock:hover { opacity: 1; }
-
-/* The grab and col-resize cursors promise a drag that cannot happen. */
-.section-block.sec-locked,
+/* A col-resize cursor promises a resize that cannot happen. */
 .section-block.sec-locked .section-handle { cursor: default; }
 .section-block.sec-locked .section-handle:hover { background: none; }
 
@@ -2050,22 +1639,6 @@ input, textarea { font-family: inherit; }
 .section-handle-l { left: 0; }
 .section-handle-r { right: 0; }
 .section-handle:hover { background: rgba(255,255,255,0.12); }
-
-.section-rename-input {
-  flex: 1;
-  min-width: 0;
-  background: transparent;
-  border: none;
-  outline: none;
-  font: inherit;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--sc, var(--accent));
-  padding: 0 6px 0 10px;
-  caret-color: var(--sc, var(--accent));
-}
 
 /* Sections save indicator. The one part of the header that gives way: it is
    cut with an ellipsis so the buttons keep their size. */
@@ -2089,13 +1662,6 @@ input, textarea { font-family: inherit; }
   overflow: visible;
   color: var(--warn, var(--warn));
   white-space: normal;
-}
-/* A notice says what to do next, so it is never cut: it takes its own line under the buttons. */
-.sections-header-actions:has(.sections-save-indicator.notice) {
-  flex: 1;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  row-gap: var(--s-1);
 }
 .sections-save-indicator::before {
   content: "";
@@ -2127,41 +1693,7 @@ input, textarea { font-family: inherit; }
   to { transform: rotate(360deg); }
 }
 
-/* Add section button — lives in the Sections label column */
-.sections-add-btn-label {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 8px 3px 6px;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  color: var(--muted);
-  font-size: 10px; font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
-}
-.sections-add-btn-label:hover {
-  background: var(--panel-2);
-  color: var(--fg);
-  border-color: rgba(255,255,255,0.18);
-}
-
-/* Clear-all sections. Neutral until it is armed, then it states plainly that
-   the next click destroys something, because nothing here can be undone. */
-.sections-clear-btn[data-armed="1"] {
-  border-color: color-mix(in srgb, var(--vocals) 55%, transparent);
-  background: color-mix(in srgb, var(--vocals) 14%, transparent);
-  color: var(--vocals);
-}
-/* Clear says its word only once armed, so the header holds Hide and a save word in every language. */
-.sections-clear-btn:not([data-armed="1"]) .sections-clear-label { display: none; }
-.sections-clear-btn:not([data-armed="1"]),
-.sections-hide-btn {
-  align-self: stretch;
-  padding: 0 var(--s-1);
-}
-
-/* Wave label (left column in wave header — Mixer label) */
+/* Wave label (left column in wave header) */
 .daw-wave-label {
   display: flex;
   align-items: center;
@@ -2169,58 +1701,6 @@ input, textarea { font-family: inherit; }
   padding: 0 14px;
 }
 
-/* ── Panel toggles (#480) ── */
-/* A second row under the composer, aligned to its right-hand end so it reads as
-   belonging to the two controls above it. Collapse to nothing, not to a stub:
-   the whole point is the height back, and a stub tall enough to hold a control
-   is most of what the smaller panels are worth. That is only possible because
-   the controls live up here, where the way back is always in the same place.
-
-   This row costs the topbar about 19px, against up to 202px it can return. */
-.daw-composer-stack {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.daw-composer-stack > .daw-composer { flex: none; }
-/* Exactly as wide as the two controls above it, and sharing their right edge:
-   the same --composer-action-w they are each sized from, so a longer
-   translation widens all three together instead of leaving this one ragged.
-   margin-left:auto does the alignment, since the stack is the composer's width. */
-.daw-panel-toggles {
-  width: calc(var(--composer-action-w) * 2);
-  margin-left: auto;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 2px;
-  padding: 2px 7px;
-  background: var(--panel);
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  min-width: 0;
-}
-/* The rule separates the row's label from its controls. It sits after the
-   label, so "All" reads as the first of four buttons rather than as part of
-   the words describing them. */
-.daw-panel-toggles-label {
-  margin-right: 2px;
-  padding-right: 6px;
-  border-right: 1px solid var(--border-strong);
-}
-.daw-panel-toggles-label,
-.daw-panel-toggles-sep {
-  font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--muted);
-  line-height: 1;
-  white-space: nowrap;
-}
 .daw-panel-toggle {
   padding: 2px 3px;
   border: 0;
@@ -2249,7 +1729,6 @@ input, textarea { font-family: inherit; }
 
 .app.panel-analysis-off .daw-track-header { display: none; }
 .app.panel-sections-off .daw-section-ribbon { display: none; }
-.app.panel-timeline-off .footer-wave-region { display: none; }
 
 /* ── Waveform header ── */
 .daw-wave-header {
@@ -2362,31 +1841,6 @@ input, textarea { font-family: inherit; }
 
 .lane-stripe { display: none; }
 
-/* Name + VU stacked vertically */
-/* The name and its meter share a fixed column, and the fader takes whatever is
-   left of the row. So this width is the fader's length: every pixel taken off
-   here is a pixel the fader gains. 76px left the fader badly compressed once
-   the key stepper joined the row. */
-.lane-name-vu {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--lane-name-vu-gap, 5px);
-  width: 58px;
-  flex-shrink: 0;
-  /* Centres the NAME on the row, not the name-and-meter pair. The row centres
-     its children, so a stacked pair puts the name above the centre line by half
-     the meter plus the gap -- and the waveform beside it is centred on that
-     line, so the label reads as sitting too high. A top margin is centred with
-     the item, so this offsets the pair by exactly half of it and the name comes
-     level with its own waveform. Cheap and reversible: the meter simply moves
-     down with it. */
-  margin-top: calc(var(--lane-vu-h, 10px) + var(--lane-name-vu-gap, 5px));
-}
-
-/* Stem icon — hidden per user preference */
-.mx-icon { display: none; }
-
 /* Stem name */
 .mx-name {
   font-size: 13px; font-weight: 500;
@@ -2403,7 +1857,6 @@ input, textarea { font-family: inherit; }
   align-items: center;
   min-width: 0;
 }
-.lane-knob-indicator { display: none; }
 .mx-fader-input {
   -webkit-appearance: none;
   appearance: none;
@@ -2449,7 +1902,6 @@ input, textarea { font-family: inherit; }
 /* VU meter — sits below stem name in .lane-left-col, spans full column width */
 /* 5px read as a hairline rather than a meter: at that height the gradient had
    nowhere to show and a moving level was hard to see at a glance. */
-/* Height shared with .lane-name-vu's centring offset, so the two cannot drift. */
 :root { --lane-vu-h: 10px; }
 .lane-vu.mx-meter {
   position: relative;
@@ -2509,15 +1961,6 @@ input, textarea { font-family: inherit; }
 }
 .lane-icon-toggle.mx-btn:hover,
 .ms-btn.mx-btn:hover { color: var(--fg); border-color: #3a4550; }
-
-/* Mute button: "active" = NOT muted (normal). Engaged (muted) lights up blue,
-   mirroring the solo button's own lit-up treatment below. */
-.lane-icon-toggle.mx-btn.mute.active { color: var(--fg-2); border-color: var(--border-strong); }
-.lane-icon-toggle.mx-btn.mute:not(.active) {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-}
 
 /* Solo button: "active" = soloed */
 .ms-btn.mx-btn.active { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
@@ -2639,7 +2082,6 @@ input, textarea { font-family: inherit; }
 
 .loop-region.hidden { display: none !important; }
 
-
 /* Wave loading overlay */
 .wave-loading-overlay {
   position: absolute; inset: 0; z-index: 10;
@@ -2697,23 +2139,6 @@ input, textarea { font-family: inherit; }
   align-items: stretch;
 }
 
-.daw-footer-left {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 140px;
-  flex: 1;
-}
-.daw-time-big {
-  font-size: 20px; font-weight: 600; letter-spacing: -0.01em;
-}
-.daw-time-total { font-size: 13px; color: var(--muted); }
-.daw-footer-right {
-  display: flex; align-items: center; gap: 8px;
-  min-width: 140px; justify-content: flex-end;
-  flex: 1;
-}
-.daw-master-fader { accent-color: var(--accent); cursor: pointer; }
 .daw-btn {
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--panel-2); border: 1px solid var(--border-strong);
@@ -2723,10 +2148,6 @@ input, textarea { font-family: inherit; }
 }
 .daw-btn:hover { background: var(--panel-3); }
 
-/* Transport controls */
-.daw-transport-controls {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-}
 .daw-play-btn {
   background: var(--accent);
   color: var(--accent-ink);
@@ -2751,44 +2172,6 @@ input, textarea { font-family: inherit; }
 .btn-transport.playing .pause-icon { display: block !important; }
 .btn-transport.playing > svg:first-child { display: none; }
 
-/* Stop/loop buttons inside the footer transport row */
-.daw-footer .daw-iconbtn.btn-transport {
-  width: 40px; height: 40px;
-  border-radius: 9px;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-
-/* Loop active state */
-.daw-iconbtn.loop.active,
-.btn-transport.loop.active { color: var(--accent); }
-
-/* Export buttons in footer */
-.daw-footer .footer-btn {
-  padding: 0 14px;
-  height: 36px;
-  border-radius: 8px;
-  gap: 6px;
-  white-space: nowrap;
-}
-.daw-footer .footer-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-/* ── Footer redesign ── */
-
-/* ── Footer layout: three tiers (design 1b) ── */
-/* Tier 1 -- what is loaded and what leaves the app (track identity, favourite,
-   Export Mix). Tier 2 -- every playback and click control, in labelled clusters
-   separated by hairline dividers. Tier 3 -- the timeline those clusters act on.
-   Each tier owns its own full-width budget instead of everything competing for
-   room in one line. */
-
-.footer-main {
-  flex: 1; min-width: 0;
-  display: flex; flex-direction: column;
-}
-
 /* ── Track identity, in the footer's timeline gutter ── */
 .track-panel-head {
   display: flex; align-items: flex-start; gap: 10px; min-width: 0;
@@ -2805,66 +2188,7 @@ input, textarea { font-family: inherit; }
   transition: background var(--t-fast), color var(--t-fast);
 }
 .track-panel-head .daw-fav-btn:hover { background: var(--panel-3); }
-/* Hairline cluster separator: fades out at both ends so it reads as a seam
-   between groups rather than a hard rule across the footer. Every one of these
-   separates something now that .footer-row-controls never wraps -- the
-   is-orphan state that used to hide a divider stranded at the end of a wrapped
-   line went with the wrapping. */
-.footer-divider {
-  width: 1px; flex: none;
-  background: linear-gradient(
-    180deg, transparent, var(--border-strong) 22%, var(--border-strong) 78%, transparent
-  );
-}
-.footer-row-controls .footer-divider { height: 44px; }
-/* Starts at the footer's own left edge. The track identity that used to sit in
-   front of it now lives in the library sidebar, and leaving its 300px gutter
-   behind pushed every control into the right of the window with a void beside
-   it.
 
-   One line, always. Wrapping rearranged the band into a different shape at
-   every window width -- clusters piling onto a second row, the click track
-   splitting its own options in half -- so the footer never looked like itself
-   twice. Nothing here shrinks either (.footer-group is flex: none), so when
-   the window is too narrow the row scrolls sideways rather than reflowing. */
-.footer-row-controls {
-  display: flex; align-items: flex-start; flex-wrap: nowrap;
-  gap: 16px;
-  padding: 12px 18px 14px;
-}
-/* The clusters, and only the clusters, scroll. Favourite and Export Mix sit
-   outside this box so a window too narrow for the row cannot carry them off
-   the right-hand edge.
-
-   Sideways only. overflow-x: auto alone computes overflow-y to auto too, and
-   the strip is sized to its content, so a vertical scrollbar has nothing to
-   scroll. It can still appear: at a fractional device pixel ratio (250%
-   Windows scaling) content and box heights round differently, and a sub-pixel
-   of phantom overflow puts a classic scrollbar down the strip's right edge.
-   That takes its width out of the row, space-between at the "click" level
-   spreads the loss across every gap, and footerFit's observer re-measures.
-   That matches the breathing row of #633 exactly: every gap moving, Export
-   Mix not. hidden clips exactly what auto already clipped, and never takes
-   width from the row. */
-.footer-clusters {
-  flex: 1; min-width: 0;
-  display: flex; align-items: flex-start; flex-wrap: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
-  gap: 16px;
-}
-/* Acts on the track, not on playback, so it is pinned opposite the clusters
-   rather than filed among them. Nudged down to sit on the controls' own line
-   instead of the labels above them. */
-.footer-track-actions {
-  flex: none;
-  display: flex; align-items: center; gap: 8px;
-  margin-top: 18px;
-}
-.footer-track-actions .track-chip { height: 32px; }
-/* Opens toward the middle of the window: anchored left, a 260px menu on the
-   footer's right edge would hang off it. */
-.footer-track-actions .track-chip-panel { left: auto; right: 0; }
 /* Natural width, never squeezed: a cluster that shrinks re-wraps its own
    controls, which is the pile-up the row-level nowrap exists to prevent. */
 .footer-group {
@@ -2882,18 +2206,7 @@ input, textarea { font-family: inherit; }
   display: flex; align-items: center; flex-wrap: nowrap; gap: 8px;
   min-height: 34px;
 }
-/* Tier 3: the timeline. Full-bleed rather than an inset rounded panel -- its
-   left edge has to land exactly on the lane waveforms' left edge, and a side
-   border would offset the canvas by its own width. Top and bottom rules only,
-   the way the ruler area above the lanes is drawn. */
-/* Bottom tier: the gutter, then the timeline. Two columns rather than one, so
-   the timeline's left edge lands exactly on the lane waveforms' left edge and
-   a position reads at the same x in both -- while the 300px that alignment
-   costs carries Export Mix instead of standing empty. */
-.footer-wave-region {
-  display: flex; align-items: stretch;
-  padding: 0 18px 14px 0; flex-shrink: 0;
-}
+
 /* Exactly the mixer column's width: that offset is what puts the timeline
    beside it on the lanes' x, so the alignment and the block that fills the
    gutter are one fact rather than two numbers that have to agree. */
@@ -2905,55 +2218,6 @@ input, textarea { font-family: inherit; }
   min-width: 0;
   overflow: hidden;
 }
-.footer-wave-col {
-  flex: 1; min-width: 0;
-  display: flex; flex-direction: column;
-}
-.footer-wave-panel {
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  /* Closes the strip's open left edge and lands on the same x as the mixer
-     panel's right border, so that seam runs on down the page. Drawn as an
-     outset shadow rather than a border: a border would sit inside the box and
-     push the canvas a pixel off the lane waveforms it has to line up with. */
-  box-shadow: -1px 0 0 var(--border);
-  background: var(--panel);
-  overflow: hidden;
-}
-/* Ticks at the same times as the lanes ruler (buildFooterWaveTicks shares its
-   step), positioned by percentage so both rulers mark a time at the same x. */
-.footer-wave-ticks {
-  height: 18px; position: relative;
-}
-/* No track, no timeline to label -- an empty ruler strip above the placeholder
-   waveform would be measuring nothing. */
-.footer-wave-ticks:empty { display: none; }
-.footer-wave-ticks .tick {
-  position: absolute; top: 0; bottom: 0;
-  border-left: 1px solid var(--border-strong);
-  padding-left: 4px;
-  display: flex; align-items: flex-start;
-  pointer-events: none;
-}
-.footer-wave-ticks .tick-label {
-  font-family: var(--font-mono); font-size: 9px; line-height: 1.6;
-  color: var(--muted-2);
-  font-variant-numeric: tabular-nums;
-}
-.footer-wave-bar {
-  height: 31px; flex-shrink: 0;
-  position: relative; overflow: hidden;
-}
-#footer-waveform {
-  position: absolute; inset: 0;
-  width: 100%; height: 100%; display: block;
-}
-.footer-scrub {
-  position: absolute; inset: 0;
-  cursor: pointer; z-index: 2;
-  background: transparent;
-}
-.footer-scrub-fill { display: none; }
 
 .track-panel-info {
   flex: 1; min-width: 0;
@@ -2979,88 +2243,7 @@ input, textarea { font-family: inherit; }
 /* Wraps freely here -- the gutter is narrow and the block is stacked, so the
    meta reads as a short paragraph rather than a clipped line. */
 .footer-track-slot .daw-track-meta-line { row-gap: 2px; line-height: 1.35; }
-.footer-art {
-  width: 44px; height: 44px; border-radius: 6px;
-  background: var(--panel-3); flex-shrink: 0; overflow: hidden;
-  display: none;
-}
-.footer-art.has-art { display: block; }
-.footer-thumb-img {
-  width: 100%; height: 100%; object-fit: cover;
-  opacity: 0; transition: opacity 0.2s;
-}
-.footer-thumb-img.loaded { opacity: 1; }
-.footer-info {
-  display: flex; flex-direction: column; gap: 3px; min-width: 0;
-}
-.footer-title {
-  font-size: 13px; font-weight: 600;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  color: var(--fg);
-}
-.footer-meta {
-  font-size: 11px; color: var(--muted);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
 
-/* Position group: elapsed / total time, then the loop controls that act on
-   that position (design 1b groups them together, not with the transport). */
-/* The loop column is three rows tall while the rest of this group is one, so
-   centring it left the two bounds hanging below the elapsed/total readout they
-   belong to. Aligning to the bottom puts the fields on the readout's line and
-   lets the button and its hint stack up out of the way. */
-.footer-group-position .footer-group-body { gap: 4px; align-items: flex-end; }
-.footer-group-position .footer-elapsed,
-.footer-group-position .footer-total,
-.footer-group-position .footer-time-sep {
-  /* Match the fields' box height so the baselines land together, rather than
-     the text bottom meeting the border bottom. */
-  line-height: 22px;
-}
-/* Both readouts hold the width of mm:ss whatever they are showing.
- *
- * They start at 0:00 and become 05:09 the moment a track loads, which is one
- * character wider. The Position cluster grew 17px with it and every cluster to
- * its right, Speed, Global key and Click track, slid across by the same
- * amount. Clicking a track should not move the buttons beside it.
- *
- * Reserved rather than zero-padded, because the format is the readout's own
- * business: a track under ten minutes reads 5:09 and should keep doing so. A
- * track over an hour still grows, and should. */
-.footer-elapsed {
-  font-size: 18px; font-weight: 500; letter-spacing: -0.02em; color: var(--fg);
-  display: inline-block;
-  min-width: 5ch;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.footer-total {
-  font-size: 12px; font-weight: 400; color: var(--muted-2);
-  display: inline-block;
-  min-width: 5ch;
-  font-variant-numeric: tabular-nums;
-}
-.footer-time-sep { font-size: 12px; color: var(--muted-2); }
-
-/* Exact loop start/end inputs (inline, right of the loop button) */
-/* The hint stacks over the two fields rather than beside them: the footer row
-   is already full, and a note about the fields belongs with the fields. Sized
-   to sit inside the width the two boxes already take, so it does not widen the
-   Position group. */
-.footer-loop-times-wrap {
-  display: flex; flex-direction: column; align-items: stretch; gap: 2px;
-  margin-left: 6px;
-}
-.footer-loop-hint {
-  font-size: 7.5px; font-weight: 600; letter-spacing: 0.02em;
-  text-transform: uppercase; color: var(--muted);
-  line-height: 1; white-space: nowrap; text-align: center; user-select: none;
-}
-.footer-loop-times {
-  display: flex; align-items: center; justify-content: center; gap: 5px;
-  cursor: default; user-select: none;
-}
-.loop-times-sep { font-size: 12px; color: var(--muted); flex-shrink: 0; }
 .loop-time-input {
   /* 7ch holds "105.100" -- the widest value a track under 1000 s produces now
      that the minutes field is gone. */
@@ -3075,103 +2258,7 @@ input, textarea { font-family: inherit; }
 .loop-time-input:focus { cursor: text; border-color: var(--accent); }
 .loop-time-input:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* Transport group: stop square + a play key wide enough to be the obvious
-   primary, both on the shared 34px control height. */
-.footer-group-transport .daw-iconbtn.btn-transport {
-  width: 34px; height: 34px; border-radius: 8px;
-  background: var(--panel-2);
-  border-color: var(--border-strong);
-  color: var(--fg-2);
-  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
-}
-.footer-group-transport .daw-iconbtn.btn-transport:hover {
-  background: var(--panel-3);
-  color: var(--fg);
-}
-.footer-group-transport .daw-play-btn {
-  width: 44px; height: 34px; border-radius: 8px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
-}
-.footer-group-transport .daw-play-btn:hover {
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--accent) 35%, transparent), inset 0 1px 0 rgba(255,255,255,0.22);
-}
-.footer-group-transport .daw-play-btn.playing:hover {
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--success) 45%, transparent), inset 0 1px 0 rgba(255,255,255,0.24);
-}
-/* Active transport states: stop = red while stopped, loop = blue while looping. */
-.footer-group-transport .btn-transport.stopped,
-.footer-group-transport .btn-transport.stopped:hover {
-  background: color-mix(in srgb, var(--danger) 16%, transparent);
-  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
-  color: var(--danger);
-}
-.footer-group-transport .footer-group-body { gap: 6px; }
-/* Loop sits in the Position group and reads as a modifier on the readout next
-   to it, so it is a short labelled pill rather than a full-height control. */
-.footer-group-position .daw-iconbtn.btn-transport.loop {
-  /* A tall narrow pill beside the fields, not a bar over them. align-self
-     overrides the group's flex-end so it fills the two rows the hint and the
-     bounds take, which is what keeps the footer one line high. */
-  flex-direction: column; justify-content: center;
-  width: 46px; height: auto; align-self: stretch;
-  padding: 3px 4px; gap: 1px; margin-left: 4px;
-  border-radius: 7px;
-  background: var(--panel-2); border: 1px solid var(--border-strong);
-  color: var(--fg-2);
-  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
-}
-.footer-group-position .btn-transport.loop:hover {
-  background: var(--panel-3); color: var(--fg);
-}
-.loop-btn-label { font-size: 9.5px; font-weight: 500; white-space: nowrap; line-height: 1; }
-.footer-group-position .btn-transport.loop.active,
-.footer-group-position .btn-transport.loop.active:hover {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  color: var(--accent);
-}
-
 /* ── Segmented controls (Speed, click rate) ── */
-/* Transpose stepper (#245): two icon buttons and the readout between them. */
-.pitch-value {
-  display: flex; align-items: center; justify-content: center;
-  min-width: 34px; padding: 0 6px;
-  border-left: 1px solid var(--border); border-right: 1px solid var(--border);
-  color: var(--muted);
-  font-family: var(--font-mono); font-size: 11px; font-weight: 600; line-height: 1;
-  font-variant-numeric: tabular-nums;  /* so +10 and -6 do not shift the buttons */
-  transition: color var(--t-fast), background var(--t-fast);
-}
-/* Lit only when transposed, so "this track is not in its original key" is
-   visible at a glance rather than needing the number to be read. */
-.pitch-value.active {
-  background: color-mix(in srgb, var(--text-2) 16%, transparent); color: var(--accent);
-}
-.pitch-btn:disabled {
-  opacity: 0.35; cursor: default;
-}
-.pitch-btn:disabled:hover { background: transparent; color: var(--muted); }
-
-/* Reset. Outside the stepper's frame, because it does something to the whole
-   mix rather than one more step: it returns every mixer lane to the key the
-   recording is in, which the stepper alone cannot do once lanes have been moved
-   individually. */
-.pitch-reset {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; padding: 0;
-  background: transparent;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  color: var(--muted);
-  font-size: 15px; line-height: 1;
-  cursor: pointer;
-  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
-}
-.pitch-reset:hover:not(:disabled) {
-  background: var(--panel-3); color: var(--fg); border-color: var(--border);
-}
-.pitch-reset:disabled { opacity: 0.35; cursor: default; }
-
 /* Click track on/off toggle. Lit gold while the click is running, so its
    state is visible without any other affordance. */
 .click-toggle-btn {
@@ -3282,10 +2369,7 @@ input, textarea { font-family: inherit; }
 .metro-vol-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
 .metro-vol-icon { flex-shrink: 0; }
 
-/* Fixed rather than absolute:
-   .footer-clusters scrolls sideways and clips vertically (overflow-y: hidden),
-   so an absolutely positioned panel would be clipped by the strip its
-   button sits in. transport.js sets left/top from that button's rect. */
+/* Fixed, so no scrolling ancestor clips it; popover.js places it by its button. */
 .metro-vol-panel {
   position: fixed; z-index: 320;
   display: flex; flex-direction: column; align-items: center; gap: 8px;
@@ -3369,11 +2453,6 @@ input, textarea { font-family: inherit; }
    1b). Hidden until it has text, clipped to one line with the full text as a
    native tooltip. */
 .metro-note {
-  /* Starts where the controls it describes start.
-     It used to inherit its left edge from .footer-wave-region, which insets
-     the gutter the now-playing block filled. That block is in the composer now
-     and the gutter with it, so the note was left against the bare edge of the
-     footer, 18px to the left of Transport and lined up with nothing. */
   margin-top: 8px;
   margin-left: 18px;
   font-size: 11px; line-height: 1.3; color: var(--muted);
@@ -3420,15 +2499,6 @@ input, textarea { font-family: inherit; }
   transition: background var(--t-fast);
 }
 .track-chip:hover { background: var(--panel-3); }
-.track-chip-primary {
-  background: var(--accent); color: var(--accent-ink);
-  border-color: transparent;
-}
-.track-chip-primary:hover { background: color-mix(in srgb, var(--accent) 85%, white); }
-.track-chip-primary:disabled {
-  background: var(--panel-2); color: var(--fg-muted);
-  border-color: var(--border-strong); cursor: not-allowed; opacity: 0.5;
-}
 
 .track-chip-panel {
   /* Opens up and to the right: the button now lives in the left column, and a
@@ -3719,7 +2789,6 @@ input, textarea { font-family: inherit; }
 }
 .about-social-btn:hover { background: var(--accent); border-color: var(--accent); color: #000; }
 .about-credits { margin: 16px 0 0; font-size: 10.5px; line-height: 1.5; color: var(--muted); }
-.app-about-card { max-height: calc(100vh - var(--s-6)); }
 @property --about-data-fade { syntax: "<length>"; inherits: false; initial-value: 0px; }
 @keyframes about-data-fade-out { from { --about-data-fade: var(--s-6); } to { --about-data-fade: 0px; } }
 /* The fade follows the scroll position, so it shows only while more of the
@@ -3896,7 +2965,6 @@ input, textarea { font-family: inherit; }
   flex-direction: column;
   align-items: center;
 }
-.failure-logo { color: var(--danger); }
 .failure-when { color: var(--muted); }
 .failure-message {
   margin: 12px 0 0;
@@ -3994,64 +3062,10 @@ input, textarea { font-family: inherit; }
 
 @property --lib-tags-fade { syntax: "<length>"; inherits: false; initial-value: 0px; }
 @keyframes lib-tags-fade-out { from { --lib-tags-fade: var(--s-3); } to { --lib-tags-fade: 0px; } }
-/* Inline padding keeps the first and last chips' focus rings inside the scroll box. The fade
-   follows the scroll position, so it shows only while more tags sit below. */
-.lib-tags-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  max-height: var(--lib-tags-max-h);
-  padding: var(--s-1) var(--s-1) var(--s-2);
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--text-3) transparent;
-  mask-image: linear-gradient(to bottom, black calc(100% - var(--lib-tags-fade)), transparent);
-  animation: lib-tags-fade-out linear both;
-  animation-timeline: scroll(self);
-}
-.lib-tag-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 11px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  font-size: 12px;
-  color: var(--fg-2);
-  cursor: pointer;
-  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
-  white-space: nowrap;
-}
-.lib-tag-chip:hover {
-  background: var(--panel-2);
-  color: var(--fg);
-  border-color: rgba(255,255,255,0.15);
-}
-.lib-tag-chip.active {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-}
-.lib-tag-count { color: var(--muted); font-size: 11px; }
 
-/* ── Lyrics tab (#699) ──
-   A view of the sidebar, like Favorites and Trash, but not a list: while it is
-   on, the search box and the library list step aside and the panel takes the
-   whole height, so the lyrics get the room and scroll on their own. */
+/* ── Lyrics tab ── shown only inside the right panel's Lyrics pane (inspector.css). */
 .lyrics-panel { display: none; }
-.sidebar.lyrics-view .daw-search,
-.sidebar.lyrics-view .clear-bin-bar,
-.sidebar.lyrics-view .daw-lib-list { display: none !important; }
-.sidebar.lyrics-view .lyrics-panel {
-  display: flex; flex-direction: column; gap: 8px;
-  flex: 1 1 auto; min-height: 0;
-}
-/* The EXTRACT label's type, like every other section head in the app. */
-.lyrics-title {
-  margin: 0; font-size: 10px; font-weight: 600;
-  letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
-}
+
 .lyrics-status { margin: 0; font-size: 12px; color: var(--fg-2); }
 .lyrics-status:empty { display: none; }
 .lyrics-status.muted { color: var(--muted); }
@@ -4295,8 +3309,6 @@ input, textarea { font-family: inherit; }
   margin-left: var(--s-2);
   font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--warn);
 }
-.sidebar.lyrics-view .lyrics-panel.lyrics-editing .lyrics-versions,
-.sidebar.lyrics-view .lyrics-panel.lyrics-editing .lyrics-body { display: none; }
 .lyrics-editor { display: flex; flex: 1 1 auto; min-height: 0; outline: none; }
 .lyrics-editor[hidden] { display: none; }
 .lyrics-editor-fields {
@@ -4598,20 +3610,6 @@ input, textarea { font-family: inherit; }
 /* The text stops short of the segment. */
 #nowPlayingPanel .track-panel-info,
 #nowPlayingPanel .daw-track-meta-line { padding-right: calc(var(--np-fav) + 10px); }
-/* ── Clear bin bar (trash view only) ── */
-.clear-bin-bar { display: none; padding: 6px 10px 4px; }
-.sidebar.trash-view .clear-bin-bar { display: block; }
-.sidebar.trash-view .lib-section-head .new-folder-btn { display: none; }
-.sidebar.favorites-view .lib-section-head .new-folder-btn { display: none; }
-.clear-bin-btn {
-  display: flex; align-items: center; gap: 5px;
-  width: 100%; padding: 6px 10px; border-radius: 6px;
-  background: color-mix(in srgb, var(--danger) 12%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent);
-  color: var(--danger); font-size: 12px; font-weight: 500; cursor: pointer;
-  transition: background 150ms, border-color 150ms;
-}
-.clear-bin-btn:hover { background: color-mix(in srgb, var(--danger) 22%, transparent); border-color: color-mix(in srgb, var(--danger) 50%, transparent); }
-.clear-bin-btn:active { background: color-mix(in srgb, var(--danger) 32%, transparent); }
 
 /* ── App state classes (set by JS) ── */
 /* No track loaded: hide main waveform content */
@@ -4782,15 +3780,9 @@ input, textarea { font-family: inherit; }
 /* ─────────────────────────────────────────────────────────────────────────
    The composer, in two rows.
 
-   It was one row: the search, the Extract chips and the two actions all
-   competing for the same horizontal space, with the Collapse row on a line of
-   its own underneath. Three lines of bar for two lines of content, and on a
-   narrow window the search and the chips squeezed each other.
-
-   It is a grid now. Row one is the import gesture, left to right: upload, the
-   search field, the loaded track, then the two things that act on it. Row two
-   is Extract and its chips, with the Collapse row sharing that line at the
-   right-hand end.
+   Row one is the import gesture, left to right: upload, the search field, the
+   loaded track, then the two things that act on it. Row two is Extract and its
+   chips.
 
    The search and the chips share column one, which is what makes them exactly
    the same width. As a flex row the search grew into whatever was left over
@@ -4818,11 +3810,10 @@ input, textarea { font-family: inherit; }
      and are therefore exactly the same width. As a flex row the search grew to
      whatever was left over, which is why it ran past the last chip.
 
-     Columns: content | actions | panel toggles | rule | card. Row one is the
+     Columns: content | actions | (unused) | rule | card. Row one is the
      import gesture, row two is what to extract. The two actions stack in one
      column, Detect structure over Extract stems, so Extract sits on the chips'
-     row, straight after the options it acts on, and the Collapse toggles stack
-     beside them (#725). Stacked rather than side by side, the right-hand end
+     row, straight after the options it acts on. Stacked rather than side by side, the right-hand end
      is about 50px narrower, which is room the card keeps. The loaded track
      comes after the rule, at the end: in the middle of the row it read as
      Extract's input, when it is only what is playing (#699). */
@@ -4834,9 +3825,7 @@ input, textarea { font-family: inherit; }
      edge of its own container. Zero as the floor lets the column give way, and
      the card's own text clips with an ellipsis rather than forcing the row. */
   /* The card's floor is its compact form, the heart and the About this song
-     button and nothing else (#735). Below what the whole card needs, the
-     chips fold into their overflow button first (fitStemChips), so the card
-     is never squeezed out of the row the way display: none once took it. */
+     button and nothing else (#735). */
   --np-min: 72px;
   grid-template-columns: minmax(0, max-content) auto auto auto minmax(var(--np-min), 1fr);
   align-items: center;
@@ -4868,16 +3857,6 @@ input, textarea { font-family: inherit; }
   padding: 0 10px 0 6px;
   gap: 6px;
 }
-/* Inside the box, flat against it, not a box of its own. order rather than
-   markup: the button keeps its place in the DOM, so tab order and the drop
-   handlers bound to .url-wrap are untouched. */
-.daw-url-zone > .daw-upload-btn {
-  order: -1;
-  width: 26px;
-  height: 26px;
-  border: none;
-  background: none;
-}
 .daw-url-zone #url {
   background: none;
   border: none;
@@ -4885,103 +3864,7 @@ input, textarea { font-family: inherit; }
   height: auto;
 }
 
-/* Row two, column one. This is what sizes the column, and therefore the search
-   box above it. min-width: 0 is what lets it be narrower than the chips inside
-   it: at max-content they are 655px, which on their own overflow a 1100px
-   window once the two actions have been paid for.
-
-   The chips used to be allowed to wrap here, which is how that overflow was
-   absorbed before the row could fold. It cannot be allowed now: the rule was
-   three classes deep and quietly outranked the two-class `flex-wrap: nowrap`
-   the folding row declares for itself, so the row kept wrapping to a second
-   line in any language whose words are longer than English (#673). */
-.daw-composer > .daw-stem-section {
-  grid-column: 1;
-  grid-row: 2;
-  min-width: 0;
-}
-
-/* The rule divides the extraction, search through Split, from the track that
-   is playing (#699). Nothing crosses it: what is left of it is one sentence,
-   what is right of it is not an input to that sentence. */
-/* One rule, down both rows.
- *
- * There were two: this one beside the actions, and the Collapse label's own
- * left border under it. Two rules drawn by different elements have to be kept
- * level by hand, and they were a pixel apart, which is exactly the kind of gap
- * that reads as broken without being nameable. Spanning the rows makes it one
- * line that cannot drift from itself. */
-.daw-composer > .daw-composer-sep {
-  grid-column: 4;
-  grid-row: 1 / 3;
-  display: block;
-  justify-self: center;
-  align-self: stretch;
-  width: 1px;
-  height: auto;
-  margin: 6px 4px;
-  background: var(--border-strong);
-}
-
-/* Detect structure reads as a switch rather than a word you press. The button
-   keeps its markup and its aria-pressed, so nothing about how it works
-   changes; the pill and its knob are drawn from the two pseudo elements.
-   Grid because the switch sits left of the label and spans both the label and
-   the EXPERIMENTAL note under it. */
-.daw-composer > .structure-toggle {
-  grid-column: 2;
-  grid-row: 1;
-  position: relative;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  column-gap: 9px;
-  padding: 0 14px;
-  text-align: left;
-}
-.daw-composer > .structure-toggle::before {
-  content: "";
-  grid-row: 1 / 3;
-  width: 34px;
-  height: 19px;
-  border-radius: 999px;
-  background: var(--panel-3);
-  border: 1px solid var(--border-strong);
-  transition: background var(--t-fast);
-}
-.daw-composer > .structure-toggle::after {
-  content: "";
-  position: absolute;
-  left: 17px;
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  background: var(--fg-2);
-  transition: transform var(--t-fast), background var(--t-fast);
-}
-.daw-composer > .structure-toggle[aria-pressed="true"]::before {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-.daw-composer > .structure-toggle[aria-pressed="true"]::after {
-  transform: translateX(15px);
-  background: #1a1a1a;
-}
-.daw-composer > .structure-toggle .structure-toggle-main { grid-column: 2; }
-.daw-composer > .structure-toggle .structure-toggle-note {
-  grid-column: 2;
-  text-align: left;
-}
-
-/* Row two, and the only thing on it. A 100% basis is what forces the wrap. */
-.daw-composer > .daw-stem-section {
-  order: 1;
-  flex: 1 0 100%;
-  min-width: 0;
-}
-
-/* The two actions keep their shared width and stop being full-bleed. */
-.daw-composer > .structure-toggle,
+/* Extract stems keeps its width and stops being full-bleed. */
 .daw-composer > .daw-process-btn {
   align-self: center;
   min-height: 40px;
@@ -5014,66 +3897,6 @@ input, textarea { font-family: inherit; }
 
    and it would need the strip and the footer inset to match, or something
    given the freed space. */
-
-/* The Collapse toggles, a column of their own beside the two actions (#725):
-   the label on top, then one toggle per panel, spanning both rows. Beside the
-   actions rather than under them, which is what lets Extract stems take the
-   chips' row.
-
-   A grid item rather than absolutely positioned: out of flow it would land on
-   top of the Extract chips the moment a window was narrow enough for the two
-   to meet. */
-.daw-composer > .daw-panel-toggles {
-  grid-column: 3;
-  grid-row: 1 / 3;
-  align-self: center;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: center;
-  width: auto;
-  min-width: 0;
-  margin: 0;
-  /* The wrapper stops being a box of its own: each toggle is a chip, so a
-     frame around the group would be a box inside a box. */
-  padding: 0;
-  background: none;
-  border: none;
-  gap: 4px;
-}
-
-/* 4. The toggles become chips, the same size as the Extract ones.
-   Everything below is the .stem-choice geometry, nothing else: same height,
-   padding, radius, border and type size, so the two rows read as one family.
-   The colours stay theirs, including the strike-through that means a panel is
-   put away. */
-.daw-composer-stack .daw-panel-toggle {
-  /* 26, not the chips' 30: three to a column have to fit in the height of
-     the two rows beside them. */
-  height: 26px;
-  justify-content: center;
-  padding: 0 11px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 12px;
-  letter-spacing: -0.005em;
-  text-transform: none;
-  display: inline-flex;
-  align-items: center;
-}
-/* The label and the separators were sized for an 8px row; at chip size the
-   dots between them are noise, so only the label survives. */
-/* No border of its own any more: the rule beside it spans both rows now, so a
-   second one drawn here would be the thing it used to be kept level with. */
-.daw-composer-stack .daw-panel-toggles-label {
-  font-size: 12px;
-  letter-spacing: -0.005em;
-  text-transform: none;
-  text-align: center;
-  margin: 0;
-  padding: 0;
-  border: none;
-}
-.daw-composer-stack .daw-panel-toggles-sep { display: none; }
 
 /* 5. The dashed rectangles on empty lanes.
 
@@ -5367,44 +4190,6 @@ input, textarea { font-family: inherit; }
   overflow: hidden;
 }
 
-/* 7. The whole waveform strip in the bottom bar.
-
-   Read this before keeping it. The strip is three things in one: the waveform
-   drawing, the time ticks, and the scrub, which is the footer's seek control
-   and its only progress indicator. All three go together here, so after this
-   the only way to move through a track is the lanes above, and the footer no
-   longer shows where you are.
-
-   If that turns out to be too much, hiding #footer-waveform alone removes the
-   drawing and leaves the ticks and the seek working. */
-.footer-wave-panel {
-  display: none !important;
-}
-
-/* 8. The Timeline toggle.
-
-   It hides .footer-wave-region, which wraps two things: the waveform strip,
-   now hidden outright by 7, and the now-playing block, now pinned into the top
-   bar by 6. A fixed-position element is still hidden when an ancestor is
-   display: none, so the only thing pressing Timeline would do now is make the
-   card in the top bar disappear. A control whose label names something that is
-   not there, doing something the label does not describe.
-
-   Two parts, and the second matters as much as the first. The button is hidden
-   here, but it stays in the DOM, so wireAllToggle still counts "timeline"
-   among the panels All governs: pressing All would set panel-timeline-off and
-   take the card with it. Neutralising the rule is what stops that. Doing this
-   properly means dropping the button from the markup and letting the All row
-   govern two panels rather than three. */
-.daw-panel-toggle[data-panel="timeline"],
-.daw-panel-toggle[data-panel="timeline"] + .daw-panel-toggles-sep,
-.daw-panel-toggles-sep:has(+ .daw-panel-toggle[data-panel="timeline"]) {
-  display: none !important;
-}
-.app.panel-timeline-off .footer-wave-region {
-  display: block;
-}
-
 /* 9. An upload's format where it has no artwork (#690).
 
    Drawn by formatIcon.js: a file on the note icon's grid, with the format on
@@ -5533,75 +4318,10 @@ input, textarea { font-family: inherit; }
   border-left: 1px solid color-mix(in srgb, var(--color) 60%, transparent);
 }
 
-/* ── The Extract chips, and what happens when they stop fitting ───────────
-   The row never wraps and the bar never gets taller. As the window narrows,
-   whichever chips no longer fit move into a panel behind a three-dot button,
-   one at a time, from the end of the row. The button sits after the row, on the
-   side the chips are leaving from, and is hidden entirely while everything
-   fits.
-
-   Wrapping was the alternative and it is the wrong one here: the composer went
-   from 96px tall to 168 and then 236 as the chips spilled onto further lines,
-   so the bar grew exactly as the window shrank, and the controls on the right
-   were left stranded at the top of a column stretched by chips they have
-   nothing to do with.
-
-   The measuring is in fitStemChips in main.js; this is only what it looks
-   like.
-   ───────────────────────────────────────────────────────────────────────── */
-.stem-more-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 34px;
-  height: 30px;
-  margin-left: 5px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: none;
-  color: var(--muted-2);
-  cursor: pointer;
-  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
-}
-.stem-more-btn[hidden] { display: none; }
-.stem-more-btn:hover { background: var(--panel-2); color: var(--fg); }
-.stem-more-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
-
-/* One line, always. Overflow hidden so a chip mid-move is never half drawn,
-   and so this element's clientWidth is the honest budget fitStemChips
-   measures against. */
-.daw-composer .daw-stem-chips {
-  flex: 1 1 auto;
-  min-width: 0;
-  flex-wrap: nowrap;
-  overflow: hidden;
-}
-
-/* Fixed rather than absolute, for the same reason the footer's options panel
-   is: it has to escape the bar it is anchored in. JS sets left/top from the
-   button's own rect. */
-.stem-overflow {
-  position: fixed;
-  z-index: 320;
-  display: none;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  max-width: min(560px, calc(100vw - 32px));
-  padding: 10px;
-  background: var(--panel);
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
-}
-.stem-overflow.open { display: flex; }
-
-/* Help mode. The Guide button in the rail, below Trash; while it is pressed,
+/* Help mode. The Guide button in the top bar; while it is pressed,
    a ring is drawn around what can be seen of the control being explained,
    and its box sits beside it. The ring is a layer of its own, so nothing in
    the page moves and no panel clips it. */
-.rail-guide[aria-pressed="true"] { color: var(--accent); background: var(--panel); }
 /* Only the control being explained is marked, so the screen stays calm; the
    pill at the bottom says help mode is on. */
 /* With no song open, the studio turns several controls off for the pointer

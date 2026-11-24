@@ -2,6 +2,8 @@
 
 import { currentLineIndex } from "./lyricsLookup.js";
 
+// A section start set by hand lands near its downbeat, not on it.
+const ON_BEAT_SEC = 0.05;
 const wrap = (n, length) => ((n % length) + length) % length;
 
 function firstPosition(count, positionAt) {
@@ -26,6 +28,13 @@ export function buildBeatTable(beats, positionAt, fallbackLength) {
     if (i === 0 || offset === 0) bar++;
     return { time, bar, beat: offset + 1, length };
   });
+}
+
+/** Bars from the one playing at `time` to the downbeat at `target` (a hair early still counts it), at least 1; null with no grid. */
+export function barsUntil(table, time, target) {
+  if (!table.length) return null;
+  const downbeats = table.filter((entry) => entry.beat === 1 && entry.time > time && entry.time <= target + ON_BEAT_SEC);
+  return Math.max(1, downbeats.length);
 }
 
 /** The table's entry in force at `time`, or null before the first beat. */

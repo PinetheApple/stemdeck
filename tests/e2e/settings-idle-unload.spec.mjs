@@ -8,6 +8,7 @@ async function openGeneral(page) {
   await seedLibrary(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.locator("#settingsBtn").click();
+  await page.locator('.settings-tab[data-tab="general"]').click();
   const field = page.locator(".set-idle-unload");
   await expect(field).toHaveValue(/\d+/);
   return field;

@@ -17,14 +17,17 @@ import {
   stubFavorites,
   stubServerTrash,
   stubUpdateCheck,
+  openBrowse,
+  browseRow,
 } from "./helpers.mjs";
 
-// Held past the restore so the fill has certainly finished.
-const HOLD_PAST_RESTORE_FACTOR = 1.5;
 const OPEN_TIMEOUT_MS = 20000;
 const SONG_ROW = "#catalogList .cat-item";
-const LIBRARY_ROWS = "#catalogList :is(.cat-item, .folder-head)";
-const SETLIST_ROWS = "#setlistsList :is(.setlist-head, .setlist-song)";
+const LIBRARY_ROWS = "#catalogList .cat-item";
+const BROWSE_ROWS = "#browseResults .cat-item";
+// The control just before the Recently played rows, where a Tab into the list starts.
+const BEFORE_THE_ROWS = "#sidebarRecent .sidebar-see-all";
+const IN_TAB_ORDER = 0;
 const UPNEXT_ROWS = "#upNextList .upnext-row";
 const ACTIVE = /\bactive\b/;
 const UPNEXT_STORE_KEY = "stemdeck.upNext";
@@ -38,13 +41,12 @@ test.afterEach(async ({ request }) => {
 });
 
 const songRow = (page, id) => page.locator(`${SONG_ROW}[data-id="${id}"]`);
-const trashHoldMs = (page) => page.evaluate(() => import("/js/catalog.js").then((m) => m.TRASH_HOLD_MS));
 const trashCall = (id) => ({ id, action: "trash" });
 
 /** A Delete that does bin, pressed after the one under test: keys run in order, so its call proves the first did nothing. */
 async function binSiblingByKeyboard(page, trash) {
-  await page.locator("#newFolderBtn").focus();
-  await page.keyboard.press(KEY.TAB);
+  // The list's one tab stop can sit in any group, so it is focused directly and End moves from it.
+  await page.locator(`#catalogList [tabindex="${IN_TAB_ORDER}"]`).first().focus();
   await page.keyboard.press(ROW_KEY.LAST);
   await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
   await page.keyboard.press(KEY.DELETE);
@@ -72,7 +74,8 @@ async function openLibrary(page, { favorite = false, trashed = [] } = {}) {
   const listed = page.waitForResponse(JOB_LIST_URL);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await listed;
-  await expect(page.locator(LIBRARY_ROWS).first()).toBeAttached();
+  // With every song in the Trash the sidebar lists none, so its first drawn entry will do.
+  await expect(page.locator("#catalogList :is(.cat-item, .sidebar-empty)").first()).toBeAttached();
   return { trash };
 }
 
@@ -86,7 +89,7 @@ function rowTabStops(page, rows) {
 
 const focusedRowKey = (page) =>
   page.evaluate(() => {
-    const row = document.activeElement?.closest(".cat-item, .folder-head, .setlist-song, .setlist-head");
+    const row = document.activeElement?.closest(".cat-item");
     if (!row) return null;
     return row.dataset.id ?? row.closest("[data-id]")?.dataset.id ?? null;
   });
@@ -96,37 +99,27 @@ test.describe("song rows", () => {
     await openLibrary(page);
     expect(await rowTabStops(page, LIBRARY_ROWS)).toBe(1);
 
-    await page.locator("#newFolderBtn").focus();
+    await page.locator(BEFORE_THE_ROWS).focus();
     await page.keyboard.press(KEY.TAB);
     await expect(songRow(page, JOB_ID)).toBeFocused();
     await page.keyboard.press(KEY.TAB);
     expect(await focusedRowKey(page)).toBeNull();
   });
 
-  test("arrows, Home and End move between rows, folder heads included", async ({ page }) => {
+  test("arrows, Home and End move between rows", async ({ page }) => {
     await openLibrary(page);
     await songRow(page, JOB_ID).focus();
-    const head = page.locator('#catalogList .folder[data-id="f-unsorted"] > .folder-head');
 
     await page.keyboard.press(ROW_KEY.NEXT);
     await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
     await page.keyboard.press(ROW_KEY.NEXT);
     await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
     await page.keyboard.press(ROW_KEY.FIRST);
-    await expect(head).toBeFocused();
+    await expect(songRow(page, JOB_ID)).toBeFocused();
     await page.keyboard.press(ROW_KEY.LAST);
     await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
     await page.keyboard.press(ROW_KEY.PREVIOUS);
     await expect(songRow(page, JOB_ID)).toBeFocused();
-    await page.keyboard.press(ROW_KEY.PREVIOUS);
-    await expect(head).toBeFocused();
-
-    await page.keyboard.press(ROW_KEY.OPEN);
-    await expect(head.locator("..")).toHaveClass(/collapsed/);
-    await page.keyboard.press(ROW_KEY.NEXT);
-    await expect(head).toBeFocused();
-    await page.keyboard.press(ROW_KEY.OPEN);
-    await expect(head.locator("..")).not.toHaveClass(/collapsed/);
   });
 
   test("Enter opens the focused song and the row keeps focus", async ({ page }) => {
@@ -145,19 +138,14 @@ test.describe("song rows", () => {
     await page.keyboard.press(ROW_KEY.INTO);
     await expect(row.locator(".cat-upnext")).toBeFocused();
     await page.keyboard.press(ROW_KEY.INTO);
-    await expect(row.locator(".cat-more")).toBeFocused();
-    await page.keyboard.press(ROW_KEY.INTO);
-    const heart = row.locator(".cat-fav");
-    await expect(heart).toBeFocused();
-    const before = await heart.getAttribute("aria-pressed");
-    const flipped = String(before !== "true");
+    const more = row.locator(".cat-more");
+    await expect(more).toBeFocused();
     await page.keyboard.press(KEY.ENTER);
-    await expect(heart).toHaveAttribute("aria-pressed", flipped);
-    await expect(heart).toBeFocused();
-    await page.keyboard.press(KEY.ENTER);
-    await expect(heart).toHaveAttribute("aria-pressed", before);
+    await expect(page.locator(".lib-menu.song-menu")).toBeVisible();
+    await page.keyboard.press(KEY.ESCAPE);
+    await expect(more).toBeFocused();
 
-    for (let i = 0; i < 3; i++) await page.keyboard.press(ROW_KEY.BACK);
+    for (let i = 0; i < 2; i++) await page.keyboard.press(ROW_KEY.BACK);
     await expect(row).toBeFocused();
     await page.keyboard.press(ROW_KEY.INTO);
     await page.keyboard.press(ROW_KEY.NEXT);
@@ -237,11 +225,11 @@ test.describe("touch", () => {
 test.describe("other song lists", () => {
   test("Favourites rove the same way", async ({ page }) => {
     await openLibrary(page, { favorite: true });
-    await page.locator(".rail-favorites").click();
-    await expect(songRow(page, JOB_ID)).toBeVisible();
-    expect(await rowTabStops(page, LIBRARY_ROWS)).toBe(1);
+    await openBrowse(page, "fav");
+    await expect(browseRow(page, JOB_ID)).toBeVisible();
+    expect(await rowTabStops(page, BROWSE_ROWS)).toBe(1);
 
-    await page.locator(`${SONG_ROW}[tabindex="0"]`).focus();
+    await page.locator(`${BROWSE_ROWS}[tabindex="0"]`).focus();
     await page.keyboard.press(ROW_KEY.LAST);
     await page.keyboard.press(ROW_KEY.FIRST);
     const first = await focusedRowKey(page);
@@ -252,49 +240,45 @@ test.describe("other song lists", () => {
 
   test("search results rove the same way", async ({ page }) => {
     await openLibrary(page);
-    await page.locator("#catalogSearch").fill("Fixture");
-    await expect(songRow(page, SIBLING_JOB_ID)).toBeVisible();
-    expect(await rowTabStops(page, LIBRARY_ROWS)).toBe(1);
+    await openBrowse(page);
+    await page.locator("#browseSearch").fill("Fixture");
+    await expect(browseRow(page, SIBLING_JOB_ID)).toBeVisible();
+    expect(await rowTabStops(page, BROWSE_ROWS)).toBe(1);
 
-    await songRow(page, JOB_ID).focus();
+    await browseRow(page, JOB_ID).focus();
     await page.keyboard.press(ROW_KEY.NEXT);
-    await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
+    await expect(browseRow(page, SIBLING_JOB_ID)).toBeFocused();
   });
 
-  test("the Trash is one Tab stop and a held Enter still restores", async ({ page }) => {
+  test("the Trash is one Tab stop and Right reaches a row's Restore", async ({ page }) => {
     const { trash } = await openLibrary(page, { trashed: [JOB_ID, SIBLING_JOB_ID] });
-    await page.locator(".rail-trash").click();
-    await expect(songRow(page, SIBLING_JOB_ID)).toBeVisible();
-    expect(await rowTabStops(page, SONG_ROW)).toBe(1);
+    await openBrowse(page, "trash");
+    await expect(browseRow(page, SIBLING_JOB_ID)).toBeVisible();
+    expect(await rowTabStops(page, BROWSE_ROWS)).toBe(1);
 
-    await songRow(page, JOB_ID).focus();
+    await browseRow(page, JOB_ID).focus();
     await page.keyboard.press(ROW_KEY.NEXT);
-    await expect(songRow(page, SIBLING_JOB_ID)).toBeFocused();
-    await page.keyboard.down(KEY.ENTER);
-    await page.waitForTimeout((await trashHoldMs(page)) * HOLD_PAST_RESTORE_FACTOR);
-    await page.keyboard.up(KEY.ENTER);
+    await expect(browseRow(page, SIBLING_JOB_ID)).toBeFocused();
+    await page.keyboard.press(ROW_KEY.INTO);
+    await expect(browseRow(page, SIBLING_JOB_ID).locator(".cat-restore")).toBeFocused();
+    await page.keyboard.press(KEY.ENTER);
     await expect.poll(() => trash.calls).toEqual([{ id: SIBLING_JOB_ID, action: "restore" }]);
   });
 });
 
 test.describe("setlists", () => {
-  test("a setlist is one Tab stop, its songs open with Enter and its buttons sit on Right", async ({ page, request }) => {
-    await request.post("/api/setlists", { data: { name: "Keys", song_ids: [JOB_ID, SIBLING_JOB_ID] } });
+  test("a setlist's songs are one Tab stop, open with Enter and their buttons sit on Right", async ({ page, request }) => {
+    const { id } = await (await request.post("/api/setlists", { data: { name: "Keys", song_ids: [JOB_ID, SIBLING_JOB_ID] } })).json();
     await openLibrary(page);
-    await page.locator("#libTabSetlists").click();
-    const songs = page.locator(".setlist-song");
+    await openBrowse(page, `setlist:${id}`);
+    const songs = page.locator("#browseResults .setlist-song");
     await expect(songs).toHaveCount(2);
-    expect(await rowTabStops(page, SETLIST_ROWS)).toBe(1);
+    expect(await rowTabStops(page, BROWSE_ROWS)).toBe(1);
 
-    await page.locator("#libTabSetlists").focus();
-    await page.keyboard.press(KEY.TAB);
-    await expect(songs.first()).toBeFocused();
-    await page.keyboard.press(ROW_KEY.PREVIOUS);
-    await expect(page.locator(".setlist-head")).toBeFocused();
-    await page.keyboard.press(ROW_KEY.INTO);
-    await expect(page.locator(".setlist-play")).toBeFocused();
-
-    await page.keyboard.press(ROW_KEY.NEXT);
+    await songs.first().focus();
+    await page.keyboard.press("Shift+Tab");
+    await expect(page.locator("#browseResults .browse-head button:focus")).toHaveCount(1);
+    await songs.first().focus();
     await page.keyboard.press(ROW_KEY.NEXT);
     await expect(songs.nth(1)).toBeFocused();
     await page.keyboard.press(ROW_KEY.INTO);
@@ -305,14 +289,14 @@ test.describe("setlists", () => {
   });
 
   test("Delete on a setlist song bins nothing", async ({ page, request }) => {
-    await request.post("/api/setlists", { data: { name: "Keys", song_ids: [JOB_ID] } });
+    const { id } = await (await request.post("/api/setlists", { data: { name: "Keys", song_ids: [JOB_ID] } })).json();
     const { trash } = await openLibrary(page);
-    await page.locator("#libTabSetlists").click();
-    await page.locator(".setlist-song").focus();
+    await openBrowse(page, `setlist:${id}`);
+    await page.locator("#browseResults .setlist-song").focus();
     await page.keyboard.press(KEY.DELETE);
-    await expect(page.locator(".setlist-song")).toHaveCount(1);
+    await expect(page.locator("#browseResults .setlist-song")).toHaveCount(1);
 
-    await page.locator("#libTabSongs").click();
+    await page.keyboard.press("Escape");
     await binSiblingByKeyboard(page, trash);
   });
 });

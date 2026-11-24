@@ -1,0 +1,273 @@
+// Browse library's views: All songs, Favorites, Recently added, a folder, the
+// Trash and the Import queue, each as a grid of covers or a list with columns.
+
+import { t, plural, getLanguage } from "./i18n.js";
+import {
+  armEmptyTrash, favoriteTrackIds, folderErrorEl, folderNameOf, folderTrackIds, folderTreeTrackIds, getLibraryTrack, libraryArtistName, libraryFolderTree, libraryTrackIds,
+  librarySearchFields, makeSetlistFromFolder, renderImportQueue, trashTrackIds, wireFolderMenuButton,
+} from "./catalog.js";
+import { songMatches } from "./librarySearch.js";
+import { songCells } from "./songColumns.js";
+import { formatKey } from "./keyLabel.js";
+import { fmtTime } from "./utils.js";
+import { icon } from "./libraryIcons.js";
+import { ARM_TEXT_CLASS } from "./armConfirm.js";
+import { songCardEl, songRowEl } from "./songRow.js";
+import { esc } from "./songRowParts.js";
+import { versionExtras } from "./versions.js";
+import { browseState, openBrowse, viewParts } from "./browseLibrary.js";
+import { LAYOUT, VIEW } from "./browseViewNames.js";
+import { drawSetlistView } from "./browseSetlist.js";
+import { getSetlist } from "./setlists.js";
+import { LIST_KIND } from "./playContext.js";
+import { importQueueShown } from "./importQueueView.js";
+import { decorateSongEl, filteredOutEl, myOrderHintEls, sortableHeadEl, viewSongIds } from "./libraryTools.js";
+
+const RECENT_LIMIT = 12;
+const COLUMNS = [
+  ["c-title", "lib.colTitle"],
+  ["c-artist", "lib.colArtist"],
+  ["c-key", "lib.colKey"],
+  ["c-tempo", "lib.colTempo"],
+  ["c-length", "lib.colLength"],
+  ["c-folder", "lib.colFolder"],
+  ["c-added", "lib.colAdded"],
+];
+const CELL_CLASSES = [["artist", "c-artist"], ["key", "c-key"], ["tempo", "c-tempo"], ["length", "c-length"], ["folder", "c-folder"], ["added", "c-added"]];
+const DATE_FORMAT = { day: "numeric", month: "short", year: "numeric" };
+
+const matching = (ids) => ids.filter((id) => songMatches(librarySearchFields(id), browseState().query));
+
+export function emptyStateEl(iconName, heading, hint) {
+  const el = document.createElement("div");
+  el.className = "browse-empty";
+  el.innerHTML = `${icon(iconName)}<strong>${esc(heading)}</strong><span>${esc(hint)}</span>`;
+  return el;
+}
+
+const noMatchEl = () => emptyStateEl("search", t("library.noSearchMatch"), t("search.noMatchHint"));
+
+/** A view's head: `lead` markup, its title, how many songs, then `actions`. */
+export function viewHeadEl(title, count, { lead = "", actions = [] } = {}) {
+  const head = document.createElement("div");
+  head.className = "browse-head";
+  head.innerHTML = `${lead}<h2></h2><span class="browse-head-count"></span><span class="browse-head-spacer"></span>`;
+  head.querySelector("h2").textContent = title;
+  head.querySelector(".browse-head-count").textContent = plural("setlists.songCount", count);
+  head.append(...actions);
+  return head;
+}
+
+const ADDED_WORDS = () => ({
+  today: t("lib.today"),
+  yesterday: t("lib.yesterday"),
+  daysAgo: (days) => plural("lib.daysAgo", days),
+  dated: (ms) => new Date(ms).toLocaleDateString(getLanguage(), DATE_FORMAT),
+});
+
+function cellsHtml(trackId) {
+  const track = getLibraryTrack(trackId);
+  const cells = songCells(track, {
+    now: Date.now(),
+    words: ADDED_WORDS(),
+    artistName: libraryArtistName(track),
+    folderName: folderNameOf(trackId),
+    keyLabel: (key, scale) => formatKey(key, scale, t),
+    time: fmtTime,
+  });
+  return CELL_CLASSES.map(([field, cls]) => `<span class="cell ${cls}">${esc(cells[field])}</span>`).join("");
+}
+
+function tableHeadEl(kind) {
+  return sortableHeadEl(COLUMNS, kind);
+}
+
+/** Songs as the chosen layout shows them: cards in a grid, or rows under column heads.
+ *  `kind` is the view's, for sorting, picking and My order. */
+export function songListEls(ids, kind = null) {
+  if (browseState().layout === LAYOUT.LIST) {
+    const list = document.createElement("div");
+    list.className = "browse-list is-table";
+    for (const id of ids) {
+      const row = decorateSongEl(songRowEl(id, { cells: cellsHtml(id) }), kind);
+      if (row) list.append(row, ...versionExtras(id));
+    }
+    return [tableHeadEl(kind), list];
+  }
+  const grid = document.createElement("div");
+  grid.className = "browse-grid";
+  grid.append(...ids.map((id) => decorateSongEl(songCardEl(id), kind)).filter(Boolean));
+  return [grid];
+}
+
+/** The view's songs under the My order hint, else the empty state that fits. */
+function songsBody(kind, ids, viewCount, emptyEl) {
+  if (ids.length) return [...myOrderHintEls(kind), ...songListEls(ids, kind)];
+  const empty = browseState().query ? noMatchEl() : filteredOutEl(kind, ids.length, viewCount) ?? emptyEl;
+  return [empty].filter(Boolean);
+}
+
+function titledView(kind, title, allIds, emptyEl = null) {
+  const matched = matching(allIds);
+  const ids = viewSongIds(kind, matched);
+  return [viewHeadEl(title, ids.length), ...songsBody(kind, ids, matched.length, emptyEl)];
+}
+
+const byAdded = (a, b) => (getLibraryTrack(b).createdAt ?? 0) - (getLibraryTrack(a).createdAt ?? 0);
+
+function allView() {
+  return titledView(VIEW.ALL, t("lib.allSongs"), libraryTrackIds(), emptyStateEl("music", t("lib.startTitle"), t("lib.startHint")));
+}
+
+function favoritesView() {
+  const ids = favoriteTrackIds();
+  return titledView(VIEW.FAVORITES, t("nav.favorites"), ids, emptyStateEl("heart", t("favorites.emptyTitle"), t("favorites.emptyHint")));
+}
+
+function recentView() {
+  const ids = [...libraryTrackIds()].sort(byAdded).slice(0, RECENT_LIMIT);
+  return titledView(VIEW.RECENT, t("lib.recentlyAdded"), ids);
+}
+
+function onMakeSetlistClick(e) {
+  makeSetlistFromFolder(e.currentTarget.dataset.folder);
+}
+
+function folderActions(folder) {
+  if (folder.system) return [];
+  const make = document.createElement("button");
+  make.type = "button";
+  make.className = "browse-btn browse-make-setlist";
+  make.dataset.folder = folder.id;
+  make.disabled = !folderTreeTrackIds(folder.id).length;
+  make.innerHTML = `${icon("listMusic")}<span>${esc(t("folder.makeSetlist"))}</span>`;
+  make.addEventListener("click", onMakeSetlistClick);
+  const more = document.createElement("button");
+  more.type = "button";
+  more.className = "browse-iconbtn browse-folder-more";
+  more.dataset.folder = folder.id;
+  more.title = t("trackMenu.open");
+  more.setAttribute("aria-label", t("trackMenu.openTitle", { title: folder.name }));
+  more.setAttribute("aria-haspopup", "menu");
+  more.innerHTML = `${icon("more")}<span class="${ARM_TEXT_CLASS}"></span>`;
+  wireFolderMenuButton(more, folder.id);
+  return [make, more];
+}
+
+function onSubfolderClick(e) {
+  openBrowse(e.currentTarget.dataset.view);
+}
+
+function subfolderChips(tree, folderId) {
+  const chips = document.createElement("div");
+  chips.className = "browse-chips";
+  for (const child of tree.filter((f) => f.parentId === folderId)) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "browse-subfolder";
+    chip.dataset.view = `${VIEW.FOLDER}:${child.id}`;
+    chip.innerHTML = `<span class="folder-dot" style="background: ${child.color}"></span><span></span>`;
+    chip.lastChild.textContent = child.name;
+    chip.addEventListener("click", onSubfolderClick);
+    chips.append(chip);
+  }
+  return chips.children.length ? [chips] : [];
+}
+
+function folderView(folderId) {
+  const tree = libraryFolderTree();
+  const folder = tree.find((f) => f.id === folderId);
+  if (!folder) return null;
+  const matched = matching(folderTrackIds(folderId));
+  const ids = viewSongIds(VIEW.FOLDER, matched);
+  const lead = `<span class="folder-dot folder-dot-lg" style="background: ${folder.color}"></span>`;
+  const error = folderErrorEl(folderId);
+  const empty = emptyStateEl("folder", t("library.emptyFolder"), t("lib.folderEmptyHint"));
+  return [
+    viewHeadEl(folder.name, ids.length, { lead, actions: folderActions(folder) }),
+    ...(error ? [error] : []),
+    ...subfolderChips(tree, folderId),
+    ...songsBody(VIEW.FOLDER, ids, matched.length, empty),
+  ];
+}
+
+function onEmptyTrashClick(e) {
+  armEmptyTrash(e.currentTarget, e.currentTarget.querySelector("span"));
+}
+
+// The Trash lists plain rows with Restore whatever the layout.
+function trashListEl(ids) {
+  const list = document.createElement("div");
+  list.className = "browse-list";
+  list.append(...ids.map((id) => decorateSongEl(songRowEl(id, { inTrash: true }), VIEW.TRASH)).filter(Boolean));
+  return list;
+}
+
+function trashView() {
+  const ids = matching(trashTrackIds());
+  const empty = document.createElement("button");
+  empty.type = "button";
+  empty.id = "browseEmptyTrash";
+  empty.className = "browse-btn";
+  empty.disabled = !trashTrackIds().length;
+  empty.innerHTML = `${icon("trash")}<span>${esc(t("trash.empty"))}</span>`;
+  empty.addEventListener("click", onEmptyTrashClick);
+  const body = ids.length
+    ? [trashListEl(ids)]
+    : [browseState().query ? noMatchEl() : emptyStateEl("trash", t("trash.isEmptyState"), t("trash.emptyHint"))];
+  return [viewHeadEl(t("nav.trash"), ids.length, { actions: [empty] }), ...body];
+}
+
+function queueView() {
+  if (!importQueueShown()) return null;
+  const host = document.createElement("section");
+  host.id = "browseImportQueue";
+  host.className = "browse-queue";
+  return [host];
+}
+
+const VIEWS = {
+  [VIEW.ALL]: allView,
+  [VIEW.FAVORITES]: favoritesView,
+  [VIEW.RECENT]: recentView,
+  [VIEW.FOLDER]: folderView,
+  [VIEW.TRASH]: trashView,
+  [VIEW.QUEUE]: queueView,
+  [VIEW.SETLIST]: (id) => (getSetlist(id) ? drawSetlistView(id) : null),
+};
+
+const PLAY_LIST_KINDS = Object.freeze({
+  [VIEW.ALL]: LIST_KIND.ALL,
+  [VIEW.FAVORITES]: LIST_KIND.FAVORITES,
+  [VIEW.FOLDER]: LIST_KIND.FOLDER,
+  [VIEW.SETLIST]: LIST_KIND.SETLIST,
+});
+
+function markPlayList(container, view) {
+  const [kind, id] = viewParts(view);
+  const listKind = PLAY_LIST_KINDS[kind];
+  if (!listKind) {
+    delete container.dataset.playList;
+    delete container.dataset.playListId;
+    return;
+  }
+  container.dataset.playList = listKind;
+  container.dataset.playListId = id;
+}
+
+/** Draw the current view into `container`; a view that is gone falls back to All songs. Returns the view drawn. */
+export function drawBrowseResults(container) {
+  if (!container) return browseState().view;
+  const [kind, id] = viewParts();
+  let view = browseState().view;
+  let children = VIEWS[kind]?.(id) ?? null;
+  if (!children) {
+    view = VIEW.ALL;
+    children = allView();
+  }
+  container.replaceChildren(...children);
+  markPlayList(container, view);
+  const queueHost = container.querySelector("#browseImportQueue");
+  if (queueHost) renderImportQueue(queueHost);
+  return view;
+}

@@ -16,6 +16,8 @@ import {
   seedCatalogState,
   stubServerTrash,
   stubUpdateCheck,
+  openBrowse,
+  browseRow,
 } from "./helpers.mjs";
 
 /**
@@ -51,8 +53,7 @@ async function waitForSiblingImport(page) {
 
 /** Switch to the Trash view, where the list is only the trashed tracks. */
 async function openTrash(page) {
-  await page.locator(".rail-trash").click();
-  await expect(page.locator("#catalogPanel")).toHaveClass(/trash-view/);
+  await openBrowse(page, "trash");
 }
 
 test.describe("a trashed track and a sibling job with the same source", () => {
@@ -62,7 +63,7 @@ test.describe("a trashed track and a sibling job with the same source", () => {
     await waitForSiblingImport(page);
 
     await openTrash(page);
-    await expect(page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`)).toHaveCount(1);
+    await expect(browseRow(page, JOB_ID)).toHaveCount(1);
 
     // Persisted, not merely on screen. The next launch reads this back, and
     // the trash entry is the only thing that stops syncWithServer re-adopting
@@ -92,6 +93,6 @@ test.describe("a trashed track and a sibling job with the same source", () => {
 
     await expect(page.locator(`.cat-item[data-id="${JOB_ID}"]`)).toHaveCount(0);
     await openTrash(page);
-    await expect(page.locator(`#catalogList .cat-item[data-id="${JOB_ID}"]`)).toHaveCount(1);
+    await expect(browseRow(page, JOB_ID)).toHaveCount(1);
   });
 });

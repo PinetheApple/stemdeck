@@ -1,7 +1,6 @@
-// The Trash: hovering a row shows how to restore it, a click picks rows
-// (Ctrl adds one, Shift takes a range), and holding the mouse button for a
-// second restores the row, or the whole selection it belongs to. The Trash
-// icon carries a count, so a full Trash is visible from anywhere (#749).
+// The Trash: each row has a Restore button that sends the song back to the
+// library, a click on a row opens nothing, and the Trash button carries a count,
+// so a full Trash is visible from anywhere (#749).
 //
 // The server's Trash is stubbed (stubServerTrash): the real one would leave the
 // shared fixture jobs trashed for the next spec's startup sync.
@@ -10,9 +9,11 @@ import { test, expect } from "@playwright/test";
 
 import {
   JOB_ID,
+  KEY,
   SIBLING_JOB_ID,
   TRACK_TITLE,
   fixtureTrack,
+  openBrowse,
   readCatalogState,
   seedCatalogState,
   stubServerTrash,
@@ -40,31 +41,22 @@ async function seedFullTrash(page) {
 
 async function openTrash(page) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator(".rail-trash").click();
-  await expect(page.locator("#catalogPanel")).toHaveClass(/trash-view/);
+  await openBrowse(page, "trash");
   for (const id of TRASHED) await expect(trashRow(page, id)).toBeVisible();
 }
 
-const trashRow = (page, id) => page.locator(`#catalogList .cat-item.in-trash[data-id="${id}"]`);
+const trashRow = (page, id) => page.locator(`#browseResults .cat-item.in-trash[data-id="${id}"]`);
+const restoreButton = (page, id) => trashRow(page, id).locator(".cat-restore");
 const restoreCalls = (calls) => calls.filter((c) => c.action === "restore").map((c) => c.id).sort();
 
-/** Press and hold on a row for `ms`, then let go. */
-async function holdOn(page, id, ms) {
-  const box = await trashRow(page, id).boundingBox();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
-  await page.waitForTimeout(ms);
-  await page.mouse.up();
-}
-
-test.describe("the Trash icon", () => {
+test.describe("the Trash button", () => {
   test("shows how many songs are in the Trash", async ({ page }) => {
     await seedFullTrash(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
     const badge = page.locator("#trashBadge");
     await expect(badge).toBeVisible();
     await expect(badge).toHaveText("3");
-    await expect(page.locator(".rail-trash")).toHaveAttribute("aria-label", "Trash (3)");
+    await expect(page.locator("#trashBtn")).toHaveAttribute("aria-label", "Trash (3)");
   });
 
   test("shows no count when the Trash is empty", async ({ page }) => {
@@ -82,80 +74,48 @@ test.describe("the Trash icon", () => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await expect(page.locator(".cat-item").first()).toBeVisible();
     await expect(page.locator("#trashBadge")).toBeHidden();
-    await expect(page.locator(".rail-trash")).toHaveAttribute("aria-label", "Trash");
+    await expect(page.locator("#trashBtn")).toHaveAttribute("aria-label", "Trash");
+  });
+
+  test("opens Browse library at the Trash", async ({ page }) => {
+    await seedFullTrash(page);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.locator("#trashBtn").click();
+    await expect(page.locator('#browseNav [data-view="trash"]')).toHaveAttribute("aria-current", "page");
+    await expect(trashRow(page, JOB_ID)).toBeVisible();
   });
 });
 
 test.describe("a Trash row", () => {
-  test("looks like a library row at rest, and shows the hint on hover", async ({ page }) => {
+  test("looks like a library row at rest, not greyed", async ({ page }) => {
     await seedFullTrash(page);
     await openTrash(page);
-    const row = trashRow(page, JOB_ID);
-    const hint = row.locator(".trash-hint");
-    const line = row.locator(".cat-sub:not(.trash-hint)");
     await page.mouse.move(0, 0);
+    const row = trashRow(page, JOB_ID);
     await expect(row.locator(".cat-meta")).toHaveCSS("filter", "none");
-    await expect(line).toBeVisible();
-    await expect(hint).toBeHidden();
-
-    await row.hover();
-    await expect(hint).toBeVisible();
-    await expect(hint).toHaveText("Hold left click for 1 second to restore");
-    await expect(line).toBeHidden();
+    await expect(row.locator(".cat-meta")).toHaveCSS("opacity", "1");
+    await expect(row.locator(".cat-sub")).toBeVisible();
   });
 
-  test("a click selects it and does not open the song", async ({ page }) => {
+  test("names its Restore button after the song", async ({ page }) => {
+    await seedFullTrash(page);
+    await openTrash(page);
+    await expect(restoreButton(page, JOB_ID)).toHaveAttribute("aria-label", `Restore ${TRACK_TITLE}`);
+  });
+
+  test("a click opens nothing and restores nothing", async ({ page }) => {
     const calls = await seedFullTrash(page);
     await openTrash(page);
-    await trashRow(page, JOB_ID).click();
-    await expect(trashRow(page, JOB_ID)).toHaveClass(/selected/);
-    await expect(trashRow(page, JOB_ID)).toHaveAttribute("aria-selected", "true");
+    await trashRow(page, JOB_ID).locator(".cat-meta").click();
     await expect(page.locator(".app")).toHaveClass(/no-track/);
-    expect(restoreCalls(calls)).toEqual([]);
-  });
-
-  test("Ctrl+click picks several, and Ctrl+click again drops one", async ({ page }) => {
-    await seedFullTrash(page);
-    await openTrash(page);
-    await trashRow(page, JOB_ID).click();
-    await trashRow(page, THIRD_ID).click({ modifiers: ["Control"] });
-    await expect(trashRow(page, JOB_ID)).toHaveClass(/selected/);
-    await expect(trashRow(page, THIRD_ID)).toHaveClass(/selected/);
-    await expect(trashRow(page, SIBLING_JOB_ID)).not.toHaveClass(/selected/);
-
-    await trashRow(page, JOB_ID).click({ modifiers: ["Control"] });
-    await expect(trashRow(page, JOB_ID)).not.toHaveClass(/selected/);
-    await expect(trashRow(page, THIRD_ID)).toHaveClass(/selected/);
-  });
-
-  test("Shift+click picks the range from the last row picked", async ({ page }) => {
-    await seedFullTrash(page);
-    await openTrash(page);
-    const order = await page.locator("#catalogList .cat-item.in-trash").evaluateAll((els) => els.map((e) => e.dataset.id));
-    await trashRow(page, order[0]).click();
-    await trashRow(page, order[2]).click({ modifiers: ["Shift"] });
-    for (const id of order) await expect(trashRow(page, id)).toHaveClass(/selected/);
-
-    // A plain click starts over with that row alone.
-    await trashRow(page, order[1]).click();
-    await expect(trashRow(page, order[1])).toHaveClass(/selected/);
-    await expect(trashRow(page, order[0])).not.toHaveClass(/selected/);
-    await expect(trashRow(page, order[2])).not.toHaveClass(/selected/);
-  });
-
-  test("let go before a second and nothing is restored", async ({ page }) => {
-    const calls = await seedFullTrash(page);
-    await openTrash(page);
-    await holdOn(page, JOB_ID, 400);
-    await page.waitForTimeout(900);
     await expect(trashRow(page, JOB_ID)).toBeVisible();
     expect(restoreCalls(calls)).toEqual([]);
   });
 
-  test("held for a second, it leaves the Trash for the library", async ({ page }) => {
+  test("Restore sends the song back to the library", async ({ page }) => {
     const calls = await seedFullTrash(page);
     await openTrash(page);
-    await holdOn(page, JOB_ID, 1300);
+    await restoreButton(page, JOB_ID).click();
     await expect(trashRow(page, JOB_ID)).toHaveCount(0);
     await expect(trashRow(page, SIBLING_JOB_ID)).toBeVisible();
     await expect.poll(() => restoreCalls(calls)).toEqual([JOB_ID]);
@@ -166,68 +126,13 @@ test.describe("a Trash row", () => {
     expect(state.folders.find((f) => f.id === "f-unsorted").items).toContain(JOB_ID);
   });
 
-  test("held on a selected row, the whole selection is restored", async ({ page }) => {
-    const calls = await seedFullTrash(page);
-    await openTrash(page);
-    await trashRow(page, JOB_ID).click();
-    await trashRow(page, THIRD_ID).click({ modifiers: ["Control"] });
-    await holdOn(page, THIRD_ID, 1300);
-    await expect(trashRow(page, JOB_ID)).toHaveCount(0);
-    await expect(trashRow(page, THIRD_ID)).toHaveCount(0);
-    await expect(trashRow(page, SIBLING_JOB_ID)).toBeVisible();
-    await expect.poll(() => restoreCalls(calls)).toEqual([JOB_ID, THIRD_ID].sort());
-    await expect(page.locator("#trashBadge")).toHaveText("1");
-  });
-
-  test("held on a selected row, every selected row shows the fill, and letting go clears it", async ({ page }) => {
-    await seedFullTrash(page);
-    await openTrash(page);
-    await trashRow(page, JOB_ID).click();
-    await trashRow(page, THIRD_ID).click({ modifiers: ["Control"] });
-    const box = await trashRow(page, THIRD_ID).boundingBox();
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down();
-    await expect(trashRow(page, JOB_ID)).toHaveClass(/holding/);
-    await expect(trashRow(page, THIRD_ID)).toHaveClass(/holding/);
-    await expect(trashRow(page, SIBLING_JOB_ID)).not.toHaveClass(/holding/);
-    await page.mouse.up();
-    await expect(trashRow(page, JOB_ID)).not.toHaveClass(/holding/);
-    await expect(trashRow(page, THIRD_ID)).not.toHaveClass(/holding/);
-  });
-
-  test("held on a row outside the selection, only that row shows the fill", async ({ page }) => {
-    await seedFullTrash(page);
-    await openTrash(page);
-    await trashRow(page, JOB_ID).click();
-    await trashRow(page, THIRD_ID).click({ modifiers: ["Control"] });
-    const box = await trashRow(page, SIBLING_JOB_ID).boundingBox();
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down();
-    await expect(trashRow(page, SIBLING_JOB_ID)).toHaveClass(/holding/);
-    await expect(trashRow(page, JOB_ID)).not.toHaveClass(/holding/);
-    await expect(trashRow(page, THIRD_ID)).not.toHaveClass(/holding/);
-    await page.mouse.up();
-  });
-
-  test("held on a row outside the selection, only that row is restored", async ({ page }) => {
-    const calls = await seedFullTrash(page);
-    await openTrash(page);
-    await trashRow(page, JOB_ID).click();
-    await trashRow(page, THIRD_ID).click({ modifiers: ["Control"] });
-    await holdOn(page, SIBLING_JOB_ID, 1300);
-    await expect(trashRow(page, SIBLING_JOB_ID)).toHaveCount(0);
-    await expect(trashRow(page, JOB_ID)).toBeVisible();
-    await expect(trashRow(page, THIRD_ID)).toBeVisible();
-    await expect.poll(() => restoreCalls(calls)).toEqual([SIBLING_JOB_ID]);
-  });
-
-  test("holding Enter on a focused row restores it too", async ({ page }) => {
+  test("Restore reached by keyboard restores the row too", async ({ page }) => {
     const calls = await seedFullTrash(page);
     await openTrash(page);
     await trashRow(page, JOB_ID).focus();
-    await page.keyboard.down("Enter");
-    await page.waitForTimeout(1300);
-    await page.keyboard.up("Enter");
+    await page.keyboard.press("ArrowRight");
+    await expect(restoreButton(page, JOB_ID)).toBeFocused();
+    await page.keyboard.press(KEY.ENTER);
     await expect(trashRow(page, JOB_ID)).toHaveCount(0);
     await expect.poll(() => restoreCalls(calls)).toEqual([JOB_ID]);
   });

@@ -1,8 +1,9 @@
-// Renaming a section is double-click, type, Enter. It had no browser test at
-// all, which is how adding a click gesture to the same element could break it
-// without anything going red.
+// Renaming a section: double-click it, type in Edit section, Enter. Esc leaves
+// the name alone, and a locked section keeps its name until it is unlocked.
 import { test, expect } from "@playwright/test";
-import { openStudio, JOB_ID } from "./helpers.mjs";
+import { openStudio, sectionEditDialog, JOB_ID } from "./helpers.mjs";
+
+const VERSE = { id: "s1", name: "Verse", start: 1, end: 3, color: "#4a7fff" };
 
 test.afterEach(async ({ page }) => {
   await page.request.patch(`/api/jobs/${JOB_ID}/sections`, { data: { sections: [] } });
@@ -18,72 +19,68 @@ const savedSections = async (page) => {
   return (await res.json()).sections ?? [];
 };
 
+const label = (page) => page.locator('.section-block[data-id="s1"] .section-label');
+const nameField = (page) => page.locator("#sectionEditName");
+
 test.describe("renaming a section", () => {
-  test("double-clicking the label opens an input that keeps focus", async ({ page }) => {
-    await seed(page, [{ id: "s1", name: "Verse", start: 1, end: 3, color: "#4a7fff" }]);
+  test("a double-click opens Edit section with the name focused, and it stays focused", async ({ page }) => {
+    await seed(page, [VERSE]);
     await openStudio(page);
 
-    await page.locator('.section-block[data-id="s1"] .section-label').dblclick();
+    await label(page).dblclick();
 
-    // The input must still be there a moment later. If anything steals focus,
-    // the blur handler commits and re-renders, and the field vanishes as fast
-    // as it appeared, which reads as "renaming does not work".
-    const input = page.locator(".section-rename-input");
-    await expect(input).toBeVisible();
+    await expect(sectionEditDialog(page)).toBeVisible();
+    await expect(nameField(page)).toHaveValue("Verse");
     await page.waitForTimeout(250);
-    await expect(input).toBeVisible();
-    await expect(input).toBeFocused();
+    await expect(nameField(page)).toBeFocused();
   });
 
-  test("typing a new name and pressing Enter saves it", async ({ page }) => {
-    await seed(page, [{ id: "s1", name: "Verse", start: 1, end: 3, color: "#4a7fff" }]);
+  test("typing a new name and pressing Enter saves it, and drops the detected kind", async ({ page }) => {
+    await seed(page, [{ ...VERSE, kind: "verse" }]);
     await openStudio(page);
 
-    await page.locator('.section-block[data-id="s1"] .section-label').dblclick();
-    await page.locator(".section-rename-input").fill("Chorus");
-    await page.locator(".section-rename-input").press("Enter");
+    await label(page).dblclick();
+    await nameField(page).fill("Hook");
+    await nameField(page).press("Enter");
 
-    await expect(page.locator('.section-block[data-id="s1"] .section-label')).toHaveText("Chorus");
-    await expect.poll(async () => (await savedSections(page))[0]?.name).toBe("Chorus");
+    await expect(sectionEditDialog(page)).toBeHidden();
+    await expect(label(page)).toHaveText("Hook");
+    await expect.poll(async () => (await savedSections(page))[0]?.name).toBe("Hook");
+    expect((await savedSections(page))[0].kind ?? null).toBe(null);
   });
 
-  test("a locked section refuses to open a rename field", async ({ page }) => {
-    await seed(page, [
-      { id: "s1", name: "Verse", start: 1, end: 3, color: "#4a7fff", locked: true },
-    ]);
+  test("a locked section's name cannot be edited", async ({ page }) => {
+    await seed(page, [{ ...VERSE, locked: true }]);
     await openStudio(page);
 
-    await page.locator('.section-block[data-id="s1"] .section-label').dblclick();
+    await label(page).dblclick();
 
-    await expect(page.locator(".section-rename-input")).toHaveCount(0);
-    await expect(page.locator('.section-block[data-id="s1"] .section-label')).toHaveText("Verse");
+    await expect(nameField(page)).toBeDisabled();
+    await expect(page.locator("#sectionEditLock")).toHaveAttribute("aria-pressed", "true");
   });
 
   test("unlocking restores renaming", async ({ page }) => {
-    await seed(page, [
-      { id: "s1", name: "Verse", start: 1, end: 3, color: "#4a7fff", locked: true },
-    ]);
+    await seed(page, [{ ...VERSE, locked: true }]);
     await openStudio(page);
 
-    // A locked padlock is visible at rest, so no hover is needed here.
-    await page.locator('.section-block[data-id="s1"] .section-lock').click();
-    await expect(page.locator('.section-block[data-id="s1"]')).not.toHaveClass(/sec-locked/);
-
-    await page.locator('.section-block[data-id="s1"] .section-label').dblclick();
-    await page.locator(".section-rename-input").fill("Bridge");
-    await page.locator(".section-rename-input").press("Enter");
+    await label(page).dblclick();
+    await page.locator("#sectionEditLock").click();
+    await nameField(page).fill("Bridge");
+    await nameField(page).press("Enter");
 
     await expect.poll(async () => (await savedSections(page))[0]?.name).toBe("Bridge");
+    expect((await savedSections(page))[0].locked).toBe(false);
   });
 
   test("Escape leaves the original name alone", async ({ page }) => {
-    await seed(page, [{ id: "s1", name: "Verse", start: 1, end: 3, color: "#4a7fff" }]);
+    await seed(page, [VERSE]);
     await openStudio(page);
 
-    await page.locator('.section-block[data-id="s1"] .section-label').dblclick();
-    await page.locator(".section-rename-input").fill("Discarded");
-    await page.locator(".section-rename-input").press("Escape");
+    await label(page).dblclick();
+    await nameField(page).fill("Discarded");
+    await nameField(page).press("Escape");
 
-    await expect(page.locator('.section-block[data-id="s1"] .section-label')).toHaveText("Verse");
+    await expect(sectionEditDialog(page)).toBeHidden();
+    await expect(label(page)).toHaveText("Verse");
   });
 });
