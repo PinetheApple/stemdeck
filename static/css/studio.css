@@ -374,17 +374,19 @@
 @container song-head (max-width: 1000px) {
   #songHead #nowPlayingPanel .track-panel-head { gap: var(--s-2); }
   #songHead #nowPlayingPanel .track-panel-head :is(.daw-fav-btn, .daw-details-btn) { width: var(--ctl-h-sm); }
-  #songHead #t-export-btn { width: var(--ctl-h); padding: 0; justify-content: center; }
-  #songHead #t-export-btn .export-caret { display: none; }
-  /* Clipped rather than display: none, so each stays the accessible name. */
-  #songHead .daw-panel-toggles-label,
-  #songHead #t-export-btn .export-btn-label {
+  /* Clipped rather than display: none, so it stays the Collapse group's name. */
+  #songHead .daw-panel-toggles-label {
     position: absolute;
     width: 1px;
     height: 1px;
     overflow: hidden;
     clip-path: inset(50%);
   }
+}
+/* Export keeps its icon; its title stays the name and the tooltip. */
+@container song-head (max-width: 900px) {
+  #songHead #t-export-btn { width: var(--ctl-h); padding: 0; justify-content: center; }
+  #songHead #t-export-btn :is(.export-btn-label, .export-caret) { display: none; }
 }
 @container song-head (max-width: 760px) {
   #songHead #nowPlayingPanel .track-panel-head,

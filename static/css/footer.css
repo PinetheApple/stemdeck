@@ -361,7 +361,7 @@ button.ft-now:hover { background: var(--surface-2); }
 .ft-step.is-on .ft-pop-key-value { color: var(--accent-hi); }
 .ft-pop-key-name { margin-left: auto; font-size: var(--fs-sm); color: var(--text-3); }
 
-/* 1500px is where the stem column narrows (variables.css), so Stage and its panels move with it; keep all four together. */
+/* Matches the stem column's 1500px step; the four 1500px queries move together. */
 @media (max-width: 1500px) {
   .ft { --ft-seg-min-w: 56px; --ft-seek-w: 280px; gap: var(--s-3); }
   .ft-seg-main { padding: 0 var(--s-2); }

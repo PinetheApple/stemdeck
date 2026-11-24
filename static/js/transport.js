@@ -1034,7 +1034,7 @@ export function wireTransportButtons() {
   wireSpeedControl();
   wireMetronomeControl();
   wirePitchControl();
-  initFooterPractice({ stepSpeed, toggleSlowSpeed, resetAllKeys, stepKey });
+  initFooterPractice({ stepSpeed, toggleSlowSpeed, resetAllKeys, stepKey, paintKey: renderPitch });
   initFooterClick({ toggleMetronome });
 }
 
@@ -1123,15 +1123,13 @@ const PITCH_MAX = 6;
 let _pitchSemitones = 0;
 let _pitchAvailable = false;
 
-const signedSemitones = () => (_pitchSemitones > 0 ? `+${_pitchSemitones}` : String(_pitchSemitones));
+// Signed, so "+2" and "-2" are distinguishable at a glance; bare "0" for
+// the default rather than a redundant "+0".
+const signedSemitones = (semitones) => (semitones > 0 ? `+${semitones}` : String(semitones));
 
 /** Redraw the global key readout and its buttons. Touches no lane. */
 function renderPitch() {
-  if (pitchValueEl) {
-    // Signed, so "+2" and "-2" are distinguishable at a glance; bare "0" for
-    // the default rather than a redundant "+0".
-    pitchValueEl.textContent = signedSemitones();
-  }
+  if (pitchValueEl) pitchValueEl.textContent = signedSemitones(_pitchSemitones);
   pitchWrap?.classList.toggle(ON_CLASS, _pitchSemitones !== 0);
   // A stepper that silently stops responding reads as broken, so say which end
   // has been reached rather than only going inert.
@@ -1155,7 +1153,7 @@ function renderPitch() {
     speedFader.dataset.i18nTitle = _pitchAvailable ? "speed.faderTitle" : "speed.pitchFollows";
     speedFader.title = t(speedFader.dataset.i18nTitle);
   }
-  paintKeyPanel({ semitones: _pitchSemitones, label: signedSemitones(), canDown, canUp });
+  paintKeyPanel({ semitones: _pitchSemitones, label: signedSemitones(_pitchSemitones), canDown, canUp });
 }
 
 /**

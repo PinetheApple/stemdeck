@@ -107,6 +107,14 @@ test("Key's panel steps the key and names the key that gives", async ({ page }) 
   await expect(page.locator("#t-key-panel")).toBeVisible();
 });
 
+test("Key's panel names the key in the current language when it opens", async ({ page }) => {
+  await openStudio(page);
+  await expect(page.locator("#t-pitch-up")).toBeEnabled({ timeout: 20000 });
+  await page.evaluate(async () => (await import("/js/i18n.js")).setLanguage("de"));
+  await openKeyOptions(page);
+  await expect(page.locator("#t-key-panel-name")).toHaveText("C Dur");
+});
+
 test("Loop's options hold the exact start and end fields, and typing in them arms the loop", async ({ page }) => {
   await openStudio(page);
   await expect(page.locator("#t-loop-start")).toBeHidden();
