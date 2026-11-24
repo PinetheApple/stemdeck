@@ -1,14 +1,9 @@
-// Every dialog has one look and one behaviour: the page dims behind it, Esc or a
-// press outside closes it, and focus goes back to what opened it. A dialog opened
-// from Settings closes back to Settings.
-
 import { test, expect } from "@playwright/test";
 import { KEY, openStudio, settleRoutes } from "./helpers.mjs";
 import { openSettings } from "./settingsHelpers.mjs";
 
 test.afterEach(settleRoutes);
 
-/** Scrim and card look of the dialog whose scrim matches `scrim`. */
 function dialogLook(page, scrim, card) {
   return page.evaluate(
     ([scrimSel, cardSel]) => {
@@ -107,4 +102,32 @@ test("openSettings(tab) lands on that tab, and Esc there closes Settings", async
   await expect(page.locator('.settings-pane[data-pane="details"]')).toBeVisible();
   await page.keyboard.press(KEY.ESCAPE);
   await expect(page.locator(".library-editor")).toHaveCount(0);
+});
+
+test("a confirm card has the shared head row, and its close button answers no", async ({ page }) => {
+  await openStudio(page);
+  const answer = page.evaluate((options) => import("/js/confirmDialog.js").then((m) => m.confirmDialog(options)), CONFIRM);
+  const head = page.locator(".reset-confirm-card .dialog-head");
+  await expect(head.locator(".dialog-title")).toHaveText(CONFIRM.title);
+  const close = head.locator(".dialog-close");
+  await expect(close).toHaveAttribute("aria-label", /\S/);
+  await close.click();
+  await expect(page.locator(".reset-confirm-card")).toHaveCount(0);
+  expect(await answer).toBe(false);
+});
+
+test("Esc closes a confirm card opened from Settings, and only it, back to Settings", async ({ page }) => {
+  await openStudio(page);
+  await openSettings(page);
+  const tab = page.locator('.settings-tab[data-tab="general"]');
+  await expect(tab).toBeFocused();
+  await page.evaluate((options) => {
+    import("/js/confirmDialog.js").then((m) => m.confirmDialog(options));
+  }, CONFIRM);
+  await expect(page.locator(".reset-confirm-card")).toBeVisible();
+
+  await page.keyboard.press(KEY.ESCAPE);
+  await expect(page.locator(".reset-confirm-card")).toHaveCount(0);
+  await expect(page.locator(".library-editor")).toBeVisible();
+  await expect(tab).toBeFocused();
 });
