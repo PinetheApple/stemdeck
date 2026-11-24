@@ -92,13 +92,6 @@ export function wirePicking(container, { viewKind, onPicksChange }) {
     }
   }
 
-  // Shift+click would otherwise select the text between the two rows.
-  function onRangeMousedown(e) {
-    if (selection.picking && e.shiftKey && pickRowOf(e)) e.preventDefault();
-  }
-
   container.addEventListener("click", onPickClick, true);
   container.addEventListener("dblclick", onPickingDoubleClick, true);
-  container.addEventListener("keydown", onPickingKeydown, true);
-  container.addEventListener("mousedown", onRangeMousedown, true);
-}
+  container.addEventListener("keydown", onPickingKeydown, true);}

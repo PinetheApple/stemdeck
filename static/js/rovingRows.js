@@ -94,7 +94,7 @@ function wireRowSelection({ selectableRow, rowOf, allRows, keyOf }) {
 
 function wireRowOpening(container, { selectableRowOf, openRow, showRow, focusRow }) {
   function onRowSingleClick(e) {
-    if (!showRow || e.detail >= SECOND_CLICK) return;
+    if (!showRow || e.detail >= SECOND_CLICK || e.altKey) return;
     const row = selectableRowOf(e.target);
     if (row && !e.target.closest(NOT_THE_ROW)) showRow(row);
   }
@@ -123,13 +123,25 @@ function wireRowOpening(container, { selectableRowOf, openRow, showRow, focusRow
   container.addEventListener("click", onRowSingleClick);
 }
 
+// Shift+click would otherwise select the text between the last click and this row.
+function wireShiftClick(container, { rowOf, focusRow }) {
+  function onRowShiftMousedown(e) {
+    const row = e.shiftKey ? rowOf(e.target) : null;
+    if (!row || e.target.closest(NOT_THE_ROW)) return;
+    e.preventDefault();
+    focusRow(row, ON_ROW, { preventScroll: true, focusVisible: false });
+  }
+
+  container.addEventListener("mousedown", onRowShiftMousedown);
+}
+
 /**
  * Make `container` one Tab stop over the rows matching `rowSelector`.
  * `keyOf(row)` names a row across redraws; `openRow(row)` is what Enter does;
  * `preferredRow(rows)` picks the stop among `rows` when none was focused yet.
  * Rows matching `selectableRow` wear SELECTED_ROW_CLASS while they are the row
  * last focused, and open on a double-click or a click on their ROW_PLAY_CLASS button.
- * `showRow(row)`, when given, is what a plain single click on a selectable row does.
+ * `showRow(row)`, when given, is what a single click on a selectable row does.
  * Call `remember()` before a redraw and `restore(saved)` after it, or `refresh()`
  * when rows were shown or hidden without one. `isKeyboardFocus()` says whether the
  * focus in the list is the keyboard's rather than a click's or a tap's.
@@ -163,6 +175,7 @@ export function wireRovingRows(
 
   const { select, paintSelection, selectableRowOf } = wireRowSelection({ selectableRow, rowOf, allRows, keyOf });
   wireRowOpening(container, { selectableRowOf, openRow, showRow, focusRow });
+  wireShiftClick(container, { rowOf, focusRow });
 
   function onRowFocus(e) {
     arrivedByKeyboard = e.target.matches(KEYBOARD_FOCUS);

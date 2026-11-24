@@ -331,18 +331,55 @@ async function expectNotPicking(page) {
   await expect(page.locator(`${BROWSE_RESULTS} .is-picked`)).toHaveCount(0);
 }
 
+const sidebarRow = (page, song) => page.locator(`#catalogList .cat-item[data-id="${song.id}"]`);
+const selectedText = (page) => page.evaluate(() => window.getSelection().toString());
+const ALT_SETTLE_MS = 500;
+
+async function clickSong(songRow, modifiers = []) {
+  await songRow.locator(".cat-title").click({ modifiers });
+}
+
 for (const modifier of ["ControlOrMeta", "Shift"]) {
   test(`outside Select, a ${modifier} click shows the song as a plain click does`, async ({ page }) => {
     await openSongs(page);
-    await pick(page, ALPHA);
+    await clickSong(row(page, ALPHA));
     await expect(row(page, ALPHA)).toHaveClass(SELECTED);
     await expect(row(page, ALPHA)).toHaveClass(ACTIVE);
-    await pick(page, BRAVO, [modifier]);
+    await clickSong(row(page, BRAVO), [modifier]);
     await expect(row(page, BRAVO)).toHaveClass(SELECTED);
     await expect(row(page, BRAVO)).toHaveClass(ACTIVE);
     await expectNotPicking(page);
   });
+
+  test(`in the sidebar, a ${modifier} click shows the song as a plain click does`, async ({ page }) => {
+    await openSongs(page);
+    await page.keyboard.press(KEY.ESCAPE);
+    await clickSong(sidebarRow(page, ALPHA));
+    await expect(sidebarRow(page, ALPHA)).toHaveClass(ACTIVE);
+    await clickSong(sidebarRow(page, BRAVO), [modifier]);
+    await expect(sidebarRow(page, BRAVO)).toHaveClass(SELECTED);
+    await expect(sidebarRow(page, BRAVO)).toHaveClass(ACTIVE);
+  });
 }
+
+test("in the Trash, a Shift click outside Select selects no text", async ({ page }) => {
+  await openSongs(page, { trashed: idsOf(ALPHA, BRAVO, CHARLIE), view: "trash" });
+  await clickSong(row(page, ALPHA));
+  await clickSong(row(page, CHARLIE), ["Shift"]);
+  await expect(row(page, CHARLIE)).toBeFocused();
+  expect(await selectedText(page)).toBe("");
+  await expectNotPicking(page);
+});
+
+test("an Alt click on a row shows nothing", async ({ page }) => {
+  await openSongs(page);
+  await clickSong(row(page, ALPHA));
+  await expect(row(page, ALPHA)).toHaveClass(ACTIVE);
+  await clickSong(row(page, BRAVO), ["Alt"]);
+  await page.waitForTimeout(ALT_SETTLE_MS);
+  await expect(row(page, ALPHA)).toHaveClass(ACTIVE);
+  await expect(row(page, BRAVO)).not.toHaveClass(ACTIVE);
+});
 
 test("outside Select, Space on a row picks nothing", async ({ page }) => {
   await openSongs(page);
