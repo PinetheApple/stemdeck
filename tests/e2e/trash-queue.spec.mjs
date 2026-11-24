@@ -114,27 +114,24 @@ test("trashing an import that is still running refreshes the queue at once", asy
   await expect(page.locator(".lib-nav-queue")).toHaveClass(/(^| )hidden( |$)/);
 });
 
-test("the queue button is named by the label it shows, in every language", async ({ page }) => {
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+test("the queue buttons are named by the label they show, in every language", async ({ page }) => {
   await seedRunningImport(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".lib-nav-queue")).toBeVisible();
+  const button = page.locator(".lib-nav-queue");
+  const strip = page.locator(".strip-nav-queue");
+  await expect(button).toBeVisible();
+  const codes = await page.evaluate(async () => (await import("/js/i18n.js")).LANGUAGES.map(({ code }) => code));
 
   // Speech-input users say the label they see; the name has to start with it.
-  const mismatches = await page.evaluate(async () => {
-    const { LANGUAGES, setLanguage } = await import("/js/i18n.js");
-    const btn = document.querySelector(".lib-nav-queue");
-    const found = [];
-    for (const { code } of LANGUAGES) {
-      await setLanguage(code);
-      const label = btn.querySelector("[data-i18n]").textContent.trim();
-      for (const attr of ["aria-label", "title"]) {
-        const name = btn.getAttribute(attr);
-        // A button with no aria-label is named by the label it shows.
-        if (attr === "aria-label" && name === null) continue;
-        if (!name.startsWith(label)) found.push(`${code} ${attr}: "${name}" vs "${label}"`);
-      }
-    }
-    return found;
-  });
-  expect(mismatches).toEqual([]);
+  for (const code of codes) {
+    await page.evaluate(async (c) => (await import("/js/i18n.js")).setLanguage(c), code);
+    const label = (await button.locator("[data-i18n]").textContent()).trim();
+    const startsWithLabel = new RegExp(`^${escapeRegExp(label)}`);
+    await expect(button, code).toHaveAccessibleName(startsWithLabel);
+    await expect(button, code).toHaveAttribute("title", startsWithLabel);
+    await expect(strip, code).toHaveAttribute("aria-label", startsWithLabel);
+    await expect(strip, code).toHaveAttribute("title", startsWithLabel);
+  }
 });

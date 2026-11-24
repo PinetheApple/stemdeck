@@ -18,7 +18,7 @@ const WIDE_WINDOW = { width: 1600, height: 900 };
 const SMALL_WINDOW = { width: 1280, height: 720 };
 // The song tools give way first, down to their minimum.
 const SMALL_WINDOW_INSPECTOR = PANE_LIMITS.tools.min;
-const NO_ROOM_WINDOW = { width: 1024, height: 800 };
+const TOOLS_OPEN_SQUEEZE_WINDOW = { width: 1024, height: 800 };
 const TAB_LIMIT = 100;
 const PAST_ARROW_KEY_SAVE_MS = 500;
 
@@ -63,7 +63,7 @@ async function dragHandle(page, dx) {
 
 // The song tools step aside here; kept open, they leave the library no room, and reopening it is the user's call.
 async function openWithNoRoom(page) {
-  await page.setViewportSize(NO_ROOM_WINDOW);
+  await page.setViewportSize(TOOLS_OPEN_SQUEEZE_WINDOW);
   await openStudio(page);
   await showSongTools(page);
   await expect(page.locator(".app")).toHaveClass(/cat-collapsed/);
