@@ -108,11 +108,11 @@ let _loadTrackToken = 0;
 // Imports submitted from the form, mapped to the load token at that moment. A
 // finished one opens in the studio only if nothing has been opened since (#747).
 const _autoOpenTokens = new Map();
-let catalogView = LIBRARY_VIEW;
 export const LYRICS_VIEW = "lyrics";
 /** Fired on document with { view } when the sidebar switches between its song list and Lyrics. */
 export const CATALOG_VIEW_EVENT = "catalogviewchange";
 const LIBRARY_VIEW = "library";
+let catalogView = LIBRARY_VIEW;
 // Each list drawn from the library (sidebar, Browse library) redraws through these.
 const libraryDrawers = new Set();
 

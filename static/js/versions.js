@@ -37,7 +37,8 @@ const FAILURE_KEYS = {
 const PILL_ID = "npVersionBtn";
 const SUBLINE_CLASS = "np-subline";
 const ROW_SELECTOR = ".cat-version";
-const SONG_ROW_SELECTOR = `${IN_SONG_LISTS} .cat-item.has-versions`;
+// Built on use: libraryRows.js is part of an import cycle with this module.
+const songRowSelector = () => `${IN_SONG_LISTS} .cat-item.has-versions`;
 
 export function esc(text) {
   const span = document.createElement("span");
@@ -230,7 +231,7 @@ export function paintOpenVersion(openTrackId) {
     const track = getLibraryTrack(row.dataset.id);
     row.classList.toggle("active", row.dataset.id === openTrackId && openVersionOf(track)?.id === row.dataset.version);
   }
-  for (const row of document.querySelectorAll(SONG_ROW_SELECTOR)) {
+  for (const row of document.querySelectorAll(songRowSelector())) {
     const isOpen = row.dataset.id === openTrackId;
     const groupShown = row.nextElementSibling?.matches(".cat-versions:not([hidden])") ?? false;
     row.classList.toggle("active", isOpen && !groupShown);

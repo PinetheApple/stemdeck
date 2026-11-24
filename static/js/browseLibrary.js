@@ -13,17 +13,9 @@ import { drawBrowseNav, paintCurrentView, wireBrowseNav } from "./browseNav.js";
 import { drawBrowseResults } from "./browseViews.js";
 import { drawTagChips, wireBrowseSearch } from "./browseSearch.js";
 import { openSetlistRename } from "./setlistRenameDialog.js";
+import { LAYOUT, VIEW } from "./browseViewNames.js";
 
-export const VIEW = Object.freeze({
-  ALL: "all",
-  FAVORITES: "fav",
-  RECENT: "recent",
-  QUEUE: "queue",
-  TRASH: "trash",
-  FOLDER: "folder",
-  SETLIST: "setlist",
-});
-export const LAYOUT = Object.freeze({ GRID: "grid", LIST: "list" });
+export { VIEW, LAYOUT };
 const LAYOUT_KEY = "stemdeck.browse.layout";
 const OPEN_CLASS = "browse-open";
 
