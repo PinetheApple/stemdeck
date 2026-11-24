@@ -76,6 +76,12 @@ import { createLaneEqMark } from "./eq/eqLaneMark.js";
 
 /** Fired on document once a song's engine is up and playable. */
 export const PLAYBACK_READY_EVENT = "playbackready";
+/** Fired on document with { id, playing } when the song in the player starts or stops. */
+export const PLAYSTATE_EVENT = "playstate";
+
+export function announcePlayState(playing) {
+  document.dispatchEvent(new CustomEvent(PLAYSTATE_EVENT, { detail: { id: currentJobId, playing } }));
+}
 
 // Playback-engine selection. All engines play decoded AudioBuffers off a single
 // AudioContext clock (no N streaming <audio> elements — that was the source of
@@ -933,6 +939,7 @@ export function destroyPlayer() {
   resetFollowing();
   paintLoopButton();
   playBtn.classList.remove("playing");
+  announcePlayState(false);
   stopBtn.classList.remove("stopped");
   loopRegionEl.classList.add("hidden");
   _songPeaks = null;
@@ -1146,6 +1153,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
     setAudioEngine(null);
   }
   playBtn.classList.remove("playing");
+  announcePlayState(false);
   stopBtn.classList.remove("stopped");
   resetPitch();
   updatePitchAvailability(false);
@@ -1489,11 +1497,13 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
     });
     ws.on("play", () => {
       playBtn.classList.add("playing");
+      announcePlayState(true);
       stopBtn.classList.remove("stopped");
       applyMix();
     });
     ws.on("pause", () => {
       playBtn.classList.remove("playing");
+      announcePlayState(false);
       updateStopVisual();
     });
     ws.on("seeking", updateStopVisual);
@@ -1521,6 +1531,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
       teardownMetronome();
       const onEnded = () => {
         playBtn.classList.remove("playing");
+        announcePlayState(false);
         updateStopVisual();
         document.dispatchEvent(new CustomEvent("trackended", { detail: { id: jobId } }));
       };
