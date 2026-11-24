@@ -139,6 +139,7 @@ function drawBar(scope) {
     ...BULK_ACTIONS[scope].map(actionButton),
     barButton(DONE, t(SELECT_DONE_LABEL_KEY), { className: "browse-btn-accent" }),
   );
+  bar.setAttribute("aria-label", t("libSort.select"));
   bar.dataset.drawn = drawnKey(scope);
 }
 
