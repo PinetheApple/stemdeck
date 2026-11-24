@@ -254,7 +254,9 @@ function frame() {
 }
 
 function paintTakeSolos() {
-  for (const row of mixerEl.querySelectorAll(TRACK_ROW_SELECTOR)) paintTrackSolo(row, takeMixEntry(row.dataset.recTrack).soloed);
+  for (const row of mixerEl.querySelectorAll(TRACK_ROW_SELECTOR)) {
+    paintTrackSolo(row, takeMixEntry(row.dataset.recTrack).soloed);
+  }
 }
 
 function init() {

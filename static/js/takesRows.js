@@ -112,7 +112,8 @@ function toggles(view, mix, armed, on) {
   const arm = button("rec-arm mx-btn", { label: t("rec.arm", { name: view.name }) });
   arm.setAttribute("aria-pressed", String(armed));
   arm.addEventListener("click", function onArmClick() { on.arm(view.id); });
-  const mute = button(`lane-icon-toggle mx-btn mute${mix.muted ? "" : " active"}`, { text: "M" });
+  const mute = button("lane-icon-toggle mx-btn mute", { text: "M" });
+  mute.classList.toggle(ACTIVE_CLASS, !mix.muted);
   mute.setAttribute("aria-label", t("aria.mute", { name: view.name }));
   mute.setAttribute("aria-pressed", String(mix.muted));
   mute.addEventListener("click", function onTakeMuteClick() { on.mute(view.id); });
