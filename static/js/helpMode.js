@@ -81,6 +81,8 @@ const HELP = [
   [".mx-btn.mute", "help.mute", laneName],
   [".mx-btn.solo", "help.solo", laneName],
   [".lane-dl", "help.download", laneName],
+  [".lane-name", "studio.lane.helpName", laneName],
+  [".lane-more", "studio.lane.helpMore", laneName],
   ['.daw-meta-card[data-meta="key"]', "help.meta.key"],
   ['.daw-meta-card[data-meta="bpm"]', "help.meta.bpm"],
   ['.daw-meta-card[data-meta="lufs"]', "help.meta.lufs"],
