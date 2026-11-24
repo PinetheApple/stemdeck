@@ -5,8 +5,8 @@
 // job list, each job's state, the retry route and new imports.
 import { test, expect } from "@playwright/test";
 import {
-  JOB_ID, SIBLING_JOB_ID, TRACK_TITLE, SIBLING_TITLE, JOB_LIST_URL, fixtureTrack, openInspectorTab,
-  openStudio, seedCatalogState, stubUpdateCheck, uiText,
+  BROWSE_RESULTS, JOB_ID, SIBLING_JOB_ID, TRACK_TITLE, SIBLING_TITLE, JOB_LIST_URL, browseRow, fixtureTrack,
+  openBrowse, openInspectorTab, openStudio, seedCatalogState, stubUpdateCheck, uiText,
 } from "./helpers.mjs";
 import { ROW_KEY } from "../../static/js/rovingRows.js";
 
@@ -27,6 +27,7 @@ const STEMS_FOLDER_MOVING_DETAIL = "Restart StemDeck to finish moving your stems
 const RETRY_URL = /\/api\/jobs\/(e2e0fa11ed0[0-9])\/retry$/;
 const FAILED_STATE_URL = /\/api\/jobs\/e2e0fa11ed0[0-9]$/;
 const NEW_IMPORT_URL = /\/api\/jobs$/;
+const FULL_ROW_SHARE = 0.9;
 
 const FAILED = {
   [LINK_FAILED]: {
@@ -84,6 +85,7 @@ async function openFailedLibrary(page, { retry = 200, retryDetail = "stubbed", r
   await stubUpdateCheck(page);
   await stubFailedServer(page, server);
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  await openBrowse(page, "all");
   await expect(row(page, LINK_FAILED)).toBeVisible();
   return server;
 }
@@ -111,10 +113,10 @@ async function stubFailedServer(page, server) {
   });
 }
 
-const row = (page, id) => page.locator(`#catalogList .cat-item[data-id="${id}"]`);
+const row = browseRow;
 const panel = (page, id) => row(page, id).locator(".import-fail-panel");
 const libraryRowIds = (page) =>
-  page.locator("#catalogList .cat-item").evaluateAll((rows) => rows.map((r) => r.dataset.id));
+  page.locator(`${BROWSE_RESULTS} .cat-item`).evaluateAll((rows) => rows.map((r) => r.dataset.id));
 
 async function expectPointer(locator) {
   await expect(locator).toHaveCSS("cursor", "pointer");
@@ -207,6 +209,22 @@ test.describe("failed import rows", () => {
     await expect(panel(page, FILE_FAILED).locator(".import-fail-reason")).toHaveText(await uiText(page, "importFail.reason.unknown"));
     await expect(panel(page, FILE_FAILED).locator(".import-source-text")).toHaveText(FILE_NAME);
     await expect(panel(page, LINK_FAILED)).toBeHidden();
+  });
+
+  test("in the grid, a selected failed card takes the whole row and holds its panel", async ({ page }) => {
+    await openFailedLibrary(page);
+    await row(page, LINK_FAILED).click();
+
+    const grid = await page.locator(`${BROWSE_RESULTS} .browse-grid`).boundingBox();
+    const card = await row(page, LINK_FAILED).boundingBox();
+    const next = await row(page, LINK_FAILED).locator("xpath=following-sibling::*[1]").boundingBox();
+    expect(card.width).toBeGreaterThan(grid.width * FULL_ROW_SHARE);
+    expect(next.y).toBeGreaterThanOrEqual(card.y + card.height);
+    for (const part of await panel(page, LINK_FAILED).locator("button, a, .import-fail-reason").all()) {
+      const box = await part.boundingBox();
+      expect(box.x + box.width).toBeLessThanOrEqual(card.x + card.width);
+      expect(box.y + box.height).toBeLessThanOrEqual(card.y + card.height);
+    }
   });
 
   test("Retry queues the same job: no new row and no new import", async ({ page }) => {

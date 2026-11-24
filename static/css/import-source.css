@@ -71,6 +71,18 @@
 
 .import-fail-panel { display: none; flex: 1 0 100%; flex-direction: column; gap: var(--s-2); min-width: 0; cursor: default; }
 .cat-item.is-failed.is-selected .import-fail-panel { display: flex; }
+/* A grid card has no room for the panel: selected, it takes the whole row. Not while Retry
+   has focus, so the press that selects the card still lands on Retry. */
+.browse-grid .song-card.is-failed .cat-actions { position: absolute; height: auto; }
+.browse-grid .song-card.is-failed:has(.cat-retry:focus) .import-fail-panel { display: none; }
+.browse-grid .song-card.is-failed.is-selected:not(:has(.cat-retry:focus)) {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.browse-grid .song-card.is-failed.is-selected:not(:has(.cat-retry:focus)) .cat-thumb { width: var(--browse-card-min); }
+.browse-grid .song-card.is-failed.is-selected:not(:has(.cat-retry:focus)) .cat-meta { flex: 1; min-width: 0; }
 .import-fail-reason {
   display: flex;
   align-items: flex-start;
