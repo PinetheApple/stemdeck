@@ -16,6 +16,7 @@ import { PERCENT, readChoice, saveChoice, stripStems } from "./stageModel.js";
 import { closeStageQueue, isStageQueueOpen } from "./stageUpNext.js";
 import { t } from "./i18n.js";
 import { $ } from "./utils.js";
+import { mountMyPart } from "./myPartBar.js";
 
 const HIDDEN_STORE_KEY = "stemdeck.stage.mixHidden";
 const HIDDEN_STORED = "1";
@@ -162,6 +163,7 @@ function onMixChange() {
 export function initStageMixer(showing) {
   isShowing = showing;
   showMixHidden(readMixHidden());
+  mountMyPart($("stageMixer"), $("stageMixerStrips"));
   $("stageMixBtn")?.addEventListener("click", onMixToggleClick);
   $("stageMixerStrips")?.addEventListener("click", onStripClick);
   $("stageMixerStrips")?.addEventListener("input", onStripInput);

@@ -24,6 +24,7 @@
     <link rel="stylesheet" href="/css/forms.css" />
 <link rel="stylesheet" href="/css/import-source.css" />
     <link rel="stylesheet" href="/css/autoscroll.css" />
+    <link rel="stylesheet" href="/css/my-part.css" />
     <link rel="stylesheet" href="/css/batch-import.css" />
     <link rel="stylesheet" href="/css/shell.css" />
   </head>
@@ -496,10 +497,7 @@
 
           <!-- Waveform header / ruler -->
           <div class="daw-wave-header">
-            <div class="daw-wave-label">
-              <span class="daw-label-title" data-i18n="mixer.title">Mixer</span>
-              <span class="uplabel daw-label-sub" data-i18n="mixer.hint">Drag fader · M/S</span>
-            </div>
+            <div class="daw-wave-label" id="myPartStudio"></div>
             <div class="daw-ruler-area">
               <div class="lanes-ruler" data-position="top">
                 <div class="lanes-ruler-time" id="ruler-time">
@@ -1655,6 +1653,7 @@
     <script type="module" src="/js/vocalSplitPanel.js"></script>
     <script type="module" src="/js/selectMenu.js"></script>
     <script type="module" src="/js/takes.js"></script>
+    <script type="module" src="/js/myPartBar.js"></script>
     <script type="module" src="/js/eq/eqTab.js"></script>
   </body>
 </html>

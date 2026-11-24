@@ -1710,6 +1710,13 @@ const en = {
   "shell.help.tools": "Hides the song tools on the right, or shows them again.",
   "shell.help.edge": "Drag to change the width. Double-click or Enter resets it; the arrow keys move it in steps.",
   "shell.help.strip": "A cover for each song. Click one to open it; the buttons above open the sidebar on a view.",
+  "studio.myPart.label": "My part",
+  "studio.myPart.pick": "My part:",
+  "studio.myPart.pickTitle": "Pick the part you play",
+  "studio.myPart.fullBand": "Full band",
+  "studio.myPart.withoutMe": "Without me",
+  "studio.myPart.onlyMe": "Only me",
+  "studio.myPart.missing": "This song has no {part}",
 };
 
 const pl = {
@@ -3212,6 +3219,13 @@ const pl = {
   "shell.help.tools": "Ukrywa narzędzia utworu po prawej albo pokazuje je ponownie.",
   "shell.help.edge": "Przeciągnij, aby zmienić szerokość. Dwuklik lub Enter przywraca ją; strzałki przesuwają ją skokowo.",
   "shell.help.strip": "Okładka każdego utworu. Kliknij, aby go otworzyć; przyciski powyżej otwierają pasek boczny na danym widoku.",
+  "studio.myPart.label": "Moja partia",
+  "studio.myPart.pick": "Moja partia:",
+  "studio.myPart.pickTitle": "Wybierz partię, którą grasz",
+  "studio.myPart.fullBand": "Cały zespół",
+  "studio.myPart.withoutMe": "Beze mnie",
+  "studio.myPart.onlyMe": "Tylko ja",
+  "studio.myPart.missing": "W tym utworze nie ma partii: {part}",
 };
 
 const ja = {
@@ -4653,6 +4667,13 @@ const ja = {
   "shell.help.tools": "右側の曲のツールを隠すか、もう一度表示します。",
   "shell.help.edge": "ドラッグで幅を変更します。ダブルクリックまたは Enter で元に戻し、矢印キーで少しずつ動かします。",
   "shell.help.strip": "曲ごとのジャケットです。クリックで開きます。上のボタンはサイドバーをその表示で開きます。",
+  "studio.myPart.label": "自分のパート",
+  "studio.myPart.pick": "自分のパート:",
+  "studio.myPart.pickTitle": "演奏するパートを選ぶ",
+  "studio.myPart.fullBand": "バンド全体",
+  "studio.myPart.withoutMe": "自分なし",
+  "studio.myPart.onlyMe": "自分だけ",
+  "studio.myPart.missing": "この曲には{part}がありません",
 };
 
 const zhHans = {
@@ -6094,6 +6115,13 @@ const zhHans = {
   "shell.help.tools": "隐藏右侧的歌曲工具，或再次显示。",
   "shell.help.edge": "拖动以改变宽度。双击或按 Enter 恢复默认；方向键可逐步移动。",
   "shell.help.strip": "每首歌的封面。点击即可打开；上方的按钮会打开侧边栏并切换到对应视图。",
+  "studio.myPart.label": "我的声部",
+  "studio.myPart.pick": "我的声部：",
+  "studio.myPart.pickTitle": "选择你演奏的声部",
+  "studio.myPart.fullBand": "完整乐队",
+  "studio.myPart.withoutMe": "去掉我",
+  "studio.myPart.onlyMe": "只有我",
+  "studio.myPart.missing": "这首歌没有{part}",
 };
 
 const de = {
@@ -7563,6 +7591,13 @@ const de = {
   "shell.help.tools": "Blendet die Song-Werkzeuge rechts aus oder wieder ein.",
   "shell.help.edge": "Ziehen ändert die Breite. Doppelklick oder Enter setzt sie zurück; die Pfeiltasten verschieben sie schrittweise.",
   "shell.help.strip": "Ein Cover pro Song. Ein Klick öffnet ihn; die Knöpfe darüber öffnen die Seitenleiste mit dieser Ansicht.",
+  "studio.myPart.label": "Mein Part",
+  "studio.myPart.pick": "Mein Part:",
+  "studio.myPart.pickTitle": "Wähle den Part, den du spielst",
+  "studio.myPart.fullBand": "Ganze Band",
+  "studio.myPart.withoutMe": "Ohne mich",
+  "studio.myPart.onlyMe": "Nur ich",
+  "studio.myPart.missing": "In diesem Song fehlt: {part}",
 };
 
 const pt = {
@@ -9034,6 +9069,13 @@ const pt = {
   "shell.help.tools": "Oculta as ferramentas da música à direita, ou mostra de novo.",
   "shell.help.edge": "Arraste para mudar a largura. Clique duas vezes ou Enter para restaurar; as setas a movem aos poucos.",
   "shell.help.strip": "Uma capa por música. Clique numa para abri-la; os botões acima abrem a barra lateral nessa vista.",
+  "studio.myPart.label": "Minha parte",
+  "studio.myPart.pick": "Minha parte:",
+  "studio.myPart.pickTitle": "Escolha a parte que você toca",
+  "studio.myPart.fullBand": "Banda completa",
+  "studio.myPart.withoutMe": "Sem mim",
+  "studio.myPart.onlyMe": "Só eu",
+  "studio.myPart.missing": "Esta música não tem {part}",
 };
 
 const id = {
@@ -10475,6 +10517,13 @@ const id = {
   "shell.help.tools": "Menyembunyikan alat lagu di kanan, atau menampilkannya lagi.",
   "shell.help.edge": "Seret untuk mengubah lebar. Klik dua kali atau Enter untuk mengatur ulang; tombol panah menggesernya bertahap.",
   "shell.help.strip": "Sampul untuk setiap lagu. Klik untuk membukanya; tombol di atas membuka bilah samping pada tampilan itu.",
+  "studio.myPart.label": "Bagian saya",
+  "studio.myPart.pick": "Bagian saya:",
+  "studio.myPart.pickTitle": "Pilih bagian yang Anda mainkan",
+  "studio.myPart.fullBand": "Band lengkap",
+  "studio.myPart.withoutMe": "Tanpa saya",
+  "studio.myPart.onlyMe": "Hanya saya",
+  "studio.myPart.missing": "Lagu ini tidak punya {part}",
 };
 
 const fr = {
@@ -11946,6 +11995,13 @@ const fr = {
   "shell.help.tools": "Masque les outils du morceau à droite, ou les affiche de nouveau.",
   "shell.help.edge": "Faites glisser pour changer la largeur. Double-clic ou Entrée la rétablit ; les flèches la déplacent par pas.",
   "shell.help.strip": "Une pochette par morceau. Un clic l'ouvre ; les boutons au-dessus ouvrent la barre latérale sur cette vue.",
+  "studio.myPart.label": "Ma partie",
+  "studio.myPart.pick": "Ma partie :",
+  "studio.myPart.pickTitle": "Choisissez la partie que vous jouez",
+  "studio.myPart.fullBand": "Groupe complet",
+  "studio.myPart.withoutMe": "Sans moi",
+  "studio.myPart.onlyMe": "Moi seul",
+  "studio.myPart.missing": "Pas de {part} dans ce morceau",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -12355,6 +12411,9 @@ const ptPT = {
   "shell.help.importing": "As músicas a ser importadas e as que estão à espera. Abre a fila de importação.",
   "shell.help.addSong": "Abre a barra onde cola ligações, pesquisa ou adiciona ficheiros e pastas.",
   "shell.help.edge": "Arraste para mudar a largura. Clique duas vezes ou Enter para repor; as setas movem-na aos poucos.",
+  "studio.myPart.label": "A minha parte",
+  "studio.myPart.pick": "A minha parte:",
+  "studio.myPart.pickTitle": "Escolha a parte que toca",
 };
 
 const es = {
@@ -13838,6 +13897,13 @@ const es = {
   "shell.help.tools": "Oculta las herramientas de la canción a la derecha, o las vuelve a mostrar.",
   "shell.help.edge": "Arrastra para cambiar el ancho. Doble clic o Intro lo restablece; las flechas lo mueven por pasos.",
   "shell.help.strip": "Una portada por canción. Haz clic en una para abrirla; los botones de arriba abren la barra lateral en esa vista.",
+  "studio.myPart.label": "Mi parte",
+  "studio.myPart.pick": "Mi parte:",
+  "studio.myPart.pickTitle": "Elige la parte que tocas",
+  "studio.myPart.fullBand": "Banda completa",
+  "studio.myPart.withoutMe": "Sin mí",
+  "studio.myPart.onlyMe": "Solo yo",
+  "studio.myPart.missing": "Esta canción no tiene {part}",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -15288,6 +15354,13 @@ const ko = {
   "shell.help.tools": "오른쪽의 곡 도구를 숨기거나 다시 표시합니다.",
   "shell.help.edge": "드래그하여 너비를 바꿉니다. 두 번 클릭하거나 Enter로 초기화하고, 화살표 키로 조금씩 움직입니다.",
   "shell.help.strip": "곡마다 커버가 하나씩 있습니다. 클릭하면 열리고, 위의 버튼은 사이드바를 해당 보기로 엽니다.",
+  "studio.myPart.label": "내 파트",
+  "studio.myPart.pick": "내 파트:",
+  "studio.myPart.pickTitle": "연주하는 파트를 골라요",
+  "studio.myPart.fullBand": "밴드 전체",
+  "studio.myPart.withoutMe": "나 빼고",
+  "studio.myPart.onlyMe": "나만",
+  "studio.myPart.missing": "이 곡에는 {part} 파트가 없어요",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };

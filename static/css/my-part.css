@@ -1,0 +1,74 @@
+/* ── My part: the part you play, and Full band / Without me / Only me ── */
+.my-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  width: 100%;
+  min-width: 0;
+  padding: var(--s-2) 0;
+}
+
+.my-part-pick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  align-self: flex-start;
+  max-width: 100%;
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  color: var(--text-2);
+  font: var(--fw-medium) var(--fs-sm) / 1 var(--font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.my-part-pick:hover { background: var(--surface-2); color: var(--text); }
+.my-part-pick:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.my-part-icon,
+.my-part-chevron { flex: none; width: var(--icon-sm); height: var(--icon-sm); }
+.my-part-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: var(--fw-bold); color: var(--text); }
+/* Invisible but covering the pill, so the whole pill opens the themed list (selectMenu.js) anchored to it. */
+.my-part-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.my-part-choices {
+  display: flex;
+  gap: var(--seg-inset);
+  padding: var(--seg-inset);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--surface-1);
+}
+.my-part-choice {
+  flex: 1 1 0;
+  min-width: 0;
+  height: var(--ctl-h-sm);
+  padding: 0 var(--s-1);
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-3);
+  font: var(--fw-medium) var(--fs-sm) / 1 var(--font-sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.my-part-choice:hover:not(:disabled) { color: var(--text); }
+.my-part-choice.is-on { background: var(--surface-3); color: var(--text); }
+.my-part-choice:disabled { opacity: var(--disabled-opacity); cursor: default; }
+
+.my-part-tag { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stage-mixer .my-part { padding: 0; }

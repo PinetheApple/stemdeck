@@ -814,6 +814,19 @@ export function clearAllSolos() {
   saveMix();
 }
 
+/** Sets each lane named in `mutedByLane` to its mute and clears every solo; faders, keys and EQ stay. */
+export function setLaneMutes(mutedByLane) {
+  for (const name of allTrackNames()) {
+    const s = mixerState[name];
+    if (!s) continue;
+    s.soloed = false;
+    if (name in mutedByLane) s.muted = mutedByLane[name];
+  }
+  refreshMixerVisuals();
+  applyMix();
+  saveMix();
+}
+
 export function wireMixerToolbar() {
   document.getElementById("mixer-reset")?.addEventListener("click", resetMixer);
   document.getElementById("mixer-mute-all")?.addEventListener("click", muteAll);
