@@ -35,6 +35,7 @@
     <link rel="stylesheet" href="/css/cover-wash.css" />
     <link rel="stylesheet" href="/css/alerts.css" />
     <script type="module" src="/js/appearance.js"></script>
+    <link rel="stylesheet" href="/css/add-song.css" />
   </head>
   <body>
 
@@ -116,14 +117,15 @@
         </button>
       </header>
 
-      <!-- The import bar, folded away until Add song opens it. -->
-      <div class="composer-drawer" id="composerDrawer" hidden>
-        <div class="daw-composer-stack">
-        <form id="job-form" class="daw-composer">
+      <!-- Add song: a popover under the top bar's button, placed by composerDrawer.js. -->
+      <div class="add-song-pop" id="composerDrawer" role="dialog" aria-labelledby="addSongTitle" hidden>
+        <form id="job-form" class="add-song-form">
+          <h2 class="add-song-title" id="addSongTitle" data-i18n="addsong.title">Add songs</h2>
 
-          <!-- URL zone (JS uses .url-wrap for drag events) -->
-          <div class="daw-url-zone url-wrap">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.8" style="flex-shrink:0" aria-hidden="true">
+          <!-- .daw-composer is what search.js hangs its results under; .url-wrap takes drags. -->
+          <div class="daw-composer">
+          <div class="daw-url-zone url-wrap add-song-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
               <path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1 M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>
             </svg>
             <!-- type="text", not "url": this box takes a search query as well as a
@@ -153,7 +155,7 @@
               <span class="batch-pill-ic" data-kind-icon="folder" data-batch-icon="folder"></span>
               <span class="file-name" id="fileName"></span>
               <span class="file-size" id="fileSize"></span>
-              <button class="file-clear" id="fileClear" type="button" aria-label="Remove file" data-i18n-aria-label="topbar.removeFile">×</button>
+              <button class="file-clear" id="fileClear" type="button" title="Remove file" aria-label="Remove file" data-i18n-title="topbar.removeFile" data-i18n-aria-label="topbar.removeFile">×</button>
             </div>
             <!-- The open track, when it is one the button acts on directly.
                  The box is kept for new imports, so a link track's URL never
@@ -167,23 +169,26 @@
               </svg>
               <span class="file-name" id="trackPillName"></span>
             </div>
-            <button class="daw-upload-btn" type="button" title="Add files" id="uploadFileBtn" aria-label="Add files" data-i18n-title="batch.addFiles" data-i18n-aria-label="batch.addFiles">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /> <path d="m17 8-5-5-5 5" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /></svg>
-            </button>
-            <input id="fileInput" type="file" multiple accept=".mp3,.wav,.flac,.mp4,.m4a,.ogg,.opus,audio/mpeg,audio/wav,audio/flac,video/mp4,audio/mp4,audio/ogg,audio/opus" style="display:none" aria-hidden="true" />
-            <button class="daw-upload-btn batch-folder-btn" type="button" title="Add a folder" id="addFolderBtn" aria-label="Add a folder" data-i18n-title="batch.addFolder" data-i18n-aria-label="batch.addFolder">
-              <span class="batch-icon-slot" data-batch-icon="folder"></span>
-            </button>
-            <input id="folderInput" type="file" multiple webkitdirectory style="display:none" aria-hidden="true" />
+          </div>
           </div>
 
-          <!-- Divider -->
-          <div class="daw-composer-sep"></div>
+          <div class="add-song-pickers">
+            <button class="add-song-picker" type="button" title="Add files" id="uploadFileBtn" data-i18n-title="batch.addFiles">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /> <path d="m17 8-5-5-5 5" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /></svg>
+              <span data-i18n="batch.addFiles">Add files</span>
+            </button>
+            <input id="fileInput" type="file" multiple accept=".mp3,.wav,.flac,.mp4,.m4a,.ogg,.opus,audio/mpeg,audio/wav,audio/flac,video/mp4,audio/mp4,audio/ogg,audio/opus" style="display:none" aria-hidden="true" />
+            <button class="add-song-picker batch-folder-btn" type="button" title="Add a folder" id="addFolderBtn" data-i18n-title="batch.addFolder">
+              <span class="batch-icon-slot" data-batch-icon="folder"></span>
+              <span data-i18n="batch.addFolder">Add a folder</span>
+            </button>
+            <input id="folderInput" type="file" multiple webkitdirectory style="display:none" aria-hidden="true" />
+            <span class="add-song-formats" data-i18n="addsong.formats">MP3, WAV, FLAC, MP4, M4A, OGG, Opus</span>
+          </div>
 
-          <!-- Stem selection -->
-          <div class="daw-stem-section">
-            <span class="daw-extract-label" data-i18n="extract.label">Extract</span>
-            <div class="daw-stem-chips" id="stemChips">
+          <div class="add-song-extract">
+            <span class="add-song-label" data-i18n="extract.label">Extract</span>
+            <div class="add-song-chips" id="stemChips">
               <button class="stem-choice stem-choice-all" type="button" id="stemAllBtn" aria-pressed="true" data-i18n="extract.all">All</button>
               <!-- Vocals and the two things that describe it, in one group.
                    Loose in the row, the mode buttons read as peers of Drums and
@@ -222,49 +227,30 @@
                 <span data-i18n="stem.other">Other</span>
               </button>
             </div>
-            <button class="stem-more-btn" id="stemMoreBtn" type="button" aria-haspopup="true" aria-expanded="false"
-                    aria-controls="stemOverflow" title="More stems" data-i18n-title="extract.moreAria"
-                    aria-label="More stems" data-i18n-aria-label="extract.moreAria" hidden>
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-                <circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/>
-              </svg>
-            </button>
-            <!-- Holds whichever chips no longer fit, and nothing else. It
-                 appears the moment the first one has to move and grows as the
-                 window narrows, so the row never wraps and the bar never gets
-                 taller. See fitStemChips in main.js. -->
-            <div class="stem-overflow" id="stemOverflow" role="group" aria-label="More stems" data-i18n-aria-label="extract.moreAria"></div>
           </div>
 
-          <!-- Experimental automatic song-structure detection. Off makes the
-               pipeline skip the inference stage entirely; the backend reads
-               the setting once per job, so a change applies to the next import
-               without a restart.
-
-               It is named for the work it does at import time, not for the
-               sections bar. Called "Song structure" it read as the switch that
-               shows and hides that bar, so clicking it on an open track looked
-               broken: nothing moved, because nothing it controls belongs to a
-               track that has already been separated (#634). The bar has its
-               own control, "Sections" in the Collapse row. -->
-          <button class="stem-choice structure-toggle" type="button" id="autoSectionsBtn" aria-pressed="false" title="Experimental. Labels intro, verse and chorus while a track is imported. Applies to the next import, not to a track that is already open. To hide the sections bar, use Collapse > Sections." aria-label="Detect song structure on import (experimental)" data-i18n-title="structure.toggleTitle" data-i18n-aria-label="structure.toggleAria">
-            <span class="structure-toggle-main">
+          <div class="add-song-foot">
+            <!-- Off makes the pipeline skip structure detection; the backend reads it once per job,
+                 so it applies to the next import. The sections bar has its own control. -->
+            <button class="add-song-detect" type="button" id="autoSectionsBtn" aria-pressed="false" title="Experimental. Labels intro, verse and chorus while a track is imported. Applies to the next import, not to a track that is already open. To hide the sections bar, use Collapse &gt; Sections." aria-label="Detect song structure on import (experimental)" data-i18n-title="structure.toggleTitle" data-i18n-aria-label="structure.toggleAria">
+              <span class="add-song-switch" aria-hidden="true"></span>
               <span data-i18n="structure.toggle">Detect structure</span>
-            </span>
-            <span class="structure-toggle-note" data-i18n="structure.experimental">Experimental</span>
-          </button>
-
-          <!-- Process button -->
-          <button id="submit" class="daw-process-btn" type="submit">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M13 2 3 14h7l-1 8 10-12h-7z"/>
-            </svg>
-            <span data-i18n="process.extractStems">Extract stems</span>
-          </button>
+              <span class="add-song-tag" data-i18n="structure.experimental">Experimental</span>
+            </button>
+            <button id="submit" class="daw-process-btn add-song-submit" type="submit">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>
+              <span data-i18n="process.extractStems">Extract stems</span>
+            </button>
+          </div>
         </form>
+      </div>
 
-
-        </div><!-- /.daw-composer-stack -->
+      <!-- Shown while files are dragged over the window; the drop itself goes to the import. -->
+      <div class="drop-overlay" id="dropOverlay" aria-hidden="true" hidden>
+        <div class="drop-overlay-card">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /> <path d="m17 8-5-5-5 5" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /></svg>
+          <b data-i18n="batch.dropHere">Drop files or a folder</b>
+        </div>
       </div>
 
       <!-- ══ BODY ══ -->
@@ -585,7 +571,7 @@
           <section class="empty-start" id="emptyStart" aria-labelledby="emptyStartTitle">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
             <strong id="emptyStartTitle" data-i18n="start.title">Start with a song</strong>
-            <span data-i18n="batch.startHint">Paste links, or drop files or a folder in the bar above.</span>
+            <span data-i18n="addsong.startHint">Paste links, or drop files or a folder anywhere in the window.</span>
             <div class="empty-start-actions">
               <button class="empty-start-btn" id="emptyStartUpload" type="button">
                 <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /> <path d="m17 8-5-5-5 5" /> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /></svg>
@@ -598,6 +584,10 @@
               <button class="empty-start-btn" id="emptyStartLink" type="button">
                 <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                 <span data-i18n="batch.pasteLinks">Paste links</span>
+              </button>
+              <button class="empty-start-btn is-primary" id="emptyStartBrowse" type="button">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6 4 14" /> <path d="M12 6v14" /> <path d="M8 8v12" /> <path d="M4 4v16" /></svg>
+                <span data-i18n="addsong.browseLibrary">Browse library</span>
               </button>
             </div>
           </section>

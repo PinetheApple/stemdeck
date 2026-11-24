@@ -1568,7 +1568,6 @@ const en = {
   "batch.chooseFiles": "Choose files",
   "batch.chooseFolder": "Choose a folder",
   "batch.pasteLinks": "Paste links",
-  "batch.startHint": "Paste links, or drop files or a folder in the bar above.",
   "batch.emptyFolder": "That folder has no files in it.",
   "batch.folderUnreadable": "That folder couldn't be read.",
   "batch.review.one": "Review {count}",
@@ -1761,6 +1760,10 @@ const en = {
   "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Mutes or unmutes {name}. M lights up while it is muted.",
   "studio.lane.helpMore": "EQ, key and download for {name} when the lane is too short to show them. A dot means its key or EQ is changed.",
+  "addsong.title": "Add songs",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "Paste links, or drop files or a folder anywhere in the window.",
+  "addsong.browseLibrary": "Browse library",
 };
 
 const pl = {
@@ -3108,7 +3111,6 @@ const pl = {
   "batch.chooseFiles": "Wybierz pliki",
   "batch.chooseFolder": "Wybierz folder",
   "batch.pasteLinks": "Wklej linki",
-  "batch.startHint": "Wklej linki albo upuść pliki lub folder na pasku powyżej.",
   "batch.emptyFolder": "Ten folder nie zawiera plików.",
   "batch.folderUnreadable": "Nie udało się odczytać tego folderu.",
   "batch.review.one": "Przejrzyj {count}",
@@ -3315,6 +3317,10 @@ const pl = {
   "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Wycisza lub włącza {name}. M świeci, gdy ścieżka jest wyciszona.",
   "studio.lane.helpMore": "EQ, tonacja i pobieranie dla {name}, gdy ścieżka jest za niska, by je pokazać. Kropka oznacza zmienioną tonację lub EQ.",
+  "addsong.title": "Dodaj utwory",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "Wklej linki albo upuść pliki lub folder w dowolnym miejscu okna.",
+  "addsong.browseLibrary": "Przeglądaj bibliotekę",
 };
 
 const ja = {
@@ -4627,7 +4633,6 @@ const ja = {
   "batch.chooseFiles": "ファイルを選択",
   "batch.chooseFolder": "フォルダを選択",
   "batch.pasteLinks": "リンクを貼り付け",
-  "batch.startHint": "上のバーにリンクを貼り付けるか、ファイルやフォルダをドロップしてください。",
   "batch.emptyFolder": "このフォルダにはファイルがありません。",
   "batch.folderUnreadable": "このフォルダを読み込めませんでした。",
   "batch.review.other": "{count}件を確認",
@@ -4806,6 +4811,10 @@ const ja = {
   "studio.lane.stateSeparator": "、",
   "studio.lane.helpName": "{name}をミュート/解除します。ミュート中は M が点灯します。",
   "studio.lane.helpMore": "レーンが低くて表示できないときの{name}の EQ、キー、ダウンロードです。点はキーか EQ が変更されていることを示します。",
+  "addsong.title": "曲を追加",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "リンクを貼り付けるか、ファイルやフォルダをウィンドウのどこかにドロップしてください。",
+  "addsong.browseLibrary": "ライブラリを見る",
 };
 
 const zhHans = {
@@ -6118,7 +6127,6 @@ const zhHans = {
   "batch.chooseFiles": "选择文件",
   "batch.chooseFolder": "选择文件夹",
   "batch.pasteLinks": "粘贴链接",
-  "batch.startHint": "在上方栏中粘贴链接，或拖入文件或文件夹。",
   "batch.emptyFolder": "该文件夹中没有文件。",
   "batch.folderUnreadable": "无法读取该文件夹。",
   "batch.review.other": "检查 {count} 项",
@@ -6297,6 +6305,10 @@ const zhHans = {
   "studio.lane.stateSeparator": "，",
   "studio.lane.helpName": "静音或取消静音{name}。静音时 M 会亮起。",
   "studio.lane.helpMore": "音轨太矮无法显示时，{name}的均衡器、调性和下载。圆点表示调性或均衡器已更改。",
+  "addsong.title": "添加歌曲",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "粘贴链接，或将文件或文件夹拖放到窗口中的任意位置。",
+  "addsong.browseLibrary": "浏览资料库",
 };
 
 const de = {
@@ -7624,7 +7636,6 @@ const de = {
   "batch.chooseFiles": "Dateien wählen",
   "batch.chooseFolder": "Ordner wählen",
   "batch.pasteLinks": "Links einfügen",
-  "batch.startHint": "Füge oben Links ein oder zieh Dateien oder einen Ordner in die Leiste.",
   "batch.emptyFolder": "Dieser Ordner enthält keine Dateien.",
   "batch.folderUnreadable": "Dieser Ordner konnte nicht gelesen werden.",
   "batch.review.one": "{count} prüfen",
@@ -7817,6 +7828,10 @@ const de = {
   "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Schaltet {name} stumm oder laut. M leuchtet, solange die Spur stumm ist.",
   "studio.lane.helpMore": "EQ, Tonart und Download für {name}, wenn die Spur zu niedrig ist, um sie zu zeigen. Ein Punkt heißt: Tonart oder EQ geändert.",
+  "addsong.title": "Songs hinzufügen",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "Füge Links ein oder zieh Dateien oder einen Ordner irgendwo ins Fenster.",
+  "addsong.browseLibrary": "Bibliothek durchsuchen",
 };
 
 const pt = {
@@ -9146,7 +9161,6 @@ const pt = {
   "batch.chooseFiles": "Escolher arquivos",
   "batch.chooseFolder": "Escolher pasta",
   "batch.pasteLinks": "Colar links",
-  "batch.startHint": "Cole links ou solte arquivos ou uma pasta na barra acima.",
   "batch.emptyFolder": "Essa pasta não tem arquivos.",
   "batch.folderUnreadable": "Não foi possível ler essa pasta.",
   "batch.review.one": "Revisar {count}",
@@ -9339,6 +9353,10 @@ const pt = {
   "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Silencia ou reativa {name}. O M acende enquanto estiver silenciado.",
   "studio.lane.helpMore": "EQ, tom e download de {name} quando a faixa é baixa demais para mostrá-los. Um ponto indica tom ou EQ alterado.",
+  "addsong.title": "Adicionar músicas",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "Cole links ou solte arquivos ou uma pasta em qualquer lugar da janela.",
+  "addsong.browseLibrary": "Explorar biblioteca",
 };
 
 const id = {
@@ -10651,7 +10669,6 @@ const id = {
   "batch.chooseFiles": "Pilih file",
   "batch.chooseFolder": "Pilih folder",
   "batch.pasteLinks": "Tempel tautan",
-  "batch.startHint": "Tempel tautan, atau jatuhkan file atau folder di bilah atas.",
   "batch.emptyFolder": "Folder itu tidak berisi file.",
   "batch.folderUnreadable": "Folder itu tidak bisa dibaca.",
   "batch.review.other": "Tinjau {count}",
@@ -10830,6 +10847,10 @@ const id = {
   "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Membisukan atau mengaktifkan {name}. M menyala selama dibisukan.",
   "studio.lane.helpMore": "EQ, nada, dan unduhan untuk {name} saat jalur terlalu pendek untuk menampilkannya. Titik berarti nada atau EQ diubah.",
+  "addsong.title": "Tambah lagu",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "Tempel tautan, atau jatuhkan file atau folder di mana saja di jendela.",
+  "addsong.browseLibrary": "Jelajahi pustaka",
 };
 
 const fr = {
@@ -12159,7 +12180,6 @@ const fr = {
   "batch.chooseFiles": "Choisir des fichiers",
   "batch.chooseFolder": "Choisir un dossier",
   "batch.pasteLinks": "Coller des liens",
-  "batch.startHint": "Collez des liens ou déposez des fichiers ou un dossier dans la barre ci-dessus.",
   "batch.emptyFolder": "Ce dossier ne contient aucun fichier.",
   "batch.folderUnreadable": "Impossible de lire ce dossier.",
   "batch.review.one": "Vérifier {count}",
@@ -12352,6 +12372,10 @@ const fr = {
   "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Coupe ou rétablit {name}. M s’allume tant que la piste est coupée.",
   "studio.lane.helpMore": "EQ, ton et téléchargement de {name} quand la piste est trop basse pour les afficher. Un point signale un ton ou un EQ modifié.",
+  "addsong.title": "Ajouter des morceaux",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "Collez des liens ou déposez des fichiers ou un dossier n'importe où dans la fenêtre.",
+  "addsong.browseLibrary": "Parcourir la bibliothèque",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -12720,7 +12744,6 @@ const ptPT = {
   "batch.addFiles": "Adicionar ficheiros",
   "batch.chooseFiles": "Escolher ficheiros",
   "batch.pasteLinks": "Colar ligações",
-  "batch.startHint": "Cole ligações ou largue ficheiros ou uma pasta na barra acima.",
   "batch.emptyFolder": "Essa pasta não tem ficheiros.",
   "batch.review.one": "Rever {count}",
   "batch.review.other": "Rever {count}",
@@ -12777,6 +12800,7 @@ const ptPT = {
   "settings.appearance.wash.desc": "Tinge o estúdio com as cores da capa da canção.",
   "studio.lane.faderTitle": "Arraste para ajustar. Faça duplo clique para repor.",
   "studio.lane.helpMore": "EQ, tom e transferência de {name} quando a faixa é demasiado baixa para os mostrar. Um ponto indica tom ou EQ alterado.",
+  "addsong.startHint": "Cole ligações ou largue ficheiros ou uma pasta em qualquer parte da janela.",
 };
 
 const es = {
@@ -14118,7 +14142,6 @@ const es = {
   "batch.chooseFiles": "Elegir archivos",
   "batch.chooseFolder": "Elegir carpeta",
   "batch.pasteLinks": "Pegar enlaces",
-  "batch.startHint": "Pega enlaces o suelta archivos o una carpeta en la barra de arriba.",
   "batch.emptyFolder": "Esa carpeta no tiene archivos.",
   "batch.folderUnreadable": "No se pudo leer esa carpeta.",
   "batch.review.one": "Revisar {count}",
@@ -14311,6 +14334,10 @@ const es = {
   "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "Silencia o activa {name}. La M se enciende mientras está silenciada.",
   "studio.lane.helpMore": "EQ, tono y descarga de {name} cuando la pista es demasiado baja para mostrarlos. Un punto indica tono o EQ cambiado.",
+  "addsong.title": "Añadir canciones",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "Pega enlaces o suelta archivos o una carpeta en cualquier parte de la ventana.",
+  "addsong.browseLibrary": "Explorar la biblioteca",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -15632,7 +15659,6 @@ const ko = {
   "batch.chooseFiles": "파일 선택",
   "batch.chooseFolder": "폴더 선택",
   "batch.pasteLinks": "링크 붙여넣기",
-  "batch.startHint": "위 바에 링크를 붙여넣거나 파일이나 폴더를 끌어다 놓으세요.",
   "batch.emptyFolder": "이 폴더에는 파일이 없습니다.",
   "batch.folderUnreadable": "이 폴더를 읽을 수 없습니다.",
   "batch.review.other": "{count}개 검토",
@@ -15811,6 +15837,10 @@ const ko = {
   "studio.lane.stateSeparator": ", ",
   "studio.lane.helpName": "{name}을(를) 음소거하거나 해제해요. 음소거 중에는 M이 켜져요.",
   "studio.lane.helpMore": "레인이 낮아 보이지 않을 때 {name}의 EQ, 키, 다운로드예요. 점은 키나 EQ가 바뀌었다는 뜻이에요.",
+  "addsong.title": "곡 추가",
+  "addsong.formats": "MP3, WAV, FLAC, MP4, M4A, OGG, Opus",
+  "addsong.startHint": "링크를 붙여넣거나 파일이나 폴더를 창 아무 곳에나 끌어다 놓으세요.",
+  "addsong.browseLibrary": "라이브러리 둘러보기",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };

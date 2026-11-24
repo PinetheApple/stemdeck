@@ -1,11 +1,11 @@
-/* Batch import: the bar's folder button and chip, the review list hung under
-   the bar, and the queue view's batch header. */
+/* Batch import: Add song's folder button and chip, the review dialog over a
+   dimmed page, and the queue view's batch header. */
 
 :root {
   --batch-z-scrim: 49;
   --batch-z-review: 50;
   --batch-review-w: 640px;
-  --batch-review-clearance: 160px; /* the top bar and a margin below the list */
+  --batch-review-margin: var(--s-6);
   --batch-row-h: 40px;
   --batch-check: 16px;
   --batch-bar-h: 3px;
@@ -33,13 +33,16 @@
 .batch-pill[data-kind="folder"] [data-kind-icon="folder"] { display: inline-grid; }
 .batch-pill .file-name { max-width: none; }
 
-/* ── The review list ── */
+/* ── The review dialog ── */
 .batch-scrim { position: fixed; inset: 0; z-index: var(--batch-z-scrim); background: var(--scrim); cursor: pointer; }
 .batch-review {
   position: fixed;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
   z-index: var(--batch-z-review);
-  width: min(var(--batch-review-w), calc(100vw - 2 * var(--s-4)));
-  max-height: calc(100vh - var(--batch-review-clearance));
+  width: min(var(--batch-review-w), calc(100vw - 2 * var(--batch-review-margin)));
+  max-height: calc(100vh - 2 * var(--batch-review-margin));
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line-strong);

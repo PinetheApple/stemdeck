@@ -1,5 +1,5 @@
-// batchImport.js — several songs at once. The bar holds the batch as a chip and a
-// review list under it says what each item is before anything is queued.
+// batchImport.js — several songs at once. Add song holds the batch as a chip and a
+// review dialog says what each item is before anything is queued.
 
 import { t, plural } from "./i18n.js";
 import { selectedStems } from "./state.js";
@@ -13,13 +13,13 @@ import {
   readableError, refreshSubmitLabel, registerLinkRow, registerUploadRow, setIdleSubmitLabel,
 } from "./job.js";
 import { addPlaylistToLibrary } from "./catalog.js";
-import { openComposer } from "./composerDrawer.js";
+import { closeComposer, openComposer } from "./composerDrawer.js";
 import { looksLikePlaylist } from "./playlist.js";
 import { onResendNotQueued, recordBatch, setBatchNotQueued } from "./queue.js";
 import { icon } from "./libraryIcons.js";
 import { folderRow, groupRow, itemRow, moreRow, reviewShell, rowView } from "./batchReviewRows.js";
 import {
-  closePanel, focusFirst, focusedControl, mountPanel, placePanel, restoreFocus, returnFocus, reviewPanel,
+  closePanel, focusFirst, focusedControl, mountPanel, restoreFocus, returnFocus, reviewPanel,
 } from "./batchReviewPanel.js";
 
 const PREVIEW_URL = "/api/import/preview";
@@ -52,8 +52,8 @@ export function setImportPill({ kind = null, name, size }) {
   document.getElementById("fileName").textContent = name;
   document.getElementById("fileSize").textContent = size;
   pill.classList.remove("hidden");
-  // The pill is in the import bar, so a file dropped while it is folded away opens it.
-  openComposer();
+  // One file is staged in Add song, so it opens; a batch is shown in its review instead.
+  if (!batch) openComposer();
   urlWrap()?.classList.add("has-file");
   urlInput().value = "";
   urlInput().removeAttribute("required");
@@ -270,9 +270,8 @@ async function readDurations(target) {
 
 export function openReview() {
   if (!batch) return;
-  // The review hangs under the import bar, so a batch dropped onto the page opens the bar.
-  openComposer();
   mountPanel({ onChange: onReviewChange, onClick: onReviewClick, closed: onReviewClosed });
+  closeComposer();
   renderReview();
   focusFirst();
 }
@@ -314,7 +313,6 @@ export function renderReview() {
   panel.replaceChildren(...reviewShell({ ...headText(), notes: notes(), error }));
   panel.querySelector(".batch-review-list").append(...listRows());
   renderFooter();
-  placePanel();
   restoreFocus(focus);
 }
 
