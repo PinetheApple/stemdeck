@@ -22,7 +22,6 @@ function setList(next) {
   document.dispatchEvent(new CustomEvent(PLAY_CONTEXT_CHANGE_EVENT));
 }
 
-/** Next goes on through `ids` after `trackId`; `name` labels a folder or a setlist. */
 export function startPlayContext({ kind, name = "", ids }, trackId) {
   setList({ kind, name, ids, at: cursorAt({ ids, at: NOT_STARTED }, trackId) });
 }
@@ -31,7 +30,6 @@ function shownSongIds(container) {
   return [...new Set([...container.querySelectorAll(LIST_SONG_SELECTOR)].map((row) => row.dataset.id))];
 }
 
-/** A song row is played: the list it is in (data-play-list) becomes the one Next follows, or none. */
 export function startPlayContextFromRow(row) {
   const container = row.closest(LIST_SELECTOR);
   if (!container) {
@@ -43,10 +41,10 @@ export function startPlayContextFromRow(row) {
 }
 
 /** Play a list from its first playable song, Up Next left as it is; false when none can play. */
-export async function playList(songs) {
-  const first = songs.ids.find(isPlayableTrack);
+export async function playList(list) {
+  const first = list.ids.find(isPlayableTrack);
   if (!first) return false;
-  startPlayContext(songs, first);
+  startPlayContext(list, first);
   await playNow(first);
   return true;
 }

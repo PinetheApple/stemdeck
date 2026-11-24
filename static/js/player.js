@@ -1,3 +1,4 @@
+import { PLAYING_CLASS } from "./songPlayed.js";
 import Multitrack from "/vendor/multitrack.js";
 import { fmtTime } from "./utils.js";
 // job.js imports this module in turn. The cycle is pre-existing (catalog.js does
@@ -938,7 +939,7 @@ export function destroyPlayer() {
   if (waveScroll) waveScroll.scrollLeft = 0;
   resetFollowing();
   paintLoopButton();
-  playBtn.classList.remove("playing");
+  playBtn.classList.remove(PLAYING_CLASS);
   announcePlayState(false);
   stopBtn.classList.remove("stopped");
   loopRegionEl.classList.add("hidden");
@@ -1152,7 +1153,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
     audioEngine.destroy();
     setAudioEngine(null);
   }
-  playBtn.classList.remove("playing");
+  playBtn.classList.remove(PLAYING_CLASS);
   announcePlayState(false);
   stopBtn.classList.remove("stopped");
   resetPitch();
@@ -1496,13 +1497,13 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
       }
     });
     ws.on("play", () => {
-      playBtn.classList.add("playing");
+      playBtn.classList.add(PLAYING_CLASS);
       announcePlayState(true);
       stopBtn.classList.remove("stopped");
       applyMix();
     });
     ws.on("pause", () => {
-      playBtn.classList.remove("playing");
+      playBtn.classList.remove(PLAYING_CLASS);
       announcePlayState(false);
       updateStopVisual();
     });
@@ -1530,7 +1531,7 @@ export function wireUpAudio(jobId, stems, duration, thumbnail, mixUrl = null, ti
       };
       teardownMetronome();
       const onEnded = () => {
-        playBtn.classList.remove("playing");
+        playBtn.classList.remove(PLAYING_CLASS);
         announcePlayState(false);
         updateStopVisual();
         document.dispatchEvent(new CustomEvent("trackended", { detail: { id: jobId } }));

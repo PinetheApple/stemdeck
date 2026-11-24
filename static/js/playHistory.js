@@ -1,4 +1,4 @@
-import { TRASH_CHANGE_EVENT, getPlayingTrackInfo, isPlayableTrack, loadTrackIntoStudio } from "./catalog.js";
+import { TRACK_OPEN_EVENT, TRASH_CHANGE_EVENT, getPlayingTrackInfo, isPlayableTrack, loadTrackIntoStudio } from "./catalog.js";
 import { BACK, FORWARD, createStepHistory } from "./stepHistory.js";
 import { NEXT_SOURCE, nextSong, previousSongId } from "./playOrder.js";
 import { PLAY_CONTEXT_CHANGE_EVENT, nextInContext } from "./playContext.js";
@@ -7,8 +7,6 @@ import { UP_NEXT_CHANGE_EVENT, firstInUpNext, playNextInUpNext, playNow } from "
 import { restartSong, transport } from "./transport.js";
 import { onLanguageChange, t } from "./i18n.js";
 import { $ } from "./utils.js";
-
-export const TRACK_OPEN_EVENT = "trackopen";
 
 const played = createStepHistory();
 const changeListeners = new Set();
@@ -28,7 +26,6 @@ function upcoming() {
   });
 }
 
-/** Open a song of the history; the player keeps playing or stays paused. */
 function openPlayed(trackId) {
   if (transport()?.isPlaying()) playNow(trackId);
   else loadTrackIntoStudio(trackId);
@@ -60,11 +57,14 @@ export function goToNext() {
   if (next) PLAY_NEXT[next.source](next.id);
 }
 
+export function canGoPrevious() {
+  return Boolean(getPlayingTrackInfo());
+}
+
 export function canGoNext() {
   return Boolean(upcoming());
 }
 
-/** `listener()` runs whenever what Previous or Next would do may have changed. */
 export function onPreviousNextChange(listener) {
   changeListeners.add(listener);
 }
@@ -73,7 +73,7 @@ function paintPrevious() {
   const prev = $("t-prev");
   if (!prev) return;
   const label = t(previousPlayedId() ? "studio.footer.previousSong" : "studio.footer.previous");
-  prev.disabled = !getPlayingTrackInfo();
+  prev.disabled = !canGoPrevious();
   prev.title = label;
   prev.setAttribute("aria-label", label);
 }

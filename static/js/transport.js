@@ -49,6 +49,7 @@ import { CLICK_STATE_EVENT, initFooterClick } from "./footerClick.js";
 import { initFooterPractice } from "./footerPractice.js";
 import { initUpNextButton } from "./footerTransport.js";
 import { initSongSteps } from "./songSteps.js";
+import { PLAYING_CLASS } from "./songPlayed.js";
 import { paintSectionLine } from "./footerSections.js";
 import { initFooterLoop, paintLoopName } from "./footerLoop.js";
 import { emitLoopChange, emitPlayheadMove } from "./studioSignals.js";
@@ -559,7 +560,7 @@ function _unlightIfNotStarted(eng, start) {
   start.then(
     function unlightUnlessPlaying(started) {
       if (started || !stillSilent()) return;
-      playBtn.classList.remove("playing");
+      playBtn.classList.remove(PLAYING_CLASS);
       announcePlayState(false);
       pauseMediaAnchor();
     },
@@ -594,7 +595,7 @@ export function togglePlayPause() {
     // The engine emits no play/pause events (the multitrack stays silent), so
     // the play-button visual that the ws "pause" handler normally toggles must
     // be driven here directly.
-    if (eng) playBtn.classList.remove("playing");
+    if (eng) playBtn.classList.remove(PLAYING_CLASS);
     announcePlayState(false);
     return;
   }
@@ -618,7 +619,7 @@ export function togglePlayPause() {
     if (totalDuration > 0 && startPos >= totalDuration) startPos = 0;
     const countBars = _recordCountInBars ?? metronomeCountInBars;
     _unlightIfNotStarted(eng, _armCountIn(eng, startPos, countBars) || eng.play());
-    playBtn.classList.add("playing");
+    playBtn.classList.add(PLAYING_CLASS);
     announcePlayState(true);
     stopBtn.classList.remove("stopped");
   } else {
@@ -645,11 +646,10 @@ export function stopTransport() {
   pauseMediaAnchor();
   _dropCountIn(); // a count-in in progress must not outlive Stop
   if (!loadingMultitrack(tx)) tx.setTime(loopEnabled ? loopStart : 0); // engine: setTime → onTime → stop visual
-  if (eng) playBtn.classList.remove("playing");
+  if (eng) playBtn.classList.remove(PLAYING_CLASS);
   announcePlayState(false);
 }
 
-/** Back to the start, or to the loop's start while Loop is on, as Stop does. */
 export function restartSong() {
   setPlayheadTime(loopEnabled ? loopStart : 0);
 }

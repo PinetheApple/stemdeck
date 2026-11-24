@@ -1,6 +1,6 @@
 import { currentJobId, playBtn } from "./state.js";
 
-const PLAYING_CLASS = "playing";
+export const PLAYING_CLASS = "playing";
 const listeners = new Set();
 let playing = false;
 
@@ -11,7 +11,7 @@ function onPlayButtonChange() {
   playing = now;
 }
 
-/** `listener(trackId)` runs each time the song in the player starts playing. */
+/** `listener(trackId)` runs each time the player's song starts playing, a resume after a pause too. */
 export function onSongPlayed(listener) {
   listeners.add(listener);
 }

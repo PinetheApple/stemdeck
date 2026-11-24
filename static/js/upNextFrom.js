@@ -1,7 +1,6 @@
-import { displayTitle, getLibraryTrack, libraryTitle } from "./catalog.js";
 import { icon } from "./libraryIcons.js";
 import { PLAY_CONTEXT_CHANGE_EVENT, contextSongsAhead, playContextLabel } from "./playContext.js";
-import { UP_NEXT_CHANGE_EVENT, firstInUpNext, playNow, queueUpNext, upNextButton, upNextRowEl } from "./upNext.js";
+import { UP_NEXT_CHANGE_EVENT, firstInUpNext, playNow, queueUpNext, songTitle, upNextButton, upNextRowEl } from "./upNext.js";
 import { wireRovingRows } from "./rovingRows.js";
 import { t } from "./i18n.js";
 import { $ } from "./utils.js";
@@ -15,8 +14,7 @@ const HAS_LIST_AHEAD_CLASS = "has-list-ahead";
 let fromRows = null;
 
 function fromRow(trackId) {
-  const title = displayTitle(libraryTitle(getLibraryTrack(trackId)));
-  const add = upNextButton("upnext-add", t("upNext.add"), t("upNext.addTitle", { title }));
+  const add = upNextButton("upnext-add", t("upNext.add"), t("upNext.addTitle", { title: songTitle(trackId) }));
   add.innerHTML = icon("listPlus");
   add.addEventListener("click", function onQueueListSong() {
     queueUpNext(trackId);

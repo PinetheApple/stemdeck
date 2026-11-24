@@ -10,7 +10,6 @@ const WIDE = { width: 1920, height: 1080 };
 const ZONES = [".ft-now:not([hidden])", ".ft-transport", ".ft-right"];
 const ROW_TOLERANCE_PX = 2;
 const SEEK_TO_SEC = 4;
-const WITHIN_RESTART_SEC = 2;
 const RESTART_SLACK_SEC = 0.5;
 const SECTIONS = [
   { id: "s1", start: 0, end: 20, kind: "verse" },
@@ -98,14 +97,6 @@ test("Previous goes back to the start of the song", async ({ page }) => {
   await openStudio(page);
   await page.evaluate(async (sec) => (await import("/js/transport.js")).setPlayheadTime(sec), SEEK_TO_SEC);
   await expect.poll(() => clock(page)).toBeGreaterThan(SEEK_TO_SEC - RESTART_SLACK_SEC);
-  await page.locator("#t-prev").click();
-  await expect.poll(() => clock(page)).toBeLessThan(RESTART_SLACK_SEC);
-});
-
-test("within 3 seconds and with no song played before it, Previous goes back to the start", async ({ page }) => {
-  await openStudio(page);
-  await page.evaluate(async (sec) => (await import("/js/transport.js")).setPlayheadTime(sec), WITHIN_RESTART_SEC);
-  await expect.poll(() => clock(page)).toBeGreaterThan(WITHIN_RESTART_SEC - RESTART_SLACK_SEC);
   await page.locator("#t-prev").click();
   await expect.poll(() => clock(page)).toBeLessThan(RESTART_SLACK_SEC);
 });

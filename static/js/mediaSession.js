@@ -1,6 +1,6 @@
-import { getPlayingTrackInfo, getLibraryTrack, displayTitle, libraryTitle } from "./catalog.js";
+import { TRACK_OPEN_EVENT, getPlayingTrackInfo, getLibraryTrack, displayTitle, libraryTitle } from "./catalog.js";
 import { togglePlayPause, stopTransport, setPlayheadTime, transport } from "./transport.js";
-import { canGoNext, goToNext, goToPrevious, onPreviousNextChange } from "./playHistory.js";
+import { canGoNext, canGoPrevious, goToNext, goToPrevious, onPreviousNextChange } from "./playHistory.js";
 import { totalDuration, playbackSpeed, playBtn } from "./state.js";
 import { SEEK_STEP_SEC } from "./constants.js";
 import {
@@ -191,10 +191,6 @@ function onTrackOpen(e) {
   reported = null;
   motion = STILL;
   pauseMediaAnchor();
-  setActionHandler(
-    ACTION.PREVIOUS_TRACK,
-    openTrackId ? goToPrevious : null,
-  );
   syncMetadata();
   syncPlayback();
 }
@@ -203,7 +199,11 @@ function onUpNextChange(e) {
   upNextCount = e.detail?.count ?? 0;
 }
 
-function syncNextHandler() {
+function syncStepHandlers() {
+  setActionHandler(
+    ACTION.PREVIOUS_TRACK,
+    canGoPrevious() ? goToPrevious : null,
+  );
   setActionHandler(
     ACTION.NEXT_TRACK,
     canGoNext() ? goToNext : null,
@@ -245,9 +245,9 @@ export function initMediaSession() {
   setActionHandler(ACTION.SEEK_TO, seekFromMediaControls);
   setActionHandler(ACTION.SEEK_BACKWARD, seekBackFromMediaKey);
   setActionHandler(ACTION.SEEK_FORWARD, seekAheadFromMediaKey);
-  syncNextHandler();
-  onPreviousNextChange(syncNextHandler);
-  document.addEventListener("trackopen", onTrackOpen);
+  syncStepHandlers();
+  onPreviousNextChange(syncStepHandlers);
+  document.addEventListener(TRACK_OPEN_EVENT, onTrackOpen);
   document.addEventListener("tracknames", syncMetadata);
   document.addEventListener("tracktags", syncMetadata);
   document.addEventListener("upnext:change", onUpNextChange);

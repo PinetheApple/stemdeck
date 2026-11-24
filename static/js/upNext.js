@@ -2,6 +2,7 @@
 // Songs are queued through queueUpNext (UP_NEXT_ADD_EVENT); player.js reports "trackended" and "playbackready".
 
 import {
+  TRACK_OPEN_EVENT,
   TRASH_CHANGE_EVENT,
   getPlayingTrackInfo,
   getLibraryTrack,
@@ -199,6 +200,10 @@ function onAddRequest(e) {
   if (id) addToUpNext(id);
 }
 
+export function songTitle(trackId) {
+  return displayTitle(libraryTitle(getLibraryTrack(trackId)));
+}
+
 function thumbEl(track) {
   const box = document.createElement("span");
   box.className = "upnext-thumb";
@@ -237,7 +242,6 @@ export function upNextButton(className, title, label = null) {
   return button;
 }
 
-/** A row of song `trackId`: Play now holding `lead`, the cover and the title, then `action`. */
 export function upNextRowEl(trackId, { lead = [], onPlay, action }) {
   const track = getLibraryTrack(trackId);
   const li = document.createElement("li");
@@ -251,7 +255,7 @@ export function upNextRowEl(trackId, { lead = [], onPlay, action }) {
 }
 
 function queueRow(trackId, position) {
-  const title = displayTitle(libraryTitle(getLibraryTrack(trackId)));
+  const title = songTitle(trackId);
   const index = document.createElement("span");
   index.className = "upnext-index num";
   index.textContent = String(position);
@@ -420,7 +424,7 @@ export function initUpNext() {
   document.addEventListener(UP_NEXT_ADD_EVENT, onAddRequest);
   document.addEventListener("trackended", onTrackEnded);
   document.addEventListener("playbackready", onPlaybackReady);
-  document.addEventListener("trackopen", renderUpNext);
+  document.addEventListener(TRACK_OPEN_EVENT, renderUpNext);
   document.addEventListener("tracknames", renderUpNext);
   document.addEventListener(TRASH_CHANGE_EVENT, renderUpNext);
   onLanguageChange(renderUpNext);

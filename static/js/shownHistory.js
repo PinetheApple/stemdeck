@@ -1,6 +1,5 @@
-import { TRACK_SHOW_EVENT, TRASH_CHANGE_EVENT, isPlayableTrack, isTextEditingTarget } from "./catalog.js";
+import { TRACK_OPEN_EVENT, TRACK_SHOW_EVENT, TRASH_CHANGE_EVENT, isPlayableTrack, isTextEditingTarget } from "./catalog.js";
 import { openSong } from "./openSong.js";
-import { TRACK_OPEN_EVENT } from "./playHistory.js";
 import { topLayer } from "./shellEscape.js";
 import { BACK, FORWARD, createStepHistory } from "./stepHistory.js";
 import { $ } from "./utils.js";
@@ -16,12 +15,12 @@ function paintBackForward() {
   if (forward) forward.disabled = !shown.peek(FORWARD, isPlayableTrack);
 }
 
-// The place moves once the song is on screen: openSong does nothing mid-take or while it loads.
+// The place moves once the song is on screen; openSong refuses mid-take or while it already loads.
 function showStep(step) {
   const trackId = shown.peek(step, isPlayableTrack);
   if (!trackId) return;
   pendingStep = { step, trackId };
-  openSong(trackId);
+  if (!openSong(trackId)) pendingStep = null;
 }
 
 function onSongShown(e) {

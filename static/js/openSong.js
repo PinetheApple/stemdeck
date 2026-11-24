@@ -28,15 +28,16 @@ const isTakeRecording = () => [REC_PHASE.counting, REC_PHASE.recording].includes
 /** A single click: show the song over the one playing, or load it when none plays. */
 export function openSong(trackId) {
   // The take's lanes stay in view while it records; the click only selects the row.
-  if (isTakeRecording()) return;
+  if (isTakeRecording()) return false;
   cancelPlayWhenLoaded();
   if (trackId === playingTrackId()) {
     dropShownTrack();
-    return;
+    return true;
   }
-  if (trackId === shownTrackId() || isLoadingTrack(trackId)) return;
+  if (trackId === shownTrackId() || isLoadingTrack(trackId)) return false;
   if (isPlaying()) showTrackOverPlayer(trackId);
   else loadTrackIntoStudio(trackId);
+  return true;
 }
 
 /** Open the song and play it, through the same load a click with nothing playing uses. */
