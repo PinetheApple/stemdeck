@@ -1,5 +1,5 @@
-// The recording tracks' small menus: one open at a time, under its button, or
-// over it when the footer leaves no room below.
+// The studio's small menus (recording tracks, stem lanes): one open at a time, under
+// its button, or over it when the footer leaves no room below.
 
 import { iconButton } from "./libraryControls.js";
 
@@ -9,7 +9,23 @@ const VIEWPORT_MARGIN_PX = 8;
 let menu = null;
 let anchorEl = null;
 
-/** A menu entry: `{ text, icon, onChoose, danger?, selected?, disabled? }`, or `{ separator: true }`. */
+function entryButton(item) {
+  const className = `lib-menu-item${item.danger ? " is-danger" : ""}`;
+  if (!item.iconHtml) return iconButton(className, item.icon, { text: item.text });
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = className;
+  el.innerHTML = item.iconHtml;
+  const text = document.createElement("span");
+  text.textContent = item.text;
+  el.append(text);
+  return el;
+}
+
+/**
+ * A menu entry: `{ text, icon | iconHtml, onChoose, danger?, selected?, disabled?, title? }`,
+ * or `{ separator: true }`.
+ */
 function itemEl(item) {
   if (item.separator) {
     const sep = document.createElement("div");
@@ -17,7 +33,8 @@ function itemEl(item) {
     sep.setAttribute("role", "separator");
     return sep;
   }
-  const el = iconButton(`lib-menu-item${item.danger ? " is-danger" : ""}`, item.icon, { text: item.text });
+  const el = entryButton(item);
+  if (item.title) el.title = item.title;
   el.setAttribute("role", item.selected === undefined ? "menuitem" : "menuitemradio");
   if (item.selected !== undefined) el.setAttribute("aria-checked", String(item.selected));
   if (item.disabled) {

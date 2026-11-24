@@ -7,6 +7,9 @@ import { test, expect } from "@playwright/test";
 
 import { SIBLING_JOB_ID, openInspectorTab, openStudio, seedLibrary, stubUpdateCheck, uiText } from "./helpers.mjs";
 
+// Tall enough that each lane shows its second row (EQ, Key, Stem) rather than its ⋯ menu.
+const TALL_WINDOW = { width: 1600, height: 1000 };
+
 const tip = (page) => page.locator("#helpTip");
 // The pointer's ring is placed on whole pixels.
 const RING_TOLERANCE_PX = 1;
@@ -123,6 +126,7 @@ test.describe("help mode", () => {
   });
 
   test("a lane's control names its instrument", async ({ page }) => {
+    await page.setViewportSize(TALL_WINDOW);
     await openStudio(page);
     await helpOn(page);
     const drumsMute = page.locator(".mx-row, .lane-header").filter({ hasText: "Drums" }).locator(".mx-btn.mute").first();

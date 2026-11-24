@@ -110,7 +110,7 @@ export let currentVersionId = DEFAULT_VERSION_ID;
 // another track must not break the running import's Cancel button.
 export let foregroundJobId = null;
 
-// `mixerState` is mutated in place (never reassigned). renderMixerRow's
+// `mixerState` is mutated in place (never reassigned). The lane headers'
 // closures capture each entry by reference, so on a new job we merge
 // localStorage values into the existing objects rather than replacing them.
 export const mixerState = {};

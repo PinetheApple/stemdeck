@@ -1,0 +1,273 @@
+/* Stem lane headers (laneHeader.js) and recording rows, over daw.css's mixer-column rules.
+   The column is var(--daw-col-w) wide; the header is a size container, so the dB readout
+   goes first as it narrows and the second row moves into ⋯ when the lane is too short. */
+:root {
+  --lane-stripe-w: 4px;
+  --lane-meter-w: 4px;
+  --lane-name-w: calc(var(--s-7) + var(--s-5));
+  --lane-x-border: 1px;
+  --lane-x-h: calc(var(--target-min) + 2 * var(--lane-x-border));
+  --lane-db-w: calc(var(--s-6) + var(--s-2));
+  --lane-fader-min: var(--s-6);
+  --lane-silent-opacity: 0.25;
+}
+
+/* ── Stem header ── */
+.mixer-column .lane-header.lane-head {
+  container: lane-head / size;
+  align-items: stretch;
+  gap: 0;
+  padding: 0 calc(2 * var(--s-2) + var(--lane-meter-w)) 0 calc(var(--s-3) + var(--lane-stripe-w));
+}
+.lane-header.lane-head.muted { opacity: 1; }
+.lane-head .lane-stripe {
+  display: block;
+  position: absolute;
+  left: 0;
+  top: var(--s-2);
+  bottom: var(--s-2);
+  width: var(--lane-stripe-w);
+  border-radius: 0 var(--lane-stripe-w) var(--lane-stripe-w) 0;
+  background: var(--lane-color);
+}
+.lane-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--s-2);
+}
+.lane-main,
+.lane-x {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.lane-head .lane-name {
+  width: var(--lane-name-w);
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--lane-color);
+  font: var(--fw-heavy) var(--fs-md) / 1.1 var(--font-sans);
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  cursor: pointer;
+}
+.lane-head .lane-name:disabled { cursor: default; }
+
+.lane-head .lane-icon-toggle.mx-btn.mute,
+.lane-head .ms-btn.mx-btn.solo {
+  width: var(--ctl-h);
+  height: var(--ctl-h);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-1);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-mono);
+}
+.lane-head .mx-btn:is(.mute, .solo):hover:not(:disabled) { background: var(--surface-4); color: var(--text); }
+.lane-head .lane-icon-toggle.mx-btn.mute[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--text);
+  color: var(--bg);
+}
+.lane-head .ms-btn.mx-btn.solo[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--lane-color);
+  color: var(--bg);
+}
+
+.lane-head .lane-knob.mx-fader { flex: 1 1 auto; min-width: var(--lane-fader-min); }
+.lane-head .mx-fader-input { cursor: pointer; }
+.lane-head .mx-val {
+  width: var(--lane-db-w);
+  font: var(--fw-medium) var(--fs-xs) / 1 var(--font-mono);
+  color: var(--text-3);
+}
+
+.lane-more {
+  display: none;
+  place-items: center;
+  flex: none;
+  width: var(--ctl-h-sm);
+  height: var(--ctl-h-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.lane-more:hover:not(:disabled),
+.lane-more[aria-expanded="true"] { background: var(--surface-3); color: var(--text); }
+.lane-more:disabled { cursor: default; }
+.lane-more .ic { width: var(--icon); height: var(--icon); }
+
+/* ── Second row: EQ, Key, Stem ── */
+.lane-x .eq-lane-mark,
+.lane-x .lane-dl,
+.lane-head .lane-key {
+  position: static;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  flex: none;
+  width: auto;
+  height: var(--lane-x-h);
+  padding: 0 var(--s-2);
+  border: var(--lane-x-border) solid var(--line-strong);
+  border-radius: var(--r-1);
+  font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-sans);
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+.lane-x .lane-dl {
+  color: var(--text-3);
+  text-decoration: none;
+  cursor: pointer;
+}
+.lane-x .lane-dl:hover:not(.disabled) { background: var(--surface-3); color: var(--text); }
+.lane-x .lane-dl .ic { width: var(--icon-sm); height: var(--icon-sm); }
+.lane-x .eq-lane-mark:not([data-eq="active"]) .lane-x-label { color: var(--text-3); }
+
+.lane-head .lane-key {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 0;
+  padding: 0 0 0 var(--s-2);
+  color: var(--text-3);
+}
+.lane-key-label { margin-right: var(--s-1); }
+.lane-head .lane-key-step {
+  width: var(--target-min);
+  height: var(--target-min);
+  border-radius: var(--r-1);
+  font: var(--fw-semibold) var(--fs-sm) / 1 var(--font-mono);
+  color: var(--text-3);
+}
+.lane-head .lane-key-step::before { content: none; }
+.lane-head .lane-key-step:hover:not(:disabled) { color: var(--text); background: var(--surface-3); }
+.lane-head .lane-key-step:disabled { opacity: var(--disabled-opacity); cursor: not-allowed; }
+.lane-head .lane-key-value,
+.lane-head .lane-key.active .lane-key-value {
+  width: auto;
+  min-width: var(--icon);
+  height: auto;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-mono);
+}
+.lane-head .lane-key.active { border-color: var(--accent-line); color: var(--accent-hi); }
+.lane-head .lane-key.active .lane-key-value { color: var(--accent-hi); }
+.lane-head .lane-key.locked,
+.lane-head .lane-key.unsupported { opacity: var(--disabled-opacity); }
+
+/* ── The meter: a thin bar at the right edge, the lane's colour; nothing else follows the level ── */
+.lane-head .lane-vu.mx-meter {
+  position: absolute;
+  right: var(--s-2);
+  top: var(--s-3);
+  bottom: var(--s-3);
+  width: var(--lane-meter-w);
+  height: auto;
+  border: 0;
+  border-radius: var(--lane-meter-w);
+  background: var(--surface-3);
+}
+.lane-head .lane-vu-bar.mx-meter-fill {
+  inset: auto 0 0;
+  width: auto;
+  height: var(--vu-level, 0%);
+  border-radius: 0;
+  background: var(--lane-color);
+  transition: height var(--t-fast) linear;
+}
+
+/* ── Not heard: muted, or silenced by a solo elsewhere ── */
+.lane-head.is-silent .lane-name { color: var(--text-3); }
+.lane-head.is-silent .lane-stripe { background: var(--surface-4); }
+.stem-waveform-row.is-silent { opacity: var(--lane-silent-opacity); filter: grayscale(1); }
+
+/* Two rows need 78 px; at the lanes' 72 px floor the second row moves into ⋯. */
+@container lane-head (height < 78px) {
+  .lane-x { display: none; }
+  .lane-more { display: inline-grid; }
+}
+/* The dB readout is the first thing a narrow column gives up. */
+@container lane-head (width < 264px) {
+  .mx-val { display: none; }
+}
+@container lane-head (height < 78px) and (width < 300px) {
+  .mx-val { display: none; }
+}
+
+/* ── Recording tracks: one row each (name, input, meter, fader, Arm, M, S, ⋯) at every column width ── */
+.mixer-column .lane-header.mx-row.rec-row {
+  container: rec-row / inline-size;
+  gap: var(--s-1);
+  padding: 0 var(--s-2) 0 calc(var(--s-3) + var(--lane-stripe-w));
+}
+.rec-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: var(--s-2);
+  bottom: var(--s-2);
+  width: var(--lane-stripe-w);
+  border-radius: 0 var(--lane-stripe-w) var(--lane-stripe-w) 0;
+  background: var(--text-3);
+}
+.rec-row:has(.rec-arm[aria-pressed="true"])::before { background: var(--danger); }
+.rec-row .rec-left { display: contents; }
+.rec-row .rec-name-line { width: var(--lane-name-w); flex: none; }
+.rec-row .rec-input-btn {
+  flex: 0 1 auto;
+  max-width: calc(2 * var(--s-7));
+  height: var(--ctl-h-sm);
+  min-height: 0;
+}
+.rec-row .lane-vu.rec-meter {
+  position: relative;
+  flex: none;
+  width: var(--lane-meter-w);
+  height: var(--ctl-h-sm);
+  border: 0;
+  border-radius: var(--lane-meter-w);
+  background: var(--surface-3);
+}
+.rec-row .rec-meter .mx-meter-fill {
+  inset: auto 0 0;
+  width: auto;
+  height: var(--vu-level, 0%);
+  border-radius: 0;
+  background: var(--text-2);
+  transition: height var(--t-fast) linear;
+}
+.rec-row .lane-knob.mx-fader { flex: 1 1 var(--s-7); min-width: var(--target-min); }
+.rec-row .rec-arm.mx-btn,
+.rec-row .lane-icon-toggle.mx-btn.mute,
+.rec-row .ms-btn.mx-btn.solo {
+  width: var(--ctl-h-sm);
+  height: var(--ctl-h-sm);
+  border-radius: var(--r-1);
+  font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-mono);
+}
+.rec-row .lane-icon-toggle.mx-btn.mute[aria-pressed="true"] { border-color: transparent; background: var(--text); color: var(--bg); }
+.rec-row .ms-btn.mx-btn.solo[aria-pressed="true"] { border-color: transparent; background: var(--text-2); color: var(--bg); }
+.rec-row .rec-track-more.mx-btn { width: var(--target-min); height: var(--ctl-h-sm); }
+@container rec-row (width < 280px) {
+  .rec-row .rec-name-line { width: calc(var(--s-7) + var(--s-2)); }
+  .rec-row .rec-input-btn span,
+  .rec-row .rec-input-btn .ic:last-child { display: none; }
+}

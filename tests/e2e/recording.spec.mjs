@@ -29,9 +29,7 @@ const IMPORT_JOB_ID = "e2eimport0001";
 const IMPORT_URL = "https://example.com/song";
 // player.js WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT: the floor no lane goes under.
 const STEM_FLOOR_PX = 72;
-// The 24 px minimum target, as dialog-keyboard.spec checks it.
-const MIN_TARGET_PX = 24;
-const ALL_ARROW_HITS = [true, true, true, true];
+const ALL_CORNER_HITS = [true, true, true, true];
 // Well under recorder.js's TEARDOWN_WAIT_MS (500), so a wait that ran would show.
 const FAST_PATH_MAX_MS = 100;
 const EXPORT_ROUTE = /\/(mixdown\.wav|stems\/all\.zip)\?/;
@@ -149,24 +147,21 @@ async function expectAddRowAboveFooter(page) {
   expect(add.y + add.height).toBeLessThanOrEqual(footer.y);
 }
 
-// As dialog-keyboard.spec: each arrow answers MIN_TARGET_PX away from the K, at its edge and at the far end.
-async function keyArrowHits(page, stem) {
-  const lane = page.locator(`.lane-key[data-stem="${stem}"]`);
+// A lane's ⋯ (EQ, Key and Stem on a short lane) answers across its whole box, not covered by + Track.
+async function moreButtonHits(page, stem) {
+  const more = page.locator(`.lane-header[data-stem="${stem}"] .lane-more`);
   // Centred, so the sticky + Track row is not over the lane being probed.
-  await lane.evaluate((el) => el.scrollIntoView({ block: "center" }));
-  const up = await lane.locator(".lane-key-step.up").boundingBox();
-  const down = await lane.locator(".lane-key-step.down").boundingBox();
-  const upYs = [up.y + up.height - 1, up.y + up.height - MIN_TARGET_PX + 1];
-  const downYs = [down.y + 1, down.y + MIN_TARGET_PX - 1];
+  await more.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  const box = await more.boundingBox();
+  const corners = [
+    [box.x + 1, box.y + 1],
+    [box.x + box.width - 1, box.y + 1],
+    [box.x + 1, box.y + box.height - 1],
+    [box.x + box.width - 1, box.y + box.height - 1],
+  ];
   return page.evaluate(
-    ({ upX, upYs, downX, downYs }) => {
-      const hit = (x, y, sel) => Boolean(document.elementFromPoint(x, y)?.closest(sel));
-      return [
-        ...upYs.map((y) => hit(upX, y, ".lane-key-step.up")),
-        ...downYs.map((y) => hit(downX, y, ".lane-key-step.down")),
-      ];
-    },
-    { upX: up.x + up.width / 2, upYs, downX: down.x + down.width / 2, downYs },
+    (points) => points.map(([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest(".lane-more"))),
+    corners,
   );
 }
 
@@ -186,7 +181,7 @@ test("a song with no tracks keeps the stems' lane height, + Track at the end of 
   await expectAddRowAboveFooter(page);
 });
 
-test("six stems and two recording tracks keep the lane floor and every K arrow's full target", async ({ page }) => {
+test("six stems and two recording tracks keep the lane floor and every lane's ⋯ in reach", async ({ page }) => {
   await page.setViewportSize(SHORT_WINDOW);
   await openStudio(page);
   await addArmedTrack(page);
@@ -200,7 +195,7 @@ test("six stems and two recording tracks keep the lane floor and every K arrow's
   expect(stems).toHaveLength(STEM_ROWS);
   const usable = stems.filter((lane) => lane.usable).map((lane) => lane.stem);
   expect(usable.length).toBeGreaterThan(0);
-  for (const stem of usable) expect(await keyArrowHits(page, stem), stem).toEqual(ALL_ARROW_HITS);
+  for (const stem of usable) expect(await moreButtonHits(page, stem), stem).toEqual(ALL_CORNER_HITS);
 });
 
 test("Record waits for a recording track and says so", async ({ page }) => {

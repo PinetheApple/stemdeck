@@ -46,9 +46,11 @@ import { setBeatGridAvailable, syncBeatGridButtons } from "./beatgridUi.js";
 import {
   loadMixIntoState, resetMixerState, refreshMixerVisuals,
   setLaneControlsEnabled, ensureMixerStateDefaults, applyMix,
-  renderRealMiniWave, renderRealMiniWaveFromPeaks, renderMixerRow,
-  applyAllLanePitches, setLaneKeysAvailable, mixGlobalPitch, anySoloActive,
+  renderRealMiniWave, renderRealMiniWaveFromPeaks,
+  applyAllLanePitches, setLaneKeysAvailable, mixGlobalPitch, anySoloActive, isLaneSilenced,
 } from "./mixer.js";
+import { buildLaneHeader } from "./laneHeader.js";
+import { SILENT_CLASS } from "./laneSilence.js";
 import {
   buildRuler, updatePlayheadMarker, updateLoopRegionVisual,
   applyWaveZoom, resetWaveZoom, WAVE_ZOOM_MAX,
@@ -440,6 +442,7 @@ function renderOverviewWaveformPath(stemName, peaks, norm, color, barCount, orde
     row = document.createElement("div");
     row.className = "stem-waveform-row";
     row.dataset.stem = stemName;
+    row.classList.toggle(SILENT_CLASS, isLaneSilenced(stemName));
     layer.appendChild(row);
   }
   row.style.setProperty("--stem-color", color);
@@ -952,9 +955,7 @@ export function renderEmptyShell() {
   // base 6 -- applyStemSelectionFilter (below) hides them by default since no
   // job is loaded yet, and shows them in place of "vocals" once one is.
   for (const name of ["original", ...STEM_NAMES, ...EXTRA_STEM_NAMES]) {
-    const { row } = renderMixerRow({ name, url: "#" });
-    row.prepend(createLaneEqMark(name));
-    mixerEl.appendChild(row);
+    mixerEl.appendChild(buildLaneHeader({ name, url: "#" }, createLaneEqMark(name)));
   }
   requestAnimationFrame(() => _applyLaneHeight(1 + STEM_NAMES.length));
   applyStemSelectionFilter(new Set(STEM_NAMES));

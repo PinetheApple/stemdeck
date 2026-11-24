@@ -1,6 +1,10 @@
 import { test, expect } from "@playwright/test";
 import { JOB_ID, SIBLING_JOB_ID, openStudio, openInspectorTab } from "./helpers.mjs";
 
+// Tall enough that each lane shows its second row (EQ, Key, Stem) rather than its ⋯ menu.
+const TALL_WINDOW = { width: 1600, height: 1000 };
+test.use({ viewport: TALL_WINDOW });
+
 const SUGGEST_EQ = /\/api\/jobs\/[a-f0-9]{12}\/suggest\/eq\?/;
 const SUGGESTED = {
   bands: [

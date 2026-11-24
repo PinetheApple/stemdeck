@@ -1,5 +1,5 @@
 import {
-  STEM_NAMES, TRACK_NAMES, EXTRA_STEM_NAMES, STEM_COLORS, STEM_DISPLAY, LANE_VOLUME_MAX,
+  STEM_NAMES, TRACK_NAMES, EXTRA_STEM_NAMES, STEM_COLORS, LANE_VOLUME_MAX,
 } from "./constants.js";
 
 // Every lane name this session might ever need mixer state for, including
@@ -23,6 +23,7 @@ import {
   GLOBAL_PITCH_FIELD, PITCH_MAX, PITCH_MIN, clampPitch, pitchBlockedKey, savedGlobalPitch,
 } from "./pitchBus.js";
 import { applyTakeGains, clearTakeSolos, takeSoloActive } from "./takesMix.js";
+import { paintLaneSilence } from "./laneSilence.js";
 import {
   bindFxStore,
   ensureFxDefaults,
@@ -176,9 +177,7 @@ export function refreshLaneKeyVisual(name) {
   const n = mixerState[name]?.pitch ?? 0;
   const signed = n > 0 ? `+${n}` : String(n);
   const valueEl = wrap.querySelector(".lane-key-value");
-  // "K" while the lane is in its own key, so the control reads as a label
-  // until it is doing something, and as a number the moment it is.
-  if (valueEl) valueEl.textContent = n === 0 ? "K" : signed;
+  if (valueEl) valueEl.textContent = signed;
   wrap.classList.toggle("active", n !== 0);
 
   const locked = wrap.classList.contains("locked");
@@ -246,6 +245,7 @@ export function laneGainDbText(gain) {
 }
 
 export function applyMix() {
+  paintLaneSilence(isLaneSilenced);
   if (!multitrack) return;
   for (const name of allTrackNames()) {
     const s = mixerState[name];
@@ -313,11 +313,14 @@ export function refreshMixerVisuals() {
     if (row) {
       const muteBtn = row.querySelector(".mute");
       const soloBtn = row.querySelector(".solo");
-      if (soloBtn) soloBtn.classList.toggle("active", state.soloed);
+      if (soloBtn) {
+        soloBtn.classList.toggle("active", state.soloed);
+        soloBtn.setAttribute("aria-pressed", String(state.soloed));
+      }
       const iconToggle = row.querySelector(".lane-icon-toggle");
       if (iconToggle) {
         iconToggle.classList.toggle("active", !state.muted);
-        iconToggle.setAttribute("aria-pressed", String(!state.muted));
+        iconToggle.setAttribute("aria-pressed", String(state.muted));
       }
       row.classList.toggle("muted", state.muted);
       const knob = row.querySelector(".lane-knob");
@@ -354,7 +357,7 @@ export function refreshMixerVisuals() {
 
 export function setLaneControlsEnabled(enabled) {
   for (const b of mixerEl.querySelectorAll(".ms-btn")) b.disabled = !enabled;
-  for (const b of mixerEl.querySelectorAll(".lane-icon-toggle")) b.disabled = !enabled;
+  for (const b of mixerEl.querySelectorAll(".lane-icon-toggle, .lane-name, .lane-more")) b.disabled = !enabled;
   for (const a of mixerEl.querySelectorAll(".lane-dl")) {
     a.classList.toggle("disabled", !enabled);
     if (!enabled) {
@@ -474,65 +477,6 @@ export function renderRealMiniWaveFromPeaks(stemName, pts, color) {
   }
 }
 
-function downloadIcon() {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("width", "18");
-  svg.setAttribute("height", "18");
-  svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", "2");
-  svg.setAttribute("aria-hidden", "true");
-  svg.innerHTML =
-    '<path d="M12 3v11"></path>' +
-    '<path d="m7.5 9.5 4.5 4.5 4.5-4.5"></path>' +
-    '<rect x="5" y="17" width="14" height="4" rx="1.5"></rect>';
-  return svg;
-}
-
-function makeVolumeKnob(stemName, color) {
-  const wrap = document.createElement("div");
-  wrap.className = "lane-knob mx-fader";
-  wrap.dataset.stem = stemName;
-
-  const input = document.createElement("input");
-  input.type = "range";
-  input.className = "mx-fader-input";
-  input.setAttribute("min", "0");
-  input.setAttribute("max", String(LANE_VOLUME_MAX));
-  input.setAttribute("step", "0.01");
-  input.setAttribute("value", "1");
-  input.style.setProperty("--fader-color", color);
-  input.style.setProperty("--lane-pos", "0.5");
-  input.setAttribute("aria-label", t("aria.volume", { name: STEM_DISPLAY[stemName] || stemName }));
-  input.addEventListener("input", () => setLaneVolume(stemName, parseFloat(input.value)));
-  input.addEventListener("dblclick", (e) => { e.stopPropagation(); setLaneVolume(stemName, 1); });
-  wrap.appendChild(input);
-
-  wrap.addEventListener("dblclick", () => setLaneVolume(stemName, 1));
-  wrap.addEventListener("wheel", (e) => {
-    e.preventDefault();
-    const cur = mixerState[stemName]?.volume ?? 1;
-    setLaneVolume(stemName, cur - Math.sign(e.deltaY) * (e.shiftKey ? 0.2 : 0.04));
-  }, { passive: false });
-
-  return wrap;
-}
-
-function stemIconMarkup(stemName) {
-  const common = 'class="lane-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"';
-  const icons = {
-    vocals: `<svg ${common}><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><path d="M12 19v3"></path></svg>`,
-    drums: `<svg ${common}><path d="M7 13.5a5 5 0 0 0 10 0"></path><path d="M7 13.5h10"></path><circle cx="9" cy="10" r="2.5"></circle><circle cx="15" cy="10" r="2.5"></circle><path d="M4 6.5h5"></path><path d="M15 6.5h5"></path><path d="M6.5 6.5v5"></path><path d="M17.5 6.5v5"></path><path d="M10 18l-2 3"></path><path d="M14 18l2 3"></path><path d="M4 18l16-8"></path></svg>`,
-    bass: `<svg ${common}><path d="M16.5 3h4v5h-3"></path><path d="M17.5 5.5 9.8 13.2"></path><path d="M10 13c1.6 2.2 1.1 5.1-1.2 6.5-2.1 1.3-5 .5-6-1.6-.9-1.9-.1-4.1 1.8-5 .9-.4 1.8-.4 2.8-.1.1-1.1.6-2.1 1.6-2.6 1.2-.6 2.6-.1 3.2 1.1"></path><path d="M6.7 16.4h.01"></path><path d="M13.5 9.5l3 3"></path><path d="M18.2 3v4.6"></path><path d="M20.5 3v4"></path></svg>`,
-    guitar: `<svg ${common}><path d="M16 4.5 20 2l2 2-2.5 4"></path><path d="M18.2 5.8 10.2 13.8"></path><path d="M10.5 13.5c1.1 1.7.5 4.2-1.5 5.5-2.2 1.5-5.3.8-6.3-1.3-.8-1.7.1-3.6 1.9-4.2 1-.3 1.8-.1 2.7.5.1-1.1.6-2.1 1.6-2.6 1.4-.7 2.7.2 1.6 2.1Z"></path><path d="M6.5 15.1c1.3.6 2.2 1.5 2.9 2.8"></path><circle cx="7" cy="16.4" r="1.4"></circle><path d="M14 8l3 3"></path></svg>`,
-    piano: `<svg ${common}><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 5v14"></path><path d="M12 5v14"></path><path d="M17 5v14"></path><path d="M9.5 5v7"></path><path d="M14.5 5v7"></path></svg>`,
-    other: `<svg ${common}><path d="M4 13v-2"></path><path d="M8 17V7"></path><path d="M12 21V3"></path><path d="M16 17V7"></path><path d="M20 13v-2"></path></svg>`,
-    original: `<svg ${common}><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>`,
-  };
-  return icons[stemName] || icons.other;
-}
-
 // ─── Drag preview ───
 //
 // What follows the cursor when a lane is dragged out to the OS.
@@ -586,144 +530,6 @@ export function laneDragIcon(stemName) {
     console.warn("[stemdeck] could not build a drag preview for", stemName, e);
     return null;
   }
-}
-
-export function renderMixerRow(stem) {
-  const state = mixerState[stem.name];
-  const color = STEM_COLORS[stem.name] || "#a0a0a0";
-  const display = STEM_DISPLAY[stem.name] || stem.name;
-
-  const row = document.createElement("div");
-  row.className = "lane-header mx-row";
-  row.dataset.stem = stem.name;
-
-  // Col 1: stem icon
-  const iconCell = document.createElement("div");
-  iconCell.className = "mx-icon";
-  iconCell.style.color = color;
-  iconCell.innerHTML = stemIconMarkup(stem.name);
-
-  // Hidden lane-stripe kept for CSS compat
-  const stripe = document.createElement("div");
-  stripe.className = "lane-stripe";
-  stripe.style.background = color;
-  row.appendChild(stripe);
-
-  // Col 2: name
-  const nameEl = document.createElement("span");
-  nameEl.className = "mx-name";
-  nameEl.style.color = color;
-  nameEl.textContent = display;
-
-  // Col 3: horizontal fader
-  const fader = makeVolumeKnob(stem.name, color);
-
-  // Col 4: VU meter
-  const vu = document.createElement("div");
-  vu.className = "lane-vu mx-meter";
-  vu.dataset.stem = stem.name;
-  vu.innerHTML = '<div class="lane-vu-bar mx-meter-fill"></div><div class="lane-vu-bar"></div>';
-
-  // Col 5: value label
-  const val = document.createElement("span");
-  val.className = "mx-val";
-  const initFrac = Math.max(0, Math.min(1, (state?.volume ?? 1) / LANE_VOLUME_MAX));
-  val.textContent = String(Math.round(initFrac * 100));
-
-  // Col 6: this lane's key, just left of the mute button.
-  //
-  // Laid out along the row like everything beside it. The original version
-  // stacked its buttons vertically next to M and S, which put one widget on the
-  // opposite axis to its neighbours and read as a jumble.
-  const key = makeLaneKey(stem.name, display);
-
-  // Col 7: M button
-  const muteBtn = document.createElement("button");
-  muteBtn.type = "button";
-  muteBtn.className = "lane-icon-toggle mx-btn mute";
-  muteBtn.textContent = "M";
-  muteBtn.setAttribute("aria-label", t("aria.mute", { name: display }));
-  muteBtn.setAttribute("aria-pressed", String(state?.muted ?? false));
-  if (!state?.muted) muteBtn.classList.add("active");
-
-  // Col 7: S button
-  const soloBtn = document.createElement("button");
-  soloBtn.type = "button";
-  soloBtn.className = "solo ms-btn mx-btn";
-  soloBtn.textContent = "S";
-  soloBtn.setAttribute("aria-label", t("aria.solo", { name: display }));
-  soloBtn.setAttribute("aria-pressed", String(state?.soloed ?? false));
-  if (state?.soloed) soloBtn.classList.add("active");
-
-  // Col 8: download
-  const dl = document.createElement("a");
-  dl.className = "lane-dl mx-btn";
-  dl.href = stem.url;
-  dl.download = `${stem.name}.wav`;
-  dl.title = t("aria.download", { name: display });
-  dl.appendChild(downloadIcon());
-
-  // Wrap name + VU in a column so VU appears below the name
-  const nameVuCol = document.createElement("div");
-  nameVuCol.className = "lane-name-vu";
-  nameVuCol.append(nameEl, vu);
-
-  row.append(iconCell, nameVuCol, fader, val, key, muteBtn, soloBtn, dl);
-
-  muteBtn.addEventListener("click", () => toggleStemMute(stem.name));
-  soloBtn.addEventListener("click", () => toggleStemSolo(stem.name));
-
-  row.classList.toggle("muted", state?.muted ?? false);
-  if (state) updateLaneKnobVisual(fader, state.volume);
-  refreshLaneKeyVisual(stem.name);
-
-  return { row, vuEl: vu };
-}
-
-/**
- * The per-lane key stepper: plus above, the reading in the middle, minus below.
- *
- * Drums get the control too, disabled and saying why, rather than no control at
- * all. A missing button on one row reads as a rendering bug; a disabled one
- * that explains itself teaches the rule.
- */
-function makeLaneKey(stemName, display) {
-  const wrap = document.createElement("div");
-  wrap.className = "lane-key";
-  wrap.dataset.stem = stemName;
-
-  const up = document.createElement("button");
-  up.type = "button";
-  up.className = "lane-key-step up";
-  up.textContent = "+";
-  up.setAttribute("aria-label", t("aria.laneKeyUp", { name: display }));
-
-  const valueEl = document.createElement("span");
-  valueEl.className = "lane-key-value";
-  valueEl.textContent = "K";
-
-  const down = document.createElement("button");
-  down.type = "button";
-  down.className = "lane-key-step down";
-  // A real minus sign: a hyphen next to a plus sign reads as a dash.
-  down.textContent = "\u2212";
-  down.setAttribute("aria-label", t("aria.laneKeyDown", { name: display }));
-
-  // Plus above, the reading, minus below.
-  wrap.append(up, valueEl, down);
-
-  if (stemName === "drums") {
-    wrap.classList.add("locked");
-    wrap.title = t("mixer.key.drumsLocked");
-    up.disabled = true;
-    down.disabled = true;
-    return wrap;
-  }
-
-  const step = (delta) => setLanePitch(stemName, (mixerState[stemName]?.pitch ?? 0) + delta);
-  up.addEventListener("click", () => step(1));
-  down.addEventListener("click", () => step(-1));
-  return wrap;
 }
 
 // ─── Stem-list panel (Stems sidebar) ───

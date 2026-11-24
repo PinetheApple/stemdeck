@@ -1748,6 +1748,14 @@ const en = {
   "studio.help.countIn": "Bars of click before the song starts when you press play: off, or 1 to 4.",
   "panel.more": "More",
   "panel.moreTitle": "More song tools: {tabs}",
+  "studio.lane.nameTitle": "Mute or unmute {name}",
+  "studio.lane.faderTitle": "Drag to set. Double-click to reset.",
+  "studio.lane.more": "More for {name}",
+  "studio.lane.key": "Key",
+  "studio.lane.stem": "Stem",
+  "studio.lane.eq": "EQ",
+  "studio.lane.transposeUp": "Transpose up a semitone",
+  "studio.lane.transposeDown": "Transpose down a semitone",
 };
 
 const pl = {
@@ -3289,6 +3297,14 @@ const pl = {
   "studio.help.countIn": "Takty metronomu przed startem utworu po naciśnięciu odtwarzania: wyłączone albo od 1 do 4.",
   "panel.more": "Więcej",
   "panel.moreTitle": "Więcej narzędzi utworu: {tabs}",
+  "studio.lane.nameTitle": "Wycisz lub włącz: {name}",
+  "studio.lane.faderTitle": "Przeciągnij, aby ustawić. Kliknij dwukrotnie, aby przywrócić.",
+  "studio.lane.more": "Więcej: {name}",
+  "studio.lane.key": "Tonacja",
+  "studio.lane.stem": "Ścieżka",
+  "studio.lane.eq": "EQ",
+  "studio.lane.transposeUp": "Transponuj o półton w górę",
+  "studio.lane.transposeDown": "Transponuj o półton w dół",
 };
 
 const ja = {
@@ -4767,6 +4783,14 @@ const ja = {
   "studio.help.countIn": "再生を押してから曲が始まるまでのクリックの小節数。オフ、または 1〜4。",
   "panel.more": "その他",
   "panel.moreTitle": "その他の曲のツール: {tabs}",
+  "studio.lane.nameTitle": "{name}をミュート/解除",
+  "studio.lane.faderTitle": "ドラッグで調整。ダブルクリックでリセット。",
+  "studio.lane.more": "{name}のその他",
+  "studio.lane.key": "キー",
+  "studio.lane.stem": "パート",
+  "studio.lane.eq": "EQ",
+  "studio.lane.transposeUp": "半音上げる",
+  "studio.lane.transposeDown": "半音下げる",
 };
 
 const zhHans = {
@@ -6245,6 +6269,14 @@ const zhHans = {
   "studio.help.countIn": "按下播放后歌曲开始前的节拍器小节数：关闭，或 1 到 4。",
   "panel.more": "更多",
   "panel.moreTitle": "更多歌曲工具：{tabs}",
+  "studio.lane.nameTitle": "静音或取消静音{name}",
+  "studio.lane.faderTitle": "拖动以调整，双击重置。",
+  "studio.lane.more": "{name}的更多选项",
+  "studio.lane.key": "调性",
+  "studio.lane.stem": "音轨",
+  "studio.lane.eq": "均衡器",
+  "studio.lane.transposeUp": "升高半音",
+  "studio.lane.transposeDown": "降低半音",
 };
 
 const de = {
@@ -7752,6 +7784,14 @@ const de = {
   "studio.help.countIn": "Takte Click, bevor der Song nach Play beginnt: aus oder 1 bis 4.",
   "panel.more": "Mehr",
   "panel.moreTitle": "Weitere Song-Werkzeuge: {tabs}",
+  "studio.lane.nameTitle": "{name} stumm oder laut schalten",
+  "studio.lane.faderTitle": "Ziehen zum Einstellen. Doppelklick setzt zurück.",
+  "studio.lane.more": "Mehr für {name}",
+  "studio.lane.key": "Tonart",
+  "studio.lane.stem": "Stem",
+  "studio.lane.eq": "EQ",
+  "studio.lane.transposeUp": "Einen Halbton höher",
+  "studio.lane.transposeDown": "Einen Halbton tiefer",
 };
 
 const pt = {
@@ -9261,6 +9301,14 @@ const pt = {
   "studio.help.countIn": "Compassos de clique antes de a música começar quando você aperta play: desligado ou de 1 a 4.",
   "panel.more": "Mais",
   "panel.moreTitle": "Mais ferramentas da música: {tabs}",
+  "studio.lane.nameTitle": "Silenciar ou reativar {name}",
+  "studio.lane.faderTitle": "Arraste para ajustar. Clique duas vezes para redefinir.",
+  "studio.lane.more": "Mais para {name}",
+  "studio.lane.key": "Tom",
+  "studio.lane.stem": "Stem",
+  "studio.lane.eq": "EQ",
+  "studio.lane.transposeUp": "Subir um semitom",
+  "studio.lane.transposeDown": "Descer um semitom",
 };
 
 const id = {
@@ -10739,6 +10787,14 @@ const id = {
   "studio.help.countIn": "Birama klik sebelum lagu dimulai saat Anda menekan putar: mati, atau 1 sampai 4.",
   "panel.more": "Lainnya",
   "panel.moreTitle": "Alat lagu lainnya: {tabs}",
+  "studio.lane.nameTitle": "Bisukan atau aktifkan {name}",
+  "studio.lane.faderTitle": "Seret untuk mengatur. Klik dua kali untuk mengatur ulang.",
+  "studio.lane.more": "Lainnya untuk {name}",
+  "studio.lane.key": "Nada",
+  "studio.lane.stem": "Stem",
+  "studio.lane.eq": "EQ",
+  "studio.lane.transposeUp": "Naikkan satu semiton",
+  "studio.lane.transposeDown": "Turunkan satu semiton",
 };
 
 const fr = {
@@ -12248,6 +12304,14 @@ const fr = {
   "studio.help.countIn": "Mesures de métronome avant le début du morceau quand vous lancez la lecture : désactivé, ou de 1 à 4.",
   "panel.more": "Plus",
   "panel.moreTitle": "Autres outils du morceau : {tabs}",
+  "studio.lane.nameTitle": "Couper ou rétablir {name}",
+  "studio.lane.faderTitle": "Glissez pour régler. Double-cliquez pour réinitialiser.",
+  "studio.lane.more": "Plus pour {name}",
+  "studio.lane.key": "Ton",
+  "studio.lane.stem": "Piste",
+  "studio.lane.eq": "EQ",
+  "studio.lane.transposeUp": "Monter d’un demi-ton",
+  "studio.lane.transposeDown": "Descendre d’un demi-ton",
 };
 
 // European Portuguese. Overrides only: anything not listed here resolves
@@ -12671,6 +12735,7 @@ const ptPT = {
   "settings.appearance.font.title": "Tipo de letra",
   "settings.appearance.font.desc": "O tipo de letra de todas as etiquetas e letras.",
   "settings.appearance.wash.desc": "Tinge o estúdio com as cores da capa da canção.",
+  "studio.lane.faderTitle": "Arraste para ajustar. Faça duplo clique para repor.",
 };
 
 const es = {
@@ -14192,6 +14257,14 @@ const es = {
   "studio.help.countIn": "Compases de click antes de que empiece la canción al pulsar reproducir: desactivado o de 1 a 4.",
   "panel.more": "Más",
   "panel.moreTitle": "Más herramientas de la canción: {tabs}",
+  "studio.lane.nameTitle": "Silenciar o activar {name}",
+  "studio.lane.faderTitle": "Arrastra para ajustar. Doble clic para restablecer.",
+  "studio.lane.more": "Más para {name}",
+  "studio.lane.key": "Tono",
+  "studio.lane.stem": "Stem",
+  "studio.lane.eq": "EQ",
+  "studio.lane.transposeUp": "Subir un semitono",
+  "studio.lane.transposeDown": "Bajar un semitono",
 };
 
 // Korean. Like ja, zhHans and id, Korean does not inflect nouns for
@@ -15679,6 +15752,14 @@ const ko = {
   "studio.help.countIn": "재생을 누른 뒤 곡이 시작되기 전 클릭 마디 수예요: 끄기 또는 1~4.",
   "panel.more": "더 보기",
   "panel.moreTitle": "곡 도구 더 보기: {tabs}",
+  "studio.lane.nameTitle": "{name} 음소거 또는 해제",
+  "studio.lane.faderTitle": "드래그해 조절하고 더블클릭해 초기화합니다.",
+  "studio.lane.more": "{name} 더 보기",
+  "studio.lane.key": "키",
+  "studio.lane.stem": "스템",
+  "studio.lane.eq": "EQ",
+  "studio.lane.transposeUp": "반음 올리기",
+  "studio.lane.transposeDown": "반음 내리기",
 };
 
 export const TRANSLATIONS = { en, pl, ja, ko, "zh-Hans": zhHans, de, fr, es, pt, "pt-PT": ptPT, id };
