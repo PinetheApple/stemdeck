@@ -123,6 +123,7 @@ const TRASH_ID = "trash";
 export const TRASH_CHANGE_EVENT = "tracktrash";
 // A song shown over the player: the song head and Details follow it, the player does not change.
 export const TRACK_SHOW_EVENT = "trackshow";
+export const TRACK_OPEN_EVENT = "trackopen";
 // The default landing folder for unorganized tracks — protected from deletion.
 const UNSORTED_ID = "f-unsorted";
 const isSystemFolder = (folderId) => folderId === TRASH_ID || folderId === UNSORTED_ID;
@@ -1705,7 +1706,7 @@ async function loadIntoStudio(trackId) {
   backfillAudioTags(trackId);
   // For artistInfo.js, which finds the band from the file's tags. An event
   // rather than an import, since that module already imports this one.
-  document.dispatchEvent(new CustomEvent("trackopen", { detail: { id: trackId } }));
+  document.dispatchEvent(new CustomEvent(TRACK_OPEN_EVENT, { detail: { id: trackId } }));
   return true;
 }
 

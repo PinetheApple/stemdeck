@@ -2,7 +2,7 @@
 //
 // Run:  node tests/js/library-search.test.mjs
 
-import { libraryTags, songMatches, toggleTagQuery } from "../../static/js/librarySearch.js";
+import { chipTags, libraryTags, songMatches, toggleTagQuery } from "../../static/js/librarySearch.js";
 
 let passed = 0;
 let failed = 0;
@@ -45,6 +45,11 @@ const LIBRARY = [
 ];
 check("library tags are unique, in library order", libraryTags(LIBRARY.slice(0, 3), 8), ["rock", "80s", "live"]);
 check("library tags stop at the limit", libraryTags(LIBRARY, 8).length, 8);
+
+check("the open song's tags lead, then the library's others", chipTags(["live", "jazz"], LIBRARY.slice(0, 3), 8), ["live", "jazz", "rock", "80s"]);
+check("the open song's tags are listed once", chipTags(["jazz", "jazz"], [], 8), ["jazz"]);
+check("the cap applies to the library's part only", chipTags(["x", "y"], LIBRARY, 8).length, 10);
+check("with no open song, the chips are the library's", chipTags([], LIBRARY, 8), libraryTags(LIBRARY, 8));
 
 check("a chip turns its tag on", toggleTagQuery("", "rock"), "#rock");
 check("the same chip turns it off", toggleTagQuery("#rock", "rock"), "");

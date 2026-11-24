@@ -1,8 +1,10 @@
-// Browse library's search box and tag chips. Typing # suggests the library's
-// tags; a chip, or a suggestion, puts its #tag in the box, and a second click clears it.
+// Browse library's search box and tag chips, the open song's tags first. Typing # suggests
+// the library's tags; a chip or a suggestion puts its #tag in the box, a second click clears it.
 
-import { libraryTrackIds, librarySearchFields } from "./catalog.js";
-import { TAG_PREFIX, libraryTags, tagCounts, toggleTagQuery } from "./librarySearch.js";
+import {
+  TRACK_OPEN_EVENT, TRACK_SHOW_EVENT, getCurrentTrackInfo, getLibraryTrack, isInTrash, libraryTrackIds, librarySearchFields,
+} from "./catalog.js";
+import { TAG_PREFIX, chipTags, tagCounts, toggleTagQuery } from "./librarySearch.js";
 import { browseState, setBrowseQuery } from "./browseLibrary.js";
 import { $ } from "./utils.js";
 
@@ -16,11 +18,17 @@ const STEP = Object.freeze({ ArrowDown: 1, ArrowUp: -1 });
 
 const librarySongs = () => libraryTrackIds().map(librarySearchFields);
 
+function openSongTags() {
+  const id = getCurrentTrackInfo()?.id;
+  if (!id || isInTrash(id)) return [];
+  return getLibraryTrack(id)?.tags ?? [];
+}
+
 export function drawTagChips() {
   const row = $("browseTags");
   if (!row) return;
   const query = browseState().query.trim().toLowerCase();
-  row.replaceChildren(...libraryTags(librarySongs(), CHIP_LIMIT).map((tag) => {
+  row.replaceChildren(...chipTags(openSongTags(), librarySongs(), CHIP_LIMIT).map((tag) => {
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "browse-tag";
@@ -110,4 +118,6 @@ export function wireBrowseSearch() {
   input?.addEventListener("keydown", onSearchKeydown);
   input?.addEventListener("blur", onSearchBlur);
   $("browseTags")?.addEventListener("click", onTagChipClick);
+  document.addEventListener(TRACK_OPEN_EVENT, drawTagChips);
+  document.addEventListener(TRACK_SHOW_EVENT, drawTagChips);
 }

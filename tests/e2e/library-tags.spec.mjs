@@ -1,5 +1,5 @@
-// Browse library's tag chips: the library's tags under the search box. A chip
-// filters by its #tag and a second click clears it; typing # suggests tags.
+// Browse library's tag chips: the open song's tags, then the library's, under the search
+// box. A chip filters by its #tag and a second click clears it; typing # suggests tags.
 import { test, expect } from "@playwright/test";
 import {
   JOB_ID,
@@ -40,6 +40,19 @@ test.beforeEach(async ({ page }) => {
 
 test("the chips are the library's tags, each once", async ({ page }) => {
   await expect.poll(() => chipTags(page)).toEqual(LIBRARY_TAGS);
+});
+
+test("the open song's tags lead the chips, and one filters by its tag", async ({ page }) => {
+  await page.locator("#browseCloseBtn").click();
+  await page.locator(`#catalogList .cat-item[data-id="${SIBLING_JOB_ID}"]`).first().click();
+  await expect(page.locator("#title")).toHaveText(SIBLING_TITLE, { timeout: 15000 });
+  await openBrowse(page);
+  await expect.poll(() => chipTags(page)).toEqual([...SIBLING_TAGS, "rock", "live"]);
+
+  await chips(page).first().click();
+  await expect(page.locator("#browseSearch")).toHaveValue("#jazz");
+  await expect(browseRow(page, SIBLING_JOB_ID)).toHaveCount(1);
+  await expect(browseRow(page, JOB_ID)).toHaveCount(0);
 });
 
 test("a chip filters the library by its tag, and a second click clears it", async ({ page }) => {
