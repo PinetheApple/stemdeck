@@ -11,7 +11,6 @@ import { JOB_ID, SIBLING_JOB_ID, openStudio, openSpeedOptions, openKeyOptions } 
 
 // Tall enough that each lane shows its second row (EQ, Key, Stem) rather than its ⋯ menu.
 const TALL_WINDOW = { width: 1600, height: 1000 };
-test.use({ viewport: TALL_WINDOW });
 
 const down = (page) => page.locator("#t-pitch-down");
 const up = (page) => page.locator("#t-pitch-up");
@@ -259,6 +258,7 @@ test.describe("transpose", () => {
   });
 
   test("the saved global key outranks lanes moved back on their own", async ({ page }) => {
+    await page.setViewportSize(TALL_WINDOW);
     await recordRouting(page);
     await openStudio(page);
     await settleRoutes(page);
@@ -311,6 +311,8 @@ test.describe("transpose", () => {
 });
 
 test.describe("per-lane transpose", () => {
+  test.use({ viewport: TALL_WINDOW });
+
   test("every instrument lane carries a key stepper", async ({ page }) => {
     await openStudio(page);
     await expect(laneKey(page, "vocals")).toBeVisible();

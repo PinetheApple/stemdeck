@@ -14,7 +14,10 @@ import {
   stubFavorites,
   stubLongQueue,
   stubUpdateCheck,
-  tabTo, openComposer } from "./helpers.mjs";
+  tabTo,
+  openComposer,
+  waitForPanesSettled,
+} from "./helpers.mjs";
 
 // Tall enough that each lane shows its key stepper rather than its ⋯ menu.
 const TALL_WINDOW = { width: 1600, height: 1000 };
@@ -238,15 +241,20 @@ test.describe("target sizes", () => {
   test("a lane's transpose arrows take a 24 px hit", async ({ page }) => {
     await page.setViewportSize(TALL_WINDOW);
     await openStudio(page);
+    await waitForPanesSettled(page);
     for (const step of ["up", "down"]) {
       const sel = `.lane-key[data-stem="vocals"] .lane-key-step.${step}`;
-      const box = await page.locator(sel).boundingBox();
-      const corners = [[box.x + 1, box.y + 1], [box.x + MIN_TARGET_PX - 1, box.y + MIN_TARGET_PX - 1]];
-      const hits = await page.evaluate(
-        ({ points, selector }) => points.map(([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest(selector))),
-        { points: corners, selector: sel },
-      );
-      expect(hits, step).toEqual([true, true]);
+      await expect.poll(async () => {
+        const box = await page.locator(sel).boundingBox();
+        const midX = box.x + box.width / 2;
+        const midY = box.y + box.height / 2;
+        // Edge midpoints: hit-testing follows the rounded corners.
+        const edges = [[box.x + 1, midY], [box.x + MIN_TARGET_PX - 1, midY], [midX, box.y + 1], [midX, box.y + MIN_TARGET_PX - 1]];
+        return page.evaluate(
+          ({ points, selector }) => points.map(([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest(selector))),
+          { points: edges, selector: sel },
+        );
+      }, { message: step }).toEqual([true, true, true, true]);
     }
   });
 });

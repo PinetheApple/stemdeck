@@ -1,7 +1,7 @@
 // Recording tracks and takes, on Chromium's fake microphone.
 import { test, expect } from "@playwright/test";
 import { SELECTED_ROW_CLASS } from "../../static/js/rovingRows.js";
-import { JOB_ID, SIBLING_JOB_ID, TRACK_TITLE, exportUi, openStudio, openSpeedOptions } from "./helpers.mjs";
+import { JOB_ID, SIBLING_JOB_ID, TRACK_TITLE, exportUi, openStudio, openSpeedOptions, waitForPanesSettled } from "./helpers.mjs";
 import { openSong } from "./saveRaces.mjs";
 
 test.use({
@@ -29,7 +29,7 @@ const IMPORT_JOB_ID = "e2eimport0001";
 const IMPORT_URL = "https://example.com/song";
 // player.js WAVEFORM_LANE_HEIGHT + WAVEFORM_SEPARATOR_HEIGHT: the floor no lane goes under.
 const STEM_FLOOR_PX = 72;
-const ALL_CORNER_HITS = [true, true, true, true];
+const ALL_EDGE_HITS = [true, true, true, true];
 // Well under recorder.js's TEARDOWN_WAIT_MS (500), so a wait that ran would show.
 const FAST_PATH_MAX_MS = 100;
 const EXPORT_ROUTE = /\/(mixdown\.wav|stems\/all\.zip)\?/;
@@ -153,15 +153,18 @@ async function moreButtonHits(page, stem) {
   // Centred, so the sticky + Track row is not over the lane being probed.
   await more.evaluate((el) => el.scrollIntoView({ block: "center" }));
   const box = await more.boundingBox();
-  const corners = [
-    [box.x + 1, box.y + 1],
-    [box.x + box.width - 1, box.y + 1],
-    [box.x + 1, box.y + box.height - 1],
-    [box.x + box.width - 1, box.y + box.height - 1],
+  const midX = box.x + box.width / 2;
+  const midY = box.y + box.height / 2;
+  // Edge midpoints: hit-testing follows the rounded corners.
+  const edges = [
+    [box.x + 1, midY],
+    [box.x + box.width - 1, midY],
+    [midX, box.y + 1],
+    [midX, box.y + box.height - 1],
   ];
   return page.evaluate(
     (points) => points.map(([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest(".lane-more"))),
-    corners,
+    edges,
   );
 }
 
@@ -195,7 +198,8 @@ test("six stems and two recording tracks keep the lane floor and every lane's â‹
   expect(stems).toHaveLength(STEM_ROWS);
   const usable = stems.filter((lane) => lane.usable).map((lane) => lane.stem);
   expect(usable.length).toBeGreaterThan(0);
-  for (const stem of usable) expect(await moreButtonHits(page, stem), stem).toEqual(ALL_CORNER_HITS);
+  await waitForPanesSettled(page);
+  for (const stem of usable) await expect.poll(() => moreButtonHits(page, stem), { message: stem }).toEqual(ALL_EDGE_HITS);
 });
 
 test("Record waits for a recording track and says so", async ({ page }) => {
