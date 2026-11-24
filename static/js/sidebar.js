@@ -2,8 +2,8 @@
 
 import { t, onLanguageChange } from "./i18n.js";
 import {
-  displayTitle, getLibraryTrack, getPlayingTrackInfo, isInTrash, isPlayableTrack, libraryTrackIds, onLibraryDraw,
-  trashTrackIds,
+  displayTitle, favoriteTrackIds, getLibraryTrack, getPlayingTrackInfo, isInTrash, isPlayableTrack, libraryTrackIds,
+  onLibraryDraw, trashTrackIds,
 } from "./catalog.js";
 import { trashWithUndo } from "./trashUndo.js";
 import { SONG_MENU_ATTR } from "./songMenu.js";
@@ -48,16 +48,16 @@ function fillGroup(groupId, ids, emptyText = "") {
 
 /** Favorites, newest first, and the playing song when it is not one of them. */
 function favoriteIds() {
-  const ids = libraryTrackIds().filter((id) => getLibraryTrack(id).favorite);
+  const ids = favoriteTrackIds();
   const playing = getPlayingTrackInfo()?.id;
   return playing && !ids.includes(playing) && !isInTrash(playing) ? [...ids, playing] : ids;
 }
 
 /** The last songs played, then the newest playable ones, none listed above. */
 function recentRowIds(shown) {
-  const listed = (id) => Boolean(getLibraryTrack(id)) && !isInTrash(id) && !shown.has(id);
+  const listed = (id) => isPlayableTrack(id) && !shown.has(id);
   const played = recentIds(readRecentlyPlayed(), { isListed: listed, limit: RECENT_ROWS });
-  const fill = libraryTrackIds().filter((id) => isPlayableTrack(id) && listed(id) && !played.includes(id));
+  const fill = libraryTrackIds().filter((id) => listed(id) && !played.includes(id));
   return [...played, ...fill].slice(0, RECENT_ROWS);
 }
 

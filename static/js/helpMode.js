@@ -99,7 +99,7 @@ const HELP = [
   [".waves-column", "help.waves", null, "help.wavesTitle"],
   ["#t-stop", "help.stop"],
   ["#t-play", "help.play"],
-  ["#t-next", "help.nextSong"],
+  ["#t-next", "studio.help.next"],
   ["#t-prev", "studio.help.previous"],
   ["#t-upnext", "studio.help.upNext"],
   ["#t-loop", "help.loop"],

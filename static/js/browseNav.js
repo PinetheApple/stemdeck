@@ -3,8 +3,8 @@
 
 import { t } from "./i18n.js";
 import {
-  createFolder, dropTrackOnFolder, folderTrackIds, libraryFolderTree, libraryTrackIds, openFolderEditor,
-  getLibraryTrack, setFolderCollapsed, trashTrackIds, wireFolderRenameKey,
+  createFolder, dropTrackOnFolder, favoriteTrackIds, folderTrackIds, libraryFolderTree, libraryTrackIds, openFolderEditor,
+  setFolderCollapsed, trashTrackIds, wireFolderRenameKey,
 } from "./catalog.js";
 import { trashWithUndo } from "./trashUndo.js";
 import { queueCount, getQueueSnapshot } from "./queue.js";
@@ -39,7 +39,7 @@ function groupHead(label, addId, addLabel) {
 }
 
 function viewButtons() {
-  const favorites = libraryTrackIds().filter((id) => getLibraryTrack(id).favorite).length;
+  const favorites = favoriteTrackIds().length;
   const buttons = [
     navButton(VIEW.ALL, icon("music"), t("lib.allSongs"), libraryTrackIds().length),
     navButton(VIEW.FAVORITES, icon("heart"), t("nav.favorites"), favorites),

@@ -1,8 +1,9 @@
 // Setlists: named, ordered lists of library songs kept on the server
 // (/api/setlists). The sidebar and Browse library draw them; Up Next stays client-side.
 
-import { getPlayingTrackInfo, isPlayableTrack, makeFolderFromSetlist } from "./catalog.js";
-import { getNowAndUpNextIds, playSongs } from "./upNext.js";
+import { TRACK_OPEN_EVENT, getPlayingTrackInfo, isPlayableTrack, makeFolderFromSetlist } from "./catalog.js";
+import { getNowAndUpNextIds } from "./upNext.js";
+import { LIST_KIND, playList } from "./playContext.js";
 import { t, onLanguageChange } from "./i18n.js";
 import {
   HTTP_NOT_FOUND,
@@ -242,9 +243,9 @@ export function makeFolderOf(id) {
   return setlist ? makeFolderFromSetlist(setlist.name, setlist.song_ids) : null;
 }
 
-/** Load the first playable song with the rest as Up Next; false, and said, when none can play. */
+/** Play the setlist from its first playable song; false, and said, when none can play. */
 export async function playSetlist(id) {
-  const started = await playSongs(getSetlist(id)?.song_ids ?? []);
+  const started = await playList({ kind: LIST_KIND.SETLIST, id });
   if (!started) {
     showError(t("setlists.nothingToPlay"));
     announce();
@@ -274,7 +275,7 @@ export function initSetlists() {
   $("upNextSave")?.addEventListener("click", onSaveUpNextClick);
   document.addEventListener("tracknames", announce);
   document.addEventListener("upnext:change", renderSaveUpNext);
-  document.addEventListener("trackopen", renderSaveUpNext);
+  document.addEventListener(TRACK_OPEN_EVENT, renderSaveUpNext);
   onLanguageChange(announce);
   renderSaveUpNext();
   loadSetlists();

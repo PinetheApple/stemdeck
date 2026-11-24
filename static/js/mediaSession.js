@@ -1,7 +1,7 @@
-import { getPlayingTrackInfo, getLibraryTrack, displayTitle, libraryTitle } from "./catalog.js";
+import { TRACK_OPEN_EVENT, getPlayingTrackInfo, getLibraryTrack, displayTitle, libraryTitle } from "./catalog.js";
 import { togglePlayPause, stopTransport, setPlayheadTime, transport } from "./transport.js";
-import { playNextInUpNext } from "./upNext.js";
-import { totalDuration, playbackSpeed, playBtn, loopEnabled, loopStart } from "./state.js";
+import { canGoNext, canGoPrevious, goToNext, goToPrevious, onPreviousNextChange } from "./playHistory.js";
+import { totalDuration, playbackSpeed, playBtn } from "./state.js";
 import { SEEK_STEP_SEC } from "./constants.js";
 import {
   metadataInit,
@@ -24,7 +24,6 @@ const ACTION = Object.freeze({
   SEEK_FORWARD: "seekforward",
 });
 const PLAYBACK = Object.freeze({ PLAYING: "playing", PAUSED: "paused", NONE: "none" });
-const SONG_START_SEC = 0;
 const AUDIO_SESSION_PLAYBACK = "playback";
 // Chromium drops the OS controls of a Web Audio page 2-3 s into silence, so a
 // silent element holds them; one under 5 s would count as a one-shot sound.
@@ -136,11 +135,6 @@ function seekAheadFromMediaKey(details) {
   seekTo(currentPosition() + (details.seekOffset ?? SEEK_STEP_SEC));
 }
 
-// Up Next keeps no played history, so previous restarts the open song, as Stop does.
-function restartFromMediaKey() {
-  seekTo(loopEnabled ? loopStart : SONG_START_SEC);
-}
-
 // Chromium rebuilds its session when the anchor plays, without what it was told before.
 function resendMediaState() {
   if (!openTrackId) return;
@@ -197,19 +191,23 @@ function onTrackOpen(e) {
   reported = null;
   motion = STILL;
   pauseMediaAnchor();
-  setActionHandler(
-    ACTION.PREVIOUS_TRACK,
-    openTrackId ? restartFromMediaKey : null,
-  );
+  syncStepHandlers();
   syncMetadata();
   syncPlayback();
 }
 
 function onUpNextChange(e) {
   upNextCount = e.detail?.count ?? 0;
+}
+
+function syncStepHandlers() {
+  setActionHandler(
+    ACTION.PREVIOUS_TRACK,
+    openTrackId && canGoPrevious() ? goToPrevious : null,
+  );
   setActionHandler(
     ACTION.NEXT_TRACK,
-    upNextCount ? playNextInUpNext : null,
+    canGoNext() ? goToNext : null,
   );
 }
 
@@ -248,8 +246,9 @@ export function initMediaSession() {
   setActionHandler(ACTION.SEEK_TO, seekFromMediaControls);
   setActionHandler(ACTION.SEEK_BACKWARD, seekBackFromMediaKey);
   setActionHandler(ACTION.SEEK_FORWARD, seekAheadFromMediaKey);
-  setActionHandler(ACTION.NEXT_TRACK, null);
-  document.addEventListener("trackopen", onTrackOpen);
+  syncStepHandlers();
+  onPreviousNextChange(syncStepHandlers);
+  document.addEventListener(TRACK_OPEN_EVENT, onTrackOpen);
   document.addEventListener("tracknames", syncMetadata);
   document.addEventListener("tracktags", syncMetadata);
   document.addEventListener("upnext:change", onUpNextChange);

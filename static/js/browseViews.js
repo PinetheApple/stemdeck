@@ -3,7 +3,7 @@
 
 import { t, plural, getLanguage } from "./i18n.js";
 import {
-  armEmptyTrash, folderErrorEl, folderNameOf, folderTrackIds, folderTreeTrackIds, getLibraryTrack, libraryFolderTree, libraryTrackIds,
+  armEmptyTrash, favoriteTrackIds, folderErrorEl, folderNameOf, folderTrackIds, folderTreeTrackIds, getLibraryTrack, libraryFolderTree, libraryTrackIds,
   librarySearchFields, makeSetlistFromFolder, renderImportQueue, trashTrackIds, wireFolderMenuButton,
 } from "./catalog.js";
 import { songMatches } from "./librarySearch.js";
@@ -19,6 +19,7 @@ import { browseState, openBrowse, viewParts } from "./browseLibrary.js";
 import { LAYOUT, VIEW } from "./browseViewNames.js";
 import { drawSetlistView } from "./browseSetlist.js";
 import { getSetlist } from "./setlists.js";
+import { LIST_KIND } from "./playContext.js";
 import { queueCount, getQueueSnapshot } from "./queue.js";
 
 const RECENT_LIMIT = 12;
@@ -113,7 +114,7 @@ function allView() {
 }
 
 function favoritesView() {
-  const ids = libraryTrackIds().filter((id) => getLibraryTrack(id).favorite);
+  const ids = favoriteTrackIds();
   return titledView(t("nav.favorites"), ids, emptyStateEl("heart", t("favorites.emptyTitle"), t("favorites.emptyHint")));
 }
 
@@ -228,6 +229,25 @@ const VIEWS = {
   [VIEW.SETLIST]: (id) => (getSetlist(id) ? drawSetlistView(id) : null),
 };
 
+const PLAY_LIST_KINDS = Object.freeze({
+  [VIEW.ALL]: LIST_KIND.ALL,
+  [VIEW.FAVORITES]: LIST_KIND.FAVORITES,
+  [VIEW.FOLDER]: LIST_KIND.FOLDER,
+  [VIEW.SETLIST]: LIST_KIND.SETLIST,
+});
+
+function markPlayList(container, view) {
+  const [kind, id] = viewParts(view);
+  const listKind = PLAY_LIST_KINDS[kind];
+  if (!listKind) {
+    delete container.dataset.playList;
+    delete container.dataset.playListId;
+    return;
+  }
+  container.dataset.playList = listKind;
+  container.dataset.playListId = id;
+}
+
 /** Draw the current view into `container`; a view that is gone falls back to All songs. Returns the view drawn. */
 export function drawBrowseResults(container) {
   if (!container) return browseState().view;
@@ -239,6 +259,7 @@ export function drawBrowseResults(container) {
     children = allView();
   }
   container.replaceChildren(...children);
+  markPlayList(container, view);
   const queueHost = container.querySelector("#browseImportQueue");
   if (queueHost) renderImportQueue(queueHost);
   return view;

@@ -1824,6 +1824,10 @@ export function libraryTrackIds() {
   return Object.entries(tracks).filter(([id]) => !trashed.has(id)).sort(byNewest).map(([id]) => id);
 }
 
+export function favoriteTrackIds() {
+  return libraryTrackIds().filter((id) => tracks[id].favorite);
+}
+
 /** The songs in the Trash, in the order they went in. */
 export function trashTrackIds() {
   return getTrashFolder().items.filter((id) => tracks[id]);

@@ -11,9 +11,9 @@ export const urlInput = $("url");
 export const submitBtn = $("submit");
 
 export const playBtn = $("t-play");
+export const PLAY_BUTTON_PLAYING_CLASS = "playing";
 export const playMiniBtn = $("t-play-mini");
 export const stopBtn = $("t-stop");
-export const prevBtn = $("t-prev");
 export const loopBtn = $("t-loop");
 export const titleEl = $("title");
 export const bpmChip = $("t-bpm");

@@ -8,7 +8,7 @@ import {
 import { destroyPlayer, wireUpAudio, setWaveformLoading, updateFooterTrack } from "./player.js";
 import { notifyFailure, dismissFailuresByJobId } from "./notifications.js";
 import { getStagePhrases } from "./phrases.js";
-import { addTrackToLibrary, replaceableTrackId, setCurrentTrack, updateTrackStatus, applyStemPresenceCards, paintKeyConfidence, libraryAudioTags, libraryArtist, libraryIdentity, libraryWork, paintFinishedTrackNames, armAutoOpen, refreshFailedImport, retryFailedImport } from "./catalog.js";
+import { addTrackToLibrary, replaceableTrackId, setCurrentTrack, updateTrackStatus, applyStemPresenceCards, paintKeyConfidence, libraryAudioTags, libraryArtist, libraryIdentity, libraryWork, paintFinishedTrackNames, armAutoOpen, refreshFailedImport, retryFailedImport, TRACK_OPEN_EVENT } from "./catalog.js";
 import { FAILED_STATUS, LOCAL_PREFIX, SOURCE_KIND, failureReasonKey, retryErrorText } from "./importSource.js";
 import { initSections } from "./sections.js";
 import { t } from "./i18n.js";
@@ -353,7 +353,7 @@ function finishDoneJob(state) {
   // opened from the library, rather than only after it is reopened (#699).
   paintFinishedTrackNames(state.job_id);
   // Same signal catalog.js sends when it opens a track.
-  document.dispatchEvent(new CustomEvent("trackopen", { detail: { id: state.job_id } }));
+  document.dispatchEvent(new CustomEvent(TRACK_OPEN_EVENT, { detail: { id: state.job_id } }));
 }
 
 function applyState(state) {
