@@ -141,10 +141,13 @@ const laneHeight = async (page) =>
     await page.evaluate(() => getComputedStyle(document.querySelector(".app")).getPropertyValue("--lane-h")),
   );
 
+// The footer's fractional height leaves sub-pixel rounding between the two boxes.
+const SUBPIXEL_PX = 0.5;
+
 async function expectAddRowAboveFooter(page) {
   const add = await page.locator(".rec-add-row").boundingBox();
   const footer = await page.locator(".daw-footer").boundingBox();
-  expect(add.y + add.height).toBeLessThanOrEqual(footer.y);
+  expect(add.y + add.height).toBeLessThanOrEqual(footer.y + SUBPIXEL_PX);
 }
 
 // A lane's ⋯ (EQ, Key and Stem on a short lane) answers across its whole box, not covered by + Track.
