@@ -11,7 +11,7 @@ import {
   toggleStemSolo,
 } from "./mixer.js";
 import { getLoadedStemNames } from "./player.js";
-import { LANE_VOLUME_MAX, STEM_COLORS, STEM_DISPLAY } from "./constants.js";
+import { FADER_STEP, LANE_VOLUME_MAX, STEM_COLORS, STEM_DISPLAY } from "./constants.js";
 import { PERCENT, readChoice, saveChoice, stripStems } from "./stageModel.js";
 import { closeStageQueue, isStageQueueOpen } from "./stageUpNext.js";
 import { t } from "./i18n.js";
@@ -21,7 +21,6 @@ import { mountMyPart } from "./myPartBar.js";
 const HIDDEN_STORE_KEY = "stemdeck.stage.mixHidden";
 const HIDDEN_STORED = "1";
 const HIDDEN_CLASS = "mixer-hidden";
-const FADER_STEP = "0.01";
 const MUTE_LETTER = "M";
 const SOLO_LETTER = "S";
 const VU_SCALE = "--vu-scale";
@@ -68,7 +67,7 @@ function stripFader(name) {
   fader.className = "stage-strip-fader";
   fader.min = "0";
   fader.max = String(LANE_VOLUME_MAX);
-  fader.step = FADER_STEP;
+  fader.step = String(FADER_STEP);
   fader.setAttribute("aria-label", t("aria.volume", { name: stemLabel(name) }));
   // WebKit's range-track pseudo-element does not see custom properties set on ancestors.
   fader.style.setProperty("--stem-color", STEM_COLORS[name] ?? "");

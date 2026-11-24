@@ -77,7 +77,6 @@ export const LOOP_DEFAULT_END_FRAC = 0.5;
 export const SEEK_STEP_SEC = 5;
 
 export const LANE_VOLUME_MAX = 2;
-// A lane fader's input step and unity gain, and how far one wheel notch moves it (Shift: coarse).
 export const FADER_STEP = 0.01;
 export const FADER_UNITY = 1;
 export const WHEEL_STEP = 0.04;

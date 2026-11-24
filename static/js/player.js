@@ -281,7 +281,6 @@ function renderPlaceholderTracks() {
 }
 
 const OVERVIEW_WAVE_POINTS = 1500;
-export { UNKNOWN_STEM_COLOR };
 export const WAVE_VIEWBOX_HEIGHT = 48;
 const STEM_VU_FPS = 30;
 const WAVEFORM_LANE_HEIGHT = 70;

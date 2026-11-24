@@ -2387,15 +2387,6 @@ input, textarea { font-family: inherit; }
 .lane-icon-toggle.mx-btn:hover,
 .ms-btn.mx-btn:hover { color: var(--fg); border-color: #3a4550; }
 
-/* Mute button: "active" = NOT muted (normal). Engaged (muted) lights up blue,
-   mirroring the solo button's own lit-up treatment below. */
-.lane-icon-toggle.mx-btn.mute.active { color: var(--fg-2); border-color: var(--border-strong); }
-.lane-icon-toggle.mx-btn.mute:not(.active) {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-}
-
 /* Solo button: "active" = soloed */
 .ms-btn.mx-btn.active { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
 
