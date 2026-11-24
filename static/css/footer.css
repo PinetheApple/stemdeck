@@ -250,7 +250,7 @@ button.ft-now:hover { background: var(--surface-2); }
 .ft-step-value b,
 .ft-step-value output { font: var(--fw-medium) var(--fs-base) / 1 var(--font-mono); color: var(--text); }
 
-/* Popovers over the footer: placed by footerPopover.js */
+/* Popovers over the footer: placed by popover.js */
 .ft-pop {
   --ft-pop-w: 280px;
   --ft-pop-pad: var(--s-3);

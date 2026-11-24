@@ -44,7 +44,7 @@ import { t, onLanguageChange } from "./i18n.js";
 import { pitchBlockedKey } from "./pitchBus.js";
 import { ON_CLASS } from "./footerClasses.js";
 import { paintKeyPanel } from "./footerKey.js";
-import { wirePopover } from "./footerPopover.js";
+import { wirePopover } from "./popover.js";
 import { CLICK_STATE_EVENT, initFooterClick } from "./footerClick.js";
 import { initFooterPractice } from "./footerPractice.js";
 import { initUpNextButton } from "./footerTransport.js";

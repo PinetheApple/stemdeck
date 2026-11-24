@@ -38,7 +38,8 @@ async function loopRange(page, start, end) {
 
 test.describe("footer Loop", () => {
   test("names the looping section, then Region for any other range, and Loop when off", async ({ page }) => {
-    await seed(page, [VERSE]);
+    // Wide enough for its loop button, which a block narrower than about 100px drops.
+    await seed(page, [{ ...VERSE, end: 3 }]);
     await openStudio(page);
     await expect(loopName(page)).toHaveText("Loop");
 

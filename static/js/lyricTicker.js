@@ -1,6 +1,6 @@
 // The lyric line being sung and the next one, in one line under the section blocks.
 
-import { ensureLyricsLoaded, getTimedLyricLines } from "./lyrics.js";
+import { LYRICS_CHANGE_EVENT, ensureLyricsLoaded, getTimedLyricLines } from "./lyrics.js";
 import { currentLineIndex } from "./lyricsLookup.js";
 import { getPlayingTrackInfo } from "./catalog.js";
 import { LYRIC_LEAD_SEC } from "./stageModel.js";
@@ -11,8 +11,6 @@ import { $ } from "./utils.js";
 const TICKER_ID = "lyricTicker";
 const NOW_SELECTOR = ".lyric-ticker-now";
 const NEXT_SELECTOR = ".lyric-ticker-next";
-// lyrics.js announces new or retimed lines with this event.
-const LYRICS_CHANGE_EVENT = "lyricschange";
 
 let trackId = null;
 let lastSec = 0;

@@ -1,7 +1,7 @@
 // The Sections and View buttons over the lanes, each opening its popover below it, and
 // View > Beat grid, a stored preference for the grid lines the click draws.
 
-import { PLACEMENT, wirePopover } from "./footerPopover.js";
+import { PLACEMENT, wirePopover } from "./popover.js";
 import { setBeatGridViewOn } from "./beatgrid.js";
 import { $, storeGet, storeSet } from "./utils.js";
 
@@ -45,7 +45,7 @@ export function initStudioMenus() {
   const panel = $("sectionsPanel");
   if (trigger && panel) {
     const sections = wirePopover(trigger, panel, BELOW);
-    // Add opens Edit section on the new section, which is where the eye goes next.
+    // Add opens Edit section, which the popover would otherwise sit over.
     $("sectionsAddBtn")?.addEventListener("click", sections.close);
   }
   if ($("viewMenuBtn") && $("viewPanel")) wirePopover($("viewMenuBtn"), $("viewPanel"), BELOW);

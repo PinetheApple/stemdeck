@@ -6,6 +6,9 @@
   --sec-loop-size: calc(var(--icon) + var(--s-2));
   --sec-col-line: color-mix(in srgb, var(--text) 7%, transparent);
   --sec-col-current: color-mix(in srgb, var(--text) 4%, transparent);
+  --sec-loop-hover: color-mix(in srgb, var(--text) 14%, transparent);
+  --sec-handle-hover: color-mix(in srgb, var(--text) 12%, transparent);
+  --sec-loop-ring: 2px;
 }
 
 .daw-sections-track .section-block {
@@ -20,15 +23,14 @@
   background-clip: padding-box;
   color: var(--text-2);
   cursor: pointer;
-  filter: none;
   transition: background var(--t-fast), color var(--t-fast);
   container-type: inline-size;
 }
-.daw-sections-track .section-block:hover { background: var(--surface-3); color: var(--text); filter: none; }
+.daw-sections-track .section-block:hover { background: var(--surface-3); color: var(--text); }
 .daw-sections-track .section-block.is-current { background: var(--accent-soft); color: var(--accent-hi); }
-.daw-sections-track .section-block.is-looped { box-shadow: inset 0 0 0 2px var(--accent); }
+.daw-sections-track .section-block.is-looped { box-shadow: inset 0 0 0 var(--sec-loop-ring) var(--accent); }
 .daw-sections-track .section-block.sec-dragging,
-.daw-sections-track .section-block.sec-resizing { background: var(--surface-3); filter: none; z-index: 1; }
+.daw-sections-track .section-block.sec-resizing { background: var(--surface-3); z-index: 1; }
 .daw-sections-track .section-block.sec-dragging { cursor: grabbing; }
 
 .daw-sections-track .section-label {
@@ -58,13 +60,13 @@
   cursor: pointer;
 }
 .section-loop .ic { width: var(--icon-sm); height: var(--icon-sm); }
-.section-loop:hover { background: color-mix(in srgb, var(--text) 14%, transparent); }
+.section-loop:hover { background: var(--sec-loop-hover); }
 .section-loop[aria-pressed="true"] { color: var(--accent); }
 .section-block:hover .section-loop,
 .section-block.is-looped .section-loop { display: grid; }
 .section-block:hover .section-time,
 .section-block.is-looped .section-time { display: none; }
-/* Too narrow for the name and the button: the name wins, and the footer's Loop still loops it. */
+/* Below these widths the loop button, then the start time, give way so the name stays legible. */
 @container (max-width: 96px) {
   .section-block:hover .section-loop,
   .section-block.is-looped .section-loop { display: none; }
@@ -73,7 +75,7 @@
   .section-time { display: none; }
 }
 
-.daw-sections-track .section-handle:hover { background: color-mix(in srgb, var(--text) 12%, transparent); }
+.daw-sections-track .section-handle:hover { background: var(--sec-handle-hover); }
 
 .section-cols { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 .section-col { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--sec-col-line); }

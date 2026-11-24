@@ -50,8 +50,6 @@
   color: var(--text-3);
   font: var(--fs-2xs) / 1.4 var(--font-mono);
 }
-#sectionsPanel .sections-clear-label { display: inline; }
-#sectionsPanel .sections-clear-btn { align-self: auto; padding: 0 var(--s-3); }
 #sectionsPanel .sections-clear-btn[data-armed] {
   border-color: color-mix(in srgb, var(--danger) 45%, transparent);
   background: color-mix(in srgb, var(--danger) 12%, transparent);

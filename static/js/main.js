@@ -11,7 +11,8 @@ import { wireJobForm, showError } from "./job.js";
 import { initSearch } from "./search.js";
 import { wireTransportButtons } from "./transport.js";
 import { wireBeatGridUi } from "./beatgridUi.js";
-import { togglePlayPauseFromTransport, updateLoopRegionVisual, toggleMetronome, transport, setPlayheadTime, setLoopRange } from "./transport.js";
+import { togglePlayPauseFromTransport, updateLoopRegionVisual, toggleMetronome, transport, setPlayheadTime } from "./transport.js";
+import { LOOP_EDGE_MIN_SEC } from "./footerLoop.js";
 import { setSectionsLoopBridge, saveSectionsOnPageClose } from "./sections.js";
 import { saveBeatGridOnPageClose } from "./beatgrid.js";
 import { wireStemListControls, wireMixerToolbar, laneDragIcon } from "./mixer.js";
@@ -490,7 +491,6 @@ wireTransportButtons();
 // loadable without a DOM. This is the one place that owns both.
 setSectionsLoopBridge({
   getLoop: () => ({ enabled: loopEnabled, start: loopStart, end: loopEnd }),
-  setLoopRange,
 });
 wireBeatGridUi();
 window.addEventListener("pagehide", saveEditsOnPageClose);
@@ -1230,11 +1230,11 @@ document.addEventListener("keydown", function onStudioShortcutKey(e) {
     e.preventDefault();
     // multitrack.getCurrentTime() is pinned at 0 on the engine path, so "set
     // loop in at playhead" always wrote 0 regardless of where the playhead was.
-    setLoopStart(Math.min(transport().getCurrentTime(), loopEnd - 0.5));
+    setLoopStart(Math.min(transport().getCurrentTime(), loopEnd - LOOP_EDGE_MIN_SEC));
     updateLoopRegionVisual();
   } else if (e.code === "KeyO" && loopEnabled) {
     e.preventDefault();
-    setLoopEnd(Math.max(transport().getCurrentTime(), loopStart + 0.5));
+    setLoopEnd(Math.max(transport().getCurrentTime(), loopStart + LOOP_EDGE_MIN_SEC));
     updateLoopRegionVisual();
   }
 });

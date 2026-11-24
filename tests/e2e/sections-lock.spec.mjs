@@ -33,7 +33,7 @@ async function dragBy(page, dx) {
 async function toggleLockInEditor(page) {
   await page.locator('.section-block[data-id="s1"]').dblclick();
   await page.locator("#sectionEditLock").click();
-  await page.keyboard.press("Escape");
+  await page.locator("#sectionEditSave").click();
   await expect(sectionEditDialog(page)).toBeHidden();
 }
 

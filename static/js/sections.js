@@ -23,11 +23,18 @@ const SECTION_KINDS = new Set([
 ]);
 // Pointer travel that still counts as a click rather than a drag.
 const CLICK_SLOP_PX = 3;
-const COLUMNS_ID = "sectionCols";
-const LOOP_ICON =
-  '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"' +
-  ' stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/>' +
-  '<path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>';
+// The footer Loop's icon, so the block's loop button draws the same one.
+const LOOP_ICON_SELECTOR = "#t-loop .ic";
+
+/** Where the columns that carry each section down through the lanes go. */
+export const COLUMNS_ID = "sectionCols";
+/** The parts of a section block that other studio modules read. */
+export const SECTION_SELECTOR = Object.freeze({
+  BLOCK: ".section-block",
+  LOOP: ".section-loop",
+  HANDLE: ".section-handle",
+});
+const SECTION_CONTROLS = `${SECTION_SELECTOR.HANDLE},${SECTION_SELECTOR.LOOP}`;
 
 let _trackId = null;
 let _duration = 0;
@@ -40,11 +47,8 @@ const _unconfirmed = new UnconfirmedSaves({ kind: SAVE_KIND.sections, resend: _r
 // The open track's sections as the server has them, to go back to when it refuses a save.
 let _confirmed = "";
 
-// The loop lives in transport.js, which reaches the DOM at import time through
-// state.js. Importing it here would drag a document into every Node test that
-// loads this module, so what sections reads from it is handed in instead.
-// Same reason loopRegion.js is its own module: the testable part stays
-// reachable without a browser.
+// Handed in rather than imported: transport.js needs a DOM at import time,
+// and this module stays loadable in Node tests.
 let _loopBridge = null;
 
 /// Wire sections to the transport's loop. Called once, from the module that
@@ -154,30 +158,34 @@ function _makeSectionEl(section) {
   el.className = section.locked ? "section-block sec-locked" : "section-block";
   el.dataset.id = section.id;
   el.style.cssText = _spanStyle(section);
-  el.title = t("studio.sections.jumpTo", { name });
+  const start = fmtTime(section.start);
+  el.title = t("studio.sections.jumpTo", { name, time: start });
+  el.setAttribute("role", "group");
+  el.setAttribute("aria-label", el.title);
   const loopLabel = _esc(t("studio.sections.loop", { name }));
+  const loopIcon = document.querySelector(LOOP_ICON_SELECTOR)?.outerHTML ?? "";
   const lockMark = section.locked
-    ? `<span class="section-lock-mark" title="${_esc(t("studio.sections.locked"))}">${_lockIcon(true)}</span>`
+    ? `<span class="section-lock-mark" title="${_esc(t("studio.sections.locked"))}">${_lockIcon()}</span>`
     : "";
   el.innerHTML = `
     <div class="section-handle section-handle-l" data-edge="left"></div>
     <span class="section-label">${_esc(name)}</span>
     ${lockMark}
-    <span class="section-time num">${fmtTime(section.start)}</span>
-    <button class="section-loop" type="button" aria-pressed="false" title="${loopLabel}" aria-label="${loopLabel}">${LOOP_ICON}</button>
+    <span class="section-time num" aria-hidden="true">${start}</span>
+    <button class="section-loop" type="button" aria-pressed="false" title="${loopLabel}" aria-label="${loopLabel}">${loopIcon}</button>
     <div class="section-handle section-handle-r" data-edge="right"></div>
   `;
 
   // On the block, not the label: the drag's pointer capture retargets the
   // dblclick that ends a real double-click to the capturing element.
   el.addEventListener("dblclick", function onSectionDoubleClick(e) {
-    if (e.target.closest(".section-handle,.section-loop")) return;
+    if (e.target.closest(SECTION_CONTROLS)) return;
     e.stopPropagation();
     _requestEdit(section.id);
   });
 
   _wireDrag(el, section);
-  for (const h of el.querySelectorAll(".section-handle")) {
+  for (const h of el.querySelectorAll(SECTION_SELECTOR.HANDLE)) {
     _wireResize(h, el, section);
   }
 
@@ -214,17 +222,13 @@ function _esc(str) {
     .replace(/"/g, "&quot;");
 }
 
-// Closed or open padlock, in the same stroked 24x24 shape as the rest of the
-// app's icons so it inherits --sc through currentColor. Drawn rather than
-// written as an emoji: this ships on three platforms and the emoji padlock is
-// a different colour and weight on each of them.
-function _lockIcon(locked) {
-  const shackle = locked ? "M7 11V7a5 5 0 0 1 10 0v4" : "M7 11V7a5 5 0 0 1 9.9-1";
+// Drawn rather than an emoji: the emoji padlock differs in colour and weight on each platform.
+function _lockIcon() {
   return (
     '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor"' +
     ' stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
     '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>' +
-    `<path d="${shackle}"></path></svg>`
+    '<path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>'
   );
 }
 
@@ -241,7 +245,7 @@ function _wireDrag(el, section) {
   let pressed = false;
 
   el.addEventListener("pointerdown", function onSectionPress(e) {
-    if (e.target.closest(".section-handle,.section-loop")) return;
+    if (e.target.closest(SECTION_CONTROLS)) return;
     pressed = true;
     startX = e.clientX;
     changed = false;

@@ -1,5 +1,5 @@
-// Popovers that open above a footer control: one at a time, fixed in place so the
-// footer's own clipping cannot cut them, and kept inside the window.
+// Popovers that open above or below their trigger: one at a time, fixed in place so
+// no clipping ancestor can cut them, and kept inside the window.
 
 import { HIDDEN_CLASS } from "./footerClasses.js";
 

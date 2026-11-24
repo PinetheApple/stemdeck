@@ -4,7 +4,7 @@ import { getPlayingTrackInfo, isTextEditingTarget } from "./catalog.js";
 import { shownBpm } from "./tempoTools.js";
 import { isBeatGridEditing, getBeats, barPositionIndex, barLengthAt } from "./beatgrid.js";
 import { buildBeatTable, beatAt } from "./stageBeats.js";
-import { ensureLyricsLoaded, getTimedLyricLines } from "./lyrics.js";
+import { LYRICS_CHANGE_EVENT, ensureLyricsLoaded, getTimedLyricLines } from "./lyrics.js";
 import { currentLineIndex } from "./lyricsLookup.js";
 import {
   forgetStageMixer,
@@ -253,7 +253,7 @@ export function initStageMode() {
   document.addEventListener("tracktags", onSongChangeInStage);
   document.addEventListener("tracklookup", onSongChangeInStage);
   document.addEventListener("tempochange", onTempoChange);
-  document.addEventListener("lyricschange", onLyricsChange);
+  document.addEventListener(LYRICS_CHANGE_EVENT, onLyricsChange);
   document.addEventListener(DURATION_EVENT, onDurationKnown);
   onLanguageChange(onSongChangeInStage);
 }

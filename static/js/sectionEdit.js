@@ -60,8 +60,7 @@ function cardMarkup() {
 
 const field = (id) => editing.overlay.querySelector(`#${id}`);
 
-function paintLock(section) {
-  const locked = section.locked === true;
+function paintLock(locked) {
   field(ID.LOCK).setAttribute("aria-pressed", String(locked));
   field(ID.NAME).disabled = locked;
   field(ID.HINT).textContent = t(locked ? KEY.LOCKED_HINT : KEY.HINT);
@@ -81,9 +80,17 @@ function onSectionsChangedWhileEditing() {
   if (editing && !findSection(editing.id)) closeEditor();
 }
 
+// Rename refuses a locked section, so an unlock lands before the name and a lock after it.
 function onSaveSection() {
-  renameSection(editing.id, field(ID.NAME).value);
+  const { id, locked } = editing;
+  if (!locked) applyLock(id, false);
+  renameSection(id, field(ID.NAME).value);
+  if (locked) applyLock(id, true);
   closeEditor();
+}
+
+function applyLock(id, locked) {
+  if (Boolean(findSection(id)?.locked) !== locked) setSectionLocked(id, locked);
 }
 
 function onNameKeydown(e) {
@@ -93,10 +100,8 @@ function onNameKeydown(e) {
 }
 
 function onLockToggle() {
-  const section = findSection(editing.id);
-  if (!section) return;
-  setSectionLocked(editing.id, !section.locked);
-  paintLock(findSection(editing.id));
+  editing.locked = !editing.locked;
+  paintLock(editing.locked);
 }
 
 function onDeleteSection() {
@@ -129,13 +134,13 @@ function openEditor(id) {
   const opener = document.activeElement;
   const overlay = buildOverlay();
   document.body.append(overlay);
-  editing = { id, overlay, layer: null };
+  editing = { id, overlay, layer: null, locked: section.locked === true };
   editing.layer = openDialogLayer(overlay, { onClose: onEditorClosed, opener });
   document.addEventListener(SECTIONS_CHANGED_EVENT, onSectionsChangedWhileEditing);
   const name = field(ID.NAME);
   name.value = sectionDisplayName(section, getSections());
-  paintLock(section);
-  if (section.locked) field(ID.LOCK).focus();
+  paintLock(editing.locked);
+  if (editing.locked) field(ID.LOCK).focus();
   else name.select();
 }
 

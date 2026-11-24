@@ -18,8 +18,8 @@ import { $ } from "./utils.js";
 const NAME_ID = "t-loop-name";
 const OFF_KEY = "position.loopLabel";
 const REGION_KEY = "studio.footer.loopRegion";
-// The shortest loop the edge buttons leave, the same as the I and O keys.
-const EDGE_MIN_SEC = 0.5;
+/** The shortest loop that Set start here, Set end here and the I and O keys leave. */
+export const LOOP_EDGE_MIN_SEC = 0.5;
 
 function loopLabel() {
   if (!loopEnabled) return t(OFF_KEY);
@@ -33,13 +33,13 @@ export function paintLoopName() {
   if (el) el.textContent = loopLabel();
 }
 
-/** `actions` comes from transport.js, which imports this module and so cannot be imported back. */
+/** Called by transport.js with its own loop functions: it imports this module, so this one cannot import it. */
 export function initFooterLoop({ currentTime, setLoopRange, updateLoopRegionVisual }) {
   $("t-loop-start-here")?.addEventListener("click", function onLoopStartHere() {
-    setLoopRange(Math.min(currentTime(), loopEnd - EDGE_MIN_SEC), loopEnd);
+    setLoopRange(Math.min(currentTime(), loopEnd - LOOP_EDGE_MIN_SEC), loopEnd);
   });
   $("t-loop-end-here")?.addEventListener("click", function onLoopEndHere() {
-    setLoopRange(loopStart, Math.min(totalDuration, Math.max(currentTime(), loopStart + EDGE_MIN_SEC)));
+    setLoopRange(loopStart, Math.min(totalDuration, Math.max(currentTime(), loopStart + LOOP_EDGE_MIN_SEC)));
   });
   $("t-loop-clear")?.addEventListener("click", function onClearLoop() {
     setLoopEnabled(false);

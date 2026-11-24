@@ -1642,10 +1642,6 @@ input, textarea { font-family: inherit; }
 .daw-label-title { font-size: 12px; font-weight: 600; }
 .daw-label-sub { font-size: 9px; }
 .daw-sections-header { justify-content: space-between; gap: var(--s-2); }
-.daw-sections-title-group { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; }
-/* Clear and Add belong together. The header is space-between, so without this
-   group each control drifts to its own corner and Clear ends up marooned. */
-.sections-header-actions { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .daw-sections-area {
   flex: 1;
   position: relative;
@@ -1683,17 +1679,12 @@ input, textarea { font-family: inherit; }
   position: absolute;
   top: 4px; bottom: 4px;
   box-sizing: border-box;
-  border: 1px solid var(--sc, var(--accent));
   border-radius: 4px;
   display: flex;
   align-items: center;
   overflow: hidden;
   cursor: grab;
-  transition: filter 80ms;
 }
-.section-block:hover { filter: brightness(1.15); }
-.section-block.sec-dragging { cursor: grabbing; filter: brightness(1.2); z-index: 10; }
-.section-block.sec-resizing { filter: brightness(1.2); z-index: 10; }
 
 .section-label {
   flex: 1;
@@ -1702,55 +1693,13 @@ input, textarea { font-family: inherit; }
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--sc, var(--accent));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   pointer-events: auto;
 }
 
-.section-del {
-  display: none;
-  flex-shrink: 0;
-  width: 16px; height: 16px;
-  margin-right: 4px;
-  border: none; background: none;
-  color: var(--sc, var(--accent));
-  font-size: 13px; line-height: 1;
-  cursor: pointer; border-radius: 3px;
-  align-items: center; justify-content: center;
-  opacity: 0.7;
-}
-.section-del:hover { opacity: 1; background: rgba(0,0,0,0.3); }
-.section-block:hover .section-del { display: flex; }
-
-.section-lock {
-  display: none;
-  flex-shrink: 0;
-  width: 16px; height: 16px;
-  margin-right: 2px;
-  border: none; background: none;
-  color: var(--sc, var(--accent));
-  cursor: pointer; border-radius: 3px;
-  align-items: center; justify-content: center;
-  opacity: 0.7;
-  padding: 0;
-}
-.section-lock:hover { opacity: 1; background: rgba(0,0,0,0.3); }
-.section-block:hover .section-lock { display: flex; }
-/* A locked section shows its padlock without being hovered, and in red. Hiding
-   it would make locked and unlocked look identical at rest, and the only way to
-   find a locked one would be to try to drag it. Red because the padlock is the
-   one control that is saying no to the others. */
-.section-block.sec-locked .section-lock {
-  display: flex;
-  opacity: 1;
-  color: var(--danger);
-}
-.section-block.sec-locked .section-lock:hover { opacity: 1; }
-
-/* The grab and col-resize cursors promise a drag that cannot happen. */
-.section-block.sec-locked,
+/* A col-resize cursor promises a resize that cannot happen. */
 .section-block.sec-locked .section-handle { cursor: default; }
 .section-block.sec-locked .section-handle:hover { background: none; }
 
@@ -1765,22 +1714,6 @@ input, textarea { font-family: inherit; }
 .section-handle-l { left: 0; }
 .section-handle-r { right: 0; }
 .section-handle:hover { background: rgba(255,255,255,0.12); }
-
-.section-rename-input {
-  flex: 1;
-  min-width: 0;
-  background: transparent;
-  border: none;
-  outline: none;
-  font: inherit;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--sc, var(--accent));
-  padding: 0 6px 0 10px;
-  caret-color: var(--sc, var(--accent));
-}
 
 /* Sections save indicator. The one part of the header that gives way: it is
    cut with an ellipsis so the buttons keep their size. */
@@ -1804,13 +1737,6 @@ input, textarea { font-family: inherit; }
   overflow: visible;
   color: var(--warn, var(--warn));
   white-space: normal;
-}
-/* A notice says what to do next, so it is never cut: it takes its own line under the buttons. */
-.sections-header-actions:has(.sections-save-indicator.notice) {
-  flex: 1;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  row-gap: var(--s-1);
 }
 .sections-save-indicator::before {
   content: "";
@@ -1842,40 +1768,6 @@ input, textarea { font-family: inherit; }
   to { transform: rotate(360deg); }
 }
 
-/* Add section button — lives in the Sections label column */
-.sections-add-btn-label {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 8px 3px 6px;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  color: var(--muted);
-  font-size: 10px; font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
-}
-.sections-add-btn-label:hover {
-  background: var(--panel-2);
-  color: var(--fg);
-  border-color: rgba(255,255,255,0.18);
-}
-
-/* Clear-all sections. Neutral until it is armed, then it states plainly that
-   the next click destroys something, because nothing here can be undone. */
-.sections-clear-btn[data-armed="1"] {
-  border-color: color-mix(in srgb, var(--vocals) 55%, transparent);
-  background: color-mix(in srgb, var(--vocals) 14%, transparent);
-  color: var(--vocals);
-}
-/* Clear says its word only once armed, so the header holds Hide and a save word in every language. */
-.sections-clear-btn:not([data-armed="1"]) .sections-clear-label { display: none; }
-.sections-clear-btn:not([data-armed="1"]),
-.sections-hide-btn {
-  align-self: stretch;
-  padding: 0 var(--s-1);
-}
-
 /* Wave label (left column in wave header — Mixer label) */
 .daw-wave-label {
   display: flex;
@@ -1884,58 +1776,6 @@ input, textarea { font-family: inherit; }
   padding: 0 14px;
 }
 
-/* ── Panel toggles (#480) ── */
-/* A second row under the composer, aligned to its right-hand end so it reads as
-   belonging to the two controls above it. Collapse to nothing, not to a stub:
-   the whole point is the height back, and a stub tall enough to hold a control
-   is most of what the smaller panels are worth. That is only possible because
-   the controls live up here, where the way back is always in the same place.
-
-   This row costs the topbar about 19px, against up to 202px it can return. */
-.daw-composer-stack {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.daw-composer-stack > .daw-composer { flex: none; }
-/* Exactly as wide as the two controls above it, and sharing their right edge:
-   the same --composer-action-w they are each sized from, so a longer
-   translation widens all three together instead of leaving this one ragged.
-   margin-left:auto does the alignment, since the stack is the composer's width. */
-.daw-panel-toggles {
-  width: calc(var(--composer-action-w) * 2);
-  margin-left: auto;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 2px;
-  padding: 2px 7px;
-  background: var(--panel);
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  min-width: 0;
-}
-/* The rule separates the row's label from its controls. It sits after the
-   label, so "All" reads as the first of four buttons rather than as part of
-   the words describing them. */
-.daw-panel-toggles-label {
-  margin-right: 2px;
-  padding-right: 6px;
-  border-right: 1px solid var(--border-strong);
-}
-.daw-panel-toggles-label,
-.daw-panel-toggles-sep {
-  font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--muted);
-  line-height: 1;
-  white-space: nowrap;
-}
 .daw-panel-toggle {
   padding: 2px 3px;
   border: 0;
@@ -2631,7 +2471,7 @@ input, textarea { font-family: inherit; }
 .metro-vol-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
 .metro-vol-icon { flex-shrink: 0; }
 
-/* Fixed, so no scrolling ancestor clips it; footerPopover.js places it by its button. */
+/* Fixed, so no scrolling ancestor clips it; popover.js places it by its button. */
 .metro-vol-panel {
   position: fixed; z-index: 320;
   display: flex; flex-direction: column; align-items: center; gap: 8px;
@@ -4049,15 +3889,9 @@ input, textarea { font-family: inherit; }
 /* ─────────────────────────────────────────────────────────────────────────
    The composer, in two rows.
 
-   It was one row: the search, the Extract chips and the two actions all
-   competing for the same horizontal space, with the Collapse row on a line of
-   its own underneath. Three lines of bar for two lines of content, and on a
-   narrow window the search and the chips squeezed each other.
-
-   It is a grid now. Row one is the import gesture, left to right: upload, the
-   search field, the loaded track, then the two things that act on it. Row two
-   is Extract and its chips, with the Collapse row sharing that line at the
-   right-hand end.
+   Row one is the import gesture, left to right: upload, the search field, the
+   loaded track, then the two things that act on it. Row two is Extract and its
+   chips.
 
    The search and the chips share column one, which is what makes them exactly
    the same width. As a flex row the search grew into whatever was left over
@@ -4085,11 +3919,10 @@ input, textarea { font-family: inherit; }
      and are therefore exactly the same width. As a flex row the search grew to
      whatever was left over, which is why it ran past the last chip.
 
-     Columns: content | actions | panel toggles | rule | card. Row one is the
+     Columns: content | actions | (unused) | rule | card. Row one is the
      import gesture, row two is what to extract. The two actions stack in one
      column, Detect structure over Extract stems, so Extract sits on the chips'
-     row, straight after the options it acts on, and the Collapse toggles stack
-     beside them (#725). Stacked rather than side by side, the right-hand end
+     row, straight after the options it acts on. Stacked rather than side by side, the right-hand end
      is about 50px narrower, which is room the card keeps. The loaded track
      comes after the rule, at the end: in the middle of the row it read as
      Extract's input, when it is only what is playing (#699). */
@@ -4171,13 +4004,7 @@ input, textarea { font-family: inherit; }
 /* The rule divides the extraction, search through Split, from the track that
    is playing (#699). Nothing crosses it: what is left of it is one sentence,
    what is right of it is not an input to that sentence. */
-/* One rule, down both rows.
- *
- * There were two: this one beside the actions, and the Collapse label's own
- * left border under it. Two rules drawn by different elements have to be kept
- * level by hand, and they were a pixel apart, which is exactly the kind of gap
- * that reads as broken without being nameable. Spanning the rows makes it one
- * line that cannot drift from itself. */
+/* One rule down both rows, drawn by one element so it cannot drift out of level. */
 .daw-composer > .daw-composer-sep {
   grid-column: 4;
   grid-row: 1 / 3;
@@ -4281,66 +4108,6 @@ input, textarea { font-family: inherit; }
 
    and it would need the strip and the footer inset to match, or something
    given the freed space. */
-
-/* The Collapse toggles, a column of their own beside the two actions (#725):
-   the label on top, then one toggle per panel, spanning both rows. Beside the
-   actions rather than under them, which is what lets Extract stems take the
-   chips' row.
-
-   A grid item rather than absolutely positioned: out of flow it would land on
-   top of the Extract chips the moment a window was narrow enough for the two
-   to meet. */
-.daw-composer > .daw-panel-toggles {
-  grid-column: 3;
-  grid-row: 1 / 3;
-  align-self: center;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: center;
-  width: auto;
-  min-width: 0;
-  margin: 0;
-  /* The wrapper stops being a box of its own: each toggle is a chip, so a
-     frame around the group would be a box inside a box. */
-  padding: 0;
-  background: none;
-  border: none;
-  gap: 4px;
-}
-
-/* 4. The toggles become chips, the same size as the Extract ones.
-   Everything below is the .stem-choice geometry, nothing else: same height,
-   padding, radius, border and type size, so the two rows read as one family.
-   The colours stay theirs, including the strike-through that means a panel is
-   put away. */
-.daw-composer-stack .daw-panel-toggle {
-  /* 26, not the chips' 30: three to a column have to fit in the height of
-     the two rows beside them. */
-  height: 26px;
-  justify-content: center;
-  padding: 0 11px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 12px;
-  letter-spacing: -0.005em;
-  text-transform: none;
-  display: inline-flex;
-  align-items: center;
-}
-/* The label and the separators were sized for an 8px row; at chip size the
-   dots between them are noise, so only the label survives. */
-/* No border of its own any more: the rule beside it spans both rows now, so a
-   second one drawn here would be the thing it used to be kept level with. */
-.daw-composer-stack .daw-panel-toggles-label {
-  font-size: 12px;
-  letter-spacing: -0.005em;
-  text-transform: none;
-  text-align: center;
-  margin: 0;
-  padding: 0;
-  border: none;
-}
-.daw-composer-stack .daw-panel-toggles-sep { display: none; }
 
 /* 5. The dashed rectangles on empty lanes.
 
@@ -4634,9 +4401,7 @@ input, textarea { font-family: inherit; }
   overflow: hidden;
 }
 
-.daw-panel-toggle[data-panel="timeline"],
-.daw-panel-toggle[data-panel="timeline"] + .daw-panel-toggles-sep,
-.daw-panel-toggles-sep:has(+ .daw-panel-toggle[data-panel="timeline"]) {
+.daw-panel-toggle[data-panel="timeline"] {
   display: none !important;
 }
 

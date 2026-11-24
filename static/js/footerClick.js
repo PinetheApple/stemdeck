@@ -2,7 +2,7 @@
 // these drive them and repaint from them, so the two places never disagree.
 
 import { HIDDEN_CLASS, ON_CLASS } from "./footerClasses.js";
-import { wirePopover } from "./footerPopover.js";
+import { wirePopover } from "./popover.js";
 import { onLanguageChange, plural, t } from "./i18n.js";
 import {
   metroBarCustomEl,

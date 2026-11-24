@@ -1,7 +1,7 @@
 // The footer's Loop options, and Speed and Key as - value + steppers whose value
 // opens their options on a click and does their quick action on a double-click.
 
-import { wirePopover } from "./footerPopover.js";
+import { wirePopover } from "./popover.js";
 import { $ } from "./utils.js";
 
 const STEP_DOWN = -1;

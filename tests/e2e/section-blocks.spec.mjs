@@ -51,6 +51,15 @@ test.describe("section blocks", () => {
     expect(share).toBeCloseTo(2 / 6, 2);
   });
 
+  test("a block too narrow for its start time names it in its tooltip and accessible name", async ({ page }) => {
+    await seed(page, [{ ...VERSE, end: 1.5 }]);
+    await openStudio(page);
+
+    await expect(block(page, "s1").locator(".section-time")).toBeHidden();
+    await expect(block(page, "s1")).toHaveAttribute("title", "Jump to Verse (00:01)");
+    await expect(block(page, "s1")).toHaveAccessibleName("Jump to Verse (00:01)");
+  });
+
   test("a click moves the playhead to the section's start and leaves Loop off", async ({ page }) => {
     await seed(page, [VERSE, CHORUS]);
     await openStudio(page);
@@ -130,21 +139,44 @@ test.describe("section blocks", () => {
 });
 
 test.describe("Edit section", () => {
-  test("Lock position locks at once and keeps the name from being edited", async ({ page }) => {
+  test("Lock position follows Save, like the name", async ({ page }) => {
     await seed(page, [VERSE]);
     await openStudio(page);
 
     await block(page, "s1").dblclick();
+    await page.locator("#sectionEditName").fill("Hook");
     const lock = page.locator("#sectionEditLock");
     await expect(lock).toHaveAttribute("aria-pressed", "false");
     await lock.click();
 
     await expect(lock).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator("#sectionEditName")).toBeDisabled();
-    await expect.poll(async () => (await savedSections(page))[0]?.locked).toBe(true);
-    await page.keyboard.press("Escape");
+    await expect(block(page, "s1")).not.toHaveClass(/sec-locked/);
+    await page.locator("#sectionEditSave").click();
+
     await expect(block(page, "s1")).toHaveClass(/sec-locked/);
+    await expect.poll(async () => (await savedSections(page))[0]).toMatchObject({ name: "Hook", locked: true });
   });
+
+  for (const close of ["Cancel", "Escape"]) {
+    test(`${close} keeps neither the lock nor the name`, async ({ page }) => {
+      await seed(page, [VERSE]);
+      await openStudio(page);
+
+      await block(page, "s1").dblclick();
+      await page.locator("#sectionEditName").fill("Hook");
+      await page.locator("#sectionEditLock").click();
+      if (close === "Cancel") await page.locator("#sectionEditCancel").click();
+      else await page.keyboard.press("Escape");
+
+      await expect(sectionEditDialog(page)).toBeHidden();
+      await expect(block(page, "s1")).not.toHaveClass(/sec-locked/);
+      await expect(block(page, "s1").locator(".section-label")).toHaveText("Verse");
+      const [saved] = await savedSections(page);
+      expect(saved.locked ?? false).toBe(false);
+      expect(saved.name).toBe("Verse");
+    });
+  }
 
   test("Delete section removes it", async ({ page }) => {
     await seed(page, [VERSE, CHORUS]);

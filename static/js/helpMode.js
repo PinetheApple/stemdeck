@@ -77,6 +77,8 @@ const HELP = [
   ["#catalogList .cat-item", "help.song"],
   ["#sectionsAddBtn", "help.addSection"],
   ["#sectionsHideBtn", "help.sectionsHide"],
+  ["#sectionsMenuBtn", "studio.help.sectionsMenu"],
+  ["#viewMenuBtn", "studio.help.viewMenu"],
   [".mx-fader", "help.volume", laneName],
   [".lane-key-step.up", "help.laneKeyUp", laneName],
   [".lane-key-step.down", "help.laneKeyDown", laneName],
