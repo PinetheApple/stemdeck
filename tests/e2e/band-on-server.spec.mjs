@@ -153,7 +153,8 @@ async function boot(page) {
   await stubUpdateCheck(page);
   await stubAudioTags(page, null);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator(".cat-item").first().waitFor({ timeout: 20000 });
+  // A song the server does not list is in no sidebar group, so the sidebar's first drawn entry will do.
+  await page.locator("#catalogList :is(.cat-item, .sidebar-empty)").first().waitFor({ timeout: 20000 });
 }
 
 async function reboot(page) {

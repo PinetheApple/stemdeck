@@ -99,7 +99,9 @@ test.describe("batch import", () => {
     expect(posts.every((p) => p.auto_sections === true)).toBe(true);
     await expect(review(page)).toHaveCount(0);
     await expect(page.locator("#filePill")).toBeHidden();
-    await expect(page.locator(`.cat-item[data-id="e2e0b0000001"]`)).toContainText("Build My Life");
+    await openBrowse(page);
+    await expect(page.locator(`#browseResults .cat-item[data-id="e2e0b0000001"]`)).toContainText("Build My Life");
+    await page.locator("#browseCloseBtn").click();
     await openComposer(page);
     await page.locator("#autoSectionsBtn").click();
   });

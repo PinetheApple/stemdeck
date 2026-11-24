@@ -191,6 +191,7 @@ test("clearing the chip while the batch is being sent leaves nothing broken", as
   await page.locator("#fileClear").click();
   release();
   await expect.poll(() => posts.length).toBe(TICKED_BY_DEFAULT);
-  await expect(page.locator('.cat-item[data-id="e2e0b0000001"]')).toBeVisible();
+  await openBrowse(page);
+  await expect(page.locator('#browseResults .cat-item[data-id="e2e0b0000001"]')).toBeVisible();
   expect(errors).toEqual([]);
 });
