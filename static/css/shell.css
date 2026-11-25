@@ -20,15 +20,11 @@
   gap: var(--s-2);
   margin-left: var(--s-1);
   padding: var(--s-1) var(--s-2);
-  border-radius: var(--r-2);
   color: var(--text);
   font-size: var(--fs-md);
   font-weight: var(--fw-heavy);
-  text-decoration: none;
   white-space: nowrap;
-  cursor: pointer;
 }
-.topbar-brand:hover { background: var(--surface-2); }
 .topbar-brand img { display: block; width: var(--brand-mark); height: var(--brand-mark); }
 
 .topbar-iconbtn,

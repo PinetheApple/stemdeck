@@ -18,6 +18,7 @@ const TAB_LABELS = [
 const SETTINGS_WINDOW = { width: 1024, height: 720 };
 const DATA_LINES = 9;
 const SOCIAL_LINKS = 4;
+const FORK_REPO = "https://github.com/PinetheApple/stemdeck";
 
 async function openApp(page) {
   await seedLibrary(page);
@@ -68,8 +69,8 @@ test("About is the last tab and has everything the About box had", async ({ page
   const pane = await openSettings(page, "about");
   await expect(pane.locator("#aboutTitle")).toHaveText("StemDeck");
   await expect(pane.locator("#aboutVersion")).toHaveText(/^v\d/);
-  await expect(pane.getByRole("link", { name: "Website" })).toHaveAttribute("href", "https://stemdeck.app");
-  await expect(pane.getByRole("link", { name: "GitHub" })).toHaveAttribute("href", /github\.com/);
+  await expect(pane.getByRole("link", { name: "Website" })).toHaveCount(0);
+  await expect(pane.getByRole("link", { name: "GitHub" })).toHaveAttribute("href", FORK_REPO);
   await expect(pane.locator(".about-social-btn")).toHaveCount(SOCIAL_LINKS);
   await expect(pane.locator(".about-credits")).toContainText("MusicBrainz");
   await expect(pane.locator(".about-license")).toContainText("GNU AGPL-3.0");
