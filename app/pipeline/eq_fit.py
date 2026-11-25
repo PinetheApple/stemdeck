@@ -20,8 +20,7 @@ preview, keep or undo. The fit works on the 31 third-octave bands:
    bands stay apart and the whole curve stays within SUGGEST_COMBINED_MAX_DB.
 5. Loudness-neutral: the output gain cancels the K-weighted loudness change.
 
-Layouts: "free" (the graphical panels) and the pedals "bass", "guitar" and
-"keys", whose knobs are fixed bands used at most once each, in knob order.
+One layout, "free": the graphical panels every lane and the master use.
 """
 
 from __future__ import annotations
@@ -49,13 +48,11 @@ from app.core.config import (
     SUGGEST_REFINE_ROUNDS,
 )
 from app.pipeline.eq_analysis import CENTRES_HZ, N_BANDS, NOMINAL_HZ, band_response_db
-from app.pipeline.fx_filters import BELL, DEFAULT_Q, HIGHSHELF, LOWCUT, LOWSHELF, TILT, Band
+from app.pipeline.fx_filters import BELL, DEFAULT_Q, HIGHSHELF, LOWCUT, LOWSHELF, Band
 
 FREE = "free"
-FIXED_LAYOUTS = ("bass", "guitar", "keys")
 SLOPE = 12
 FREE_Q = (0.7, 1.0, 1.4, 2.0)
-PEDAL_Q = (1.0, 1.4, 2.0)
 # The per-dB shape of a band is taken between these gains, and the penalty
 # counts gain in units of this many dB.
 _SHAPE_PROBE_DB = 3.0
@@ -86,12 +83,6 @@ INAUDIBLE_DB = 0.1
 _CROWD_SLACK_OCT = 1e-6
 _GAIN_DECIMALS = 2
 _SMOOTH_KERNEL = (0.25, 0.5, 0.25)
-_SHELF_FREQ_DECIMALS = 1
-
-
-# The Bass pedal's low shelf corner moves with its gain (the panel's own rule).
-_SHELF_MIN_HZ, _SHELF_MAX_HZ = 75.0, 400.0
-_SHELF_FIXED_DB, _SHELF_FULL_DB = 3.0, 15.0
 
 
 def _nominal_between(lo: float, hi: float) -> tuple[float, ...]:
@@ -103,47 +94,25 @@ def nearest_band(f: float) -> int:
     return int(np.argmin(np.abs(np.log2(np.asarray(CENTRES_HZ) / f))))
 
 
-def dynamic_shelf_freq(g: float) -> float:
-    a = abs(g)
-    if a <= _SHELF_FIXED_DB:
-        return _SHELF_MIN_HZ
-    span = _SHELF_FULL_DB - _SHELF_FIXED_DB
-    ratio = _SHELF_MAX_HZ / _SHELF_MIN_HZ
-    corner = _SHELF_MIN_HZ * ratio ** ((min(a, _SHELF_FULL_DB) - _SHELF_FIXED_DB) / span)
-    return round(corner, _SHELF_FREQ_DECIMALS)
-
-
 @dataclass(frozen=True)
 class Slot:
     """One place a suggested band may go. ``reuse``: any number of bands of
-    this kind (the graphical panels); otherwise one at most (a knob)."""
+    this kind (bells); otherwise one at most (a shelf, the low cut)."""
 
     id: str
     type: str
     freqs: tuple[float, ...]
     qs: tuple[float, ...] = (DEFAULT_Q,)
     reuse: bool = False
-    dynamic_shelf: bool = False
 
     @property
     def gainless(self) -> bool:
         return self.type == LOWCUT
 
 
-# Nominal-frequency ranges (Hz) per slot, mirroring the panels' knobs.
+# Nominal-frequency ranges (Hz) per slot.
 _FREE_HZ = {"bell": (40, 16000), "lowshelf": (63, 250), "highshelf": (2000, 10000)}
 _FREE_LOWCUT_HZ = (25, 125)
-_BASS_HZ = {"hpf": (25, 63), "low": (35, 500), "mid": (100, 1600), "high": (375, 9700)}
-_GUITAR_HZ = {"hpf": (40, 160), "low": (35, 500), "mid": (250, 5000), "high": (1000, 16000)}
-_KEYS_HZ = {"lowcut": (40, 160), "presence": (2000, 5000)}
-_PEDAL_HS_HZ = 1000.0
-_GUITAR_LS_HZ = 200.0
-_KEYS_BODY_HZ = 120.0
-_KEYS_WARMTH_HZ = 250.0
-_KEYS_AIR_HZ = 10000.0
-_KEYS_TONE_HZ = 1000.0
-_KEYS_WARMTH_Q = 0.8
-_KEYS_PRESENCE_Q = 1.0
 
 _FREE = (
     Slot("bell", BELL, _nominal_between(*_FREE_HZ["bell"]), FREE_Q, reuse=True),
@@ -153,30 +122,6 @@ _FREE = (
 )
 LAYOUTS: dict[str, tuple[Slot, ...]] = {
     FREE: (*_FREE, Slot("lowcut", LOWCUT, _nominal_between(*_FREE_LOWCUT_HZ))),
-    "bass": (
-        Slot("hpf", LOWCUT, _nominal_between(*_BASS_HZ["hpf"])),
-        Slot("ls", LOWSHELF, (_SHELF_MIN_HZ,), dynamic_shelf=True),
-        Slot("low", BELL, _nominal_between(*_BASS_HZ["low"]), PEDAL_Q),
-        Slot("mid", BELL, _nominal_between(*_BASS_HZ["mid"]), PEDAL_Q),
-        Slot("high", BELL, _nominal_between(*_BASS_HZ["high"]), PEDAL_Q),
-        Slot("hs", HIGHSHELF, (_PEDAL_HS_HZ,)),
-    ),
-    "guitar": (
-        Slot("hpf", LOWCUT, _nominal_between(*_GUITAR_HZ["hpf"])),
-        Slot("ls", LOWSHELF, (_GUITAR_LS_HZ,)),
-        Slot("low", BELL, _nominal_between(*_GUITAR_HZ["low"]), PEDAL_Q),
-        Slot("mid", BELL, _nominal_between(*_GUITAR_HZ["mid"]), PEDAL_Q),
-        Slot("high", BELL, _nominal_between(*_GUITAR_HZ["high"]), PEDAL_Q),
-        Slot("hs", HIGHSHELF, (_PEDAL_HS_HZ,)),
-    ),
-    "keys": (
-        Slot("lowcut", LOWCUT, _nominal_between(*_KEYS_HZ["lowcut"])),
-        Slot("body", LOWSHELF, (_KEYS_BODY_HZ,)),
-        Slot("warmth", BELL, (_KEYS_WARMTH_HZ,), (_KEYS_WARMTH_Q,)),
-        Slot("presence", BELL, _nominal_between(*_KEYS_HZ["presence"]), (_KEYS_PRESENCE_Q,)),
-        Slot("air", HIGHSHELF, (_KEYS_AIR_HZ,)),
-        Slot("tone", TILT, (_KEYS_TONE_HZ,)),
-    ),
 }
 
 
@@ -265,8 +210,6 @@ def boost_allowed(measured_db, target_db) -> np.ndarray:
 
 
 def make_band(slot: Slot, f: float, g: float, q: float) -> Band:
-    if slot.dynamic_shelf:
-        f = dynamic_shelf_freq(g)
     return Band(slot.type, float(f), float(g), float(q), SLOPE)
 
 
@@ -297,26 +240,14 @@ class Pick:
     cost: float = 0.0
 
 
-def _bell_order_broken(order: list[str], slot: Slot, f: float, other: Pick) -> bool:
-    if slot.type != BELL or other.slot.type != BELL or other.slot.id == slot.id:
-        return False
-    mine, theirs = order.index(slot.id), order.index(other.slot.id)
-    return (mine < theirs and f >= other.f) or (mine > theirs and f <= other.f)
-
-
-def crowded(chosen: list[Pick], slot: Slot, f: float, order: list[str] | None) -> bool:
+def crowded(chosen: list[Pick], slot: Slot, f: float) -> bool:
     """Two bands of one type closer than SUGGEST_CROWD_OCTAVES would add up
-    past the gain limit. On a pedal (``order``: its slot ids) the bell knobs
-    also keep their order, so "low" never sits above "mid"."""
-    for c in chosen:
-        if (
-            c.slot.type == slot.type
-            and abs(math.log2(c.f / f)) < SUGGEST_CROWD_OCTAVES - _CROWD_SLACK_OCT
-        ):
-            return True
-        if order and _bell_order_broken(order, slot, f, c):
-            return True
-    return False
+    past the gain limit."""
+    return any(
+        c.slot.type == slot.type
+        and abs(math.log2(c.f / f)) < SUGGEST_CROWD_OCTAVES - _CROWD_SLACK_OCT
+        for c in chosen
+    )
 
 
 def _gain_candidates(g0: float) -> list[float]:
@@ -329,16 +260,15 @@ def _gain_candidates(g0: float) -> list[float]:
 class _Fitter:
     """The greedy search over one layout's slots; ``chosen`` holds the picks."""
 
-    def __init__(self, error, w, boost_ok, scale: float, slots, order) -> None:
+    def __init__(self, error, w, boost_ok, scale: float, slots) -> None:
         self.error, self.w, self.boost_ok, self.scale = error, w, boost_ok, scale
         self.blocked = boost_ok <= 0
         self.slots: tuple[Slot, ...] = slots
-        self.order: list[str] | None = order
         self.chosen: list[Pick] = []
         self._cache: dict[tuple, np.ndarray] = {}
 
     def resp(self, slot: Slot, f: float, g: float, q: float) -> np.ndarray:
-        key = (slot.id, slot.type, f, g, q, slot.dynamic_shelf)
+        key = (slot.id, slot.type, f, g, q)
         if key not in self._cache:
             self._cache[key] = band_response_db(make_band(slot, f, g, q))
         return self._cache[key]
@@ -406,7 +336,7 @@ class _Fitter:
             if not slot.reuse and slot.id in used:
                 continue
             for f in slot.freqs:
-                if not crowded(self.chosen, slot, f, self.order):
+                if not crowded(self.chosen, slot, f):
                     yield from ((slot, f, q) for q in slot.qs)
 
     def best_addition(self) -> Pick | None:
@@ -426,7 +356,7 @@ class _Fitter:
         i = pick.slot.freqs.index(pick.f)
         best = None
         for f in pick.slot.freqs[max(0, i - 1) : i + 2]:
-            if crowded(others, pick.slot, f, self.order):
+            if crowded(others, pick.slot, f):
                 continue
             for q in pick.slot.qs:
                 got = self.best_for(pick.slot, f, q, rest)
@@ -452,12 +382,9 @@ def min_improvement(cost: float) -> float:
     return max(SUGGEST_MIN_IMPROVEMENT_ABS, SUGGEST_MIN_IMPROVEMENT_REL * cost)
 
 
-def _kept_in_order(chosen: list[Pick], order: list[str] | None) -> list[Pick]:
-    """Bands that refining left tiny are not worth a handle; a pedal's bands
-    come in knob order, the others by frequency."""
+def _kept_in_order(chosen: list[Pick]) -> list[Pick]:
+    """Bands that refining left tiny are not worth a handle; the rest by frequency."""
     kept = [c for c in chosen if c.slot.gainless or abs(c.g) >= SUGGEST_MIN_GAIN_DB]
-    if order:
-        return sorted(kept, key=lambda c: order.index(c.slot.id))
     return sorted(kept, key=lambda c: c.f)
 
 
@@ -478,12 +405,10 @@ def fit_eq(
     w = weights_for(measured)
     error = smoothed_error(measured, target_db, w)
     ref = measured if boost_ref is None else np.asarray(boost_ref, dtype=np.float64)
-    slots = LAYOUTS[layout]
-    order = [s.id for s in slots] if layout in FIXED_LAYOUTS else None
     boost_ok = boost_allowed(ref, target_db)
-    fitter = _Fitter(error, w, boost_ok, tolerance, slots, order)
+    fitter = _Fitter(error, w, boost_ok, tolerance, LAYOUTS[layout])
     fitter.run(max_bands)
-    picks = _kept_in_order(fitter.chosen, order)
+    picks = _kept_in_order(fitter.chosen)
     bands = [FitBand(c.slot.id, make_band(c.slot, c.f, c.g, c.q)) for c in picks]
     return FitResult(bands, error, w, boost_ok)
 

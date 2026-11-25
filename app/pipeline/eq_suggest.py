@@ -7,7 +7,7 @@ the mix.
 Modes:
 - "replace": the suggestion is fitted to the lane as it sounds with no EQ,
   and replaces its EQ.
-- "merge" (graphical panels only): fitted to the lane as it sounds now,
+- "merge": fitted to the lane as it sounds now,
   through its current EQ. Only the new bands come back, at most the band
   limit minus the bands already in ``fx``; the client appends them (the
   current EQ may hold bands that are off, which ``fx`` leaves out) and sets
@@ -70,17 +70,7 @@ from app.pipeline.eq_fit import (
     weights_for,
 )
 from app.pipeline.eq_targets import Target
-from app.pipeline.fx_filters import (
-    BELL,
-    HIGHSHELF,
-    LOWCUT,
-    LOWSHELF,
-    OUT_MAX,
-    OUT_MIN,
-    TILT,
-    Band,
-    Eq,
-)
+from app.pipeline.fx_filters import BELL, HIGHSHELF, LOWCUT, LOWSHELF, OUT_MAX, OUT_MIN, Band, Eq
 from app.pipeline.mastering import TARGET_MIN
 
 REPLACE = "replace"
@@ -113,7 +103,6 @@ WHY_BY_TYPE = {
     BELL: ("suggest.why.bellCut", "suggest.why.bellBoost"),
     LOWSHELF: ("suggest.why.lowShelfCut", "suggest.why.lowShelfBoost"),
     HIGHSHELF: ("suggest.why.highShelfCut", "suggest.why.highShelfBoost"),
-    TILT: ("suggest.why.tiltDarker", "suggest.why.tiltBrighter"),
 }
 
 PRESET_GENTLE = "gentle"
@@ -275,8 +264,6 @@ def _band_mask(band: Band) -> np.ndarray:
         return fc <= band.f * _SHELF_REACH
     if band.type == HIGHSHELF:
         return fc >= band.f / _SHELF_REACH
-    if band.type == TILT:
-        return fc >= band.f
     i = nearest_band(band.f)
     mask = np.zeros(N_BANDS, dtype=bool)
     mask[max(0, i - 1) : i + 2] = True

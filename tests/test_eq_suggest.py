@@ -222,23 +222,13 @@ def _random_spectrum(rng) -> np.ndarray:
     return shape + np.asarray(BALANCED)
 
 
-def _assert_fixed_panel(fit, slots) -> None:
-    ids = [fb.slot for fb in fit.bands]
-    assert len(ids) == len(set(ids)), "a knob used twice"
-    bells = [(list(slots).index(fb.slot), fb.band.f) for fb in fit.bands if fb.band.type == BELL]
-    assert [f for _i, f in sorted(bells)] == sorted(f for _i, f in bells), "bells out of order"
-
-
-@pytest.mark.parametrize("layout", [F.FREE, *F.FIXED_LAYOUTS])
-def test_bounds_are_respected(layout):
+def test_bounds_are_respected():
     rng = np.random.default_rng(7)
-    slots = {s.id: s for s in F.LAYOUTS[layout]}
+    slots = {s.id: s for s in F.LAYOUTS[F.FREE]}
     max_bands = SUGGEST_MAX_BANDS_LANE
-    target = get_target(
-        f"{layout}.balanced" if layout in ("bass", "guitar", "keys") else "mix.balanced"
-    )
+    target = get_target("mix.balanced")
     for _ in range(25):
-        fit = F.fit_eq(_random_spectrum(rng), target.bands_db, layout, max_bands)
+        fit = F.fit_eq(_random_spectrum(rng), target.bands_db, F.FREE, max_bands)
         assert len(fit.bands) <= max_bands
         curve = np.zeros(A.N_BANDS)
         for fb in fit.bands:
@@ -246,17 +236,9 @@ def test_bounds_are_respected(layout):
             assert b.type == slot.type and b.q in slot.qs
             assert abs(b.g) <= SUGGEST_GAIN_MAX_DB
             assert b.type == LOWCUT or abs(b.g) >= SUGGEST_MIN_GAIN_DB
-            assert slot.dynamic_shelf or b.f in slot.freqs
+            assert b.f in slot.freqs
             curve += A.band_response_db(b)
         assert np.max(np.abs(curve[3:])) <= SUGGEST_COMBINED_MAX_DB + 1e-9
-        if layout in F.FIXED_LAYOUTS:
-            _assert_fixed_panel(fit, slots)
-
-
-def test_the_bass_shelf_corner_moves_with_its_gain_like_the_panel():
-    assert F.dynamic_shelf_freq(2) == 75
-    assert F.dynamic_shelf_freq(-15) == 400
-    assert F.dynamic_shelf_freq(9) == pytest.approx(75 * (400 / 75) ** 0.5, abs=0.1)
 
 
 def _dull_top_then_cutoff() -> np.ndarray:

@@ -115,11 +115,10 @@ def _lanes():
 LANE_BAD = [
     "lane=other&layout=pedal",
     "lane=other&mode=sideways",
-    "lane=bass&layout=bass&mode=merge",
+    "lane=bass&layout=bass",
     "lane=mix",
     "lane=..%2F..%2Fsecret",
     "lane=other&layout=bass",
-    "lane=bass&layout=graph",
     "lane=drums&layout=graph",
     "lane=vocals&layout=keys",
     "lane=other&target=nope.balanced",
@@ -146,7 +145,7 @@ async def test_bad_input_is_refused_before_ffmpeg(client, jobs_dir, no_ffmpeg, q
         "/api/jobs/abcdef0f0fff/suggest/eq?lane=other",
         "/api/jobs/../../etc/passwd/suggest/eq?lane=other",
         "/api/jobs/..%2F..%2Fetc/suggest/eq?lane=other",
-        f"/api/jobs/{JOB}/suggest/eq?lane=guitar&layout=guitar",
+        f"/api/jobs/{JOB}/suggest/eq?lane=guitar&layout=graph",
     ],
 )
 async def test_unknown_jobs_lanes_and_traversal_are_404(client, jobs_dir, no_ffmpeg, url):
@@ -190,14 +189,16 @@ async def test_lane_suggestion_shape_and_cache(client, jobs_dir, count_runs):
     assert not [b for b in added if (b["type"], b["f"], b["g"]) == (HIGHSHELF, 8000.0, 2.0)]
 
 
-async def test_the_bass_lane_answers_with_its_pedal_knobs(client, jobs_dir):
+async def test_the_bass_lane_gets_the_graph_fit_and_merge(client, jobs_dir):
     skip_without_ffmpeg()
     _job(jobs_dir, _lanes())
     async with client as c:
-        r = await c.get(f"/api/jobs/{JOB}/suggest/eq?lane=bass")
-    assert r.status_code == 200, r.text
-    slots = {s.id for s in F.LAYOUTS["bass"]}
-    assert r.json()["bands"] and all(b["slot"] in slots for b in r.json()["bands"])
+        r = await c.get(f"/api/jobs/{JOB}/suggest/eq?lane=bass&layout=graph")
+        merged = await c.get(f"/api/jobs/{JOB}/suggest/eq?lane=bass&layout=graph&mode=merge")
+    assert r.status_code == merged.status_code == 200, r.text
+    assert r.json()["target"] == "bass.balanced"
+    free = {s.id for s in F.LAYOUTS[F.FREE]}
+    assert r.json()["bands"] and all(b["slot"] in free for b in r.json()["bands"])
 
 
 async def test_a_vocal_lane_gets_the_parametric_eq(client, jobs_dir):

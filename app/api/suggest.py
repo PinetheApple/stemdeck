@@ -6,8 +6,8 @@ output gain, i18n reasons and the target choices (app/pipeline/eq_suggest.py).
 The client turns that into an ordinary EQ descriptor; nothing is written.
 
 The lane decides its EQ panel the way the client does (drums the drum graph,
-bass, guitar and piano their pedals, every other lane the graph). ``layout``
-may be left out; when sent it must name that panel.
+every other lane the graph); both take the same free fit. ``layout`` may be
+left out; when sent it must name that panel.
 
 The measurement (the gated spectrum, app/pipeline/eq_analysis.py) runs once
 per lane file, in one ffmpeg decode streamed into the accumulator, and is
@@ -85,9 +85,8 @@ from app.pipeline.eq_analysis import (
     spectrum_from_json,
     spectrum_to_json,
 )
-from app.pipeline.eq_fit import FIXED_LAYOUTS, FREE
+from app.pipeline.eq_fit import FREE
 from app.pipeline.eq_suggest import (
-    MERGE,
     MODES,
     NOT_ENOUGH_SIGNAL,
     REPLACE,
@@ -122,9 +121,8 @@ _MASTER_KEY = "master"
 _NO_MASTER_EQ = ""
 GRAPH_PANEL = "graph"
 DRUM_PANEL = "drum"
-PANEL_OF_LANE = {"drums": DRUM_PANEL, "bass": "bass", "guitar": "guitar", "piano": "keys"}
-PANEL_LAYOUTS = {GRAPH_PANEL: FREE, DRUM_PANEL: FREE, **{p: p for p in FIXED_LAYOUTS}}
-_MERGE_PANELS = frozenset({GRAPH_PANEL, DRUM_PANEL})
+PANEL_OF_LANE = {"drums": DRUM_PANEL}
+PANEL_LAYOUTS = {GRAPH_PANEL: FREE, DRUM_PANEL: FREE}
 _READ_BYTES = 1 << 20
 _SAMPLE_BYTES = 4
 _FRAME_BYTES = _SAMPLE_BYTES * CHANNELS
@@ -323,7 +321,7 @@ def _lane_panel(lane: str, layout: str, mode: str) -> str:
     panel = PANEL_OF_LANE.get(lane, GRAPH_PANEL)
     if layout and layout != panel:
         raise HTTPException(status_code=422, detail="layout does not match the lane")
-    if mode not in MODES or (mode == MERGE and panel not in _MERGE_PANELS):
+    if mode not in MODES:
         raise HTTPException(status_code=422, detail="unknown mode")
     return panel
 
