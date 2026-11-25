@@ -86,6 +86,10 @@ button.ft-now:hover { background: var(--surface-2); }
 .ft-iconbtn:disabled { opacity: var(--disabled-opacity); cursor: default; }
 .ft-iconbtn[aria-pressed="true"] { background: var(--surface-3); color: var(--text); }
 .ft-iconbtn .ic { width: var(--icon); height: var(--icon); }
+.ft-iconbtn.is-on,
+.ft-iconbtn.is-on:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent-hi); }
+#t-repeat[data-repeat="song"] .ic-repeat-all,
+#t-repeat:not([data-repeat="song"]) .ic-repeat-one { display: none; }
 #t-stop.stopped { background: none; color: var(--text-2); }
 .ft-buttons .daw-play-btn {
   display: grid;

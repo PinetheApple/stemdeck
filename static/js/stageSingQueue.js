@@ -1,4 +1,4 @@
-import { playNextInUpNext, setTrackEndOverride } from "./upNext.js";
+import { firstInUpNext, setTrackEndOverride } from "./upNext.js";
 import { transport } from "./transport.js";
 import { countdownState } from "./stageSingModel.js";
 import { focusStagePlay, stageSongNames } from "./stageUpNext.js";
@@ -28,7 +28,7 @@ function paintHandoffSong(nextId) {
   $("singHandoffArtist").textContent = artist;
 }
 
-function showHandoff(nextId) {
+function showHandoff(nextId, start) {
   paintHandoffSong(nextId);
   $("singHandoff").hidden = false;
   $("stageView")?.classList.add(HANDOFF_CLASS);
@@ -36,6 +36,8 @@ function showHandoff(nextId) {
     startedAt: performance.now(),
     endedAt: transport()?.getCurrentTime?.() ?? 0,
     timer: setInterval(onCountdownTick, COUNTDOWN_TICK_MS),
+    start,
+    followsUpNext: nextId === firstInUpNext(),
   };
   paintCountdown(countdownState(0, HANDOFF_MS));
   $("singPlayNowBtn")?.focus();
@@ -44,13 +46,14 @@ function showHandoff(nextId) {
 /** Ends the countdown, onto the next song with `advance`; focus leaves the card first unless `refocus` is false. */
 function endHandoff({ advance, refocus = true }) {
   if (!handoff) return;
+  const { start } = handoff;
   clearInterval(handoff.timer);
   handoff = null;
   const card = $("singHandoff");
   if (refocus && card.contains(document.activeElement)) focusStagePlay();
   card.hidden = true;
   $("stageView")?.classList.remove(HANDOFF_CLASS);
-  if (advance) playNextInUpNext();
+  if (advance) start();
 }
 
 function onCountdownTick() {
@@ -60,16 +63,16 @@ function onCountdownTick() {
 }
 
 /** In Sing along a song's end shows what comes next before it starts. */
-function onSongEnd(nextId) {
+function onSongEnd(nextId, start) {
   if (!isActive() || !nextId) return false;
   endHandoff({ advance: false });
-  showHandoff(nextId);
+  showHandoff(nextId, start);
   return true;
 }
 
-/** The card follows Up Next: another next song takes its place, and none closes it. */
+/** A card for an Up Next song follows Up Next: another next song takes its place, and none closes it. */
 function onUpNextChange(e) {
-  if (!handoff) return;
+  if (!handoff?.followsUpNext) return;
   const nextId = e.detail?.nextId ?? null;
   if (nextId) paintHandoffSong(nextId);
   else endHandoff({ advance: false });

@@ -13,7 +13,6 @@ import {
 } from "./helpers.mjs";
 import {
   LOAD_TIMEOUT_MS,
-  SETTLE_MS,
   expectPlaying,
   isPlaying,
   openSiblingOverPlaying,
@@ -102,7 +101,7 @@ test("with only the playing song played before, Previous restarts it rather than
   expect(await playingId(page)).toBe(JOB_ID);
 });
 
-test("a setlist played from the top becomes the list Next follows, and nothing else starts by itself", async ({ page, request }) => {
+test("a setlist played from the top becomes the list Next follows, and its next song starts when one ends", async ({ page, request }) => {
   await playSetlist(page, request);
   await expect(page.locator("#upNextFromLabel")).toHaveText(`Next from: ${SETLIST}`);
   await expect(page.locator(FROM_ROWS)).toHaveCount(1);
@@ -110,12 +109,6 @@ test("a setlist played from the top becomes the list Next follows, and nothing e
   await expect(page.locator("#upNextNothingQueued")).toBeVisible();
   await expect(page.locator("#upNextEmpty")).toBeHidden();
 
-  await expect.poll(() => isPlaying(page), { timeout: LOAD_TIMEOUT_MS }).toBe(false);
-  await page.waitForTimeout(SETTLE_MS);
-  expect(await playingId(page)).toBe(SIBLING_JOB_ID);
-  expect(await isPlaying(page)).toBe(false);
-
-  await page.locator("#t-next").click();
   await expectPlaying(page, JOB_ID);
 });
 

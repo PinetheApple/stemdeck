@@ -1,5 +1,5 @@
 // Up Next: library track ids to play after the open song, kept in the store.
-// Songs are queued through queueUpNext (UP_NEXT_ADD_EVENT); player.js reports "trackended" and "playbackready".
+// Songs are queued through queueUpNext (UP_NEXT_ADD_EVENT); player.js reports "playbackready".
 
 import {
   TRACK_OPEN_EVENT,
@@ -33,6 +33,8 @@ let queue = [];
 let pendingAutoplay = null;
 let upNextRows = null;
 let draggedId = null;
+let upNextRun = [];
+let startingFromUpNext = null;
 
 async function readStoredQueue() {
   const stored = await storeGet(STORE_KEY, []);
@@ -116,7 +118,8 @@ async function playFromUpNext(trackId) {
   queue = queue.slice(at + 1);
   persist();
   renderUpNext();
-  await loadAndPlay(trackId);
+  startingFromUpNext = trackId;
+  if (!(await loadAndPlay(trackId)) && startingFromUpNext === trackId) startingFromUpNext = null;
 }
 
 export function isInUpNext(trackId) {
@@ -149,14 +152,35 @@ export function playNextInUpNext() {
 
 let trackEndOverride = null;
 
-/** Lets a view take over a song's end: `override(nextId)` returns true when it handles it. */
+/** Lets a view take over the hand-off to the next song: `override(nextId, start)` returns true when it handles it. */
 export function setTrackEndOverride(override) {
   trackEndOverride = override;
 }
 
-function onTrackEnded() {
-  if (trackEndOverride?.(playableQueue()[0] ?? null)) return;
-  playNextInUpNext();
+export function handOffTo(nextId, start) {
+  if (!trackEndOverride?.(nextId, start)) start();
+}
+
+function noteUpNextRun(trackId) {
+  if (trackId === startingFromUpNext) upNextRun = [...upNextRun, trackId];
+  else if (trackId !== upNextRun.at(-1)) upNextRun = [];
+  startingFromUpNext = null;
+}
+
+function onTrackOpen(e) {
+  noteUpNextRun(e.detail?.id);
+  renderUpNext();
+}
+
+export function playedFromUpNext() {
+  return upNextRun.some(isPlayableTrack);
+}
+
+export function replayUpNextRun() {
+  queue = upNextRun.filter(isPlayableTrack);
+  upNextRun = [];
+  persist();
+  playFromUpNext(queue[0]);
 }
 
 /** Start `trackId` as soon as it has loaded, as a song played from Up Next is. */
@@ -169,16 +193,16 @@ export function cancelPlayWhenLoaded() {
   pendingAutoplay = null;
 }
 
-/** Load a song and start it; a song that cannot load leaves nothing waiting to start. */
+/** Load a song and start it, resolving whether it loaded; one that cannot leaves nothing waiting to start. */
 export async function loadAndPlay(trackId) {
   pendingAutoplay = trackId;
   const loaded = await loadTrackIntoStudio(trackId);
   if (!loaded && pendingAutoplay === trackId) pendingAutoplay = null;
+  return loaded;
 }
 
-/** Whether the song that just ended hands the studio to Up Next. */
-export function upNextTakesOver() {
-  return pendingAutoplay !== null || playableQueue().length > 0;
+export function isPlayPending() {
+  return pendingAutoplay !== null;
 }
 
 function onPlaybackReady(e) {
@@ -422,9 +446,8 @@ function wireUpNextRows() {
 export function initUpNext() {
   wireUpNextRows();
   document.addEventListener(UP_NEXT_ADD_EVENT, onAddRequest);
-  document.addEventListener("trackended", onTrackEnded);
   document.addEventListener("playbackready", onPlaybackReady);
-  document.addEventListener(TRACK_OPEN_EVENT, renderUpNext);
+  document.addEventListener(TRACK_OPEN_EVENT, onTrackOpen);
   document.addEventListener("tracknames", renderUpNext);
   document.addEventListener(TRASH_CHANGE_EVENT, renderUpNext);
   onLanguageChange(renderUpNext);

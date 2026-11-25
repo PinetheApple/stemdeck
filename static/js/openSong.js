@@ -12,7 +12,8 @@ import {
 import { initFooterNow } from "./footerNow.js";
 import { REC_PHASE, recordingTake } from "./recorder.js";
 import { openVersion } from "./versions.js";
-import { cancelPlayWhenLoaded, loadAndPlay, playWhenLoaded, upNextTakesOver } from "./upNext.js";
+import { songEndTakesOver } from "./songEnd.js";
+import { cancelPlayWhenLoaded, loadAndPlay, playWhenLoaded } from "./upNext.js";
 import { setPlayRedirect, togglePlayPause, transport } from "./transport.js";
 import { isStageMode } from "./stageMode.js";
 import { $ } from "./utils.js";
@@ -76,10 +77,10 @@ function onSongHeadPlayClick() {
   if (shown) playSong(shown);
 }
 
-// Up Next goes on as before; with nothing queued, the shown song loads, paused.
+// Repeat, Up Next or the list goes on; with none of them, the shown song loads, paused.
 function onPlayingSongEnded() {
   const shown = shownTrackId();
-  if (shown && !upNextTakesOver()) loadTrackIntoStudio(shown);
+  if (shown && !songEndTakesOver()) loadTrackIntoStudio(shown);
 }
 
 function onPlaybackReady(e) {

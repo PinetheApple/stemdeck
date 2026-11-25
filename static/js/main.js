@@ -323,7 +323,6 @@ initAutoScroll();
 initInspector();
 initShellEdges();
 initLibraryResize();
-// Before Up Next, which reports its first count as it starts.
 initMediaSession();
 initUpNext();
 initSetlists();

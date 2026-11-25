@@ -1,6 +1,7 @@
 import { TRACK_OPEN_EVENT, getPlayingTrackInfo, getLibraryTrack, displayTitle, libraryTitle } from "./catalog.js";
 import { togglePlayPause, stopTransport, setPlayheadTime, transport } from "./transport.js";
 import { canGoNext, canGoPrevious, goToNext, goToPrevious, onPreviousNextChange } from "./playHistory.js";
+import { songEndTakesOver } from "./songEnd.js";
 import { totalDuration, playbackSpeed, playBtn } from "./state.js";
 import { SEEK_STEP_SEC } from "./constants.js";
 import {
@@ -37,7 +38,6 @@ let openTrackId = null;
 let reported = null;
 let motion = STILL;
 let anchor = null;
-let upNextCount = 0;
 
 const isPlaying = () => transport()?.isPlaying() === true;
 const currentPosition = () => transport()?.getCurrentTime() ?? 0;
@@ -180,10 +180,10 @@ export function releaseMediaAnchor() {
   anchor = null;
 }
 
-// Up Next can still fail to open its song, so the anchor never loops over a stopped engine.
+// The next song can still fail to open, so the anchor never loops over a stopped engine.
 function onTrackEnded() {
   pauseMediaAnchor();
-  if (!upNextCount) releaseMediaAnchor();
+  if (!songEndTakesOver()) releaseMediaAnchor();
 }
 
 function onTrackOpen(e) {
@@ -194,10 +194,6 @@ function onTrackOpen(e) {
   syncStepHandlers();
   syncMetadata();
   syncPlayback();
-}
-
-function onUpNextChange(e) {
-  upNextCount = e.detail?.count ?? 0;
 }
 
 function syncStepHandlers() {
@@ -251,7 +247,6 @@ export function initMediaSession() {
   document.addEventListener(TRACK_OPEN_EVENT, onTrackOpen);
   document.addEventListener("tracknames", syncMetadata);
   document.addEventListener("tracktags", syncMetadata);
-  document.addEventListener("upnext:change", onUpNextChange);
   document.addEventListener("trackended", onTrackEnded);
   watchPlayButton();
 }
