@@ -16,7 +16,6 @@ import {
 } from "../masterEngine.js";
 import { masterIsOn } from "../masterMath.js";
 import { EqGraph } from "./eqGraph.js";
-import { PANEL_KIND } from "./eqPanelKinds.js";
 import { eqFromSuggestion, graphBands, suggestMasterUrl } from "./eqPanelModel.js";
 import { fmtDb } from "./eqGraphMath.js";
 import { editLaneBands, renderPower, toggleLaneBypass } from "./eqPanelControls.js";
@@ -47,7 +46,7 @@ function commitSuggested(_lane, { eq, master }) {
 }
 
 function suggestionOf(body) {
-  return { eq: eqFromSuggestion(body, PANEL_KIND.graph), master: masterFromSuggestion(body) };
+  return { eq: eqFromSuggestion(body), master: masterFromSuggestion(body) };
 }
 
 export class EqMasterView {

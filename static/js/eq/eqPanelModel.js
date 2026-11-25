@@ -1,8 +1,7 @@
-import { clamp, finiteOr, roundTo } from "../audioMath.js";
+import { clamp, roundTo } from "../audioMath.js";
 import { EQ_ID, EQ_VERSION, eqIsFlat, eqResponseDb, normalizeEq } from "../eqMath.js";
 import { PANEL_KIND } from "./eqPanelKinds.js";
 import { F_MAX, F_MIN, fmtDb, fmtFreq, fmtQ, hasQ, hasSlope } from "./eqGraphMath.js";
-import { KEYS, PEDAL_GAIN, SHELF_GAIN, controlsFromEq, panelEq } from "./eqPedalMath.js";
 
 export const MARK_STATE = Object.freeze({ flat: "flat", active: "active", bypassed: "bypassed" });
 
@@ -45,90 +44,11 @@ export function graphBands(eq) {
 const TITLE_KEYS = Object.freeze({
   [PANEL_KIND.graph]: "eq.title",
   [PANEL_KIND.drum]: "eq.parametric",
-  [PANEL_KIND.bass]: "eq.bassEq",
-  [PANEL_KIND.guitar]: "eq.guitarEq",
-  [PANEL_KIND.keys]: "eq.keysEq",
 });
 
 export function panelTitleKey(kind) {
   return TITLE_KEYS[kind] || TITLE_KEYS[PANEL_KIND.graph];
 }
-
-export const PEDAL_PANEL_KINDS = new Set([PANEL_KIND.bass, PANEL_KIND.guitar, PANEL_KIND.keys]);
-export const KNOB_IDS = Object.freeze(["low", "mid", "high", "presence"]);
-
-const STRING_PEDAL_KNOBS = Object.freeze([
-  { id: "low", key: "lg", range: PEDAL_GAIN },
-  { id: "mid", key: "mg", range: PEDAL_GAIN },
-  { id: "high", key: "hg", range: PEDAL_GAIN },
-  { id: "presence", key: "hs", range: SHELF_GAIN },
-]);
-const KNOBS_BY_KIND = Object.freeze({
-  [PANEL_KIND.bass]: STRING_PEDAL_KNOBS,
-  [PANEL_KIND.guitar]: STRING_PEDAL_KNOBS,
-  [PANEL_KIND.keys]: Object.freeze([
-    { id: "low", key: "body", range: KEYS.body.range },
-    { id: "mid", key: "warmth", range: KEYS.warmth.range },
-    { id: "high", key: "air", range: KEYS.air.range },
-    { id: "presence", key: "presence", range: KEYS.presence.range },
-  ]),
-});
-
-const SLOT_CONTROLS = Object.freeze({
-  hpf: { f: "hpf" },
-  ls: { g: "ls" },
-  low: { f: "lf", g: "lg", q: "lq" },
-  mid: { f: "mf", g: "mg", q: "mq" },
-  high: { f: "hf", g: "hg", q: "hq" },
-  hs: { g: "hs" },
-  lowcut: { f: "lowcut" },
-  body: { g: "body" },
-  warmth: { g: "warmth" },
-  presence: { f: "presF", g: "presence" },
-  air: { g: "air" },
-  tone: { g: "tone" },
-});
-
-/** The four knobs of a pedal panel: [{id, key, min, max}]. */
-export function pedalKnobs(kind) {
-  return (KNOBS_BY_KIND[kind] || []).map(({ id, key, range }) => ({ id, key, min: -range, max: range }));
-}
-
-function knobSpec(kind, id) {
-  return pedalKnobs(kind).find((k) => k.id === id);
-}
-
-export function knobValue(kind, eq, id) {
-  return controlsFromEq(kind, eq)[knobSpec(kind, id).key];
-}
-
-/** The lane's EQ with one knob turned; bypass and the other controls kept. */
-export function eqWithKnob(kind, eq, id, value) {
-  const spec = knobSpec(kind, id);
-  const controls = { ...controlsFromEq(kind, eq), [spec.key]: clamp(finiteOr(value, 0), spec.min, spec.max) };
-  return panelEq(kind, controls, { bypass: eq?.bypass === true });
-}
-
-const KNOB_SWEEP_DEG = 270;
-export const KNOB_SWEEP_HALF_DEG = KNOB_SWEEP_DEG / 2;
-const KNOB_PX_PER_RANGE = 120;
-const KNOB_FINE = 0.25;
-const KNOB_STEPS_PER_DB = 2;
-
-/** Degrees from straight up: 0 at noon, half the sweep at either end. */
-export function knobAngle(value, min, max) {
-  const mid = (min + max) / 2;
-  return ((clamp(value, min, max) - mid) / (max - mid)) * KNOB_SWEEP_HALF_DEG;
-}
-
-/** A knob's value after a vertical drag of dy px (up is negative), on half dB steps. */
-export function knobDragValue(start, dy, min, max, fine = false) {
-  const perPx = ((max - min) / KNOB_PX_PER_RANGE) * (fine ? KNOB_FINE : 1);
-  const raw = clamp(start - dy * perPx, min, max);
-  return Math.round(raw * KNOB_STEPS_PER_DB) / KNOB_STEPS_PER_DB;
-}
-
-export const KNOB_KEY_STEP_DB = 1 / KNOB_STEPS_PER_DB;
 
 const SLOPE_UNIT = "dB/oct";
 const Q_PREFIX = "Q";
@@ -145,8 +65,8 @@ export function readoutParts(band) {
 
 const SUGGEST_MODE = "replace";
 
-export function suggestEqUrl(jobId, lane, kind) {
-  const q = new URLSearchParams({ lane, layout: kind, mode: SUGGEST_MODE });
+export function suggestEqUrl(jobId, lane) {
+  const q = new URLSearchParams({ lane, mode: SUGGEST_MODE });
   return `/api/jobs/${jobId}/suggest/eq?${q}`;
 }
 
@@ -161,20 +81,6 @@ export function suggestMasterUrl({ jobId, query }) {
 
 const suggestedBands = (body) => (Array.isArray(body?.bands) ? body.bands : []);
 
-/** A pedal's controls from a suggested answer: each band sets the controls of its slot. */
-export function controlsFromSuggestion(kind, body) {
-  const controls = controlsFromEq(kind, null);
-  for (const band of suggestedBands(body)) {
-    const keys = SLOT_CONTROLS[band?.slot];
-    if (!keys) continue;
-    for (const [field, key] of Object.entries(keys)) {
-      if (key in controls && Number.isFinite(band[field])) controls[key] = band[field];
-    }
-  }
-  controls.lvl = finiteOr(body?.out, 0);
-  return controls;
-}
-
 const CURVE_POINT_LENGTH = 2;
 const isCurvePoint = (p) => Array.isArray(p) && p.length === CURVE_POINT_LENGTH && p.every(Number.isFinite);
 
@@ -186,9 +92,8 @@ export function targetCurvePoints(body) {
   return points.length ? points : null;
 }
 
-/** The EQ descriptor a Suggest answer stands for, in the lane's own panel kind. */
-export function eqFromSuggestion(body, kind) {
-  if (PEDAL_PANEL_KINDS.has(kind)) return panelEq(kind, controlsFromSuggestion(kind, body));
+/** The EQ descriptor a Suggest answer stands for, as graph bands. */
+export function eqFromSuggestion(body) {
   const bands = suggestedBands(body).map((band) => ({ ...band, on: true }));
   return normalizeEq({ id: EQ_ID, v: EQ_VERSION, bypass: false, params: { out: body?.out, bands } });
 }

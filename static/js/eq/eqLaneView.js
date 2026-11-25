@@ -5,21 +5,11 @@ import { STEM_COLORS } from "../constants.js";
 import { getLaneEq, onFxChange, previewLaneEq, resetLane, setLaneEq } from "../eqEngine.js";
 import { panelKindFor } from "./eqPanelKinds.js";
 import { EqGraph } from "./eqGraph.js";
-import { EqKnobs } from "./eqKnobs.js";
 import { editLaneBands, renderPower, toggleLaneBypass } from "./eqPanelControls.js";
-import {
-  PEDAL_PANEL_KINDS,
-  eqFromSuggestion,
-  eqWithKnob,
-  graphBands,
-  panelTitleKey,
-  readoutParts,
-  suggestEqUrl,
-} from "./eqPanelModel.js";
+import { eqFromSuggestion, graphBands, panelTitleKey, readoutParts, suggestEqUrl } from "./eqPanelModel.js";
 import { REFUSED_KEY } from "./eqSuggest.js";
 import { SuggestFlow } from "./eqSuggestFlow.js";
 
-const SMALL_GRAPH_CLASS = "eq-graph-sm";
 const EQ_COLOR_VAR = "--eq-c";
 
 export class EqLaneView {
@@ -28,7 +18,6 @@ export class EqLaneView {
   #job = null;
   #kind = null;
   #graph;
-  #knobs;
   #suggest = new SuggestFlow({
     preview: previewLaneEq,
     commit: setLaneEq,
@@ -43,7 +32,6 @@ export class EqLaneView {
       onEdit: this.#onGraphEdit.bind(this),
       onSelect: this.#renderReadout.bind(this),
     });
-    this.#knobs = new EqKnobs($("eqKnobs"), { onTurn: this.#onKnobTurn.bind(this) });
     $("eqPowerLane").addEventListener("click", this.#onPowerClick.bind(this));
     $("eqFlatLane").addEventListener("click", this.#onFlatClick.bind(this));
     $("eqSuggestLane").addEventListener("click", this.#onSuggestClick.bind(this));
@@ -76,21 +64,17 @@ export class EqLaneView {
     if (!this.#lane) return;
     const suggesting = this.#suggest.active;
     const eq = suggesting ? this.#suggest.suggested : getLaneEq(this.#lane);
-    const pedal = PEDAL_PANEL_KINDS.has(this.#kind);
     $("eqLaneTitle").textContent = t(panelTitleKey(this.#kind));
     renderPower($("eqPowerLane"), eq, { disabled: suggesting });
-    $("eqGraphLane").classList.toggle(SMALL_GRAPH_CLASS, pedal);
     this.#graph.show(
-      { bands: pedal ? eq.params.bands : graphBands(eq), out: eq.params.out, bypass: eq.bypass },
-      { ...this.#suggestLayers(suggesting), fitted: suggesting, editable: !pedal && !suggesting },
+      { bands: graphBands(eq), out: eq.params.out, bypass: eq.bypass },
+      { ...this.#suggestLayers(suggesting), fitted: suggesting, editable: !suggesting },
     );
-    $("eqKnobs").hidden = !pedal;
-    if (pedal) this.#knobs.show(this.#kind, eq, { enabled: !suggesting });
     $("eqSuggestBar").hidden = !suggesting;
     $("eqLegend").hidden = !suggesting;
     $("eqLegendTarget").hidden = !this.#suggest.target;
     $("eqLaneActions").hidden = suggesting;
-    $("eqReadout").hidden = pedal || suggesting;
+    $("eqReadout").hidden = suggesting;
     this.#renderReadout();
   }
 
@@ -120,10 +104,6 @@ export class EqLaneView {
     this.#renderReadout();
   }
 
-  #onKnobTurn(id, value, { commit }) {
-    setLaneEq(this.#lane, eqWithKnob(this.#kind, getLaneEq(this.#lane), id, value), { save: commit });
-  }
-
   #onPowerClick() {
     toggleLaneBypass(this.#lane);
   }
@@ -136,13 +116,12 @@ export class EqLaneView {
   #onSuggestClick() {
     if (!currentJobId) return;
     const lane = this.#lane;
-    const kind = this.#kind;
     const job = currentJobId;
     this.#suggest.ask({
       key: lane,
-      url: suggestEqUrl(job, lane, kind),
+      url: suggestEqUrl(job, lane),
       current: () => job === currentJobId && lane === this.#lane,
-      toSuggested: (body) => eqFromSuggestion(body, kind),
+      toSuggested: eqFromSuggestion,
     });
   }
 
