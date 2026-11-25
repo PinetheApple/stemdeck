@@ -102,6 +102,7 @@ const HELP = [
   ["#t-next", "studio.help.next"],
   ["#t-prev", "studio.help.previous"],
   ["#t-upnext", "studio.help.upNext"],
+  ["#t-repeat", "studio.help.repeat"],
   ["#t-loop", "help.loop"],
   ["#t-loop-more", "studio.help.loopOptions"],
   ["#t-loop-start", "help.loopStart"],

@@ -58,6 +58,15 @@ export async function playList({ kind, id = "" }) {
   return true;
 }
 
+export function hasPlayList() {
+  return list.kind !== null;
+}
+
+/** The list plays again from its first playable song. */
+export function playListAgain() {
+  return playList(list);
+}
+
 export function playContextLabel() {
   const key = KIND_LABEL_KEYS[list.kind];
   return key ? t(key) : LIST_NAMES[list.kind]?.(list.id) ?? "";

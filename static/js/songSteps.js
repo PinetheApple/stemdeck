@@ -1,3 +1,4 @@
+import { initRepeatButton } from "./footerRepeat.js";
 import { initPlayContext } from "./playContext.js";
 import { initPlayHistory } from "./playHistory.js";
 import { initShownHistory } from "./shownHistory.js";
@@ -8,4 +9,5 @@ export function initSongSteps() {
   initPlayHistory();
   initShownHistory();
   initUpNextFrom();
+  initRepeatButton();
 }

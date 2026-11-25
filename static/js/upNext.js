@@ -33,6 +33,9 @@ let queue = [];
 let pendingAutoplay = null;
 let upNextRows = null;
 let draggedId = null;
+// The song Up Next took over from, then each song it played: what Repeat queue plays again.
+let run = [];
+let startingFromUpNext = null;
 
 async function readStoredQueue() {
   const stored = await storeGet(STORE_KEY, []);
@@ -116,6 +119,7 @@ async function playFromUpNext(trackId) {
   queue = queue.slice(at + 1);
   persist();
   renderUpNext();
+  startingFromUpNext = trackId;
   await loadAndPlay(trackId);
 }
 
@@ -148,15 +152,48 @@ export function playNextInUpNext() {
 }
 
 let trackEndOverride = null;
+let songEndRepeat = () => null;
 
 /** Lets a view take over a song's end: `override(nextId)` returns true when it handles it. */
 export function setTrackEndOverride(override) {
   trackEndOverride = override;
 }
 
+/** Lets Repeat take over a song's end: `repeat(queued)` returns what to start instead, or null. */
+export function setSongEndRepeat(repeat) {
+  songEndRepeat = repeat;
+}
+
+const repeatAtSongEnd = () => songEndRepeat(playableQueue().length > 0);
+
 function onTrackEnded() {
-  if (trackEndOverride?.(playableQueue()[0] ?? null)) return;
-  playNextInUpNext();
+  const repeat = repeatAtSongEnd();
+  if (repeat) repeat();
+  else if (!trackEndOverride?.(playableQueue()[0] ?? null)) playNextInUpNext();
+}
+
+function noteRun(trackId) {
+  if (!trackId || trackId === run.at(-1)) return;
+  run = trackId === startingFromUpNext ? [...run, trackId] : [trackId];
+  startingFromUpNext = null;
+}
+
+function onTrackOpen(e) {
+  noteRun(e.detail?.id);
+  renderUpNext();
+}
+
+export function upNextRunLength() {
+  return run.filter(isPlayableTrack).length;
+}
+
+/** Up Next holds the run's songs again, and the first of them starts. */
+export function replayUpNextRun() {
+  const [first, ...rest] = run.filter(isPlayableTrack);
+  queue = rest;
+  persist();
+  renderUpNext();
+  playNow(first);
 }
 
 /** Start `trackId` as soon as it has loaded, as a song played from Up Next is. */
@@ -176,9 +213,9 @@ export async function loadAndPlay(trackId) {
   if (!loaded && pendingAutoplay === trackId) pendingAutoplay = null;
 }
 
-/** Whether the song that just ended hands the studio to Up Next. */
+/** Whether the song that just ended hands the studio to Up Next or Repeat. */
 export function upNextTakesOver() {
-  return pendingAutoplay !== null || playableQueue().length > 0;
+  return pendingAutoplay !== null || playableQueue().length > 0 || repeatAtSongEnd() !== null;
 }
 
 function onPlaybackReady(e) {
@@ -424,7 +461,7 @@ export function initUpNext() {
   document.addEventListener(UP_NEXT_ADD_EVENT, onAddRequest);
   document.addEventListener("trackended", onTrackEnded);
   document.addEventListener("playbackready", onPlaybackReady);
-  document.addEventListener(TRACK_OPEN_EVENT, renderUpNext);
+  document.addEventListener(TRACK_OPEN_EVENT, onTrackOpen);
   document.addEventListener("tracknames", renderUpNext);
   document.addEventListener(TRASH_CHANGE_EVENT, renderUpNext);
   onLanguageChange(renderUpNext);
