@@ -1,5 +1,4 @@
-// What starts when the playing song ends: Repeat song, then Up Next, then the list it was
-// played from, then Repeat queue's way back to the first song.
+// Starts what a song's end leads to; the order lives in songEndStep.
 
 import { repeatMode } from "./footerRepeat.js";
 import { hasPlayableList, nextInContext, playListAgain } from "./playContext.js";
@@ -7,9 +6,10 @@ import { SONG_END_STEP, songEndStep } from "./repeatModel.js";
 import { restartSong, togglePlayPause, transport } from "./transport.js";
 import {
   firstInUpNext,
+  handOffTo,
   isPlayPending,
+  playNextInUpNext,
   playNow,
-  playUpNextAtSongEnd,
   playedFromUpNext,
   replayUpNextRun,
 } from "./upNext.js";
@@ -19,14 +19,21 @@ function playSongAgain() {
   if (!transport()?.isPlaying()) togglePlayPause();
 }
 
-function playNextInList() {
-  playNow(nextInContext());
+function playUpNextAtEnd() {
+  handOffTo(firstInUpNext(), playNextInUpNext);
+}
+
+function playListAtEnd() {
+  const next = nextInContext();
+  handOffTo(next, function playListNext() {
+    playNow(next);
+  });
 }
 
 const STEPS = Object.freeze({
   [SONG_END_STEP.SONG_AGAIN]: playSongAgain,
-  [SONG_END_STEP.UP_NEXT]: playUpNextAtSongEnd,
-  [SONG_END_STEP.LIST_NEXT]: playNextInList,
+  [SONG_END_STEP.UP_NEXT]: playUpNextAtEnd,
+  [SONG_END_STEP.LIST_NEXT]: playListAtEnd,
   [SONG_END_STEP.UP_NEXT_AGAIN]: replayUpNextRun,
   [SONG_END_STEP.LIST_AGAIN]: playListAgain,
 });

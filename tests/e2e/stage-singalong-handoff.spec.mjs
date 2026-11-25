@@ -20,6 +20,7 @@ const COUNTDOWN_RUNS_OUT_MS = 8000;
 const PAST_COUNTDOWN_MS = 6000;
 const SEEK_BACK_SEC = 1;
 const NO_CONTENT = "none";
+const SETLISTS_URL = "/api/setlists";
 const TRANSPARENT = "rgba(0, 0, 0, 0)";
 
 const card = (page) => page.locator("#singHandoff");
@@ -27,6 +28,11 @@ const stageDimmed = (page) => page.locator("#stageView").evaluate((el, off) => {
   const scrim = getComputedStyle(el, "::after");
   return scrim.content !== off.content && scrim.backgroundColor !== off.background;
 }, { content: NO_CONTENT, background: TRANSPARENT });
+
+test.afterEach(async ({ request }) => {
+  const res = await request.get(SETLISTS_URL);
+  for (const setlist of await res.json()) await request.delete(`${SETLISTS_URL}/${setlist.id}`);
+});
 
 async function endInSingAlong(page, queued = [SIBLING_JOB_ID]) {
   await serveLyrics(page);
@@ -94,6 +100,23 @@ test.describe("sing along song end", () => {
     await page.locator("#stageQueuePanel #upNextClear").click();
     await expect(card(page)).toBeHidden();
     await expectStillOnSong(page);
+  });
+
+  test("a setlist's next song gets the countdown too, and Play now starts it", async ({ page, request }) => {
+    const created = await request.post(SETLISTS_URL, { data: { name: "Sing", song_ids: [JOB_ID, SIBLING_JOB_ID] } });
+    const { id } = await created.json();
+    await serveLyrics(page);
+    await openStudio(page);
+    await call(page, "/js/setlists.js", "playSetlist", id);
+    await expect.poll(() => openSongId(page), { timeout: SONG_OPEN_TIMEOUT_MS }).toBe(JOB_ID);
+    await call(page, "/js/transport.js", "stopTransport");
+    await enterSingAlong(page);
+    await endSong(page);
+    await expect(card(page)).toBeVisible();
+    await expect(page.locator("#singHandoffTitle")).toHaveText(SIBLING_TITLE);
+    await page.locator("#singPlayNowBtn").click();
+    await expect.poll(() => openSongId(page), { timeout: SONG_OPEN_TIMEOUT_MS }).toBe(SIBLING_JOB_ID);
+    await expect(card(page)).toBeHidden();
   });
 
   test("Play along goes straight to the next song", async ({ page }) => {

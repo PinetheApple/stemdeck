@@ -1,5 +1,5 @@
 // Up Next: library track ids to play after the open song, kept in the store.
-// Songs are queued through queueUpNext (UP_NEXT_ADD_EVENT); player.js reports "trackended" and "playbackready".
+// Songs are queued through queueUpNext (UP_NEXT_ADD_EVENT); player.js reports "playbackready".
 
 import {
   TRACK_OPEN_EVENT,
@@ -152,13 +152,13 @@ export function playNextInUpNext() {
 
 let trackEndOverride = null;
 
-/** Lets a view take over a song's end: `override(nextId)` returns true when it handles it. */
+/** Lets a view take over the hand-off to the next song: `override(nextId, start)` returns true when it handles it. */
 export function setTrackEndOverride(override) {
   trackEndOverride = override;
 }
 
-export function playUpNextAtSongEnd() {
-  if (!trackEndOverride?.(firstInUpNext())) playNextInUpNext();
+export function handOffTo(nextId, start) {
+  if (!trackEndOverride?.(nextId, start)) start();
 }
 
 function noteUpNextRun(trackId) {

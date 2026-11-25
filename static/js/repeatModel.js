@@ -25,5 +25,5 @@ export function songEndStep({ mode, queued, listAhead, upNextPlayed, listPlayabl
   if (listAhead) return SONG_END_STEP.LIST_NEXT;
   if (mode !== REPEAT.QUEUE) return null;
   if (upNextPlayed) return SONG_END_STEP.UP_NEXT_AGAIN;
-  return listPlayable ? SONG_END_STEP.LIST_AGAIN : null;
+  return listPlayable ? SONG_END_STEP.LIST_AGAIN : SONG_END_STEP.SONG_AGAIN;
 }

@@ -38,7 +38,7 @@ check("the list goes on before Repeat queue goes back", end({ ...EVERYTHING, mod
 check("the list goes on with Repeat off", end({ listAhead: true }) === SONG_END_STEP.LIST_NEXT);
 check("Repeat queue plays Up Next's songs again before the list", end({ mode: REPEAT.QUEUE, upNextPlayed: true, listPlayable: true }) === SONG_END_STEP.UP_NEXT_AGAIN);
 check("Repeat queue plays the list again after its last song", end({ mode: REPEAT.QUEUE, listPlayable: true }) === SONG_END_STEP.LIST_AGAIN);
-check("Repeat queue with nothing to go back to stops", end({ mode: REPEAT.QUEUE }) === null);
+check("Repeat queue with a lone song plays it again", end({ mode: REPEAT.QUEUE }) === SONG_END_STEP.SONG_AGAIN);
 check("off stops at the end of Up Next and the list", end({ upNextPlayed: true, listPlayable: true }) === null);
 
 for (const { code } of LANGUAGES) {
