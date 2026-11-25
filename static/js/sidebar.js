@@ -2,7 +2,7 @@
 
 import { t, onLanguageChange } from "./i18n.js";
 import {
-  displayTitle, favoriteTrackIds, getLibraryTrack, getPlayingTrackInfo, isInTrash, isPlayableTrack, libraryTrackIds,
+  displayTitle, favoriteTrackIds, getLibraryTrack, getPlayingTrackInfo, isPlayableTrack, libraryTrackIds,
   onLibraryDraw, trashTrackIds,
 } from "./catalog.js";
 import { trashWithUndo } from "./trashUndo.js";
@@ -44,13 +44,6 @@ function fillGroup(groupId, ids, emptyText = "") {
     return row ? [row, ...versionExtras(id)] : [];
   });
   list.replaceChildren(...(rows.length || !emptyText ? rows : [emptyNote(emptyText)]));
-}
-
-/** Favorites, newest first, and the playing song when it is not one of them. */
-function favoriteIds() {
-  const ids = favoriteTrackIds();
-  const playing = getPlayingTrackInfo()?.id;
-  return playing && !ids.includes(playing) && !isInTrash(playing) ? [...ids, playing] : ids;
 }
 
 /** The last songs played, then the newest playable ones, none listed above. */
@@ -125,7 +118,7 @@ function onStripThumbClick(e) {
 }
 
 function drawSongs() {
-  const favorites = favoriteIds();
+  const favorites = favoriteTrackIds();
   const recent = recentRowIds(new Set(favorites));
   fillGroup("sidebarFavorites", favorites, t("favorites.emptyHint"));
   fillGroup("sidebarRecent", recent);

@@ -1,5 +1,5 @@
-// The sidebar: Browse library, then Importing while imports run, Favorites (with
-// the song in the player), Setlists and Recently played, and Trash with its count at the foot.
+// The sidebar: Browse library, then Importing while imports run, Favorites, Setlists
+// and Recently played, and Trash with its count at the foot.
 
 import { test, expect } from "@playwright/test";
 import {
@@ -74,15 +74,14 @@ test("Importing shows only while an import runs", async ({ page }) => {
   await expect(group(page, "sidebarImporting")).toBeHidden();
 });
 
-test("the song in the player is listed under Favorites when it is not a favorite", async ({ page }) => {
+test("Favorites leaves out the song in the player when it is not a favorite", async ({ page }) => {
   await openStudio(page);
-  await expect(groupRow(page, "sidebarFavorites", JOB_ID)).toBeVisible();
-  await expect(groupRow(page, "sidebarFavorites", SIBLING_JOB_ID)).toHaveCount(0);
+  await expect(page.locator("#title")).toHaveText(TRACK_TITLE);
+  await expect(groupRow(page, "sidebarFavorites", JOB_ID)).toHaveCount(0);
 
   await groupRow(page, "sidebarRecent", SIBLING_JOB_ID).dblclick();
   await expect(page.locator("#title")).toHaveText(SIBLING_TITLE, { timeout: 15000 });
-  await expect(groupRow(page, "sidebarFavorites", SIBLING_JOB_ID)).toBeVisible();
-  await expect(groupRow(page, "sidebarFavorites", JOB_ID)).toHaveCount(0);
+  await expect(groupRow(page, "sidebarFavorites", SIBLING_JOB_ID)).toHaveCount(0);
 });
 
 test("a song dropped on a sidebar setlist or on Trash goes there", async ({ page, request }) => {
@@ -92,7 +91,6 @@ test("a song dropped on a sidebar setlist or on Trash goes there", async ({ page
   await stubServerTrash(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   const setlistRow = group(page, "sidebarSetlists").locator(`.sidebar-setlist[data-id="${id}"]`);
-  // The song in the player heads Favorites, so the drags start from the other one, in Recently played.
   const recentRow = groupRow(page, "sidebarRecent", SIBLING_JOB_ID);
   await recentRow.dragTo(setlistRow);
   await expect.poll(async () => (await (await request.get(SETLISTS_PATH)).json()).find((s) => s.id === id)?.song_ids).toEqual([SIBLING_JOB_ID]);
