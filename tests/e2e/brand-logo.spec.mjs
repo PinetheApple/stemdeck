@@ -1,4 +1,4 @@
-// The logo is the app's name in the top bar, not a link to another site.
+// The top-bar logo shows the app's name.
 import { test, expect } from "@playwright/test";
 import { openStudio } from "./helpers.mjs";
 
