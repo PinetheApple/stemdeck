@@ -62,6 +62,10 @@ export function hasPlayableList() {
   return list.kind !== null && listSongs(list.kind, list.id).some(isPlayableTrack);
 }
 
+export function playingFromSetlist() {
+  return list.kind === LIST_KIND.SETLIST;
+}
+
 export function playListAgain() {
   return playList(list);
 }
