@@ -10,7 +10,7 @@ const EDGE_PX = 8;
 const MIN_SCRIM_ALPHA = 0.4;
 const QUEUED_ID = "e2e0q0000001";
 const GUIDE_CONTROLS = [
-  "#sidebarCollapseBtn", ".topbar-brand", "#addSongBtn", "#notifBtn", "#helpModeBtn", "#aboutBtn",
+  "#sidebarCollapseBtn", "#addSongBtn", "#notifBtn", "#helpModeBtn", "#aboutBtn",
   "#settingsBtn", "#inspectorToggleBtn", "#libraryResizer", "#stemsResizer", "#inspectorResizer",
   "#browseBtn", "#sidebarFavorites .sidebar-group-head", "#sidebarImporting .sidebar-group-head", "#trashBtn", '.inspector-tab[data-tab="lyrics"]',
   "#importingBtn", "#connStatus",

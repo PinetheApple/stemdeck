@@ -30,7 +30,6 @@ const presenceName = (el) => t(`stem.${el.dataset.stem}`);
 // Order matters only where selectors overlap: the first match wins.
 const HELP = [
   ["#helpModeBtn", "help.helpMode"],
-  [".topbar-brand", "help.website"],
   ["#sidebarCollapseBtn", "shell.help.sidebar"],
   ["#connStatus", "shell.help.offline"],
   ["#importingBtn", "shell.help.importing"],
