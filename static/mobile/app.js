@@ -351,14 +351,9 @@ function playSongAgain() {
   render();
 }
 
-function playNextInLibrary() {
-  openTrack(libraryTrackAt(1), { autoplay: true });
-}
-
-// The phone has no Up Next or setlists, so its list is the Library and Repeat queue repeats the song.
+// The phone has no Up Next, setlists or list context: Repeat off stops, and either Repeat plays the song again.
 const SONG_END_ACTIONS = Object.freeze({
   [SONG_END_STEP.SONG_AGAIN]: playSongAgain,
-  [SONG_END_STEP.LIST_NEXT]: playNextInLibrary,
 });
 
 function onTrackEnded() {
@@ -366,7 +361,7 @@ function onTrackEnded() {
   const step = songEndStep({
     mode: repeatMode(),
     queued: false,
-    listAhead: Boolean(libraryTrackAt(1)),
+    listAhead: false,
     upNextPlayed: false,
     setlist: false,
     listPlayable: false,

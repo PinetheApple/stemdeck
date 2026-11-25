@@ -1,6 +1,6 @@
 // Repeat on the phone UI: the same three states and stored choice as the studio's footer,
-// and a song's end that plays it again. The phone has no Up Next or setlists, so Repeat
-// queue there repeats the song, as it does for any list that is not a setlist.
+// and a song's end that plays it again or, with Repeat off, stops. The phone has no Up Next,
+// setlists or list context, so Repeat queue there repeats the song.
 
 import { test, expect } from "@playwright/test";
 import { JOB_ID } from "./helpers.mjs";
@@ -71,3 +71,13 @@ for (const mode of ["song", "queue"]) {
     await expect(playButton(page)).toHaveAttribute("data-playing", "true");
   });
 }
+
+test("with Repeat off the song stops at its end and the next Library song does not open", async ({ page }) => {
+  await openOnPhone(page);
+  const title = await page.locator(".track-title").textContent();
+  await playButton(page).click();
+  await expect(playButton(page)).toHaveAttribute("data-playing", "true");
+  await seekNearEnd(page);
+  await expect(playButton(page)).toHaveAttribute("data-playing", "false", { timeout: SONG_END_TIMEOUT_MS });
+  await expect(page.locator(".track-title")).toHaveText(title);
+});

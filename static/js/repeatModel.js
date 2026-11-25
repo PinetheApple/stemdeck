@@ -18,7 +18,7 @@ export function readRepeat(stored) {
   return CLICK_ORDER.includes(stored) ? stored : REPEAT.OFF;
 }
 
-// Only a setlist plays on and loops; any other list repeats the song that ended.
+// With Repeat queue a setlist plays on first, then Up Next's run plays again, then a setlist loops; any other list repeats the song.
 function queueRepeatStep({ listAhead, upNextPlayed, setlist, listPlayable }) {
   if (setlist && listAhead) return SONG_END_STEP.LIST_NEXT;
   if (upNextPlayed) return SONG_END_STEP.UP_NEXT_AGAIN;
