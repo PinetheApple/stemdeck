@@ -1,7 +1,7 @@
 // Starts what a song's end leads to; the order lives in songEndStep.
 
 import { repeatMode } from "./footerRepeat.js";
-import { hasPlayableList, nextInContext, playListAgain } from "./playContext.js";
+import { hasPlayableList, nextInContext, playListAgain, playingFromSetlist } from "./playContext.js";
 import { SONG_END_STEP, songEndStep } from "./repeatModel.js";
 import { restartSong, togglePlayPause, transport } from "./transport.js";
 import {
@@ -44,6 +44,7 @@ function currentStep() {
     queued: Boolean(firstInUpNext()),
     listAhead: Boolean(nextInContext()),
     upNextPlayed: playedFromUpNext(),
+    setlist: playingFromSetlist(),
     listPlayable: hasPlayableList(),
   });
 }

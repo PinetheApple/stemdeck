@@ -21,6 +21,8 @@ import {
 } from "../js/vocalSplit.js";
 // The phone never calls initI18n, so translate() answers in English, like the rest of its UI.
 import { t as translate } from "../js/i18n.js";
+import { cycleRepeat, repeatMode, repeatText, restoreRepeat } from "../js/footerRepeat.js";
+import { REPEAT, SONG_END_STEP, songEndStep } from "../js/repeatModel.js";
 // Per-stem label + color, keyed by the backend stem name. Unknown names fall
 // back to a rotating palette so non-standard models still render sensibly.
 const STEM_META = {
@@ -83,6 +85,8 @@ const ICON = {
   search: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#65656d" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>',
   link: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#65656d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>',
   upload: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M8 8l4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>',
+  repeatAll: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 6H3"/><path d="M7 12H3"/><path d="M7 18H3"/><path d="M12 18a5 5 0 0 0 9-3 4.5 4.5 0 0 0-4.5-4.5c-1.33 0-2.54.54-3.41 1.41L11 14"/><path d="M11 10v4h4"/></svg>',
+  repeatOne: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M11 10h1v4"/></svg>',
   heart: (on) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="${on ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`,
   check: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
   scissors: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.12 15.88M14.47 14.48L20 20M8.12 8.12L12 12"/></svg>',
@@ -299,7 +303,7 @@ async function openTrack(card, { autoplay = false } = {}) {
 
   const engineOpts = {
     onTime: onEngineTime,
-    onEnded: () => { state.playing = false; render(); },
+    onEnded: onTrackEnded,
     context: ensureAudioCtx(),
   };
   const engineStems = laneList.map((l) => ({ name: l.name, url: l.url }));
@@ -323,18 +327,62 @@ async function openTrack(card, { autoplay = false } = {}) {
   if (pendingPlay) { pendingPlay = false; engine.play(); state.playing = engine.isPlaying(); render(); }
 }
 
-function prevTrack() {
-  if (!state.tracks.length || !state.current) return;
+/** The Library song `offset` rows from the open one, or null. */
+function libraryTrackAt(offset) {
+  if (!state.current) return null;
   const idx = state.tracks.findIndex((t) => t.id === state.current.id);
-  const target = state.tracks[idx - 1];
+  return idx < 0 ? null : state.tracks[idx + offset] ?? null;
+}
+
+function prevTrack() {
+  const target = libraryTrackAt(-1);
   if (target) openTrack(target, { autoplay: state.playing });
 }
 
 function nextTrack() {
-  if (!state.tracks.length || !state.current) return;
-  const idx = state.tracks.findIndex((t) => t.id === state.current.id);
-  const target = state.tracks[idx + 1];
+  const target = libraryTrackAt(1);
   if (target) openTrack(target, { autoplay: state.playing });
+}
+
+function playSongAgain() {
+  engine.seek(0);
+  engine.play();
+  state.playing = engine.isPlaying();
+  render();
+}
+
+function playNextInLibrary() {
+  openTrack(libraryTrackAt(1), { autoplay: true });
+}
+
+// The phone has no Up Next or setlists, so its list is the Library and Repeat queue repeats the song.
+const SONG_END_ACTIONS = Object.freeze({
+  [SONG_END_STEP.SONG_AGAIN]: playSongAgain,
+  [SONG_END_STEP.LIST_NEXT]: playNextInLibrary,
+});
+
+function onTrackEnded() {
+  state.playing = false;
+  const step = songEndStep({
+    mode: repeatMode(),
+    queued: false,
+    listAhead: Boolean(libraryTrackAt(1)),
+    upNextPlayed: false,
+    setlist: false,
+    listPlayable: false,
+  });
+  const action = SONG_END_ACTIONS[step];
+  if (action) action();
+  else render();
+}
+
+function repeatButton() {
+  const mode = repeatMode();
+  const { label, caption } = repeatText(mode);
+  const name = esc(translate(label));
+  const icon = mode === REPEAT.SONG ? ICON.repeatOne : ICON.repeatAll;
+  const on = mode === REPEAT.OFF ? "" : " on";
+  return `<button class="t-repeat${on}" data-action="repeat" data-repeat="${mode}" title="${name}" aria-label="${name}">${icon}<span>${esc(translate(caption))}</span></button>`;
 }
 
 function togglePlay() {
@@ -511,9 +559,8 @@ function mixerScreen() {
   const ready = engineReady && engineTrackId === state.current?.id;
   const preparing = !!state.current && !state.current.loading && !state.current.error && !ready;
   const canPlay = ready;
-  const curIdx = state.current ? state.tracks.findIndex((t) => t.id === state.current.id) : -1;
-  const hasPrev = curIdx > 0;
-  const hasNext = curIdx >= 0 && curIdx < state.tracks.length - 1;
+  const hasPrev = Boolean(libraryTrackAt(-1));
+  const hasNext = Boolean(libraryTrackAt(1));
 
   return `<div class="screen scrl">
     <div class="pad">
@@ -536,6 +583,7 @@ function mixerScreen() {
         <button class="t-step" data-action="prev" ${hasPrev ? "" : "disabled"}>${ICON.prev}</button>
         <button class="t-play" data-action="play" data-playing="${state.playing}" ${canPlay ? "" : "disabled style=opacity:.45"}>${state.playing ? ICON.pause(26, "#1a1206") : ICON.play(28, "#1a1206")}</button>
         <button class="t-step" data-action="next" ${hasNext ? "" : "disabled"}>${ICON.next}</button>
+        ${repeatButton()}
       </div>
       <div class="speed-row">
         <span class="speed-row-label">Speed</span>
@@ -1072,6 +1120,9 @@ app.addEventListener("click", (e) => {
     case "next":
       nextTrack();
       return;
+    case "repeat":
+      cycleRepeat();
+      break;
     case "play":
     case "play-mini":
       e.stopPropagation();
@@ -1196,3 +1247,4 @@ async function loadLibrary() {
 
 render();
 loadLibrary();
+restoreRepeat().then(render).catch(console.error);

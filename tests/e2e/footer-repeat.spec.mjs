@@ -1,5 +1,6 @@
-// The footer Repeat button: off, Repeat queue, Repeat song, kept over a reload, and
-// what each plays when a song ends, with a song from a list going on to the next in it.
+// The footer Repeat button: off, Repeat queue, Repeat song, its caption, kept over a reload, and
+// what each plays when a song ends: a list goes on to its next song, and Repeat queue
+// loops a setlist but repeats a song from any other list.
 
 import { test, expect } from "@playwright/test";
 import { JOB_ID, SIBLING_JOB_ID, openStudio } from "./helpers.mjs";
@@ -13,8 +14,16 @@ const NEAR_END_SEC = 5;
 const RESTARTED_BEFORE_SEC = 2;
 const SONG_END_TIMEOUT_MS = 15000;
 const LABELS = Object.freeze({ off: "Repeat off", queue: "Repeat queue", song: "Repeat song" });
+const CAPTIONS = Object.freeze({ off: "Repeat", queue: "Queue", song: "Song" });
+const GERMAN_QUEUE_CAPTION = "Liste";
+const FOLDER_ID = "f-unsorted";
+const NOT_SETLISTS = Object.freeze([
+  { name: "a folder", list: { kind: "folder", id: FOLDER_ID }, studio: {} },
+  { name: "Favorites", list: { kind: "favorites" }, studio: { serverFavorites: { [JOB_ID]: true, [SIBLING_JOB_ID]: true } } },
+]);
 
 const repeatButton = (page) => page.locator("#t-repeat");
+const repeatCaption = (page) => page.locator("#t-repeat-caption");
 const engineState = (page) => page.evaluate(async () => {
   const engine = (await import("/js/state.js")).audioEngine;
   return { playing: engine.isPlaying(), at: engine.getCurrentTime() };
@@ -52,11 +61,14 @@ test("each click goes off, Repeat queue, Repeat song and off, and the state outl
   await openStudio(page);
   const button = repeatButton(page);
   await expect(button).toHaveAccessibleName(LABELS.off);
+  await expect(repeatCaption(page)).toHaveText(CAPTIONS.off);
   await button.click();
   await expect(button).toHaveAccessibleName(LABELS.queue);
+  await expect(repeatCaption(page)).toHaveText(CAPTIONS.queue);
   await expect(button).toHaveClass(/is-on/);
   await button.click();
   await expect(button).toHaveAccessibleName(LABELS.song);
+  await expect(repeatCaption(page)).toHaveText(CAPTIONS.song);
   await expect(button).toHaveAttribute("title", LABELS.song);
   await expect(button.locator(".ic-repeat-one")).toBeVisible();
   await expect(button.locator(".ic-repeat-all")).toBeHidden();
@@ -65,6 +77,14 @@ test("each click goes off, Repeat queue, Repeat song and off, and the state outl
   await repeatButton(page).click();
   await expect(repeatButton(page)).toHaveAccessibleName(LABELS.off);
   await expect(repeatButton(page)).not.toHaveClass(/is-on/);
+});
+
+test("the caption follows a language change in the state it is in", async ({ page }) => {
+  await openStudio(page);
+  await setRepeat(page, "queue");
+  await call(page, "/js/i18n.js", "setLanguage", "de");
+  await expect(repeatCaption(page)).toHaveText(GERMAN_QUEUE_CAPTION);
+  await expect(repeatCaption(page)).toHaveAttribute("data-i18n", "studio.footer.repeatCaptionQueue");
 });
 
 test("Repeat song starts the song again from the top when it ends", async ({ page }) => {
@@ -127,6 +147,23 @@ test("Repeat queue plays a setlist again from its first song after its last", as
   await setlist.play();
   await endSong(page, JOB_ID);
   await expectOpenSong(page, SIBLING_JOB_ID);
+  // The list's place moves on once the song plays; ending it sooner would read the old place.
+  await expect.poll(async () => (await engineState(page)).playing).toBe(true);
   await endSong(page, SIBLING_JOB_ID);
   await expectOpenSong(page, JOB_ID);
 });
+
+for (const { name, list, studio } of NOT_SETLISTS) {
+  test(`Repeat queue plays a song from ${name} again rather than the next in it`, async ({ page }) => {
+    await openStudio(page, studio);
+    await setRepeat(page, "queue");
+    await call(page, "/js/playContext.js", "playList", list);
+    await expectOpenSong(page, JOB_ID);
+    const nextOpens = countOpens(page, SIBLING_JOB_ID);
+    await endSong(page, JOB_ID);
+    await expect.poll(async () => (await engineState(page)).playing).toBe(true);
+    await page.waitForTimeout(SETTLE_MS);
+    expect(nextOpens.count).toBe(0);
+    expect(await openSongId(page)).toBe(JOB_ID);
+  });
+}
