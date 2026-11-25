@@ -162,7 +162,7 @@ test("a favourite played from the sidebar follows Favorites, never the non-favou
   await openStudio(page, { serverFavorites: { [SIBLING_JOB_ID]: true } });
   await startPlayback(page);
   const favorites = page.locator("#sidebarFavorites");
-  await expect(favorites.locator(`.cat-item[data-id="${JOB_ID}"]`)).toBeVisible();
+  await expect(favorites.locator(`.cat-item[data-id="${JOB_ID}"]`)).toHaveCount(0);
   await favorites.locator(`.cat-item[data-id="${SIBLING_JOB_ID}"]`).dblclick();
   await expectPlaying(page, SIBLING_JOB_ID);
   await openInspectorTab(page, "upnext");
