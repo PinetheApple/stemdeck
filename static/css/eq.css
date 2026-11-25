@@ -138,29 +138,6 @@
 }
 .eq-apply:hover { background: var(--accent-hi); }
 
-.eq-knobs {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--s-1);
-  padding: var(--s-3) var(--s-1) var(--s-2);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-3);
-  background: linear-gradient(180deg, var(--surface-3), var(--surface-2));
-  touch-action: none;
-}
-.eq-knob { display: flex; flex-direction: column; align-items: center; gap: var(--seg-inset); cursor: pointer; outline: none; border-radius: var(--r-1); }
-.eq-knob:focus-visible { box-shadow: 0 0 0 2px var(--focus-ring); }
-.eq-dragging .eq-knob { cursor: ns-resize; }
-.eq-knob-svg { display: block; }
-.eq-knob[aria-disabled="true"] { cursor: default; opacity: var(--disabled-opacity); }
-.eq-knob-track, .eq-knob-value { fill: none; stroke-width: 3; stroke-linecap: round; }
-.eq-knob-track { stroke: var(--surface-4); }
-.eq-knob-value { stroke: var(--eq-c, var(--text)); }
-.eq-knob-cap { fill: var(--surface-3); stroke: var(--line-strong); }
-.eq-knob-pointer { stroke: var(--text); stroke-width: 2; stroke-linecap: round; }
-.eq-knob-name { font: var(--fw-semibold) var(--fs-2xs) / 1 var(--font-sans); color: var(--text-2); }
-.eq-knob-val { font: var(--fs-2xs) / 1 var(--font-mono); color: var(--text-3); }
-
 .eq-lane-mark {
   position: absolute;
   top: var(--s-2);

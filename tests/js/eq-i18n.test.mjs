@@ -5,7 +5,6 @@ import { createChecker, installPageStubs } from "./fakeWebAudio.mjs";
 
 installPageStubs();
 const { LANGUAGES, TRANSLATIONS } = await import("../../static/js/i18n.js");
-const { KNOB_IDS } = await import("../../static/js/eq/eqPanelModel.js");
 const { EQ_TYPES } = await import("../../static/js/eqMath.js");
 const { check, finish } = createChecker();
 
@@ -20,7 +19,6 @@ const table = (code) => ({ ...(FALLBACK[code] ? TRANSLATIONS[FALLBACK[code]] : {
 const mayMatchEnglish = (code, key) => SAME_EVERYWHERE.has(key) || SAME_IN[code]?.has(key);
 
 check("the EQ strings are in English", keys.length > 50, String(keys.length));
-for (const id of KNOB_IDS) check(`knob ${id} has a name`, typeof en[`eq.knob.${id}`] === "string");
 for (const type of EQ_TYPES) check(`band type ${type} has a name`, typeof en[`eq.type.${type}`] === "string");
 
 for (const { code } of LANGUAGES) {

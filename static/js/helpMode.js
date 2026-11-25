@@ -129,7 +129,6 @@ const HELP = [
   ["#eqScopeMaster", "help.eqScopeMaster"],
   [".eq-power", "help.eqPower"],
   [".eq-graph", "help.eqGraph", null, "eq.title"],
-  [".eq-knob", "help.eqKnob"],
   ["#eqSuggestLane, #eqSuggestMaster", "help.eqSuggest"],
   ["#eqFlatLane, #eqFlatMaster", "help.eqFlat"],
   ["#eqGlue", "help.eqGlue", null, "eq.glue"],

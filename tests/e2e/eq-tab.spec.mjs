@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { JOB_ID, SIBLING_JOB_ID, TALL_WINDOW, openStudio, openInspectorTab } from "./helpers.mjs";
+import { EQ_ID, EQ_VERSION } from "../../static/js/eqMath.js";
 
 test.use({ viewport: TALL_WINDOW });
 
@@ -32,6 +33,29 @@ const BELL_HANDLE = 1;
 const STARTER_BELL_Q = 1;
 const WHEEL_UP = -200;
 const SETTLED_MS = 600;
+const MIX_KEY = `stemdeck:mix:${JOB_ID}`;
+const KNOB_BOOST_HZ = 132.3;
+const KNOB_BOOST_DB = 3;
+const PLAYED_TOLERANCE_DB = 0.5;
+// Legacy save: 7 fixed bands, knob state in params.ui.
+const KNOB_PANEL_EQ = {
+  id: EQ_ID,
+  v: EQ_VERSION,
+  bypass: false,
+  params: {
+    out: 0,
+    bands: [
+      { on: false, type: "lowcut", f: 10, g: 0, q: 0.707, slope: 12 },
+      { on: true, type: "lowshelf", f: 75, g: 0, q: 0.707, slope: 12 },
+      { on: true, type: "bell", f: KNOB_BOOST_HZ, g: KNOB_BOOST_DB, q: 2.5, slope: 12 },
+      { on: true, type: "bell", f: 400, g: 0, q: 2.5, slope: 12 },
+      { on: true, type: "bell", f: 1907.2, g: 0, q: 2.5, slope: 12 },
+      { on: true, type: "highshelf", f: 1000, g: 0, q: 0.707, slope: 12 },
+      { on: false, type: "highcut", f: 20000, g: 0, q: 0.707, slope: 12 },
+    ],
+    ui: { panel: "bass", c: { lf: KNOB_BOOST_HZ, lg: KNOB_BOOST_DB } },
+  },
+};
 
 const mark = (page, lane) => page.locator(`.eq-lane-mark[data-lane="${lane}"]`);
 const handles = (page) => page.locator("#eqGraphLane .eq-handle");
@@ -97,17 +121,18 @@ test.describe("EQ tab", () => {
     await expect(page.locator("#eqMasterView .eq-actions button")).toHaveCount(2);
   });
 
-  test("a lane's mark opens its EQ: drums get the graph, bass the pedal", async ({ page }) => {
+  test("a lane's mark opens its EQ, and bass gets the same graph as drums", async ({ page }) => {
     await mark(page, "bass").click();
     await expect(page.locator('.inspector-tab[data-tab="eq"]')).toHaveAttribute("aria-selected", "true");
     await expect(page.locator("#eqScopeName")).toHaveText("Bass");
-    await expect(page.locator("#eqKnobs .eq-knob")).toHaveCount(4);
-    await expect(handles(page)).toHaveCount(0);
+    await expect(page.locator("#eqLaneTitle")).toHaveText("EQ");
+    await expect(handles(page)).toHaveCount(STARTER_BANDS);
+    await expect(page.locator(".eq-knob")).toHaveCount(0);
 
     await mark(page, "drums").click();
     await expect(page.locator("#eqScopeName")).toHaveText("Drums");
+    await expect(page.locator("#eqLaneTitle")).toHaveText("Parametric EQ");
     await expect(handles(page)).toHaveCount(STARTER_BANDS);
-    await expect(page.locator("#eqKnobs")).toBeHidden();
   });
 
   test("the mark is dim while flat and turns active once a band moves", async ({ page }) => {
@@ -122,15 +147,6 @@ test.describe("EQ tab", () => {
     const eq = await laneEq(page, "drums");
     expect(eq.params.bands.some((b) => b.g > 0)).toBe(true);
     await expect(page.locator("#eqReadout")).toContainText("dB");
-  });
-
-  test("a pedal knob turns with the keyboard", async ({ page }) => {
-    await mark(page, "bass").click();
-    const low = page.locator('#eqKnobs .eq-knob[data-knob="low"]');
-    await low.focus();
-    await page.keyboard.press("ArrowUp");
-    await expect(low).toHaveAttribute("aria-valuenow", "0.5");
-    await expect(mark(page, "bass")).toHaveAttribute("data-eq", "active");
   });
 
   test("Suggest plays the fit at once; Undo goes back, Apply keeps it", async ({ page }) => {
@@ -215,21 +231,18 @@ test.describe("EQ tab", () => {
     expect(drums.params.bands[BELL_HANDLE].q).not.toBe(STARTER_BELL_Q);
   });
 
-  test("while a suggestion plays, the knobs and the power button wait", async ({ page }) => {
-    await stubSuggest(page);
+  test("a bass Suggest lands on the graph, and the power button waits while it plays", async ({ page }) => {
+    const asked = await stubSuggest(page);
     await mark(page, "bass").click();
     await page.locator("#eqSuggestLane").click();
     await expect(page.locator("#eqSuggestBar")).toBeVisible();
-    const low = page.locator('#eqKnobs .eq-knob[data-knob="low"]');
-    await expect(low).toHaveAttribute("aria-valuenow", "3");
-    await expect(low).toHaveAttribute("aria-disabled", "true");
+    expect(asked[0].searchParams.get("layout")).toBe("graph");
+    await expect(page.locator("#eqGraphLane .eq-handle.fitted")).toHaveCount(SUGGESTED_PEDAL.bands.length);
     await expect(page.locator("#eqPowerLane")).toBeDisabled();
-    await low.dispatchEvent("keydown", { key: "ArrowUp", bubbles: true });
-    await expect(low).toHaveAttribute("aria-valuenow", "3");
-    expect((await laneEq(page, "bass")).params.bands.every((b) => b.g === 0)).toBe(true);
+    expect((await laneEq(page, "bass")).params.bands).toHaveLength(0);
     await page.locator("#eqSuggestUndo").click();
-    await expect(low).not.toHaveAttribute("aria-disabled", "true");
     await expect(page.locator("#eqPowerLane")).toBeEnabled();
+    await expect(handles(page)).toHaveCount(STARTER_BANDS);
   });
 
   test("Suggest draws the target curve with its legend", async ({ page }) => {
@@ -271,4 +284,19 @@ test.describe("EQ tab", () => {
     await expect(lane).toHaveAttribute("aria-checked", "true");
     await expect(lane).toBeFocused();
   });
+});
+
+test("a bass EQ saved by the old knob panel opens in the graph and plays as before", async ({ page }) => {
+  await page.addInitScript(([key, eq]) => {
+    if (window.sessionStorage.getItem("e2e.mixes")) return;
+    window.sessionStorage.setItem("e2e.mixes", "1");
+    const bass = { volume: 1, muted: false, soloed: false, pitch: 0, fx: [eq] };
+    window.localStorage.setItem(key, JSON.stringify({ bass }));
+  }, [MIX_KEY, KNOB_PANEL_EQ]);
+  await openStudio(page);
+  await expect.poll(() => playedDb(page, "bass", KNOB_BOOST_HZ)).toBeGreaterThan(KNOB_BOOST_DB - PLAYED_TOLERANCE_DB);
+  await mark(page, "bass").click();
+  await expect(page.locator("#eqLaneTitle")).toHaveText("EQ");
+  await expect(handles(page)).toHaveCount(KNOB_PANEL_EQ.params.bands.length);
+  expect(await storedEq(page, "bass")).toEqual(KNOB_PANEL_EQ);
 });

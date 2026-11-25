@@ -6,25 +6,17 @@ import {
   fmtDb, fmtFreq, fmtQ, freqToX, hitTest, keyStep, nodeXY, parseFreq, parseNumber, plotRect, resetBand,
   retypeBand, soloEq, spectrumFrame, wheelQ, xToFreq, yToDb,
 } from "../../static/js/eq/eqGraphMath.js";
-import {
-  PEDALS, controlsFromEq, dynamicShelfFreq, hpfOn, keysDefaults, keysEq, logPos, logVal, lpfOn,
-  normalizePedal, panelEq, pedalDefaults, pedalEq, qPos, qVal,
-} from "../../static/js/eq/eqPedalMath.js";
-import { eqIsFlat, eqResponseDb, normalizeBand, normalizeEq } from "../../static/js/eqMath.js";
+import { normalizeBand } from "../../static/js/eqMath.js";
 import { createChecker, near } from "./fakeWebAudio.mjs";
 
 const { check, finish } = createChecker();
-const dbAt = (eq, f) => eqResponseDb(eq, [f], 44100)[0];
 
 {
-  check("bass: Bass EQ", panelKindFor("bass") === "bass");
-  check("guitar: Guitar EQ", panelKindFor("guitar") === "guitar");
   check("drums: Drum EQ", panelKindFor("drums") === "drum");
-  check("piano: Keys EQ", panelKindFor("piano") === "keys");
-  for (const lane of ["vocals", "lead_vocals", "backing_vocals", "original", "other"]) {
+  for (const lane of ["bass", "guitar", "piano", "vocals", "lead_vocals", "backing_vocals", "original", "other"]) {
     check(`${lane}: the general parametric EQ`, panelKindFor(lane) === "graph");
   }
-  check("no placeholder kind is offered", !PANEL_KINDS.includes("voice"));
+  check("only the graph kinds are offered", PANEL_KINDS.join() === "graph,drum");
   check("the master slot has no lane panel", !laneHasPanel("__master") && laneHasPanel("bass"));
 }
 
@@ -133,49 +125,6 @@ const dbAt = (eq, f) => eqResponseDb(eq, [f], 44100)[0];
   check("a peak falls back slowly", near(window(), -12.6, 1e-5));
   check("display tilt is negative below 1 kHz", columnBins(cols, 4096, 48000, r, 4.5).tilt[0] < -20);
   check("curve frequencies span 20 Hz to 20 kHz", near(curveFreqs(r)[0], 20, 1e-9) && near(curveFreqs(r).at(-1), 20000, 1e-6));
-}
-
-{
-  check("Q knob: 1 / 2.5 / 4", near(qVal(0), 1, 1e-12) && near(qVal(0.5), 2.5, 1e-12) && near(qVal(1), 4, 1e-12));
-  let worst = 0;
-  for (let p = 0; p <= 1.0001; p += 0.05) worst = Math.max(worst, Math.abs(qPos(qVal(p)) - p));
-  check("Q knob round trip", worst < 1e-9);
-  check("freq knob noon is the geometric middle", near(logVal(0.5, 35, 500), Math.sqrt(35 * 500), 1e-9));
-  check("freq knob round trip", near(logPos(logVal(0.3, 100, 1600), 100, 1600), 0.3, 1e-12));
-  for (const kind of ["bass", "guitar"]) {
-    const d = pedalDefaults(kind);
-    const flat = pedalEq(kind, d);
-    check(`${kind}: the starting point is flat`, eqIsFlat(flat));
-    check(`${kind}: seven bands in fixed places`,
-      flat.params.bands.map((b) => b.type).join() === "lowcut,lowshelf,bell,bell,bell,highshelf,highcut");
-    check(`${kind}: knobs ride along in params.ui`, flat.params.ui.panel === kind && flat.params.ui.c.lf === d.lf);
-    check(`${kind}: filters at their stops are off`, !hpfOn(kind, PEDALS[kind].hpf.min) && !lpfOn(kind, PEDALS[kind].lpf.max));
-    const c = normalizePedal(kind, { lf: 1, mf: 1e6, hg: 99, lq: 0, lvl: -99 });
-    check(`${kind}: knobs clamp to their ranges`, c.lf === PEDALS[kind].low.min && c.mf === PEDALS[kind].mid.max
-      && c.hg === 15 && c.lq === 1 && c.lvl === -24);
-    check(`${kind}: mid +6 boosts its frequency by 6 dB`, near(dbAt(pedalEq(kind, { ...d, mg: 6 }), d.mf), 6, 0.05));
-    check(`${kind}: the high-pass is -3 dB at its corner`, near(dbAt(pedalEq(kind, { ...d, hpf: 100 }), 100), -3.01, 0.05));
-    const level = pedalEq(kind, { ...d, lvl: 4 });
-    check(`${kind}: level is the output gain`, level.params.out === 4);
-    check(`${kind}: survives normalisation`, JSON.stringify(normalizeEq(level)) === JSON.stringify(level));
-  }
-  check("bass low shelf: 75 Hz to 400 Hz with its gain", dynamicShelfFreq(2) === 75 && dynamicShelfFreq(15) === 400
-    && dynamicShelfFreq(9) > 75 && dynamicShelfFreq(9) < 400);
-}
-
-{
-  const flat = keysEq(keysDefaults());
-  check("keys: the starting point is flat", eqIsFlat(flat));
-  check("keys: the six bands", flat.params.bands.map((b) => b.type).join() === "lowcut,lowshelf,bell,bell,highshelf,tilt");
-  const air = keysEq({ ...keysDefaults(), air: 6 });
-  check("keys: air lifts the top only", dbAt(air, 16000) > 5 && Math.abs(dbAt(air, 500)) < 0.2);
-  const tone = keysEq({ ...keysDefaults(), tone: 4 });
-  check("keys: + tone is brighter", dbAt(tone, 10000) > 1.5 && dbAt(tone, 60) < -1.5);
-  check("keys: level is clamped to +-12", keysEq({ ...keysDefaults(), lvl: 30 }).params.out === 12);
-  const saved = pedalEq("bass", { ...pedalDefaults("bass"), mg: -4 });
-  check("a panel's own save comes back as its knobs", controlsFromEq("bass", saved).mg === -4);
-  check("another panel's save shows the starting point", controlsFromEq("guitar", saved).mg === 0);
-  check("panelEq picks the keys mapping", panelEq("keys", keysDefaults()).params.ui.panel === "keys");
 }
 
 finish();

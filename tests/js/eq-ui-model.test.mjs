@@ -1,21 +1,14 @@
 // Run:  node tests/js/eq-ui-model.test.mjs
 
 import {
-  KNOB_IDS,
   MARK_STATE,
   STARTER_BANDS,
-  controlsFromSuggestion,
   createSuggestSession,
   eqFromSuggestion,
-  eqWithKnob,
   graphBands,
-  knobAngle,
-  knobDragValue,
-  knobValue,
   markPath,
   markState,
   panelTitleKey,
-  pedalKnobs,
   readoutParts,
   suggestEqUrl,
   suggestMasterUrl,
@@ -33,7 +26,7 @@ import {
   masterFromSuggestion,
   stepCeiling,
 } from "../../static/js/eq/masterPanelModel.js";
-import { eqIsFlat, eqResponseDb, flatEq, normalizeEq } from "../../static/js/eqMath.js";
+import { eqIsFlat, flatEq, normalizeEq } from "../../static/js/eqMath.js";
 import { applyPreset, normalizeMaster } from "../../static/js/masterMath.js";
 import { REFUSED_KEY, suggestErrorKey } from "../../static/js/eq/eqSuggest.js";
 import { createChecker, near } from "./fakeWebAudio.mjs";
@@ -41,6 +34,25 @@ import { createChecker, near } from "./fakeWebAudio.mjs";
 const { check, finish } = createChecker();
 const BOOST = normalizeEq({ params: { bands: [{ type: "bell", f: 500, g: 4 }] } });
 const MINUS = "−";
+// Legacy save: 7 fixed bands, knob state in params.ui.
+const KNOB_PANEL_SAVE = {
+  id: "eq",
+  v: 1,
+  bypass: false,
+  params: {
+    out: 0,
+    bands: [
+      { on: false, type: "lowcut", f: 10, g: 0, q: 0.707, slope: 12 },
+      { on: true, type: "lowshelf", f: 75, g: 0, q: 0.707, slope: 12 },
+      { on: true, type: "bell", f: 132.3, g: 3, q: 2.5, slope: 12 },
+      { on: true, type: "bell", f: 400, g: 0, q: 2.5, slope: 12 },
+      { on: true, type: "bell", f: 1907.2, g: 0, q: 2.5, slope: 12 },
+      { on: true, type: "highshelf", f: 1000, g: 4, q: 0.707, slope: 12 },
+      { on: false, type: "highcut", f: 20000, g: 0, q: 0.707, slope: 12 },
+    ],
+    ui: { panel: "bass", c: { lg: 3, hs: 4 } },
+  },
+};
 
 {
   check("a flat EQ draws a dim mark", markState(flatEq()) === MARK_STATE.flat);
@@ -62,44 +74,13 @@ const MINUS = "−";
   starter[0].g = 6;
   check("editing a starter band leaves the template alone", STARTER_BANDS[0].g === 0);
   check("a lane with bands shows its own", graphBands(BOOST).length === 1 && graphBands(BOOST)[0].f === 500);
+  const knobSaved = normalizeEq(KNOB_PANEL_SAVE);
+  check("an EQ saved by the old knob panel shows all its bands", JSON.stringify(graphBands(knobSaved)) === JSON.stringify(knobSaved.params.bands));
 }
 
 {
   check("drums: Parametric EQ", panelTitleKey("drum") === "eq.parametric");
   check("general lanes: EQ", panelTitleKey("graph") === "eq.title");
-  check("bass: Bass EQ", panelTitleKey("bass") === "eq.bassEq");
-  check("piano: Keys EQ", panelTitleKey("keys") === "eq.keysEq");
-}
-
-for (const kind of ["bass", "guitar", "keys"]) {
-  const knobs = pedalKnobs(kind);
-  check(`${kind}: Low, Mid, High and Presence`, knobs.map((k) => k.id).join() === KNOB_IDS.join());
-  check(`${kind}: every knob is centred on 0 dB`, knobs.every((k) => k.min === -k.max && k.max > 0));
-  let eq = flatEq();
-  check(`${kind}: knobs start at 0`, KNOB_IDS.every((id) => knobValue(kind, eq, id) === 0));
-  eq = eqWithKnob(kind, eq, "low", 3);
-  eq = eqWithKnob(kind, eq, "presence", 4);
-  check(`${kind}: a turned knob reads back`, knobValue(kind, eq, "low") === 3 && knobValue(kind, eq, "presence") === 4);
-  check(`${kind}: the other knobs stay put`, knobValue(kind, eq, "mid") === 0);
-  check(`${kind}: turning knobs changes the sound`, !eqIsFlat(eq));
-  const top = knobs.find((k) => k.id === "high").max;
-  check(`${kind}: a knob stops at its range`, knobValue(kind, eqWithKnob(kind, eq, "high", 99), "high") === top);
-  check(`${kind}: bypass survives a knob turn`, eqWithKnob(kind, { ...eq, bypass: true }, "mid", 1).bypass === true);
-}
-
-{
-  check("low and presence pull opposite ends of the bass pedal", (() => {
-    const eq = eqWithKnob("bass", eqWithKnob("bass", flatEq(), "low", 6), "presence", -6);
-    const [lo, hi] = eqResponseDb(eq, [132, 8000], 44100);
-    return lo > 2 && hi < -2;
-  })());
-  check("0 dB points straight up", knobAngle(0, -12, 12) === 0);
-  check("full boost is the end of the sweep", knobAngle(12, -12, 12) === 135);
-  check("full cut is the start of the sweep", knobAngle(-12, -12, 12) === -135);
-  check("dragging up raises the value", knobDragValue(0, -30, -12, 12) > 0);
-  check("a drag stops at the range", knobDragValue(0, -10000, -12, 12) === 12);
-  check("fine drags move less", knobDragValue(0, -30, -12, 12, true) < knobDragValue(0, -30, -12, 12));
-  check("drag values land on half dB steps", Number.isInteger(knobDragValue(0, -37, -12, 12) * 2));
 }
 
 {
@@ -151,7 +132,7 @@ for (const kind of ["bass", "guitar", "keys"]) {
 
 {
   const body = { bands: [{ type: "bell", f: 310, g: -3, q: 1.4, slope: 12 }], out: 0.5 };
-  const eq = eqFromSuggestion(body, "drum");
+  const eq = eqFromSuggestion(body);
   check("a graph suggestion becomes the lane's bands", eq.params.bands.length === 1 && eq.params.out === 0.5);
   check("a suggestion is never bypassed", eq.bypass === false);
   check("suggested bands are switched on", eq.params.bands.every((b) => b.on === true));
@@ -165,15 +146,10 @@ for (const kind of ["bass", "guitar", "keys"]) {
     ],
     out: -1,
   };
-  const c = controlsFromSuggestion("bass", pedal);
-  check("a pedal suggestion turns the knobs by slot", c.lg === 3 && c.mg === -2 && c.hg === 1.5 && c.hs === 4 && c.lvl === -1);
-  check("a slot sets its frequency too", c.lf === 132 && c.hpf === 40);
-  const pedalEq = eqFromSuggestion(pedal, "bass");
-  check("a pedal suggestion reads back on its knobs", knobValue("bass", pedalEq, "presence") === 4);
-  check("a band with no slot is ignored", controlsFromSuggestion("bass", { bands: [{ type: "bell", g: 9, slot: null }] }).lg === 0);
-  const keys = controlsFromSuggestion("keys", { bands: [{ type: "bell", f: 3000, g: 2, slot: "presence" }] });
-  check("keys slots land on the keys controls", keys.presence === 2 && keys.presF === 3000);
-  check("a malformed answer reads flat", eqIsFlat(eqFromSuggestion({ bands: "x" }, "graph")));
+  const slotted = eqFromSuggestion(pedal);
+  check("a bass answer's slotted bands become graph bands", slotted.params.bands.map((b) => b.f).join() === "40,132,400,1900,1000"
+    && slotted.params.out === -1 && slotted.params.bands.every((b) => !("slot" in b)));
+  check("a malformed answer reads flat", eqIsFlat(eqFromSuggestion({ bands: "x" })));
 }
 
 {
