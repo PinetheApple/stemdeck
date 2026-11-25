@@ -58,11 +58,10 @@ export async function playList({ kind, id = "" }) {
   return true;
 }
 
-export function hasPlayList() {
-  return list.kind !== null;
+export function hasPlayableList() {
+  return list.kind !== null && listSongs(list.kind, list.id).some(isPlayableTrack);
 }
 
-/** The list plays again from its first playable song. */
 export function playListAgain() {
   return playList(list);
 }
