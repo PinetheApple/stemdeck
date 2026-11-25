@@ -116,10 +116,11 @@ export class EqLaneView {
   #onSuggestClick() {
     if (!currentJobId) return;
     const lane = this.#lane;
+    const kind = this.#kind;
     const job = currentJobId;
     this.#suggest.ask({
       key: lane,
-      url: suggestEqUrl(job, lane),
+      url: suggestEqUrl(job, lane, kind),
       current: () => job === currentJobId && lane === this.#lane,
       toSuggested: eqFromSuggestion,
     });

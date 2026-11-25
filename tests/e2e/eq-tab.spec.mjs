@@ -37,7 +37,7 @@ const MIX_KEY = `stemdeck:mix:${JOB_ID}`;
 const KNOB_BOOST_HZ = 132.3;
 const KNOB_BOOST_DB = 3;
 const PLAYED_TOLERANCE_DB = 0.5;
-// As the removed Bass EQ knob panel saved it: seven fixed bands plus its knob state in params.ui.
+// Legacy save: 7 fixed bands, knob state in params.ui.
 const KNOB_PANEL_EQ = {
   id: EQ_ID,
   v: EQ_VERSION,
@@ -156,7 +156,7 @@ test.describe("EQ tab", () => {
     await page.locator("#eqSuggestLane").click();
     await expect(page.locator("#eqSuggestBar")).toBeVisible();
     expect(asked[0].searchParams.get("lane")).toBe("drums");
-    expect(asked[0].searchParams.has("layout")).toBe(false);
+    expect(asked[0].searchParams.get("layout")).toBe("drum");
     await expect(page.locator("#eqGraphLane .eq-handle.fitted")).toHaveCount(SUGGESTED.bands.length);
     await expect.poll(() => playedDb(page, "drums", SUGGESTED_HZ)).toBeLessThan(PLAYED_DB);
     expect((await laneEq(page, "drums")).params.bands).toHaveLength(0);
@@ -236,7 +236,7 @@ test.describe("EQ tab", () => {
     await mark(page, "bass").click();
     await page.locator("#eqSuggestLane").click();
     await expect(page.locator("#eqSuggestBar")).toBeVisible();
-    expect(asked[0].searchParams.has("layout")).toBe(false);
+    expect(asked[0].searchParams.get("layout")).toBe("graph");
     await expect(page.locator("#eqGraphLane .eq-handle.fitted")).toHaveCount(SUGGESTED_PEDAL.bands.length);
     await expect(page.locator("#eqPowerLane")).toBeDisabled();
     expect((await laneEq(page, "bass")).params.bands).toHaveLength(0);

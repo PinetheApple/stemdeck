@@ -34,7 +34,7 @@ import { createChecker, near } from "./fakeWebAudio.mjs";
 const { check, finish } = createChecker();
 const BOOST = normalizeEq({ params: { bands: [{ type: "bell", f: 500, g: 4 }] } });
 const MINUS = "−";
-// As the removed Bass EQ knob panel stored it: seven fixed bands plus its knob state in params.ui.
+// Legacy save: 7 fixed bands, knob state in params.ui.
 const KNOB_PANEL_SAVE = {
   id: "eq",
   v: 1,
@@ -94,10 +94,10 @@ const KNOB_PANEL_SAVE = {
 }
 
 {
-  const url = suggestEqUrl("e2e0deadbeef", "bass");
-  check("lane suggest asks for the lane and leaves the layout to it", url.startsWith("/api/jobs/e2e0deadbeef/suggest/eq?")
-    && new URL(url, "http://x").searchParams.get("lane") === "bass"
-    && !new URL(url, "http://x").searchParams.has("layout"));
+  const url = suggestEqUrl("e2e0deadbeef", "drums", "drum");
+  check("lane suggest asks for the lane and its layout", url.startsWith("/api/jobs/e2e0deadbeef/suggest/eq?")
+    && new URL(url, "http://x").searchParams.get("lane") === "drums"
+    && new URL(url, "http://x").searchParams.get("layout") === "drum");
   check("lane suggest replaces the EQ", new URL(url, "http://x").searchParams.get("mode") === "replace");
 }
 

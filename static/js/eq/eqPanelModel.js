@@ -65,8 +65,8 @@ export function readoutParts(band) {
 
 const SUGGEST_MODE = "replace";
 
-export function suggestEqUrl(jobId, lane) {
-  const q = new URLSearchParams({ lane, mode: SUGGEST_MODE });
+export function suggestEqUrl(jobId, lane, kind) {
+  const q = new URLSearchParams({ lane, layout: kind, mode: SUGGEST_MODE });
   return `/api/jobs/${jobId}/suggest/eq?${q}`;
 }
 
