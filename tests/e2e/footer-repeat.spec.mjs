@@ -24,6 +24,7 @@ const NOT_SETLISTS = Object.freeze([
 
 const repeatButton = (page) => page.locator("#t-repeat");
 const repeatCaption = (page) => page.locator("#t-repeat-caption");
+const repeatCell = (page) => page.locator("#footerRepeat");
 const engineState = (page) => page.evaluate(async () => {
   const engine = (await import("/js/state.js")).audioEngine;
   return { playing: engine.isPlaying(), at: engine.getCurrentTime() };
@@ -65,7 +66,7 @@ test("each click goes off, Repeat queue, Repeat song and off, and the state outl
   await button.click();
   await expect(button).toHaveAccessibleName(LABELS.queue);
   await expect(repeatCaption(page)).toHaveText(CAPTIONS.queue);
-  await expect(button).toHaveClass(/is-on/);
+  await expect(repeatCell(page)).toHaveClass(/is-on/);
   await button.click();
   await expect(button).toHaveAccessibleName(LABELS.song);
   await expect(repeatCaption(page)).toHaveText(CAPTIONS.song);
@@ -76,7 +77,17 @@ test("each click goes off, Repeat queue, Repeat song and off, and the state outl
   await expect(repeatButton(page)).toHaveAccessibleName(LABELS.song);
   await repeatButton(page).click();
   await expect(repeatButton(page)).toHaveAccessibleName(LABELS.off);
-  await expect(repeatButton(page)).not.toHaveClass(/is-on/);
+  await expect(repeatCell(page)).not.toHaveClass(/is-on/);
+});
+
+test("Repeat is the practice group's first cell, just left of Loop, and out of the transport", async ({ page }) => {
+  await openStudio(page);
+  await expect(page.locator(".ft-practice > :first-child")).toHaveId("footerRepeat");
+  await expect(page.locator("#footerRepeat + .ft-seg")).toHaveId("footerLoop");
+  await expect(page.locator(".ft-buttons #t-repeat")).toHaveCount(0);
+  const [repeat, loop] = await Promise.all([repeatButton(page).boundingBox(), page.locator("#t-loop").boundingBox()]);
+  expect(repeat.height).toBe(loop.height);
+  expect(repeat.x + repeat.width).toBeLessThanOrEqual(loop.x);
 });
 
 test("the caption follows a language change in the state it is in", async ({ page }) => {

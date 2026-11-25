@@ -51,7 +51,7 @@ function paintRepeatButton() {
   button.dataset.repeat = mode;
   button.dataset.i18nTitle = key;
   button.dataset.i18nAriaLabel = key;
-  button.classList.toggle(ON_CLASS, mode !== REPEAT.OFF);
+  button.closest(".ft-seg")?.classList.toggle(ON_CLASS, mode !== REPEAT.OFF);
   button.title = label;
   button.setAttribute("aria-label", label);
   const captionEl = $(CAPTION_ID);

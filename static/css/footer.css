@@ -8,7 +8,6 @@
   --ft-practice-h: 52px;
   --ft-seg-min-w: 64px;
   --ft-step-value-w: 52px;
-  --ft-capbtn-min-w: 52px;
   --ft-more: 18px;
   --ft-more-ic: 12px;
   flex: 1;
@@ -89,24 +88,6 @@ button.ft-now:hover { background: var(--surface-2); }
 .ft-iconbtn .ic { width: var(--icon); height: var(--icon); }
 .ft-iconbtn.is-on,
 .ft-iconbtn.is-on:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent-hi); }
-/* An icon over its caption, as the practice group's buttons, at the play button's height. */
-.ft-capbtn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--s-0);
-  width: auto;
-  min-width: var(--ft-capbtn-min-w);
-  height: var(--ft-play);
-  padding: 0 var(--s-2);
-  border-radius: var(--r-2);
-  font-size: var(--fs-2xs);
-  font-weight: var(--fw-semibold);
-  white-space: nowrap;
-}
-#t-repeat[data-repeat="song"] .ic-repeat-all,
-#t-repeat:not([data-repeat="song"]) .ic-repeat-one { display: none; }
 #t-stop.stopped { background: none; color: var(--text-2); }
 .ft-buttons .daw-play-btn {
   display: grid;
@@ -231,6 +212,8 @@ button.ft-now:hover { background: var(--surface-2); }
 .ft-seg-more:hover,
 .ft-seg-more[aria-expanded="true"] { background: var(--surface-3); color: var(--text); }
 .ft-more-ic { width: var(--ft-more-ic); height: var(--ft-more-ic); }
+#t-repeat[data-repeat="song"] .ic-repeat-all,
+#t-repeat:not([data-repeat="song"]) .ic-repeat-one { display: none; }
 .ft-seg.is-on,
 .ft-step.is-on { background: var(--accent-soft); color: var(--accent-hi); }
 .ft-step.is-on .ft-step-value b,
